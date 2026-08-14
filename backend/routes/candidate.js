@@ -74,6 +74,30 @@ router.post("/upload/video", upload.single("video"), async (req, res) => {
   res.json({ videoUrl: fileUrl, candidate });
 });
 
+// POST /api/candidate/upload/doc/:n - generic per-stage document upload.
+// Reuses the same multer/disk-storage pattern as the video upload above.
+// Used by: Stage 1 (Aadhaar e-KYC document), Stage 3 (certificate PDF/image),
+// Stage 6 (academy live-chart log PDF/Excel). Does NOT mark the stage complete
+// by itself — the stage's own "Save & continue" (PUT /stage/:n) does that,
+// since the document is one field among several on that stage's form.
+router.post("/upload/doc/:n", upload.single("doc"), async (req, res) => {
+  const stageNum = Number(req.params.n);
+  if (!VALID_STAGES.includes(stageNum)) {
+    return res.status(400).json({ message: "Invalid stage number." });
+  }
+  if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+
+  const candidate = await Candidate.findById(req.candidateId);
+  if (!candidate) return res.status(404).json({ message: "Not found." });
+
+  const fileUrl = `/uploads/${req.candidateId}/${req.file.filename}`;
+  const key = `stage${stageNum}`;
+  candidate[key] = { ...(candidate[key] || {}), docUrl: fileUrl, docName: req.file.originalname };
+  await candidate.save();
+
+  res.json({ docUrl: fileUrl, docName: req.file.originalname, candidate });
+});
+
 // GET /api/candidate/resume-data - locked, verified data the resume templates read from
 // (Stage 7 does NOT accept uploads by design - see handoff doc section 5)
 router.get("/resume-data", async (req, res) => {

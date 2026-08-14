@@ -1,28 +1,60 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
+import { useToast } from "../components/Toast.jsx";
 
 export default function ForCompanies() {
   const navigate = useNavigate();
+  const { register, login } = useCompanyAuth();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState("register");
-  
+  const [submitting, setSubmitting] = useState(false);
+
   // Registration Form State
   const [regName, setRegName] = useState("");
   const [regMobile, setRegMobile] = useState("");
   const [regCompany, setRegCompany] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
 
   // Login Form State
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  const handleSubmitReg = (e) => {
+  const handleSubmitReg = async (e) => {
     e.preventDefault();
-    navigate("/companies/dashboard");
+    if (regPassword.length < 6) {
+      toast("Password must be at least 6 characters.", "!");
+      return;
+    }
+    if (regPassword !== regPasswordConfirm) {
+      toast("Passwords don't match.", "!");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await register(regName, regMobile, regCompany, regEmail, regPassword);
+      toast("Account created — let's get you set up.", "✓");
+      navigate("/companies/onboarding");
+    } catch (err) {
+      toast(err.response?.data?.message || "Couldn't create your account. Please try again.", "!");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleSubmitLogin = (e) => {
+  const handleSubmitLogin = async (e) => {
     e.preventDefault();
-    navigate("/companies/dashboard");
+    setSubmitting(true);
+    try {
+      await login(loginEmail, loginPassword);
+      navigate("/companies/onboarding");
+    } catch (err) {
+      toast(err.response?.data?.message || "Invalid email or password.", "!");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -185,8 +217,34 @@ export default function ForCompanies() {
                   />
                 </div>
 
-                <button type="submit" className="cauth-btn">
-                  Send OTP →
+                {/* Password */}
+                <div className="cauth-field">
+                  <label className="cauth-label">PASSWORD</label>
+                  <input
+                    type="password"
+                    className="cauth-input"
+                    placeholder="At least 6 characters"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {/* Confirm Password */}
+                <div className="cauth-field">
+                  <label className="cauth-label">CONFIRM PASSWORD</label>
+                  <input
+                    type="password"
+                    className="cauth-input"
+                    placeholder="••••••••"
+                    value={regPasswordConfirm}
+                    onChange={(e) => setRegPasswordConfirm(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="cauth-btn" disabled={submitting}>
+                  {submitting ? "Creating account…" : "Create hiring account →"}
                 </button>
 
                 <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "#64748B" }}>
@@ -234,8 +292,8 @@ export default function ForCompanies() {
                   />
                 </div>
 
-                <button type="submit" className="cauth-btn">
-                  Sign in to Portal →
+                <button type="submit" className="cauth-btn" disabled={submitting}>
+                  {submitting ? "Signing in…" : "Sign in to Portal →"}
                 </button>
 
                 <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "#64748B" }}>

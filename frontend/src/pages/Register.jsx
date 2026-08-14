@@ -84,13 +84,8 @@ export default function Register() {
         }}
       >
         {/* Brand Logo Header */}
-        <div style={{ textAlign: "center", marginBottom: 24 }} onClick={() => navigate("/")}>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24, color: "#FAF7F0", letterSpacing: "0.02em", cursor: "pointer" }}>
-            TALENT<span style={{ color: "#E5A82E" }}>ERA</span>
-          </div>
-          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "rgba(255,255,255,0.5)", letterSpacing: "0.2em", marginTop: 4 }}>
-            THE ERA OF TALENT BEGINS HERE
-          </div>
+        <div style={{ textAlign: "center", marginBottom: 24, cursor: "pointer" }} onClick={() => navigate("/")}>
+          <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
         </div>
 
         {/* Title & Subtitle */}

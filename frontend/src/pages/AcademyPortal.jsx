@@ -55,10 +55,8 @@ export default function AcademyPortal() {
     <div style={{ minHeight: "100vh", background: "#F4F6FA" }}>
       {/* Top Bar */}
       <nav style={{ background: "var(--navy)", padding: "14px 24px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 20 }}>
-            TALENT<span style={{ color: "var(--gold)" }}>ERA</span>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => navigate("/")}>
+          <img src="/logo.png" alt="Talentera" style={{ height: 26, width: "auto" }} />
           <span style={{ background: "rgba(229,168,46,0.15)", color: "var(--gold)", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
             ACADEMY PARTNER PORTAL
           </span>

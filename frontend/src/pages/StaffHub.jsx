@@ -51,15 +51,10 @@ export default function StaffHub() {
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", minHeight: "100vh" }}>
         {/* Dark Navy Sidebar */}
         <aside style={{ background: "linear-gradient(180deg, #06152A 0%, #0A1F3D 100%)", color: "#fff", padding: 20, borderRight: "1px solid rgba(229,168,46,0.15)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, paddingBottom: 18, borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 18 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--gold)", color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, fontFamily: "var(--font-display)" }}>
-              TS
-            </div>
+          <div style={{ display: "flex", alignItems: "center", paddingBottom: 18, borderBottom: "1px solid rgba(255,255,255,0.08)", marginBottom: 18 }}>
             <div>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16 }}>
-                TALENT<span style={{ color: "var(--gold)" }}>ERA</span>
-              </div>
-              <div style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: "0.14em", fontWeight: 700 }}>
+              <img src="/logo.png" alt="Talentera" style={{ height: 30, width: "auto" }} />
+              <div style={{ fontSize: 9, color: "var(--gold-light)", letterSpacing: "0.14em", fontWeight: 700, marginTop: 4 }}>
                 OPERATIONS HUB
               </div>
             </div>

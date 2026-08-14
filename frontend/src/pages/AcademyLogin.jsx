@@ -119,16 +119,9 @@ export default function AcademyLogin() {
           zIndex: 10
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => navigate("/")}>
-          <svg width="40" height="40" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 8H46V18H32V44H20V18H6V8Z" fill="#E5A82E" />
-            <path d="M6 8L20 18V44L6 34V8Z" fill="#FFFFFF" />
-            <path d="M32 8L46 18H32V8Z" fill="#F5C95B" />
-          </svg>
+        <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
           <div>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24, color: "#fff", lineHeight: 1 }}>
-              TALENT<span style={{ color: "var(--gold)" }}>ERA</span>
-            </div>
+            <img src="/logo.png" alt="Talentera" style={{ height: 40, width: "auto" }} />
             <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold-light)", marginTop: 4 }}>
               ACADEMY PARTNER PORTAL
             </div>

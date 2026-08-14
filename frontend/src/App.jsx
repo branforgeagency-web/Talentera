@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
+import CandidateWizard from "./pages/CandidateWizard.jsx";
 import ForCompanies from "./pages/ForCompanies.jsx";
 import CompanyRegister from "./pages/CompanyRegister.jsx";
 import CompanyPortal from "./pages/CompanyPortal.jsx";
@@ -14,6 +14,7 @@ import StaffLogin from "./pages/StaffLogin.jsx";
 import StaffHub from "./pages/StaffHub.jsx";
 import ResumeBuilder from "./pages/ResumeBuilder.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
+import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 
 export default function App() {
   return (
@@ -23,8 +24,22 @@ export default function App() {
 
       {/* 02. For Companies / Hire Talent Section */}
       <Route path="/companies" element={<ForCompanies />} />
-      <Route path="/companies/dashboard" element={<CompanyDashboardSetup />} />
-      <Route path="/companies/onboarding" element={<CompanyDashboardSetup />} />
+      <Route
+        path="/companies/dashboard"
+        element={
+          <CompanyRequireAuth>
+            <CompanyDashboardSetup />
+          </CompanyRequireAuth>
+        }
+      />
+      <Route
+        path="/companies/onboarding"
+        element={
+          <CompanyRequireAuth>
+            <CompanyDashboardSetup />
+          </CompanyRequireAuth>
+        }
+      />
       <Route path="/companies/register" element={<CompanyRegister />} />
       <Route path="/companies/directory" element={<CompanyPortal />} />
 
@@ -35,7 +50,7 @@ export default function App() {
         path="/dashboard/*"
         element={
           <RequireAuth>
-            <Dashboard />
+            <CandidateWizard />
           </RequireAuth>
         }
       />

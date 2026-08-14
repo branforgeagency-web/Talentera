@@ -151,20 +151,8 @@ export default function Landing() {
       <header className="nav" style={{ background: "var(--navy)", borderBottom: "1px solid var(--border-dark)", position: "sticky", top: 0, zIndex: 100 }}>
         <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px" }}>
           {/* Logo Block */}
-          <div style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }} onClick={() => navigate("/")}>
-            <svg width="44" height="44" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 8H46V18H32V44H20V18H6V8Z" fill="#E5A82E"/>
-              <path d="M6 8L20 18V44L6 34V8Z" fill="#FFFFFF"/>
-              <path d="M32 8L46 18H32V8Z" fill="#F5C95B"/>
-            </svg>
-            <div>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 26, color: "#fff", lineHeight: 1, letterSpacing: "0.02em" }}>
-                TALENT<span style={{ color: "var(--gold)" }}>ERA</span>
-              </div>
-              <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 9, letterSpacing: "0.18em", color: "var(--text-light)", marginTop: 4 }}>
-                THE ERA OF TALENT BEGINS HERE
-              </div>
-            </div>
+          <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
+            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 44, width: "auto" }} />
           </div>
 
           {/* Center Links */}

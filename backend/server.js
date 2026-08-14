@@ -9,6 +9,8 @@ const candidateRoutes = require("./routes/candidate");
 const publicRoutes = require("./routes/public");
 const academyRoutes = require("./routes/academy");
 const staffRoutes = require("./routes/staff");
+const companyAuthRoutes = require("./routes/companyAuth");
+const companyRoutes = require("./routes/company");
 
 const app = express();
 
@@ -26,6 +28,8 @@ app.use("/api/candidate", candidateRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/academy", academyRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/company/auth", companyAuthRoutes);
+app.use("/api/company", companyRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
