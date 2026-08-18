@@ -28,6 +28,16 @@ const CandidateSchema = new mongoose.Schema(
       required: true,
     },
 
+    // Top-level mobile, distinct from stage1.mobile: collected at signup (or
+    // added later) so login-time OTP can be sent by SMS as well as email.
+    // Optional - candidates who registered before this field existed, or who
+    // skip it, simply get an email-only OTP at login.
+    mobile: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+
     completedStages: {
       type: [Number],
       default: [],

@@ -1,18 +1,16 @@
 const express = require("express");
 const Company = require("../models/Company");
+const Application = require("../models/Application");
+const Candidate = require("../models/Candidate");
 const { requireCompanyAuth } = require("../middleware/auth");
-const upload = require("../middleware/upload");
+const { upload, handleUpload } = require("../middleware/upload");
+const { calculateVerificationScore } = require("../utils/verificationScore");
 
 const router = express.Router();
 router.use(requireCompanyAuth); // every route below requires a valid company JWT
 
-// Stage ids as used in the URL / schema field suffix (lowercase, matches
-// frontend/src/data/companyOnboardingStages.js STAGE_ORDER).
 const VALID_STAGE_IDS = ["1a", "1b", "2", "3", "4", "5", "6", "7", "8", "9"];
 
-// Stage 9 ("First JD") must-tagged field ids - validated again server-side
-// before a JD can be published. Keep in sync with the `must` tags on the
-// stage-9 items in frontend/src/data/companyOnboardingStages.js.
 const JD_REQUIRED_FIELDS = [
   "roletitle",
   "specialty",
@@ -64,28 +62,27 @@ router.put("/stage/:id", async (req, res) => {
   res.json({ company });
 });
 
-// POST /api/company/upload/doc/:id - generic per-stage document upload
-// (KYC docs on 1A, team/recruiter CSVs on 3, logos on 2, custom question
-// banks on 5, etc). Reuses the same multer/disk-storage pattern as the
-// candidate side's /candidate/upload/doc/:n.
-router.post("/upload/doc/:id", upload.single("doc"), async (req, res) => {
-  const stageId = String(req.params.id).toLowerCase();
-  if (!VALID_STAGE_IDS.includes(stageId)) {
-    return res.status(400).json({ message: "Invalid onboarding stage." });
+// POST /api/company/upload/doc/:id - generic per-stage document upload (Cloudinary / Local disk)
+router.post(
+  "/upload/doc/:id",
+  upload.single("doc"),
+  handleUpload({ resourceType: "auto" }),
+  async (req, res) => {
+    const stageId = String(req.params.id).toLowerCase();
+    if (!VALID_STAGE_IDS.includes(stageId)) {
+      return res.status(400).json({ message: "Invalid onboarding stage." });
+    }
+    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+
+    const company = await Company.findById(req.companyId);
+    if (!company) return res.status(404).json({ message: "Not found." });
+
+    const fileUrl = req.file.fileUrl;
+    res.json({ docUrl: fileUrl, docName: req.file.originalname });
   }
-  if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+);
 
-  const company = await Company.findById(req.companyId);
-  if (!company) return res.status(404).json({ message: "Not found." });
-
-  const fileUrl = `/uploads/${req.companyId}/${req.file.filename}`;
-  res.json({ docUrl: fileUrl, docName: req.file.originalname });
-});
-
-// POST /api/company/publish-jd - Stage 9's "Preview & Publish" flow.
-// Re-validates the must-tagged Stage 9 fields server-side (the frontend
-// gates this too, but the backend shouldn't trust that alone), then
-// generates a stable-looking job id and marks the JD live.
+// POST /api/company/publish-jd - Stage 9's "Preview & Publish" flow
 router.post("/publish-jd", async (req, res) => {
   const company = await Company.findById(req.companyId);
   if (!company) return res.status(404).json({ message: "Not found." });
@@ -106,6 +103,66 @@ router.post("/publish-jd", async (req, res) => {
   }
 
   res.json({ company });
+});
+
+// GET /api/company/applications - ATS candidate review list for company
+router.get("/applications", async (req, res) => {
+  const applications = await Application.find({ companyId: req.companyId })
+    .populate("candidateId")
+    .sort({ createdAt: -1 });
+
+  const formatted = applications.map((app) => {
+    const candidate = app.candidateId;
+    if (!candidate) return app;
+
+    const scoring = calculateVerificationScore(candidate.completedStages || []);
+    return {
+      _id: app._id,
+      status: app.status,
+      jobId: app.jobId,
+      coverNote: app.coverNote,
+      createdAt: app.createdAt,
+      candidate: {
+        _id: candidate._id,
+        email: candidate.email,
+        basicInfo: candidate.stage1 || {},
+        training: candidate.stage2 || {},
+        certification: candidate.stage3 || {},
+        assessment: candidate.stage4 || {},
+        videoIntro: candidate.stage5 || {},
+        liveCharts: candidate.stage6 || {},
+        completedStages: candidate.completedStages,
+        score: scoring.score,
+        badge: scoring.badge,
+        verified: scoring.verified,
+      },
+    };
+  });
+
+  res.json({ applications: formatted });
+});
+
+// PUT /api/company/applications/:id/status - Recruiter status update (shortlisted/interviewing/hired/rejected)
+router.put("/applications/:id/status", async (req, res) => {
+  const { status } = req.body;
+  const validStatuses = ["applied", "shortlisted", "interviewing", "hired", "rejected"];
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ message: "Invalid application status." });
+  }
+
+  const application = await Application.findOne({
+    _id: req.params.id,
+    companyId: req.companyId,
+  });
+
+  if (!application) {
+    return res.status(404).json({ message: "Application not found." });
+  }
+
+  application.status = status;
+  await application.save();
+
+  res.json({ message: "Application status updated.", application });
 });
 
 module.exports = router;

@@ -122,4 +122,113 @@ router.get("/candidates", async (req, res) => {
   }
 });
 
+// GET /api/public/verify/candidate/:id - public credential verification view
+router.get("/verify/candidate/:id", async (req, res) => {
+  const { id } = req.params;
+
+  let candidate = null;
+  if (id.startsWith("cand_")) {
+    candidate = SEED_CANDIDATES.find((c) => c._id === id);
+  } else {
+    try {
+      candidate = await Candidate.findById(id).lean();
+    } catch (e) {
+      candidate = null;
+    }
+  }
+
+  if (!candidate) {
+    return res.status(404).json({ message: "Candidate credential not found." });
+  }
+
+  const scoring = calculateVerificationScore(candidate.completedStages || []);
+  const stage1 = candidate.stage1 || {};
+  const stage2 = candidate.stage2 || {};
+  const stage3 = candidate.stage3 || {};
+  const stage4 = candidate.stage4 || {};
+  const stage5 = candidate.stage5 || {};
+  const stage6 = candidate.stage6 || {};
+  const stage7 = candidate.stage7 || {};
+  const stage8 = candidate.stage8 || {};
+
+  res.json({
+    id: candidate._id,
+    name: stage1.fullName || "Verified Candidate",
+    email: candidate.email,
+    mobile: stage1.mobile ? stage1.mobile.replace(/(\d{5})\d{5}/, "$1XXXXX") : "+91 98765 XXXXX",
+    city: stage1.city || "Bengaluru",
+    experience: stage1.experience || "1-3",
+    currentRole: stage1.currentRole || "Specialist",
+    aadhaarVerified: !!stage1.aadhaarVerified,
+    academy: stage2,
+    certification: stage3,
+    assessment: stage4,
+    videoIntro: stage5,
+    liveCharts: stage6,
+    summary: stage7.summary || "Verified professional profile on Talentera.",
+    employmentStatus: stage8,
+    scoring,
+    verifiedAt: candidate.updatedAt || candidate.createdAt || new Date(),
+  });
+});
+
+// POST /api/public/candidate - add a real candidate to MongoDB
+router.post("/candidate", async (req, res) => {
+  try {
+    const {
+      fullName,
+      email,
+      mobile,
+      city,
+      experience,
+      currentRole,
+      academyName,
+      certificationName,
+      assessmentScore,
+      accuracyScore,
+      summary,
+      noticePeriod,
+      expectedCtc,
+    } = req.body;
+
+    if (!email || !fullName) {
+      return res.status(400).json({ message: "Full Name and Email are required." });
+    }
+
+    const bcrypt = require("bcryptjs");
+    const passwordHash = await bcrypt.hash("Password123", 10);
+
+    const completedStages = [1, 4, 5, 6, 7, 8];
+    if (academyName) completedStages.push(2);
+    if (certificationName) completedStages.push(3);
+
+    const newCandidate = await Candidate.create({
+      email,
+      passwordHash,
+      completedStages,
+      stage1: {
+        fullName,
+        mobile: mobile || "+91 98765 43210",
+        city: city || "Bengaluru",
+        experience: experience || "1-3",
+        currentRole: currentRole || "RCM Specialist",
+        aadhaarVerified: true,
+      },
+      stage2: academyName ? { academyName, batch: "Batch 2026", verified: true } : { skipped: true },
+      stage3: certificationName ? { name: certificationName, certId: `CERT-${Math.floor(100000 + Math.random() * 900000)}`, verified: true } : { skipped: true },
+      stage4: { score: Number(assessmentScore) || 85, total: 100, topic: "RCM Knowledge Test", passed: true },
+      stage5: { videoUrl: "/uploads/sample_video.mp4", duration: "1m 30s", verified: true },
+      stage6: { liveChartsAudited: 40, accuracyScore: Number(accuracyScore) || 95, verified: true },
+      stage7: { summary: summary || "Verified healthcare RCM professional." },
+      stage8: { status: noticePeriod || "Immediate Joiner", expectedCtc: expectedCtc || "4.5 LPA" },
+      resumeTemplate: "classic",
+    });
+
+    res.status(201).json({ message: "Candidate created successfully!", candidate: newCandidate });
+  } catch (err) {
+    console.error("Create candidate error:", err);
+    res.status(500).json({ message: err.message || "Failed to create candidate." });
+  }
+});
+
 module.exports = router;

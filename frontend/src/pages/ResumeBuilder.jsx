@@ -12,6 +12,7 @@ const TEMPLATES = {
 export default function ResumeBuilder() {
   const [data, setData] = useState(null);
   const [template, setTemplate] = useState("classic");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     api.get("/candidate/resume-data").then((res) => {
@@ -29,6 +30,15 @@ export default function ResumeBuilder() {
     window.print();
   }
 
+  function handleCopyVerifyLink() {
+    if (!data) return;
+    const cid = data.id || data._id;
+    const verifyUrl = `${window.location.origin}/verify/${cid}`;
+    navigator.clipboard.writeText(verifyUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   if (!data) return <div style={{ padding: 40, textAlign: "center" }}>Loading your verified data…</div>;
 
   const { Component } = TEMPLATES[template];
@@ -38,7 +48,7 @@ export default function ResumeBuilder() {
       <header className="no-print" style={{ background: "var(--navy)", padding: "16px 0" }}>
         <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Link to="/dashboard" style={{ color: "var(--white)", textDecoration: "none" }}>← Back to Dashboard</Link>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {Object.entries(TEMPLATES).map(([key, t]) => (
               <button
                 key={key}
@@ -49,6 +59,9 @@ export default function ResumeBuilder() {
                 {t.label}
               </button>
             ))}
+            <button className="btn btn-ghost" style={{ color: "var(--white)", borderColor: "var(--gold)" }} onClick={handleCopyVerifyLink}>
+              {copied ? "Link Copied!" : "Share Credential Link"}
+            </button>
             <button className="btn btn-gold" onClick={handlePrint}>Download PDF</button>
           </div>
         </div>

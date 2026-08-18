@@ -20,8 +20,18 @@ export function CompanyAuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function register(name, mobile, companyName, email, password) {
-    const res = await companyApi.post("/company/auth/register", { name, mobile, companyName, email, password });
+  async function register(name, mobile, companyName, email, password, accessToken = null) {
+    const res = await companyApi.post("/company/auth/register", { name, mobile, companyName, email, password, accessToken });
+    return res.data;
+  }
+
+  async function loginStart(email, password) {
+    const res = await companyApi.post("/company/auth/login", { email, password });
+    return res.data;
+  }
+
+  async function verifyLoginOtp(companyId, accessToken) {
+    const res = await companyApi.post("/company/auth/verify-login-otp", { companyId, accessToken });
     localStorage.setItem("talentera_company_token", res.data.token);
     setCompany(res.data.company);
     return res.data.company;
@@ -40,7 +50,7 @@ export function CompanyAuthProvider({ children }) {
   }
 
   return (
-    <CompanyAuthContext.Provider value={{ company, setCompany, loading, register, login, logout }}>
+    <CompanyAuthContext.Provider value={{ company, setCompany, loading, register, loginStart, verifyLoginOtp, login, logout }}>
       {children}
     </CompanyAuthContext.Provider>
   );

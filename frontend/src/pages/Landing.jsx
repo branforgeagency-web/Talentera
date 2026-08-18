@@ -12,6 +12,8 @@ export default function Landing() {
   const [activeCity, setActiveCity] = useState("Mumbai");
   const [activeFilter, setActiveFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
 
   const pulseMessages = [
     "5 candidates verified in the last hour",
@@ -138,7 +140,8 @@ export default function Landing() {
     return matchesFilter && matchesSearch;
   });
 
-  const scrollToCandidates = () => {
+  const scrollToCandidates = (e) => {
+    if (e) e.preventDefault();
     const el = document.getElementById("candidates") || document.getElementById("audiences");
     if (el) {
       el.scrollIntoView({ behavior: "smooth" });
@@ -146,37 +149,72 @@ export default function Landing() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--navy-deep)", color: "#fff", position: "relative" }}>
+      {/* ====== LIVE RECENT ACTIVITY TICKER BAR ====== */}
+      <div className="ticker-bar" style={{ background: "#061324", borderBottom: "1px solid rgba(255,255,255,0.06)", padding: "8px 0", fontSize: 12, fontFamily: "var(--font-mono)" }}>
+        <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
+            <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#22C55E", boxShadow: "0 0 8px #22C55E", flexShrink: 0 }} />
+            <span style={{ color: "var(--gold)", fontWeight: 700, letterSpacing: "0.06em", flexShrink: 0 }}>LIVE VERIFICATION FEED:</span>
+            <span style={{ color: "#E2E8F0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{pulseText}</span>
+          </div>
+          <div className="ticker-stats-right" style={{ display: "flex", gap: 16, color: "#94A3B8", fontSize: 11, flexShrink: 0 }}>
+            <span>⚡ 94.2% Placement Rate</span>
+            <span>🛡 Aadhaar Verified</span>
+          </div>
+        </div>
+      </div>
+
       {/* ====== STICKY NAVBAR ====== */}
-      <header className="nav" style={{ background: "var(--navy)", borderBottom: "1px solid var(--border-dark)", position: "sticky", top: 0, zIndex: 100 }}>
-        <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px" }}>
+      <header className="nav">
+        <div className="nav-container container">
           {/* Logo Block */}
-          <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
-            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 44, width: "auto" }} />
+          <div className="nav-logo" onClick={() => navigate("/")}>
+            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" />
           </div>
 
+          {/* Mobile Menu Toggle Button */}
+          <button
+            type="button"
+            className="nav-mobile-toggle"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle Navigation Menu"
+          >
+            {mobileMenuOpen ? "✕" : "☰"}
+          </button>
+
           {/* Center Links */}
-          <nav style={{ display: "flex", gap: 36, alignItems: "center" }}>
-            <Link to="/companies" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-light)", transition: "color 0.2s" }}>
+          <nav className={`nav-menu ${mobileMenuOpen ? "open" : ""}`}>
+            <Link to="/companies" onClick={() => setMobileMenuOpen(false)}>
               For Companies
             </Link>
-            <a href="#candidates" onClick={scrollToCandidates} style={{ fontSize: 14, fontWeight: 600, color: "var(--text-light)", transition: "color 0.2s", cursor: "pointer" }}>
+            <a href="#candidates" onClick={(e) => { setMobileMenuOpen(false); scrollToCandidates(e); }}>
               For Candidates
             </a>
-            <Link to="/academy" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-light)", transition: "color 0.2s" }}>
+            <Link to="/academy" onClick={() => setMobileMenuOpen(false)}>
               For Academies
             </Link>
-            <a href="#how" style={{ fontSize: 14, fontWeight: 600, color: "var(--text-light)", transition: "color 0.2s" }}>
+            <a href="#how" onClick={() => setMobileMenuOpen(false)}>
               How it Works
             </a>
+            
+            {/* Mobile CTAs visible inside mobile menu */}
+            <div className="nav-mobile-ctas">
+              <Link to="/login" className="nav-mobile-login" onClick={() => setMobileMenuOpen(false)}>
+                Employee Login
+              </Link>
+              <Link to="/companies/register" className="btn-gold" onClick={() => setMobileMenuOpen(false)}>
+                Hire Verified Talent →
+              </Link>
+            </div>
           </nav>
 
-          {/* Right Action CTAs */}
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <Link to="/login" style={{ fontSize: 14, fontWeight: 700, color: "#fff", textDecoration: "none" }}>
+          {/* Desktop Right Action CTAs */}
+          <div className="nav-actions">
+            <Link to="/login" className="nav-login-link">
               Employee Login
             </Link>
-            <Link to="/companies/register" className="btn-gold" style={{ padding: "11px 22px", borderRadius: 8, fontSize: 14, fontWeight: 800 }}>
+            <Link to="/companies/register" className="btn-gold nav-cta-btn">
               Hire Verified Talent →
             </Link>
           </div>
@@ -600,7 +638,7 @@ export default function Landing() {
 
           <div className="aud-grid">
             {/* Card 1: Companies (Featured Dark Navy Card) */}
-            <div className="aud-card featured" onClick={() => navigate("/companies")}>
+            <div className="aud-card featured" onClick={() => navigate("/companies/register")}>
               <div className="aud-priority-tag">★ PRIORITY</div>
               <div className="aud-icon-box featured">
                 <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#0A1F3D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -616,7 +654,7 @@ export default function Landing() {
               <p className="aud-body featured">
                 Browse pre-verified RCM, coding, billing, and AR talent. Filter by score, location, domain. Call, text, WhatsApp directly from your dashboard.
               </p>
-              <Link to="/companies" className="aud-cta featured">
+              <Link to="/companies/register" className="aud-cta featured">
                 Post a Requirement →
               </Link>
             </div>
