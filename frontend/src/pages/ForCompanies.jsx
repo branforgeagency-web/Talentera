@@ -1,14 +1,21 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
+import { startOtpWidget } from "../utils/msg91Widget.js";
 
 export default function ForCompanies() {
   const navigate = useNavigate();
-  const { register, login } = useCompanyAuth();
+  const { register, login, company } = useCompanyAuth();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState("register");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (company) {
+      navigate("/companies/dashboard", { replace: true });
+    }
+  }, [company, navigate]);
 
   // Registration Form State
   const [regName, setRegName] = useState("");
@@ -35,8 +42,9 @@ export default function ForCompanies() {
     setSubmitting(true);
     try {
       await register(regName, regMobile, regCompany, regEmail, regPassword);
-      toast("Account created — let's get you set up.", "✓");
-      navigate("/companies/onboarding");
+      toast("Company registered successfully! Please log in to continue.", "✓");
+      setLoginEmail(regEmail);
+      setActiveTab("login");
     } catch (err) {
       toast(err.response?.data?.message || "Couldn't create your account. Please try again.", "!");
     } finally {
@@ -49,7 +57,8 @@ export default function ForCompanies() {
     setSubmitting(true);
     try {
       await login(loginEmail, loginPassword);
-      navigate("/companies/onboarding");
+      toast("Welcome back!", "✓");
+      navigate("/companies/dashboard");
     } catch (err) {
       toast(err.response?.data?.message || "Invalid email or password.", "!");
     } finally {

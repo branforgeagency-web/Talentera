@@ -8,6 +8,7 @@ export default function Register() {
   const [authMode, setAuthMode] = useState("signup"); // "signup" or "login"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mobile, setMobile] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -17,7 +18,10 @@ export default function Register() {
     setSubmitting(true);
     try {
       if (authMode === "signup") {
-        await register(email, password);
+        if (mobile && !/^\d{10}$/.test(mobile)) {
+          throw new Error("Mobile number must be 10 digits (or leave it blank).");
+        }
+        await register(email, password, mobile);
       } else {
         await login(email, password);
       }
@@ -215,7 +219,7 @@ export default function Register() {
           </div>
 
           {/* PASSWORD */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: authMode === "signup" ? 16 : 20 }}>
             <label
               style={{
                 display: "block",
@@ -251,6 +255,55 @@ export default function Register() {
             />
           </div>
 
+          {/* MOBILE (signup only) */}
+          {authMode === "signup" && (
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.55)",
+                  marginBottom: 6
+                }}
+              >
+                MOBILE <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "rgba(255,255,255,0.4)" }}>(optional)</span>
+              </label>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 10,
+                  padding: "0 14px"
+                }}
+              >
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>+91</span>
+                <input
+                  type="tel"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="98765 43210"
+                  style={{
+                    flex: 1,
+                    padding: "12px 0",
+                    background: "transparent",
+                    border: "none",
+                    color: "#FAF7F0",
+                    fontFamily: "inherit",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           {/* SUBMIT BUTTON */}
           <button
             type="submit"
@@ -270,7 +323,7 @@ export default function Register() {
               transition: "all 0.2s"
             }}
           >
-            {submitting ? "Processing..." : authMode === "signup" ? "Create account" : "Log in"}
+            {submitting ? "Processing..." : authMode === "signup" ? "Create account" : "Log In"}
           </button>
         </form>
 

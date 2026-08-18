@@ -21,8 +21,8 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function register(email, password) {
-    const res = await api.post("/auth/register", { email, password });
+  async function register(email, password, mobile) {
+    const res = await api.post("/auth/register", { email, password, mobile });
     localStorage.setItem("talentera_token", res.data.token);
     setCandidate(res.data.candidate);
     return res.data.candidate;

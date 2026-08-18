@@ -14,6 +14,8 @@ const STAGE_ICONS = {
 export default function WizardSidebar({ completedStages, activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit }) {
   const earnedPct = Math.round((earnedPoints / 100) * 100);
 
+  const isStage1Done = completedStages.includes(1);
+
   return (
     <aside className="wiz-sidebar">
       <div className="wiz-sidebar-brand">
@@ -32,17 +34,25 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
         {WIZARD_STAGES.map((s) => {
           const isDone = completedStages.includes(s.num);
           const isActive = activeStageId === s.num;
+          const isLocked = s.num > 1 && !isStage1Done;
+
           return (
             <button
               key={s.num}
               type="button"
-              className={`wiz-nav-item ${isActive ? "active" : ""} ${isDone ? "complete" : ""}`}
-              style={{ "--st-1": s.theme.p1, "--st-2": s.theme.p2 }}
+              className={`wiz-nav-item ${isActive ? "active" : ""} ${isDone ? "complete" : ""} ${isLocked ? "locked" : ""}`}
+              style={{
+                "--st-1": s.theme.p1,
+                "--st-2": s.theme.p2,
+                opacity: isLocked ? 0.55 : 1,
+                cursor: isLocked ? "not-allowed" : "pointer"
+              }}
+              title={isLocked ? "Complete Stage 1 to unlock this stage" : ""}
               onClick={() => onSelect(s.num)}
             >
-              <span className="wiz-nav-item-icon">{isDone ? "✓" : STAGE_ICONS[s.icon] || "•"}</span>
+              <span className="wiz-nav-item-icon">{isDone ? "✓" : isLocked ? "🔒" : STAGE_ICONS[s.icon] || "•"}</span>
               <span className="wiz-nav-item-info">
-                <span className="wiz-nav-item-num">STAGE 0{s.num}</span>
+                <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : ""}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
               <span className="wiz-nav-item-pts">+{s.pts}</span>

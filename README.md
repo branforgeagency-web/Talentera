@@ -71,6 +71,47 @@ npm run dev         # http://localhost:5173, proxies /api to :5000
 
 Register a candidate at `/register`, complete stages, then open `/resume`.
 
+## Login OTP (MSG91 Widget)
+
+Every login flow (Candidate, Company, Staff, Academy Partner) now requires
+a second-factor OTP after the initial credentials step, delivered via the
+[MSG91 OTP Widget](https://docs.msg91.com/otp-widget). The widget itself
+(loaded client-side) generates, sends (SMS/email/WhatsApp - whichever
+channel the person picks) and does first-pass verification of the code; it
+then hands the frontend a signed access-token, which
+`backend/utils/msg91Widget.js` re-verifies server-side via MSG91's
+`verifyAccessToken` API before a session is issued. See that file and
+`frontend/src/utils/msg91Widget.js` for the shared implementation.
+
+Setup:
+1. In the MSG91 dashboard, create (or reuse) a widget under **Widgets** and
+   note its **Widget ID** and **tokenAuth** from the embed snippet.
+2. Add those two values to `frontend/.env` as `VITE_MSG91_WIDGET_ID` and
+   `VITE_MSG91_TOKEN_AUTH` (see `frontend/.env.example`).
+3. Add your account **authkey** (Settings -> Security -> Authkey) to
+   `backend/.env` as `MSG91_AUTHKEY` (see `backend/.env.example`). This one
+   is server-only - never put it in frontend code or commit it.
+4. If MSG91's IP Security is enabled on your account, whitelist the
+   backend server's public IP (or disable IP security while developing).
+5. `npm install` in `backend/` to pick up the new `axios` dependency.
+
+Notes:
+- The widget sends to one identifier (mobile or email) per login attempt -
+  the person picks the channel in the widget's own popup; it isn't
+  simultaneous dual-channel delivery.
+- Candidate accounts collect an optional `mobile` at signup
+  (`frontend/src/pages/Register.jsx`) so SMS is available as a channel;
+  Company accounts already required one at registration. Staff and
+  Academy logins let the widget capture the identifier directly.
+- Company login previously had a backend endpoint
+  (`/api/company/auth/login`) with no frontend page calling it - this pass
+  adds `frontend/src/pages/CompanyLogin.jsx` (route: `/companies/login`) as
+  that missing entry point.
+- `frontend/src/pages/Login.jsx` (candidate login) exists but isn't wired
+  into any route in `App.jsx` - only `Register.jsx`'s "Log in" tab and
+  `/login` -> `StaffLogin.jsx` are reachable. Pre-existing routing quirk,
+  left as-is since fixing it wasn't part of this change.
+
 ## Production notes
 
 - Swap `backend/middleware/upload.js`'s disk storage for an S3/GCS

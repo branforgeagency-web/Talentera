@@ -7,9 +7,11 @@ export default function StaffLogin() {
   const [password, setPassword] = useState("••••••••");
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setError("");
     setLoading(true);
     try {
       const res = await fetch("/api/staff/login", {
@@ -23,11 +25,11 @@ export default function StaffLogin() {
         localStorage.setItem("talentera_staff_info", JSON.stringify(data.staff));
         navigate("/staff/hub");
       } else {
-        navigate("/staff/hub");
+        setError(data.message || "Login failed.");
       }
     } catch (err) {
       console.error(err);
-      navigate("/staff/hub");
+      setError("Couldn't reach the server. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -81,21 +83,8 @@ export default function StaffLogin() {
       </div>
 
       {/* CENTRAL FLOATING SPLIT CARD */}
-      <div
-        style={{
-          maxWidth: 1040,
-          width: "100%",
-          display: "grid",
-          gridTemplateColumns: "1.15fr 1fr",
-          borderRadius: 24,
-          overflow: "hidden",
-          boxShadow: "0 40px 100px -20px rgba(0,0,0,0.6)",
-          position: "relative",
-          zIndex: 10,
-          background: "#fff"
-        }}
-      >
-        {/* LEFT PANEL - Dark Navy Branding & Mission Stats */}
+      <div className="staff-login-card-shell">
+        {/* LEFT PANEL */}
         <div
           style={{
             background: "linear-gradient(135deg, #06152A 0%, #0A1F3D 100%)",
@@ -107,21 +96,6 @@ export default function StaffLogin() {
             position: "relative"
           }}
         >
-          {/* Subtle Ambient Radial Glow */}
-          <div
-            style={{
-              position: "absolute",
-              top: "20%",
-              left: "20%",
-              width: 300,
-              height: 300,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(229,168,46,0.15) 0%, transparent 65%)",
-              pointerEvents: "none"
-            }}
-          />
-
-          {/* Logo Block */}
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
               <div>
@@ -133,7 +107,6 @@ export default function StaffLogin() {
             </div>
           </div>
 
-          {/* Quote Headline */}
           <div style={{ position: "relative", zIndex: 1, margin: "40px 0" }}>
             <h1
               style={{
@@ -157,7 +130,6 @@ export default function StaffLogin() {
             </div>
           </div>
 
-          {/* Stats Bar at Bottom */}
           <div style={{ position: "relative", zIndex: 1, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 24 }}>
             <div>
               <div style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>12,480</div>
@@ -174,7 +146,7 @@ export default function StaffLogin() {
           </div>
         </div>
 
-        {/* RIGHT PANEL - White Staff Login Form */}
+        {/* RIGHT PANEL - Staff Login Form */}
         <div style={{ padding: "52px 44px", display: "flex", flexDirection: "column", justifyContent: "center", background: "#fff" }}>
           <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 800, color: "var(--gold)", letterSpacing: "0.14em", marginBottom: 8, textTransform: "uppercase" }}>
             // STAFF LOGIN
@@ -185,8 +157,14 @@ export default function StaffLogin() {
           </h2>
 
           <p style={{ fontSize: 13, color: "#64748B", lineHeight: 1.5, marginBottom: 32 }}>
-            Sign in with your Talentera staff credentials. Your daily dashboard, candidates, and placements are waiting.
+            Sign in with your Talentera staff credentials.
           </p>
+
+          {error && (
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: 12, borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
@@ -223,7 +201,6 @@ export default function StaffLogin() {
               </div>
             </div>
 
-            {/* Checkbox & Forgot Password */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--navy)", fontWeight: 600 }}>
                 <input
@@ -240,7 +217,6 @@ export default function StaffLogin() {
               </a>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading}
@@ -266,7 +242,6 @@ export default function StaffLogin() {
             </button>
           </form>
 
-          {/* Footer Help */}
           <div style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", marginTop: 28, lineHeight: 1.6 }}>
             Need access? Contact your <strong style={{ color: "var(--navy)" }}>Department Head</strong> <br />
             or <strong style={{ color: "var(--navy)" }}>IT Helpdesk</strong>

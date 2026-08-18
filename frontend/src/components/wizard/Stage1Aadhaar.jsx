@@ -45,14 +45,12 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
     return verhoeffValidate(digits) ? "valid" : digits.length === 12 ? "invalid" : "typing";
   });
 
-  const [otpPhone, setOtpPhone] = useState(existingData?.mobile ? formatMobile(existingData.mobile) : "");
+  const [otpEmail, setOtpEmail] = useState(existingData?.email || "");
   const [otpCode, setOtpCode] = useState("");
   const [otpStatus, setOtpStatus] = useState(existingData?.aadhaarVerifiedVia === "otp" ? "verified" : "idle"); // idle | sent | verified | failed | expired
   const [otpSection, setOtpSection] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [otpShake, setOtpShake] = useState(false);
-  const otpExpectedRef = useRef(null);
-  const otpSentAtRef = useRef(null);
   const cooldownTimerRef = useRef(null);
 
   const [docStatus, setDocStatus] = useState(existingData?.docUrl ? "uploaded" : "idle");
@@ -92,42 +90,48 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
     }, 1000);
   }
 
-  function handleSendOtp() {
-    const digits = otpPhone.replace(/\D/g, "");
-    if (!isValidIndianMobile(digits)) {
-      if (digits.length !== 10) toast("Enter your 10-digit mobile number", "!");
-      else toast("Indian mobile starts with 6, 7, 8 or 9", "!");
+  async function handleSendOtp() {
+    const targetEmail = (otpEmail || email).trim();
+    if (!targetEmail || !targetEmail.includes("@")) {
+      toast("Enter a valid email address for OTP", "!");
       return;
     }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    otpExpectedRef.current = code;
-    otpSentAtRef.current = Date.now();
     setOtpSection(true);
-    setOtpStatus("sent");
-    setOtpCode("");
-    startResendCountdown(30);
-    // Demo-only: production wires a real SMS provider (Firebase Auth / MSG91 / Twilio)
-    // and never shows the code to the browser. This line is explicitly demo mode.
-    toast(`DEMO OTP: ${code} (production: sent via SMS)`, "✓");
+    try {
+      const res = await api.post("/otp/send", { identifier: targetEmail });
+      setOtpStatus("sent");
+      setOtpCode("");
+      startResendCountdown(30);
+      if (res.data?.fallback && res.data?.otpCode) {
+        toast(`DEV OTP Code: ${res.data.otpCode}`, "✓");
+      } else {
+        toast(`OTP sent to email ${targetEmail} via Brevo`, "✓");
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || "Failed to send Email OTP", "!");
+    }
   }
 
-  function handleVerifyOtp() {
+  async function handleVerifyOtp() {
     if (otpCode.length !== 6) return;
-    if (!otpExpectedRef.current) return;
-    if (Date.now() - otpSentAtRef.current > 5 * 60 * 1000) {
-      setOtpStatus("expired");
-      toast("OTP expired", "!");
-      return;
-    }
-    if (otpCode === otpExpectedRef.current) {
-      setOtpStatus("verified");
-      clearInterval(cooldownTimerRef.current);
-      toast("Mobile OTP verified ✓", "✓");
-    } else {
+    const targetEmail = (otpEmail || email).trim();
+    try {
+      const res = await api.post("/otp/verify", { identifier: targetEmail, otp: otpCode });
+      if (res.data?.success) {
+        setOtpStatus("verified");
+        clearInterval(cooldownTimerRef.current);
+        toast("Email OTP verified ✓", "✓");
+      } else {
+        setOtpStatus("failed");
+        setOtpShake(true);
+        setTimeout(() => setOtpShake(false), 600);
+        toast(res.data?.message || "Wrong OTP", "!");
+      }
+    } catch (err) {
       setOtpStatus("failed");
       setOtpShake(true);
       setTimeout(() => setOtpShake(false), 600);
-      toast("Wrong OTP", "!");
+      toast(err.response?.data?.message || "Wrong OTP code", "!");
     }
   }
 
@@ -266,24 +270,24 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
       <div className="aadhaar-verify-section">
         <div className="aadhaar-verify-head">
-          <div className="aadhaar-verify-title">🛡 Verify your Aadhaar (choose either method)</div>
-          <div className="aadhaar-verify-sub">Mobile OTP — fastest · or upload e-Aadhaar document</div>
+          <div className="aadhaar-verify-title">🛡 Verify your Profile (choose either method)</div>
+          <div className="aadhaar-verify-sub">Brevo Email OTP — fastest · or upload e-Aadhaar document</div>
         </div>
 
         <div className="aadhaar-methods">
           <div className="aadhaar-method aadhaar-method-otp">
             <span className="aadhaar-method-badge">RECOMMENDED</span>
-            <div className="aadhaar-method-title">Mobile OTP verification</div>
-            <div className="aadhaar-method-sub">Aadhaar-linked mobile · 30 seconds</div>
+            <div className="aadhaar-method-title">Brevo Email OTP verification</div>
+            <div className="aadhaar-method-sub">Official email OTP · 30 seconds</div>
 
-            <label className="wiz-mini-label">Mobile linked with your Aadhaar</label>
+            <label className="wiz-mini-label">Email address for OTP verification</label>
             <div className="aadhaar-otp-phone-row">
-              <span className="aadhaar-otp-prefix">+91</span>
+              <span className="aadhaar-otp-prefix">📧</span>
               <input
-                type="tel"
-                value={otpPhone}
-                onChange={(e) => setOtpPhone(formatMobile(e.target.value))}
-                placeholder="98765 43210"
+                type="email"
+                value={otpEmail || email}
+                onChange={(e) => setOtpEmail(e.target.value)}
+                placeholder="name@example.com"
                 disabled={otpStatus === "verified"}
               />
               <button
@@ -298,7 +302,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
             {otpSection && (
               <div className="aadhaar-otp-code-section">
-                <label className="wiz-mini-label">Enter the 6-digit OTP sent to your phone</label>
+                <label className="wiz-mini-label">Enter the 6-digit OTP sent to your email</label>
                 <div className="aadhaar-otp-code-row">
                   <input
                     className={otpShake ? "aadhaar-otp-code-wrong" : ""}
@@ -324,8 +328,8 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
             <div className={`aadhaar-method-status aadhaar-method-status-${otpStatus === "idle" ? "idle" : otpStatus === "verified" ? "valid" : otpStatus === "failed" || otpStatus === "expired" ? "invalid" : "typing"}`}>
               {otpStatus === "idle" && "Not yet verified"}
-              {otpStatus === "sent" && `OTP sent to +91 ${otpPhone} · valid for 5 min`}
-              {otpStatus === "verified" && <strong>+91 {otpPhone} verified</strong>}
+              {otpStatus === "sent" && `OTP sent to ${otpEmail || email} · valid for 10 min`}
+              {otpStatus === "verified" && <strong>{otpEmail || email} verified</strong>}
               {otpStatus === "failed" && "Wrong OTP · try again"}
               {otpStatus === "expired" && "OTP expired · click Resend"}
             </div>

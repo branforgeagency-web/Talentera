@@ -1,7 +1,9 @@
 const express = require("express");
 const Candidate = require("../models/Candidate");
+const Company = require("../models/Company");
+const Application = require("../models/Application");
 const { requireAuth } = require("../middleware/auth");
-const upload = require("../middleware/upload");
+const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 
 const router = express.Router();
@@ -30,6 +32,10 @@ router.put("/stage/:n", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
 
+  if (stageNum > 1 && !candidate.completedStages.includes(1)) {
+    return res.status(400).json({ message: "You must complete and save Stage 1 (Identity & Basics) before filling higher stages." });
+  }
+
   candidate[`stage${stageNum}`] = req.body; // e.g. { fullName, mobile, city, ... }
   if (!candidate.completedStages.includes(stageNum)) {
     candidate.completedStages.push(stageNum);
@@ -50,6 +56,10 @@ router.post("/stage/:n/skip", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
 
+  if (stageNum > 1 && !candidate.completedStages.includes(1)) {
+    return res.status(400).json({ message: "You must complete and save Stage 1 (Identity & Basics) before skipping higher stages." });
+  }
+
   candidate[`stage${stageNum}`] = { skipped: true };
   if (!candidate.completedStages.includes(stageNum)) {
     candidate.completedStages.push(stageNum);
@@ -60,46 +70,58 @@ router.post("/stage/:n/skip", async (req, res) => {
   res.json({ candidate, ...scoring });
 });
 
-// POST /api/candidate/upload/video - Stage 5 video introduction (replaces Firebase Storage)
-router.post("/upload/video", upload.single("video"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+// POST /api/candidate/upload/video - Stage 5 video introduction (Cloudinary / Local disk)
+router.post(
+  "/upload/video",
+  upload.single("video"),
+  handleUpload({ resourceType: "video" }),
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
 
-  const candidate = await Candidate.findById(req.candidateId);
-  const fileUrl = `/uploads/${req.candidateId}/${req.file.filename}`;
+    const candidate = await Candidate.findById(req.candidateId);
+    if (candidate && !candidate.completedStages.includes(1)) {
+      return res.status(400).json({ message: "You must complete Stage 1 before uploading Stage 5 video." });
+    }
 
-  candidate.stage5 = { ...(candidate.stage5 || {}), videoUrl: fileUrl };
-  if (!candidate.completedStages.includes(5)) candidate.completedStages.push(5);
-  await candidate.save();
+    const fileUrl = req.file.fileUrl;
 
-  res.json({ videoUrl: fileUrl, candidate });
-});
+    candidate.stage5 = { ...(candidate.stage5 || {}), videoUrl: fileUrl };
+    if (!candidate.completedStages.includes(5)) candidate.completedStages.push(5);
+    await candidate.save();
 
-// POST /api/candidate/upload/doc/:n - generic per-stage document upload.
-// Reuses the same multer/disk-storage pattern as the video upload above.
-// Used by: Stage 1 (Aadhaar e-KYC document), Stage 3 (certificate PDF/image),
-// Stage 6 (academy live-chart log PDF/Excel). Does NOT mark the stage complete
-// by itself — the stage's own "Save & continue" (PUT /stage/:n) does that,
-// since the document is one field among several on that stage's form.
-router.post("/upload/doc/:n", upload.single("doc"), async (req, res) => {
-  const stageNum = Number(req.params.n);
-  if (!VALID_STAGES.includes(stageNum)) {
-    return res.status(400).json({ message: "Invalid stage number." });
+    res.json({ videoUrl: fileUrl, candidate });
   }
-  if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+);
 
-  const candidate = await Candidate.findById(req.candidateId);
-  if (!candidate) return res.status(404).json({ message: "Not found." });
+// POST /api/candidate/upload/doc/:n - generic per-stage document upload (Cloudinary / Local disk)
+router.post(
+  "/upload/doc/:n",
+  upload.single("doc"),
+  handleUpload({ resourceType: "auto" }),
+  async (req, res) => {
+    const stageNum = Number(req.params.n);
+    if (!VALID_STAGES.includes(stageNum)) {
+      return res.status(400).json({ message: "Invalid stage number." });
+    }
+    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
 
-  const fileUrl = `/uploads/${req.candidateId}/${req.file.filename}`;
-  const key = `stage${stageNum}`;
-  candidate[key] = { ...(candidate[key] || {}), docUrl: fileUrl, docName: req.file.originalname };
-  await candidate.save();
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Not found." });
 
-  res.json({ docUrl: fileUrl, docName: req.file.originalname, candidate });
-});
+    if (stageNum > 1 && !candidate.completedStages.includes(1)) {
+      return res.status(400).json({ message: "You must complete Stage 1 before uploading documents for higher stages." });
+    }
+
+    const fileUrl = req.file.fileUrl;
+    const key = `stage${stageNum}`;
+    candidate[key] = { ...(candidate[key] || {}), docUrl: fileUrl, docName: req.file.originalname };
+    await candidate.save();
+
+    res.json({ docUrl: fileUrl, docName: req.file.originalname, candidate });
+  }
+);
 
 // GET /api/candidate/resume-data - locked, verified data the resume templates read from
-// (Stage 7 does NOT accept uploads by design - see handoff doc section 5)
 router.get("/resume-data", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
@@ -107,6 +129,7 @@ router.get("/resume-data", async (req, res) => {
   const scoring = calculateVerificationScore(candidate.completedStages);
 
   res.json({
+    id: candidate._id,
     email: candidate.email,
     basicInfo: candidate.stage1 || {},
     training: candidate.stage2 || {},
@@ -132,6 +155,48 @@ router.put("/resume-template", async (req, res) => {
     { new: true }
   );
   res.json({ candidate });
+});
+
+// POST /api/candidate/apply/:jobId - candidate applies to a published company job
+router.post("/apply/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+  const { coverNote } = req.body;
+
+  const candidate = await Candidate.findById(req.candidateId);
+  if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+  // Find company with this published jobId
+  const company = await Company.findOne({ jobId, jdPublished: true });
+  if (!company) {
+    return res.status(404).json({ message: "Job posting not found or no longer active." });
+  }
+
+  try {
+    const existing = await Application.findOne({ candidateId: candidate._id, jobId });
+    if (existing) {
+      return res.status(400).json({ message: "You have already applied for this job." });
+    }
+
+    const application = await Application.create({
+      candidateId: candidate._id,
+      companyId: company._id,
+      jobId,
+      coverNote: coverNote || "",
+    });
+
+    res.json({ message: "Application submitted successfully!", application });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/candidate/applications - retrieve candidate's applications
+router.get("/applications", async (req, res) => {
+  const applications = await Application.find({ candidateId: req.candidateId })
+    .populate("companyId", "companyName stage9")
+    .sort({ createdAt: -1 });
+
+  res.json({ applications });
 });
 
 module.exports = router;

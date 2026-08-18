@@ -6,6 +6,7 @@ import Register from "./pages/Register.jsx";
 import CandidateWizard from "./pages/CandidateWizard.jsx";
 import ForCompanies from "./pages/ForCompanies.jsx";
 import CompanyRegister from "./pages/CompanyRegister.jsx";
+import CompanyLogin from "./pages/CompanyLogin.jsx";
 import CompanyPortal from "./pages/CompanyPortal.jsx";
 import CompanyDashboardSetup from "./pages/CompanyDashboardSetup.jsx";
 import AcademyLogin from "./pages/AcademyLogin.jsx";
@@ -13,6 +14,7 @@ import AcademyPortal from "./pages/AcademyPortal.jsx";
 import StaffLogin from "./pages/StaffLogin.jsx";
 import StaffHub from "./pages/StaffHub.jsx";
 import ResumeBuilder from "./pages/ResumeBuilder.jsx";
+import VerifyCandidate from "./pages/VerifyCandidate.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 
@@ -21,6 +23,9 @@ export default function App() {
     <Routes>
       {/* 01. Main Landing Page */}
       <Route path="/" element={<Landing />} />
+
+      {/* Public Candidate Credential Verification */}
+      <Route path="/verify/:candidateId" element={<VerifyCandidate />} />
 
       {/* 02. For Companies / Hire Talent Section */}
       <Route path="/companies" element={<ForCompanies />} />
@@ -41,6 +46,7 @@ export default function App() {
         }
       />
       <Route path="/companies/register" element={<CompanyRegister />} />
+      <Route path="/companies/login" element={<CompanyLogin />} />
       <Route path="/companies/directory" element={<CompanyPortal />} />
 
       {/* 03. Employee & Staff Login */}

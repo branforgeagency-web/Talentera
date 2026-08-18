@@ -36,17 +36,37 @@ export default function CandidateWizard() {
       .get("/candidate/me")
       .then((res) => {
         setProfile(res.data);
-        const nextIncomplete = WIZARD_STAGES.find((s) => !res.data.candidate.completedStages.includes(s.num));
-        if (nextIncomplete) setActiveStageId(nextIncomplete.num);
+        const isStage1Done = res.data.candidate.completedStages.includes(1);
+        if (!isStage1Done) {
+          setActiveStageId(1);
+        } else {
+          const nextIncomplete = WIZARD_STAGES.find((s) => !res.data.candidate.completedStages.includes(s.num));
+          if (nextIncomplete) setActiveStageId(nextIncomplete.num);
+        }
         if (res.data.candidate.completedStages.length >= 8) setShowComplete(true);
       })
       .finally(() => setLoading(false));
   }, []);
 
+  function handleSelectStage(stageNum) {
+    const isStage1Done = profile?.candidate?.completedStages?.includes(1);
+    if (stageNum > 1 && !isStage1Done) {
+      toast("Please complete and save Stage 1 (Identity & Basics) first before moving to higher stages.", "!");
+      setActiveStageId(1);
+      return;
+    }
+    setActiveStageId(stageNum);
+  }
+
   function handleStageSaved(data) {
     setProfile(data);
     if (data.candidate.completedStages.length >= 8) {
       setShowComplete(true);
+      return;
+    }
+    const isStage1Done = data.candidate.completedStages.includes(1);
+    if (!isStage1Done) {
+      setActiveStageId(1);
       return;
     }
     const nextIncomplete = WIZARD_STAGES.find((s) => !data.candidate.completedStages.includes(s.num));
@@ -89,13 +109,13 @@ export default function CandidateWizard() {
       <WizardSidebar
         completedStages={profile.candidate.completedStages}
         activeStageId={activeStageId}
-        onSelect={setActiveStageId}
+        onSelect={handleSelectStage}
         earnedPoints={profile.score}
         onSubmit={handleSubmitForVerification}
         onSaveExit={handleSaveExit}
       />
 
-      <WizardStagePane stage={activeStage} isDone={isDone} onPrev={setActiveStageId} prevNum={prevStage?.num}>
+      <WizardStagePane stage={activeStage} isDone={isDone} onPrev={handleSelectStage} prevNum={prevStage?.num}>
         {activeStage.num === 5 && (
           <VideoUploadStage
             stage={{ id: 5, title: activeStage.long, subtitle: activeStage.intro }}

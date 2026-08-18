@@ -1,30 +1,28 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { startOtpWidget } from "../utils/msg91Widget.js";
 
 export default function AcademyLogin() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(1); // 1: details, 2: otp
   const [fullName, setFullName] = useState("");
   const [academyName, setAcademyName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
-  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSendOtp = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (!mobile || !fullName) return;
-    setStep(2);
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
+    if (!fullName || !academyName) return;
+    setError("");
     setLoading(true);
     try {
+      const identifier = mobile || email || fullName;
+      const accessToken = await startOtpWidget(identifier);
       const res = await fetch("/api/academy/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: mobile, otp })
+        body: JSON.stringify({ accessToken, fullName, academyName, email, mobile })
       });
       const data = await res.json();
       if (res.ok) {
@@ -32,11 +30,11 @@ export default function AcademyLogin() {
         localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
         navigate("/academy/dashboard");
       } else {
-        navigate("/academy/dashboard");
+        setError(data.message || "Login failed.");
       }
     } catch (err) {
       console.error(err);
-      navigate("/academy/dashboard");
+      setError(err.message || "OTP verification failed or was cancelled.");
     } finally {
       setLoading(false);
     }
@@ -109,16 +107,7 @@ export default function AcademyLogin() {
       />
 
       {/* TOP HEADER BAR */}
-      <header
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "20px 48px",
-          position: "relative",
-          zIndex: 10
-        }}
-      >
+      <header className="acad-login-header">
         <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
           <div>
             <img src="/logo.png" alt="Talentera" style={{ height: 40, width: "auto" }} />
@@ -128,41 +117,15 @@ export default function AcademyLogin() {
           </div>
         </div>
 
-        <Link
-          to="/"
-          style={{
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.12)",
-            color: "#fff",
-            padding: "8px 18px",
-            borderRadius: 8,
-            fontSize: 13,
-            fontWeight: 600,
-            textDecoration: "none"
-          }}
-        >
+        <Link to="/" className="acad-login-exit-btn">
           ← Exit
         </Link>
       </header>
 
       {/* MAIN SPLIT CONTENT */}
-      <main
-        style={{
-          flex: 1,
-          maxWidth: 1200,
-          width: "100%",
-          margin: "0 auto",
-          padding: "24px 48px 60px",
-          display: "grid",
-          gridTemplateColumns: "1.05fr 1fr",
-          gap: 60,
-          alignItems: "center",
-          position: "relative",
-          zIndex: 2
-        }}
-      >
+      <main className="acad-login-main">
         {/* LEFT BRAND PANEL */}
-        <div style={{ textAlign: "left" }}>
+        <div className="acad-login-left">
           <div style={{ color: "var(--gold)", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", marginBottom: 16 }}>
             TALENTERA · ACADEMY PARTNER PORTAL
           </div>
@@ -170,7 +133,7 @@ export default function AcademyLogin() {
           <h1
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(40px, 5vw, 56px)",
+              fontSize: "clamp(32px, 5vw, 56px)",
               fontWeight: 800,
               lineHeight: 1.05,
               letterSpacing: "-0.02em",
@@ -182,7 +145,7 @@ export default function AcademyLogin() {
             One dashboard.
           </h1>
 
-          <p style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 1.55, maxWidth: 500, marginBottom: 36 }}>
+          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.75)", lineHeight: 1.55, maxWidth: 500, marginBottom: 36 }}>
             Talentera is where the best RCM training academies prove their quality — with verified scores, bias-free assessments, and placement outcomes that companies trust.
           </p>
 
@@ -294,244 +257,129 @@ export default function AcademyLogin() {
         </div>
 
         {/* RIGHT FORM CARD */}
-        <div
-          style={{
-            background: "rgba(255,255,255,0.05)",
-            backdropFilter: "blur(20px)",
-            border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: 20,
-            padding: "40px 36px",
-            boxShadow: "0 30px 80px -20px rgba(0,0,0,0.5)",
-            textAlign: "left"
-          }}
-        >
-          {/* Progress Bar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  background: step === 1 ? "var(--gold)" : "#22C55E",
-                  color: step === 1 ? "var(--navy-deep)" : "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 800,
-                  fontSize: 12
-                }}
-              >
-                {step === 2 ? "✓" : "1"}
-              </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Your details</div>
+        <div className="acad-login-card">
+          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <div>
+              <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
+                Sign in to your portal
+              </h2>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.45 }}>
+                Access your academy partner dashboard and student placements.
+              </p>
             </div>
 
-            <div style={{ flex: 1, height: 2, background: step === 2 ? "var(--gold)" : "rgba(255,255,255,0.15)", transition: "all 0.3s" }} />
-
-            <div style={{ display: "flex", alignItems: "center", gap: 10, opacity: step === 2 ? 1 : 0.5 }}>
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: "50%",
-                  background: step === 2 ? "var(--gold)" : "rgba(255,255,255,0.1)",
-                  color: step === 2 ? "var(--navy-deep)" : "rgba(255,255,255,0.7)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: 800,
-                  fontSize: 12
-                }}
-              >
-                2
+            {error && (
+              <div style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 10, padding: 14, fontSize: 13, color: "#F87171" }}>
+                {error}
               </div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)" }}>Verify OTP</div>
-            </div>
-          </div>
+            )}
 
-          {step === 1 ? (
-            <form onSubmit={handleSendOtp} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              <div>
-                <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
-                  Sign in to your portal
-                </h2>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.45 }}>
-                  We'll send a 6-digit OTP to your email and mobile to verify it's really you.
-                </p>
-              </div>
-
-              {/* Full Name */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                  YOUR FULL NAME
-                </label>
-                <div style={inputWrapStyle}>
-                  <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>👤</span>
-                  <input
-                    type="text"
-                    style={inputElementStyle}
-                    placeholder="e.g., Karthik Subramanian"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Academy Name */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                  ACADEMY NAME
-                </label>
-                <div style={inputWrapStyle}>
-                  <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>🎓</span>
-                  <input
-                    type="text"
-                    style={inputElementStyle}
-                    placeholder="e.g., ThoughtFlows Medical Coding Academy"
-                    value={academyName}
-                    onChange={(e) => setAcademyName(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Work Email */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                  WORK EMAIL
-                </label>
-                <div style={inputWrapStyle}>
-                  <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>✉</span>
-                  <input
-                    type="email"
-                    style={inputElementStyle}
-                    placeholder="director@academy.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-              </div>
-
-              {/* Mobile Number */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                  MOBILE NUMBER
-                </label>
-                <div style={inputWrapStyle}>
-                  <span
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontWeight: 700,
-                      fontSize: 14,
-                      color: "rgba(255, 255, 255, 0.8)",
-                      paddingRight: 10,
-                      borderRight: "1px solid rgba(255, 255, 255, 0.15)",
-                      flexShrink: 0
-                    }}
-                  >
-                    +91
-                  </span>
-                  <input
-                    type="tel"
-                    style={inputElementStyle}
-                    placeholder="98765 43210"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value)}
-                    required
-                  />
-                </div>
-                <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.45)", marginTop: 2 }}>
-                  We'll send the OTP to this number via SMS + WhatsApp.
-                </div>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                style={{
-                  width: "100%",
-                  background: "var(--gold)",
-                  color: "var(--navy-deep)",
-                  fontSize: 14.5,
-                  fontWeight: 800,
-                  border: 0,
-                  borderRadius: 12,
-                  padding: "14px 18px",
-                  cursor: "pointer",
-                  marginTop: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8
-                }}
-              >
-                Send OTP →
-              </button>
-
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", textAlign: "center", marginTop: 10, lineHeight: 1.5 }}>
-                By continuing, you agree to Talentera's{" "}
-                <span style={{ color: "var(--gold)", cursor: "pointer" }}>Academy Partner Terms</span> and{" "}
-                <span style={{ color: "var(--gold)", cursor: "pointer" }}>Privacy Policy</span>
-              </div>
-            </form>
-          ) : (
-            /* STEP 2: VERIFY OTP FORM */
-            <form onSubmit={handleVerifyOtp} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
-                  Enter 6-digit OTP
-                </h2>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.45 }}>
-                  Sent to <strong style={{ color: "var(--gold)" }}>+91 {mobile}</strong> and <strong style={{ color: "var(--gold)" }}>{email}</strong>
-                </p>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {/* Full Name */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
+                YOUR FULL NAME
+              </label>
+              <div style={inputWrapStyle}>
+                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>👤</span>
                 <input
                   type="text"
-                  maxLength={6}
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="123456"
-                  className="acad-login-otp-input"
+                  style={inputElementStyle}
+                  placeholder="e.g., Karthik Subramanian"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
                   required
                 />
               </div>
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                style={{
-                  width: "100%",
-                  background: "var(--gold)",
-                  color: "var(--navy-deep)",
-                  fontSize: 14.5,
-                  fontWeight: 800,
-                  border: 0,
-                  borderRadius: 12,
-                  padding: "14px 18px",
-                  cursor: "pointer",
-                  marginTop: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8
-                }}
-              >
-                {loading ? "Verifying..." : "Verify & Enter Portal →"}
-              </button>
-
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, marginTop: 4 }}>
-                <span style={{ color: "rgba(255,255,255,0.6)", cursor: "pointer" }} onClick={() => setStep(1)}>
-                  ← Edit Mobile Number
-                </span>
-                <span style={{ color: "var(--gold)", fontWeight: 600, cursor: "pointer" }}>Resend OTP</span>
+            {/* Academy Name */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
+                ACADEMY NAME
+              </label>
+              <div style={inputWrapStyle}>
+                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>🎓</span>
+                <input
+                  type="text"
+                  style={inputElementStyle}
+                  placeholder="e.g., Apex Medical Coding Institute"
+                  value={academyName}
+                  onChange={(e) => setAcademyName(e.target.value)}
+                  required
+                />
               </div>
-            </form>
-          )}
+            </div>
+
+            {/* Work Email */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
+                WORK EMAIL
+              </label>
+              <div style={inputWrapStyle}>
+                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>✉</span>
+                <input
+                  type="email"
+                  style={inputElementStyle}
+                  placeholder="director@academy.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Mobile Number */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
+                MOBILE NUMBER
+              </label>
+              <div style={inputWrapStyle}>
+                <span
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontWeight: 700,
+                    fontSize: 14,
+                    color: "rgba(255, 255, 255, 0.8)",
+                    paddingRight: 10,
+                    borderRight: "1px solid rgba(255, 255, 255, 0.15)",
+                    flexShrink: 0
+                  }}
+                >
+                  +91
+                </span>
+                <input
+                  type="tel"
+                  style={inputElementStyle}
+                  placeholder="98765 43210"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                background: "var(--gold)",
+                color: "var(--navy-deep)",
+                fontSize: 14.5,
+                fontWeight: 800,
+                border: 0,
+                borderRadius: 12,
+                padding: "14px 18px",
+                cursor: "pointer",
+                marginTop: 6,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8
+              }}
+            >
+              {loading ? "Opening OTP..." : "Verify OTP & Sign In →"}
+            </button>
+          </form>
 
           {/* Footer Note */}
           <div
@@ -546,7 +394,7 @@ export default function AcademyLogin() {
               color: "rgba(255,255,255,0.55)"
             }}
           >
-            <span>Already onboarded? OTP arrives on email + mobile.</span>
+            <span>Partner Academy Portal</span>
             <Link to="/" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>
               ← Back to home
             </Link>

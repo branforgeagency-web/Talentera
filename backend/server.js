@@ -11,6 +11,7 @@ const academyRoutes = require("./routes/academy");
 const staffRoutes = require("./routes/staff");
 const companyAuthRoutes = require("./routes/companyAuth");
 const companyRoutes = require("./routes/company");
+const otpRoutes = require("./routes/otp");
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/api/academy", academyRoutes);
 app.use("/api/staff", staffRoutes);
 app.use("/api/company/auth", companyAuthRoutes);
 app.use("/api/company", companyRoutes);
+app.use("/api/otp", otpRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 

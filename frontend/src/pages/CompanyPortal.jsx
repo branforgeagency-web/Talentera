@@ -11,6 +11,23 @@ export default function CompanyPortal() {
   const [selectedDomain, setSelectedDomain] = useState("All");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [shortlistedIds, setShortlistedIds] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addingCandidate, setAddingCandidate] = useState(false);
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    mobile: "",
+    city: "Bengaluru",
+    experience: "1-3",
+    currentRole: "Medical Coder",
+    academyName: "Apex Medical Coding Institute",
+    certificationName: "CPC Certified (AAPC)",
+    assessmentScore: 90,
+    accuracyScore: 96,
+    summary: "",
+    noticePeriod: "Immediate Joiner",
+    expectedCtc: "5.0 LPA",
+  });
 
   useEffect(() => {
     fetchCandidates();
@@ -25,6 +42,46 @@ export default function CompanyPortal() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddCandidateSubmit = async (e) => {
+    e.preventDefault();
+    setAddingCandidate(true);
+    try {
+      const res = await fetch("/api/public/candidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Candidate added successfully!");
+        setShowAddModal(false);
+        setFormData({
+          fullName: "",
+          email: "",
+          mobile: "",
+          city: "Bengaluru",
+          experience: "1-3",
+          currentRole: "Medical Coder",
+          academyName: "Apex Medical Coding Institute",
+          certificationName: "CPC Certified (AAPC)",
+          assessmentScore: 90,
+          accuracyScore: 96,
+          summary: "",
+          noticePeriod: "Immediate Joiner",
+          expectedCtc: "5.0 LPA",
+        });
+        fetchCandidates();
+      } else {
+        alert(data.message || "Failed to add candidate.");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error adding candidate.");
+    } finally {
+      setAddingCandidate(false);
     }
   };
 
@@ -149,13 +206,28 @@ export default function CompanyPortal() {
           </div>
 
           {/* Action Buttons */}
-          <div style={{ display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginBottom: 28 }}>
+          <div style={{ display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginBottom: 28, flexWrap: "wrap" }}>
             <button
               className="btn-gold"
               style={{ padding: "14px 28px", borderRadius: 10, fontSize: 15, fontWeight: 800 }}
               onClick={() => navigate("/companies/register")}
             >
               + Post a Job
+            </button>
+            <button
+              style={{
+                background: "rgba(229,168,46,0.2)",
+                border: "1px solid var(--gold)",
+                color: "var(--gold-light)",
+                padding: "14px 24px",
+                borderRadius: 10,
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: "pointer"
+              }}
+              onClick={() => setShowAddModal(true)}
+            >
+              + Add Candidate Profile
             </button>
             <button
               style={{
@@ -473,18 +545,181 @@ export default function CompanyPortal() {
                 <p style={{ fontSize: 14, color: "var(--navy)", lineHeight: 1.6 }}>{selectedCandidate.summary}</p>
               </div>
 
-              <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
-                <button className="btn-gold" style={{ flex: 1, justifyContent: "center" }} onClick={() => alert(`Connecting with ${selectedCandidate.name}...`)}>
+              <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
+                <button className="btn-gold" style={{ flex: 1, minWidth: 140, justifyContent: "center" }} onClick={() => alert(`Connecting with ${selectedCandidate.name}...`)}>
                   📞 Contact Candidate
                 </button>
                 <button
-                  style={{ flex: 1, padding: 12, borderRadius: 8, background: shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9", color: shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)", fontWeight: 700 }}
+                  style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 8, background: shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9", color: shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)", fontWeight: 700 }}
                   onClick={() => toggleShortlist(selectedCandidate.id)}
                 >
                   {shortlistedIds.includes(selectedCandidate.id) ? "Shortlisted ✓" : "+ Shortlist Profile"}
                 </button>
+                <Link
+                  to={`/verify/${selectedCandidate.id}`}
+                  target="_blank"
+                  style={{ padding: "12px 16px", borderRadius: 8, background: "var(--navy)", color: "#fff", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+                >
+                  🔗 Public Audit Page
+                </Link>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== ADD CANDIDATE MODAL ====== */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+            <form onSubmit={handleAddCandidateSubmit} style={{ padding: 32 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
+                + Add Real Candidate Profile
+              </h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 20 }}>
+                Enter real candidate data to persist directly into MongoDB database.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>FULL NAME</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    placeholder="e.g. Srikant Reddy"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>EMAIL</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="srikant@example.com"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MOBILE NUMBER</label>
+                  <input
+                    type="text"
+                    value={formData.mobile}
+                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>CITY</label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Hyderabad"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>EXPERIENCE</label>
+                  <select
+                    value={formData.experience}
+                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                  >
+                    <option value="Fresher">Fresher</option>
+                    <option value="1-3">1-3 yrs</option>
+                    <option value="3-5">3-5 yrs</option>
+                    <option value="5+">5+ yrs</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>ROLE / DOMAIN</label>
+                  <input
+                    type="text"
+                    value={formData.currentRole}
+                    onChange={(e) => setFormData({ ...formData, currentRole: e.target.value })}
+                    placeholder="e.g. Senior AR Caller"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>ACADEMY NAME</label>
+                  <input
+                    type="text"
+                    value={formData.academyName}
+                    onChange={(e) => setFormData({ ...formData, academyName: e.target.value })}
+                    placeholder="Apex Medical Coding Institute"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>CERTIFICATION</label>
+                  <input
+                    type="text"
+                    value={formData.certificationName}
+                    onChange={(e) => setFormData({ ...formData, certificationName: e.target.value })}
+                    placeholder="CPC Certified (AAPC)"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>TEST SCORE (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.assessmentScore}
+                    onChange={(e) => setFormData({ ...formData, assessmentScore: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>CHART ACCURACY (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.accuracyScore}
+                    onChange={(e) => setFormData({ ...formData, accuracyScore: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>PROFILE SUMMARY</label>
+                <textarea
+                  rows="2"
+                  value={formData.summary}
+                  onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+                  placeholder="Summary of experience and RCM expertise..."
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  style={{ flex: 1, padding: 12, borderRadius: 8, border: "1px solid #E5E7EB" }}
+                  onClick={() => setShowAddModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  disabled={addingCandidate}
+                >
+                  {addingCandidate ? "Saving..." : "Save Candidate →"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

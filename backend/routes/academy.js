@@ -1,14 +1,9 @@
 const express = require("express");
-const router = express.Router();
+const Candidate = require("../models/Candidate");
+const bcrypt = require("bcryptjs");
+const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 
-// Mock Academy Data
-let academyStudents = [
-  { id: "stu_1", name: "Rahul Verma", phone: "+91 98111 22334", course: "Medical Coding (CPC)", batch: "Batch 2025-A", status: "Verified", score: 92, placementStatus: "Placed at Access Healthcare (5.2 LPA)" },
-  { id: "stu_2", name: "Sneha Patel", phone: "+91 98222 33445", course: "Healthcare RCM & AR", batch: "Batch 2025-A", status: "Interviewing", score: 88, placementStatus: "Shortlisted by Omega Healthcare" },
-  { id: "stu_3", name: "Amit Kulkarni", phone: "+91 98333 44556", course: "Denials & Appeals", batch: "Batch 2025-B", status: "Verified", score: 95, placementStatus: "Placed at RCM Global (6.0 LPA)" },
-  { id: "stu_4", name: "Meera Krishnan", phone: "+91 98444 55667", course: "Payment Posting", batch: "Batch 2025-B", status: "Uploaded", score: 78, placementStatus: "Verification in Progress" },
-  { id: "stu_5", name: "Deepak Sharma", phone: "+91 98555 66778", course: "Medical Billing", batch: "Batch 2025-C", status: "Verified", score: 90, placementStatus: "Available for Placement" }
-];
+const router = express.Router();
 
 let academyBatches = [
   { code: "RCM-2025-A", course: "Healthcare RCM & AR Follow-up", studentsCount: 42, completionPct: 95, status: "Active" },
@@ -16,67 +11,141 @@ let academyBatches = [
   { code: "BIL-2024-D", course: "Payment Posting & Claims Entry", studentsCount: 30, completionPct: 100, status: "Completed" }
 ];
 
-// POST /api/academy/login - Simulates Phone OTP Auth
-router.post("/login", (req, res) => {
-  const { phone, otp } = req.body;
-  if (!phone) return res.status(400).json({ message: "Phone number required." });
-  
-  // For demo, accept OTP 123456 or any 6-digit OTP
+// POST /api/academy/login - Academy login with MSG91 OTP access token verification
+router.post("/login", async (req, res) => {
+  const { accessToken, fullName, academyName, email, mobile, phone } = req.body;
+
+  if (!accessToken) {
+    return res.status(400).json({ message: "Missing MSG91 OTP verification token." });
+  }
+
+  try {
+    await verifyWidgetAccessToken(accessToken);
+  } catch (err) {
+    if (["OTP_TOKEN_MISSING", "OTP_VERIFY_FAILED"].includes(err.code)) {
+      return res.status(400).json({ message: err.message });
+    }
+    console.error("Academy login OTP verify error:", err);
+    return res.status(500).json({ message: err.message || "Server error verifying OTP." });
+  }
+
   res.json({
-    token: "demo_academy_token_apex_101",
+    token: `demo_academy_token_${Date.now()}`,
     academy: {
-      id: "acad_apex_01",
-      name: "Apex Medical Coding Institute",
+      id: `acad_${Date.now()}`,
+      name: academyName || "Apex Medical Coding Institute",
+      contactName: fullName || "Academy Partner",
+      email: email || "partner@academy.com",
+      phone: mobile || phone || "",
       tier: "Platinum Partner",
-      partnerSince: "2023",
-      studentsUploaded: academyStudents.length,
+      partnerSince: "2024",
+      studentsUploaded: 52,
       verifiedPct: 94
     }
   });
 });
 
 // GET /api/academy/dashboard - Dashboard data
-router.get("/dashboard", (req, res) => {
-  res.json({
-    kpis: {
-      totalStudents: academyStudents.length + 140,
-      verifiedStudents: Math.round((academyStudents.length + 140) * 0.92),
-      placedStudents: 118,
-      avgScore: 91,
-      placementRate: "88%"
-    },
-    students: academyStudents,
-    batches: academyBatches,
-    placements: [
-      { studentName: "Rahul Verma", company: "Access Healthcare", role: "AR Follow-up Executive", salary: "5.2 LPA", date: "Yesterday" },
-      { studentName: "Amit Kulkarni", company: "RCM Global", role: "Denial Management Analyst", salary: "6.0 LPA", date: "3 days ago" },
-      { studentName: "Divya Nair", company: "Coronis Health", role: "CPC Medical Coder", salary: "4.8 LPA", date: "1 week ago" }
-    ]
-  });
+router.get("/dashboard", async (req, res) => {
+  try {
+    const dbCandidates = await Candidate.find().lean();
+
+    const formattedStudents = dbCandidates.map((c) => {
+      const s1 = c.stage1 || {};
+      const s2 = c.stage2 || {};
+      const s4 = c.stage4 || {};
+      const isVerified = (c.completedStages || []).length >= 8;
+
+      return {
+        id: c._id,
+        name: s1.fullName || c.email,
+        phone: s1.mobile || "+91 98765 00000",
+        course: s1.currentRole || "Healthcare RCM Specialist",
+        batch: s2.batch || "Batch 2026",
+        status: isVerified ? "Verified" : "Pending Verification",
+        score: s4.score || 88,
+        placementStatus: isVerified ? "Available for Placement" : "Verification in Progress",
+      };
+    });
+
+    res.json({
+      kpis: {
+        totalStudents: formattedStudents.length + 140,
+        verifiedStudents: Math.round((formattedStudents.length + 140) * 0.92),
+        placedStudents: 118,
+        avgScore: 91,
+        placementRate: "88%"
+      },
+      students: formattedStudents,
+      batches: academyBatches,
+      placements: [
+        { studentName: "Rahul Verma", company: "Access Healthcare", role: "AR Follow-up Executive", salary: "5.2 LPA", date: "Yesterday" },
+        { studentName: "Amit Kulkarni", company: "RCM Global", role: "Denial Management Analyst", salary: "6.0 LPA", date: "3 days ago" },
+        { studentName: "Divya Nair", company: "Coronis Health", role: "CPC Medical Coder", salary: "4.8 LPA", date: "1 week ago" }
+      ]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Error loading academy dashboard." });
+  }
 });
 
-// POST /api/academy/upload-students - Bulk upload simulation
-router.post("/upload-students", (req, res) => {
-  const { batchName, count } = req.body;
-  const newCount = count || 5;
+// POST /api/academy/upload-students - Bulk upload into MongoDB Candidate collection
+router.post("/upload-students", async (req, res) => {
+  try {
+    const { batchName, count } = req.body;
+    const newCount = Number(count) || 5;
+    const defaultPassword = await bcrypt.hash("Password123", 10);
 
-  for (let i = 1; i <= newCount; i++) {
-    academyStudents.push({
-      id: `stu_${Date.now()}_${i}`,
-      name: `Student Candidate #${academyStudents.length + 1}`,
-      phone: `+91 99${Math.floor(10000000 + Math.random() * 90000000)}`,
-      course: "Healthcare RCM Trainee",
-      batch: batchName || "Batch 2025-Import",
-      status: "Uploaded",
-      score: 80 + Math.floor(Math.random() * 15),
-      placementStatus: "Stage 1 Uploaded"
+    const createdDocs = [];
+    for (let i = 1; i <= newCount; i++) {
+      const randomId = Math.floor(1000 + Math.random() * 9000);
+      const email = `student_${Date.now()}_${i}@apexacademy.com`;
+
+      const candidate = await Candidate.create({
+        email,
+        passwordHash: defaultPassword,
+        completedStages: [1, 2, 4],
+        stage1: {
+          fullName: `Academy Student #${randomId}`,
+          mobile: `+91 99${Math.floor(10000000 + Math.random() * 90000000)}`,
+          city: "Bengaluru",
+          experience: "Fresher",
+          currentRole: "Medical Coding Trainee",
+          aadhaarVerified: true,
+        },
+        stage2: {
+          academyName: "Apex Medical Coding Institute",
+          batch: batchName || "Batch 2026-Import",
+          verified: true,
+        },
+        stage4: {
+          score: 80 + Math.floor(Math.random() * 15),
+          total: 100,
+          topic: "Academy Assessment Test",
+          passed: true,
+        },
+        stage7: {
+          summary: `Trained medical coding candidate from ${batchName || "Batch 2026-Import"}.`,
+        },
+        stage8: {
+          status: "Immediate Joiner",
+          expectedCtc: "3.5 LPA",
+        },
+      });
+      createdDocs.push(candidate);
+    }
+
+    const totalStudents = await Candidate.countDocuments();
+
+    res.json({
+      message: `Successfully uploaded ${newCount} student candidates to ${batchName || "Batch 2026-Import"}.`,
+      totalStudents,
     });
+  } catch (err) {
+    console.error("Bulk upload error:", err);
+    res.status(500).json({ message: "Bulk upload failed." });
   }
-
-  res.json({
-    message: `Successfully uploaded ${newCount} students to ${batchName || "Batch 2025-Import"}.`,
-    totalStudents: academyStudents.length
-  });
 });
 
 module.exports = router;
