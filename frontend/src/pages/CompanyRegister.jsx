@@ -116,13 +116,61 @@ export default function CompanyRegister() {
       try {
         const identifier = email;
         const accessToken = await startOtpWidget(identifier);
+
+        // The 6-step wizard collects real hiring context before an account
+        // even exists (locations/team size/department/frequency for "hire",
+        // or the actual role brief for "job") - previously all of that was
+        // thrown away at submit time, leaving only name/mobile/email/
+        // password. Now: the raw answers go to intakeNotes so ops/sales can
+        // see the original ask, and the handful of fields with a safe,
+        // unambiguous match in the onboarding schema (free-text role title
+        // and location) pre-fill Stage 9 so the company doesn't retype them
+        // during onboarding. Fields whose wizard options don't line up with
+        // a stage's fixed <select> list (team size buckets, specialty
+        // labels, experience bands, salary text) are deliberately left out
+        // of the prefill - forcing a mismatched value into a select just
+        // renders as blank/unselected, which is worse than asking again.
+        const intake =
+          flowType === "job"
+            ? {
+                flow: "job",
+                jobTitle,
+                jobSpecialty,
+                jobLocation,
+                jobExperience,
+                jobEmploymentType,
+                jobSalaryRange,
+              }
+            : {
+                flow: "hire",
+                location,
+                teamSize,
+                department,
+                frequency,
+              };
+
+        const prefillStages =
+          flowType === "job"
+            ? {
+                9: {
+                  ...(jobTitle ? { roletitle: jobTitle } : {}),
+                  ...(jobLocation ? { location: jobLocation } : {}),
+                },
+              }
+            : {
+                2: {
+                  ...(location ? { hq: location } : {}),
+                },
+              };
+
         await register(
           contactName || "Employer",
           mobile || "9876543210",
           companyName || "Partner Company",
           email || `employer_${Date.now()}@company.com`,
           password,
-          accessToken
+          accessToken,
+          { intake, prefillStages }
         );
         setRegSuccess(true);
       } catch (err) {
@@ -215,15 +263,8 @@ export default function CompanyRegister() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => navigate("/")}>
-            <svg width="40" height="40" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 8H46V18H32V44H20V18H6V8Z" fill="#E5A82E" />
-              <path d="M6 8L20 18V44L6 34V8Z" fill="#FFFFFF" />
-              <path d="M32 8L46 18H32V8Z" fill="#F5C95B" />
-            </svg>
             <div>
-              <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24, color: "#fff", lineHeight: 1 }}>
-                TALENT<span style={{ color: "var(--gold)" }}>ERA</span>
-              </div>
+              <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
               <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold)", marginTop: 4 }}>
                 COMPANY HIRING PORTAL
               </div>
@@ -304,15 +345,8 @@ export default function CompanyRegister() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => setViewMode("hero")}>
-          <svg width="40" height="40" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M6 8H46V18H32V44H20V18H6V8Z" fill="#E5A82E" />
-            <path d="M6 8L20 18V44L6 34V8Z" fill="#FFFFFF" />
-            <path d="M32 8L46 18H32V8Z" fill="#F5C95B" />
-          </svg>
           <div>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24, color: "#fff", lineHeight: 1 }}>
-              TALENTERA
-            </div>
+            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
             <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold)", marginTop: 4 }}>
               {flowType === "job" ? "JOB REQUIREMENT" : "COMPANY REGISTRATION"}
             </div>

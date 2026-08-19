@@ -70,10 +70,8 @@ export default function VerifyCandidate() {
       <header style={{ background: "#0A1F3D", color: "#fff", padding: "16px 24px", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link to="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "#fff" }}>
-            <div style={{ width: 36, height: 36, background: "#E5A82E", color: "#0A1F3D", fontWeight: "bold", borderRadius: 8, display: "flex", alignItems: "center", justifyCenter: "center", fontSize: 20, textAlign: "center", lineHeight: "36px" }}>
-              T
-            </div>
-            <span style={{ fontWeight: 800, fontSize: 20, letterSpacing: "-0.02em" }}>Talentera <span style={{ color: "#E5A82E", fontWeight: 400, fontSize: 14 }}>Verify</span></span>
+            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+            <span style={{ color: "#E5A82E", fontWeight: 700, fontSize: 13, fontFamily: "var(--font-mono)", letterSpacing: "0.12em" }}>VERIFY</span>
           </Link>
 
           <button

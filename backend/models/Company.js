@@ -56,6 +56,29 @@ const CompanySchema = new mongoose.Schema(
     jdPublished: { type: Boolean, default: false },
     jobId: { type: String, default: null },
     jdPublishedAt: { type: Date, default: null },
+
+    // Raw answers from the "Post a Requirement" / "Post a Job" lead-gen
+    // wizard (frontend/src/pages/CompanyRegister.jsx) that don't map
+    // 1:1 onto a stage's field vocabulary (e.g. team size buckets, hiring
+    // frequency). Previously this data was collected on screen and then
+    // silently discarded at submit time. It's kept here, unstructured, so
+    // ops/staff can see what the company originally asked for even though
+    // only a subset of it gets pre-filled into the matching onboarding
+    // stage fields (see companyAuth.js's /register handler).
+    intakeNotes: { type: mongoose.Schema.Types.Mixed, default: null },
+
+    // Account & KYC Verification fields
+    kycStatus: {
+      type: String,
+      enum: ["pending", "under_review", "verified", "rejected"],
+      default: "pending",
+    },
+    kycSubmittedAt: { type: Date, default: null },
+    kycVerifiedAt: { type: Date, default: null },
+    kycNotes: { type: String, default: "" },
+    kycRejectionReason: { type: String, default: "" },
+    docVerifications: { type: mongoose.Schema.Types.Mixed, default: {} },
+    rejectedKycFields: { type: [String], default: [] },
   },
   { timestamps: true }
 );

@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { WIZARD_STAGES } from "../data/wizardStages";
 
 const STAGE_ICONS = {
@@ -65,6 +66,13 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
         <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={onSubmit}>
           Submit for verification →
         </button>
+        <Link
+          to="/jobs"
+          className="btn btn-ghost"
+          style={{ width: "100%", justifyContent: "center", color: "#fff", borderColor: "rgba(255,255,255,0.3)", textDecoration: "none", boxSizing: "border-box" }}
+        >
+          Browse open jobs
+        </Link>
         <button type="button" className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }} onClick={onSaveExit}>
           Save & exit
         </button>
