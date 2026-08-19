@@ -194,6 +194,9 @@ export default function Landing() {
             <Link to="/academy" onClick={() => setMobileMenuOpen(false)}>
               For Academies
             </Link>
+            <Link to="/jobs" onClick={() => setMobileMenuOpen(false)}>
+              Browse Jobs
+            </Link>
             <a href="#how" onClick={() => setMobileMenuOpen(false)}>
               How it Works
             </a>
@@ -906,9 +909,7 @@ export default function Landing() {
       <footer className="footer">
         <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div>
-            <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 22, color: "#fff" }}>
-              TALENT<span style={{ color: "var(--gold)" }}>ERA</span>
-            </div>
+            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
             <div style={{ fontSize: 12, color: "var(--text-faint)", marginTop: 4 }}>
               The Era of Verified Healthcare Talent Begins Here.
             </div>
@@ -918,6 +919,7 @@ export default function Landing() {
             <Link to="/companies">For Companies</Link>
             <a href="#candidates" onClick={scrollToCandidates}>For Candidates</a>
             <Link to="/academy">For Academies</Link>
+            <Link to="/jobs">Browse Jobs</Link>
             <Link to="/login">Employee Login</Link>
           </div>
         </div>

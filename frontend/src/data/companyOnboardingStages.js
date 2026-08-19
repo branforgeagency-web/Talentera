@@ -246,9 +246,26 @@ export function stageDoneFields(id, savedData) {
     if (v === undefined || v === null) return false;
     if (typeof v === "string") return v.trim() !== "";
     if (Array.isArray(v)) return v.length > 0;
-    if (typeof v === "object") return !!(v.name || v.email);
+    if (typeof v === "object") {
+      if (item.input === "name-email") return !!(v.name && String(v.name).trim() && v.email && String(v.email).trim());
+      if (item.input === "file") return !!(v.docName || v.docUrl || v.url || v.fileUrl || v.name);
+      return !!(v.docName || v.docUrl || v.url || v.fileUrl || v.name || v.email || Object.keys(v).length > 0);
+    }
     return true;
   }).length;
 }
 
 export const TOTAL_FIELDS = ONBOARDING_STAGES.reduce((sum, s) => sum + s.items.length, 0);
+
+// A company that has filled every one of the TOTAL_FIELDS onboarding
+// fields AND been KYC-verified shouldn't have to see the 9-section wizard
+// every time it opens the dashboard - CompanyLogin/ForCompanies route it
+// straight to the Job Posts screen (/companies/jobs) instead, and
+// CompanyDashboardSetup shows a banner pointing there rather than defaulting
+// back into the wizard. Centralized here since it's the same "done" math
+// stageDoneFields/TOTAL_FIELDS already do per-stage.
+export function isFullyOnboarded(company) {
+  if (!company || company.kycStatus !== "verified") return false;
+  const totalDone = ONBOARDING_STAGES.reduce((sum, s) => sum + stageDoneFields(s.id, company[`stage${s.id}`]), 0);
+  return totalDone >= TOTAL_FIELDS;
+}

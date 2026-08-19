@@ -7,6 +7,27 @@ const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 
 const router = express.Router();
 
+const VALID_STAGE_IDS = ["1a", "1b", "2", "3", "4", "5", "6", "7", "8", "9"];
+
+// Merge a small, whitelisted set of pre-fill values (collected by the
+// "Post a Requirement" / "Post a Job" wizard before an account exists) into
+// the matching onboarding stage Mixed objects, so a company doesn't have to
+// retype what it already told us. Anything outside VALID_STAGE_IDS, or
+// where the payload isn't a plain object, is ignored rather than throwing -
+// this is best-effort convenience, not a required part of registration.
+function buildStagePrefill(prefillStages) {
+  const stages = {};
+  if (!prefillStages || typeof prefillStages !== "object") return stages;
+  for (const stageId of Object.keys(prefillStages)) {
+    const key = String(stageId).toLowerCase();
+    if (!VALID_STAGE_IDS.includes(key)) continue;
+    const value = prefillStages[stageId];
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    stages[`stage${key}`] = value;
+  }
+  return stages;
+}
+
 // POST /api/company/auth/register
 router.post(
   "/register",
@@ -25,7 +46,7 @@ router.post(
       return res.status(400).json({ message: errors.array()[0].msg, errors: errors.array() });
     }
 
-    const { name, companyName, mobile, email, password, accessToken } = req.body;
+    const { name, companyName, mobile, email, password, accessToken, intake, prefillStages } = req.body;
 
     try {
       if (accessToken) {
@@ -38,13 +59,21 @@ router.post(
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
+      const stagePrefill = buildStagePrefill(prefillStages);
+      const defaultStage1a = { legalname: companyName || "" };
+      const defaultStage1b = { pocname: name || "", pocemail: email || "", pocmobile: mobile || "" };
+
       const company = await Company.create({
         email,
         passwordHash,
         contactName: name,
         companyName,
         mobile,
-        completedStages: [],
+        completedStages: ["1a", "1b"],
+        intakeNotes: intake && typeof intake === "object" ? intake : null,
+        stage1a: { ...defaultStage1a, ...(stagePrefill.stage1a || {}) },
+        stage1b: { ...defaultStage1b, ...(stagePrefill.stage1b || {}) },
+        ...stagePrefill,
       });
 
       const token = signToken(company._id, "company");

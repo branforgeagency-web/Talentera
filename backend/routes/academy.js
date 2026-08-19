@@ -1,5 +1,6 @@
 const express = require("express");
 const Candidate = require("../models/Candidate");
+const Application = require("../models/Application");
 const bcrypt = require("bcryptjs");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 
@@ -49,12 +50,45 @@ router.post("/login", async (req, res) => {
 router.get("/dashboard", async (req, res) => {
   try {
     const dbCandidates = await Candidate.find().lean();
+    const candidateIds = dbCandidates.map((c) => c._id);
+    const applications = await Application.find({ candidateId: { $in: candidateIds } })
+      .populate("companyId", "companyName")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const latestAppMap = {};
+    for (const app of applications) {
+      const cid = app.candidateId.toString();
+      if (!latestAppMap[cid]) {
+        latestAppMap[cid] = app;
+      }
+    }
 
     const formattedStudents = dbCandidates.map((c) => {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
       const s4 = c.stage4 || {};
       const isVerified = (c.completedStages || []).length >= 8;
+      const app = latestAppMap[c._id.toString()];
+
+      let status = isVerified ? "Verified" : "Pending Verification";
+      let placementStatus = isVerified ? "Available for Placement" : "Verification in Progress";
+
+      if (app) {
+        if (app.status === "rejected") {
+          status = "Rejected";
+          placementStatus = `Rejected by ${app.companyId?.companyName || "Employer"}`;
+        } else if (app.status === "shortlisted") {
+          status = "Shortlisted";
+          placementStatus = `Shortlisted by ${app.companyId?.companyName || "Employer"}`;
+        } else if (app.status === "interviewing") {
+          status = "Interviewing";
+          placementStatus = `Interview with ${app.companyId?.companyName || "Employer"}`;
+        } else if (app.status === "hired") {
+          status = "Placed";
+          placementStatus = `Placed at ${app.companyId?.companyName || "Employer"}`;
+        }
+      }
 
       return {
         id: c._id,
@@ -62,9 +96,9 @@ router.get("/dashboard", async (req, res) => {
         phone: s1.mobile || "+91 98765 00000",
         course: s1.currentRole || "Healthcare RCM Specialist",
         batch: s2.batch || "Batch 2026",
-        status: isVerified ? "Verified" : "Pending Verification",
+        status,
         score: s4.score || 88,
-        placementStatus: isVerified ? "Available for Placement" : "Verification in Progress",
+        placementStatus,
       };
     });
 

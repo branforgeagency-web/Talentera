@@ -2,6 +2,7 @@ const express = require("express");
 const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
+const Job = require("../models/Job");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
@@ -18,8 +19,12 @@ router.get("/me", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
 
+  const applications = await Application.find({ candidateId: req.candidateId })
+    .populate("companyId", "companyName stage9 jobId")
+    .sort({ createdAt: -1 });
+
   const scoring = calculateVerificationScore(candidate.completedStages);
-  res.json({ candidate, ...scoring });
+  res.json({ candidate, applications, ...scoring });
 });
 
 // PUT /api/candidate/stage/:n - save-on-advance: persists one stage's form data
@@ -165,9 +170,20 @@ router.post("/apply/:jobId", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
-  // Find company with this published jobId
-  const company = await Company.findOne({ jobId, jdPublished: true });
-  if (!company) {
+  // A jobId now resolves against two possible sources: the legacy "first
+  // JD" published straight off Company (jdPublished/jobId, from onboarding
+  // Stage 9), or a Job document posted afterwards from the Job Posts screen
+  // (see routes/company.js POST /jobs). Check the newer source first since
+  // it's the one companies use once they're fully onboarded.
+  let companyId = null;
+  const postedJob = await Job.findOne({ jobId, published: true });
+  if (postedJob) {
+    companyId = postedJob.companyId;
+  } else {
+    const company = await Company.findOne({ jobId, jdPublished: true });
+    if (company) companyId = company._id;
+  }
+  if (!companyId) {
     return res.status(404).json({ message: "Job posting not found or no longer active." });
   }
 
@@ -179,7 +195,7 @@ router.post("/apply/:jobId", async (req, res) => {
 
     const application = await Application.create({
       candidateId: candidate._id,
-      companyId: company._id,
+      companyId,
       jobId,
       coverNote: coverNote || "",
     });
@@ -193,7 +209,7 @@ router.post("/apply/:jobId", async (req, res) => {
 // GET /api/candidate/applications - retrieve candidate's applications
 router.get("/applications", async (req, res) => {
   const applications = await Application.find({ candidateId: req.candidateId })
-    .populate("companyId", "companyName stage9")
+    .populate("companyId", "companyName stage9 jobId")
     .sort({ createdAt: -1 });
 
   res.json({ applications });

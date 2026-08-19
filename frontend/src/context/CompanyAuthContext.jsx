@@ -20,11 +20,26 @@ export function CompanyAuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
-  async function register(name, mobile, companyName, email, password, accessToken = null) {
-    const res = await companyApi.post("/company/auth/register", { name, mobile, companyName, email, password, accessToken });
+  // `extra` optionally carries { intake, prefillStages } - raw wizard
+  // answers that don't have a required backend shape, see companyAuth.js.
+  async function register(name, mobile, companyName, email, password, accessToken = null, extra = {}) {
+    const res = await companyApi.post("/company/auth/register", {
+      name,
+      mobile,
+      companyName,
+      email,
+      password,
+      accessToken,
+      intake: extra.intake,
+      prefillStages: extra.prefillStages,
+    });
     return res.data;
   }
 
+  // Step 1 of the OTP-gated login: validates credentials only. Deliberately
+  // does NOT touch localStorage or setCompany - the session isn't
+  // established until verifyLoginOtp succeeds, otherwise a correct
+  // password alone would be enough to sign in and OTP would be decorative.
   async function loginStart(email, password) {
     const res = await companyApi.post("/company/auth/login", { email, password });
     return res.data;

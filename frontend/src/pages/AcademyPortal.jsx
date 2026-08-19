@@ -165,15 +165,15 @@ export default function AcademyPortal() {
                       <td style={{ padding: "12px 18px", color: "#64748B" }}>{stu.batch}</td>
                       <td style={{ padding: "12px 18px" }}>
                         <span style={{
-                          padding: "3px 8px", borderRadius: 4, fontSize: 11, fontWeight: 700,
-                          background: stu.status === "Verified" ? "#DCFCE7" : stu.status === "Interviewing" ? "#FFF8E7" : "#F1F5F9",
-                          color: stu.status === "Verified" ? "#15803D" : stu.status === "Interviewing" ? "#92400E" : "#475569"
+                          padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                          background: stu.status === "Rejected" ? "#FEE2E2" : stu.status === "Placed" || stu.status === "Verified" ? "#DCFCE7" : stu.status === "Interviewing" ? "#FEF3C7" : stu.status === "Shortlisted" ? "#DBEAFE" : "#F1F5F9",
+                          color: stu.status === "Rejected" ? "#B91C1C" : stu.status === "Placed" || stu.status === "Verified" ? "#166534" : stu.status === "Interviewing" ? "#B45309" : stu.status === "Shortlisted" ? "#1D4ED8" : "#475569"
                         }}>
                           {stu.status}
                         </span>
                       </td>
                       <td style={{ padding: "12px 18px", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--navy)" }}>{stu.score}%</td>
-                      <td style={{ padding: "12px 18px", fontSize: 12, color: "#15803D", fontWeight: 600 }}>{stu.placementStatus}</td>
+                      <td style={{ padding: "12px 18px", fontSize: 12, color: stu.status === "Rejected" ? "#B91C1C" : "#15803D", fontWeight: 600 }}>{stu.placementStatus}</td>
                     </tr>
                   ))}
                 </tbody>

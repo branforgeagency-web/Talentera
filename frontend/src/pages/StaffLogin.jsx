@@ -99,7 +99,7 @@ export default function StaffLogin() {
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
               <div>
-                <img src="/logo.png" alt="Talentera" style={{ height: 40, width: "auto" }} />
+                <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
                 <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold-light)", marginTop: 4 }}>
                   STAFF OPERATIONS HUB
                 </div>

@@ -3193,3 +3193,91 @@ html, body {
     padding: 30px 20px;
   }
 }
+
+/* Company Portal (/companies/directory) - filter sidebar + results grid.
+   Previously this layout was hard-coded as an inline "280px 1fr" grid with
+   no breakpoint, so on phones the filter sidebar and candidate cards were
+   squeezed side-by-side instead of stacking. */
+.cp-directory-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+}
+
+@media (max-width: 900px) {
+  .cp-directory-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Shared modal chrome. Several pages (CompanyPortal's candidate modals,
+   AcademyPortal's bulk-upload modal, etc.) render `.modal-overlay` /
+   `.modal-content` wrappers, but neither class was ever actually defined
+   here - so every one of those modals rendered with no backdrop dimming,
+   no card shadow/rounding, and unstyled <input>/<select>/<textarea>
+   fields, falling back to bare browser defaults. Individual modals still
+   set their own max-width inline; this just gives the shared shell (and
+   any un-styled form field inside it) a real design. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.modal-content {
+  position: relative;
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px -12px rgba(15, 23, 42, 0.35);
+  animation: modal-pop 0.15s ease-out;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-content input[type="text"],
+.modal-content input[type="email"],
+.modal-content input[type="number"],
+.modal-content input[type="tel"],
+.modal-content select,
+.modal-content textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid #CBD5E1;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--navy);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.modal-content input[type="text"]:focus,
+.modal-content input[type="email"]:focus,
+.modal-content input[type="number"]:focus,
+.modal-content input[type="tel"]:focus,
+.modal-content select:focus,
+.modal-content textarea:focus {
+  border-color: var(--gold);
+}
+
+.modal-content textarea {
+  resize: vertical;
+}
+
+@media (max-width: 600px) {
+  .modal-overlay {
+    padding: 16px;
+  }
+}

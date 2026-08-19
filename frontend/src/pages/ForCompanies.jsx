@@ -3,19 +3,25 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { startOtpWidget } from "../utils/msg91Widget.js";
+import { isFullyOnboarded } from "../data/companyOnboardingStages";
 
 export default function ForCompanies() {
   const navigate = useNavigate();
-  const { register, login, company } = useCompanyAuth();
+  const { register, loginStart, verifyLoginOtp, company, loading } = useCompanyAuth();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState("register");
   const [submitting, setSubmitting] = useState(false);
 
+  // This page also doubles as the "not authenticated" redirect target
+  // (see companyClient.js's 401 interceptor and CompanyRequireAuth), so an
+  // already-signed-in company landing here - e.g. a stale bookmark, or a
+  // 401 bounce mid-session - should go straight to their dashboard instead
+  // of being silently logged out just for viewing this page.
   useEffect(() => {
-    if (company) {
-      navigate("/companies/dashboard", { replace: true });
+    if (!loading && company) {
+      navigate(isFullyOnboarded(company) ? "/companies/jobs" : "/companies/dashboard", { replace: true });
     }
-  }, [company, navigate]);
+  }, [loading, company, navigate]);
 
   // Registration Form State
   const [regName, setRegName] = useState("");
@@ -41,12 +47,13 @@ export default function ForCompanies() {
     }
     setSubmitting(true);
     try {
-      await register(regName, regMobile, regCompany, regEmail, regPassword);
+      const accessToken = await startOtpWidget(regEmail);
+      await register(regName, regMobile, regCompany, regEmail, regPassword, accessToken);
       toast("Company registered successfully! Please log in to continue.", "✓");
       setLoginEmail(regEmail);
       setActiveTab("login");
     } catch (err) {
-      toast(err.response?.data?.message || "Couldn't create your account. Please try again.", "!");
+      toast(err.response?.data?.message || err.message || "Couldn't create your account. Please try again.", "!");
     } finally {
       setSubmitting(false);
     }
@@ -56,11 +63,13 @@ export default function ForCompanies() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await login(loginEmail, loginPassword);
+      const { company: pendingCompany } = await loginStart(loginEmail, loginPassword);
+      const accessToken = await startOtpWidget(loginEmail);
+      const loggedInCompany = await verifyLoginOtp(pendingCompany._id, accessToken);
       toast("Welcome back!", "✓");
-      navigate("/companies/dashboard");
+      navigate(isFullyOnboarded(loggedInCompany) ? "/companies/jobs" : "/companies/dashboard");
     } catch (err) {
-      toast(err.response?.data?.message || "Invalid email or password.", "!");
+      toast(err.response?.data?.message || err.message || "Invalid email or password.", "!");
     } finally {
       setSubmitting(false);
     }
@@ -74,13 +83,8 @@ export default function ForCompanies() {
           <div className="cauth-brand-inner">
             {/* Logo */}
             <div className="cauth-brand-logo" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-              <svg width="40" height="40" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 8H46V18H32V44H20V18H6V8Z" fill="#E5A82E"/>
-                <path d="M6 8L20 18V44L6 34V8Z" fill="#FFFFFF"/>
-                <path d="M32 8L46 18H32V8Z" fill="#F5C95B"/>
-              </svg>
               <div>
-                <div className="cauth-brand-name">Talentera</div>
+                <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
                 <div className="cauth-brand-tagline">COMPANY HIRING PORTAL</div>
               </div>
             </div>
@@ -253,7 +257,7 @@ export default function ForCompanies() {
                 </div>
 
                 <button type="submit" className="cauth-btn" disabled={submitting}>
-                  {submitting ? "Creating account…" : "Create hiring account →"}
+                  {submitting ? "Verifying OTP…" : "Create hiring account →"}
                 </button>
 
                 <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "#64748B" }}>
@@ -264,6 +268,13 @@ export default function ForCompanies() {
                   >
                     Login here
                   </span>
+                </div>
+
+                <div style={{ textAlign: "center", marginTop: 10, fontSize: 12.5, color: "#94A3B8" }}>
+                  Prefer a guided walkthrough?{" "}
+                  <Link to="/companies/register" style={{ color: "var(--gold)", fontWeight: 700, textDecoration: "none" }}>
+                    Post a requirement instead →
+                  </Link>
                 </div>
               </form>
             ) : (
@@ -302,7 +313,7 @@ export default function ForCompanies() {
                 </div>
 
                 <button type="submit" className="cauth-btn" disabled={submitting}>
-                  {submitting ? "Signing in…" : "Sign in to Portal →"}
+                  {submitting ? "Verifying OTP…" : "Sign in to Portal →"}
                 </button>
 
                 <div style={{ textAlign: "center", marginTop: 18, fontSize: 13, color: "#64748B" }}>

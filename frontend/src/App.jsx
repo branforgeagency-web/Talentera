@@ -9,6 +9,9 @@ import CompanyRegister from "./pages/CompanyRegister.jsx";
 import CompanyLogin from "./pages/CompanyLogin.jsx";
 import CompanyPortal from "./pages/CompanyPortal.jsx";
 import CompanyDashboardSetup from "./pages/CompanyDashboardSetup.jsx";
+import CompanyApplicants from "./pages/CompanyApplicants.jsx";
+import CompanyJobs from "./pages/CompanyJobs.jsx";
+import Jobs from "./pages/Jobs.jsx";
 import AcademyLogin from "./pages/AcademyLogin.jsx";
 import AcademyPortal from "./pages/AcademyPortal.jsx";
 import StaffLogin from "./pages/StaffLogin.jsx";
@@ -48,6 +51,27 @@ export default function App() {
       <Route path="/companies/register" element={<CompanyRegister />} />
       <Route path="/companies/login" element={<CompanyLogin />} />
       <Route path="/companies/directory" element={<CompanyPortal />} />
+      <Route
+        path="/companies/applicants"
+        element={
+          <CompanyRequireAuth>
+            <CompanyApplicants />
+          </CompanyRequireAuth>
+        }
+      />
+      <Route
+        path="/companies/jobs"
+        element={
+          <CompanyRequireAuth>
+            <CompanyJobs />
+          </CompanyRequireAuth>
+        }
+      />
+
+      {/* Candidate-facing job board - browse JDs published via Company
+          onboarding Stage 9 and apply. Public route; the Apply action
+          itself gates on candidate auth inside Jobs.jsx. */}
+      <Route path="/jobs" element={<Jobs />} />
 
       {/* 03. Employee & Staff Login */}
       <Route path="/login" element={<StaffLogin />} />

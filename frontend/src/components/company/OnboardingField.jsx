@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import companyApi from "../../api/companyClient";
+import { useToast } from "../Toast.jsx";
 
 const TAG_LABEL = { must: "MUST", opt: "OPT", cond: "COND" };
 
@@ -17,47 +18,106 @@ function badgeStyle(tag) {
   return { background: "#FEF3C7", color: "#D97706" };
 }
 
-export default function OnboardingField({ item, value, onSave, stageId }) {
+function isFieldEmpty(input, val) {
+  if (val === undefined || val === null) return true;
+  if (typeof val === "string") return val.trim() === "";
+  if (Array.isArray(val)) return val.length === 0;
+  if (typeof val === "object") {
+    if (input === "name-email") return !val.name || !String(val.name).trim() || !val.email || !String(val.email).trim();
+    if (input === "file") return !val.docName && !val.docUrl && !val.url && !val.fileUrl && !val.name;
+  }
+  return false;
+}
+
+export default function OnboardingField({ item, value, onSave, stageId, showStageErrors, isRejectedField }) {
+  const toast = useToast();
   const isUpperType = item.input === "gstin" || item.input === "pan";
   const [text, setText] = useState(() => (typeof value === "string" ? value : ""));
   const [nameEmail, setNameEmail] = useState(() => (value && typeof value === "object" && !Array.isArray(value) ? value : { name: "", email: "" }));
   const [multiVal, setMultiVal] = useState(() => (Array.isArray(value) ? value : []));
-  const [fileInfo, setFileInfo] = useState(() => (value && value.docName ? value : null));
+  const [fileInfo, setFileInfo] = useState(() => {
+    if (!value) return null;
+    if (typeof value === "string" && value.trim() !== "") return { docUrl: value, docName: item.name };
+    if (typeof value === "object" && (value.docName || value.docUrl || value.url || value.fileUrl)) return value;
+    return null;
+  });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
+  React.useEffect(() => {
+    if (typeof value === "string") {
+      setText(value);
+    } else if (typeof value === "number") {
+      setText(String(value));
+    } else {
+      setText("");
+    }
+
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      setNameEmail(value);
+      if (value.docName || value.docUrl || value.url || value.fileUrl) {
+        setFileInfo(value);
+      } else {
+        setFileInfo(null);
+      }
+    } else if (typeof value === "string" && value.trim() !== "") {
+      setFileInfo({ docUrl: value, docName: item.name });
+    } else {
+      setFileInfo(null);
+    }
+
+    if (Array.isArray(value)) {
+      setMultiVal(value);
+    } else {
+      setMultiVal([]);
+    }
+  }, [value, item.name]);
+
+  const isMissingMust = item.tag === "must" && isFieldEmpty(item.input, value);
+  const isRequiredError = showStageErrors && isMissingMust;
+
   async function commit(nextValue) {
     setSaving(true);
     try {
       await onSave(item.id, nextValue);
-      setError("");
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't save this field.");
+      console.error(err);
+      toast(`Failed to save ${item.name}`, "!");
     } finally {
       setSaving(false);
     }
   }
 
-  function validateAndCommit(raw) {
-    const validator = VALIDATORS[item.input];
-    if (validator && raw.trim() !== "" && !validator.re.test(raw)) {
-      setError(validator.msg);
-      return;
+  function handleTextBlur() {
+    let err = "";
+    if (isMissingMust) {
+      err = `"${item.name}" is a required field.`;
+    } else if (text && VALIDATORS[item.input] && !VALIDATORS[item.input].re.test(text)) {
+      err = VALIDATORS[item.input].msg;
     }
-    setError("");
-    commit(raw);
+    setError(err);
+    if (err) {
+      toast(err, "!");
+    } else {
+      commit(text);
+    }
   }
 
-  function handleTextBlur() {
-    const raw = isUpperType ? text.toUpperCase() : text;
-    if (isUpperType && raw !== text) setText(raw);
-    validateAndCommit(raw);
+  function handleNameEmailBlur() {
+    if (isMissingMust) {
+      const err = `Both Name and Email are required for ${item.name}.`;
+      setError(err);
+      toast(err, "!");
+    } else {
+      setError("");
+      commit(nameEmail);
+    }
   }
 
   function toggleMultiOption(opt) {
-    const next = multiVal.includes(opt) ? multiVal.filter((o) => o !== opt) : [...multiVal, opt];
+    const next = multiVal.includes(opt) ? multiVal.filter((x) => x !== opt) : [...multiVal, opt];
     setMultiVal(next);
     commit(next);
   }
@@ -75,30 +135,57 @@ export default function OnboardingField({ item, value, onSave, stageId }) {
       const info = { docUrl: res.data.docUrl, docName: res.data.docName };
       setFileInfo(info);
       await commit(info);
+      toast(`File "${res.data.docName}" uploaded successfully!`, "✓");
     } catch (err) {
-      setError(err.response?.data?.message || "Upload failed.");
+      const uploadErrMsg = err.response?.data?.message || "Upload failed.";
+      setError(uploadErrMsg);
+      toast(`Upload error for ${item.name}: ${uploadErrMsg}`, "!");
     } finally {
       setUploading(false);
     }
   }
 
   return (
-    <div className="conb-field">
+    <div
+      className="conb-field"
+      style={
+        isRejectedField
+          ? { border: "2px solid #EF4444", background: "#FEF2F2", borderRadius: 8, padding: 12, marginBottom: 12 }
+          : {}
+      }
+    >
+      {isRejectedField && (
+        <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 800, background: "#FEE2E2", padding: "6px 10px", borderRadius: 6, marginBottom: 8, border: "1px solid #FCA5A5" }}>
+          🔴 REVISION REQUIRED BY AUDITOR: Uploaded document image was marked invalid. Please re-upload a clear file.
+        </div>
+      )}
       <div className="conb-field-head">
         <label className="conb-field-label">{item.name.toUpperCase()}</label>
         <span className="conb-field-tag" style={badgeStyle(item.tag)}>{TAG_LABEL[item.tag]}</span>
       </div>
 
       {["text", "gstin", "pan", "email", "url", "number"].includes(item.input) && (
-        <input
-          type={item.input === "number" ? "number" : item.input === "email" ? "email" : item.input === "url" ? "url" : "text"}
-          className="conb-input"
-          value={text}
-          placeholder={item.placeholder}
-          maxLength={item.input === "gstin" ? 15 : item.input === "pan" ? 10 : undefined}
-          onChange={(e) => setText(isUpperType ? e.target.value.toUpperCase() : e.target.value)}
-          onBlur={handleTextBlur}
-        />
+        <div>
+          <input
+            type={item.input === "number" ? "number" : item.input === "email" ? "email" : item.input === "url" ? "url" : "text"}
+            className="conb-input"
+            value={text}
+            placeholder={item.placeholder}
+            maxLength={item.input === "gstin" ? 15 : item.input === "pan" ? 10 : undefined}
+            onChange={(e) => setText(isUpperType ? e.target.value.toUpperCase() : e.target.value)}
+            onBlur={handleTextBlur}
+          />
+          {item.input === "gstin" && text.length === 15 && !error && (
+            <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <span>✓ Valid 15-digit GSTIN Format</span>
+            </div>
+          )}
+          {item.input === "pan" && text.length === 10 && !error && (
+            <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <span>✓ Valid 10-digit PAN Format</span>
+            </div>
+          )}
+        </div>
       )}
 
       {item.input === "phone" && (
@@ -216,6 +303,11 @@ export default function OnboardingField({ item, value, onSave, stageId }) {
       )}
 
       {item.desc && <div className="conb-field-desc">{item.desc}</div>}
+      {isRequiredError && (
+        <div className="error-text" style={{ color: "#EF4444", fontWeight: 700, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+          <span>⚠️ Required input: Please fill out {item.name} in this section.</span>
+        </div>
+      )}
       {error && <div className="error-text">{error}</div>}
       {saving && <div className="conb-field-saving">Saving…</div>}
     </div>
