@@ -68,7 +68,8 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
       </section>
 
       <div className="wiz-verified-cta">
-        <Link to="/resume" className="btn btn-gold">Open my verified resume →</Link>
+        <Link to="/jobs" className="btn btn-gold">Browse open jobs →</Link>
+        <Link to="/resume" className="btn btn-ghost" style={{ color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>Open my verified resume</Link>
         <button type="button" className="btn btn-ghost" onClick={onOpenDashboard} style={{ color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
           ← Back to verification wizard
         </button>

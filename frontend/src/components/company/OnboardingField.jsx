@@ -91,27 +91,30 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
   }
 
   function handleTextBlur() {
+    const val = typeof text === "string" ? text.trim() : text;
     let err = "";
-    if (isMissingMust) {
+    if (item.tag === "must" && isFieldEmpty(item.input, val)) {
       err = `"${item.name}" is a required field.`;
-    } else if (text && VALIDATORS[item.input] && !VALIDATORS[item.input].re.test(text)) {
+    } else if (val && VALIDATORS[item.input] && !VALIDATORS[item.input].re.test(val)) {
       err = VALIDATORS[item.input].msg;
     }
     setError(err);
     if (err) {
       toast(err, "!");
     } else {
-      commit(text);
+      commit(val);
     }
   }
 
   function handleNameEmailBlur() {
-    if (isMissingMust) {
-      const err = `Both Name and Email are required for ${item.name}.`;
-      setError(err);
+    let err = "";
+    if (item.tag === "must" && isFieldEmpty(item.input, nameEmail)) {
+      err = `Both Name and Email are required for ${item.name}.`;
+    }
+    setError(err);
+    if (err) {
       toast(err, "!");
     } else {
-      setError("");
       commit(nameEmail);
     }
   }
