@@ -47,6 +47,9 @@ export default function Dashboard() {
             <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <Link to="/jobs" className="btn btn-ghost" style={{ color: "var(--white)", borderColor: "rgba(255,255,255,0.3)", textDecoration: "none" }}>
+              Browse Jobs
+            </Link>
             <span className={profile.isGoldBadge ? "badge-gold" : "badge-progress"}>
               {profile.score}/{profile.maxScore} · {profile.badgeTier}
             </span>

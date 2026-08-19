@@ -194,9 +194,6 @@ export default function Landing() {
             <Link to="/academy" onClick={() => setMobileMenuOpen(false)}>
               For Academies
             </Link>
-            <Link to="/jobs" onClick={() => setMobileMenuOpen(false)}>
-              Browse Jobs
-            </Link>
             <a href="#how" onClick={() => setMobileMenuOpen(false)}>
               How it Works
             </a>
@@ -919,7 +916,6 @@ export default function Landing() {
             <Link to="/companies">For Companies</Link>
             <a href="#candidates" onClick={scrollToCandidates}>For Candidates</a>
             <Link to="/academy">For Academies</Link>
-            <Link to="/jobs">Browse Jobs</Link>
             <Link to="/login">Employee Login</Link>
           </div>
         </div>

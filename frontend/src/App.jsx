@@ -69,9 +69,15 @@ export default function App() {
       />
 
       {/* Candidate-facing job board - browse JDs published via Company
-          onboarding Stage 9 and apply. Public route; the Apply action
-          itself gates on candidate auth inside Jobs.jsx. */}
-      <Route path="/jobs" element={<Jobs />} />
+          onboarding Stage 9 and apply. Accessible only after candidate login. */}
+      <Route
+        path="/jobs"
+        element={
+          <RequireAuth>
+            <Jobs />
+          </RequireAuth>
+        }
+      />
 
       {/* 03. Employee & Staff Login */}
       <Route path="/login" element={<StaffLogin />} />
