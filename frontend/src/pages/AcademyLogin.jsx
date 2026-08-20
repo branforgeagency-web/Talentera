@@ -13,16 +13,23 @@ export default function AcademyLogin() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (!fullName || !academyName) return;
+    if (!fullName || !academyName || !email) {
+      setError("Please fill in all required fields including work email.");
+      return;
+    }
+    const cleanEmailStr = email.trim().toLowerCase();
+    if (!cleanEmailStr || !cleanEmailStr.includes("@")) {
+      setError("A valid email address is required for OTP verification.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      const identifier = mobile || email || fullName;
-      const accessToken = await startOtpWidget(identifier);
+      const accessToken = await startOtpWidget(cleanEmailStr);
       const res = await fetch("/api/academy/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken, fullName, academyName, email, mobile })
+        body: JSON.stringify({ accessToken, fullName, academyName, email: cleanEmailStr, mobile })
       });
       const data = await res.json();
       if (res.ok) {
@@ -323,6 +330,7 @@ export default function AcademyLogin() {
                   placeholder="director@academy.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
             </div>

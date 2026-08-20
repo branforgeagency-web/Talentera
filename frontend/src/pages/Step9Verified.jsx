@@ -67,10 +67,43 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
         </div>
       </section>
 
-      <div className="wiz-verified-cta">
-        <Link to="/jobs" className="btn btn-gold">Browse open jobs →</Link>
-        <Link to="/resume" className="btn btn-ghost" style={{ color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>Open my verified resume</Link>
-        <button type="button" className="btn btn-ghost" onClick={onOpenDashboard} style={{ color: "#fff", borderColor: "rgba(255,255,255,0.3)" }}>
+      <div className="wiz-verified-cta" style={{ marginTop: 28, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+        <Link to="/jobs" className="btn btn-gold" style={{ padding: "12px 24px", fontWeight: 800 }}>
+          Browse open jobs →
+        </Link>
+        <Link
+          to="/resume"
+          style={{
+            background: "#0A1F3D",
+            color: "#FAF7F0",
+            border: "1px solid #0A1F3D",
+            padding: "12px 20px",
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: 14,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center"
+          }}
+        >
+          📄 Open my verified resume
+        </Link>
+        <button
+          type="button"
+          onClick={onOpenDashboard}
+          style={{
+            background: "#ffffff",
+            color: "#0A1F3D",
+            border: "1.5px solid #0A1F3D",
+            padding: "12px 20px",
+            borderRadius: 10,
+            fontWeight: 700,
+            fontSize: 14,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center"
+          }}
+        >
           ← Back to verification wizard
         </button>
       </div>

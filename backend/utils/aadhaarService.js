@@ -111,7 +111,7 @@ class AadhaarVerificationService {
    * Formats raw digits (e.g. 9876543210) or provider response (e.g. XXXXXX3210) -> +91 ######3210
    */
   maskMobileNumber(rawMobile) {
-    if (!rawMobile) return "+91 ######3210";
+    if (!rawMobile) return "+91 XXXXX XXXXX";
     const str = String(rawMobile).trim();
     const clean = str.replace(/\D/g, "");
 
@@ -125,7 +125,7 @@ class AadhaarVerificationService {
       return `+91 ######${last4}`;
     }
 
-    return "+91 ######3210";
+    return "+91 XXXXX XXXXX";
   }
 
   /**

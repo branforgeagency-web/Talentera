@@ -10,7 +10,7 @@ const router = express.Router();
 router.post(
   "/register",
   [
-    body("email").isEmail().withMessage("Valid email required").normalizeEmail(),
+    body("email").isEmail().withMessage("Valid email required"),
     body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
     body("mobile")
       .notEmpty()
@@ -25,26 +25,27 @@ router.post(
     }
 
     const { email, password, mobile } = req.body;
+    const cleanEmail = (email || "").toLowerCase().trim();
 
     try {
-      const existing = await Candidate.findOne({ email });
+      const existing = await Candidate.findOne({ email: cleanEmail });
       if (existing) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
       const candidate = await Candidate.create({
-        email,
+        email: cleanEmail,
         passwordHash,
         mobile: mobile || "",
         completedStages: [],
       });
 
-      const token = signToken(candidate._id);
+      const token = signToken(candidate._id, "candidate");
       res.status(201).json({ token, candidate });
     } catch (err) {
       console.error("Register error:", err);
-      res.status(500).json({ message: "Server error during registration." });
+      res.status(500).json({ message: err.message || "Server error during registration." });
     }
   }
 );
@@ -53,7 +54,7 @@ router.post(
 router.post(
   "/login",
   [
-    body("email").isEmail().withMessage("Valid email required").normalizeEmail(),
+    body("email").isEmail().withMessage("Valid email required"),
     body("password").exists().withMessage("Password required"),
   ],
   async (req, res) => {
@@ -63,11 +64,16 @@ router.post(
     }
 
     const { email, password } = req.body;
+    const cleanEmail = (email || "").toLowerCase().trim();
 
     try {
-      const candidate = await Candidate.findOne({ email });
+      const candidate = await Candidate.findOne({ email: cleanEmail });
       if (!candidate) {
         return res.status(401).json({ message: "Invalid email or password." });
+      }
+
+      if (!candidate.passwordHash) {
+        return res.status(401).json({ message: "Account has no password set. Please reset password or contact support." });
       }
 
       const isMatch = await bcrypt.compare(password, candidate.passwordHash);
@@ -75,23 +81,24 @@ router.post(
         return res.status(401).json({ message: "Invalid email or password." });
       }
 
-      const token = signToken(candidate._id);
+      const token = signToken(candidate._id, "candidate");
       res.json({ token, candidate });
     } catch (err) {
-      console.error("Login error:", err);
-      res.status(500).json({ message: "Server error during login." });
+      console.error("Candidate login error:", err);
+      res.status(500).json({ message: err.message || "Server error during login." });
     }
   }
 );
 
-// GET /api/auth/me  - restores session on refresh (replaces Firebase's persistent session)
+// GET /api/auth/me - restores session on refresh (replaces Firebase's persistent session)
 router.get("/me", requireAuth, async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
     res.json({ candidate });
   } catch (err) {
-    res.status(500).json({ message: "Server error." });
+    console.error("Auth me error:", err);
+    res.status(500).json({ message: "Server error restoring candidate session." });
   }
 });
 
