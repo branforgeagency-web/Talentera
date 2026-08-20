@@ -18,8 +18,26 @@ const app = express();
 
 connectDB();
 
-const allowedOrigins = (process.env.CLIENT_ORIGINS || "http://localhost:5173").split(",");
-app.use(cors({ origin: allowedOrigins, credentials: true }));
+const defaultOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://talentera-nine.vercel.app",
+];
+const envOrigins = (process.env.CLIENT_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean);
+const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // Serve uploaded files (resume assets, videos) - replaces Firebase Storage public URLs
