@@ -153,16 +153,16 @@ export default function StaffHub() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(229,168,46,0.15)", color: "#fff", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-              <span>⚡</span> Overview & Bucket
+              <i className="fa-solid fa-bolt" style={{ color: "var(--gold)" }}></i> Overview & Bucket
             </div>
             <div style={{ padding: "10px 12px", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-              <span>🔍</span> Audit Queue
+              <i className="fa-solid fa-magnifying-glass"></i> Audit Queue
             </div>
             <div style={{ padding: "10px 12px", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-              <span>📹</span> Video Introductions
+              <i className="fa-solid fa-video"></i> Video Introductions
             </div>
             <div style={{ padding: "10px 12px", borderRadius: 8, color: "rgba(255,255,255,0.7)", fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-              <span>📊</span> Reports & Metrics
+              <i className="fa-solid fa-chart-column"></i> Reports & Metrics
             </div>
           </div>
 

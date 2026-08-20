@@ -54,9 +54,21 @@ export default function Stage6LiveCharts({ stage, existingData, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+
+    if (option === "practicode" && (!practicodeId || practicodeId.trim().length < 2)) {
+      setError("Please enter your Practicode Account ID or Email.");
+      toast("Practicode ID / Email is required.", "!");
+      return;
+    }
+    if (option === "upload" && !docName) {
+      setError("Please upload your academy live-chart log document.");
+      toast("Academy live-chart log is required.", "!");
+      return;
+    }
+
     setSaving(true);
     try {
-      const res = await api.put(`/candidate/stage/${stage.num}`, { option, practicodeId, docName });
+      const res = await api.put(`/candidate/stage/${stage.num}`, { option, practicodeId: practicodeId.trim(), docName });
       onSaved(res.data);
     } catch (err) {
       setError(err.response?.data?.message || "Could not save this stage.");

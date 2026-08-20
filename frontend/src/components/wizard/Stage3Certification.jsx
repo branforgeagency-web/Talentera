@@ -64,10 +64,21 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (!memberId || memberId.trim().length < 2) {
+      setError("Please enter your Member / Certification ID.");
+      toast("Member / Certification ID is required.", "!");
+      return;
+    }
+    if (!issueDate || issueDate.trim().length < 2) {
+      setError("Please enter the Issue Date.");
+      toast("Issue Date is required.", "!");
+      return;
+    }
+
     setSaving(true);
     try {
       const res = await api.put(`/candidate/stage/${stage.num}`, {
-        body, certCode, certName: selectedCert.name, issuingBody: bodyData.name, memberId, issueDate, docName,
+        body, certCode, certName: selectedCert.name, issuingBody: bodyData.name, memberId: memberId.trim(), issueDate: issueDate.trim(), docName,
       });
       onSaved(res.data);
     } catch (err) {

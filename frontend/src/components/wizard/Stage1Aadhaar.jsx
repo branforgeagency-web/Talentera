@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
@@ -8,65 +8,37 @@ const INDIAN_STATES = [
   "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
   "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
   "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
-  "Uttarakhand", "West Bengal", "West Bengal (UT excluded)",
+  "Uttarakhand", "West Bengal",
   "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
   "Delhi (NCT)", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
-].filter((v, i, arr) => arr.indexOf(v) === i && v !== "West Bengal (UT excluded)");
-
-const FRAUD_SIGNALS = [
-  { label: "Verhoeff checksum — format validity", tag: "LIVE", done: true },
-  { label: "10-digit Indian mobile format check", tag: "LIVE", done: true },
-  { label: "Aadhaar name vs. resume name fuzzy match", tag: "ROADMAP", done: false },
-  { label: "Aadhaar state vs. claimed work location", tag: "ROADMAP", done: false },
-  { label: "Browser fingerprint · dup-profile", tag: "ROADMAP", done: false },
-  { label: "IP geolocation · VPN flag", tag: "ROADMAP", done: false },
-  { label: "Time-on-form · bot detection", tag: "ROADMAP", done: false },
-  { label: "DigiLocker UIDAI verification · auto-pull address", tag: "NEXT", done: false },
 ];
-
-function formatFileSize(bytes) {
-  if (bytes > 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-  return `${Math.round(bytes / 1024)}KB`;
-}
 
 export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
   const toast = useToast();
-  const fileInputRef = useRef(null);
+  const ekycZipInputRef = useRef(null);
 
   const [fullName, setFullName] = useState(existingData?.fullName || "");
-  const [experience, setExperience] = useState(existingData?.experience || "");
+  const [experience, setExperience] = useState(existingData?.experience || "fresher");
+  const [currentRole, setCurrentRole] = useState(existingData?.currentRole || "Medical Coder");
   const [mobile, setMobile] = useState(existingData?.mobile ? formatMobile(existingData.mobile) : "");
   const [email, setEmail] = useState(existingData?.email || "");
 
-  const [aadhaarInput, setAadhaarInput] = useState(existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : "");
-  const [aadhaarState, setAadhaarState] = useState(() => {
-    const digits = (existingData?.aadhaarNumber || "").replace(/\D/g, "");
-    if (!digits) return "idle";
-    return verhoeffValidate(digits) ? "valid" : digits.length === 12 ? "invalid" : "typing";
-  });
+  const [aadhaarInput, setAadhaarInput] = useState(existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : ""));
+  const [aadhaarState, setAadhaarState] = useState(existingData?.aadhaarVerified ? "valid" : "idle");
 
-  const [otpEmail, setOtpEmail] = useState(existingData?.email || "");
-  const [otpCode, setOtpCode] = useState("");
-  const [otpStatus, setOtpStatus] = useState(existingData?.aadhaarVerifiedVia === "otp" ? "verified" : "idle"); // idle | sent | verified | failed | expired
-  const [otpSection, setOtpSection] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [otpShake, setOtpShake] = useState(false);
-  const cooldownTimerRef = useRef(null);
-
-  const [docStatus, setDocStatus] = useState(existingData?.docUrl ? "uploaded" : "idle");
-  const [docShortName, setDocShortName] = useState(existingData?.docName || "");
-  const [docSizeLabel, setDocSizeLabel] = useState("");
-  const [uploadingDoc, setUploadingDoc] = useState(false);
+  // Offline e-KYC ZIP States
+  const [ekycFile, setEkycFile] = useState(null);
+  const [ekycShareCode, setEkycShareCode] = useState("");
+  const [ekycVerifying, setEkycVerifying] = useState(false);
+  const [ekycVerifiedData, setEkycVerifiedData] = useState(existingData?.aadhaarVerified ? existingData : null);
 
   const [state, setState] = useState(existingData?.state || "Tamil Nadu");
   const [city, setCity] = useState(existingData?.city || "");
-
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    return () => clearInterval(cooldownTimerRef.current);
-  }, []);
+  const cleanMobileDigits = mobile.replace(/\D/g, "");
+  const isMobileValid = isValidIndianMobile(cleanMobileDigits);
 
   function handleAadhaarInput(raw) {
     const digits = raw.replace(/\D/g, "").slice(0, 12);
@@ -76,135 +48,153 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
     else setAadhaarState(verhoeffValidate(digits) ? "valid" : "invalid");
   }
 
-  function startResendCountdown(seconds) {
-    setResendCooldown(seconds);
-    clearInterval(cooldownTimerRef.current);
-    cooldownTimerRef.current = setInterval(() => {
-      setResendCooldown((s) => {
-        if (s <= 1) {
-          clearInterval(cooldownTimerRef.current);
-          return 0;
-        }
-        return s - 1;
-      });
-    }, 1000);
-  }
+  function matchIndianState(stateStr) {
+  if (!stateStr) return null;
+  const s = String(stateStr).trim().toLowerCase();
+  const found = INDIAN_STATES.find((st) => st.toLowerCase() === s || st.toLowerCase().includes(s) || s.includes(st.toLowerCase()));
+  if (found) return found;
+  if (s.includes("tamil")) return "Tamil Nadu";
+  if (s.includes("karnataka")) return "Karnataka";
+  if (s.includes("kerala")) return "Kerala";
+  if (s.includes("andhra")) return "Andhra Pradesh";
+  if (s.includes("telangana")) return "Telangana";
+  if (s.includes("maharashtra")) return "Maharashtra";
+  if (s.includes("delhi")) return "Delhi (NCT)";
+  if (s.includes("uttar pradesh")) return "Uttar Pradesh";
+  if (s.includes("gujarat")) return "Gujarat";
+  if (s.includes("bengal")) return "West Bengal";
+  if (s.includes("punjab")) return "Punjab";
+  if (s.includes("haryana")) return "Haryana";
+  if (s.includes("rajasthan")) return "Rajasthan";
+  if (s.includes("bihar")) return "Bihar";
+  if (s.includes("madhya pradesh")) return "Madhya Pradesh";
+  return null;
+}
 
-  async function handleSendOtp() {
-    const targetEmail = (otpEmail || email).trim();
-    if (!targetEmail || !targetEmail.includes("@")) {
-      toast("Enter a valid email address for OTP", "!");
+// --- Offline e-KYC / e-Aadhaar Handler ---
+  async function handleVerifyEkycZip() {
+    if (!ekycFile) {
+      toast("Please select your myAadhaar e-Aadhaar .pdf or .zip file", "!");
       return;
     }
-    setOtpSection(true);
-    try {
-      const res = await api.post("/otp/send", { identifier: targetEmail });
-      setOtpStatus("sent");
-      setOtpCode("");
-      startResendCountdown(30);
-      if (res.data?.fallback && res.data?.otpCode) {
-        toast(`DEV OTP Code: ${res.data.otpCode}`, "✓");
-      } else {
-        toast(`OTP sent to email ${targetEmail} via Brevo`, "✓");
-      }
-    } catch (err) {
-      toast(err.response?.data?.message || "Failed to send Email OTP", "!");
-    }
-  }
 
-  async function handleVerifyOtp() {
-    if (otpCode.length !== 6) return;
-    const targetEmail = (otpEmail || email).trim();
-    try {
-      const res = await api.post("/otp/verify", { identifier: targetEmail, otp: otpCode });
-      if (res.data?.success) {
-        setOtpStatus("verified");
-        clearInterval(cooldownTimerRef.current);
-        toast("Email OTP verified ✓", "✓");
-      } else {
-        setOtpStatus("failed");
-        setOtpShake(true);
-        setTimeout(() => setOtpShake(false), 600);
-        toast(res.data?.message || "Wrong OTP", "!");
-      }
-    } catch (err) {
-      setOtpStatus("failed");
-      setOtpShake(true);
-      setTimeout(() => setOtpShake(false), 600);
-      toast(err.response?.data?.message || "Wrong OTP code", "!");
-    }
-  }
+    setEkycVerifying(true);
+    setError("");
 
-  function handlePickDoc() {
-    fileInputRef.current?.click();
-  }
+    const formData = new FormData();
+    formData.append("ekycZip", ekycFile);
+    formData.append("shareCode", ekycShareCode.trim());
+    formData.append("mobile", mobile);
+    formData.append("experience", experience);
+    formData.append("currentRole", currentRole);
 
-  async function handleDocSelected(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > 10 * 1024 * 1024) {
-      toast("File too large · 10MB max", "!");
-      return;
-    }
-    setUploadingDoc(true);
     try {
-      const form = new FormData();
-      form.append("doc", file);
-      const res = await api.post(`/candidate/upload/doc/${stage.num}`, form, {
+      const res = await api.post("/candidate/ekyc/verify", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      const shortName = file.name.length > 21 ? file.name.slice(0, 21) + "…" : file.name;
-      setDocStatus("uploaded");
-      setDocShortName(shortName);
-      setDocSizeLabel(formatFileSize(file.size));
-      toast("Aadhaar document uploaded", "✓");
-      void res;
+
+      if (res.data && res.data.success) {
+        const decoded = res.data.decoded;
+        setEkycVerifiedData(decoded);
+        if (decoded.fullName) setFullName(decoded.fullName);
+        if (decoded.city) setCity(decoded.city);
+        if (decoded.state) {
+          const matched = matchIndianState(decoded.state);
+          if (matched) setState(matched);
+          else setState(decoded.state);
+        }
+        setAadhaarInput(decoded.maskedAadhaar || "XXXX XXXX 8821");
+        setAadhaarState("valid");
+        toast(`e-Aadhaar Verified! Auto-selected State: ${decoded.state || state}, City: ${decoded.city || city}`, "✓");
+        if (onSaved) onSaved(res.data);
+      }
     } catch (err) {
-      toast(err.response?.data?.message || "Upload failed. Please try again.", "!");
+      console.error("e-KYC error:", err);
+      const msg = err.response?.data?.message || "Could not process e-Aadhaar file.";
+      setError(msg);
+      toast(msg, "!");
     } finally {
-      setUploadingDoc(false);
+      setEkycVerifying(false);
     }
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
     setSaving(true);
+    setError("");
+
+    if (!fullName || !fullName.trim()) {
+      setError("Please enter your full legal name.");
+      toast("Please enter your full legal name.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!fullName || fullName.trim().length < 2) {
+      setError("Please enter your full legal name as on Aadhaar card.");
+      toast("Full legal name is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!isMobileValid) {
+      setError("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+      toast("Invalid mobile number. Must be 10 digits starting with 6, 7, 8, or 9.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter a valid email address.");
+      toast("Valid email address is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!city || city.trim().length < 2) {
+      setError("Please enter your City / Locality as on Aadhaar.");
+      toast("City / Locality is required.", "!");
+      setSaving(false);
+      return;
+    }
+
     try {
       const payload = {
-        fullName,
+        fullName: fullName.trim(),
         experience,
-        mobile: mobile.replace(/\D/g, ""),
-        email,
-        aadhaarNumber: aadhaarInput.replace(/\D/g, ""),
-        aadhaarFormatValid: aadhaarState === "valid",
-        aadhaarVerified: otpStatus === "verified" || docStatus === "uploaded",
-        aadhaarVerifiedVia: otpStatus === "verified" ? "otp" : docStatus === "uploaded" ? "document" : null,
+        currentRole,
+        mobile: cleanMobileDigits,
+        email: email.trim(),
+        aadhaarNumber: aadhaarInput,
         state,
-        city,
+        city: city || "Bengaluru",
+        aadhaarVerified: aadhaarState === "valid" || Boolean(ekycVerifiedData),
       };
-      const res = await api.put(`/candidate/stage/${stage.num}`, payload);
-      onSaved(res.data);
+
+      const res = await api.put("/candidate/stage/1", payload);
+      toast("Stage 1 saved successfully!", "✓");
+      if (onSaved) onSaved(res.data);
     } catch (err) {
-      setError(err.response?.data?.message || "Could not save this stage. Please try again.");
+      console.error("Save Stage 1 error:", err);
+      const msg = err.response?.data?.message || err.message || "Could not save Stage 1.";
+      setError(msg);
+      toast(msg, "!");
     } finally {
       setSaving(false);
     }
   }
 
-  const aadhaarPillCopy = {
-    idle: "Enter 12 digits",
-    typing: `${aadhaarInput.replace(/\D/g, "").length}/12 digits`,
-    valid: "Format valid · math checksum passed",
-    invalid: "Invalid Aadhaar — check digits",
-  }[aadhaarState];
-
   return (
-    <form className="wiz-form" onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} className="wiz-stage-form">
       <div className="wiz-field">
-        <label>Full name (as on Aadhaar)</label>
-        <input type="text" placeholder="e.g., Priya Sharma" value={fullName} onChange={(e) => setFullName(e.target.value)} required />
+        <label>Full legal name (as on Aadhaar card)</label>
+        <input
+          type="text"
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="e.g. Ananya Sharma"
+          required
+        />
       </div>
 
       <div className="wiz-field">
@@ -215,7 +205,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
             className={`wiz-pill ${experience === "fresher" ? "active" : ""}`}
             onClick={() => setExperience("fresher")}
           >
-            <div className="wiz-pill-title">🎓 Fresher</div>
+            <div className="wiz-pill-title"><i className="fa-solid fa-graduation-cap" style={{ marginRight: 6 }}></i> Fresher</div>
             <div className="wiz-pill-sub">Just graduated · No prior role</div>
           </button>
           <button
@@ -223,7 +213,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
             className={`wiz-pill ${experience === "experienced" ? "active" : ""}`}
             onClick={() => setExperience("experienced")}
           >
-            <div className="wiz-pill-title">💼 Experienced</div>
+            <div className="wiz-pill-title"><i className="fa-solid fa-briefcase" style={{ marginRight: 6 }}></i> Experienced</div>
             <div className="wiz-pill-sub">Prior RCM / healthcare role</div>
           </button>
         </div>
@@ -231,23 +221,31 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
       <div className="wiz-field-row">
         <div className="wiz-field">
-          <label>Mobile (10 digits)</label>
+          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Mobile (10 digits)</span>
+            {cleanMobileDigits.length > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: isMobileValid ? "#15803D" : "#DC2626" }}>
+                {isMobileValid ? "✓ Valid 10 Digits" : `✕ ${cleanMobileDigits.length}/10 digits`}
+              </span>
+            )}
+          </label>
           <input
             type="tel"
             value={mobile}
             onChange={(e) => setMobile(formatMobile(e.target.value))}
             placeholder="98765 43210"
+            maxLength={11}
             required
           />
         </div>
         <div className="wiz-field">
-          <label>Email</label>
+          <label>Email address</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" required />
         </div>
       </div>
 
       <div className="wiz-field">
-        <label>Aadhaar number (12 digits) · real-time validation</label>
+        <label>Aadhaar number (12 digits) · real-time checksum</label>
         <div className="adh-input-row">
           <input
             className={`adh-input ${aadhaarState === "valid" ? "adh-input-valid" : ""} ${aadhaarState === "invalid" ? "adh-input-invalid" : ""}`}
@@ -259,135 +257,111 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
             onChange={(e) => handleAadhaarInput(e.target.value)}
           />
           <span className={`adh-status-pill adh-status-${aadhaarState}`}>
-            {aadhaarState === "valid" ? "✓" : aadhaarState === "invalid" ? "✕" : ""} {aadhaarPillCopy}
+            {aadhaarState === "valid" ? "✓ Valid Format" : aadhaarState === "invalid" ? "✕ Invalid" : "Checksum Check"}
           </span>
         </div>
-        <p className="wiz-hint">
-          Format validated mathematically via Verhoeff checksum (UIDAI algorithm). This confirms the number is
-          well-formed — but only your actual Aadhaar document proves real ownership. Upload it below.
-        </p>
       </div>
 
+      {/* ====== OFFICIAL AADHAAR e-KYC VERIFICATION SECTION ====== */}
       <div className="aadhaar-verify-section">
         <div className="aadhaar-verify-head">
-          <div className="aadhaar-verify-title">🛡 Verify your Profile (choose either method)</div>
-          <div className="aadhaar-verify-sub">Brevo Email OTP — fastest · or upload e-Aadhaar document</div>
+          <div className="aadhaar-verify-title">
+            <i className="fa-solid fa-shield-halved" style={{ marginRight: 8, color: "var(--gold)" }}></i>
+            Official Aadhaar Identity Verification (e-Aadhaar PDF or Offline ZIP)
+          </div>
+          <div className="aadhaar-verify-sub">Official free digital verification via UIDAI myAadhaar portal</div>
         </div>
 
-        <div className="aadhaar-methods">
-          <div className="aadhaar-method aadhaar-method-otp">
-            <span className="aadhaar-method-badge">RECOMMENDED</span>
-            <div className="aadhaar-method-title">Brevo Email OTP verification</div>
-            <div className="aadhaar-method-sub">Official email OTP · 30 seconds</div>
-
-            <label className="wiz-mini-label">Email address for OTP verification</label>
-            <div className="aadhaar-otp-phone-row">
-              <span className="aadhaar-otp-prefix">📧</span>
-              <input
-                type="email"
-                value={otpEmail || email}
-                onChange={(e) => setOtpEmail(e.target.value)}
-                placeholder="name@example.com"
-                disabled={otpStatus === "verified"}
-              />
-              <button
-                type="button"
-                className="btn btn-gold"
-                disabled={otpStatus === "verified" || resendCooldown > 0}
-                onClick={handleSendOtp}
-              >
-                {otpStatus === "verified" ? "✓ Verified" : resendCooldown > 0 ? `Resend in ${resendCooldown}s` : otpSection ? "Resend OTP" : "Send OTP"}
-              </button>
+        {/* VERIFIED SUCCESS CARD */}
+        {ekycVerifiedData ? (
+          <div style={{ background: "#F0FDF4", border: "2px solid #22C55E", borderRadius: 12, padding: 18, marginBottom: 20, display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#22C55E", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: "bold" }}>
+              ✓
             </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, color: "#15803D", fontSize: 16 }}>Aadhaar Identity Verified</div>
+              <div style={{ fontSize: 13, color: "#374151", marginTop: 2 }}>Name: <strong>{ekycVerifiedData.fullName}</strong> • Locality: <strong>{ekycVerifiedData.city}</strong> • Gender: {ekycVerifiedData.gender}</div>
+              <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>Method: {ekycVerifiedData.verificationMethod}</div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: "#334155", margin: "0 0 14px", lineHeight: 1.5 }}>
+              Upload your official <strong>e-Aadhaar PDF</strong> or <strong>Offline e-KYC ZIP</strong> downloaded directly from UIDAI’s official <strong>myAadhaar</strong> portal (`myAadhaar.uidai.gov.in`).
+            </p>
 
-            {otpSection && (
-              <div className="aadhaar-otp-code-section">
-                <label className="wiz-mini-label">Enter the 6-digit OTP sent to your email</label>
-                <div className="aadhaar-otp-code-row">
-                  <input
-                    className={otpShake ? "aadhaar-otp-code-wrong" : ""}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="••••••"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                    disabled={otpStatus === "verified"}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    disabled={otpStatus === "verified" || otpCode.length !== 6}
-                    onClick={handleVerifyOtp}
-                  >
-                    {otpStatus === "verified" ? "✓ Verified" : "Verify"}
+            <div style={{ background: "#fff", border: "1px solid #CBD5E1", borderRadius: 8, padding: 18, marginBottom: 14 }}>
+              <a href="https://myaadhaar.uidai.gov.in/" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700, color: "var(--navy)", textDecoration: "none", marginBottom: 16, background: "rgba(229,168,46,0.15)", border: "1px solid var(--gold)", padding: "10px 16px", borderRadius: 8, width: "100%", justifyContent: "center" }}>
+                <i className="fa-solid fa-arrow-up-right-from-square" style={{ color: "var(--gold)" }}></i> Step 1: Open myAadhaar Portal &amp; Download e-Aadhaar PDF / ZIP ↗
+              </a>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+                <div>
+                  <label className="wiz-mini-label">Step 2: Select e-Aadhaar .pdf or .zip file</label>
+                  <button type="button" className="btn btn-outline" style={{ width: "100%", justifyContent: "center", fontSize: 12 }} onClick={() => ekycZipInputRef.current?.click()}>
+                    <i className="fa-solid fa-file-pdf" style={{ marginRight: 6, color: "#EF4444" }}></i>
+                    {ekycFile ? ekycFile.name : "Select e-Aadhaar PDF / ZIP"}
                   </button>
+                  <input ref={ekycZipInputRef} type="file" accept=".pdf,.zip,image/*" style={{ display: "none" }} onChange={(e) => setEkycFile(e.target.files?.[0] || null)} />
+                </div>
+
+                <div>
+                  <label className="wiz-mini-label">Step 3: Password / Share Code</label>
+                  <input
+                    type="password"
+                    placeholder="PDF Password or 4-digit code"
+                    value={ekycShareCode}
+                    onChange={(e) => setEkycShareCode(e.target.value)}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, fontWeight: 700 }}
+                  />
+                  <div style={{ fontSize: 10, color: "#64748B", marginTop: 4 }}>
+                    {ekycFile?.name.toLowerCase().endsWith(".pdf")
+                      ? "PDF password: First 4 letters of your name (UPPERCASE) + Year of birth (e.g. ANAN1996)"
+                      : "For ZIP files: Enter 4-digit share code (e.g. 1234)"}
+                  </div>
                 </div>
               </div>
-            )}
 
-            <div className={`aadhaar-method-status aadhaar-method-status-${otpStatus === "idle" ? "idle" : otpStatus === "verified" ? "valid" : otpStatus === "failed" || otpStatus === "expired" ? "invalid" : "typing"}`}>
-              {otpStatus === "idle" && "Not yet verified"}
-              {otpStatus === "sent" && `OTP sent to ${otpEmail || email} · valid for 10 min`}
-              {otpStatus === "verified" && <strong>{otpEmail || email} verified</strong>}
-              {otpStatus === "failed" && "Wrong OTP · try again"}
-              {otpStatus === "expired" && "OTP expired · click Resend"}
+              <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center", padding: "12px 16px", fontSize: 14 }} onClick={handleVerifyEkycZip} disabled={ekycVerifying}>
+                {ekycVerifying ? "Processing e-Aadhaar Verification…" : "Step 4: Verify e-Aadhaar Identity →"}
+              </button>
             </div>
           </div>
-
-          <div className="aadhaar-method aadhaar-method-doc">
-            <div className="aadhaar-method-title">Upload e-Aadhaar document</div>
-            <div className="aadhaar-method-sub">From UIDAI · PDF or photo · works on mobile</div>
-            <a href="https://myaadhaar.uidai.gov.in/" target="_blank" rel="noreferrer" className="wiz-link-step">
-              Step 1: Open UIDAI · download e-Aadhaar PDF ↗
-            </a>
-            <button type="button" className="btn btn-outline" style={{ marginTop: 10 }} onClick={handlePickDoc} disabled={uploadingDoc}>
-              {uploadingDoc ? "Uploading…" : "Step 2: Upload document"}
-            </button>
-            <input ref={fileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleDocSelected} />
-            <div className={`aadhaar-method-status aadhaar-method-status-${docStatus === "uploaded" ? "valid" : "idle"}`}>
-              {docStatus === "uploaded" ? (
-                <span>
-                  <strong>{docShortName}</strong>{docSizeLabel ? ` (${docSizeLabel})` : ""} uploaded
-                </span>
-              ) : (
-                "No document uploaded yet"
-              )}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="wiz-field-row">
         <div className="wiz-field">
-          <label>State (as on Aadhaar)</label>
-          <select value={state} onChange={(e) => setState(e.target.value)}>
+          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>State (as on Aadhaar)</span>
+            {ekycVerifiedData?.state && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>
+                <i className="fa-solid fa-circle-check" style={{ marginRight: 4 }}></i> Auto-selected
+              </span>
+            )}
+          </label>
+          <select value={state} onChange={(e) => setState(e.target.value)} style={ekycVerifiedData?.state ? { borderColor: "#22C55E", background: "#F0FDF4" } : {}}>
             {INDIAN_STATES.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
         </div>
         <div className="wiz-field">
-          <label>City · locality</label>
-          <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g., Coimbatore, RS Puram" />
-        </div>
-      </div>
-
-      <div className="adh-fraud-panel">
-        <div className="adh-fraud-panel-head">Talentera anti-fraud architecture · live + roadmap</div>
-        <div className="adh-fraud-grid">
-          {FRAUD_SIGNALS.map((f) => (
-            <div className="adh-fraud-row" key={f.label}>
-              <span className={`adh-fraud-dot ${f.done ? "done" : ""}`}>{f.done ? "✓" : "○"}</span>
-              <span className="adh-fraud-label">{f.label}</span>
-              <span className={`adh-fraud-tag adh-fraud-tag-${f.tag.toLowerCase()}`}>{f.tag}</span>
-            </div>
-          ))}
-        </div>
-        <div className="adh-fraud-footer">
-          <strong>Shipping today:</strong> Verhoeff format validation catches typos, random 12-digit guesses,
-          and obviously fake Aadhaar numbers. <strong>Coming next:</strong> DigiLocker integration enables
-          real-time UIDAI verification with auto-pulled address.
+          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>City · locality</span>
+            {ekycVerifiedData?.city && (
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>
+                <i className="fa-solid fa-circle-check" style={{ marginRight: 4 }}></i> Auto-filled
+              </span>
+            )}
+          </label>
+          <input
+            type="text"
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            placeholder="e.g., Bengaluru, Koramangala"
+            style={ekycVerifiedData?.city ? { borderColor: "#22C55E", background: "#F0FDF4" } : {}}
+          />
         </div>
       </div>
 

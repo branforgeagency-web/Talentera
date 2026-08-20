@@ -10,6 +10,7 @@ import Stage2Training from "../components/wizard/Stage2Training.jsx";
 import Stage3Certification from "../components/wizard/Stage3Certification.jsx";
 import Stage4Assessment from "../components/wizard/Stage4Assessment.jsx";
 import Stage6LiveCharts from "../components/wizard/Stage6LiveCharts.jsx";
+import Stage7Resume from "../components/wizard/Stage7Resume.jsx";
 import Stage8Track from "../components/wizard/Stage8Track.jsx";
 import VideoUploadStage from "../components/VideoUploadStage.jsx";
 import Step9Verified from "./Step9Verified.jsx";
@@ -20,6 +21,7 @@ const STAGE_COMPONENTS = {
   3: Stage3Certification,
   4: Stage4Assessment,
   6: Stage6LiveCharts,
+  7: Stage7Resume,
   8: Stage8Track,
 };
 
@@ -122,28 +124,6 @@ export default function CandidateWizard() {
             existingData={existingData}
             onSaved={handleStageSaved}
           />
-        )}
-
-        {activeStage.num === 7 && (
-          <div className="wiz-resume-mount">
-            <p>
-              Talentera builds your resume automatically from the verified data in Stages 1–6 — you don't
-              write or upload anything here.
-            </p>
-            <div style={{ display: "flex", gap: 12 }}>
-              <Link to="/resume" className="btn btn-gold">Open Resume Builder</Link>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={async () => {
-                  const res = await api.post(`/candidate/stage/7/skip`);
-                  handleStageSaved(res.data);
-                }}
-              >
-                Skip for now
-              </button>
-            </div>
-          </div>
         )}
 
         {StageComponent && <StageComponent stage={activeStage} existingData={existingData} onSaved={handleStageSaved} />}

@@ -18,8 +18,8 @@ export default function Register() {
     setSubmitting(true);
     try {
       if (authMode === "signup") {
-        if (mobile && !/^\d{10}$/.test(mobile)) {
-          throw new Error("Mobile number must be 10 digits (or leave it blank).");
+        if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+          throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
         }
         await register(email, password, mobile);
       } else {
@@ -269,7 +269,7 @@ export default function Register() {
                   marginBottom: 6
                 }}
               >
-                MOBILE <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "rgba(255,255,255,0.4)" }}>(optional)</span>
+                MOBILE (10 DIGITS) <span style={{ color: "#E5A82E" }}>*</span>
               </label>
               <div
                 style={{
@@ -285,6 +285,7 @@ export default function Register() {
                 <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>+91</span>
                 <input
                   type="tel"
+                  required
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="98765 43210"

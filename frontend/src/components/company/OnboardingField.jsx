@@ -270,14 +270,14 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         <div className={`conb-dropzone ${fileInfo ? "conb-dropzone-done" : ""}`}>
           {fileInfo ? (
             <div className="conb-file-done">
-              <span>📄 {fileInfo.docName}</span>
+              <span><i className="fa-solid fa-file-lines" style={{ marginRight: 6 }}></i> {fileInfo.docName}</span>
               <button type="button" className="conb-file-replace" onClick={() => fileInputRef.current?.click()}>
                 Replace
               </button>
             </div>
           ) : (
             <button type="button" className="conb-upload-btn" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-              {uploading ? "Uploading…" : "⬆ Click to upload"}
+              {uploading ? "Uploading…" : <span><i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 6 }}></i> Click to upload</span>}
             </button>
           )}
           <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileChange} />

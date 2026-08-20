@@ -69,7 +69,7 @@ const CandidateSchema = new mongoose.Schema(
     resumeFileName: { type: String, default: null },
     resumeTemplate: {
       type: String,
-      enum: ["classic", "modern", "minimal"],
+      enum: ["classic", "modern", "minimal", "executive"],
       default: "classic",
     },
   },

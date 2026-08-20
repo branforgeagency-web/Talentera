@@ -16,9 +16,29 @@ export default function Stage2Training({ stage, existingData, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (!academyName || academyName.trim().length < 2) {
+      setError("Please enter the Academy / Training Institute name.");
+      return;
+    }
+    if (!duration || duration.trim().length < 1) {
+      setError("Please enter the training duration.");
+      return;
+    }
+    if (!trainerName || trainerName.trim().length < 2) {
+      setError("Please enter the Trainer / Mentor name.");
+      return;
+    }
+
     setSaving(true);
     try {
-      const res = await api.put(`/candidate/stage/${stage.num}`, { domain, specialty, academyName, duration, trainerName });
+      const res = await api.put(`/candidate/stage/${stage.num}`, {
+        domain,
+        specialty,
+        courseName: `${domain} - ${specialty}`,
+        academyName: academyName.trim(),
+        duration: duration.trim(),
+        trainerName: trainerName.trim(),
+      });
       onSaved(res.data);
     } catch (err) {
       setError(err.response?.data?.message || "Could not save this stage.");

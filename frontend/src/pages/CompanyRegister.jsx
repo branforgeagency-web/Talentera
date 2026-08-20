@@ -112,6 +112,11 @@ export default function CompanyRegister() {
         return;
       }
 
+      if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+        setOtpError("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+        return;
+      }
+
       setSubmitting(true);
       try {
         const identifier = email;
@@ -165,9 +170,9 @@ export default function CompanyRegister() {
 
         await register(
           contactName || "Employer",
-          mobile || "9876543210",
+          mobile,
           companyName || "Partner Company",
-          email || `employer_${Date.now()}@company.com`,
+          email,
           password,
           accessToken,
           { intake, prefillStages }

@@ -23,7 +23,7 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
   return (
     <div className="wiz-verified-shell">
       <section className="wiz-verified-hero">
-        <div className="wiz-verified-badge">✓</div>
+        <div className="wiz-verified-badge"><i className="fa-solid fa-check"></i></div>
         <h1>
           Welcome to the <span className="gold-text">Verified Pool</span>, {firstName}
         </h1>
@@ -58,11 +58,11 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
 
       <section className="wiz-visibility-grid">
         <div className="wiz-visibility-col wiz-visibility-see">
-          <div className="wiz-visibility-head">✓ What companies see</div>
+          <div className="wiz-visibility-head"><i className="fa-solid fa-check" style={{ marginRight: 6 }}></i> What companies see</div>
           <ul>{SEES.map((s) => <li key={s}>{s}</li>)}</ul>
         </div>
         <div className="wiz-visibility-col wiz-visibility-hide">
-          <div className="wiz-visibility-head">✕ What stays private</div>
+          <div className="wiz-visibility-head"><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> What stays private</div>
           <ul>{PRIVATE.map((s) => <li key={s}>{s}</li>)}</ul>
         </div>
       </section>

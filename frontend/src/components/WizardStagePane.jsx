@@ -2,10 +2,21 @@ import React from "react";
 import { HIRING_TICKER, HIRING_COMPANIES, RCM_INDUSTRY_STATS } from "../data/hiringCompanies";
 
 const STAGE_ICONS = {
-  user: "👤", book: "📘", award: "🏅", clip: "📋", video: "🎥", activity: "📊", trend: "📈",
+  user: <i className="fa-solid fa-user"></i>,
+  book: <i className="fa-solid fa-book-open"></i>,
+  award: <i className="fa-solid fa-award"></i>,
+  clip: <i className="fa-solid fa-clipboard-list"></i>,
+  video: <i className="fa-solid fa-video"></i>,
+  activity: <i className="fa-solid fa-chart-simple"></i>,
+  trend: <i className="fa-solid fa-chart-line"></i>,
 };
 
-const RULE_ICONS = { why: "❓", check: "✅", eye: "👁", lock: "🔒" };
+const RULE_ICONS = {
+  why: <i className="fa-solid fa-circle-question"></i>,
+  check: <i className="fa-solid fa-circle-check"></i>,
+  eye: <i className="fa-solid fa-eye"></i>,
+  lock: <i className="fa-solid fa-lock"></i>
+};
 
 export default function WizardStagePane({ stage, isDone, children, onPrev, prevNum }) {
   return (
@@ -89,7 +100,7 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
               <div className="wiz-rail-company-avatar" style={{ background: c.gradient }}>{c.initial}</div>
               <div className="wiz-rail-company-body">
                 <div className="wiz-rail-company-name">
-                  {c.name} {c.hot && <span className="wiz-rail-hot">🔥 Hot</span>}
+                  {c.name} {c.hot && <span className="wiz-rail-hot"><i className="fa-solid fa-fire"></i> Hot</span>}
                 </div>
                 <div className="wiz-rail-company-meta">{c.location} · {c.salary}</div>
                 <div className="wiz-rail-company-tags">
