@@ -1,5 +1,12 @@
 {
   "rewrites": [
-    { "source": "/((?!assets/|favicon|logo|api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/:path*",
+      "destination": "https://talentera-1.onrender.com/api/:path*"
+    },
+    {
+      "source": "/((?!assets/|favicon|logo).*)",
+      "destination": "/index.html"
+    }
   ]
 }
