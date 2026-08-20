@@ -410,7 +410,12 @@ router.post(
         ...(candidate.stage5 || {}),
         interviewMode: "video",
         videoUrl: fileUrl,
-        qaPairs,
+        // evaluation.qaPairs carries the original transcript PLUS
+        // translatedTranscript/detectedLanguage per question (see
+        // evaluateAiVideoAssessment) - persisting that instead of the raw
+        // browser qaPairs is what makes the translation survive page
+        // reloads/report re-views, not just this one response.
+        qaPairs: evaluation.qaPairs || qaPairs,
         aiScore: evaluation.overallScore,
         rubricScores: evaluation.rubricScores,
         feedback: evaluation.feedback,
@@ -483,7 +488,10 @@ router.post(
         ...(candidate.stage5 || {}),
         interviewMode: "audio",
         videoUrl: fileUrl,
-        qaPairs,
+        // See the matching comment in /ai-video/assess above - this carries
+        // translatedTranscript/detectedLanguage per question so it survives
+        // page reloads, not just this one response.
+        qaPairs: evaluation.qaPairs || qaPairs,
         aiScore: evaluation.overallScore,
         rubricScores: evaluation.rubricScores,
         feedback: evaluation.feedback,
