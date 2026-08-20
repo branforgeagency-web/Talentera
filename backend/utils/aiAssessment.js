@@ -18,16 +18,37 @@ const axios = require("axios");
 async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
   const apiKey = process.env.OPENAI_API_KEY;
 
+  // Best-effort translation pass first: candidates who answer in a language
+  // other than English still get a readable English transcript in the
+  // report/staff view, and grading below compares against the (English)
+  // answer key in a consistent language instead of leaning on the grading
+  // LLM to also silently translate. Falls back to the original transcript
+  // untouched if there's no API key or the call fails - grading still works
+  // either way, it just grades the original text as a second line of defense.
+  let translations = null;
+  if (apiKey) {
+    try {
+      translations = await translateQaPairs(apiKey, qaPairs);
+    } catch (err) {
+      console.warn("Transcript translation failed, grading/showing original transcripts:", err.message);
+    }
+  }
+  const qaPairsWithTranslation = qaPairs.map((pair, idx) => ({
+    ...pair,
+    translatedTranscript: translations?.[idx]?.translatedTranscript || pair.transcript || "",
+    detectedLanguage: translations?.[idx]?.detectedLanguage || "unknown",
+  }));
+
   let questionScores;
   if (apiKey) {
     try {
-      questionScores = await scoreAgainstAnswerKeyLlm(apiKey, qaPairs);
+      questionScores = await scoreAgainstAnswerKeyLlm(apiKey, qaPairsWithTranslation);
     } catch (err) {
       console.warn("OpenAI answer-key scoring failed or not configured, using keyword-match heuristic:", err.message);
-      questionScores = computeHeuristicRubrics(qaPairs).questionScores;
+      questionScores = computeHeuristicRubrics(qaPairsWithTranslation).questionScores;
     }
   } else {
-    questionScores = computeHeuristicRubrics(qaPairs).questionScores;
+    questionScores = computeHeuristicRubrics(qaPairsWithTranslation).questionScores;
   }
 
   const totalMarks = questionScores.reduce((sum, q) => sum + q.marks, 0);
@@ -57,11 +78,76 @@ async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
       fluency: overallScore,
     },
     questionScores,
+    // Original transcript + English translation + detected language per
+    // question, aligned by index to the qaPairs the caller sent in. Routes
+    // persist this (instead of the raw browser qaPairs) so the translation
+    // survives page reloads/report re-views, not just this one response.
+    qaPairs: qaPairsWithTranslation,
     proctoringDeductions: penalty,
     feedback,
     livenessVerified: Boolean(proctorLogs.livenessVerified),
     evaluatedAt: new Date(),
   };
+}
+
+/**
+ * Translates each candidate transcript to English (returned unchanged if
+ * it's already English) using the same OpenAI key as the answer-key scorer
+ * below - one batched call for the whole interview rather than one call per
+ * question. Very short/empty transcripts are skipped since there's nothing
+ * meaningful to translate.
+ *
+ * @param {string} apiKey
+ * @param {Array<{transcript: string}>} qaPairs
+ * @returns {Promise<Array<{translatedTranscript: string, detectedLanguage: string}>>} Aligned by index to qaPairs
+ */
+async function translateQaPairs(apiKey, qaPairs) {
+  const withContent = qaPairs
+    .map((pair, idx) => ({ idx, transcript: (pair.transcript || "").trim() }))
+    .filter((p) => p.transcript.split(/\s+/).filter(Boolean).length >= 3);
+
+  if (!withContent.length) {
+    return qaPairs.map((pair) => ({
+      translatedTranscript: pair.transcript || "",
+      detectedLanguage: (pair.transcript || "").trim() ? "unknown" : "none",
+    }));
+  }
+
+  const prompt = `For each numbered candidate interview answer below, detect its spoken language and provide an English translation. If an answer is already in English, return it unchanged as the translation (do not paraphrase or correct it).
+
+${withContent.map((p) => `A${p.idx + 1}: ${p.transcript}`).join("\n\n")}
+
+Return strictly JSON: {"translations": [{"index": <the A-number above, as an integer>, "language": "<language name, e.g. Hindi, Tagalog, English>", "translatedText": "<English translation>"}, ...]} with one entry per answer above.`;
+
+  const response = await axios.post(
+    "https://api.openai.com/v1/chat/completions",
+    {
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+      temperature: 0.1,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 20000,
+    }
+  );
+
+  const parsed = JSON.parse(response.data.choices[0].message.content);
+  const translationList = Array.isArray(parsed.translations) ? parsed.translations : [];
+  const byIndex = new Map(translationList.map((t) => [Number(t.index) - 1, t]));
+
+  return qaPairs.map((pair, idx) => {
+    const original = (pair.transcript || "").trim();
+    const match = byIndex.get(idx);
+    if (!match || !match.translatedText) {
+      return { translatedTranscript: original, detectedLanguage: original ? "unknown" : "none" };
+    }
+    return { translatedTranscript: match.translatedText, detectedLanguage: match.language || "unknown" };
+  });
 }
 
 /**
@@ -79,6 +165,7 @@ CRITICAL MANDATORY RULES:
 3. Do NOT award marks for generic fluency, pleasant tone, or filler words if the candidate failed to answer the question correctly.
 4. A question with no spoken answer or less than 3 spoken words MUST score 0 MARKS.
 5. If and only if the candidate's response correctly answers the question matching the reference answer key, assign 75 to 100 marks based on accuracy and completeness.
+6. Be reasonably lenient on completeness: if the candidate's answer correctly touches on at least 2-3 of the key concepts/terms present in the reference answer key, treat it as a correct answer (75-100 marks) even if it isn't fully comprehensive or perfectly worded - do not require an exhaustive, word-for-word match against the reference answer.
 
 QUESTIONS AND REFERENCE ANSWER KEYS TO GRADE:
 ${qaPairs
@@ -86,7 +173,7 @@ ${qaPairs
     (pair, idx) =>
       `Q${idx + 1}: ${pair.question}
 Reference Correct Answer Key: ${pair.expectedAnswer || "Must be medically accurate and directly address the question"}
-Candidate's Spoken Answer: ${pair.transcript || "(no spoken response)"}
+Candidate's Spoken Answer (translated to English where needed): ${pair.translatedTranscript || pair.transcript || "(no spoken response)"}
 `
   )
   .join("\n")}
@@ -122,6 +209,9 @@ Return strictly JSON: {"scores": [{"marks": <integer 0-100>, "feedback": "<short
         marks: 0,
         answered: false,
         feedback: "0 Marks: Question stopped early or no spoken response detected.",
+        transcript: pair.transcript || "",
+        translatedTranscript: pair.translatedTranscript || pair.transcript || "",
+        detectedLanguage: pair.detectedLanguage || "none",
       };
     }
     const entry = scores[idx] || {};
@@ -132,6 +222,9 @@ Return strictly JSON: {"scores": [{"marks": <integer 0-100>, "feedback": "<short
       marks,
       answered: true,
       feedback: entry.feedback || (marks > 0 ? `Correct answer evaluated: ${marks}/100 Marks.` : "0 Marks: Incorrect answer."),
+      transcript: pair.transcript || "",
+      translatedTranscript: pair.translatedTranscript || pair.transcript || "",
+      detectedLanguage: pair.detectedLanguage || "unknown",
     };
   });
 }
@@ -143,8 +236,8 @@ function computeHeuristicRubrics(qaPairs) {
   const defaultRcmKeywords = ["rcm", "coding", "icd", "cpt", "denial", "claim", "modifier", "hipaa", "billing", "authorization", "audit", "chart", "practicode", "patient"];
 
   const questionScores = qaPairs.map((pair, idx) => {
-    const text = (pair.transcript || "").trim();
-    const words = text.split(/\s+/).filter(Boolean);
+    const originalText = (pair.transcript || "").trim();
+    const words = originalText.split(/\s+/).filter(Boolean);
 
     if (words.length < 3) {
       return {
@@ -152,9 +245,17 @@ function computeHeuristicRubrics(qaPairs) {
         question: pair.question,
         marks: 0,
         answered: false,
-        feedback: "0 Marks: Question stopped early or no spoken response detected."
+        feedback: "0 Marks: Question stopped early or no spoken response detected.",
+        transcript: pair.transcript || "",
+        translatedTranscript: pair.translatedTranscript || originalText,
+        detectedLanguage: pair.detectedLanguage || "none",
       };
     }
+
+    // Match keywords against the English translation when available - the
+    // expectedAnswer keyword list is written in English, so matching against
+    // a non-English transcript directly would always miss.
+    const text = (pair.translatedTranscript || originalText).trim();
 
     const expectedKey = (pair.expectedAnswer || "").toLowerCase();
     const targetKeywords = expectedKey
@@ -169,14 +270,21 @@ function computeHeuristicRubrics(qaPairs) {
 
     const matchRatio = targetKeywords.length > 0 ? matchCount / targetKeywords.length : 0;
 
-    // Strict threshold: Require matchRatio >= 0.35 and matchCount > 0
-    if (matchCount === 0 || matchRatio < 0.35) {
+    // Correct if the candidate's answer touches at least 2 of the reference
+    // answer's key terms (or all of them, if there's only 1 to begin with) -
+    // a straight ratio threshold was unfairly failing answers that hit 2-3
+    // solid keywords but had a long expectedAnswer with many total terms.
+    const requiredMatches = Math.min(2, targetKeywords.length || 1);
+    if (matchCount < requiredMatches) {
       return {
         questionId: idx + 1,
         question: pair.question,
         marks: 0,
         answered: true,
-        feedback: "0 Marks: Incorrect answer. Spoken response did not match expected correct answer key."
+        feedback: "0 Marks: Incorrect answer. Spoken response did not match at least 2 expected key terms.",
+        transcript: pair.transcript || "",
+        translatedTranscript: text,
+        detectedLanguage: pair.detectedLanguage || "unknown",
       };
     }
 
@@ -186,7 +294,10 @@ function computeHeuristicRubrics(qaPairs) {
       question: pair.question,
       marks: questionMarks,
       answered: true,
-      feedback: `Correct answer evaluated: ${questionMarks}/100 Marks based on answer key match.`
+      feedback: `Correct answer evaluated: ${questionMarks}/100 Marks based on answer key match.`,
+      transcript: pair.transcript || "",
+      translatedTranscript: text,
+      detectedLanguage: pair.detectedLanguage || "unknown",
     };
   });
 

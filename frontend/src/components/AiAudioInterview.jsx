@@ -6,7 +6,43 @@ import { useToast } from "./Toast.jsx";
 // this many seconds of silence - whichever comes first. Keep in sync with
 // AiVideoAssessment.jsx.
 const ANSWER_TIME_LIMIT = 60;
-const SILENCE_TIMEOUT_MS = 10000;
+const SILENCE_TIMEOUT_MS = 5000;
+
+// If the candidate's browser refreshes, loses connection, or crashes
+// mid-interview, we don't want to make them start over from Question 1 -
+// already-recorded answers are saved here as soon as each one is captured,
+// and handleStartInterview picks the resume point back up from it. Only the
+// TEXT transcripts survive a break this way (see saveInterviewProgress) -
+// the audio/video recording itself is only ever in-memory, so a resumed
+// session starts a fresh recording for the remaining questions.
+const AUDIO_INTERVIEW_PROGRESS_KEY = "talentera_ai_audio_interview_progress_v1";
+
+function loadInterviewProgress() {
+  try {
+    const raw = window.localStorage?.getItem(AUDIO_INTERVIEW_PROGRESS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || !parsed.qaTranscripts) return null;
+    return parsed;
+  } catch (e) {
+    return null;
+  }
+}
+
+function saveInterviewProgress(qaTranscripts, nextQIdx) {
+  try {
+    window.localStorage?.setItem(
+      AUDIO_INTERVIEW_PROGRESS_KEY,
+      JSON.stringify({ qaTranscripts, qIdx: nextQIdx, savedAt: Date.now() })
+    );
+  } catch (e) {}
+}
+
+function clearInterviewProgress() {
+  try {
+    window.localStorage?.removeItem(AUDIO_INTERVIEW_PROGRESS_KEY);
+  } catch (e) {}
+}
 
 export default function AiAudioInterview({ existingData, onSaved }) {
   const toast = useToast();
@@ -16,6 +52,15 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   const recognitionRef = useRef(null);
   const lastSpeechAtRef = useRef(0);
   const stoppingAnswerRef = useRef(false);
+  // True only while an answer window should actively be listening. Browsers
+  // (Chrome in particular) can silently stop a "continuous" SpeechRecognition
+  // session on their own after a while - even mid-answer, with the candidate
+  // still talking - with no built-in way to detect/restart it. Without this
+  // flag + the onend handler below, that made the AI appear to stop
+  // listening while the candidate was still speaking. Set true right before
+  // starting recognition, set false right before any intentional stop() so
+  // the auto-restart doesn't fight a deliberate shutdown.
+  const recognitionShouldRunRef = useRef(false);
 
   const hasExistingAudioReport = existingData?.aiScore !== undefined && existingData?.interviewMode === "audio";
 
@@ -36,6 +81,7 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   const [liveTranscript, setLiveTranscript] = useState("");
   const [timeLeft, setTimeLeft] = useState(ANSWER_TIME_LIMIT);
   const [proctorLogs, setProctorLogs] = useState({ tabSwitches: 0, focusLosses: 0 });
+  const [resumedFromSave, setResumedFromSave] = useState(false);
 
   const [evaluation, setEvaluation] = useState(
     hasExistingAudioReport
@@ -49,6 +95,9 @@ export default function AiAudioInterview({ existingData, onSaved }) {
               marks: existingData.aiScore,
               answered: Boolean(qa.transcript),
               feedback: "",
+              transcript: qa.transcript || "",
+              translatedTranscript: qa.translatedTranscript || qa.transcript || "",
+              detectedLanguage: qa.detectedLanguage || "unknown",
             })) || [],
           feedback: existingData.feedback || "",
         }
@@ -67,6 +116,34 @@ export default function AiAudioInterview({ existingData, onSaved }) {
       })
       .finally(() => setQuestionsLoading(false));
   }, []);
+
+  // Resume detection: once the question bank is in, check for a save left
+  // behind by an earlier attempt that never finished (refresh/crash/lost
+  // connection). Only trust it if it lines up with today's question bank
+  // (same question ids) and there's actually unfinished progress to resume -
+  // otherwise it's stale (a different question bank, or a fully-answered
+  // save that just never got cleared) and is discarded.
+  useEffect(() => {
+    if (!questions.length || hasExistingAudioReport) {
+      if (hasExistingAudioReport) clearInterviewProgress();
+      return;
+    }
+    const saved = loadInterviewProgress();
+    if (!saved) return;
+
+    const currentIds = new Set(questions.map((q) => String(q.id)));
+    const savedIds = Object.keys(saved.qaTranscripts || {}).filter((id) => currentIds.has(String(id)));
+    if (!savedIds.length || savedIds.length >= questions.length) {
+      clearInterviewProgress();
+      return;
+    }
+
+    setQaTranscripts(saved.qaTranscripts);
+    const resumeIdx = Math.min(Math.max(0, saved.qIdx ?? savedIds.length), questions.length - 1);
+    setQIdx(resumeIdx);
+    setResumedFromSave(true);
+    toast(`Resuming your previous interview attempt - continuing from Question ${resumeIdx + 1}.`, "!");
+  }, [questions, hasExistingAudioReport]);
 
   useEffect(() => {
     return () => {
@@ -114,6 +191,7 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   }, [isRecording, timeLeft]);
 
   function stopMedia() {
+    recognitionShouldRunRef.current = false;
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       setStream(null);
@@ -167,11 +245,14 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     }
 
     setStep("interview");
-    setQIdx(0);
+    // qIdx is 0 for a fresh start, or the resume point restored by the
+    // resume-detection effect above if a prior attempt broke off partway
+    // through - either way, pick up from wherever it currently points.
+    const startIdx = qIdx;
     // The answer window (timer + recognition) opens automatically once the
     // AI finishes asking - the candidate never has to click a separate
     // "Start Answer" button.
-    speakQuestion(questions[0].question, () => handleStartAnswer());
+    speakQuestion(questions[startIdx].question, () => handleStartAnswer());
   }
 
   function speakQuestion(question, onEnd) {
@@ -207,22 +288,47 @@ export default function AiAudioInterview({ existingData, onSaved }) {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.onresult = (e) => {
-        let text = "";
-        for (let i = 0; i < e.results.length; i++) {
-          text += e.results[i][0].transcript + " ";
-        }
-        lastSpeechAtRef.current = Date.now();
-        setLiveTranscript(text);
-      };
-      recognition.start();
-      recognitionRef.current = recognition;
+      recognitionShouldRunRef.current = true;
+      startSpeechRecognition();
     } else {
       toast("Your browser doesn't support live speech-to-text. You can still answer - your response just won't auto-transcribe.", "!");
     }
+  }
+
+  // Starts (or restarts) live transcription for the current answer window.
+  // Wired with onend/onerror so that if the browser drops the recognition
+  // session on its own mid-answer, it comes straight back instead of leaving
+  // the candidate talking to a mic that's stopped capturing. See
+  // recognitionShouldRunRef above for why the guard is needed.
+  function startSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition || !recognitionShouldRunRef.current) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (e) => {
+      let text = "";
+      for (let i = 0; i < e.results.length; i++) {
+        text += e.results[i][0].transcript + " ";
+      }
+      lastSpeechAtRef.current = Date.now();
+      setLiveTranscript(text);
+    };
+    // "no-speech"/"network"/"aborted" are expected during normal pauses -
+    // swallow them here and let onend decide whether to restart.
+    recognition.onerror = () => {};
+    recognition.onend = () => {
+      if (recognitionShouldRunRef.current) {
+        try {
+          startSpeechRecognition();
+        } catch (e) {}
+      }
+    };
+    try {
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (e) {}
   }
 
   function handleStopAnswer() {
@@ -232,6 +338,7 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     if (stoppingAnswerRef.current) return;
     stoppingAnswerRef.current = true;
 
+    recognitionShouldRunRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -245,6 +352,11 @@ export default function AiAudioInterview({ existingData, onSaved }) {
 
     if (qIdx < questions.length - 1) {
       const nextIdx = qIdx + 1;
+      // Persist what's answered so far - if the browser refreshes or the
+      // connection drops before the interview finishes, the candidate picks
+      // back up at nextIdx instead of Question 1 (see the resume-detection
+      // effect above).
+      saveInterviewProgress(updatedTranscripts, nextIdx);
       setQIdx(nextIdx);
       toast(`Answer ${qIdx + 1} recorded! Moving to Question ${nextIdx + 1}`, "✓");
       speakQuestion(questions[nextIdx].question, () => {
@@ -265,6 +377,7 @@ export default function AiAudioInterview({ existingData, onSaved }) {
       return;
     }
     stoppingAnswerRef.current = true; // block any in-flight auto-advance timer
+    recognitionShouldRunRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -330,6 +443,10 @@ export default function AiAudioInterview({ existingData, onSaved }) {
           marks: qa.transcript.split(/\s+/).filter(Boolean).length >= 3 ? 60 : 0,
           answered: qa.transcript.split(/\s+/).filter(Boolean).length >= 3,
           feedback: "Evaluated locally - server evaluation was unavailable.",
+          transcript: qa.transcript || "",
+          // No translation possible offline - just show the original.
+          translatedTranscript: qa.transcript || "",
+          detectedLanguage: "unknown",
         })),
         feedback: `Candidate evaluated: ${avg}% score across the audio interview (offline fallback scoring).`,
       });
@@ -338,6 +455,9 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     } finally {
       setSubmitting(false);
       stopMedia();
+      // The interview has concluded one way or another (submitted, or shown
+      // as a local fallback report) - nothing left to resume.
+      clearInterviewProgress();
     }
   }
 
@@ -375,13 +495,22 @@ export default function AiAudioInterview({ existingData, onSaved }) {
 
               {mediaError && <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginBottom: 16 }}>{mediaError}</div>}
 
+              {resumedFromSave && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #3B82F6", color: "#1D4ED8", padding: "12px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fa-solid fa-clock-rotate-left" style={{ fontSize: 16 }}></i>
+                  <span>
+                    We found your previous attempt - you'll continue from Question {qIdx + 1} of {questions.length}. Your earlier answers are already saved.
+                  </span>
+                </div>
+              )}
+
               <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#B45309", padding: "12px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
                 <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 16 }}></i>
                 <span>Find a quiet, well-lit spot. Switching tabs or losing focus during the interview is logged and may affect your score. You can end the interview early at any question - anything left unanswered scores 0.</span>
               </div>
 
               <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center", padding: "14px 24px", fontSize: 15 }} onClick={handleStartInterview} disabled={!questions.length}>
-                <i className="fa-solid fa-microphone" style={{ marginRight: 8 }}></i> Start AI Audio Interview →
+                <i className="fa-solid fa-microphone" style={{ marginRight: 8 }}></i> {resumedFromSave ? `Resume at Question ${qIdx + 1} →` : "Start AI Audio Interview →"}
               </button>
             </div>
           )}
@@ -524,6 +653,16 @@ export default function AiAudioInterview({ existingData, onSaved }) {
                         <div style={{ fontSize: 11, color: qScore.marks > 0 ? "#15803D" : "#DC2626", marginTop: 2 }}>
                           {qScore.feedback || (qScore.marks > 0 ? `Spoken response evaluated: ${qScore.marks}/100 Marks` : "0 Marks: No spoken response provided.")}
                         </div>
+                        {qScore.transcript && (
+                          <div style={{ fontSize: 11, color: "#475569", marginTop: 6, fontStyle: "italic" }}>
+                            <strong>Answer:</strong> {qScore.translatedTranscript || qScore.transcript}
+                            {qScore.detectedLanguage && !["unknown", "none", "english", "en"].includes(String(qScore.detectedLanguage).toLowerCase()) && (
+                              <span style={{ display: "block", color: "#94A3B8", marginTop: 2, fontStyle: "normal" }}>
+                                Translated from {qScore.detectedLanguage} - Original: {qScore.transcript}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <span style={{ background: qScore.marks > 0 ? "#DCFCE7" : "#FEE2E2", color: qScore.marks > 0 ? "#15803D" : "#DC2626", fontSize: 13, fontWeight: 800, padding: "4px 12px", borderRadius: 999, flexShrink: 0 }}>
                         {qScore.marks} / 100 Marks

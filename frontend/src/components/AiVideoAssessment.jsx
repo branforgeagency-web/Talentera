@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
+// How many seconds of silence during an answer before it auto-advances to
+// the next question. Keep in sync with SILENCE_TIMEOUT_MS in
+// AiAudioInterview.jsx.
+const SILENCE_TIMEOUT_SECONDS = 5;
+
 export const EXPANDED_QUESTION_POOL = [
   {
     id: 1,
@@ -136,11 +141,20 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recTimeLeft, setRecTimeLeft] = useState(questionsList[0]?.timeLimit || 45);
-  const [silenceTimeLeft, setSilenceTimeLeft] = useState(3);
+  const [silenceTimeLeft, setSilenceTimeLeft] = useState(SILENCE_TIMEOUT_SECONDS);
   const lastSpeechTimeRef = useRef(Date.now());
   const [qaTranscripts, setQaTranscripts] = useState({});
   const [proctorLogs, setProctorLogs] = useState({ tabSwitches: 0, focusLosses: 0 });
   const advancingRef = useRef(false);
+  // True only while an answer window should actively be listening. Browsers
+  // (Chrome especially) can silently stop a "continuous" SpeechRecognition
+  // session on their own - even mid-answer, with the candidate still
+  // talking - with no built-in way to detect/restart it. Without this flag +
+  // the onend handler in startAnswerWindow, that made the AI appear to stop
+  // listening while the candidate was still speaking. Set true right before
+  // starting recognition, false right before any intentional stop() so the
+  // auto-restart doesn't fight a deliberate shutdown.
+  const recognitionShouldRunRef = useRef(false);
 
   useEffect(() => {
     qIdxRef.current = qIdx;
@@ -164,6 +178,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         marks: 0,
         answered: false,
         feedback: "0 Marks: Completed interview attempt.",
+        transcript: pair.transcript || "",
+        translatedTranscript: pair.translatedTranscript || pair.transcript || "",
+        detectedLanguage: pair.detectedLanguage || "unknown",
       })),
       feedback: existingData.feedback || `Candidate scored ${score}% overall on Stage 5 AI Video Assessment.`,
     };
@@ -240,6 +257,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     return () => {
       stopWebcam();
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      // Prevent the auto-restart in startAnswerWindow from reviving
+      // recognition after the component has moved on/unmounted.
+      recognitionShouldRunRef.current = false;
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onend = null;
+          recognitionRef.current.stop();
+        } catch (e) {}
+        recognitionRef.current = null;
+      }
     };
   }, [step]);
 
@@ -271,17 +298,23 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     return () => clearTimeout(timer);
   }, [isRecording, recTimeLeft]);
 
-  // 3-Second Silence Detection Monitor
+  // Silence Detection Monitor. Was previously hardcoded to a 3s threshold
+  // here regardless of what startAnswerWindow displayed via setSilenceTimeLeft
+  // (10s) - so answers were actually being cut off after 3s of no new
+  // speech-recognition result, not the 10s shown in the UI. That mismatch is
+  // exactly what made the AI seem to "stop listening" while the candidate
+  // was still mid-answer. Both now read from the same SILENCE_TIMEOUT_SECONDS
+  // constant.
   useEffect(() => {
     if (!isRecording) return;
     const silenceTimer = setInterval(() => {
       const elapsedSilence = Math.floor((Date.now() - lastSpeechTimeRef.current) / 1000);
-      const remainingSilence = Math.max(0, 3 - elapsedSilence);
+      const remainingSilence = Math.max(0, SILENCE_TIMEOUT_SECONDS - elapsedSilence);
       setSilenceTimeLeft(remainingSilence);
 
-      if (elapsedSilence >= 3) {
+      if (elapsedSilence >= SILENCE_TIMEOUT_SECONDS) {
         clearInterval(silenceTimer);
-        toast("No speech detected for 3 seconds. Auto-advancing...", "!");
+        toast(`No speech detected for ${SILENCE_TIMEOUT_SECONDS} seconds. Auto-advancing...`, "!");
         advanceToNextQuestion();
       }
     }, 1000);
@@ -401,21 +434,29 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     if (!q) return;
 
     setRecTimeLeft(q.timeLimit);
-    setSilenceTimeLeft(10);
+    setSilenceTimeLeft(SILENCE_TIMEOUT_SECONDS);
     lastSpeechTimeRef.current = Date.now();
     setIsRecording(true);
+    recognitionShouldRunRef.current = true;
 
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
         recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
       } catch (e) {}
       recognitionRef.current = null;
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
+    if (!SpeechRecognition) return;
+
+    // Wired with onend so that if the browser drops the recognition session
+    // on its own mid-answer, it comes straight back instead of leaving the
+    // candidate talking to a mic that's stopped capturing.
+    function beginRecognition() {
+      if (!recognitionShouldRunRef.current) return;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -430,11 +471,19 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         setQaTranscripts((prev) => ({ ...prev, [q.id]: text }));
       };
       recognition.onerror = () => {}; // swallow no-speech/network hiccups - the silence timer handles advancing
+      recognition.onend = () => {
+        if (recognitionShouldRunRef.current) {
+          try {
+            beginRecognition();
+          } catch (e) {}
+        }
+      };
       try {
         recognition.start();
         recognitionRef.current = recognition;
       } catch (e) {}
     }
+    beginRecognition();
   }
 
   function advanceToNextQuestion() {
@@ -444,10 +493,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     if (advancingRef.current) return;
     advancingRef.current = true;
 
+    recognitionShouldRunRef.current = false;
     setIsRecording(false);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
+        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
       } catch (e) {}
       recognitionRef.current = null;
@@ -471,6 +522,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   function handleFinishSingleTakeInterview() {
     advancingRef.current = true;
+    recognitionShouldRunRef.current = false;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       try {
@@ -479,6 +531,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
     if (recognitionRef.current) {
       try {
+        recognitionRef.current.onend = null;
         recognitionRef.current.stop();
       } catch (e) {}
       recognitionRef.current = null;
@@ -581,6 +634,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
           marks: scoring.marks,
           answered: scoring.answered,
           feedback: scoring.feedback,
+          transcript: tr,
+          // No translation possible offline - just show the original.
+          translatedTranscript: tr,
+          detectedLanguage: "unknown",
         };
       });
 
@@ -780,7 +837,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                   <div>
                     <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--navy)", marginBottom: 10 }}>
                       <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 3s linear infinite" }}></i>
-                      {isSpeaking ? "AI is asking the question…" : "Questions auto-advance on 3s silence or time limit expiration."}
+                      {isSpeaking ? "AI is asking the question…" : `Questions auto-advance on ${SILENCE_TIMEOUT_SECONDS}s silence or time limit expiration.`}
                     </div>
                     <button
                       type="button"
@@ -863,6 +920,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                     <div style={{ fontSize: 11, color: qScore.marks > 0 ? "#15803D" : "#DC2626", marginTop: 2 }}>
                       {qScore.feedback || (qScore.marks > 0 ? `Spoken response evaluated: ${qScore.marks}/100 Marks` : "0 Marks: No spoken response provided for this question.")}
                     </div>
+                    {qScore.transcript && (
+                      <div style={{ fontSize: 11, color: "#475569", marginTop: 6, fontStyle: "italic" }}>
+                        <strong>Answer:</strong> {qScore.translatedTranscript || qScore.transcript}
+                        {qScore.detectedLanguage && !["unknown", "none", "english", "en"].includes(String(qScore.detectedLanguage).toLowerCase()) && (
+                          <span style={{ display: "block", color: "#94A3B8", marginTop: 2, fontStyle: "normal" }}>
+                            Translated from {qScore.detectedLanguage} - Original: {qScore.transcript}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <span style={{ background: qScore.marks > 0 ? "#DCFCE7" : "#FEE2E2", color: qScore.marks > 0 ? "#15803D" : "#DC2626", fontSize: 13, fontWeight: 800, padding: "4px 12px", borderRadius: 999, flexShrink: 0 }}>
