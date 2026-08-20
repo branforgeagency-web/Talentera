@@ -13,9 +13,10 @@ router.post(
     body("email").isEmail().withMessage("Valid email required").normalizeEmail(),
     body("password").isLength({ min: 6 }).withMessage("Password must be at least 6 characters"),
     body("mobile")
-      .optional({ checkFalsy: true })
-      .matches(/^\d{10}$/)
-      .withMessage("Mobile number must be 10 digits."),
+      .notEmpty()
+      .withMessage("Valid 10-digit mobile number is required for registration.")
+      .matches(/^[6-9]\d{9}$/)
+      .withMessage("Mobile number must be a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9."),
   ],
   async (req, res) => {
     const errors = validationResult(req);

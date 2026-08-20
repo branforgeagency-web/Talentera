@@ -23,17 +23,17 @@ export default function Landing() {
   ];
 
   const cityHubs = [
-    { city: "Chennai", num: 110, landmark: "Marina Beach · Egmore", state: "TAMIL NADU", icon: "♒", nearby: true },
-    { city: "Hyderabad", num: 68, landmark: "Charminar · Hi-Tech City", state: "TELANGANA", icon: "🏛", nearby: false },
-    { city: "Coimbatore", num: 36, landmark: "Manchester of South India", state: "TAMIL NADU", icon: "🏭", nearby: true },
-    { city: "Bangalore", num: 34, landmark: "Garden City · IT Capital", state: "KARNATAKA", icon: "🌴", nearby: true },
-    { city: "Pune", num: 20, landmark: "Oxford of the East", state: "MAHARASHTRA", icon: "📖", nearby: true },
-    { city: "Noida", num: 13, landmark: "NCR Tech Corridor", state: "UTTAR PRADESH", icon: "🏢", nearby: true },
-    { city: "Trichy", num: 12, landmark: "Rockfort · Temple City", state: "TAMIL NADU", icon: "🛕", nearby: true },
-    { city: "Kerala", num: 11, landmark: "God's Own Country · Backwaters", state: "KERALA", icon: "🌴", nearby: false },
-    { city: "Andhra Pradesh", num: 6, landmark: "Coastal AP · Vizag & Tirupathi", state: "ANDHRA PRADESH", icon: "⚓", nearby: true },
-    { city: "Mumbai", num: 6, landmark: "Gateway of India · Financial Capital", state: "MAHARASHTRA", icon: "🏠", nearby: true },
-    { city: "Other Cities", num: 12, landmark: "Pan-India · Across 8 hubs", state: "PAN-INDIA", icon: "📍", nearby: true }
+    { city: "Chennai", num: 110, landmark: "Marina Beach · Egmore", state: "TAMIL NADU", icon: "fa-solid fa-water", nearby: true },
+    { city: "Hyderabad", num: 68, landmark: "Charminar · Hi-Tech City", state: "TELANGANA", icon: "fa-solid fa-landmark", nearby: false },
+    { city: "Coimbatore", num: 36, landmark: "Manchester of South India", state: "TAMIL NADU", icon: "fa-solid fa-industry", nearby: true },
+    { city: "Bangalore", num: 34, landmark: "Garden City · IT Capital", state: "KARNATAKA", icon: "fa-solid fa-tree", nearby: true },
+    { city: "Pune", num: 20, landmark: "Oxford of the East", state: "MAHARASHTRA", icon: "fa-solid fa-book-open", nearby: true },
+    { city: "Noida", num: 13, landmark: "NCR Tech Corridor", state: "UTTAR PRADESH", icon: "fa-solid fa-building", nearby: true },
+    { city: "Trichy", num: 12, landmark: "Rockfort · Temple City", state: "TAMIL NADU", icon: "fa-solid fa-gopuram", nearby: true },
+    { city: "Kerala", num: 11, landmark: "God's Own Country · Backwaters", state: "KERALA", icon: "fa-solid fa-mountain-sun", nearby: false },
+    { city: "Andhra Pradesh", num: 6, landmark: "Coastal AP · Vizag & Tirupathi", state: "ANDHRA PRADESH", icon: "fa-solid fa-anchor", nearby: true },
+    { city: "Mumbai", num: 6, landmark: "Gateway of India · Financial Capital", state: "MAHARASHTRA", icon: "fa-solid fa-city", nearby: true },
+    { city: "Other Cities", num: 12, landmark: "Pan-India · Across 8 hubs", state: "PAN-INDIA", icon: "fa-solid fa-location-dot", nearby: true }
   ];
 
   // Comprehensive Company Roster per City
@@ -287,7 +287,7 @@ export default function Landing() {
         {/* MID-LEFT STAMP CARD */}
         <div className="hero-float hero-float-ml">
           <div className="hero-cand-stamp">
-            <div className="hero-cand-stamp-icon">⚡</div>
+            <div className="hero-cand-stamp-icon"><i className="fa-solid fa-bolt"></i></div>
             <div>
               <div className="hero-cand-stamp-num">+47</div>
               <div className="hero-cand-stamp-lbl">VERIFIED TODAY</div>
@@ -298,7 +298,7 @@ export default function Landing() {
         {/* MID-RIGHT STAMP CARD */}
         <div className="hero-float hero-float-mr">
           <div className="hero-cand-stamp hero-cand-stamp-gold">
-            <div className="hero-cand-stamp-icon">🛡</div>
+            <div className="hero-cand-stamp-icon"><i className="fa-solid fa-shield-halved"></i></div>
             <div>
               <div className="hero-cand-stamp-num">4-Layer</div>
               <div className="hero-cand-stamp-lbl">SCREENING</div>
@@ -529,7 +529,7 @@ export default function Landing() {
                     setSearchQuery("");
                   }}
                 >
-                  <div className="loch-hub-icon">{hub.icon}</div>
+                  <div className="loch-hub-icon"><i className={hub.icon}></i></div>
                   <div className="loch-hub-num">{hub.num}</div>
                   <div className="loch-hub-city">
                     {hub.city} {hub.nearby && <span style={{ fontSize: 10, color: isActive ? "var(--navy)" : "var(--gold)", opacity: 0.8 }}>+ NEARBY</span>}
@@ -732,7 +732,7 @@ export default function Landing() {
           {/* Tabs selector */}
           <div className="journey-tabs">
             <button className={`journey-tab ${activeJourney === "candidate" ? "active" : ""}`} onClick={() => setActiveJourney("candidate")}>
-              <span className="journey-tab-icon">🎓</span>
+              <span className="journey-tab-icon"><i className="fa-solid fa-graduation-cap"></i></span>
               <div>
                 <div className="journey-tab-eyebrow">PATHWAY A</div>
                 <div className="journey-tab-label">For Candidates</div>
@@ -740,7 +740,7 @@ export default function Landing() {
             </button>
 
             <button className={`journey-tab ${activeJourney === "company" ? "active" : ""}`} onClick={() => setActiveJourney("company")}>
-              <span className="journey-tab-icon">🏢</span>
+              <span className="journey-tab-icon"><i className="fa-solid fa-building"></i></span>
               <div>
                 <div className="journey-tab-eyebrow">PATHWAY B</div>
                 <div className="journey-tab-label">For Companies</div>
@@ -748,7 +748,7 @@ export default function Landing() {
             </button>
 
             <button className={`journey-tab ${activeJourney === "academy" ? "active" : ""}`} onClick={() => setActiveJourney("academy")}>
-              <span className="journey-tab-icon">🏛️</span>
+              <span className="journey-tab-icon"><i className="fa-solid fa-building-columns"></i></span>
               <div>
                 <div className="journey-tab-eyebrow">PATHWAY C</div>
                 <div className="journey-tab-label">For Academies</div>
@@ -765,7 +765,7 @@ export default function Landing() {
               <div className="journey-steps">
                 <div className="journey-step">
                   <div className="journey-step-num">01 REGISTRATION</div>
-                  <div className="journey-step-icon-box">📝</div>
+                  <div className="journey-step-icon-box"><i className="fa-solid fa-file-pen"></i></div>
                   <div className="journey-step-title">Create Free Profile</div>
                   <div className="journey-step-body">Enter basic details, upload AAPC/AHIMA certificates, and verify Aadhaar identity.</div>
                   <div className="journey-step-time">Day 1 · 3 mins</div>
@@ -773,7 +773,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step">
                   <div className="journey-step-num">02 ASSESSMENT</div>
-                  <div className="journey-step-icon-box">🧠</div>
+                  <div className="journey-step-icon-box"><i className="fa-solid fa-brain"></i></div>
                   <div className="journey-step-title">Proctored AAPC Test</div>
                   <div className="journey-step-body">Take proctored online medical coding & AR knowledge test to calculate your base score.</div>
                   <div className="journey-step-time">Day 1 · 25 mins</div>
@@ -781,7 +781,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step journey-step-engine">
                   <div className="journey-step-num">03 CHART AUDIT</div>
-                  <div className="journey-step-icon-box journey-step-icon-engine">📊</div>
+                  <div className="journey-step-icon-box journey-step-icon-engine"><i className="fa-solid fa-chart-column"></i></div>
                   <div className="journey-step-title">Live Chart Audit</div>
                   <div className="journey-step-body">Audit 45 real ED & Surgery charts. Score 95%+ chart accuracy to unlock Gold Verified Badge.</div>
                   <div className="journey-step-time">Day 2 · Verified</div>
@@ -789,7 +789,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step journey-step-success">
                   <div className="journey-step-num">04 PLACEMENT</div>
-                  <div className="journey-step-icon-box journey-step-icon-success">🎯</div>
+                  <div className="journey-step-icon-box journey-step-icon-success"><i className="fa-solid fa-bullseye"></i></div>
                   <div className="journey-step-title">Direct Interview</div>
                   <div className="journey-step-body">Top RCM companies view your verified score and invite you for direct final interviews.</div>
                   <div className="journey-step-time">Day 3-7 · Placed</div>
@@ -813,7 +813,7 @@ export default function Landing() {
               <div className="journey-steps">
                 <div className="journey-step">
                   <div className="journey-step-num">01 REQUIREMENT</div>
-                  <div className="journey-step-icon-box">💼</div>
+                  <div className="journey-step-icon-box"><i className="fa-solid fa-briefcase"></i></div>
                   <div className="journey-step-title">Post Requirement</div>
                   <div className="journey-step-body">Specify role, specialty (ED, Surgery, Billing), experience, and salary range.</div>
                   <div className="journey-step-time">90 Seconds</div>
@@ -821,7 +821,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step journey-step-engine">
                   <div className="journey-step-num">02 MATCHING</div>
-                  <div className="journey-step-icon-box journey-step-icon-engine">🔍</div>
+                  <div className="journey-step-icon-box journey-step-icon-engine"><i className="fa-solid fa-magnifying-glass"></i></div>
                   <div className="journey-step-title">5 Verified Matches</div>
                   <div className="journey-step-body">Receive 5 hand-curated candidate profiles with audited chart accuracy and proctored scores.</div>
                   <div className="journey-step-time">Within 24 Hrs</div>
@@ -829,7 +829,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step">
                   <div className="journey-step-num">03 INTERVIEW</div>
-                  <div className="journey-step-icon-box">📞</div>
+                  <div className="journey-step-icon-box"><i className="fa-solid fa-phone"></i></div>
                   <div className="journey-step-title">Final Interview</div>
                   <div className="journey-step-body">Conduct 1-2 final technical rounds with pre-screened, high-intent candidates.</div>
                   <div className="journey-step-time">Day 2-4</div>
@@ -837,7 +837,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step journey-step-success">
                   <div className="journey-step-num">04 PAY-ON-HIRE</div>
-                  <div className="journey-step-icon-box journey-step-icon-success">🤝</div>
+                  <div className="journey-step-icon-box journey-step-icon-success"><i className="fa-solid fa-handshake"></i></div>
                   <div className="journey-step-title">Pay Only On Join</div>
                   <div className="journey-step-body">Candidate joins your team. Pay standard success fee only after join. 30-day replacement guarantee.</div>
                   <div className="journey-step-time">Zero Risk</div>
@@ -861,7 +861,7 @@ export default function Landing() {
               <div className="journey-steps">
                 <div className="journey-step">
                   <div className="journey-step-num">01 PARTNER LOGIN</div>
-                  <div className="journey-step-icon-box">🏛️</div>
+                  <div className="journey-step-icon-box"><i className="fa-solid fa-building-columns"></i></div>
                   <div className="journey-step-title">Academy Register</div>
                   <div className="journey-step-body">Access your dedicated academy partner portal with OTP verification.</div>
                   <div className="journey-step-time">Instant</div>
@@ -869,7 +869,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step">
                   <div className="journey-step-num">02 BATCH UPLOAD</div>
-                  <div className="journey-step-icon-box">📤</div>
+                  <div className="journey-step-icon-box"><i className="fa-solid fa-cloud-arrow-up"></i></div>
                   <div className="journey-step-title">Bulk Student Upload</div>
                   <div className="journey-step-body">Upload student batches via CSV or single-entry to initiate candidate verification.</div>
                   <div className="journey-step-time">Batch Level</div>
@@ -877,7 +877,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step journey-step-engine">
                   <div className="journey-step-num">03 VERIFICATION</div>
-                  <div className="journey-step-icon-box journey-step-icon-engine">🏅</div>
+                  <div className="journey-step-icon-box journey-step-icon-engine"><i className="fa-solid fa-award"></i></div>
                   <div className="journey-step-title">Badge Certification</div>
                   <div className="journey-step-body">Talentera conducts bias-free Path B assessments and issues verified academy badges.</div>
                   <div className="journey-step-time">Bias-Free</div>
@@ -885,7 +885,7 @@ export default function Landing() {
                 <div className="journey-arrow">→</div>
                 <div className="journey-step journey-step-success">
                   <div className="journey-step-num">04 PLACEMENT TRACKING</div>
-                  <div className="journey-step-icon-box journey-step-icon-success">📈</div>
+                  <div className="journey-step-icon-box journey-step-icon-success"><i className="fa-solid fa-chart-line"></i></div>
                   <div className="journey-step-title">Track Outcomes</div>
                   <div className="journey-step-body">Monitor student interview shortlists, hiring companies, and month-wise placement rates.</div>
                   <div className="journey-step-time">Live Dashboard</div>

@@ -17,6 +17,7 @@ import AcademyPortal from "./pages/AcademyPortal.jsx";
 import StaffLogin from "./pages/StaffLogin.jsx";
 import StaffHub from "./pages/StaffHub.jsx";
 import ResumeBuilder from "./pages/ResumeBuilder.jsx";
+import AssessmentRunner from "./pages/AssessmentRunner.jsx";
 import VerifyCandidate from "./pages/VerifyCandidate.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
@@ -95,6 +96,14 @@ export default function App() {
         element={
           <RequireAuth>
             <ResumeBuilder />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/assessment/run"
+        element={
+          <RequireAuth>
+            <AssessmentRunner />
           </RequireAuth>
         }
       />

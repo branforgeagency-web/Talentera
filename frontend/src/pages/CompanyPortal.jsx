@@ -354,6 +354,81 @@ export default function CompanyPortal() {
             >
               + Add Candidate Profile
             </button>
+            <button
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.2)",
+                color: "#fff",
+                padding: "14px 24px",
+                borderRadius: 10,
+                fontSize: 15,
+                fontWeight: 700,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                cursor: "pointer"
+              }}
+              onClick={() => navigate("/companies/register")}
+            >
+              <i className="fa-solid fa-magnifying-glass"></i> Hire Verified Candidates
+            </button>
+          </div>
+
+          {/* Registration Sub-link */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 40, fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+            <span>New to Talentera?</span>
+            <Link
+              to="/companies/register"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                background: "rgba(229,168,46,0.1)",
+                border: "1px solid rgba(229,168,46,0.3)",
+                color: "var(--gold)",
+                padding: "5px 14px",
+                borderRadius: 999,
+                fontSize: 12,
+                fontWeight: 700,
+                textDecoration: "none"
+              }}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--gold)" }} />
+              Register your company free →
+            </Link>
+          </div>
+
+          {/* Stats Card */}
+          <div
+            style={{
+              background: "rgba(255,255,255,0.04)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 16,
+              padding: "18px 12px",
+              display: "grid",
+              gridTemplateColumns: "repeat(4, 1fr)",
+              gap: 12,
+              maxWidth: 720,
+              margin: "0 auto",
+              backdropFilter: "blur(10px)"
+            }}
+          >
+            <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>14</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>DAYS TO HIRE</div>
+            </div>
+            <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>88%</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>OFFER ACCEPTANCE</div>
+            </div>
+            <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>4-Layer</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>VERIFICATION</div>
+            </div>
+            <div style={{ padding: "4px 8px" }}>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>30-Day</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>REPLACEMENT</div>
+            </div>
           </div>
         </div>
       </section>
@@ -466,7 +541,7 @@ export default function CompanyPortal() {
                 style={{ width: "100%", accentColor: "var(--gold)", cursor: "pointer" }}
               />
               <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700, marginTop: 6 }}>
-                {minScore >= 75 ? "⭐ Showing Gold-Badged Verified Talent Only" : "Showing all verified scores"}
+                {minScore >= 75 ? <span><i className="fa-solid fa-star" style={{ marginRight: 4 }}></i> Showing Gold-Badged Verified Talent Only</span> : "Showing all verified scores"}
               </div>
             </div>
 
@@ -520,7 +595,7 @@ export default function CompanyPortal() {
             {/* Search Bar */}
             <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, border: "1px solid var(--border-light)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 14px" }}>
-                <span style={{ color: "#94A3B8" }}>🔍</span>
+                <span style={{ color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></span>
                 <input
                   type="text"
                   placeholder="Search by candidate name, skill (CPC, Denial, Payment Posting), or city..."
@@ -565,7 +640,7 @@ export default function CompanyPortal() {
               </div>
             ) : filteredCandidates.length === 0 ? (
               <div style={{ background: "#fff", borderRadius: 12, padding: 40, textAlign: "center", border: "1px dashed var(--border-light)" }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
+                <div style={{ fontSize: 32, marginBottom: 12, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                 <h4>No verified candidates match your criteria.</h4>
                 <p style={{ fontSize: 13, color: "#64748B" }}>Try resetting your score slider or search query.</p>
               </div>
@@ -812,24 +887,9 @@ export default function CompanyPortal() {
 
               {/* Modal Buttons */}
               <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
-                {isVerifiedCompany ? (
-                  <button
-                    className="btn-gold"
-                    style={{ flex: 1, minWidth: 160, justifyContent: "center" }}
-                    onClick={() => setContactCandidateModal(selectedCandidate)}
-                  >
-                    📞 Contact Candidate
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    style={{ flex: 1, minWidth: 160, padding: 12, borderRadius: 8, background: "#D97706", color: "#fff", border: "none", fontWeight: 800, cursor: "pointer" }}
-                    onClick={() => setShowUnlockModal(true)}
-                  >
-                    🔒 Verify Account to Unlock Contacts
-                  </button>
-                )}
-
+                <button className="btn-gold" style={{ flex: 1, minWidth: 140, justifyContent: "center" }} onClick={() => alert(`Connecting with ${selectedCandidate.name}...`)}>
+                  <i className="fa-solid fa-phone" style={{ marginRight: 6 }}></i> Contact Candidate
+                </button>
                 <button
                   style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 8, background: shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9", color: shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)", fontWeight: 700, border: "none", cursor: "pointer" }}
                   onClick={() => toggleShortlist(selectedCandidate.id)}
@@ -842,7 +902,7 @@ export default function CompanyPortal() {
                   target="_blank"
                   style={{ padding: "12px 16px", borderRadius: 8, background: "var(--navy)", color: "#fff", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
                 >
-                  🔗 Public Audit Page
+                  <i className="fa-solid fa-link"></i> Public Audit Page
                 </Link>
               </div>
             </div>

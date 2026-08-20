@@ -79,11 +79,11 @@ export default function AcademyPortal() {
           </div>
 
           {[
-            { id: "home", label: "Dashboard Home", icon: "📊" },
-            { id: "candidates", label: "Students Directory", icon: "🎓" },
-            { id: "batches", label: "Batches", icon: "📚" },
-            { id: "placements", label: "Placement Records", icon: "💼" },
-            { id: "insights", label: "Insights & Funnel", icon: "📈" }
+            { id: "home", label: "Dashboard Home", icon: <i className="fa-solid fa-chart-pie"></i> },
+            { id: "candidates", label: "Students Directory", icon: <i className="fa-solid fa-graduation-cap"></i> },
+            { id: "batches", label: "Batches", icon: <i className="fa-solid fa-book-bookmark"></i> },
+            { id: "placements", label: "Placement Records", icon: <i className="fa-solid fa-briefcase"></i> },
+            { id: "insights", label: "Insights & Funnel", icon: <i className="fa-solid fa-chart-line"></i> }
           ].map((item) => (
             <div
               key={item.id}
@@ -125,11 +125,11 @@ export default function AcademyPortal() {
           {/* KPI Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14, marginBottom: 28 }}>
             {[
-              { label: "TOTAL STUDENTS", val: kpis.totalStudents, icon: "🎓", color: "#3B82F6" },
-              { label: "VERIFIED CANDIDATES", val: kpis.verifiedStudents, icon: "✅", color: "#22C55E" },
-              { label: "PLACED STUDENTS", val: kpis.placedStudents, icon: "🏆", color: "var(--gold)" },
-              { label: "AVG ASSESSMENT", val: `${kpis.avgScore}%`, icon: "⭐", color: "#A855F7" },
-              { label: "PLACEMENT RATE", val: kpis.placementRate, icon: "📈", color: "#15803D" }
+              { label: "TOTAL STUDENTS", val: kpis.totalStudents, icon: <i className="fa-solid fa-graduation-cap"></i>, color: "#3B82F6" },
+              { label: "VERIFIED CANDIDATES", val: kpis.verifiedStudents, icon: <i className="fa-solid fa-circle-check"></i>, color: "#22C55E" },
+              { label: "PLACED STUDENTS", val: kpis.placedStudents, icon: <i className="fa-solid fa-trophy"></i>, color: "var(--gold)" },
+              { label: "AVG ASSESSMENT", val: `${kpis.avgScore}%`, icon: <i className="fa-solid fa-star"></i>, color: "#A855F7" },
+              { label: "PLACEMENT RATE", val: kpis.placementRate, icon: <i className="fa-solid fa-chart-line"></i>, color: "#15803D" }
             ].map((kpi, i) => (
               <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 18, border: "1px solid var(--border-light)" }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.06em", marginBottom: 4 }}>{kpi.label}</div>

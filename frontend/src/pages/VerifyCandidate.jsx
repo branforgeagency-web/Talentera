@@ -78,7 +78,7 @@ export default function VerifyCandidate() {
             onClick={copyShareLink}
             style={{ display: "flex", alignItems: "center", gap: 8, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", padding: "8px 16px", borderRadius: 12, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
           >
-            {copied ? "✓ Link Copied!" : "🔗 Share Verification"}
+            {copied ? "✓ Link Copied!" : <span><i className="fa-solid fa-share-nodes" style={{ marginRight: 6 }}></i> Share Verification</span>}
           </button>
         </div>
       </header>
@@ -105,7 +105,7 @@ export default function VerifyCandidate() {
                   <h1 style={{ fontSize: 28, fontWeight: 800, color: "#0A1F3D", margin: 0 }}>{name}</h1>
                   {isGold ? (
                     <span style={{ background: "#E5A82E", color: "#0A1F3D", fontWeight: 800, fontSize: 11, padding: "4px 12px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      ⭐ GOLD VERIFIED BADGE
+                      <i className="fa-solid fa-award"></i> GOLD VERIFIED BADGE
                     </span>
                   ) : (
                     <span style={{ background: "#DBEAFE", color: "#1E40AF", fontWeight: 800, fontSize: 11, padding: "4px 12px", borderRadius: 999 }}>
@@ -125,7 +125,7 @@ export default function VerifyCandidate() {
                 {scoring?.score || 0}<span style={{ fontSize: 18, color: "#9CA3AF", fontWeight: 400 }}>/100</span>
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#047857", marginTop: 6 }}>
-                🛡️ Authenticity Guaranteed
+                <i className="fa-solid fa-shield-halved" style={{ marginRight: 4 }}></i> Authenticity Guaranteed
               </div>
             </div>
           </div>
@@ -138,7 +138,7 @@ export default function VerifyCandidate() {
             {/* Professional Summary */}
             <div style={{ background: "#fff", padding: 24, borderRadius: 16, border: "1px solid #E5E7EB" }}>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                📄 Verified Candidate Summary
+                <i className="fa-solid fa-file-contract"></i> Verified Candidate Summary
               </h3>
               <p style={{ color: "#374151", lineHeight: 1.6, margin: 0 }}>{summary}</p>
             </div>
@@ -146,7 +146,7 @@ export default function VerifyCandidate() {
             {/* Verified Stages Breakdown */}
             <div style={{ background: "#fff", padding: 24, borderRadius: 16, border: "1px solid #E5E7EB" }}>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-                🛡️ Audit & Verification Trail
+                <i className="fa-solid fa-shield-halved"></i> Audit & Verification Trail
               </h3>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -215,7 +215,7 @@ export default function VerifyCandidate() {
             {/* Video Intro Player */}
             <div style={{ background: "#fff", padding: 24, borderRadius: 16, border: "1px solid #E5E7EB" }}>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-                🎥 Stage 5: Video Introduction
+                <i className="fa-solid fa-video"></i> Stage 5: Video Introduction
               </h3>
               {videoIntro?.videoUrl ? (
                 <div style={{ borderRadius: 12, overflow: "hidden", background: "#000", aspectRatio: "16/9" }}>

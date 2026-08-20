@@ -567,13 +567,13 @@ export default function CompanyDashboardSetup() {
         {/* RIGHT MAIN WORKSPACE */}
         <main>
           <div className="conb-banner" style={{ "--banner-color": STAGE_COLORS[activeStageId] }}>
-            <div className="conb-banner-icon">{banner.icon}</div>
+            <div className="conb-banner-icon"><i className={banner.icon}></i></div>
             <div>
               <div className="conb-banner-eyebrow">STAGE {activeStage.key} · WHY THIS MATTERS</div>
               <h3 className="conb-banner-title">{banner.title}</h3>
               <p className="conb-banner-desc">{banner.desc}</p>
               <div className="conb-banner-unlocks">
-                {banner.unlocks.map((u) => <span key={u}>✔ {u}</span>)}
+                {banner.unlocks.map((u) => <span key={u}><i className="fa-solid fa-check" style={{ marginRight: 4, color: "var(--gold)" }}></i> {u}</span>)}
               </div>
             </div>
           </div>

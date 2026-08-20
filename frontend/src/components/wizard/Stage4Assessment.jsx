@@ -1,71 +1,105 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import api from "../../api/client";
-import { useToast } from "../Toast.jsx";
 
-/**
- * Static/mock, matching the prototype exactly: there is no real proctored
- * test engine yet (flagged as a roadmap item in both the prototype and the
- * original handoff doc). "Start Test" is a stub. Saving this stage records
- * the same mock scores the prototype always shows.
- */
 export default function Stage4Assessment({ stage, existingData, onSaved }) {
-  const toast = useToast();
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const completed = !!existingData?.foundationScore;
+  const [profileData, setProfileData] = useState(existingData || null);
+  const [loading, setLoading] = useState(false);
 
-  function handleStartTest(which) {
-    toast(`${which} test engine coming soon — this is a roadmap item.`, "ℹ");
-  }
+  useEffect(() => {
+    // Refresh profile state when stage loads
+    api.get("/candidate/me").then((res) => {
+      if (res.data.candidate?.stage4) {
+        setProfileData(res.data.candidate.stage4);
+      }
+    }).catch(() => {});
+  }, []);
 
-  async function handleSubmit() {
-    setError("");
-    setSaving(true);
-    try {
-      const res = await api.put(`/candidate/stage/${stage.num}`, {
-        foundationScore: 78,
-        specialtyScore: 82,
-        icdScore: 85,
-        cptScore: 70,
-        rafScore: 88,
-      });
-      onSaved(res.data);
-    } catch (err) {
-      setError(err.response?.data?.message || "Could not save this stage.");
-    } finally {
-      setSaving(false);
-    }
+  const isCompleted = profileData?.foundationScore !== undefined;
+  const scorePercent = profileData?.foundationScore || 0;
+
+  function handleTakeTest() {
+    // Open assessment runner in a new tab or current window
+    window.open("/assessment/run", "_blank");
   }
 
   return (
     <div className="wiz-form">
-      <div className="wiz-action-card">
-        <div className="wiz-action-title">Foundation Test · 15 Qs · 20 min</div>
-        <div className="wiz-action-sub">ICD-10-CM rules, CPT basics, modifiers, sequencing. Proctored, browser-locked.</div>
-        <button type="button" className="btn btn-outline" onClick={() => handleStartTest("Foundation")}>Start Test</button>
-      </div>
+      {/* NOT COMPLETED YET */}
+      {!isCompleted ? (
+        <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 28, boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
+            <span style={{ background: "var(--gold)", color: "var(--navy)", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+              STAGE 04 · MANDATORY PROCTORED ASSESSMENT
+            </span>
+            <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>10 Questions • 15 Minutes • Single Attempt</span>
+          </div>
 
-      <div className="wiz-action-card">
-        <div className="wiz-action-title">Specialty Test · 10 Qs · 25 min</div>
-        <div className="wiz-action-sub">HCC RAF math, MEAT documentation, scenario coding. Per-topic scores stored.</div>
-        <button type="button" className="btn btn-outline" onClick={() => handleStartTest("Specialty")}>Start Test</button>
-      </div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>
+            Talentera AAPC / RCM Proctored Assessment
+          </h2>
 
-      <div className="wiz-result-card">
-        <span className="wiz-result-check">✓</span>
-        <div>
-          <div className="wiz-result-title">Both tests complete · Foundation 78% · Specialty 82%</div>
-          <div className="wiz-result-sub">Per-topic: ICD 85 / CPT 70 / RAF 88. One CPT gap will surface in your Learn Hub.</div>
+          <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, margin: "0 0 16px" }}>
+            Click <strong>Take the Test</strong> to open the proctored assessment in a dedicated window.
+            This test evaluates ICD-10-CM sequencing, CPT modifiers, E/M MDM guidelines, HCC Risk Adjustment MEAT criteria, and RCM denial management.
+          </p>
+
+          <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#B45309", padding: "12px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+            <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 16 }}></i>
+            <span><strong>Anti-Cheat Proctored Test:</strong> If you switch browser tabs or navigate away from the test page, your assessment will automatically submit instantly.</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 24 }}>
+            <div style={{ background: "#fff", padding: 14, borderRadius: 8, border: "1px solid #CBD5E1", textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>10 Qs</div>
+              <div style={{ fontSize: 11, color: "#64748B" }}>Domain Competency</div>
+            </div>
+            <div style={{ background: "#fff", padding: 14, borderRadius: 8, border: "1px solid #CBD5E1", textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>15 Mins</div>
+              <div style={{ fontSize: 11, color: "#64748B" }}>Timed Countdown</div>
+            </div>
+            <div style={{ background: "#fff", padding: 14, borderRadius: 8, border: "1px solid #CBD5E1", textAlign: "center" }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#15803D" }}>Single Attempt</div>
+              <div style={{ fontSize: 11, color: "#64748B" }}>Score Auto-Locked</div>
+            </div>
+          </div>
+
+          <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center", padding: "14px 24px", fontSize: 15 }} onClick={handleTakeTest}>
+            <i className="fa-solid fa-arrow-up-right-from-square" style={{ marginRight: 8 }}></i> Take the Test →
+          </button>
         </div>
-      </div>
+      ) : (
+        /* ALREADY COMPLETED & SCORE LOCKED */
+        <div>
+          <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
+              <div>
+                <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+                  <i className="fa-solid fa-circle-check"></i> PROCTORED TEST SUBMITTED &amp; RECORDED
+                </span>
+                <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)", margin: "8px 0 2px" }}>
+                  Verified Assessment Score: {scorePercent}%
+                </h2>
+                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
+                  Recorded on your Candidate Profile &amp; Talentera Verification Score card.
+                </p>
+              </div>
 
-      {error && <div className="error-text">{error}</div>}
+              <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "16px 28px", textAlign: "center" }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>VERIFIED SCORE</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: "var(--navy)" }}>{scorePercent}<span style={{ fontSize: 16, color: "#94A3B8" }}>/100</span></div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>Score Locked</div>
+              </div>
+            </div>
+          </div>
 
-      <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-        <button type="button" className="btn btn-gold" onClick={handleSubmit} disabled={saving}>
-          {saving ? "Saving…" : completed ? "Continue →" : "Save & continue →"}
-        </button>
-      </div>
+          <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
+            <i className="fa-solid fa-lock" style={{ color: "var(--navy)", fontSize: 16 }}></i>
+            <span style={{ fontSize: 13, color: "var(--navy)", fontWeight: 700 }}>
+              Single-Attempt Policy Enforced: Test complete &amp; score locked. Retakes are not permitted.
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

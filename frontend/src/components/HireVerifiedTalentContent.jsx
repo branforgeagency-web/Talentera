@@ -174,7 +174,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
               + Post a Job
             </button>
             <button className="hv-btn-outline" onClick={handleAction}>
-              🔍 Hire Verified Candidates
+              <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 6 }}></i> Hire Verified Candidates
             </button>
           </div>
 
@@ -438,7 +438,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
                 </div>
 
                 <div className="hv-card-guarantee-pill">
-                  🛡️ Talentera Guarantee: If candidate fails 90-day probation, 100% free replacement.
+                  <i className="fa-solid fa-shield-halved" style={{ marginRight: 6, color: "var(--gold)" }}></i> Talentera Guarantee: If candidate fails 90-day probation, 100% free replacement.
                 </div>
               </div>
             </div>
@@ -462,7 +462,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
           <div className="hv-verify-grid">
             {/* Card 1 */}
             <div className="hv-verify-card">
-              <div className="hv-verify-icon">🔒</div>
+              <div className="hv-verify-icon"><i className="fa-solid fa-lock"></i></div>
               <h3 className="hv-verify-title">Comprehensive Verification Data</h3>
               <p className="hv-verify-desc">
                 Identity lock via UIDAI Aadhaar OTP, certification validation via AAPC API, proctored coding scores, and video intro pre-loaded.
@@ -471,7 +471,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
 
             {/* Card 2 */}
             <div className="hv-verify-card">
-              <div className="hv-verify-icon">🤝</div>
+              <div className="hv-verify-icon"><i className="fa-solid fa-handshake"></i></div>
               <h3 className="hv-verify-title">Cross-Company Endorsements</h3>
               <p className="hv-verify-desc">
                 Verified claims backed by previous reporting managers and partner training academies with full audit timestamps.
@@ -480,7 +480,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
 
             {/* Card 3 */}
             <div className="hv-verify-card">
-              <div className="hv-verify-icon">📜</div>
+              <div className="hv-verify-icon"><i className="fa-solid fa-scroll"></i></div>
               <h3 className="hv-verify-title">100% Audit-Quality Proof</h3>
               <p className="hv-verify-desc">
                 Direct system queries ensure zero fake experience letters or edited certificate PDFs. Zero candidate fraud.
@@ -533,11 +533,11 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
               <div className="hv-comp-tag">JOB BOARDS</div>
               <h3 className="hv-comp-name">Traditional Job Portals</h3>
               <ul className="hv-comp-list">
-                <li className="hv-bad">❌ 1,000+ unverified resumes</li>
-                <li className="hv-bad">❌ 3-4 weeks of screening effort</li>
-                <li className="hv-bad">❌ Up to 40% fake certification claims</li>
-                <li className="hv-bad">❌ High last-minute interview dropouts</li>
-                <li className="hv-bad">❌ Upfront monthly subscription cost</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> 1,000+ unverified resumes</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> 3-4 weeks of screening effort</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> Up to 40% fake certification claims</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> High last-minute interview dropouts</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> Upfront monthly subscription cost</li>
               </ul>
             </div>
 
@@ -546,11 +546,11 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
               <div className="hv-comp-tag">AGENCIES</div>
               <h3 className="hv-comp-name">Traditional Staffing Agencies</h3>
               <ul className="hv-comp-list">
-                <li className="hv-bad">❌ High success fee (15-20%)</li>
-                <li className="hv-bad">❌ Slow candidate turnaround (3-5 weeks)</li>
-                <li className="hv-bad">❌ Generalist recruiters with zero RCM knowledge</li>
-                <li className="hv-bad">❌ No pre-assessment or chart audit scores</li>
-                <li className="hv-bad">❌ Complex non-transparent contracts</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> High success fee (15-20%)</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> Slow candidate turnaround (3-5 weeks)</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> Generalist recruiters with zero RCM knowledge</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> No pre-assessment or chart audit scores</li>
+                <li className="hv-bad"><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 8 }}></i> Complex non-transparent contracts</li>
               </ul>
             </div>
 

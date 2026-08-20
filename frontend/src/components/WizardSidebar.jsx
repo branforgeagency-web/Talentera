@@ -3,13 +3,13 @@ import { Link } from "react-router-dom";
 import { WIZARD_STAGES } from "../data/wizardStages";
 
 const STAGE_ICONS = {
-  user: "👤",
-  book: "📘",
-  award: "🏅",
-  clip: "📋",
-  video: "🎥",
-  activity: "📊",
-  trend: "📈",
+  user: <i className="fa-solid fa-user"></i>,
+  book: <i className="fa-solid fa-book-open"></i>,
+  award: <i className="fa-solid fa-award"></i>,
+  clip: <i className="fa-solid fa-clipboard-list"></i>,
+  video: <i className="fa-solid fa-video"></i>,
+  activity: <i className="fa-solid fa-chart-simple"></i>,
+  trend: <i className="fa-solid fa-chart-line"></i>,
 };
 
 export default function WizardSidebar({ completedStages, activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit }) {
@@ -51,7 +51,7 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
               title={isLocked ? "Complete Stage 1 to unlock this stage" : ""}
               onClick={() => onSelect(s.num)}
             >
-              <span className="wiz-nav-item-icon">{isDone ? "✓" : isLocked ? "🔒" : STAGE_ICONS[s.icon] || "•"}</span>
+              <span className="wiz-nav-item-icon">{isDone ? <i className="fa-solid fa-check"></i> : isLocked ? <i className="fa-solid fa-lock"></i> : STAGE_ICONS[s.icon] || "•"}</span>
               <span className="wiz-nav-item-info">
                 <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : ""}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
