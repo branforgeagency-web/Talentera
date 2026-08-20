@@ -1,6 +1,8 @@
 import axios from "axios";
 
-const api = axios.create({ baseURL: "/api" });
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+const api = axios.create({ baseURL: API_BASE });
 
 // Attach the JWT to every request - replaces Firebase's automatic session token
 api.interceptors.request.use((config) => {
