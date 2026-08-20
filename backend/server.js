@@ -12,6 +12,7 @@ const staffRoutes = require("./routes/staff");
 const companyAuthRoutes = require("./routes/companyAuth");
 const companyRoutes = require("./routes/company");
 const otpRoutes = require("./routes/otp");
+const aadhaarRoutes = require("./routes/aadhaar");
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/company/auth", companyAuthRoutes);
 app.use("/api/company", companyRoutes);
 app.use("/api/otp", otpRoutes);
+app.use("/api/aadhaar", aadhaarRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
