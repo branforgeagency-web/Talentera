@@ -68,12 +68,12 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
         </button>
         <Link
           to="/jobs"
-          className="btn btn-ghost"
-          style={{ width: "100%", justifyContent: "center", color: "#fff", borderColor: "rgba(255,255,255,0.3)", textDecoration: "none", boxSizing: "border-box" }}
+          className="btn btn-navy-ghost"
+          style={{ width: "100%", justifyContent: "center", textDecoration: "none", boxSizing: "border-box" }}
         >
           Browse open jobs
         </Link>
-        <button type="button" className="btn btn-ghost" style={{ width: "100%", justifyContent: "center", color: "#fff", borderColor: "rgba(255,255,255,0.3)" }} onClick={onSaveExit}>
+        <button type="button" className="btn btn-navy-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={onSaveExit}>
           Save & exit
         </button>
       </div>

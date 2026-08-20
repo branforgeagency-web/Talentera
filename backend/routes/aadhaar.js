@@ -33,12 +33,12 @@ router.post(
       return res.status(400).json({ message: errors.array()[0].msg, errors: errors.array() });
     }
 
-    const { aadhaar } = req.body;
+    const { aadhaar, mobile: reqMobile, email: reqEmail } = req.body;
 
     try {
       const candidate = await Candidate.findById(req.candidateId);
-      const candidateMobile = candidate?.stage1?.mobile || candidate?.mobile || "";
-      const candidateEmail = candidate?.stage1?.email || candidate?.email || "";
+      const candidateMobile = reqMobile || candidate?.stage1?.mobile || candidate?.mobile || "";
+      const candidateEmail = reqEmail || candidate?.stage1?.email || candidate?.email || "";
 
       const result = await aadhaarService.sendOtp(aadhaar, candidateMobile, candidateEmail);
       res.json({

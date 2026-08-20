@@ -91,14 +91,14 @@ export default function AadhaarOtpVerificationCard({
       if (res.data && res.data.success) {
         setTransactionId(res.data.transactionId);
         setMaskedAadhaar(res.data.maskedAadhaar);
-        setMaskedMobile(res.data.maskedMobile || "+91 ######3210");
+        setMaskedMobile(res.data.maskedMobile || "");
         setStatus("OTP_SENT");
 
         // Start 30s Resend Timer
         setResendTimer(res.data.resendCooldown || 30);
         setCanResend(false);
 
-        toast(`OTP sent to your Aadhaar-registered mobile number (${res.data.maskedMobile || "+91 ######3210"})`, "✓");
+        toast(`OTP sent to your Aadhaar-registered mobile number (${res.data.maskedMobile || "linked to your Aadhaar"})`, "✓");
       }
     } catch (err) {
       console.error("Send OTP error:", err);

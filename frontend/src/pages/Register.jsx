@@ -9,12 +9,14 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mobile, setMobile] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    setSuccessMsg("");
     setSubmitting(true);
     try {
       if (authMode === "signup") {
@@ -22,10 +24,12 @@ export default function Register() {
           throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
         }
         await register(email, password, mobile);
+        setSuccessMsg("Registration successful! Please log in with your email and password to access your candidate portal.");
+        setAuthMode("login");
       } else {
         await login(email, password);
+        navigate("/dashboard");
       }
-      navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Authentication failed. Please try again.");
     } finally {
@@ -162,6 +166,23 @@ export default function Register() {
             Sign up
           </div>
         </div>
+
+        {/* Success Message */}
+        {successMsg && (
+          <div
+            style={{
+              background: "rgba(34,197,94,0.15)",
+              border: "1px solid rgba(34,197,94,0.3)",
+              color: "#4ADE80",
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 13,
+              marginBottom: 14
+            }}
+          >
+            {successMsg}
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (

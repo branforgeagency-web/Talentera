@@ -47,13 +47,13 @@ export default function Dashboard() {
             <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <Link to="/jobs" className="btn btn-ghost" style={{ color: "var(--white)", borderColor: "rgba(255,255,255,0.3)", textDecoration: "none" }}>
+            <Link to="/jobs" className="btn btn-navy-ghost" style={{ textDecoration: "none" }}>
               Browse Jobs
             </Link>
             <span className={profile.isGoldBadge ? "badge-gold" : "badge-progress"}>
               {profile.score}/{profile.maxScore} · {profile.badgeTier}
             </span>
-            <button className="btn btn-ghost" style={{ color: "var(--white)", borderColor: "rgba(255,255,255,0.3)" }} onClick={handleLogout}>
+            <button className="btn btn-navy-ghost" onClick={handleLogout}>
               Log Out
             </button>
           </div>

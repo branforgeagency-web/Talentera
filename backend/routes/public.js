@@ -6,7 +6,7 @@ const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
 const Job = require("../models/Job");
 const { calculateVerificationScore } = require("../utils/verificationScore");
-const { requireCompanyAuth } = require("../middleware/auth");
+const { requireCompanyAuth, JWT_SECRET } = require("../middleware/auth");
 
 const router = express.Router();
 
@@ -40,7 +40,7 @@ async function attachVerifiedCompanyStatus(req, _res, next) {
   if (!token) return next();
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== "company") return next();
     const company = await Company.findById(decoded.id).lean();
     req.isVerifiedCompany = !!company && company.kycStatus === "verified";

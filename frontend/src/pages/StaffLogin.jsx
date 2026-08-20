@@ -3,8 +3,8 @@ import { useNavigate, Link } from "react-router-dom";
 
 export default function StaffLogin() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("anita.reddy@talentera.in");
-  const [password, setPassword] = useState("••••••••");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [keepSignedIn, setKeepSignedIn] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -239,6 +239,49 @@ export default function StaffLogin() {
               }}
             >
               {loading ? "Authenticating..." : "Sign in to Staff Portal →"}
+            </button>
+
+            <button
+              type="button"
+              disabled={loading}
+              onClick={async () => {
+                setLoading(true);
+                try {
+                  const res = await fetch("/api/staff/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username: "anita.reddy@talentera.in", password: "Password123" })
+                  });
+                  const data = await res.json();
+                  if (res.ok) {
+                    localStorage.setItem("talentera_staff_token", data.token);
+                    localStorage.setItem("talentera_staff_info", JSON.stringify(data.staff));
+                    navigate("/staff/hub");
+                  }
+                } catch (err) {
+                  console.error(err);
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              style={{
+                width: "100%",
+                padding: "12px",
+                background: "#F1F5F9",
+                color: "var(--navy)",
+                fontSize: 13,
+                fontWeight: 700,
+                borderRadius: 10,
+                border: "1px solid #CBD5E1",
+                cursor: "pointer",
+                marginTop: 4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6
+              }}
+            >
+              ⚡ Quick Demo Auditor Sandbox Login
             </button>
           </form>
 

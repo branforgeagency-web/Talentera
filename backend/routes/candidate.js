@@ -3,6 +3,7 @@ const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
+const InterviewQuestion = require("../models/InterviewQuestion");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
@@ -16,6 +17,52 @@ router.use(requireAuth); // every route below requires a valid JWT
 const VALID_STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
 // Stages the candidate is allowed to skip, per handoff doc section 4.5
 const SKIPPABLE_STAGES = [2, 3, 7];
+
+// Built-in questions used only when staff haven't configured any interview
+// questions yet in the Staff Hub (Interview Questions screen). These carry no
+// answer key, so evaluateAiVideoAssessment() grades them with the generic
+// RCM-keyword heuristic instead of against a reference answer.
+const DEFAULT_INTERVIEW_QUESTIONS = {
+  video: [
+    "Please introduce yourself and highlight your professional background, certifications (AAPC/AHIMA), and Medical Coding / RCM experience.",
+    "Walk us through how you investigate and resolve a claim denied with ANSI code CO-197 (Pre-authorization / Pre-certification missing).",
+    "Explain the protocols you follow to ensure PHI (Protected Health Information) data privacy and HIPAA compliance during remote work.",
+  ],
+  audio: [
+    "Let's start with you - walk me through your RCM or medical coding background, and the specialty you're strongest in.",
+    "Tell me about a time you handled a difficult claim denial. What was the denial reason and how did you resolve it?",
+    "How do you stay compliant with HIPAA and protect PHI when working remotely on US healthcare accounts?",
+    "Where do you see gaps in your current RCM knowledge, and what are you doing to close them?",
+  ],
+};
+
+// Looks up each { questionId, transcript } pair's question text + answer key
+// from the staff-managed InterviewQuestion bank, so the evaluator always
+// grades against the real reference answer rather than trusting anything the
+// candidate's browser sent. questionId can be a Mongo id (staff-configured
+// question) or a "default-N" id (built-in fallback question, no answer key).
+async function enrichQaPairsWithAnswerKey(qaPairs = []) {
+  const mongoIds = qaPairs.map((p) => p.questionId).filter((id) => id && /^[a-f0-9]{24}$/i.test(String(id)));
+  const dbQuestions = mongoIds.length ? await InterviewQuestion.find({ _id: { $in: mongoIds } }).lean() : [];
+  const byId = new Map(dbQuestions.map((q) => [String(q._id), q]));
+
+  // Also query all active InterviewQuestions if questions were matched by text/questionId
+  const allDbQuestions = dbQuestions.length === 0 ? await InterviewQuestion.find({ active: true }).lean() : dbQuestions;
+  const byTextMap = new Map(allDbQuestions.map((q) => [(q.text || "").trim().toLowerCase(), q]));
+
+  return qaPairs.map((pair) => {
+    const dbQuestion = pair.questionId ? byId.get(String(pair.questionId)) : null;
+    const textMatchedQuestion = byTextMap.get((pair.question || "").trim().toLowerCase());
+    const finalQuestion = dbQuestion || textMatchedQuestion;
+
+    return {
+      questionId: pair.questionId,
+      question: finalQuestion?.text || pair.question || "",
+      transcript: pair.transcript || "",
+      expectedAnswer: finalQuestion?.correctAnswer || pair.expectedAnswer || "",
+    };
+  });
+}
 
 // POST /api/candidate/ekyc/verify - Parses UIDAI e-Aadhaar PDF or Offline e-KYC ZIP package
 router.post(
@@ -199,7 +246,7 @@ router.put("/stage/:n", async (req, res) => {
       }
     } else if (stageNum === 5) {
       if (!req.body.aiScore && !req.body.videoUrl && !candidate.stage5?.videoUrl) {
-        return res.status(400).json({ message: "Stage 5 incomplete: AI Video Assessment or video file must be submitted." });
+        return res.status(400).json({ message: "Stage 5 incomplete: AI Video Assessment, AI Audio Interview, or video file must be submitted." });
       }
     } else if (stageNum === 8) {
       if (req.body.consent !== true) {
@@ -300,7 +347,33 @@ router.post("/video-platform/sync", async (req, res) => {
   }
 });
 
-// POST /api/candidate/ai-video/assess - Live AI Video Verification & Q&A Communication Rubric Assessment
+// GET /api/candidate/interview-questions?mode=video|audio - Ordered question
+// list for the Stage 5 AI Video Assessment / AI Audio Interview, as configured
+// by staff in the Staff Hub. Answer keys are NEVER included here - grading
+// happens entirely server-side in /ai-video/assess and /ai-audio/assess.
+router.get("/interview-questions", async (req, res) => {
+  try {
+    const mode = req.query.mode === "video" ? "video" : "audio";
+    let questions = await InterviewQuestion.find({ active: true, mode: { $in: [mode, "both"] } })
+      .sort({ order: 1, createdAt: 1 })
+      .select("_id text")
+      .lean();
+
+    if (!questions.length) {
+      // No staff-configured questions yet for this mode - fall back to a
+      // small built-in set so the interview still works end-to-end.
+      questions = DEFAULT_INTERVIEW_QUESTIONS[mode].map((text, idx) => ({ _id: `default-${idx + 1}`, text }));
+    }
+
+    res.json({ questions: questions.map((q) => ({ id: String(q._id), question: q.text })) });
+  } catch (err) {
+    console.error("Fetch interview questions error:", err);
+    res.status(500).json({ message: err.message || "Failed to load interview questions." });
+  }
+});
+
+// POST /api/candidate/ai-video/assess - Live AI Video Verification & Q&A
+// Communication Assessment, graded against the staff-configured answer key.
 router.post(
   "/ai-video/assess",
   upload.single("video"),
@@ -314,7 +387,7 @@ router.post(
         return res.status(400).json({ message: "You must complete Stage 1 before taking Stage 5 Video Assessment." });
       }
 
-      let qaPairs = [];
+      let qaPairs = []; // [{ questionId, question, transcript }] from the browser
       let proctorLogs = {};
 
       if (req.body.qaPairs) {
@@ -330,11 +403,14 @@ router.post(
 
       const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl || "https://res.cloudinary.com/demo/video/upload/sample.mp4";
 
-      const evaluation = await evaluateAiVideoAssessment(qaPairs, proctorLogs);
+      const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
+      const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
+        interviewMode: "video",
         videoUrl: fileUrl,
+        qaPairs,
         aiScore: evaluation.overallScore,
         rubricScores: evaluation.rubricScores,
         feedback: evaluation.feedback,
@@ -342,6 +418,7 @@ router.post(
         proctoringDeductions: evaluation.proctoringDeductions,
         completedAt: new Date(),
       };
+      candidate.markModified("stage5");
 
       if (!candidate.completedStages.includes(5)) {
         candidate.completedStages.push(5);
@@ -361,6 +438,79 @@ router.post(
     } catch (err) {
       console.error("AI Video Assessment error:", err);
       res.status(500).json({ message: err.message || "Failed to process AI Video Assessment." });
+    }
+  }
+);
+
+// POST /api/candidate/ai-audio/assess - Live AI Audio Interview (voice-led,
+// camera on for proctoring only from interview-start to interview-end).
+// Uploads under the "video" field since the recording now carries both
+// tracks; graded the same way as the video assessment, against the
+// staff-configured answer key.
+router.post(
+  "/ai-audio/assess",
+  upload.single("video"),
+  handleUpload({ resourceType: "video" }),
+  async (req, res) => {
+    try {
+      const candidate = await Candidate.findById(req.candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+      if (!candidate.completedStages.includes(1)) {
+        return res.status(400).json({ message: "You must complete Stage 1 before taking the Stage 5 Audio Interview." });
+      }
+
+      let qaPairs = []; // [{ questionId, question, transcript }] from the browser
+      let proctorLogs = {};
+
+      if (req.body.qaPairs) {
+        try {
+          qaPairs = JSON.parse(req.body.qaPairs);
+        } catch (e) {}
+      }
+      if (req.body.proctorLogs) {
+        try {
+          proctorLogs = JSON.parse(req.body.proctorLogs);
+        } catch (e) {}
+      }
+
+      const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl || "";
+
+      const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
+      const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
+
+      candidate.stage5 = {
+        ...(candidate.stage5 || {}),
+        interviewMode: "audio",
+        videoUrl: fileUrl,
+        qaPairs,
+        aiScore: evaluation.overallScore,
+        rubricScores: evaluation.rubricScores,
+        feedback: evaluation.feedback,
+        livenessVerified: evaluation.livenessVerified,
+        proctoringDeductions: evaluation.proctoringDeductions,
+        completedAt: new Date(),
+      };
+      candidate.markModified("stage5");
+
+      if (!candidate.completedStages.includes(5)) {
+        candidate.completedStages.push(5);
+      }
+
+      await candidate.save();
+
+      const scoring = calculateVerificationScore(candidate.completedStages);
+      res.json({
+        success: true,
+        message: `AI Audio Interview Completed! Score: ${evaluation.overallScore}%`,
+        evaluation,
+        videoUrl: fileUrl,
+        candidate,
+        ...scoring,
+      });
+    } catch (err) {
+      console.error("AI Audio Interview assessment error:", err);
+      res.status(500).json({ message: err.message || "Failed to process AI Audio Interview." });
     }
   }
 );
