@@ -411,7 +411,8 @@ async function seedDB() {
       const existing = await Candidate.findOne({ email: candData.email });
       if (!existing) {
         const passwordHash = await bcrypt.hash(candData.password, 10);
-        const { password, ...cProps } = candData;
+        const cProps = { ...candData };
+        delete cProps.password;
         await Candidate.create({
           ...cProps,
           passwordHash,
@@ -427,7 +428,8 @@ async function seedDB() {
       const existing = await Company.findOne({ email: compData.email });
       if (!existing) {
         const passwordHash = await bcrypt.hash(compData.password, 10);
-        const { password, ...coProps } = compData;
+        const coProps = { ...compData };
+        delete coProps.password;
         await Company.create({
           ...coProps,
           passwordHash,
