@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { startOtpWidget } from "../utils/msg91Widget.js";
+import { safeJson } from "../utils/safeJson.js";
 
 export default function AcademyLogin() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function AcademyLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessToken, fullName, academyName, email: cleanEmailStr, mobile })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         localStorage.setItem("talentera_academy_token", data.token);
         localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));

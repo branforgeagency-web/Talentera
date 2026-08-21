@@ -68,34 +68,29 @@ export default function Stage4Assessment({ stage, existingData, onSaved }) {
           </button>
         </div>
       ) : (
-        /* ALREADY COMPLETED & SCORE LOCKED */
+        /* ALREADY COMPLETED - no score shown here; our team reviews the
+           recorded responses and verifies correctness as part of the
+           candidate verification process. */
         <div>
-          <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-              <div>
-                <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                  <i className="fa-solid fa-circle-check"></i> PROCTORED TEST SUBMITTED &amp; RECORDED
-                </span>
-                <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)", margin: "8px 0 2px" }}>
-                  Verified Assessment Score: {scorePercent}%
-                </h2>
-                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
-                  Recorded on your Candidate Profile &amp; Talentera Verification Score card.
-                </p>
-              </div>
-
-              <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "16px 28px", textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>VERIFIED SCORE</div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: "var(--navy)" }}>{scorePercent}<span style={{ fontSize: 16, color: "#94A3B8" }}>/100</span></div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>Score Locked</div>
-              </div>
+          <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.04)", textAlign: "center" }}>
+            <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>
+              <i className="fa-solid fa-check"></i>
             </div>
+            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+              <i className="fa-solid fa-circle-check"></i> PROCTORED TEST SUBMITTED &amp; RECORDED
+            </span>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "10px 0 6px" }}>
+              Thank you for completing the assessment!
+            </h2>
+            <p style={{ fontSize: 13, color: "#475569", margin: "0 auto", maxWidth: 440, lineHeight: 1.6 }}>
+              Your responses have been recorded and submitted to our team for review as part of your candidate verification.
+            </p>
           </div>
 
           <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
             <i className="fa-solid fa-lock" style={{ color: "var(--navy)", fontSize: 16 }}></i>
             <span style={{ fontSize: 13, color: "var(--navy)", fontWeight: 700 }}>
-              Single-Attempt Policy Enforced: Test complete &amp; score locked. Retakes are not permitted.
+              Single-Attempt Policy Enforced: Test complete &amp; submitted. Retakes are not permitted.
             </span>
           </div>
         </div>

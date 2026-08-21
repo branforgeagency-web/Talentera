@@ -7,6 +7,7 @@ const Company = require("../models/Company");
 const Job = require("../models/Job");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { requireCompanyAuth, JWT_SECRET } = require("../middleware/auth");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 
@@ -125,12 +126,20 @@ const SEED_CANDIDATES = [
 // contact info; only companies with kycStatus "verified" get the real
 // email/mobile. This check happens here, not just in the UI, so the raw
 // values never leave the server for a requester who isn't entitled to them.
+//
+// Supports optional search/filter query params - previously companies could
+// only browse the full list with no way to narrow it down. See
+// IMPROVEMENT_ROADMAP.md "No candidate search across the applicant pool."
+//   ?q=          matches name / current role / summary (case-insensitive)
+//   ?city=       exact-ish city match (case-insensitive)
+//   ?domain=     matches academy/certification/current role
+//   ?minScore=   minimum verificationScore (0-100)
 router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
   try {
-    let dbCandidates = await Candidate.find().lean();
+    let dbCandidates = await Candidate.find().limit(1000).lean();
     let candidatesList = dbCandidates.length > 0 ? dbCandidates : SEED_CANDIDATES;
 
-    const formatted = candidatesList.map((c) => {
+    let formatted = candidatesList.map((c) => {
       const scoring = calculateVerificationScore(c.completedStages || []);
       const stage1 = c.stage1 || {};
       const stage2 = c.stage2 || {};
@@ -169,9 +178,38 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       };
     });
 
+    const { q, city, domain, minScore } = req.query;
+
+    if (q && String(q).trim()) {
+      const needle = String(q).trim().toLowerCase();
+      formatted = formatted.filter(
+        (c) =>
+          c.name.toLowerCase().includes(needle) ||
+          c.currentRole.toLowerCase().includes(needle) ||
+          c.summary.toLowerCase().includes(needle)
+      );
+    }
+    if (city && String(city).trim()) {
+      const needle = String(city).trim().toLowerCase();
+      formatted = formatted.filter((c) => c.city.toLowerCase().includes(needle));
+    }
+    if (domain && String(domain).trim()) {
+      const needle = String(domain).trim().toLowerCase();
+      formatted = formatted.filter(
+        (c) =>
+          c.currentRole.toLowerCase().includes(needle) ||
+          (c.academyName || "").toLowerCase().includes(needle) ||
+          (c.certificationName || "").toLowerCase().includes(needle)
+      );
+    }
+    if (minScore && !Number.isNaN(Number(minScore))) {
+      const min = Number(minScore);
+      formatted = formatted.filter((c) => c.verificationScore >= min);
+    }
+
     res.json({ candidates: formatted, total: formatted.length, isVerifiedCompany: req.isVerifiedCompany });
   } catch (err) {
-    console.error(err);
+    logger.error(`Fetch public candidates error: ${err.message}`);
     res.status(500).json({ message: "Failed to load candidates." });
   }
 });
@@ -246,6 +284,12 @@ function formatPostedJob(job, companiesById) {
 // (jdPublished/jobId/stage9), and any additional postings a KYC-verified
 // company has made afterwards via POST /api/company/jobs (stored in the
 // Job collection) - see that route's comment for why the split exists.
+//
+// Supports optional search/filter query params - see
+// IMPROVEMENT_ROADMAP.md "No job search or filtering."
+//   ?q=          matches role title / specialty / company name
+//   ?location=   matches location (case-insensitive substring)
+//   ?workMode=   exact match (e.g. "Remote", "Hybrid", "On-site")
 router.get("/jobs", async (req, res) => {
   try {
     const companies = await Company.find({ jdPublished: true }).lean();
@@ -260,13 +304,37 @@ router.get("/jobs", async (req, res) => {
       fromPosted = postedJobs.map((job) => formatPostedJob(job, companiesById));
     }
 
-    const jobs = [...fromOnboarding, ...fromPosted].sort(
+    let jobs = [...fromOnboarding, ...fromPosted].sort(
       (a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)
     );
 
+    const { q, location, workMode, specialty } = req.query;
+
+    if (q && String(q).trim()) {
+      const needle = String(q).trim().toLowerCase();
+      jobs = jobs.filter(
+        (j) =>
+          j.roleTitle.toLowerCase().includes(needle) ||
+          j.specialty.toLowerCase().includes(needle) ||
+          j.companyName.toLowerCase().includes(needle)
+      );
+    }
+    if (location && String(location).trim()) {
+      const needle = String(location).trim().toLowerCase();
+      jobs = jobs.filter((j) => (j.location || "").toLowerCase().includes(needle));
+    }
+    if (workMode && String(workMode).trim()) {
+      const needle = String(workMode).trim().toLowerCase();
+      jobs = jobs.filter((j) => (j.workMode || "").toLowerCase() === needle);
+    }
+    if (specialty && String(specialty).trim()) {
+      const needle = String(specialty).trim().toLowerCase();
+      jobs = jobs.filter((j) => (j.specialty || "").toLowerCase().includes(needle));
+    }
+
     res.json({ jobs, total: jobs.length });
   } catch (err) {
-    console.error(err);
+    logger.error(`Fetch public jobs error: ${err.message}`);
     res.status(500).json({ message: "Failed to load open jobs." });
   }
 });
@@ -400,7 +468,7 @@ router.post("/candidate", requireCompanyAuth, async (req, res) => {
 
     res.status(201).json({ message: "Candidate profile added. It will show as unverified until they complete Talentera's own verification steps.", candidate: newCandidate });
   } catch (err) {
-    console.error("Create candidate error:", err);
+    logger.error(`Create candidate error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to create candidate." });
   }
 });

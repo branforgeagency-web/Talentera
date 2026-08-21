@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { safeJson } from "../utils/safeJson.js";
 
 export default function StaffLogin() {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ export default function StaffLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         localStorage.setItem("talentera_staff_token", data.token);
         localStorage.setItem("talentera_staff_info", JSON.stringify(data.staff));
@@ -252,7 +253,7 @@ export default function StaffLogin() {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username: "anita.reddy@talentera.in", password: "Password123" })
                   });
-                  const data = await res.json();
+                  const data = await safeJson(res);
                   if (res.ok) {
                     localStorage.setItem("talentera_staff_token", data.token);
                     localStorage.setItem("talentera_staff_info", JSON.stringify(data.staff));

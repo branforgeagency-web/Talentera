@@ -97,8 +97,17 @@ export default function CompanyApplicants() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <Link to="/companies/directory" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Hire Verified Talent
+          </Link>
+          <Link to="/companies/jobs" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Job Posts
+          </Link>
+          <Link to="/companies/applicants" style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}>
+            Applicants
+          </Link>
           <Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-            ← Dashboard
+            Edit Profile
           </Link>
           {company && (
             <button

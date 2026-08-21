@@ -7,6 +7,31 @@ import { useToast } from "./Toast.jsx";
 // AiAudioInterview.jsx.
 const SILENCE_TIMEOUT_SECONDS = 5;
 
+// Every question is worth a flat 10 marks (correct or not) - no separate
+// "communication" rubric (clarity/tone/fluency) is shown anymore, just the
+// per-question answer score and the total. Keep in sync with
+// POINTS_PER_QUESTION in backend/utils/aiAssessment.js.
+const POINTS_PER_QUESTION = 10;
+
+// Older saved reports may have per-question marks on the old 0-100 scale
+// (before this flat 10-marks-per-question redesign). Normalize any legacy
+// value onto the 0/POINTS_PER_QUESTION scale so a report always displays
+// consistently, whenever it was recorded.
+function normalizeQuestionMarks(marks) {
+  const n = Number(marks);
+  if (!Number.isFinite(n)) return 0;
+  if (n <= POINTS_PER_QUESTION) return Math.max(0, Math.round(n));
+  // Legacy scheme only ever produced 0 or 75-100 - treat >=50 as "correct".
+  return n >= 50 ? POINTS_PER_QUESTION : 0;
+}
+
+// localStorage key for a finished-but-not-yet-server-confirmed report. Set
+// only when we couldn't get the server to accept the submission (see
+// handleFinalSubmission's catch block) so a page refresh shows the finished
+// report instead of restarting the interview, and cleared as soon as a
+// background or foreground save actually succeeds.
+const PENDING_REPORT_KEY = "talentera_ai_video_report_pending_v1";
+
 export const EXPANDED_QUESTION_POOL = [
   {
     id: 1,
@@ -163,26 +188,25 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   // Evaluation & Results States
   const [evaluation, setEvaluation] = useState(() => {
     if (!isInterviewCompleted) return null;
-    const score = typeof existingData.aiScore === "number" ? existingData.aiScore : 0;
+    const rawQuestionScores = existingData.questionScores || (existingData.qaPairs || []).map((pair, idx) => ({
+      questionId: idx + 1,
+      question: pair.question,
+      marks: 0,
+      answered: false,
+      feedback: "0 Marks: Completed interview attempt.",
+      transcript: pair.transcript || "",
+      translatedTranscript: pair.translatedTranscript || pair.transcript || "",
+      detectedLanguage: pair.detectedLanguage || "unknown",
+    }));
+    const questionScores = rawQuestionScores.map((q) => ({ ...q, marks: normalizeQuestionMarks(q.marks) }));
+    const maxMarks = typeof existingData.maxMarks === "number" ? existingData.maxMarks : questionScores.length * POINTS_PER_QUESTION;
+    const totalMarks = typeof existingData.totalMarks === "number" ? existingData.totalMarks : questionScores.reduce((sum, q) => sum + q.marks, 0);
     return {
-      overallScore: score,
-      rubricScores: existingData.rubricScores || {
-        communicationClarity: score,
-        technicalAccuracy: score,
-        professionalTone: score > 0 ? 88 : 0,
-        fluency: score,
-      },
-      questionScores: existingData.questionScores || (existingData.qaPairs || []).map((pair, idx) => ({
-        questionId: idx + 1,
-        question: pair.question,
-        marks: 0,
-        answered: false,
-        feedback: "0 Marks: Completed interview attempt.",
-        transcript: pair.transcript || "",
-        translatedTranscript: pair.translatedTranscript || pair.transcript || "",
-        detectedLanguage: pair.detectedLanguage || "unknown",
-      })),
-      feedback: existingData.feedback || `Candidate scored ${score}% overall on Stage 5 AI Video Assessment.`,
+      overallScore: typeof existingData.aiScore === "number" ? existingData.aiScore : 0,
+      totalMarks,
+      maxMarks,
+      questionScores,
+      feedback: existingData.feedback || `Candidate scored ${totalMarks}/${maxMarks} marks on Stage 5 AI Video Assessment.`,
     };
   });
   const [submitting, setSubmitting] = useState(false);
@@ -219,6 +243,60 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       .catch(() => setFetchedQuestions(null))
       .finally(() => setQuestionsLoading(false));
   }, []);
+
+  // If a previous attempt in this browser finished (server accepted it, or
+  // we fell back to a locally-computed report because the server call
+  // failed) but the page was refreshed before that landed in the database,
+  // restore the finished report instead of restarting the interview from
+  // Q1 - "once done, it's done." Also kick off a background retry so a
+  // locally-computed report still gets properly saved server-side once the
+  // connection/server is available again.
+  useEffect(() => {
+    if (isInterviewCompleted) return; // server already has the real record - nothing to restore
+    let raw;
+    try {
+      raw = localStorage.getItem(PENDING_REPORT_KEY);
+    } catch (e) {
+      return;
+    }
+    if (!raw) return;
+    let pending;
+    try {
+      pending = JSON.parse(raw);
+    } catch (e) {
+      try {
+        localStorage.removeItem(PENDING_REPORT_KEY);
+      } catch (e2) {}
+      return;
+    }
+    if (!pending?.evaluation) return;
+    setEvaluation(pending.evaluation);
+    setStep("report");
+    syncPendingReportToServer(pending);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function syncPendingReportToServer(pending) {
+    try {
+      const formData = new FormData();
+      formData.append("qaPairs", JSON.stringify(pending.qaPairs || []));
+      formData.append("proctorLogs", JSON.stringify(pending.proctorLogs || {}));
+      const res = await api.post("/candidate/ai-video/assess", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (res.data && res.data.success) {
+        setEvaluation(res.data.evaluation);
+        try {
+          localStorage.removeItem(PENDING_REPORT_KEY);
+        } catch (e) {}
+        if (onSaved) onSaved(res.data);
+      }
+    } catch (err) {
+      // Still unreachable - leave the local backup in place so the report
+      // keeps surviving refreshes and the next mount tries again.
+      console.warn("Background sync of pending AI video report failed, will retry next load:", err.message);
+    }
+  }
 
   // AI TTS Question Speaker - the answer window (timer/recognition) only
   // opens once the question has finished playing, via the onEnd callback.
@@ -562,33 +640,41 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
 
     const defaultKeywords = ["rcm", "coding", "icd", "cpt", "denial", "claim", "modifier", "hipaa", "billing", "authorization", "audit", "chart", "practicode", "patient"];
+    const stopWords = new Set(["the", "and", "for", "with", "that", "this", "from", "are", "was", "were", "been", "being", "have", "has", "had", "does", "did", "will", "would", "should", "could", "into", "through", "during", "before", "after", "about", "against", "between", "what", "how", "when", "where", "which", "who", "whom", "whose", "why", "can", "must", "may", "provider", "service", "process"]);
+
     const expectedKeywords = expectedKey
-      ? expectedKey.split(/[\s,.;:-]+/).filter((w) => w.length >= 3)
+      ? expectedKey
+          .split(/[\s,.;:-]+/)
+          .map((w) => w.toLowerCase())
+          .filter((w) => w.length >= 3 && !stopWords.has(w))
       : defaultKeywords;
+
+    // Fallback if filtering removed all keywords
+    const finalKeywords = expectedKeywords.length > 0 ? expectedKeywords : defaultKeywords;
 
     const candidateTextLower = tr.toLowerCase();
     let matchedCount = 0;
-    expectedKeywords.forEach((kw) => {
+    finalKeywords.forEach((kw) => {
       if (candidateTextLower.includes(kw)) {
         matchedCount++;
       }
     });
 
-    const matchRatio = expectedKeywords.length > 0 ? matchedCount / expectedKeywords.length : 0;
-
-    if (matchedCount === 0 || matchRatio < 0.35) {
+    const requiredMatches = Math.min(2, finalKeywords.length || 1);
+    if (matchedCount < requiredMatches) {
       return {
         marks: 0,
         answered: true,
-        feedback: "0 Marks: Incorrect answer. Spoken response did not match expected correct answer key."
+        feedback: "0 Marks: Incorrect answer. Spoken response did not match expected key terms (requires at least 2 matching keywords)."
       };
     }
 
-    const marks = Math.min(100, Math.round(70 + matchRatio * 30));
+    // Flat marks: hitting the required keyword threshold earns the full 10,
+    // there's no partial-credit scaling by match ratio anymore.
     return {
-      marks,
+      marks: POINTS_PER_QUESTION,
       answered: true,
-      feedback: `Correct answer evaluated: ${marks}/100 Marks based on answer key match.`
+      feedback: `Correct answer evaluated: ${POINTS_PER_QUESTION}/${POINTS_PER_QUESTION} Marks based on matching ${matchedCount} key term(s).`
     };
   }
 
@@ -619,12 +705,43 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       if (res.data && res.data.success) {
         setEvaluation(res.data.evaluation);
         setStep("report");
-        toast("AI Video Evaluation & Marks Calculation Complete!", "✓");
+        toast("Interview submitted! Thank you for completing it.", "✓");
         if (onSaved) onSaved(res.data);
       }
     } catch (err) {
       console.error("Final AI submission error:", err);
-      // Heuristic Fallback Evaluation with correctness & 0-marks check
+
+      // The most common cause of a failed submission here is the video
+      // upload itself timing out/erroring (large multipart blob) rather than
+      // anything wrong with the candidate's answers. Retry once WITHOUT the
+      // video attached so the Q&A still gets graded and properly saved
+      // server-side (completedAt/aiScore/completedStages) even when the
+      // recording can't be uploaded - this is what actually makes the
+      // result durable across a refresh, not just shown once in the UI.
+      const retryProctorLogs = { ...proctorLogs, livenessVerified };
+      try {
+        const retryFormData = new FormData();
+        retryFormData.append("qaPairs", JSON.stringify(formattedQaPairs));
+        retryFormData.append("proctorLogs", JSON.stringify(retryProctorLogs));
+        const retryRes = await api.post("/candidate/ai-video/assess", retryFormData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (retryRes.data && retryRes.data.success) {
+          setEvaluation(retryRes.data.evaluation);
+          setStep("report");
+          toast("Interview submitted! Thank you for completing it.", "✓");
+          if (onSaved) onSaved(retryRes.data);
+          return; // saved server-side - skip the fully-offline fallback below
+        }
+      } catch (retryErr) {
+        console.error("Retry without video also failed:", retryErr);
+      }
+
+      // Server is genuinely unreachable. Compute the report locally so the
+      // candidate isn't stuck, AND persist it to localStorage so a refresh
+      // shows this same finished report instead of restarting the interview
+      // ("once done, it's done") - the mount effect above retries saving it
+      // server-side in the background once the connection recovers.
       const fallbackScores = questionsList.map((q) => {
         const tr = qaTranscripts[q.id] || "";
         const scoring = scoreQuestionTranscript(q, tr);
@@ -641,16 +758,32 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         };
       });
 
-      const total = fallbackScores.reduce((sum, item) => sum + item.marks, 0);
-      const avg = fallbackScores.length > 0 ? Math.round(total / fallbackScores.length) : 0;
+      const totalMarks = fallbackScores.reduce((sum, item) => sum + item.marks, 0);
+      const maxMarks = fallbackScores.length * POINTS_PER_QUESTION;
+      const avg = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0;
 
-      setEvaluation({
+      const fallbackEvaluation = {
         overallScore: avg,
-        rubricScores: { communicationClarity: avg, technicalAccuracy: avg, professionalTone: avg > 0 ? 88 : 0, fluency: avg },
+        totalMarks,
+        maxMarks,
         questionScores: fallbackScores,
-        feedback: `Candidate evaluated: ${avg}% overall score across verbal assessment questions.`,
-      });
+        feedback: `Candidate evaluated: ${totalMarks}/${maxMarks} marks across verbal assessment questions.`,
+      };
+
+      setEvaluation(fallbackEvaluation);
       setStep("report");
+
+      try {
+        localStorage.setItem(
+          PENDING_REPORT_KEY,
+          JSON.stringify({
+            evaluation: fallbackEvaluation,
+            qaPairs: formattedQaPairs,
+            proctorLogs: retryProctorLogs,
+            savedAt: Date.now(),
+          })
+        );
+      } catch (e) {}
     } finally {
       setSubmitting(false);
       stopWebcam();
@@ -868,101 +1001,34 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         </div>
       )}
 
-      {/* STEP 5: AI EVALUATION & MARKS REPORT CARD */}
+      {/* STEP 5: SUBMISSION CONFIRMATION - no score or per-question marks
+          shown to the candidate; our team reviews the recorded answers and
+          verifies correctness as part of the candidate verification process.
+          (Marks are still computed and saved server-side - see
+          evaluateAiVideoAssessment in backend/utils/aiAssessment.js - just
+          not surfaced here.) */}
       {step === "report" && evaluation && (
         <div>
-          <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 20, borderBottom: "1px solid #E2E8F0", paddingBottom: 16 }}>
-              <div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                    <i className="fa-solid fa-circle-check"></i> AI ASSESSMENT &amp; MARKS EVALUATED
-                  </span>
-                  <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #F59E0B" }}>
-                    <i className="fa-solid fa-lock"></i> Single Attempt Completed • Retakes Not Allowed
-                  </span>
-                </div>
-                <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 2px" }}>
-                  AI Communication Score: {evaluation.overallScore}%
-                </h3>
-                <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>
-                  Per-Question Spoken Answer Evaluation • Face Presence Verified
-                </p>
-              </div>
-
-              <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "14px 24px", textAlign: "center" }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>TOTAL MARKS</div>
-                <div style={{ fontSize: 32, fontWeight: 800, color: "var(--navy)" }}>{evaluation.overallScore}<span style={{ fontSize: 14, color: "#94A3B8" }}>/100</span></div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>Recorded</div>
-              </div>
+          <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 32, boxShadow: "0 10px 30px rgba(0,0,0,0.04)", textAlign: "center" }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
+              <i className="fa-solid fa-check"></i>
             </div>
 
-            {/* PER-QUESTION MARKS BREAKDOWN LIST */}
-            <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", marginBottom: 12 }}>Per-Question Spoken Answer Marks</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-              {(evaluation.questionScores || []).map((qScore, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: qScore.marks > 0 ? "#F0FDF4" : "#FEF2F2",
-                    border: `1px solid ${qScore.marks > 0 ? "#BBF7D0" : "#FECACA"}`,
-                    borderRadius: 10,
-                    padding: "12px 16px",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy)" }}>
-                      Q{idx + 1}. {qScore.question || questionsList[idx]?.question}
-                    </div>
-                    <div style={{ fontSize: 11, color: qScore.marks > 0 ? "#15803D" : "#DC2626", marginTop: 2 }}>
-                      {qScore.feedback || (qScore.marks > 0 ? `Spoken response evaluated: ${qScore.marks}/100 Marks` : "0 Marks: No spoken response provided for this question.")}
-                    </div>
-                    {qScore.transcript && (
-                      <div style={{ fontSize: 11, color: "#475569", marginTop: 6, fontStyle: "italic" }}>
-                        <strong>Answer:</strong> {qScore.translatedTranscript || qScore.transcript}
-                        {qScore.detectedLanguage && !["unknown", "none", "english", "en"].includes(String(qScore.detectedLanguage).toLowerCase()) && (
-                          <span style={{ display: "block", color: "#94A3B8", marginTop: 2, fontStyle: "normal" }}>
-                            Translated from {qScore.detectedLanguage} - Original: {qScore.transcript}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <span style={{ background: qScore.marks > 0 ? "#DCFCE7" : "#FEE2E2", color: qScore.marks > 0 ? "#15803D" : "#DC2626", fontSize: 13, fontWeight: 800, padding: "4px 12px", borderRadius: 999, flexShrink: 0 }}>
-                    {qScore.marks} / 100 Marks
-                  </span>
-                </div>
-              ))}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
+              <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+                <i className="fa-solid fa-circle-check"></i> INTERVIEW SUBMITTED &amp; RECORDED
+              </span>
+              <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #F59E0B" }}>
+                <i className="fa-solid fa-lock"></i> Single Attempt Completed • Retakes Not Allowed
+              </span>
             </div>
 
-            {/* Rubric Grid */}
-            <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginBottom: 12 }}>Rubric Metric Breakdown</h4>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
-              <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>CLARITY</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.communicationClarity}%</div>
-              </div>
-              <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>TECHNICAL RCM ACCURACY</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.technicalAccuracy}%</div>
-              </div>
-              <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>PROFESSIONAL TONE</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.professionalTone}%</div>
-              </div>
-              <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>FLUENCY</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.fluency}%</div>
-              </div>
-            </div>
-
-            <div style={{ background: "#F1F5F9", borderRadius: 8, padding: 14, fontSize: 12, color: "#334155", lineHeight: 1.6 }}>
-              <strong>AI Evaluator Feedback:</strong> {evaluation.feedback}
-            </div>
+            <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>
+              Thank you for completing the interview!
+            </h3>
+            <p style={{ fontSize: 13, color: "#475569", margin: "0 auto", maxWidth: 440, lineHeight: 1.6 }}>
+              Your spoken answers have been recorded and submitted to our team for review as part of your candidate verification.
+            </p>
           </div>
         </div>
       )}

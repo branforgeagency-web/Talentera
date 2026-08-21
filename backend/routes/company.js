@@ -1,12 +1,14 @@
 const express = require("express");
 const Company = require("../models/Company");
 const Application = require("../models/Application");
-const Candidate = require("../models/Candidate");
 const Notification = require("../models/Notification");
 const Job = require("../models/Job");
 const { requireCompanyAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
+const { getPlan } = require("../config/plans");
+const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 router.use(requireCompanyAuth); // every route below requires a valid company JWT
@@ -29,6 +31,13 @@ const JD_REQUIRED_FIELDS = [
   "urgency",
   "hiringmanager",
 ];
+
+const APPLICATION_STATUS_LABELS = {
+  shortlisted: "Shortlisted",
+  interviewing: "moved to the interview stage",
+  hired: "Hired / Offered",
+  rejected: "not selected for this role",
+};
 
 function isEmptyValue(v) {
   if (v === undefined || v === null) return true;
@@ -73,6 +82,33 @@ router.get("/me", async (req, res) => {
   res.json({ company });
 });
 
+// GET /api/company/billing - current plan + usage, for a "Plan & Billing"
+// screen. SCAFFOLDING ONLY - no payment gateway wired, see
+// backend/config/plans.js and IMPROVEMENT_ROADMAP.md "No plans, seats, or
+// billing."
+router.get("/billing", async (req, res) => {
+  try {
+    const company = await Company.findById(req.companyId).lean();
+    if (!company) return res.status(404).json({ message: "Not found." });
+
+    const plan = getPlan(company.plan);
+    const legacyJobActive = company.jdPublished && company.jobId ? 1 : 0;
+    const postedActiveCount = await Job.countDocuments({ companyId: req.companyId, published: true });
+
+    res.json({
+      plan,
+      planAssignedAt: company.planAssignedAt || null,
+      usage: {
+        activeJobPosts: legacyJobActive + postedActiveCount,
+        maxActiveJobPosts: plan.maxActiveJobPosts,
+      },
+    });
+  } catch (err) {
+    logger.error(`Company billing fetch error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load billing information." });
+  }
+});
+
 // GET /api/company/notifications - Fetch company notifications
 router.get("/notifications", async (req, res) => {
   try {
@@ -86,7 +122,7 @@ router.get("/notifications", async (req, res) => {
     const unreadCount = notifications.filter((n) => !n.read).length;
     res.json({ notifications, unreadCount });
   } catch (err) {
-    console.error(err);
+    logger.error(`Fetch company notifications error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch notifications." });
   }
 });
@@ -100,7 +136,7 @@ router.post("/notifications/mark-read", async (req, res) => {
     );
     res.json({ message: "Notifications marked as read." });
   } catch (err) {
-    console.error(err);
+    logger.error(`Mark company notifications read error: ${err.message}`);
     res.status(500).json({ message: "Failed to mark notifications as read." });
   }
 });
@@ -262,6 +298,9 @@ router.get("/jobs", async (req, res) => {
 
     jobs.sort((a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0));
 
+    const plan = getPlan(company.plan);
+    const activeCount = jobs.filter((j) => j.published).length;
+
     res.json({
       jobs,
       // Gate for the "Post another job" UI - the wizard's 9-step KYC/profile
@@ -269,17 +308,22 @@ router.get("/jobs", async (req, res) => {
       // other verified-only feature in this app (contact unmasking,
       // company badge, etc.) keys off, so multi-job posting uses the same
       // gate rather than re-deriving a separate "100% profile" check here.
-      canPostMoreJobs: company.kycStatus === "verified",
+      canPostMoreJobs: company.kycStatus === "verified" && activeCount < plan.maxActiveJobPosts,
+      plan: plan.id,
+      activeJobPosts: activeCount,
+      maxActiveJobPosts: plan.maxActiveJobPosts,
     });
   } catch (err) {
-    console.error(err);
+    logger.error(`Fetch company jobs error: ${err.message}`);
     res.status(500).json({ message: "Failed to load your job posts." });
   }
 });
 
 // POST /api/company/jobs - post an additional job once the company is KYC
 // verified, without re-running the onboarding wizard. Reuses the same
-// required-field list and jobId format as /publish-jd.
+// required-field list and jobId format as /publish-jd. Also enforces the
+// company's plan's active-job-post limit (billing scaffolding - see
+// backend/config/plans.js).
 router.post("/jobs", async (req, res) => {
   try {
     const company = await Company.findById(req.companyId);
@@ -287,6 +331,20 @@ router.post("/jobs", async (req, res) => {
 
     if (company.kycStatus !== "verified") {
       return res.status(403).json({ message: "Complete Account & KYC verification before posting additional jobs." });
+    }
+
+    const plan = getPlan(company.plan);
+    const legacyActive = company.jdPublished && company.jobId ? 1 : 0;
+    const postedActiveCount = await Job.countDocuments({ companyId: req.companyId, published: true });
+    const activeCount = legacyActive + postedActiveCount;
+
+    if (activeCount >= plan.maxActiveJobPosts) {
+      return res.status(403).json({
+        message: `Your "${plan.label}" plan allows up to ${plan.maxActiveJobPosts} active job post(s). Close an existing job or ask Talentera staff to upgrade your plan to post more.`,
+        plan: plan.id,
+        activeJobPosts: activeCount,
+        maxActiveJobPosts: plan.maxActiveJobPosts,
+      });
     }
 
     const fields = req.body || {};
@@ -306,7 +364,7 @@ router.post("/jobs", async (req, res) => {
 
     res.status(201).json({ message: "Job posted!", job });
   } catch (err) {
-    console.error(err);
+    logger.error(`Post job error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to post job." });
   }
 });
@@ -326,19 +384,36 @@ router.put("/jobs/:id", async (req, res) => {
 
     res.json({ message: job.published ? "Job reopened." : "Job closed.", job });
   } catch (err) {
-    console.error(err);
+    logger.error(`Update job error: ${err.message}`);
     res.status(500).json({ message: "Failed to update job." });
   }
 });
 
-// GET /api/company/applications - ATS candidate review list for company
+// GET /api/company/applications - ATS candidate review list for company.
+// Supports optional ?page=&limit= pagination (added on top of the existing
+// behavior, which is preserved when those params are omitted, to avoid
+// breaking the current frontend) - see IMPROVEMENT_ROADMAP.md "No
+// pagination on list endpoints."
 router.get("/applications", async (req, res) => {
   const company = await Company.findById(req.companyId);
   const isKycVerified = Boolean(company && company.kycStatus === "verified");
 
-  const applications = await Application.find({ companyId: req.companyId })
+  const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+
+  let query = Application.find({ companyId: req.companyId })
     .populate("candidateId")
     .sort({ createdAt: -1 });
+
+  if (hasPaging) {
+    query = query.skip((page - 1) * limit).limit(limit);
+  }
+
+  const [applications, total] = await Promise.all([
+    query,
+    Application.countDocuments({ companyId: req.companyId }),
+  ]);
 
   // With multiple jobs per company now possible (see /jobs above), each
   // application needs to say which role it's for - previously there was
@@ -412,7 +487,12 @@ router.get("/applications", async (req, res) => {
     };
   });
 
-  res.json({ applications: formatted, isKycVerified });
+  res.json({
+    applications: formatted,
+    isKycVerified,
+    total,
+    ...(hasPaging ? { page, limit, totalPages: Math.ceil(total / limit) } : {}),
+  });
 });
 
 // PUT /api/company/applications/:id/status - Recruiter status update (shortlisted/interviewing/hired/rejected)
@@ -426,14 +506,42 @@ router.put("/applications/:id/status", async (req, res) => {
   const application = await Application.findOne({
     _id: req.params.id,
     companyId: req.companyId,
-  });
+  }).populate("candidateId", "email stage1");
 
   if (!application) {
     return res.status(404).json({ message: "Application not found." });
   }
 
+  const previousStatus = application.status;
   application.status = status;
   await application.save();
+
+  // Candidate lifecycle email - previously the only email this app ever
+  // sent was OTP mail; a candidate whose application moved forward (or was
+  // rejected) had no way to find out except by checking the dashboard
+  // themselves. See IMPROVEMENT_ROADMAP.md "No candidate-facing email
+  // notifications." Best-effort: a delivery failure shouldn't fail the
+  // status-update request itself.
+  if (previousStatus !== status && APPLICATION_STATUS_LABELS[status]) {
+    const candidate = application.candidateId;
+    const candidateEmail = candidate?.email;
+    if (candidateEmail) {
+      const company = await Company.findById(req.companyId).select("companyName").lean();
+      const companyName = company?.companyName || "the employer";
+      const candidateName = candidate?.stage1?.fullName || "there";
+      sendTransactionalEmail({
+        to: candidateEmail,
+        toName: candidateName,
+        subject: `Your Talentera application status: ${APPLICATION_STATUS_LABELS[status]}`,
+        html: wrapEmailTemplate(
+          "Your application status has changed",
+          `<p style="color: #475569; font-size: 15px; line-height: 1.5;">Hi ${candidateName},</p>
+           <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your application to <strong>${companyName}</strong> has been updated to: <strong>${APPLICATION_STATUS_LABELS[status]}</strong>.</p>
+           <p style="color: #64748B; font-size: 13px;">Log in to your Talentera candidate portal to see the full details.</p>`
+        ),
+      }).catch((err) => logger.warn(`Lifecycle email failed for application ${application._id}: ${err.message}`));
+    }
+  }
 
   res.json({ message: "Application status updated.", application });
 });

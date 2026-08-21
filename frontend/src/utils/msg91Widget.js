@@ -1,3 +1,5 @@
+import { safeJson } from "./safeJson.js";
+
 // Utility to invoke Brevo Email OTP verification modal in the browser
 
 /**
@@ -17,7 +19,7 @@ export async function startOtpWidget(identifier = "") {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier })
     });
-    const sendData = await sendRes.json();
+    const sendData = await safeJson(sendRes);
     console.log("Brevo Email OTP Send status:", sendData);
     if (sendData?.fallback && sendData?.otpCode) {
       initialCode = sendData.otpCode;
@@ -215,7 +217,7 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ identifier, otp: code })
       });
-      const verifyData = await verifyRes.json();
+      const verifyData = await safeJson(verifyRes);
 
       if (verifyRes.ok && verifyData.success) {
         modalContainer.remove();

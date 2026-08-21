@@ -221,8 +221,21 @@ export default function AssessmentRunner() {
     isSubmittingRef.current = true;
 
     let correctCount = 0;
-    QUESTIONS.forEach((q) => {
-      if (userAnswers[q.id] === q.correct) correctCount++;
+    const answerDetails = QUESTIONS.map((q) => {
+      const selectedIdx = userAnswers[q.id];
+      const isCorrect = selectedIdx === q.correct;
+      if (isCorrect) correctCount++;
+      return {
+        questionId: q.id,
+        topic: q.topic,
+        question: q.question,
+        options: q.options,
+        selectedOption: selectedIdx !== undefined ? selectedIdx : null,
+        selectedAnswerText: selectedIdx !== undefined ? q.options[selectedIdx] : null,
+        correctOption: q.correct,
+        correctAnswerText: q.options[q.correct],
+        isCorrect,
+      };
     });
 
     const scorePercent = Math.round((correctCount / QUESTIONS.length) * 100);
@@ -243,10 +256,13 @@ export default function AssessmentRunner() {
         topic: "Medical Coding & RCM Domain Competency",
         autoSubmittedReason: reason || null,
         completedAt: new Date(),
+        answers: answerDetails,
+        correctCount,
+        totalQuestions: QUESTIONS.length,
       };
 
       await api.put("/candidate/stage/4", payload);
-      toast(`Assessment Submitted! Score: ${scorePercent}%`, "✓");
+      toast("Assessment Submitted! Thank you for completing the test.", "✓");
     } catch (err) {
       console.error(err);
     } finally {
@@ -274,7 +290,7 @@ export default function AssessmentRunner() {
           </div>
           <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)" }}>Assessment Completed &amp; Locked</h2>
           <p style={{ fontSize: 14, color: "#64748B", margin: "8px 0 20px" }}>
-            Single-Attempt Policy Enforced: Your verified test score of <strong>{calculatedScore}%</strong> is recorded and locked. Retaking the assessment is not permitted.
+            Single-Attempt Policy Enforced: Your responses have been recorded and locked. Retaking the assessment is not permitted. Our team will review your submission.
           </p>
           <button type="button" className="btn btn-gold" onClick={() => navigate("/dashboard")}>
             Return to Dashboard →
@@ -412,69 +428,37 @@ export default function AssessmentRunner() {
           </div>
         )}
 
-        {/* POST-SUBMISSION RESULTS */}
+        {/* POST-SUBMISSION CONFIRMATION */}
         {testState === "result" && (
-          <div style={{ background: "#fff", color: "var(--navy)", borderRadius: 16, padding: 32, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
+          <div style={{ background: "#fff", color: "var(--navy)", borderRadius: 16, padding: 40, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", textAlign: "center" }}>
             {autoSubmitted && (
-              <div style={{ background: "#FEF2F2", border: "2px solid #EF4444", color: "#991B1B", padding: 16, borderRadius: 12, marginBottom: 24, fontWeight: 700, fontSize: 13 }}>
+              <div style={{ background: "#FEF2F2", border: "2px solid #EF4444", color: "#991B1B", padding: 16, borderRadius: 12, marginBottom: 24, fontWeight: 700, fontSize: 13, textAlign: "left" }}>
                 ⚠️ <strong>Anti-Cheat Auto-Submission Triggered:</strong> You switched browser tabs or moved away from the test window. The assessment was automatically submitted per Talentera security compliance policy.
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 28, borderBottom: "1px solid #E2E8F0", paddingBottom: 20 }}>
-              <div>
-                <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                  ✓ TEST SUBMITTED &amp; RECORDED ON DASHBOARD
-                </span>
-                <h2 style={{ fontSize: 26, fontWeight: 800, color: "var(--navy)", margin: "8px 0 4px" }}>
-                  Your Final Assessment Score: {calculatedScore}%
-                </h2>
-                <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>
-                  This score is locked on your profile and reflected on your Verified Candidate Dashboard.
-                </p>
-              </div>
-
-              <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "16px 28px", textAlign: "center" }}>
-                <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B" }}>VERIFIED SCORE</div>
-                <div style={{ fontSize: 36, fontWeight: 800, color: "var(--navy)" }}>{calculatedScore}<span style={{ fontSize: 16, color: "#94A3B8" }}>/100</span></div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>Score Saved</div>
-              </div>
+            <div style={{ width: 72, height: 72, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34, margin: "0 auto 20px" }}>
+              ✓
             </div>
 
-            {/* Answer Explanations */}
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginBottom: 16 }}>Question Answer Key &amp; Guideline Explanations</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
-              {QUESTIONS.map((qItem, idx) => {
-                const userAns = userAnswers[qItem.id];
-                const isCorrect = userAns === qItem.correct;
-                return (
-                  <div key={qItem.id} style={{ background: isCorrect ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${isCorrect ? "#BBF7D0" : "#FECACA"}`, borderRadius: 12, padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 8 }}>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: "var(--navy)" }}>
-                        Q{idx + 1}. {qItem.question}
-                      </div>
-                      <span style={{ background: isCorrect ? "#DCFCE7" : "#FEE2E2", color: isCorrect ? "#15803D" : "#DC2626", fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 4, flexShrink: 0 }}>
-                        {isCorrect ? "✓ Correct (+10)" : "✕ Incorrect"}
-                      </span>
-                    </div>
+            <h2 style={{ fontSize: 26, fontWeight: 800, color: "var(--navy)", margin: "0 0 12px" }}>
+              Thank you for completing the assessment!
+            </h2>
 
-                    <div style={{ fontSize: 12, color: "#374151", marginBottom: 4 }}>
-                      <strong>Your Answer:</strong> {userAns !== undefined ? `${String.fromCharCode(65 + userAns)}. ${qItem.options[userAns]}` : "Not Answered"}
-                    </div>
-                    {!isCorrect && (
-                      <div style={{ fontSize: 12, color: "#15803D", fontWeight: 700, marginBottom: 4 }}>
-                        <strong>Correct Answer:</strong> {String.fromCharCode(65 + qItem.correct)}. {qItem.options[qItem.correct]}
-                      </div>
-                    )}
-                    <div style={{ fontSize: 11, color: "#64748B", background: "rgba(255,255,255,0.7)", padding: "8px 12px", borderRadius: 6, marginTop: 6, lineHeight: 1.5 }}>
-                      <strong>Explanation:</strong> {qItem.explanation}
-                    </div>
-                  </div>
-                );
-              })}
+            <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
+              <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "5px 12px", borderRadius: 999 }}>
+                ✓ TEST SUBMITTED &amp; RECORDED
+              </span>
+              <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "5px 12px", borderRadius: 999 }}>
+                Single Attempt Completed
+              </span>
             </div>
 
-            <div style={{ textAlign: "center" }}>
+            <p style={{ fontSize: 14, color: "#64748B", maxWidth: 480, margin: "0 auto" }}>
+              Your responses have been recorded and sent to our team for review. Our staff will verify your answers and update your candidate profile accordingly.
+            </p>
+
+            <div style={{ marginTop: 28 }}>
               <button type="button" className="btn btn-gold" style={{ padding: "14px 32px", fontSize: 15 }} onClick={() => navigate("/dashboard")}>
                 Return to Candidate Dashboard →
               </button>

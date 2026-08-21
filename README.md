@@ -1,124 +1,169 @@
-# Talentera — MERN Rebuild
+# Talentera — MERN Talent Verification Platform
 
-This is a MERN-stack (MongoDB, Express, React, Node) rebuild of the candidate
-portal originally prototyped as a single Firebase-backed `index.html`. It
-follows the architecture recommended in `DEVELOPER_HANDOFF.md` section 6.
+A MERN-stack (MongoDB, Express, React, Node) platform that verifies
+Healthcare RCM / medical coding / medical billing candidates through an
+8-stage identity, skills, and interview pipeline, then connects verified
+candidates with hiring employers. Started as a rebuild of a
+Firebase-backed prototype (see `DEVELOPER_HANDOFF.md` for the original
+spec) and has since grown well past the candidate-only scope that
+implies.
+
+> This file was out of date for a while - it described the company,
+> academy, and admin portals as "still on the roadmap" when they were
+> already built. Corrected below as of the Aug 2026 engineering pass; see
+> `IMPROVEMENT_ROADMAP.md` for the fuller audit this correction came out of.
 
 ## What's here
 
+Four portals, all live:
+
 ```
-talentera-mern/
-├── backend/            Express API + MongoDB models (replaces Firebase Auth/Firestore/Storage)
-│   ├── config/db.js        Mongo connection
-│   ├── models/Candidate.js Mirrors the original candidates/{uid} Firestore shape
-│   ├── middleware/auth.js  JWT auth (replaces Firebase Auth sessions)
-│   ├── middleware/upload.js Multer local disk storage (replaces Firebase Storage)
-│   ├── routes/auth.js      register / login / me
-│   ├── routes/candidate.js profile, stage save/skip, video upload, resume data
+Talentera/
+├── backend/                 Express API + MongoDB models
+│   ├── config/               Mongo connection, Cloudinary, plan catalog
+│   ├── middleware/            JWT auth, upload handling, rate limiting
+│   ├── models/                 Candidate, Company, Academy, Staff, Job,
+│   │                            Application, Notification, InterviewQuestion,
+│   │                            AuditLog
+│   ├── routes/                 auth, candidate, company(+auth), academy,
+│   │                            staff, public, otp, aadhaar
+│   ├── utils/                   logger, email, password reset, encryption,
+│   │                            AI assessment scoring, Aadhaar/eKYC, MSG91
+│   ├── tests/                   Jest unit tests
 │   └── server.js
-└── frontend/           React (Vite) app
-    ├── src/pages/Landing.jsx         marketing page
-    ├── src/pages/Login.jsx / Register.jsx
-    ├── src/pages/Dashboard.jsx       8-stage verification journey
-    ├── src/pages/ResumeBuilder.jsx   3 resume templates + PDF export (print)
-    ├── src/data/stageConfig.js       field definitions per stage (source of truth)
-    └── src/context/AuthContext.jsx   session handling (JWT in localStorage)
+└── frontend/                 React (Vite) app
+    ├── src/pages/               Landing, Login/Register/ForgotPassword,
+    │                            candidate Dashboard/Wizard, Jobs, Resume
+    │                            Builder, Company portal + onboarding,
+    │                            Academy portal, Staff Hub
+    ├── src/components/          AI video/audio interview components,
+    │                            wizard stage forms, shared UI
+    ├── src/context/              AuthContext (candidate), CompanyAuthContext
+    └── src/data/                  Stage/field config (source of truth for
+                                    onboarding forms)
 ```
 
-## What was ported vs. rebuilt
-
-- **Data model, auth flow, 8-stage pipeline, skip-stage system, verification
-  scoring (5/15/20/25/10/10/10/5 → 100, 75+ = gold badge), and the
-  "generate-not-upload" resume rule** are ported 1:1 from the Firebase
-  prototype and `DEVELOPER_HANDOFF.md`.
-- **The marketing landing page** was rebuilt as a clean, on-brand page using
-  the same copy, colors (Navy `#0A1F3D`, Gold `#E5A82E`, Cream `#FAF7F0`) and
-  fonts (Bricolage Grotesque / Space Grotesk / Manrope) — but without
-  hand-porting the original's decorative animation CSS (floating cards,
-  particles, orbs). Restyle `src/pages/Landing.jsx` freely; it's plain React
-  + CSS, no framework lock-in.
-- **Stage 2/3/4/6 field names** were not fully specified in the handoff doc
-  ("...training fields...", "...certification..."). Reasonable field sets are
-  defined in `frontend/src/data/stageConfig.js` — confirm with the founder
-  before shipping, per handoff doc section 5 ("Field-mapping cleanup").
-- **Aadhaar/UIDAI verification, the real proctored assessment engine, and
-  live-chart mechanics** remain unbuilt, same as the original prototype
-  (handoff doc section 5). Stage 4 and Stage 6 forms currently just record
-  self-reported values — swap in real integrations behind the same
-  `PUT /api/candidate/stage/:n` contract.
+- **Candidate portal** (`/dashboard`) — the original 8-stage identity,
+  training, certification, assessment, AI video/audio interview, live
+  charts, resume, and employment-tracking pipeline. Verification scoring
+  (5/15/20/25/10/10/10/5 → 100, 75+ = gold badge) is ported from the
+  original Firebase prototype.
+- **Company portal** (`/companies/*`) — 9-stage employer onboarding + KYC,
+  job posting, applicant ATS with contact-masking until KYC verification,
+  candidate directory search.
+- **Academy portal** (`/academy/*`) — training-partner dashboards, bulk
+  student roster upload, placement tracking.
+- **Staff Operations Hub** (`/staff/*`) — verification queues (candidate,
+  company KYC, video interviews, text assessments), the interview
+  question bank (staff write the exact questions and correct answers the
+  AI asks candidates), reports, and an audit log of staff actions.
 
 ## Local setup
 
 ### 1. MongoDB
-Use MongoDB Atlas (recommended, matches "Region: asia-south1" intent — pick
-the closest Atlas region, e.g. Mumbai) or run MongoDB locally.
+
+Use MongoDB Atlas (recommended) or run MongoDB locally.
 
 ### 2. Backend
+
 ```bash
 cd backend
 cp .env.example .env
-# fill in MONGO_URI and a real JWT_SECRET in .env
+# fill in MONGO_URI and a real JWT_SECRET (server refuses to start without
+# JWT_SECRET - see backend/middleware/auth.js)
 npm install
 npm run dev        # nodemon, http://localhost:5000
 ```
 
 ### 3. Frontend
+
 ```bash
 cd frontend
+cp .env.example .env
 npm install
 npm run dev         # http://localhost:5173, proxies /api to :5000
 ```
 
 Register a candidate at `/register`, complete stages, then open `/resume`.
 
+### 4. Linting, formatting, and tests
+
+Both `backend/` and `frontend/` have ESLint + Prettier configured, and a
+starter test suite (Jest for the backend, Vitest for the frontend):
+
+```bash
+npm run lint        # in backend/ or frontend/
+npm run format
+npm test
+```
+
+A GitHub Actions workflow (`.github/workflows/ci.yml`) runs lint + tests
+(+ a production build for the frontend) on every push/PR to `main`.
+
 ## Login OTP (MSG91 Widget)
 
-Every login flow (Candidate, Company, Staff, Academy Partner) now requires
-a second-factor OTP after the initial credentials step, delivered via the
+Every login flow (Candidate, Company, Staff, Academy Partner) requires a
+second-factor OTP after the initial credentials step, delivered via the
 [MSG91 OTP Widget](https://docs.msg91.com/otp-widget). The widget itself
-(loaded client-side) generates, sends (SMS/email/WhatsApp - whichever
+(loaded client-side) generates, sends (SMS/email/WhatsApp — whichever
 channel the person picks) and does first-pass verification of the code; it
 then hands the frontend a signed access-token, which
 `backend/utils/msg91Widget.js` re-verifies server-side via MSG91's
-`verifyAccessToken` API before a session is issued. See that file and
-`frontend/src/utils/msg91Widget.js` for the shared implementation.
+`verifyAccessToken` API before a session is issued.
 
 Setup:
 1. In the MSG91 dashboard, create (or reuse) a widget under **Widgets** and
    note its **Widget ID** and **tokenAuth** from the embed snippet.
 2. Add those two values to `frontend/.env` as `VITE_MSG91_WIDGET_ID` and
    `VITE_MSG91_TOKEN_AUTH` (see `frontend/.env.example`).
-3. Add your account **authkey** (Settings -> Security -> Authkey) to
+3. Add your account **authkey** (Settings → Security → Authkey) to
    `backend/.env` as `MSG91_AUTHKEY` (see `backend/.env.example`). This one
-   is server-only - never put it in frontend code or commit it.
+   is server-only — never put it in frontend code or commit it.
 4. If MSG91's IP Security is enabled on your account, whitelist the
    backend server's public IP (or disable IP security while developing).
-5. `npm install` in `backend/` to pick up the new `axios` dependency.
 
-Notes:
-- The widget sends to one identifier (mobile or email) per login attempt -
-  the person picks the channel in the widget's own popup; it isn't
-  simultaneous dual-channel delivery.
-- Candidate accounts collect an optional `mobile` at signup
-  (`frontend/src/pages/Register.jsx`) so SMS is available as a channel;
-  Company accounts already required one at registration. Staff and
-  Academy logins let the widget capture the identifier directly.
-- Company login previously had a backend endpoint
-  (`/api/company/auth/login`) with no frontend page calling it - this pass
-  adds `frontend/src/pages/CompanyLogin.jsx` (route: `/companies/login`) as
-  that missing entry point.
-- `frontend/src/pages/Login.jsx` (candidate login) exists but isn't wired
-  into any route in `App.jsx` - only `Register.jsx`'s "Log in" tab and
-  `/login` -> `StaffLogin.jsx` are reachable. Pre-existing routing quirk,
-  left as-is since fixing it wasn't part of this change.
+Candidates and companies can also reset a forgotten password directly
+(`/forgot-password`, or `/forgot-password?type=company`) via a one-time
+email code — see `backend/utils/passwordReset.js`.
+
+## Transactional email (Brevo)
+
+`backend/utils/email.js` is the shared sender used for OTP codes, password
+reset codes, and candidate application-lifecycle emails (application
+received, status changed). Set `BREVO_API_KEY` in `backend/.env`; without
+it, emails are logged instead of sent so local dev keeps working.
+
+## Company plans (billing scaffolding)
+
+`backend/config/plans.js` defines a small static plan catalog (`free`,
+`growth`, `enterprise`) that gates how many active job posts a company can
+have and whether they can search the full verified-candidate pool. Staff
+assign a company's plan from the Staff Hub (`POST
+/api/staff/companies/:id/assign-plan`). **No payment gateway is wired up
+yet** — this is data-model and gating scaffolding only, ready for a real
+checkout flow (Razorpay is the natural fit given the India focus) to be
+added later without touching the gating logic.
+
+## Security notes
+
+- Rate limiting (`backend/middleware/rateLimit.js`) is applied to every
+  login, registration, OTP, and password-reset endpoint.
+- `helmet` is applied globally in `server.js`; CORS enforces the
+  `CLIENT_ORIGINS` allowlist (plus any `*.vercel.app` origin).
+- Uploads are restricted by MIME type per field
+  (`backend/middleware/upload.js`), on top of the existing size cap.
+- OTP codes are never logged in production (`NODE_ENV=production`).
+- See `IMPROVEMENT_ROADMAP.md` for the full audit history and what's still
+  open (JWT rotation/revocation, Aadhaar-adjacent PII field encryption,
+  broader test coverage, etc).
 
 ## Production notes
 
-- Swap `backend/middleware/upload.js`'s disk storage for an S3/GCS
-  multer-storage adapter — route logic (`req.file.filename`) won't need to
-  change.
-- Move `JWT_SECRET` / `MONGO_URI` to your hosting provider's secret manager.
-- The rest of `DEVELOPER_HANDOFF.md` section 5 (Company portal, Academy
-  portal, Admin panel, application/matching flow, DPDP privacy pages) is
-  still on the roadmap — this rebuild only covers the candidate side, matching
-  the original prototype's scope.
+- Swap `backend/middleware/upload.js`'s disk-storage fallback for Cloudinary
+  (already wired — set the `CLOUDINARY_*` env vars) or another S3/GCS
+  adapter for anything beyond a single-instance deploy.
+- Move `JWT_SECRET` / `MONGO_URI` / `ENCRYPTION_KEY` to your hosting
+  provider's secret manager rather than a checked-in `.env`.
+- `DEVELOPER_HANDOFF.md`'s original "still on the roadmap" list (company
+  portal, academy portal, admin panel, application/matching flow) is done;
+  what's actually still open is tracked in `IMPROVEMENT_ROADMAP.md`.

@@ -186,18 +186,18 @@ export default function CompanyPortal() {
     <div style={{ minHeight: "100vh", background: "#F4F6FA" }}>
       {/* ====== STICKY NAVBAR ====== */}
       <nav style={{ background: "var(--navy)", padding: "14px 36px", color: "#fff", position: "sticky", top: 0, zIndex: 100, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-dark)" }}>
-        <div style={{ display: "flex", alignItems: "center", cursor: "pointer", gap: 16 }} onClick={() => { logout(); navigate("/"); }}>
+        <div style={{ display: "flex", alignItems: "center", cursor: "pointer", gap: 16 }} onClick={() => navigate("/companies/directory")}>
           <img src="/logo.png" alt="Talentera" style={{ height: 38, width: "auto" }} />
           <div>
             <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 10, letterSpacing: "0.14em", color: "var(--gold)" }}>
               COMPANY HIRING PORTAL
             </div>
-            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>Candidate Directory & Audit Database</div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>Candidate Directory &amp; Audit Database</div>
           </div>
         </div>
 
-        {/* Company Verification Badge & Switcher */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Company Navigation Links & Status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div
             style={{
               display: "flex",
@@ -213,41 +213,43 @@ export default function CompanyPortal() {
             }}
           >
             <span>{isVerifiedCompany ? "✓" : "🔒"}</span>
-            <span>{isVerifiedCompany ? "Verified Company (Full Access Unlocked)" : "Unverified Account (Gated Access)"}</span>
-            {/* <button
-              title="Toggle status for testing"
-              onClick={() => setCompanyKycStatus((prev) => (prev === "verified" ? "pending" : "verified"))}
-              style={{
-                marginLeft: 6,
-                background: "rgba(255,255,255,0.2)",
-                border: "none",
-                borderRadius: 4,
-                color: "#fff",
-                fontSize: 10,
-                padding: "2px 6px",
-                cursor: "pointer",
-                fontWeight: 700
-              }}
-            >
-              Demo Switch ⇄
-            </button> */}
+            <span>{isVerifiedCompany ? "Verified Company" : "Unverified Account"}</span>
           </div>
 
           <Link
-            to="/"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              color: "#fff",
-              padding: "8px 16px",
-              borderRadius: 8,
-              fontSize: 13,
-              fontWeight: 600,
-              textDecoration: "none"
-            }}
+            to="/companies/directory"
+            style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}
           >
-            ← Home
+            Hire Verified Talent
           </Link>
+          <Link
+            to="/companies/jobs"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Job Posts
+          </Link>
+          <Link
+            to="/companies/applicants"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Applicants
+          </Link>
+          <Link
+            to="/companies/dashboard"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Edit Profile
+          </Link>
+
+          {company && (
+            <button
+              type="button"
+              onClick={() => { logout(); navigate("/companies"); }}
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              Logout
+            </button>
+          )}
         </div>
       </nav>
 

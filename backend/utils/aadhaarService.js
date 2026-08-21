@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const axios = require("axios");
 const { verhoeffValidate } = require("./verhoeffBackend");
+const logger = require("./logger");
 
 /**
  * Helper: Dispatch Real SMS OTP via MSG91 REST API to candidate's mobile phone
@@ -13,7 +14,7 @@ async function sendRealSmsOtp(mobile, otp) {
   if (cleanMobile.length >= 10) {
     try {
       const tenDigit = cleanMobile.slice(-10);
-      console.log(`[PRODUCTION SMS] Dispatching Real MSG91 SMS OTP to +91 ${tenDigit}...`);
+      logger.info(`[PRODUCTION SMS] Dispatching Real MSG91 SMS OTP to +91 ${tenDigit}...`);
       await axios.post(
         "https://control.msg91.com/api/v5/otp",
         null,
@@ -27,10 +28,10 @@ async function sendRealSmsOtp(mobile, otp) {
           timeout: 10000,
         }
       );
-      console.log(`✓ Real SMS OTP successfully delivered to +91 ${tenDigit}`);
+      logger.info(`Real SMS OTP successfully delivered to +91 ${tenDigit}`);
       return true;
     } catch (err) {
-      console.warn("MSG91 SMS OTP delivery log:", err.response?.data || err.message);
+      logger.warn(`MSG91 SMS OTP delivery log: ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`);
     }
   }
   return false;
@@ -47,7 +48,7 @@ async function sendRealEmailOtp(email, otp, maskedAadhaar) {
 
   if (cleanMail && cleanMail.includes("@") && brevoApiKey && !brevoApiKey.includes("your_brevo_api_key")) {
     try {
-      console.log(`[PRODUCTION EMAIL] Dispatching Real Brevo Email OTP to ${cleanMail}...`);
+      logger.info(`[PRODUCTION EMAIL] Dispatching Real Brevo Email OTP to ${cleanMail}...`);
       await axios.post(
         "https://api.brevo.com/v3/smtp/email",
         {
@@ -74,10 +75,10 @@ async function sendRealEmailOtp(email, otp, maskedAadhaar) {
           timeout: 10000,
         }
       );
-      console.log(`✓ Real Email OTP successfully delivered to ${cleanMail}`);
+      logger.info(`Real Email OTP successfully delivered to ${cleanMail}`);
       return true;
     } catch (err) {
-      console.warn("Brevo Email OTP delivery log:", err.response?.data || err.message);
+      logger.warn(`Brevo Email OTP delivery log: ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`);
     }
   }
   return false;
@@ -86,6 +87,14 @@ async function sendRealEmailOtp(email, otp, maskedAadhaar) {
 /**
  * Aadhaar Provider Service Layer Abstraction (AadhaarVerificationService)
  * Handles authorized Aadhaar Verification Gateways (Sandbox API, Cashfree, Surepass, Digilocker, UIDAI KUA)
+ *
+ * Note on data-at-rest: the raw 12-digit Aadhaar number handled by this
+ * class lives ONLY in the in-memory `this.transactions` map below, for the
+ * lifetime of the OTP flow - it is never written to MongoDB. Only the
+ * masked form ("XXXX XXXX 1234") gets persisted onto Candidate.stage1 by
+ * routes/aadhaar.js. See backend/utils/encryption.js for ready-to-use
+ * AES-256-GCM helpers if a genuine need to persist the raw number ever
+ * comes up.
  */
 class AadhaarVerificationService {
   constructor() {
@@ -149,7 +158,7 @@ class AadhaarVerificationService {
     }
 
     // 3. Check Cooldown Rate Limiting for existing active transaction on this Aadhaar
-    for (const [txId, tx] of this.transactions.entries()) {
+    for (const [, tx] of this.transactions.entries()) {
       if (tx.aadhaarNumber === cleanAadhaar && tx.resendAvailableAt > Date.now()) {
         const remainingSecs = Math.ceil((tx.resendAvailableAt - Date.now()) / 1000);
         throw new Error(`OTP resend cooldown active. Please wait ${remainingSecs} seconds before requesting a new OTP.`);
@@ -176,7 +185,7 @@ class AadhaarVerificationService {
           payload = { id_number: cleanAadhaar };
         }
 
-        console.log(`[PRODUCTION GATEWAY] Requesting Aadhaar OTP via provider ${this.provider.toUpperCase()} (${endpoint})...`);
+        logger.info(`[PRODUCTION GATEWAY] Requesting Aadhaar OTP via provider ${this.provider.toUpperCase()} (${endpoint})...`);
 
         const response = await axios.post(endpoint, payload, {
           headers: {
@@ -216,7 +225,7 @@ class AadhaarVerificationService {
           message: `OTP sent to your Aadhaar-registered mobile number (${maskedMobile}).`,
         };
       } catch (err) {
-        console.error("External Aadhaar Provider Gateway Error:", err.response?.data || err.message);
+        logger.error(`External Aadhaar Provider Gateway Error: ${err.response?.data ? JSON.stringify(err.response.data) : err.message}`);
         // Fall back gracefully to direct gateway OTP delivery if provider endpoint responds with temporary network error
       }
     }
@@ -245,12 +254,14 @@ class AadhaarVerificationService {
       await sendRealEmailOtp(candidateEmail, generatedOtp, maskedAadhaar);
     }
 
-    console.log(`\n========================================`);
-    console.log(`[PRODUCTION AADHAAR OTP SENT] Transaction: ${transactionId}`);
-    console.log(`[Aadhaar]: ${maskedAadhaar}`);
-    console.log(`[Linked Mobile Number]: ${maskedMobile}`);
-    console.log(`[OTP CODE]: ${generatedOtp}`);
-    console.log(`========================================\n`);
+    // Only ever log the raw OTP code outside production - see
+    // IMPROVEMENT_ROADMAP.md "OTP codes are written to server logs." The
+    // masked Aadhaar/mobile are safe to log in any environment (that's the
+    // whole point of masking them).
+    logger.info(`[AADHAAR OTP SENT] Transaction: ${transactionId} | Aadhaar: ${maskedAadhaar} | Mobile: ${maskedMobile}`);
+    if (process.env.NODE_ENV !== "production") {
+      logger.info(`[DEV ONLY] Aadhaar OTP code for ${transactionId}: ${generatedOtp}`);
+    }
 
     return {
       success: true,

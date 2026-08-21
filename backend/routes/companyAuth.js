@@ -4,6 +4,10 @@ const { body, validationResult } = require("express-validator");
 const Company = require("../models/Company");
 const { signToken, requireCompanyAuth } = require("../middleware/auth");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
+const { authLimiter, otpLimiter } = require("../middleware/rateLimit");
+const { generateResetOtp, verifyAndConsumeResetOtp } = require("../utils/passwordReset");
+const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 
@@ -31,6 +35,7 @@ function buildStagePrefill(prefillStages) {
 // POST /api/company/auth/register
 router.post(
   "/register",
+  authLimiter,
   [
     body("name").trim().isLength({ min: 2 }).withMessage("Your name is required."),
     body("companyName").trim().isLength({ min: 2 }).withMessage("Company name is required."),
@@ -84,7 +89,7 @@ router.post(
       if (["OTP_TOKEN_MISSING", "OTP_VERIFY_FAILED"].includes(err.code)) {
         return res.status(400).json({ message: err.message });
       }
-      console.error("Company register error:", err);
+      logger.error(`Company register error: ${err.message}`);
       res.status(500).json({ message: err.message || "Server error during registration." });
     }
   }
@@ -93,6 +98,7 @@ router.post(
 // POST /api/company/auth/login - Step 1: Check credentials
 router.post(
   "/login",
+  authLimiter,
   [
     body("email").isEmail().withMessage("Valid email required").normalizeEmail(),
     body("password").exists().withMessage("Password required"),
@@ -119,7 +125,7 @@ router.post(
       const token = signToken(company._id, "company");
       res.json({ token, company });
     } catch (err) {
-      console.error("Company login error:", err);
+      logger.error(`Company login error: ${err.message}`);
       res.status(500).json({ message: "Server error during login." });
     }
   }
@@ -146,51 +152,73 @@ router.post("/verify-login-otp", async (req, res) => {
     if (["OTP_TOKEN_MISSING", "OTP_VERIFY_FAILED"].includes(err.code)) {
       return res.status(400).json({ message: err.message });
     }
-    console.error("Verify company login OTP error:", err);
+    logger.error(`Verify company login OTP error: ${err.message}`);
     res.status(500).json({ message: err.message || "Server error verifying OTP." });
   }
 });
 
 // POST /api/company/auth/forgot-password - Request password reset OTP
-router.post("/forgot-password", async (req, res) => {
+//
+// IMPORTANT FIX: this endpoint previously generated and logged an OTP, but
+// /reset-password below never actually checked it - it accepted
+// { email, newPassword } and reset the password unconditionally. That meant
+// anyone who knew (or guessed) a company's work email could take over the
+// account with zero proof of access to that inbox. Both routes now go
+// through backend/utils/passwordReset.js, which makes the OTP a real,
+// one-time-use gate. See IMPROVEMENT_ROADMAP.md's CORS/OTP findings for the
+// same class of issue elsewhere in this codebase.
+router.post("/forgot-password", otpLimiter, async (req, res) => {
   const { email } = req.body;
   if (!email || !email.includes("@")) {
     return res.status(400).json({ message: "A valid corporate email address is required." });
   }
 
+  const cleanEmail = email.toLowerCase().trim();
+
   try {
-    const cleanEmail = email.toLowerCase().trim();
     const company = await Company.findOne({ email: cleanEmail });
-    if (!company) {
-      return res.status(404).json({ message: "No employer account found with this work email address." });
+    if (company) {
+      const otp = generateResetOtp("company", cleanEmail);
+      await sendTransactionalEmail({
+        to: cleanEmail,
+        toName: company.contactName,
+        subject: "Your Talentera employer account password reset code",
+        html: wrapEmailTemplate(
+          "Reset your employer account password",
+          `<p style="color: #475569; font-size: 15px; line-height: 1.5;">Use the following 6-digit code to reset your Talentera employer account password. It expires in 10 minutes.</p>
+           <div style="background: #0A1F3D; color: #E5A82E; padding: 18px; text-align: center; border-radius: 10px; font-size: 32px; font-weight: bold; letter-spacing: 6px; margin: 24px 0;">${otp}</div>
+           <p style="color: #64748B; font-size: 13px; margin-bottom: 0;">If you didn't request this, you can safely ignore this email.</p>`
+        ),
+      });
     }
 
-    const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    console.log(`\n========================================`);
-    console.log(`[COMPANY PASSWORD RESET OTP] Email: ${cleanEmail}`);
-    console.log(`[RESET OTP CODE]: ${resetOtp}`);
-    console.log(`========================================\n`);
-
+    // Same response whether or not the account exists - avoids leaking
+    // which work emails have registered employer accounts.
     res.json({
       success: true,
-      message: `Password reset verification code sent to ${cleanEmail}. (Development Code: ${resetOtp})`,
-      devCode: resetOtp,
+      message: `If an employer account exists for ${cleanEmail}, a password reset code has been sent.`,
     });
   } catch (err) {
-    console.error("Forgot password error:", err);
+    logger.error(`Company forgot-password error: ${err.message}`);
     res.status(500).json({ message: "Failed to process password reset request." });
   }
 });
 
-// POST /api/company/auth/reset-password - Reset password using verified code
-router.post("/reset-password", async (req, res) => {
-  const { email, newPassword } = req.body;
-  if (!email || !newPassword || newPassword.length < 6) {
-    return res.status(400).json({ message: "Password must be at least 6 characters." });
+// POST /api/company/auth/reset-password - Reset password using the verified code
+router.post("/reset-password", otpLimiter, async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword || newPassword.length < 6) {
+    return res.status(400).json({ message: "Email, reset code, and a new password (min 6 characters) are required." });
   }
 
+  const cleanEmail = email.toLowerCase().trim();
+
   try {
-    const cleanEmail = email.toLowerCase().trim();
+    const verification = verifyAndConsumeResetOtp("company", cleanEmail, otp);
+    if (!verification.ok) {
+      return res.status(400).json({ message: verification.message });
+    }
+
     const company = await Company.findOne({ email: cleanEmail });
     if (!company) {
       return res.status(404).json({ message: "Employer account not found." });
@@ -204,7 +232,7 @@ router.post("/reset-password", async (req, res) => {
       message: "Password updated successfully. You can now log in with your new password.",
     });
   } catch (err) {
-    console.error("Reset password error:", err);
+    logger.error(`Company reset-password error: ${err.message}`);
     res.status(500).json({ message: "Failed to reset password." });
   }
 });
@@ -238,7 +266,7 @@ router.post("/demo-login", async (req, res) => {
       message: "Logged in as Demo Employer Sandbox.",
     });
   } catch (err) {
-    console.error("Demo login error:", err);
+    logger.error(`Demo login error: ${err.message}`);
     res.status(500).json({ message: "Failed to launch demo employer sandbox." });
   }
 });

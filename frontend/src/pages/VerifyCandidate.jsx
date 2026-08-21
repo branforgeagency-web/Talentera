@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
+import { safeJson } from "../utils/safeJson.js";
 
 export default function VerifyCandidate() {
   const { candidateId } = useParams();
@@ -10,9 +11,9 @@ export default function VerifyCandidate() {
 
   useEffect(() => {
     fetch(`/api/public/verify/candidate/${candidateId}`)
-      .then((res) => {
+      .then(async (res) => {
         if (!res.ok) throw new Error("Verification record not found.");
-        return res.json();
+        return safeJson(res);
       })
       .then((resData) => {
         setData(resData);

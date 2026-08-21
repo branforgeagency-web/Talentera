@@ -1,15 +1,28 @@
 const axios = require("axios");
 
+// Every question is worth a flat 10 marks - full marks if the answer is
+// correct, 0 if it isn't. No partial credit and no separate "communication"
+// rubric (clarity/tone/fluency) - just a straight per-question answer score,
+// summed into totalMarks out of questionCount * POINTS_PER_QUESTION.
+const POINTS_PER_QUESTION = 10;
+
 /**
  * AI Assessment Evaluator for Candidate Video & Audio Interview Transcripts.
  *
- * Scoring is driven ENTIRELY by correctness against each question's
- * `expectedAnswer` (the staff-configured reference answer - looked up
- * server-side from InterviewQuestion.correctAnswer in
- * backend/routes/candidate.js and never sent to the candidate). A question
- * with no expectedAnswer configured (e.g. the built-in default questions
- * before staff add their own) falls back to a generic RCM-keyword check
- * instead of failing outright.
+ * Scoring is driven by conceptual correctness, judged the way a knowledgeable
+ * AI (ChatGPT/Gemini/Claude-style reasoning) would grade a spoken answer: the
+ * LLM path (scoreAgainstAnswerKeyLlm, used whenever OPENAI_API_KEY is set)
+ * uses its own subject-matter knowledge to decide what a correct answer looks
+ * like and checks the candidate's answer against that understanding. Each
+ * question's staff-configured `expectedAnswer` (looked up server-side from
+ * InterviewQuestion.correctAnswer in backend/routes/candidate.js and never
+ * sent to the candidate) is passed along only as a scope guide - the
+ * candidate does not need to match its exact wording. Only when no API key
+ * is configured, or the LLM call fails, does grading fall back to a plain
+ * keyword-overlap heuristic (computeHeuristicRubrics), which has no real
+ * understanding and just checks for matching terms. Each question scores a
+ * flat POINTS_PER_QUESTION (10) marks if correct, 0 if not - there is no
+ * separate communication/clarity/tone rubric anymore, just the answer score.
  *
  * @param {Array} qaPairs Array of { question, transcript, expectedAnswer }
  * @param {Object} proctorLogs Object containing tabSwitches, focusLosses, livenessVerified
@@ -51,32 +64,34 @@ async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
     questionScores = computeHeuristicRubrics(qaPairsWithTranslation).questionScores;
   }
 
+  // Raw answer marks: sum of each question's flat 10 (correct) or 0 (wrong)
+  // out of questionCount * POINTS_PER_QUESTION - this is what the report
+  // card shows now (e.g. "35/50"), not a communication/rubric percentage.
   const totalMarks = questionScores.reduce((sum, q) => sum + q.marks, 0);
-  const avgMarks = questionScores.length > 0 ? Math.round(totalMarks / questionScores.length) : 0;
+  const maxMarks = questionScores.length * POINTS_PER_QUESTION;
+
+  // overallScore stays a 0-100 percentage (totalMarks/maxMarks) purely for
+  // backward compatibility with stage5.aiScore and existing status messages
+  // elsewhere in the app - it is not shown to the candidate as a separate
+  // "communication score" anymore, the marks above are the primary number.
+  const rawPercent = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0;
 
   // Deduct proctoring penalty if candidate switched tabs during recording
   const tabSwitches = proctorLogs.tabSwitches || 0;
   const penalty = Math.min(20, tabSwitches * 5);
-  const overallScore = Math.max(0, avgMarks - penalty);
+  const overallScore = Math.max(0, rawPercent - penalty);
 
   const zeroCount = questionScores.filter((q) => q.marks === 0).length;
-  let feedback = `Candidate scored ${overallScore}% overall across ${questionScores.length} interview questions, graded against the configured answer key.`;
+  let feedback = `Candidate scored ${totalMarks}/${maxMarks} marks across ${questionScores.length} interview questions, graded against the configured answer key.`;
   if (zeroCount > 0) {
     feedback += ` ${zeroCount} question(s) received 0 marks (missing, incorrect, or skipped because the interview was ended early).`;
   }
 
   return {
     overallScore,
-    // These four tiles mirror the correctness score - correctness is the
-    // ONLY thing that drives overallScore (and therefore stage completion /
-    // the candidate's verification score). Kept as separate fields purely so
-    // the existing report-card UI still has something to render per metric.
-    rubricScores: {
-      communicationClarity: overallScore,
-      technicalAccuracy: overallScore,
-      professionalTone: overallScore > 0 ? 88 : 0,
-      fluency: overallScore,
-    },
+    totalMarks,
+    maxMarks,
+    pointsPerQuestion: POINTS_PER_QUESTION,
     questionScores,
     // Original transcript + English translation + detected language per
     // question, aligned by index to the qaPairs the caller sent in. Routes
@@ -151,34 +166,40 @@ Return strictly JSON: {"translations": [{"index": <the A-number above, as an int
 }
 
 /**
- * LLM-based correctness grading - one call scores every Q&A pair at once
- * against each question's expectedAnswer. A question with no expectedAnswer
- * is graded generically on RCM domain knowledge + communication, since
- * there's nothing to check correctness against.
+ * LLM-based correctness grading - one call scores every Q&A pair at once.
+ * This grades like a subject-matter expert would (the way ChatGPT, Gemini,
+ * or Claude reason about an answer): the model uses its OWN knowledge of
+ * Healthcare RCM / Medical Coding to judge whether the candidate's answer is
+ * conceptually correct and relevant to the question, rather than diffing the
+ * candidate's wording against the reference key. The staff-provided
+ * expectedAnswer (when present) is passed along only as a scope guide/rubric
+ * hint - the candidate does not need to match its phrasing, terminology, or
+ * word choice to be marked correct. A question with no expectedAnswer is
+ * graded purely on RCM domain knowledge + relevance.
  */
 async function scoreAgainstAnswerKeyLlm(apiKey, qaPairs) {
-  const prompt = `You are a strict technical evaluator grading a candidate's SPOKEN answers in a Healthcare RCM / Medical Coding interview.
+  const prompt = `You are a senior Healthcare RCM (Revenue Cycle Management) / Medical Coding subject-matter expert, acting as an interviewer grading a candidate's SPOKEN, transcribed answers. Grade the way a knowledgeable AI assistant (like ChatGPT, Gemini, or Claude) would when asked "is this answer correct?" - by reasoning from your own understanding of the subject, not by pattern-matching the candidate's wording against a script.
 
-CRITICAL MANDATORY RULES:
-1. ONLY CORRECT ANSWERS EARN MARKS.
-2. If the candidate's spoken response is WRONG, INCORRECT, OFF-TOPIC, IRRELEVANT, or does NOT answer the specific question according to the reference answer key, YOU MUST ASSIGN EXACTLY 0 MARKS.
-3. Do NOT award marks for generic fluency, pleasant tone, or filler words if the candidate failed to answer the question correctly.
-4. A question with no spoken answer or less than 3 spoken words MUST score 0 MARKS.
-5. If and only if the candidate's response correctly answers the question matching the reference answer key, assign 75 to 100 marks based on accuracy and completeness.
-6. Be reasonably lenient on completeness: if the candidate's answer correctly touches on at least 2-3 of the key concepts/terms present in the reference answer key, treat it as a correct answer (75-100 marks) even if it isn't fully comprehensive or perfectly worded - do not require an exhaustive, word-for-word match against the reference answer.
+HOW TO GRADE EACH ANSWER:
+1. First, silently work out for yourself what a correct, well-informed answer to the question would actually contain - draw on your own RCM/medical-coding expertise, not just the reference notes below.
+2. A "Reference Answer Key" is provided per question purely as a scope guide showing what the staff who wrote the question had in mind. It is NOT a checklist and the candidate does NOT need to use its exact words, terms, or phrasing. Completely different wording that conveys the same correct meaning is fully correct. If the reference key looks thin, garbled, or incomplete, rely on your own domain knowledge instead of it.
+3. Judge the candidate's answer on whether it is factually/conceptually correct and actually addresses what was asked - not on wording overlap, keyword count, tone, fluency, or filler words.
+4. Assume the transcript may contain speech-to-text errors (garbled numbers, homophones, mis-heard technical terms, e.g. "E11.40" heard as "11.11.21", "insurance" heard as "influence"). Read past obvious transcription noise and judge the candidate's evident intended meaning - do not penalize an answer just because it was transcribed imperfectly, as long as the intended meaning is clearly correct.
+5. Each question is worth a flat 10 marks - there is no partial credit. Score 0 ONLY if the answer is genuinely wrong, off-topic, irrelevant, incoherent, or shows no real understanding of the concept being asked - or if there is no spoken answer / fewer than 3 spoken words.
+6. Score the full 10 marks for any answer that correctly and relevantly explains the core concept in the candidate's own words, even if it is loosely worded, informal, or not fully comprehensive - correct-but-imperfect understanding still earns the full 10, it does not need to be exhaustive or cover every point in the reference key.
 
-QUESTIONS AND REFERENCE ANSWER KEYS TO GRADE:
+QUESTIONS TO GRADE (reference answer key is a guide only, not a required wording):
 ${qaPairs
   .map(
     (pair, idx) =>
       `Q${idx + 1}: ${pair.question}
-Reference Correct Answer Key: ${pair.expectedAnswer || "Must be medically accurate and directly address the question"}
+Reference Answer Key (scope guide, not required wording): ${pair.expectedAnswer || "(none provided - grade purely on RCM domain accuracy and relevance)"}
 Candidate's Spoken Answer (translated to English where needed): ${pair.translatedTranscript || pair.transcript || "(no spoken response)"}
 `
   )
   .join("\n")}
 
-Return strictly JSON: {"scores": [{"marks": <integer 0-100>, "feedback": "<short sentence explaining why correct or 0 marks for wrong/off-topic answer>"}, ...]} with exactly ${qaPairs.length} entries, in the same order as the questions above.`;
+Return strictly JSON: {"scores": [{"marks": <integer, either 0 or 10>, "feedback": "<short sentence explaining why correct (what concept they got right) or why 0 marks (wrong/off-topic/no understanding shown)>"}, ...]} with exactly ${qaPairs.length} entries, in the same order as the questions above.`;
 
   const response = await axios.post(
     "https://api.openai.com/v1/chat/completions",
@@ -215,13 +236,16 @@ Return strictly JSON: {"scores": [{"marks": <integer 0-100>, "feedback": "<short
       };
     }
     const entry = scores[idx] || {};
-    const marks = Math.max(0, Math.min(100, Math.round(Number(entry.marks) || 0)));
+    // Flat 10 (correct) or 0 (wrong) - clamp anything the model returns onto
+    // that scale rather than trusting an arbitrary 0-100 number, in case it
+    // ignores the instruction to only use 0 or 10.
+    const marks = Number(entry.marks) >= POINTS_PER_QUESTION / 2 ? POINTS_PER_QUESTION : 0;
     return {
       questionId: idx + 1,
       question: pair.question,
       marks,
       answered: true,
-      feedback: entry.feedback || (marks > 0 ? `Correct answer evaluated: ${marks}/100 Marks.` : "0 Marks: Incorrect answer."),
+      feedback: entry.feedback || (marks > 0 ? `Correct answer evaluated: ${marks}/${POINTS_PER_QUESTION} Marks.` : "0 Marks: Incorrect answer."),
       transcript: pair.transcript || "",
       translatedTranscript: pair.translatedTranscript || pair.transcript || "",
       detectedLanguage: pair.detectedLanguage || "unknown",
@@ -234,6 +258,7 @@ Return strictly JSON: {"scores": [{"marks": <integer 0-100>, "feedback": "<short
  */
 function computeHeuristicRubrics(qaPairs) {
   const defaultRcmKeywords = ["rcm", "coding", "icd", "cpt", "denial", "claim", "modifier", "hipaa", "billing", "authorization", "audit", "chart", "practicode", "patient"];
+  const stopWords = new Set(["the", "and", "for", "with", "that", "this", "from", "are", "was", "were", "been", "being", "have", "has", "had", "does", "did", "will", "would", "should", "could", "into", "through", "during", "before", "after", "about", "against", "between", "what", "how", "when", "where", "which", "who", "whom", "whose", "why", "can", "must", "may", "provider", "service", "process"]);
 
   const questionScores = qaPairs.map((pair, idx) => {
     const originalText = (pair.transcript || "").trim();
@@ -259,22 +284,21 @@ function computeHeuristicRubrics(qaPairs) {
 
     const expectedKey = (pair.expectedAnswer || "").toLowerCase();
     const targetKeywords = expectedKey
-      ? expectedKey.split(/[\s,.;:-]+/).filter((w) => w.length >= 3)
+      ? expectedKey
+          .split(/[\s,.;:-]+/)
+          .map((w) => w.toLowerCase())
+          .filter((w) => w.length >= 3 && !stopWords.has(w))
       : defaultRcmKeywords;
+
+    const finalKeywords = targetKeywords.length > 0 ? targetKeywords : defaultRcmKeywords;
 
     const lowerText = text.toLowerCase();
     let matchCount = 0;
-    targetKeywords.forEach((kw) => {
+    finalKeywords.forEach((kw) => {
       if (lowerText.includes(kw)) matchCount++;
     });
 
-    const matchRatio = targetKeywords.length > 0 ? matchCount / targetKeywords.length : 0;
-
-    // Correct if the candidate's answer touches at least 2 of the reference
-    // answer's key terms (or all of them, if there's only 1 to begin with) -
-    // a straight ratio threshold was unfairly failing answers that hit 2-3
-    // solid keywords but had a long expectedAnswer with many total terms.
-    const requiredMatches = Math.min(2, targetKeywords.length || 1);
+    const requiredMatches = Math.min(2, finalKeywords.length || 1);
     if (matchCount < requiredMatches) {
       return {
         questionId: idx + 1,
@@ -288,13 +312,14 @@ function computeHeuristicRubrics(qaPairs) {
       };
     }
 
-    const questionMarks = Math.min(100, Math.round(70 + matchRatio * 30));
+    // Flat marks: hitting the required keyword threshold earns the full 10,
+    // there's no partial-credit scaling by match ratio anymore.
     return {
       questionId: idx + 1,
       question: pair.question,
-      marks: questionMarks,
+      marks: POINTS_PER_QUESTION,
       answered: true,
-      feedback: `Correct answer evaluated: ${questionMarks}/100 Marks based on answer key match.`,
+      feedback: `Correct answer evaluated: ${POINTS_PER_QUESTION}/${POINTS_PER_QUESTION} Marks based on key term match (${matchCount} matched).`,
       transcript: pair.transcript || "",
       translatedTranscript: text,
       detectedLanguage: pair.detectedLanguage || "unknown",
@@ -302,19 +327,15 @@ function computeHeuristicRubrics(qaPairs) {
   });
 
   const totalMarks = questionScores.reduce((sum, q) => sum + q.marks, 0);
-  const avgMarks = questionScores.length > 0 ? Math.round(totalMarks / questionScores.length) : 0;
+  const maxMarks = questionScores.length * POINTS_PER_QUESTION;
 
   const unansweredOrZeroCount = questionScores.filter((q) => q.marks === 0).length;
-  let feedbackStr = `Candidate scored ${avgMarks}% overall across ${questionScores.length} verbal assessment questions.`;
+  let feedbackStr = `Candidate scored ${totalMarks}/${maxMarks} marks across ${questionScores.length} verbal assessment questions.`;
   if (unansweredOrZeroCount > 0) {
     feedbackStr += ` Note: ${unansweredOrZeroCount} question(s) received 0 marks due to missing or incorrect answers.`;
   }
 
   return {
-    clarity: avgMarks,
-    technical: Math.min(100, avgMarks > 0 ? avgMarks + 2 : 0),
-    tone: avgMarks > 0 ? 88 : 0,
-    fluency: avgMarks,
     feedback: feedbackStr,
     questionScores,
   };

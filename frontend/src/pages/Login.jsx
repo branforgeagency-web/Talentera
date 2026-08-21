@@ -56,9 +56,17 @@ export default function Login() {
           {submitting ? "Logging in…" : "Log In"}
         </button>
       </form>
-      <p style={{ textAlign: "center", marginTop: 18, fontSize: "0.9rem" }}>
-        New to Talentera? <Link to="/register">Create an account</Link>
+      <p style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem" }}>
+        <Link to="/forgot-password" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "none" }}>Forgot password?</Link>
       </p>
+      <p style={{ textAlign: "center", marginTop: 10, fontSize: "0.9rem", color: "rgba(255,255,255,0.75)" }}>
+        New to Talentera? <Link to="/register" style={{ color: "#E5A82E", fontWeight: 700, textDecoration: "none" }}>Create an account</Link>
+      </p>
+      <div style={{ textAlign: "center", marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <Link to="/" style={{ color: "rgba(255,255,255,0.65)", textDecoration: "none", fontSize: "0.85rem", display: "inline-flex", alignItems: "center", gap: 4 }}>
+          ← Back to Home
+        </Link>
+      </div>
     </AuthLayout>
   );
 }

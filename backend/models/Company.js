@@ -79,6 +79,18 @@ const CompanySchema = new mongoose.Schema(
     kycRejectionReason: { type: String, default: "" },
     docVerifications: { type: mongoose.Schema.Types.Mixed, default: {} },
     rejectedKycFields: { type: [String], default: [] },
+
+    // Subscription plan - SCAFFOLDING ONLY, no payment gateway wired yet.
+    // See backend/config/plans.js and IMPROVEMENT_ROADMAP.md "No plans,
+    // seats, or billing." Every company defaults to "free" until staff (or,
+    // later, a real checkout flow) assigns a paid plan.
+    plan: {
+      type: String,
+      enum: ["free", "growth", "enterprise"],
+      default: "free",
+    },
+    planAssignedAt: { type: Date, default: null },
+    planAssignedBy: { type: String, default: "" }, // staff username, for the audit trail
   },
   { timestamps: true }
 );
@@ -90,5 +102,7 @@ CompanySchema.set("toJSON", {
     return ret;
   },
 });
+
+CompanySchema.index({ kycStatus: 1 });
 
 module.exports = mongoose.model("Company", CompanySchema);
