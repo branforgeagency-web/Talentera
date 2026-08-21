@@ -132,7 +132,7 @@ async function processEaadhaarPdf(pdfBuffer, password = "") {
 
   // Name, DOB, Gender, and Aadhaar number matching
   const nameMatch = text.match(/(?:To|Name|Name[:\s]+)\s*[:,-]?\s*([A-Za-z\s]{3,40})/i) || text.match(/^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/m);
-  const dobMatch = text.match(/(?:DOB|Date of Birth|YOB|Year of Birth)[:\s]*(\d{2}[\/\.-]\d{2}[\/\.-]\d{4}|\d{4})/i);
+  const dobMatch = text.match(/(?:DOB|Date of Birth|YOB|Year of Birth)[:\s]*(\d{2}[/.-]\d{2}[/.-]\d{4}|\d{4})/i);
   const genderMatch = text.match(/(?:GENDER|Gender|Sex)[:\s]*(Male|Female|M|F|Transgender)/i) || text.match(/\b(Male|Female|Transgender)\b/i);
   const aadhaarMatch = text.match(/\b(\d{4}\s\d{4}\s\d{4})\b/);
 
