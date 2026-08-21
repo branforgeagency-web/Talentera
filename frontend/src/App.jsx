@@ -2,6 +2,7 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing.jsx";
 import Login from "./pages/Login.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
 import Register from "./pages/Register.jsx";
 import CandidateWizard from "./pages/CandidateWizard.jsx";
 import ForCompanies from "./pages/ForCompanies.jsx";
@@ -51,7 +52,14 @@ export default function App() {
       />
       <Route path="/companies/register" element={<CompanyRegister />} />
       <Route path="/companies/login" element={<CompanyLogin />} />
-      <Route path="/companies/directory" element={<CompanyPortal />} />
+      <Route
+        path="/companies/directory"
+        element={
+          <CompanyRequireAuth>
+            <CompanyPortal />
+          </CompanyRequireAuth>
+        }
+      />
       <Route
         path="/companies/applicants"
         element={
@@ -80,8 +88,15 @@ export default function App() {
         }
       />
 
-      {/* 03. Employee & Staff Login */}
-      <Route path="/login" element={<StaffLogin />} />
+      {/* 03. Candidate Login / Register.
+          NOTE: this used to point at StaffLogin.jsx (a long-standing
+          routing bug - see IMPROVEMENT_ROADMAP.md "/login routes to the
+          wrong portal"), so anyone visiting /login expecting the candidate
+          portal landed on the staff login screen instead, and the real
+          candidate Login.jsx was only reachable via Register's "Log in"
+          tab. Staff now only ever log in at /staff/login. */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register" element={<Register />} />
       <Route
         path="/dashboard/*"

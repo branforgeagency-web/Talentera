@@ -1,19 +1,31 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { safeJson } from "../utils/safeJson.js";
 
 export default function StaffHub() {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState("overview"); // "overview" | "audit" | "video" | "questions" | "reports"
+  const [activeNav, setActiveNav] = useState("overview"); // "overview" | "audit" | "assessment" | "video" | "questions" | "reports"
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
   const [previewDoc, setPreviewDoc] = useState(null);
   const [previewVideo, setPreviewVideo] = useState(null);
+  const [expandedAssessmentId, setExpandedAssessmentId] = useState(null);
 
   const [auditModal, setAuditModal] = useState(null);
   const [staffNotifications, setStaffNotifications] = useState([]);
   const [staffUnreadCount, setStaffUnreadCount] = useState(0);
   const [showStaffNotif, setShowStaffNotif] = useState(false);
+
+  // Staff activity log (who verified/edited what, and when) - see
+  // backend/models/AuditLog.js and GET /api/staff/audit-log. Previously
+  // there was no record of staff actions at all; loaded lazily, page by
+  // page, the first time this tab is opened.
+  const [activityEntries, setActivityEntries] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityLoaded, setActivityLoaded] = useState(false);
+  const [activityPage, setActivityPage] = useState(1);
+  const [activityTotalPages, setActivityTotalPages] = useState(1);
 
   // Interview Questions (Stage 5 AI Video / AI Audio interview bank)
   const [interviewQuestions, setInterviewQuestions] = useState([]);
@@ -32,6 +44,35 @@ export default function StaffHub() {
     fetchInterviewQuestions();
   }, []);
 
+  useEffect(() => {
+    if (activeNav === "activity" && !activityLoaded) {
+      fetchActivityLog(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav]);
+
+  const fetchActivityLog = async (page) => {
+    setActivityLoading(true);
+    try {
+      const res = await fetch(`/api/staff/audit-log?page=${page}&limit=25`, {
+        headers: { ...getAuthHeader() },
+      });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      setActivityEntries(data.entries || []);
+      setActivityPage(data.page || 1);
+      setActivityTotalPages(data.totalPages || 1);
+      setActivityLoaded(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   const fetchInterviewQuestions = async () => {
     setQuestionsLoading(true);
     try {
@@ -40,7 +81,7 @@ export default function StaffHub() {
         navigate("/staff/login");
         return;
       }
-      const data = await res.json();
+      const data = await safeJson(res);
       setInterviewQuestions(data.questions || []);
     } catch (err) {
       console.error(err);
@@ -72,7 +113,7 @@ export default function StaffHub() {
         body: JSON.stringify({ text, correctAnswer, mode, order, active }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await safeJson(res);
         alert(data.message || "Failed to save the interview question.");
         return;
       }
@@ -124,7 +165,7 @@ export default function StaffHub() {
         headers: { ...getAuthHeader() },
       });
       if (res.ok) {
-        const data = await res.json();
+        const data = await safeJson(res);
         setStaffNotifications(data.notifications || []);
         setStaffUnreadCount(data.unreadCount || 0);
       }
@@ -155,7 +196,7 @@ export default function StaffHub() {
         navigate("/staff/login");
         return;
       }
-      const data = await res.json();
+      const data = await safeJson(res);
       setDashData(data);
     } catch (err) {
       console.error(err);
@@ -172,7 +213,7 @@ export default function StaffHub() {
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({ candidateId, action })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       fetchDashboard();
     } catch (err) {
       console.error(err);
@@ -204,9 +245,25 @@ export default function StaffHub() {
           rejectionReason: auditModal.reason,
         }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       fetchDashboard();
       setAuditModal(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleVerifyAssessment = async (candidateId) => {
+    setProcessingId(candidateId);
+    try {
+      await fetch("/api/staff/verify-assessment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ candidateId }),
+      });
+      fetchDashboard();
     } catch (err) {
       console.error(err);
     } finally {
@@ -221,7 +278,7 @@ export default function StaffHub() {
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({ companyId, docId, isValid })
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       fetchDashboard();
       if (previewDoc && previewDoc.docId === docId) {
         setPreviewDoc((prev) => prev ? { ...prev, isValid } : null);
@@ -233,7 +290,7 @@ export default function StaffHub() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", fontFamily: "sans-serif" }}>Loading Staff Operations Hub...</div>;
 
-  const { stats, pipeline, incomingBucket, companyKycQueue, videoIntrosQueue, reportsData, tasks, leaderboard, liveQueueCount } = dashData || {};
+  const { stats, pipeline, incomingBucket, companyKycQueue, videoIntrosQueue, textAssessmentQueue, reportsData, tasks, leaderboard, liveQueueCount } = dashData || {};
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FA" }}>
@@ -266,9 +323,11 @@ export default function StaffHub() {
             {[
               { id: "overview", label: "Overview & Bucket", icon: "⚡" },
               { id: "audit", label: "Audit Queue", icon: "🔍" },
+              { id: "assessment", label: "Text Assessment", icon: "📝" },
               { id: "video", label: "Video Introductions", icon: "📹" },
               { id: "questions", label: "Interview Questions", icon: "🎤" },
               { id: "reports", label: "Reports & Metrics", icon: "📊" },
+              { id: "activity", label: "Activity Log", icon: "🗒️" },
             ].map((nav) => (
               <button
                 key={nav.id}
@@ -616,6 +675,123 @@ export default function StaffHub() {
             </div>
           )}
 
+          {/* TAB MODULE: TEXT ASSESSMENT (Stage 4 MCQ Answer Review) */}
+          {activeNav === "assessment" && (
+            <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid #0EA5E9" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <div>
+                  <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                    📝 Stage 4 Text Assessment Review Console
+                  </h3>
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>
+                    Review each candidate's submitted proctored MCQ answers and verify how many questions were answered correctly.
+                  </p>
+                </div>
+                <span style={{ background: "#0EA5E9", color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
+                  {(textAssessmentQueue || []).length} SUBMISSIONS
+                </span>
+              </div>
+
+              {!(textAssessmentQueue && textAssessmentQueue.length) ? (
+                <div style={{ padding: 40, textAlign: "center", background: "#F8FAFC", borderRadius: 12, border: "1px dashed #CBD5E1", color: "#64748B" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>No Text Assessment Submissions Yet</div>
+                  <div style={{ fontSize: 13 }}>Candidates who complete the Stage 4 proctored assessment will appear here with their full answer sheet for review.</div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {textAssessmentQueue.map((a) => {
+                    const isExpanded = expandedAssessmentId === a.id;
+                    const hasAnswers = Array.isArray(a.answers) && a.answers.length > 0;
+                    return (
+                      <div key={a.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>{a.studentName}</div>
+                              <span style={{
+                                padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800,
+                                background: a.verified ? "#DCFCE7" : "#FEF3C7",
+                                color: a.verified ? "#15803D" : "#B45309"
+                              }}>
+                                {a.verified ? "Staff Verified" : "Pending Staff Review"}
+                              </span>
+                              {a.autoSubmittedReason && (
+                                <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>
+                                  Auto-Submitted
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{a.email} • {a.assessmentType}</div>
+                            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+                              Submitted {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "N/A"}
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                            <div style={{ textAlign: "center" }}>
+                              <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>SCORE</div>
+                              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{a.foundationScore}%</div>
+                            </div>
+                            {a.correctCount !== null && a.totalQuestions ? (
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>CORRECT</div>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{a.correctCount}/{a.totalQuestions}</div>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                          <button
+                            style={{ padding: "8px 14px", fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, cursor: hasAnswers ? "pointer" : "not-allowed", opacity: hasAnswers ? 1 : 0.5 }}
+                            disabled={!hasAnswers}
+                            onClick={() => setExpandedAssessmentId(isExpanded ? null : a.id)}
+                          >
+                            {hasAnswers ? (isExpanded ? "Hide Answer Sheet ▲" : "View Answer Sheet ▼") : "No Per-Question Answers Recorded"}
+                          </button>
+                          <button
+                            className="btn-gold"
+                            style={{ padding: "8px 14px", fontSize: 11 }}
+                            disabled={a.verified}
+                            onClick={() => handleVerifyAssessment(a.id)}
+                          >
+                            {a.verified ? "Verified ✓" : "Mark as Reviewed & Verified →"}
+                          </button>
+                        </div>
+
+                        {isExpanded && hasAnswers && (
+                          <div style={{ marginTop: 16, borderTop: "1px solid #E2E8F0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+                            {a.answers.map((qa, idx) => (
+                              <div key={qa.questionId || idx} style={{ background: qa.isCorrect ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${qa.isCorrect ? "#BBF7D0" : "#FECACA"}`, borderRadius: 10, padding: 12 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)" }}>
+                                    Q{idx + 1}. {qa.question}
+                                  </div>
+                                  <span style={{ background: qa.isCorrect ? "#DCFCE7" : "#FEE2E2", color: qa.isCorrect ? "#15803D" : "#DC2626", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 4, flexShrink: 0 }}>
+                                    {qa.isCorrect ? "✓ Correct" : "✕ Incorrect"}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 12, color: "#374151" }}>
+                                  <strong>Candidate's Answer:</strong> {qa.selectedAnswerText || "Not Answered"}
+                                </div>
+                                {!qa.isCorrect && (
+                                  <div style={{ fontSize: 12, color: "#15803D", fontWeight: 700, marginTop: 2 }}>
+                                    <strong>Correct Answer:</strong> {qa.correctAnswerText}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB MODULE 3: VIDEO INTRODUCTIONS */}
           {activeNav === "video" && (
             <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid #A855F7" }}>
@@ -640,60 +816,126 @@ export default function StaffHub() {
                   <div style={{ fontSize: 13 }}>Candidates who submit their Stage 5 video introduction recording during verification will appear here for staff audit.</div>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
-                  {videoIntrosQueue.map((vid) => (
-                    <div key={vid.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>{vid.studentName}</div>
-                            <div style={{ fontSize: 12, color: "#64748B" }}>{vid.role}</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {videoIntrosQueue.map((vid) => {
+                    const isExpanded = expandedAssessmentId === `video-${vid.id}`;
+                    const hasQuestions = Array.isArray(vid.questions) && vid.questions.length > 0;
+                    return (
+                      <div key={vid.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
+                        {/* Video Player Column */}
+                        <div style={{ width: 260, flexShrink: 0 }}>
+                          <div style={{ borderRadius: 8, overflow: "hidden", background: "#06152A", marginBottom: 10 }}>
+                            {vid.videoUrl && (vid.videoUrl.endsWith(".mp4") || vid.videoUrl.endsWith(".webm") || vid.videoUrl.startsWith("blob:") || vid.videoUrl.startsWith("http") || vid.videoUrl.startsWith("/uploads")) ? (
+                              <video controls src={vid.videoUrl} style={{ width: "100%", maxHeight: 180, borderRadius: 8 }} />
+                            ) : (
+                              <div style={{ height: 140, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff" }}>
+                                <div style={{ fontSize: 28, marginBottom: 4 }}>📹</div>
+                                <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>Recorded Video File Attached</div>
+                              </div>
+                            )}
                           </div>
-                          <span style={{
-                            padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800,
-                            background: vid.verified ? "#DCFCE7" : "#FEF3C7",
-                            color: vid.verified ? "#15803D" : "#B45309"
-                          }}>
-                            {vid.status}
-                          </span>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button
+                              className="btn-gold"
+                              style={{ flex: 1, padding: 8, fontSize: 11, justifyContent: "center" }}
+                              disabled={vid.verified}
+                              onClick={() => handleVerifyCandidate(vid.id, "verify")}
+                            >
+                              {vid.verified ? "Approved ✓" : "Approve Video →"}
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Video Player Box */}
-                        <div style={{ borderRadius: 8, overflow: "hidden", background: "#06152A", marginBottom: 12 }}>
-                          {vid.videoUrl && (vid.videoUrl.endsWith(".mp4") || vid.videoUrl.endsWith(".webm") || vid.videoUrl.startsWith("blob:") || vid.videoUrl.startsWith("http") || vid.videoUrl.startsWith("/uploads")) ? (
-                            <video controls src={vid.videoUrl} style={{ width: "100%", maxHeight: 180, borderRadius: 8 }} />
-                          ) : (
-                            <div style={{ height: 140, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                              <div style={{ fontSize: 28, marginBottom: 4 }}>📹</div>
-                              <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>Recorded Video File Attached</div>
+                        {/* Details + Questions Column */}
+                        <div style={{ flex: 1, minWidth: 260 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+                            <div>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>{vid.studentName}</div>
+                                <span style={{
+                                  padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800,
+                                  background: vid.verified ? "#DCFCE7" : "#FEF3C7",
+                                  color: vid.verified ? "#15803D" : "#B45309"
+                                }}>
+                                  {vid.status}
+                                </span>
+                                <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800, background: "#EDE9FE", color: "#6D28D9", textTransform: "uppercase" }}>
+                                  {vid.interviewMode === "audio" ? "Audio Interview" : "Video Interview"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{vid.role} • {vid.email}</div>
+                              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+                                Submitted {vid.submittedAt ? new Date(vid.submittedAt).toLocaleString() : "N/A"} • Duration: {vid.duration}
+                              </div>
+                            </div>
+
+                            {vid.totalMarks !== null && vid.maxMarks ? (
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>MARKS</div>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{vid.totalMarks}/{vid.maxMarks}</div>
+                              </div>
+                            ) : vid.aiScore !== null ? (
+                              <div style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>SCORE</div>
+                                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{vid.aiScore}%</div>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                            <button
+                              style={{ padding: "8px 14px", fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, cursor: hasQuestions ? "pointer" : "not-allowed", opacity: hasQuestions ? 1 : 0.5 }}
+                              disabled={!hasQuestions}
+                              onClick={() => setExpandedAssessmentId(isExpanded ? null : `video-${vid.id}`)}
+                            >
+                              {hasQuestions ? (isExpanded ? "Hide Interview Questions ▲" : `View Interview Questions (${vid.questions.length}) ▼`) : "No Interview Questions Recorded"}
+                            </button>
+                            <button
+                              style={{ padding: "8px 14px", fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "#64748B", cursor: "pointer" }}
+                              onClick={() => alert("Re-recording request sent to candidate email.")}
+                            >
+                              Flag Re-record
+                            </button>
+                          </div>
+
+                          {isExpanded && hasQuestions && (
+                            <div style={{ marginTop: 14, borderTop: "1px solid #E2E8F0", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                              {vid.questions.map((q, idx) => {
+                                const showVerdict = q.marks !== null;
+                                const isCorrect = q.marks > 0;
+                                return (
+                                  <div key={idx} style={{
+                                    background: !showVerdict ? "#F8FAFC" : (isCorrect ? "#F0FDF4" : "#FEF2F2"),
+                                    border: `1px solid ${!showVerdict ? "#E2E8F0" : (isCorrect ? "#BBF7D0" : "#FECACA")}`,
+                                    borderRadius: 10, padding: 12
+                                  }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+                                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)" }}>
+                                        Q{idx + 1}. {q.question}
+                                      </div>
+                                      {showVerdict && (
+                                        <span style={{ background: isCorrect ? "#DCFCE7" : "#FEE2E2", color: isCorrect ? "#15803D" : "#DC2626", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 4, flexShrink: 0 }}>
+                                          {isCorrect ? "✓ Correct" : "✕ Incorrect"}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: "#374151" }}>
+                                      <strong>Candidate's Answer:</strong> {q.answerTranscript || "No spoken response recorded"}
+                                    </div>
+                                    {q.feedback && (
+                                      <div style={{ fontSize: 11, color: "#64748B", background: "rgba(255,255,255,0.7)", padding: "6px 10px", borderRadius: 6, marginTop: 6, lineHeight: 1.5 }}>
+                                        <strong>AI Evaluator Note:</strong> {q.feedback}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
-
-                        <div style={{ fontSize: 11, color: "#475569", display: "flex", justifyContent: "space-between", marginBottom: 14 }}>
-                          <span>Communication Score: <strong style={{ color: "var(--navy)" }}>{vid.score}%</strong></span>
-                          <span>Duration: <strong>{vid.duration}</strong></span>
-                        </div>
                       </div>
-
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          className="btn-gold"
-                          style={{ flex: 1, padding: 8, fontSize: 11, justifyContent: "center" }}
-                          disabled={vid.verified}
-                          onClick={() => handleVerifyCandidate(vid.id, "verify")}
-                        >
-                          {vid.verified ? "Approved ✓" : "Approve Video →"}
-                        </button>
-                        <button
-                          style={{ padding: 8, fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "#64748B", cursor: "pointer" }}
-                          onClick={() => alert("Re-recording request sent to candidate email.")}
-                        >
-                          Flag Re-record
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -845,6 +1087,40 @@ export default function StaffHub() {
                   </div>
                 </div>
 
+                {/* Candidate Verification Funnel - real per-stage counts from
+                    `pipeline` (see backend/routes/staff.js), not the sample
+                    monthlyVerifications numbers below. Plain CSS bars so
+                    this doesn't need a charting dependency. */}
+                {pipeline && pipeline.length > 0 && (
+                  <div style={{ marginBottom: 28 }}>
+                    <h4 style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
+                      📈 Candidate Verification Funnel
+                    </h4>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 }}>
+                      {(() => {
+                        const maxCount = Math.max(1, ...pipeline.map((p) => p.count || 0));
+                        return pipeline.map((p) => (
+                          <div key={p.stage} style={{ display: "grid", gridTemplateColumns: "150px 1fr 44px", alignItems: "center", gap: 12 }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>{p.stage}</div>
+                            <div style={{ background: "#E2E8F0", borderRadius: 6, height: 14, overflow: "hidden" }}>
+                              <div
+                                style={{
+                                  width: `${Math.max(2, ((p.count || 0) / maxCount) * 100)}%`,
+                                  height: "100%",
+                                  borderRadius: 6,
+                                  background: p.isPlaced ? "linear-gradient(90deg, #15803D, #22C55E)" : "linear-gradient(90deg, var(--gold), var(--gold-light))",
+                                  transition: "width 0.3s ease",
+                                }}
+                              />
+                            </div>
+                            <div style={{ fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>{p.count || 0}</div>
+                          </div>
+                        ));
+                      })()}
+                    </div>
+                  </div>
+                )}
+
                 {/* Staff Auditor Leaderboard */}
                 <div>
                   <h4 style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
@@ -866,6 +1142,83 @@ export default function StaffHub() {
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeNav === "activity" && (
+            <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid var(--gold)" }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: "0 0 6px 0" }}>
+                🗒️ Staff Activity Log
+              </h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 20 }}>
+                Every consequential staff action - candidate/company verification, document sign-off, interview
+                question bank edits, plan assignment - recorded with who did it and when.
+              </p>
+
+              {activityLoading ? (
+                <div style={{ padding: 24, textAlign: "center", color: "#64748B", fontSize: 13 }}>Loading activity…</div>
+              ) : activityEntries.length === 0 ? (
+                <div style={{ padding: 24, textAlign: "center", color: "#64748B", fontSize: 13 }}>No staff actions recorded yet.</div>
+              ) : (
+                <>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                      <thead>
+                        <tr style={{ textAlign: "left", borderBottom: "2px solid #E2E8F0" }}>
+                          <th style={{ padding: "8px 10px", color: "#64748B", fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>When</th>
+                          <th style={{ padding: "8px 10px", color: "#64748B", fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>Staff</th>
+                          <th style={{ padding: "8px 10px", color: "#64748B", fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>Action</th>
+                          <th style={{ padding: "8px 10px", color: "#64748B", fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>Target</th>
+                          <th style={{ padding: "8px 10px", color: "#64748B", fontSize: 10.5, letterSpacing: "0.06em", textTransform: "uppercase" }}>Summary</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activityEntries.map((entry) => (
+                          <tr key={entry._id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                            <td style={{ padding: "10px", color: "#64748B", whiteSpace: "nowrap" }}>
+                              {entry.createdAt ? new Date(entry.createdAt).toLocaleString() : "—"}
+                            </td>
+                            <td style={{ padding: "10px", fontWeight: 700, color: "var(--navy)", whiteSpace: "nowrap" }}>
+                              {entry.staffName || "Staff"}
+                            </td>
+                            <td style={{ padding: "10px" }}>
+                              <span style={{ background: "rgba(229,168,46,0.12)", color: "var(--gold)", padding: "3px 8px", borderRadius: 6, fontWeight: 700, fontSize: 11 }}>
+                                {entry.action}
+                              </span>
+                            </td>
+                            <td style={{ padding: "10px", color: "#334155" }}>
+                              {entry.targetType && entry.targetType !== "other" ? `${entry.targetType}${entry.targetId ? ` #${String(entry.targetId).slice(-6)}` : ""}` : "—"}
+                            </td>
+                            <td style={{ padding: "10px", color: "#334155" }}>{entry.summary || "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 14, marginTop: 18 }}>
+                    <button
+                      type="button"
+                      disabled={activityPage <= 1 || activityLoading}
+                      onClick={() => fetchActivityLog(activityPage - 1)}
+                      style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#fff", cursor: activityPage <= 1 ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700, color: "#334155", opacity: activityPage <= 1 ? 0.5 : 1 }}
+                    >
+                      ← Newer
+                    </button>
+                    <span style={{ fontSize: 12, color: "#64748B" }}>
+                      Page {activityPage} of {activityTotalPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={activityPage >= activityTotalPages || activityLoading}
+                      onClick={() => fetchActivityLog(activityPage + 1)}
+                      style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#fff", cursor: activityPage >= activityTotalPages ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 700, color: "#334155", opacity: activityPage >= activityTotalPages ? 0.5 : 1 }}
+                    >
+                      Older →
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </main>

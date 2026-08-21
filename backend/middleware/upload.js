@@ -6,12 +6,53 @@ const { isCloudinaryConfigured, uploadBufferToCloudinary } = require("../config/
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+// Allowed MIME types per multer field name. Previously upload.js enforced a
+// size cap only - any file type could be uploaded as a "resume" or
+// "interview video" - see IMPROVEMENT_ROADMAP.md "Uploads aren't
+// type-checked." This is a MIME allowlist (checked against what the browser
+// reports, which a malicious client can forge - it's a usability/hygiene
+// filter, not a substitute for treating all uploaded content as untrusted
+// downstream).
+const ALLOWED_MIME_TYPES = {
+  // Stage 5 interview / video-intro recordings (candidate.js, routes using
+  // upload.single("video")).
+  video: ["video/webm", "video/mp4", "video/quicktime", "video/x-matroska", "audio/webm", "audio/mp4", "audio/mpeg", "audio/ogg"],
+  // Aadhaar e-KYC PDF or offline e-KYC .zip package (candidate.js /ekyc/verify).
+  ekycZip: ["application/pdf", "application/zip", "application/x-zip-compressed", "application/octet-stream"],
+  // Generic per-stage document upload (resumes, certificates, KYC docs) -
+  // candidate.js and company.js both use upload.single("doc").
+  doc: [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ],
+  // Academy bulk student-roster upload (academy.js), CSV.
+  file: ["text/csv", "application/vnd.ms-excel", "application/csv", "text/plain"],
+};
+
+function fileFilter(req, file, cb) {
+  const allowed = ALLOWED_MIME_TYPES[file.fieldname];
+  // Unknown field name (shouldn't happen given the routes that use this
+  // middleware, but fail closed rather than silently allowing anything).
+  if (!allowed) {
+    return cb(new Error(`Uploads are not accepted on field "${file.fieldname}".`));
+  }
+  if (!allowed.includes(file.mimetype)) {
+    return cb(new Error(`Unsupported file type "${file.mimetype}" for this upload. Allowed: ${allowed.join(", ")}`));
+  }
+  cb(null, true);
+}
+
 // Use memory storage so req.file.buffer is available for Cloudinary or disk fallback
 const memoryStorage = multer.memoryStorage();
 
 const upload = multer({
   storage: memoryStorage,
   limits: { fileSize: Number(process.env.MAX_UPLOAD_SIZE) || 50 * 1024 * 1024 }, // 50MB limit
+  fileFilter,
 });
 
 /**

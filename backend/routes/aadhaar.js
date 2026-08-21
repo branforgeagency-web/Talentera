@@ -4,6 +4,7 @@ const Candidate = require("../models/Candidate");
 const { requireAuth } = require("../middleware/auth");
 const { aadhaarService } = require("../utils/aadhaarService");
 const { calculateVerificationScore } = require("../utils/verificationScore");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 router.use(requireAuth); // All Aadhaar verification endpoints require JWT candidate auth
@@ -50,7 +51,7 @@ router.post(
         resendCooldown: result.resendCooldown,
       });
     } catch (err) {
-      console.error("Aadhaar send-otp error:", err.message);
+      logger.error(`Aadhaar send-otp error: ${err.message}`);
       res.status(400).json({ message: err.message || "Failed to send Aadhaar OTP." });
     }
   }
@@ -121,7 +122,7 @@ router.post(
         ...scoring,
       });
     } catch (err) {
-      console.error("Aadhaar verify-otp error:", err.message);
+      logger.error(`Aadhaar verify-otp error: ${err.message}`);
       res.status(400).json({ message: err.message || "Failed to verify Aadhaar OTP." });
     }
   }

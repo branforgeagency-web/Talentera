@@ -34,4 +34,8 @@ const AcademyBatchSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// routes/academy.js queries every batch for the logged-in academy on every
+// dashboard load.
+AcademyBatchSchema.index({ academyId: 1 });
+
 module.exports = mongoose.model("AcademyBatch", AcademyBatchSchema);

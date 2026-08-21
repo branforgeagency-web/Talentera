@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { safeJson } from "../utils/safeJson.js";
 
 export default function AcademyPortal() {
   const navigate = useNavigate();
@@ -12,9 +13,9 @@ export default function AcademyPortal() {
   const [showBadgeModal, setShowBadgeModal] = useState(false);
 
   // Upload Form State
-  const [uploadMode, setUploadMode] = useState("csv"); // "csv" | "count"
-  const [uploadBatch, setUploadBatch] = useState("Batch 2025-C");
-  const [uploadCount, setUploadCount] = useState(10);
+  const [uploadMode, setUploadMode] = useState("count"); // "csv" | "count"
+  const [uploadBatch, setUploadBatch] = useState("Batch 2026-A");
+  const [uploadCount, setUploadCount] = useState("10");
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [recommendingId, setRecommendingId] = useState(null);
@@ -34,7 +35,7 @@ export default function AcademyPortal() {
       const res = await fetch("/api/academy/dashboard", {
         headers: { ...getAuthHeader() },
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.status === 401) {
         navigate("/academy/login");
         return;
@@ -73,7 +74,7 @@ export default function AcademyPortal() {
         });
       }
 
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         alert(data.message || "Students uploaded successfully!");
         setShowUploadModal(false);
@@ -101,7 +102,7 @@ export default function AcademyPortal() {
         },
         body: JSON.stringify({ candidateId }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         alert(data.message || "Candidate recommended to employers!");
         fetchDashboard();

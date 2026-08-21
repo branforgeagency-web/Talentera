@@ -50,6 +50,28 @@ export default function Register() {
         overflow: "hidden"
       }}
     >
+      <div style={{ position: "absolute", top: 24, left: 24, zIndex: 20 }}>
+        <Link
+          to="/"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: "#fff",
+            padding: "8px 18px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+            transition: "all 0.2s ease"
+          }}
+        >
+          ← Back to Home
+        </Link>
+      </div>
+
       {/* Background Orbs */}
       <div
         style={{

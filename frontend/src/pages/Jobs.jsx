@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
+import { buildJobSearchParams } from "../utils/jobFilters.js";
 
 const STATUS_CONFIG = {
   rejected: {
@@ -52,6 +53,11 @@ const STATUS_CONFIG = {
   },
 };
 
+// Work modes shown in onboarding Stage 9 (frontend/src/data/companyOnboardingStages.js) -
+// kept as a plain list here rather than importing that config, since this is
+// just a filter dropdown and doesn't need the full stage field definitions.
+const WORK_MODE_OPTIONS = ["Remote", "Hybrid", "On-site"];
+
 export default function Jobs() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -62,23 +68,32 @@ export default function Jobs() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
+  // Search/filter state - previously candidates had no way to narrow the
+  // open-roles list at all, despite the landing page promising companies
+  // could filter candidates "by score, location, domain." See
+  // IMPROVEMENT_ROADMAP.md "No job search or filtering."
+  const [searchInput, setSearchInput] = useState("");
+  const [locationInput, setLocationInput] = useState("");
+  const [workModeFilter, setWorkModeFilter] = useState("");
+
   const [myApplications, setMyApplications] = useState([]);
   const [appliedJobIds, setAppliedJobIds] = useState([]);
   const [applyingJobId, setApplyingJobId] = useState(null);
 
   useEffect(() => {
-    fetchJobs();
+    fetchJobs({});
   }, []);
 
   useEffect(() => {
     if (candidate) fetchMyApplications();
   }, [candidate]);
 
-  async function fetchJobs() {
+  async function fetchJobs({ q, location, workMode } = {}) {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await api.get("/public/jobs");
+      const params = buildJobSearchParams({ q, location, workMode });
+      const res = await api.get("/public/jobs", { params });
       setJobs(res.data?.jobs || []);
     } catch (err) {
       console.error(err);
@@ -87,6 +102,20 @@ export default function Jobs() {
       setLoading(false);
     }
   }
+
+  function handleSearchSubmit(e) {
+    e.preventDefault();
+    fetchJobs({ q: searchInput, location: locationInput, workMode: workModeFilter });
+  }
+
+  function handleClearFilters() {
+    setSearchInput("");
+    setLocationInput("");
+    setWorkModeFilter("");
+    fetchJobs({});
+  }
+
+  const hasActiveFilters = Boolean(searchInput || locationInput || workModeFilter);
 
   async function fetchMyApplications() {
     try {
@@ -200,7 +229,7 @@ export default function Jobs() {
         </div>
 
         {/* Tab Switcher */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
           <button
             type="button"
             onClick={() => setActiveTab("jobs")}
@@ -242,6 +271,66 @@ export default function Jobs() {
           )}
         </div>
 
+        {/* Search / Filter bar */}
+        {activeTab === "jobs" && (
+          <form
+            onSubmit={handleSearchSubmit}
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+              background: "#fff",
+              border: "1px solid #E5E7EB",
+              borderRadius: 14,
+              padding: 12,
+              marginBottom: 24,
+            }}
+          >
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search role, specialty, or company…"
+              style={{ flex: "2 1 220px", minWidth: 180, border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 13.5 }}
+            />
+            <input
+              type="text"
+              value={locationInput}
+              onChange={(e) => setLocationInput(e.target.value)}
+              placeholder="Location"
+              style={{ flex: "1 1 140px", minWidth: 120, border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 13.5 }}
+            />
+            <select
+              value={workModeFilter}
+              onChange={(e) => setWorkModeFilter(e.target.value)}
+              style={{ flex: "1 1 130px", minWidth: 120, border: "1.5px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", fontSize: 13.5, background: "#fff" }}
+            >
+              <option value="">Any work mode</option>
+              {WORK_MODE_OPTIONS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              style={{ padding: "10px 20px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 13.5, cursor: "pointer", background: "var(--navy, #0A1F3D)", color: "#fff" }}
+            >
+              Search
+            </button>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={handleClearFilters}
+                style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontWeight: 700, fontSize: 13, cursor: "pointer", background: "#fff", color: "#475569" }}
+              >
+                Clear
+              </button>
+            )}
+          </form>
+        )}
+
         {/* TAB 1: OPEN ROLES */}
         {activeTab === "jobs" && (
           <>
@@ -255,11 +344,23 @@ export default function Jobs() {
 
             {!loading && !loadError && jobs.length === 0 && (
               <div style={{ textAlign: "center", padding: 60, color: "#64748B", background: "#fff", borderRadius: 16, border: "1px dashed #E2E8F0" }}>
-                No roles are live right now — check back soon, or{" "}
-                <Link to="/register" style={{ color: "var(--gold, #E5A82E)", fontWeight: 700 }}>
-                  build your verified profile
-                </Link>{" "}
-                so you're first in line when one opens.
+                {hasActiveFilters ? (
+                  <>
+                    No roles match your search.{" "}
+                    <button type="button" onClick={handleClearFilters} style={{ color: "var(--gold, #E5A82E)", fontWeight: 700, background: "none", border: "none", cursor: "pointer", padding: 0, font: "inherit" }}>
+                      Clear filters
+                    </button>{" "}
+                    to see all open roles.
+                  </>
+                ) : (
+                  <>
+                    No roles are live right now — check back soon, or{" "}
+                    <Link to="/register" style={{ color: "var(--gold, #E5A82E)", fontWeight: 700 }}>
+                      build your verified profile
+                    </Link>{" "}
+                    so you're first in line when one opens.
+                  </>
+                )}
               </div>
             )}
 

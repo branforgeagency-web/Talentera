@@ -4,8 +4,12 @@ const Company = require("../models/Company");
 const Staff = require("../models/Staff");
 const Notification = require("../models/Notification");
 const InterviewQuestion = require("../models/InterviewQuestion");
+const AuditLog = require("../models/AuditLog");
 const bcrypt = require("bcryptjs");
 const { requireStaffAuth, signToken } = require("../middleware/auth");
+const { authLimiter } = require("../middleware/rateLimit");
+const { getPlan, PLANS } = require("../config/plans");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 
@@ -16,8 +20,28 @@ let staffTasks = [
   { id: "tsk_4", time: "04:30 PM", title: "Publish Weekly Verified Talent Leaderboard", priority: "P3", category: "Report" }
 ];
 
+// Records a staff action to the audit trail. Best-effort: a logging failure
+// should never block the underlying action from completing, so this only
+// logs a warning rather than throwing. See IMPROVEMENT_ROADMAP.md "No audit
+// trail on staff actions."
+async function recordAudit(req, { action, targetType, targetId, summary, meta }) {
+  try {
+    await AuditLog.create({
+      staffId: req.staffId,
+      staffName: req.staffName || "",
+      action,
+      targetType: targetType || "other",
+      targetId: targetId ? String(targetId) : "",
+      summary: summary || "",
+      meta: meta || {},
+    });
+  } catch (err) {
+    logger.warn(`Failed to record audit log entry (${action}): ${err.message}`);
+  }
+}
+
 // POST /api/staff/login - Staff login with real DB verification & JWT token
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const { username, password } = req.body;
   if (!username) return res.status(400).json({ message: "Staff ID or Username required." });
 
@@ -59,7 +83,7 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Staff login error:", err);
+    logger.error(`Staff login error: ${err.message}`);
     res.status(500).json({ message: "Failed to authenticate staff account." });
   }
 });
@@ -67,8 +91,16 @@ router.post("/login", async (req, res) => {
 // GET /api/staff/dashboard - Staff Operations Hub metrics (Protected)
 router.get("/dashboard", requireStaffAuth, async (req, res) => {
   try {
-    const candidates = await Candidate.find().lean();
-    const companies = await Company.find().lean();
+    // Capped rather than truly paginated for now - this dashboard's queues
+    // (incomingBucket, companyKycQueue, videoIntrosQueue, etc.) are all
+    // derived in-memory from the full candidate/company lists, so real
+    // pagination needs those derivations restructured around a paged query
+    // instead of a full-collection fetch. Capping at a high bound at least
+    // turns the previously fully-unbounded `.find()` into a bounded one -
+    // see IMPROVEMENT_ROADMAP.md "No pagination on list endpoints."
+    const DASHBOARD_FETCH_CAP = 1000;
+    const candidates = await Candidate.find().limit(DASHBOARD_FETCH_CAP).lean();
+    const companies = await Company.find().limit(DASHBOARD_FETCH_CAP).lean();
     const totalCandidates = candidates.length;
 
     // Filter candidate pending vs fully verified
@@ -149,6 +181,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         kycStatus: comp.kycStatus || "pending",
         kycSubmittedAt: comp.kycSubmittedAt || null,
         kycRejectionReason: comp.kycRejectionReason || "",
+        plan: comp.plan || "free",
       };
     });
 
@@ -162,6 +195,30 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         const s1 = c.stage1 || {};
         const s5 = c.stage5 || {};
         const videoPath = s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || "";
+
+        // Interview questions asked + candidate's transcribed answers. Prefer
+        // questionScores (has marks + feedback per question, saved by
+        // /api/candidate/ai-video/assess and /ai-audio/assess) - fall back to
+        // the plain qaPairs (question + transcript, no marks) for older
+        // submissions saved before questionScores persistence existed.
+        const scoredQuestions = Array.isArray(s5.questionScores) ? s5.questionScores : [];
+        const rawPairs = Array.isArray(s5.qaPairs) ? s5.qaPairs : [];
+        const questions = scoredQuestions.length
+          ? scoredQuestions.map((q, idx) => ({
+              question: q.question || rawPairs[idx]?.question || `Question ${idx + 1}`,
+              answerTranscript: q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript || "",
+              marks: typeof q.marks === "number" ? q.marks : null,
+              answered: q.answered !== undefined ? Boolean(q.answered) : undefined,
+              feedback: q.feedback || "",
+            }))
+          : rawPairs.map((p, idx) => ({
+              question: p.question || `Question ${idx + 1}`,
+              answerTranscript: p.translatedTranscript || p.transcript || "",
+              marks: null,
+              answered: undefined,
+              feedback: "",
+            }));
+
         return {
           id: c._id,
           studentName: s1.fullName || c.email.split("@")[0],
@@ -169,13 +226,47 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
           mobile: s1.mobile || c.mobile || "+91 98765 00000",
           role: s1.currentRole || "Medical Coding Specialist",
           videoUrl: videoPath,
+          interviewMode: s5.interviewMode || "video",
           duration: s5.duration || "1m 30s",
           status: s5.verified ? "Verified" : "Pending Audit",
           verified: Boolean(s5.verified),
-          score: s5.score || 92,
-          submittedAt: c.createdAt,
+          aiScore: typeof s5.aiScore === "number" ? s5.aiScore : (s5.score || null),
+          totalMarks: typeof s5.totalMarks === "number" ? s5.totalMarks : null,
+          maxMarks: typeof s5.maxMarks === "number" ? s5.maxMarks : null,
+          questions,
+          submittedAt: s5.completedAt || c.createdAt,
         };
       });
+
+    // Text Assessment (Stage 4) Review Queue - candidates who submitted the
+    // proctored MCQ test, with their full per-question answers so staff can
+    // verify how many questions were answered correctly.
+    const textAssessmentQueue = candidates
+      .filter((c) => {
+        const s4 = c.stage4 || {};
+        return s4 && s4.foundationScore !== undefined && !s4.skipped;
+      })
+      .map((c) => {
+        const s1 = c.stage1 || {};
+        const s4 = c.stage4 || {};
+        return {
+          id: c._id,
+          studentName: s1.fullName || c.email.split("@")[0],
+          email: c.email,
+          mobile: s1.mobile || c.mobile || "N/A",
+          role: s1.currentRole || "Medical Coding Specialist",
+          assessmentType: s4.assessmentType || "Proctored Assessment",
+          topic: s4.topic || "",
+          foundationScore: s4.foundationScore,
+          correctCount: s4.correctCount !== undefined ? s4.correctCount : null,
+          totalQuestions: s4.totalQuestions !== undefined ? s4.totalQuestions : (Array.isArray(s4.answers) ? s4.answers.length : null),
+          autoSubmittedReason: s4.autoSubmittedReason || null,
+          submittedAt: s4.completedAt || c.updatedAt,
+          verified: Boolean(s4.staffVerified),
+          answers: Array.isArray(s4.answers) ? s4.answers : [],
+        };
+      })
+      .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
     // Performance & Audit Metrics Report Data
     const reportsData = {
@@ -219,6 +310,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       incomingBucket,
       companyKycQueue,
       videoIntrosQueue,
+      textAssessmentQueue,
       reportsData,
       tasks: staffTasks,
       leaderboard: [
@@ -228,7 +320,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       ]
     });
   } catch (err) {
-    console.error("Staff dashboard error:", err);
+    logger.error(`Staff dashboard error: ${err.message}`);
     res.status(500).json({ message: "Error fetching staff dashboard." });
   }
 });
@@ -246,31 +338,38 @@ router.post("/verify-candidate", requireStaffAuth, async (req, res) => {
       }
     }
 
+    await recordAudit(req, {
+      action: action === "verify" ? "verify_candidate" : "skip_candidate_verification",
+      targetType: "candidate",
+      targetId: candidateId,
+      summary: `Candidate ${candidate?.email || candidateId} ${action === "verify" ? "verified & gold-badged" : "skipped"} by staff.`,
+    });
+
     res.json({
       message: `Candidate successfully ${action === "verify" ? "Verified & Gold-Badged" : "Skipped"}.`,
     });
   } catch (err) {
-    console.error(err);
+    logger.error(`Verify candidate error: ${err.message}`);
     res.status(500).json({ message: "Verification action failed." });
   }
 });
 
 // Helper to dispatch audit result email to company POC
 async function sendKycAuditEmail({ to, companyName, action, notes, rejectionReason, rejectedFields }) {
-  console.log("==================================================================");
-  console.log(`📧 [AUDIT EMAIL DISPATCHED TO: ${to}]`);
+  logger.info("==================================================================");
+  logger.info(`[AUDIT EMAIL DISPATCHED TO: ${to}]`);
   if (action === "verify") {
-    console.log(`SUBJECT: [Talentera] Account & KYC Verification Approved — Gold Trust Badge Active! 🟢`);
-    console.log(
-      `BODY:\nDear ${companyName} Hiring Team,\n\nWe are pleased to inform you that your Account & KYC Verification details have been audited and APPROVED by Talentera Staff.\n\nAudit Notes: ${notes || "Verified by Staff Auditor"}\nStatus: VERIFIED ✓ (Gold Trust Badge Active)\n\nYou can now post live JDs and contact verified candidates directly.\n\nBest regards,\nTalentera Verification Audit Team`
+    logger.info(`SUBJECT: [Talentera] Account & KYC Verification Approved - Gold Trust Badge Active!`);
+    logger.info(
+      `BODY:\nDear ${companyName} Hiring Team,\n\nWe are pleased to inform you that your Account & KYC Verification details have been audited and APPROVED by Talentera Staff.\n\nAudit Notes: ${notes || "Verified by Staff Auditor"}\nStatus: VERIFIED (Gold Trust Badge Active)\n\nYou can now post live JDs and contact verified candidates directly.\n\nBest regards,\nTalentera Verification Audit Team`
     );
   } else {
-    console.log(`SUBJECT: [Talentera] Action Required: Account & KYC Verification Revision Requested 🔴`);
-    console.log(
+    logger.info(`SUBJECT: [Talentera] Action Required: Account & KYC Verification Revision Requested`);
+    logger.info(
       `BODY:\nDear ${companyName} Hiring Team,\n\nOur Staff Auditors reviewed your Account & KYC submission and noted that revision is required before approval.\n\nReason / Audit Notes: ${rejectionReason || notes || "Document revision required"}\nAffected Document(s): ${rejectedFields ? rejectedFields.join(", ") : "KYC Certificates"}\n\nPlease log in to your Company Dashboard to re-upload the requested documents.\n\nBest regards,\nTalentera Verification Audit Team`
     );
   }
-  console.log("==================================================================");
+  logger.info("==================================================================");
 }
 
 // POST /api/staff/verify-company - Perform company Account & KYC verification action (Protected)
@@ -316,13 +415,21 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
     await Notification.create({
       recipientType: "company",
       recipientId: String(company._id),
-      title: action === "verify" ? "Account & KYC Verification Approved 🟢" : "KYC Verification Revision Requested 🔴",
+      title: action === "verify" ? "Account & KYC Verification Approved" : "KYC Verification Revision Requested",
       message:
         action === "verify"
           ? "Your Account & KYC details have been verified by Staff Auditor. Gold Trust Badge is now active!"
           : `Revision required for your KYC submission: ${company.kycRejectionReason}`,
       type: action === "verify" ? "kyc_approved" : "kyc_revision",
       meta: { action, companyId: String(company._id) },
+    });
+
+    await recordAudit(req, {
+      action: action === "verify" ? "verify_company" : "reject_company",
+      targetType: "company",
+      targetId: companyId,
+      summary: `Company ${company.companyName || company.email} ${action === "verify" ? "KYC verified" : "KYC rejected"}.`,
+      meta: { rejectionReason: company.kycRejectionReason || undefined },
     });
 
     res.json({
@@ -332,7 +439,7 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
       emailRecipient: company.email,
     });
   } catch (err) {
-    console.error(err);
+    logger.error(`Verify company error: ${err.message}`);
     res.status(500).json({ message: "Company verification action failed." });
   }
 });
@@ -347,7 +454,7 @@ router.get("/notifications", requireStaffAuth, async (req, res) => {
     const unreadCount = notifications.filter((n) => !n.read).length;
     res.json({ notifications, unreadCount });
   } catch (err) {
-    console.error(err);
+    logger.error(`Fetch staff notifications error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch staff notifications." });
   }
 });
@@ -358,7 +465,7 @@ router.post("/notifications/mark-read", requireStaffAuth, async (req, res) => {
     await Notification.updateMany({ recipientType: "staff", read: false }, { $set: { read: true } });
     res.json({ message: "Staff notifications marked as read." });
   } catch (err) {
-    console.error(err);
+    logger.error(`Mark staff notifications read error: ${err.message}`);
     res.status(500).json({ message: "Failed to mark staff notifications as read." });
   }
 });
@@ -389,13 +496,51 @@ router.post("/verify-document", requireStaffAuth, async (req, res) => {
     company.markModified("docVerifications");
     await company.save();
 
+    await recordAudit(req, {
+      action: "verify_document",
+      targetType: "company",
+      targetId: companyId,
+      summary: `Document "${docId}" for ${company.companyName || company.email} marked ${isValid ? "VALID" : "INVALID"}.`,
+    });
+
     res.json({
       message: `Document (${docId}) image marked as ${isValid ? "VALID ✓" : "INVALID ❌"}.`,
       company,
     });
   } catch (err) {
-    console.error(err);
+    logger.error(`Verify document error: ${err.message}`);
     res.status(500).json({ message: "Document image verification failed." });
+  }
+});
+
+// POST /api/staff/verify-assessment - Mark a Stage 4 text assessment as reviewed by staff (Protected)
+router.post("/verify-assessment", requireStaffAuth, async (req, res) => {
+  try {
+    const { candidateId, note } = req.body;
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    if (!candidate.stage4) return res.status(400).json({ message: "This candidate has no Stage 4 assessment submission yet." });
+
+    candidate.stage4 = {
+      ...(candidate.stage4 || {}),
+      staffVerified: true,
+      staffVerifiedAt: new Date(),
+      staffVerificationNote: note || "",
+    };
+    candidate.markModified("stage4");
+    await candidate.save();
+
+    await recordAudit(req, {
+      action: "verify_assessment",
+      targetType: "candidate",
+      targetId: candidateId,
+      summary: `Stage 4 assessment for ${candidate.email} marked reviewed & verified.`,
+    });
+
+    res.json({ message: "Assessment marked as reviewed & verified." });
+  } catch (err) {
+    logger.error(`Verify assessment error: ${err.message}`);
+    res.status(500).json({ message: "Failed to verify assessment." });
   }
 });
 
@@ -413,7 +558,7 @@ router.get("/interview-questions", requireStaffAuth, async (req, res) => {
     const questions = await InterviewQuestion.find().sort({ mode: 1, order: 1, createdAt: 1 }).lean();
     res.json({ questions });
   } catch (err) {
-    console.error("List interview questions error:", err);
+    logger.error(`List interview questions error: ${err.message}`);
     res.status(500).json({ message: "Failed to load interview questions." });
   }
 });
@@ -437,9 +582,16 @@ router.post("/interview-questions", requireStaffAuth, async (req, res) => {
       active: active !== false,
     });
 
+    await recordAudit(req, {
+      action: "create_interview_question",
+      targetType: "interview_question",
+      targetId: question._id,
+      summary: `Created interview question (${question.mode}): "${question.text.slice(0, 80)}"`,
+    });
+
     res.status(201).json({ question });
   } catch (err) {
-    console.error("Create interview question error:", err);
+    logger.error(`Create interview question error: ${err.message}`);
     res.status(500).json({ message: "Failed to create interview question." });
   }
 });
@@ -461,9 +613,17 @@ router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
     if (!question.correctAnswer) return res.status(400).json({ message: "A correct answer is required so the AI can grade responses to this question." });
 
     await question.save();
+
+    await recordAudit(req, {
+      action: "update_interview_question",
+      targetType: "interview_question",
+      targetId: question._id,
+      summary: `Updated interview question (${question.mode}): "${question.text.slice(0, 80)}"`,
+    });
+
     res.json({ question });
   } catch (err) {
-    console.error("Update interview question error:", err);
+    logger.error(`Update interview question error: ${err.message}`);
     res.status(500).json({ message: "Failed to update interview question." });
   }
 });
@@ -473,10 +633,88 @@ router.delete("/interview-questions/:id", requireStaffAuth, async (req, res) => 
   try {
     const deleted = await InterviewQuestion.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Interview question not found." });
+
+    await recordAudit(req, {
+      action: "delete_interview_question",
+      targetType: "interview_question",
+      targetId: req.params.id,
+      summary: `Deleted interview question: "${(deleted.text || "").slice(0, 80)}"`,
+    });
+
     res.json({ message: "Interview question deleted.", id: req.params.id });
   } catch (err) {
-    console.error("Delete interview question error:", err);
+    logger.error(`Delete interview question error: ${err.message}`);
     res.status(500).json({ message: "Failed to delete interview question." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Audit trail
+// ---------------------------------------------------------------------------
+
+// GET /api/staff/audit-log - recent staff actions, newest first (paginated)
+router.get("/audit-log", requireStaffAuth, async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+
+    const [entries, total] = await Promise.all([
+      AuditLog.find()
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      AuditLog.countDocuments(),
+    ]);
+
+    res.json({ entries, total, page, limit, totalPages: Math.ceil(total / limit) });
+  } catch (err) {
+    logger.error(`Fetch audit log error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load audit log." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Billing scaffolding - plan assignment (no live payment gateway wired; see
+// backend/config/plans.js and IMPROVEMENT_ROADMAP.md "No plans, seats, or
+// billing.")
+// ---------------------------------------------------------------------------
+
+// GET /api/staff/plans - the static plan catalog, for the assignment UI
+router.get("/plans", requireStaffAuth, async (req, res) => {
+  res.json({ plans: Object.values(PLANS) });
+});
+
+// POST /api/staff/companies/:id/assign-plan - manually set a company's plan
+// (stand-in for a real checkout flow, which doesn't exist yet by design -
+// see IMPROVEMENT_ROADMAP.md).
+router.post("/companies/:id/assign-plan", requireStaffAuth, async (req, res) => {
+  try {
+    const { plan } = req.body;
+    if (!["free", "growth", "enterprise"].includes(plan)) {
+      return res.status(400).json({ message: "Invalid plan. Must be one of: free, growth, enterprise." });
+    }
+
+    const company = await Company.findById(req.params.id);
+    if (!company) return res.status(404).json({ message: "Company not found." });
+
+    const previousPlan = company.plan;
+    company.plan = plan;
+    company.planAssignedAt = new Date();
+    company.planAssignedBy = req.staffId ? String(req.staffId) : "";
+    await company.save();
+
+    await recordAudit(req, {
+      action: "assign_plan",
+      targetType: "company",
+      targetId: company._id,
+      summary: `Plan changed for ${company.companyName || company.email}: ${previousPlan} -> ${plan}.`,
+    });
+
+    res.json({ message: `Plan updated to "${getPlan(plan).label}".`, company });
+  } catch (err) {
+    logger.error(`Assign plan error: ${err.message}`);
+    res.status(500).json({ message: "Failed to assign plan." });
   }
 });
 

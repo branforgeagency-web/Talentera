@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { startOtpWidget } from "../utils/msg91Widget.js";
 import { isFullyOnboarded } from "../data/companyOnboardingStages";
+import { safeJson } from "../utils/safeJson.js";
 
 export default function CompanyLogin() {
   const { loginStart, verifyLoginOtp, company } = useCompanyAuth();
@@ -52,7 +53,7 @@ export default function CompanyLogin() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok && data.token) {
         localStorage.setItem("talentera_company_token", data.token);
         localStorage.setItem("talentera_company_info", JSON.stringify(data.company));
@@ -78,7 +79,7 @@ export default function CompanyLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: forgotEmail }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         setForgotMsg(data.message);
         setResetStep(2);
@@ -99,9 +100,14 @@ export default function CompanyLogin() {
       const res = await fetch("/api/company/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: forgotEmail, newPassword }),
+        // FIX: this used to send { email, newPassword } with no code at all,
+        // which only "worked" because the backend didn't check one either
+        // (see companyAuth.js's reset-password route comment). Now that the
+        // backend requires and verifies the OTP, it has to be included here
+        // too, or every reset attempt gets a 400.
+        body: JSON.stringify({ email: forgotEmail, otp: resetCode, newPassword }),
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       if (res.ok) {
         alert(data.message);
         setShowForgotModal(false);
@@ -124,9 +130,31 @@ export default function CompanyLogin() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        padding: "24px"
+        padding: "24px",
+        position: "relative"
       }}
     >
+      <div style={{ position: "absolute", top: 24, left: 24, zIndex: 20 }}>
+        <Link
+          to="/"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: "#fff",
+            padding: "8px 18px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+            transition: "all 0.2s ease"
+          }}
+        >
+          ← Back to Home
+        </Link>
+      </div>
       <div
         style={{
           background: "linear-gradient(135deg, #0A1F3D 0%, #1A2F4D 100%)",

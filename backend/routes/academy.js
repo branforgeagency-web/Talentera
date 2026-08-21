@@ -7,8 +7,12 @@ const bcrypt = require("bcryptjs");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const { requireAcademyAuth, signToken } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
+const { authLimiter } = require("../middleware/rateLimit");
+const logger = require("../utils/logger");
 
 const router = express.Router();
+
+const DASHBOARD_FETCH_CAP = 500; // see IMPROVEMENT_ROADMAP.md "No pagination on list endpoints"
 
 // Helper to parse CSV buffer into row objects
 function parseCsvBuffer(buffer) {
@@ -33,7 +37,7 @@ function parseCsvBuffer(buffer) {
 }
 
 // POST /api/academy/login - Academy login with OTP token verification & JWT generation
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   const { accessToken, fullName, academyName, email, mobile, phone } = req.body;
 
   if (!accessToken) {
@@ -46,7 +50,7 @@ router.post("/login", async (req, res) => {
     if (["OTP_TOKEN_MISSING", "OTP_VERIFY_FAILED"].includes(err.code)) {
       return res.status(400).json({ message: err.message });
     }
-    console.error("Academy login OTP verify error:", err);
+    logger.error(`Academy login OTP verify error: ${err.message}`);
     return res.status(500).json({ message: err.message || "Server error verifying OTP." });
   }
 
@@ -97,7 +101,7 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("Academy login DB error:", err);
+    logger.error(`Academy login DB error: ${err.message}`);
     res.status(500).json({ message: "Failed to log in academy account." });
   }
 });
@@ -116,7 +120,9 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         { "stage2.academyId": req.academyId.toString() },
         { "stage2.academyName": { $regex: new RegExp(`^${academy.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
       ],
-    }).lean();
+    })
+      .limit(DASHBOARD_FETCH_CAP)
+      .lean();
 
     // Fallback: If fresh DB has no candidates linked yet, fetch all candidates so demo dashboard displays students
     const candidatesList = dbCandidates.length > 0 ? dbCandidates : await Candidate.find().limit(50).lean();
@@ -238,7 +244,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       placements,
     });
   } catch (err) {
-    console.error("Academy dashboard error:", err);
+    logger.error(`Academy dashboard error: ${err.message}`);
     res.status(500).json({ message: "Error loading academy dashboard." });
   }
 });
@@ -354,7 +360,7 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
       totalStudents: academy.studentsUploaded,
     });
   } catch (err) {
-    console.error("Bulk upload error:", err);
+    logger.error(`Bulk upload error: ${err.message}`);
     res.status(500).json({ message: "Bulk student upload failed." });
   }
 });
@@ -381,7 +387,7 @@ router.post("/recommend-student", requireAcademyAuth, async (req, res) => {
       message: `Candidate ${candidate.stage1?.fullName || candidate.email} has been feature-recommended to employers.`,
     });
   } catch (err) {
-    console.error("Recommend student error:", err);
+    logger.error(`Recommend student error: ${err.message}`);
     res.status(500).json({ message: "Failed to recommend candidate." });
   }
 });
@@ -404,7 +410,7 @@ router.get("/badge/:badgeToken", async (req, res) => {
       verifiedSeal: "Talentera Certified RCM Academy",
     });
   } catch (err) {
-    console.error("Public badge error:", err);
+    logger.error(`Public badge error: ${err.message}`);
     res.status(500).json({ message: "Error fetching verification badge." });
   }
 });

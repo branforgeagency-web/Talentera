@@ -44,4 +44,11 @@ const JobSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Company's "my job posts" list (routes/company.js GET /jobs) and the
+// multi-job-posting count gate both filter by companyId; the public job
+// board (routes/public.js GET /jobs) filters by published. Previously
+// neither had an index, so both queries did a full collection scan.
+JobSchema.index({ companyId: 1, createdAt: -1 });
+JobSchema.index({ published: 1 });
+
 module.exports = mongoose.model("Job", JobSchema);

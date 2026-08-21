@@ -212,6 +212,20 @@ export default function CompanyDashboardSetup() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <Link
+            to="/companies/directory"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Hire Verified Talent
+          </Link>
+          <Link
             to="/companies/jobs"
             style={{
               color: "rgba(255,255,255,0.85)",

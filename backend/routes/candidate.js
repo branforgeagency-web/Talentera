@@ -8,8 +8,10 @@ const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
-const { processAadhaarFile, processOfflineEkyc } = require("../utils/ekyc");
+const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
+const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+const logger = require("../utils/logger");
 
 const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
@@ -122,7 +124,7 @@ router.post(
         ...scoring,
       });
     } catch (err) {
-      console.error("Offline e-KYC verification error:", err);
+      logger.error(`Offline e-KYC verification error: ${err.message}`);
       res.status(400).json({ message: err.message || "Failed to process e-KYC ZIP file." });
     }
   }
@@ -173,7 +175,7 @@ router.post("/qr/verify", async (req, res) => {
       ...scoring,
     });
   } catch (err) {
-    console.error("Aadhaar QR verification error:", err);
+    logger.error(`Aadhaar QR verification error: ${err.message}`);
     res.status(400).json({ message: err.message || "Failed to parse or verify Aadhaar QR code." });
   }
 });
@@ -269,7 +271,7 @@ router.put("/stage/:n", async (req, res) => {
     const scoring = calculateVerificationScore(candidate.completedStages);
     res.json({ candidate, ...scoring });
   } catch (err) {
-    console.error(`Error saving stage ${req.params.n}:`, err);
+    logger.error(`Error saving stage ${req.params.n}: ${err.message}`);
     res.status(500).json({ message: err.message || `Failed to save Stage ${req.params.n}.` });
   }
 });
@@ -342,7 +344,7 @@ router.post("/video-platform/sync", async (req, res) => {
       ...scoring,
     });
   } catch (err) {
-    console.error("Video platform sync error:", err);
+    logger.error(`Video platform sync error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to sync platform results." });
   }
 });
@@ -367,7 +369,7 @@ router.get("/interview-questions", async (req, res) => {
 
     res.json({ questions: questions.map((q) => ({ id: String(q._id), question: q.text })) });
   } catch (err) {
-    console.error("Fetch interview questions error:", err);
+    logger.error(`Fetch interview questions error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to load interview questions." });
   }
 });
@@ -393,12 +395,18 @@ router.post(
       if (req.body.qaPairs) {
         try {
           qaPairs = JSON.parse(req.body.qaPairs);
-        } catch (e) {}
+        } catch (e) {
+          // Malformed JSON from the client - leave the field at its default
+          // ([] / {}) rather than failing the whole request over it.
+        }
       }
       if (req.body.proctorLogs) {
         try {
           proctorLogs = JSON.parse(req.body.proctorLogs);
-        } catch (e) {}
+        } catch (e) {
+          // Malformed JSON from the client - leave the field at its default
+          // ([] / {}) rather than failing the whole request over it.
+        }
       }
 
       const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl || "https://res.cloudinary.com/demo/video/upload/sample.mp4";
@@ -417,7 +425,9 @@ router.post(
         // reloads/report re-views, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
         aiScore: evaluation.overallScore,
-        rubricScores: evaluation.rubricScores,
+        totalMarks: evaluation.totalMarks,
+        maxMarks: evaluation.maxMarks,
+        questionScores: evaluation.questionScores,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
@@ -441,7 +451,7 @@ router.post(
         ...scoring,
       });
     } catch (err) {
-      console.error("AI Video Assessment error:", err);
+      logger.error(`AI Video Assessment error: ${err.message}`);
       res.status(500).json({ message: err.message || "Failed to process AI Video Assessment." });
     }
   }
@@ -471,12 +481,18 @@ router.post(
       if (req.body.qaPairs) {
         try {
           qaPairs = JSON.parse(req.body.qaPairs);
-        } catch (e) {}
+        } catch (e) {
+          // Malformed JSON from the client - leave the field at its default
+          // ([] / {}) rather than failing the whole request over it.
+        }
       }
       if (req.body.proctorLogs) {
         try {
           proctorLogs = JSON.parse(req.body.proctorLogs);
-        } catch (e) {}
+        } catch (e) {
+          // Malformed JSON from the client - leave the field at its default
+          // ([] / {}) rather than failing the whole request over it.
+        }
       }
 
       const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl || "";
@@ -493,7 +509,9 @@ router.post(
         // page reloads, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
         aiScore: evaluation.overallScore,
-        rubricScores: evaluation.rubricScores,
+        totalMarks: evaluation.totalMarks,
+        maxMarks: evaluation.maxMarks,
+        questionScores: evaluation.questionScores,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
@@ -517,7 +535,7 @@ router.post(
         ...scoring,
       });
     } catch (err) {
-      console.error("AI Audio Interview assessment error:", err);
+      logger.error(`AI Audio Interview assessment error: ${err.message}`);
       res.status(500).json({ message: err.message || "Failed to process AI Audio Interview." });
     }
   }
@@ -615,7 +633,7 @@ router.put("/manual-resume", async (req, res) => {
     const scoring = calculateVerificationScore(candidate.completedStages);
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
-    console.error("Save manual resume error:", err);
+    logger.error(`Save manual resume error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to save manual resume." });
   }
 });
@@ -648,12 +666,17 @@ router.post("/apply/:jobId", async (req, res) => {
   // (see routes/company.js POST /jobs). Check the newer source first since
   // it's the one companies use once they're fully onboarded.
   let companyId = null;
+  let roleTitle = "the role";
   const postedJob = await Job.findOne({ jobId, published: true });
   if (postedJob) {
     companyId = postedJob.companyId;
+    roleTitle = postedJob.fields?.roletitle || roleTitle;
   } else {
     const company = await Company.findOne({ jobId, jdPublished: true });
-    if (company) companyId = company._id;
+    if (company) {
+      companyId = company._id;
+      roleTitle = company.stage9?.roletitle || roleTitle;
+    }
   }
   if (!companyId) {
     return res.status(404).json({ message: "Job posting not found or no longer active." });
@@ -671,6 +694,24 @@ router.post("/apply/:jobId", async (req, res) => {
       jobId,
       coverNote: coverNote || "",
     });
+
+    // Confirmation email - previously an applicant had no proof their
+    // application actually went through beyond the in-page toast. See
+    // IMPROVEMENT_ROADMAP.md "No candidate-facing email notifications."
+    // Best-effort: never blocks the response.
+    if (candidate.email) {
+      const company = await Company.findById(companyId).select("companyName").lean();
+      sendTransactionalEmail({
+        to: candidate.email,
+        toName: candidate.stage1?.fullName,
+        subject: `Application received: ${roleTitle}`,
+        html: wrapEmailTemplate(
+          "We've received your application",
+          `<p style="color: #475569; font-size: 15px; line-height: 1.5;">Your application for <strong>${roleTitle}</strong> at <strong>${company?.companyName || "the employer"}</strong> has been submitted.</p>
+           <p style="color: #64748B; font-size: 13px;">We'll email you again as soon as the employer updates your application status. You can also check progress any time from the "My Applications" tab on the Jobs page.</p>`
+        ),
+      }).catch((err) => logger.warn(`Application-received email failed for ${candidate.email}: ${err.message}`));
+    }
 
     res.json({ message: "Application submitted successfully!", application });
   } catch (err) {

@@ -8,6 +8,23 @@ import { useToast } from "./Toast.jsx";
 const ANSWER_TIME_LIMIT = 60;
 const SILENCE_TIMEOUT_MS = 5000;
 
+// Every question is worth a flat 10 marks (correct or not) - no separate
+// "communication" rubric (clarity/tone/fluency) is shown anymore, just the
+// per-question answer score and the total. Keep in sync with
+// POINTS_PER_QUESTION in backend/utils/aiAssessment.js and AiVideoAssessment.jsx.
+const POINTS_PER_QUESTION = 10;
+
+// Older saved reports may have per-question marks on the old 0-100 scale
+// (before this flat 10-marks-per-question redesign). Normalize any legacy
+// value onto the 0/POINTS_PER_QUESTION scale so a report always displays
+// consistently, whenever it was recorded.
+function normalizeQuestionMarks(marks) {
+  const n = Number(marks);
+  if (!Number.isFinite(n)) return 0;
+  if (n <= POINTS_PER_QUESTION) return Math.max(0, Math.round(n));
+  return n >= 50 ? POINTS_PER_QUESTION : 0;
+}
+
 // If the candidate's browser refreshes, loses connection, or crashes
 // mid-interview, we don't want to make them start over from Question 1 -
 // already-recorded answers are saved here as soon as each one is captured,
@@ -83,26 +100,32 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   const [proctorLogs, setProctorLogs] = useState({ tabSwitches: 0, focusLosses: 0 });
   const [resumedFromSave, setResumedFromSave] = useState(false);
 
-  const [evaluation, setEvaluation] = useState(
-    hasExistingAudioReport
-      ? {
-          overallScore: existingData.aiScore,
-          rubricScores: existingData.rubricScores || { communicationClarity: 0, technicalAccuracy: 0, professionalTone: 0, fluency: 0 },
-          questionScores:
-            existingData.qaPairs?.map((qa, idx) => ({
-              questionId: idx + 1,
-              question: qa.question,
-              marks: existingData.aiScore,
-              answered: Boolean(qa.transcript),
-              feedback: "",
-              transcript: qa.transcript || "",
-              translatedTranscript: qa.translatedTranscript || qa.transcript || "",
-              detectedLanguage: qa.detectedLanguage || "unknown",
-            })) || [],
-          feedback: existingData.feedback || "",
-        }
-      : null
-  );
+  const [evaluation, setEvaluation] = useState(() => {
+    if (!hasExistingAudioReport) return null;
+    const rawQuestionScores =
+      existingData.questionScores ||
+      existingData.qaPairs?.map((qa, idx) => ({
+        questionId: idx + 1,
+        question: qa.question,
+        marks: existingData.aiScore,
+        answered: Boolean(qa.transcript),
+        feedback: "",
+        transcript: qa.transcript || "",
+        translatedTranscript: qa.translatedTranscript || qa.transcript || "",
+        detectedLanguage: qa.detectedLanguage || "unknown",
+      })) ||
+      [];
+    const questionScores = rawQuestionScores.map((q) => ({ ...q, marks: normalizeQuestionMarks(q.marks) }));
+    const maxMarks = typeof existingData.maxMarks === "number" ? existingData.maxMarks : questionScores.length * POINTS_PER_QUESTION;
+    const totalMarks = typeof existingData.totalMarks === "number" ? existingData.totalMarks : questionScores.reduce((sum, q) => sum + q.marks, 0);
+    return {
+      overallScore: existingData.aiScore,
+      totalMarks,
+      maxMarks,
+      questionScores,
+      feedback: existingData.feedback || "",
+    };
+  });
   const [submitting, setSubmitting] = useState(false);
 
   // Fetch the staff-configured question bank once on mount
@@ -427,31 +450,37 @@ export default function AiAudioInterview({ existingData, onSaved }) {
       if (res.data && res.data.success) {
         setEvaluation(res.data.evaluation);
         setStep("report");
-        toast("AI Audio Interview Evaluation Complete!", "✓");
+        toast("Interview submitted! Thank you for completing it.", "✓");
         if (onSaved) onSaved(res.data);
       }
     } catch (err) {
       console.error("Final AI audio submission error:", err);
-      const total = formattedQaPairs.reduce((sum, qa) => sum + (qa.transcript.split(/\s+/).filter(Boolean).length >= 3 ? 60 : 0), 0);
-      const avg = formattedQaPairs.length ? Math.round(total / formattedQaPairs.length) : 0;
-      setEvaluation({
-        overallScore: avg,
-        rubricScores: { communicationClarity: avg, technicalAccuracy: avg, professionalTone: avg > 0 ? 88 : 0, fluency: avg },
-        questionScores: formattedQaPairs.map((qa) => ({
+      const fallbackQuestionScores = formattedQaPairs.map((qa) => {
+        const answered = qa.transcript.split(/\s+/).filter(Boolean).length >= 3;
+        return {
           questionId: qa.questionId,
           question: qa.question,
-          marks: qa.transcript.split(/\s+/).filter(Boolean).length >= 3 ? 60 : 0,
-          answered: qa.transcript.split(/\s+/).filter(Boolean).length >= 3,
+          marks: answered ? POINTS_PER_QUESTION : 0,
+          answered,
           feedback: "Evaluated locally - server evaluation was unavailable.",
           transcript: qa.transcript || "",
           // No translation possible offline - just show the original.
           translatedTranscript: qa.transcript || "",
           detectedLanguage: "unknown",
-        })),
-        feedback: `Candidate evaluated: ${avg}% score across the audio interview (offline fallback scoring).`,
+        };
+      });
+      const totalMarks = fallbackQuestionScores.reduce((sum, q) => sum + q.marks, 0);
+      const maxMarks = fallbackQuestionScores.length * POINTS_PER_QUESTION;
+      const avg = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0;
+      setEvaluation({
+        overallScore: avg,
+        totalMarks,
+        maxMarks,
+        questionScores: fallbackQuestionScores,
+        feedback: `Candidate evaluated: ${totalMarks}/${maxMarks} marks across the audio interview (offline fallback scoring).`,
       });
       setStep("report");
-      toast("Couldn't reach the AI evaluator - showing a local estimate instead.", "!");
+      toast("Couldn't reach the AI evaluator - your interview is recorded locally, please contact support if this persists.", "!");
     } finally {
       setSubmitting(false);
       stopMedia();
@@ -607,93 +636,28 @@ export default function AiAudioInterview({ existingData, onSaved }) {
             </div>
           )}
 
-          {/* STEP 4: REPORT */}
+          {/* STEP 4: SUBMISSION CONFIRMATION - no score or per-question marks
+              shown to the candidate; our team reviews the recorded answers
+              and verifies correctness as part of the candidate verification
+              process. (Marks are still computed and saved server-side - see
+              evaluateAiVideoAssessment in backend/utils/aiAssessment.js -
+              just not surfaced here.) */}
           {step === "report" && evaluation && (
             <div>
-              <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.04)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, marginBottom: 20, borderBottom: "1px solid #E2E8F0", paddingBottom: 16 }}>
-                  <div>
-                    <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                      <i className="fa-solid fa-circle-check"></i> AI AUDIO INTERVIEW EVALUATED
-                    </span>
-                    <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "8px 0 2px" }}>
-                      AI Communication Score: {evaluation.overallScore}%
-                    </h3>
-                    <p style={{ fontSize: 13, color: "#475569", margin: 0 }}>Per-question spoken answer evaluation</p>
-                  </div>
-                  <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "14px 24px", textAlign: "center" }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>TOTAL MARKS</div>
-                    <div style={{ fontSize: 32, fontWeight: 800, color: "var(--navy)" }}>
-                      {evaluation.overallScore}
-                      <span style={{ fontSize: 14, color: "#94A3B8" }}>/100</span>
-                    </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>Recorded</div>
-                  </div>
+              <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 32, boxShadow: "0 10px 30px rgba(0,0,0,0.04)", textAlign: "center" }}>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
+                  <i className="fa-solid fa-check"></i>
                 </div>
 
-                <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", marginBottom: 12 }}>Per-Question Marks</h4>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
-                  {(evaluation.questionScores || []).map((qScore, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        background: qScore.marks > 0 ? "#F0FDF4" : "#FEF2F2",
-                        border: `1px solid ${qScore.marks > 0 ? "#BBF7D0" : "#FECACA"}`,
-                        borderRadius: 10,
-                        padding: "12px 16px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy)" }}>
-                          Q{idx + 1}. {qScore.question}
-                        </div>
-                        <div style={{ fontSize: 11, color: qScore.marks > 0 ? "#15803D" : "#DC2626", marginTop: 2 }}>
-                          {qScore.feedback || (qScore.marks > 0 ? `Spoken response evaluated: ${qScore.marks}/100 Marks` : "0 Marks: No spoken response provided.")}
-                        </div>
-                        {qScore.transcript && (
-                          <div style={{ fontSize: 11, color: "#475569", marginTop: 6, fontStyle: "italic" }}>
-                            <strong>Answer:</strong> {qScore.translatedTranscript || qScore.transcript}
-                            {qScore.detectedLanguage && !["unknown", "none", "english", "en"].includes(String(qScore.detectedLanguage).toLowerCase()) && (
-                              <span style={{ display: "block", color: "#94A3B8", marginTop: 2, fontStyle: "normal" }}>
-                                Translated from {qScore.detectedLanguage} - Original: {qScore.transcript}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <span style={{ background: qScore.marks > 0 ? "#DCFCE7" : "#FEE2E2", color: qScore.marks > 0 ? "#15803D" : "#DC2626", fontSize: 13, fontWeight: 800, padding: "4px 12px", borderRadius: 999, flexShrink: 0 }}>
-                        {qScore.marks} / 100 Marks
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginBottom: 12 }}>Rubric Metric Breakdown</h4>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
-                  <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                    <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>CLARITY</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.communicationClarity}%</div>
-                  </div>
-                  <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                    <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>TECHNICAL RCM ACCURACY</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.technicalAccuracy}%</div>
-                  </div>
-                  <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                    <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>PROFESSIONAL TONE</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.professionalTone}%</div>
-                  </div>
-                  <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1" }}>
-                    <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>FLUENCY</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubricScores.fluency}%</div>
-                  </div>
-                </div>
-
-                <div style={{ background: "#F1F5F9", borderRadius: 8, padding: 14, fontSize: 12, color: "#334155", lineHeight: 1.6 }}>
-                  <strong>AI Evaluator Feedback:</strong> {evaluation.feedback}
-                </div>
+                <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+                  <i className="fa-solid fa-circle-check"></i> INTERVIEW SUBMITTED &amp; RECORDED
+                </span>
+                <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "12px 0 8px" }}>
+                  Thank you for completing the interview!
+                </h3>
+                <p style={{ fontSize: 13, color: "#475569", margin: "0 auto", maxWidth: 440, lineHeight: 1.6 }}>
+                  Your spoken answers have been recorded and submitted to our team for review as part of your candidate verification.
+                </p>
               </div>
             </div>
           )}

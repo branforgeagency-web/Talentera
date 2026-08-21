@@ -36,4 +36,9 @@ const NotificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Both routes/company.js and routes/staff.js query by
+// { recipientType, recipientId } sorted by createdAt on every notification
+// bell load - this was previously unindexed.
+NotificationSchema.index({ recipientType: 1, recipientId: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Notification", NotificationSchema);

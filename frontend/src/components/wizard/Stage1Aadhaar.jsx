@@ -149,7 +149,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="wiz-stage-form">
+    <form onSubmit={handleSubmit} className="wiz-form">
       {/* FULL LEGAL NAME */}
       <div className="wiz-field">
         <label>Full legal name (as on Aadhaar card) *</label>
@@ -212,7 +212,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       </div>
 
       {/* ====== STEP 1: AADHAAR CARD PHOTO / PDF DOCUMENT UPLOAD CARD ====== */}
-      <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 20, marginBottom: 20 }}>
+      <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <label style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
             <i className="fa-solid fa-file-arrow-up" style={{ color: "var(--gold)", marginRight: 8 }}></i>
@@ -280,7 +280,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       </div>
 
       {/* ====== STEP 2: AADHAAR OTP AUTHENTICATION SECTION ====== */}
-      <div style={{ marginBottom: 20 }}>
+      <div>
         <AadhaarOtpVerificationCard
           existingMaskedAadhaar={existingData?.maskedAadhaar || ""}
           candidateMobile={mobile}

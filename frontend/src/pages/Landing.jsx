@@ -203,7 +203,7 @@ export default function Landing() {
               <Link to="/login" className="nav-mobile-login" onClick={() => setMobileMenuOpen(false)}>
                 Employee Login
               </Link>
-              <Link to="/companies/register" className="btn-gold" onClick={() => setMobileMenuOpen(false)}>
+              <Link to="/companies/directory" className="btn-gold" onClick={() => setMobileMenuOpen(false)}>
                 Hire Verified Talent →
               </Link>
             </div>
@@ -214,7 +214,7 @@ export default function Landing() {
             <Link to="/login" className="nav-login-link">
               Employee Login
             </Link>
-            <Link to="/companies/register" className="btn-gold nav-cta-btn">
+            <Link to="/companies/directory" className="btn-gold nav-cta-btn">
               Hire Verified Talent →
             </Link>
           </div>

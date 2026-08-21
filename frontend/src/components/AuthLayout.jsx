@@ -3,7 +3,29 @@ import { Link } from "react-router-dom";
 
 export default function AuthLayout({ title, subtitle, children }) {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--navy-deep)", padding: 20 }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--navy-deep)", padding: 20, position: "relative" }}>
+      <div style={{ position: "absolute", top: 24, left: 24, zIndex: 20 }}>
+        <Link
+          to="/"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: "#fff",
+            padding: "8px 18px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+            transition: "all 0.2s ease"
+          }}
+        >
+          ← Back to Home
+        </Link>
+      </div>
+
       <div
         style={{
           background: "linear-gradient(135deg, #0A1F3D 0%, #1A2F4D 100%)",
