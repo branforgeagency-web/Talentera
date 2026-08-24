@@ -38,25 +38,16 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
   // 2. Professional Summary
   const [summary, setSummary] = useState(
-    existingData?.summary || "AAPC Certified Professional Coder (CPC) with 3+ years experience in Outpatient, Inpatient, and ED Medical Coding. Proven track record maintaining 98% coding accuracy across 60+ charts daily while ensuring full HIPAA & CMS compliance."
+    existingData?.summary || "Healthcare RCM Specialist & Medical Coder with 3+ years experience in Outpatient, Inpatient, and ED Medical Coding. Proven track record maintaining 98% coding accuracy across 60+ charts daily while ensuring full HIPAA & CMS compliance."
   );
 
-  // 3. Core Certifications & Licensing
-  const [certName, setCertName] = useState(existingData?.certName || existingData?.certificationName || "CPC (Certified Professional Coder)");
-  const [issuingBody, setIssuingBody] = useState(existingData?.issuingBody || "AAPC");
-  const [memberId, setMemberId] = useState(existingData?.memberId || "AAPC-987654");
-  const [certStatus, setCertStatus] = useState(existingData?.certStatus || "Active");
-  const [issueDate, setIssueDate] = useState(existingData?.issueDate || "2021");
-  const [expiryDate, setExpiryDate] = useState(existingData?.expiryDate || "Active & Current");
-  const [apprenticeStatus, setApprenticeStatus] = useState(existingData?.apprenticeStatus || "CPC Full Status (Apprentice Removed)");
-
-  // 4. Technical & Coding Skill Set
+  // 3. Technical & Coding Skill Set
   const [codeSets, setCodeSets] = useState(existingData?.codeSets || "ICD-10-CM, ICD-10-PCS, CPT, HCPCS Level II, CDT");
   const [specializedKnowledge, setSpecializedKnowledge] = useState(existingData?.specializedKnowledge || "E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA Compliance, Medical Necessity, DRG Assignment, HCC Risk Adjustment");
   const [ehrSoftware, setEhrSoftware] = useState(existingData?.ehrSoftware || "Epic Hyperspace, Cerner, Meditech, Athenahealth, 3M CodeRyte / Encoder Pro, Optum Encoder");
   const [coreCompetencies, setCoreCompetencies] = useState(existingData?.coreCompetencies || "Anatomy & Physiology, Medical Terminology, Clinical Documentation Improvement (CDI), Denial & Audit Appeals Resolution");
 
-  // 5. Professional Experience
+  // 4. Professional Experience
   const [workHistory, setWorkHistory] = useState(
     existingData?.workHistory && existingData.workHistory.length > 0
       ? existingData.workHistory
@@ -73,7 +64,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         ]
   );
 
-  // 6. Education & Formal Training
+  // 5. Education & Academic Details
   const [degree, setDegree] = useState(existingData?.degree || "B.Sc. Life Sciences / Healthcare Information Management");
   const [collegeName, setCollegeName] = useState(existingData?.collegeName || "Bangalore University / Life Sciences Institute");
   const [graduationYear, setGraduationYear] = useState(existingData?.graduationYear || "2021");
@@ -206,15 +197,6 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
         summary,
 
-        certName,
-        certificationName: certName,
-        issuingBody,
-        memberId,
-        certStatus,
-        issueDate,
-        expiryDate,
-        apprenticeStatus,
-
         codeSets,
         specializedKnowledge,
         ehrSoftware,
@@ -237,7 +219,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       };
 
       const res = await api.put("/candidate/stage/1", payload);
-      toast("Stage 1 Basic Info & All Resume Sections Saved!", "✓");
+      toast("Stage 1 Basic Info Saved!", "✓");
       if (onSaved) onSaved(res.data);
     } catch (err) {
       console.error("Save Stage 1 error:", err);
@@ -360,55 +342,17 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
           rows={3}
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
-          placeholder="AAPC/AHIMA credential status, core coding specialties, accuracy rate %, and years of experience..."
+          placeholder="Core coding specialties, accuracy rate %, and years of experience..."
           style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, lineHeight: 1.5 }}
           required
         />
       </div>
 
-      {/* 3. CORE CERTIFICATIONS & LICENSING */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-          <i className="fa-solid fa-award" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          3. Core Certifications &amp; Licensing
-        </h4>
-
-        <div className="wiz-field-row" style={{ marginBottom: 10 }}>
-          <div className="wiz-field">
-            <label>Credential Name (CPC, COC, CIC, CRC / CCS, CCS-P, CCA) *</label>
-            <input type="text" value={certName} onChange={(e) => setCertName(e.target.value)} placeholder="CPC (Certified Professional Coder)" required />
-          </div>
-          <div className="wiz-field">
-            <label>Issuing Body (AAPC / AHIMA) *</label>
-            <input type="text" value={issuingBody} onChange={(e) => setIssuingBody(e.target.value)} placeholder="AAPC" required />
-          </div>
-          <div className="wiz-field">
-            <label>Member / Cert ID *</label>
-            <input type="text" value={memberId} onChange={(e) => setMemberId(e.target.value)} placeholder="AAPC-987654" required />
-          </div>
-        </div>
-
-        <div className="wiz-field-row">
-          <div className="wiz-field">
-            <label>Status &amp; Apprentice Note</label>
-            <input type="text" value={apprenticeStatus} onChange={(e) => setApprenticeStatus(e.target.value)} placeholder="CPC Full Status (Apprentice Removed)" />
-          </div>
-          <div className="wiz-field">
-            <label>Issue Date</label>
-            <input type="text" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} placeholder="2021" />
-          </div>
-          <div className="wiz-field">
-            <label>Expiry / Current Status</label>
-            <input type="text" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} placeholder="Active & Current" />
-          </div>
-        </div>
-      </div>
-
-      {/* 4. TECHNICAL & CODING SKILL SET */}
+      {/* 3. TECHNICAL & CODING SKILL SET */}
       <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
         <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
           <i className="fa-solid fa-code-compare" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          4. Technical &amp; Coding Skill Set
+          3. Technical &amp; Coding Skill Set
         </h4>
 
         <div className="wiz-field" style={{ marginBottom: 10 }}>
@@ -433,12 +377,12 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         </div>
       </div>
 
-      {/* 5. PROFESSIONAL EXPERIENCE */}
+      {/* 4. PROFESSIONAL EXPERIENCE */}
       <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
             <i className="fa-solid fa-briefcase" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-            5. Professional Experience &amp; Metrics
+            4. Professional Experience &amp; Metrics
           </h4>
           <button type="button" className="btn btn-outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={handleAddWorkHistory}>
             + Add Position
@@ -496,11 +440,11 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         ))}
       </div>
 
-      {/* 6. EDUCATION & FORMAL TRAINING */}
+      {/* 5. EDUCATION & ACADEMIC DETAILS */}
       <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
         <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
           <i className="fa-solid fa-graduation-cap" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          6. Education &amp; Formal Training
+          5. Education &amp; Academic Qualifications
         </h4>
 
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
@@ -538,7 +482,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
       <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
         <button type="submit" className="btn btn-gold" style={{ padding: "14px 28px", fontSize: 15 }} disabled={saving}>
-          {saving ? "Saving All 6 Resume Sections…" : "Save & continue →"}
+          {saving ? "Saving Basic Info…" : "Save & continue →"}
         </button>
       </div>
     </form>
