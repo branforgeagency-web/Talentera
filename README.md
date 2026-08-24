@@ -157,6 +157,23 @@ added later without touching the gating logic.
   open (JWT rotation/revocation, Aadhaar-adjacent PII field encryption,
   broader test coverage, etc).
 
+## Live Claude AI Technical Mock Interviewer Bot (Stage 8)
+
+Talentera features an interactive **Live Claude AI Mock Interviewer Bot** in Stage 8 powered by Anthropic's Claude 3.5 Sonnet Messages API (`https://api.anthropic.com/v1/messages`).
+
+### Setup & Environment Variable
+Add your Anthropic Claude API Key to `backend/.env`:
+```env
+CLAUDE_API_KEY=your_anthropic_claude_api_key_here
+```
+*(Or `ANTHROPIC_API_KEY=your_anthropic_claude_api_key_here`)*
+
+### Key Features
+- **Live Interactive Bot**: Conducts 1-on-1 technical mock interviews across E/M MDM leveling, CPT modifiers (25, 59), CO-197 pre-authorization denial appeals, NCCI edits, and HIPAA data privacy.
+- **Voice & Text Inputs**: Supports hands-free voice speech-to-text via browser Web Speech API.
+- **Instant Claude Scorecard & Rating Badge**: Generates a structured evaluation report (Score out of 100, Scale 1-10 rating, Key Strengths, Areas of Improvement, and Hire Recommendation).
+- **Graceful Fallback**: Automatically provides domain-specific mock interview evaluation even if `CLAUDE_API_KEY` is omitted.
+
 ## Production notes
 
 - Swap `backend/middleware/upload.js`'s disk-storage fallback for Cloudinary
