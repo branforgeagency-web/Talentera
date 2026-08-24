@@ -200,7 +200,7 @@ export default function Landing() {
             
             {/* Mobile CTAs visible inside mobile menu */}
             <div className="nav-mobile-ctas">
-              <Link to="/login" className="nav-mobile-login" onClick={() => setMobileMenuOpen(false)}>
+              <Link to="/staff/login" className="nav-mobile-login" onClick={() => setMobileMenuOpen(false)}>
                 Employee Login
               </Link>
               <Link to="/companies/directory" className="btn-gold" onClick={() => setMobileMenuOpen(false)}>
@@ -211,7 +211,7 @@ export default function Landing() {
 
           {/* Desktop Right Action CTAs */}
           <div className="nav-actions">
-            <Link to="/login" className="nav-login-link">
+            <Link to="/staff/login" className="nav-login-link">
               Employee Login
             </Link>
             <Link to="/companies/directory" className="btn-gold nav-cta-btn">
@@ -546,7 +546,7 @@ export default function Landing() {
             <div className="loch-panel-head">
               <div className="loch-panel-loc">
                 <div className="loch-panel-eyebrow">
-                  {activeHubData.icon} {activeHubData.landmark} · incl. nearby
+                  <i className={activeHubData.icon}></i> {activeHubData.landmark} · incl. nearby
                 </div>
                 <div className="loch-panel-city">
                   {activeHubData.city} <span style={{ fontSize: "0.55em", opacity: 0.6 }}>+ NEARBY</span> •{" "}
@@ -916,7 +916,7 @@ export default function Landing() {
             <Link to="/companies">For Companies</Link>
             <a href="#candidates" onClick={scrollToCandidates}>For Candidates</a>
             <Link to="/academy">For Academies</Link>
-            <Link to="/login">Employee Login</Link>
+            <Link to="/staff/login">Employee Login</Link>
           </div>
         </div>
       </footer>

@@ -199,6 +199,16 @@ export default function CompanyDashboardSetup() {
   const contactName = (authCompany?.contactName || company.contactName || "there").split(" ")[0];
   const companyName = authCompany?.companyName || company.companyName || "your company";
 
+  // A submitted JD (company.jdPublished) still needs a Talentera staff
+  // sign-off (company.jdApprovalStatus) before candidates can actually see
+  // it - see routes/staff.js POST /verify-job and routes/public.js GET
+  // /jobs. "Live" is reserved for the approved state so this dashboard
+  // doesn't tell a company their JD is visible before it actually is.
+  const jdApprovalStatus = company.jdApprovalStatus || "pending";
+  const jdIsLive = company.jdPublished && jdApprovalStatus === "approved";
+  const jdIsPendingApproval = company.jdPublished && jdApprovalStatus === "pending";
+  const jdIsRejected = company.jdPublished && jdApprovalStatus === "rejected";
+
   return (
     <div style={{ minHeight: "100vh", background: "#FAF7F2", color: "var(--navy)", fontFamily: "var(--font-body)" }}>
       {/* TOP STICKY DASHBOARD NAV */}
@@ -384,7 +394,13 @@ export default function CompanyDashboardSetup() {
         <div className="conb-hero-inner">
           <div className="conb-hero-eyebrow">
             <span className="conb-hero-eyebrow-dot" />
-            {company.jdPublished ? "JOB LIVE · SETUP IN PROGRESS" : "ACCOUNT CREATED · SETUP IN PROGRESS"}
+            {jdIsLive
+              ? "JOB LIVE · SETUP IN PROGRESS"
+              : jdIsPendingApproval
+              ? "JOB AWAITING APPROVAL · SETUP IN PROGRESS"
+              : jdIsRejected
+              ? "JOB NEEDS REVISION · SETUP IN PROGRESS"
+              : "ACCOUNT CREATED · SETUP IN PROGRESS"}
           </div>
 
           <h1 className="conb-hero-title">
@@ -504,7 +520,9 @@ export default function CompanyDashboardSetup() {
                   <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
                 </div>
                 <div>
-                  <div className="conb-hero-stat-val">{company.jdPublished ? "LIVE" : "DRAFT"}</div>
+                  <div className="conb-hero-stat-val">
+                    {jdIsLive ? "LIVE" : jdIsPendingApproval ? "IN REVIEW" : jdIsRejected ? "REVISION" : "DRAFT"}
+                  </div>
                   <div className="conb-hero-stat-label">FIRST JD STATUS</div>
                 </div>
               </div>
@@ -539,7 +557,8 @@ export default function CompanyDashboardSetup() {
               const isActive = activeStageId === st.id;
               const done = stageDoneFields(st.id, company[`stage${st.id}`]);
               const total = stageTotalFields(st.id);
-              const isLive = st.id === "9" && company.jdPublished;
+              const isLive = st.id === "9" && jdIsLive;
+              const isPendingJd = st.id === "9" && jdIsPendingApproval;
               const isKycStage = st.id === "1a";
               return (
                 <div
@@ -554,7 +573,7 @@ export default function CompanyDashboardSetup() {
                     <div>
                       <div className="conb-stage-item-title">{st.name}</div>
                       <div className="conb-stage-item-status">
-                        {isKycStage && company.kycStatus === "verified" ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : isLive ? "JOB LIVE ✓" : `${done} of ${total} done`}
+                        {isKycStage && company.kycStatus === "verified" ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : isLive ? "JOB LIVE ✓" : isPendingJd ? "AWAITING APPROVAL ⌛" : `${done} of ${total} done`}
                       </div>
                     </div>
                   </div>
@@ -703,9 +722,21 @@ export default function CompanyDashboardSetup() {
               </div>
             )}
 
-            {activeStageId === "9" && company.jdPublished && (
+            {activeStageId === "9" && jdIsLive && (
               <div className="conb-jd-live-banner">
                 <span>✓ JOB POST · LIVE</span>
+                <span className="conb-jd-live-id">{company.jobId}</span>
+              </div>
+            )}
+            {activeStageId === "9" && jdIsPendingApproval && (
+              <div className="conb-jd-live-banner" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                <span>⏳ JOB POST · AWAITING TALENTERA APPROVAL</span>
+                <span className="conb-jd-live-id">{company.jobId}</span>
+              </div>
+            )}
+            {activeStageId === "9" && jdIsRejected && (
+              <div className="conb-jd-live-banner" style={{ background: "#FEE2E2", color: "#B91C1C" }}>
+                <span>✕ JOB POST · NOT APPROVED — {company.jdRejectionReason || "please review and resubmit"}</span>
                 <span className="conb-jd-live-id">{company.jobId}</span>
               </div>
             )}
@@ -755,7 +786,7 @@ export default function CompanyDashboardSetup() {
             <div className="conb-form-footer">
               {activeStageId === "9" ? (
                 <button type="button" className="conb-cta-btn" onClick={handleJdButtonClick}>
-                  {company.jdPublished ? "View live JD →" : "Preview & Publish JD →"}
+                  {jdIsLive ? "View live JD →" : company.jdPublished ? "View submission →" : "Preview & Publish JD →"}
                 </button>
               ) : (
                 <button
@@ -937,7 +968,7 @@ export default function CompanyDashboardSetup() {
             <div className="conb-jd-preview-footer">
               <button type="button" className="btn btn-ghost" onClick={() => setPreviewOpen(false)}>← Edit JD</button>
               <button type="button" className="conb-cta-btn" onClick={confirmPublish} disabled={publishing}>
-                {publishing ? "Publishing…" : "✓ Confirm & publish"}
+                {publishing ? "Submitting…" : "✓ Confirm & submit for approval"}
               </button>
             </div>
           </div>
@@ -949,13 +980,15 @@ export default function CompanyDashboardSetup() {
         <div className="conb-modal-backdrop">
           <div className="conb-modal conb-modal-success" onClick={(e) => e.stopPropagation()}>
             <div className="conb-success-check">✓</div>
-            <h2>Your JD is live</h2>
+            <h2>Submitted for approval</h2>
             <p style={{ color: "#64748B", marginBottom: 20 }}>
-              Job ID <strong>{company.jobId}</strong> — matching engine is scanning the verified pool.
+              Job ID <strong>{company.jobId}</strong> — Talentera staff review every job post before it goes live
+              on the board and the matching engine starts scanning the verified pool. You'll be notified here as
+              soon as it's approved.
             </p>
             <div className="conb-hero-stats" style={{ marginBottom: 24 }}>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>~4 hrs</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>FIRST MATCH</div></div>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>24 hrs</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>FULL FIRST BATCH</div></div>
+              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>⏳</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>AWAITING STAFF REVIEW</div></div>
+              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>~24 hrs</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>TYPICAL TURNAROUND</div></div>
               <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>100%</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>VERIFIED</div></div>
             </div>
             <button type="button" className="conb-cta-btn" onClick={() => navigate("/companies/applicants")}>

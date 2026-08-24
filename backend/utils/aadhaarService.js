@@ -7,9 +7,17 @@ const logger = require("./logger");
  * Helper: Dispatch Real SMS OTP via MSG91 REST API to candidate's mobile phone
  */
 async function sendRealSmsOtp(mobile, otp) {
-  const authKey = process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || "561692AqG2zdR0nSb6a83f285P1";
+  const authKey = process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || "";
   const templateId = process.env.MSG91_TEMPLATE_ID || "";
   const cleanMobile = String(mobile || "").replace(/\D/g, "");
+
+  if (!authKey) {
+    // No MSG91 key configured - deployments that only set up Brevo (email
+    // OTP) rely on sendRealEmailOtp below instead. Do NOT fall back to a
+    // hardcoded key here - a shared credential baked into the source is a
+    // real secret-leak risk even for something as narrow as an SMS key.
+    return false;
+  }
 
   if (cleanMobile.length >= 10) {
     try {
@@ -259,7 +267,8 @@ class AadhaarVerificationService {
     // masked Aadhaar/mobile are safe to log in any environment (that's the
     // whole point of masking them).
     logger.info(`[AADHAAR OTP SENT] Transaction: ${transactionId} | Aadhaar: ${maskedAadhaar} | Mobile: ${maskedMobile}`);
-    if (process.env.NODE_ENV !== "production") {
+    const isDev = process.env.NODE_ENV !== "production";
+    if (isDev) {
       logger.info(`[DEV ONLY] Aadhaar OTP code for ${transactionId}: ${generatedOtp}`);
     }
 
@@ -270,6 +279,12 @@ class AadhaarVerificationService {
       maskedMobile,
       resendCooldown: 30,
       message: `OTP sent to your Aadhaar-registered mobile number (${maskedMobile}).`,
+      // Dev-only convenience so local testing doesn't require tailing server
+      // logs - mirrors the same fallback/otpCode pattern already used by
+      // routes/otp.js for the Brevo email OTP flow. Never set outside dev
+      // (there's no real Aadhaar gateway wired up without AADHAAR_API_KEY,
+      // so this is the only way anyone signs in locally anyway).
+      ...(isDev ? { devOtp: generatedOtp } : {}),
     };
   }
 

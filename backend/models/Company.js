@@ -57,6 +57,21 @@ const CompanySchema = new mongoose.Schema(
     jobId: { type: String, default: null },
     jdPublishedAt: { type: Date, default: null },
 
+    // Staff review gate for the legacy "first JD" published from onboarding
+    // Stage 9 - mirrors Job.approvalStatus in models/Job.js for posted jobs
+    // (see routes/company.js's /publish-jd and routes/staff.js's
+    // POST /verify-job). A JD only shows on the public job board
+    // (routes/public.js GET /jobs) once jdPublished && jdApprovalStatus
+    // === "approved".
+    jdApprovalStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
+    jdApprovedAt: { type: Date, default: null },
+    jdApprovedBy: { type: String, default: "" },
+    jdRejectionReason: { type: String, default: "" },
+
     // Raw answers from the "Post a Requirement" / "Post a Job" lead-gen
     // wizard (frontend/src/pages/CompanyRegister.jsx) that don't map
     // 1:1 onto a stage's field vocabulary (e.g. team size buckets, hiring

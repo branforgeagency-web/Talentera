@@ -4,7 +4,7 @@ import { safeJson } from "../utils/safeJson.js";
 
 export default function StaffHub() {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState("overview"); // "overview" | "audit" | "assessment" | "video" | "questions" | "reports"
+  const [activeNav, setActiveNav] = useState("overview"); // see NAV_ITEMS below for the full id list - "overview" | "kyc" | "certifications" | "jobapprovals" | "assessment" | "video" | "questions" | "reports" | "activity"
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
@@ -12,7 +12,15 @@ export default function StaffHub() {
   const [previewVideo, setPreviewVideo] = useState(null);
   const [expandedAssessmentId, setExpandedAssessmentId] = useState(null);
 
+  // Which company/candidate/job is open in each queue tab's list+detail
+  // (inbox style) layout - null falls back to the first item in that queue.
+  const [selectedKycId, setSelectedKycId] = useState(null);
+  const [selectedCertId, setSelectedCertId] = useState(null);
+  const [selectedJobId, setSelectedJobId] = useState(null);
+
   const [auditModal, setAuditModal] = useState(null);
+  const [certAuditModal, setCertAuditModal] = useState(null);
+  const [jobAuditModal, setJobAuditModal] = useState(null);
   const [staffNotifications, setStaffNotifications] = useState([]);
   const [staffUnreadCount, setStaffUnreadCount] = useState(0);
   const [showStaffNotif, setShowStaffNotif] = useState(false);
@@ -255,6 +263,75 @@ export default function StaffHub() {
     }
   };
 
+  // Certification (Stage 3) document audit — mirrors handleVerifyCompany /
+  // submitAuditModal above, scoped to a candidate's certification claim
+  // instead of a company's KYC documents.
+  const handleAuditCertification = (cert, action) => {
+    setCertAuditModal({
+      cert,
+      action,
+      notes: action === "verify" ? "Certificate document reviewed and confirmed genuine by Staff Auditor." : "",
+      reason: action === "reject" ? "Certificate document could not be confirmed as genuine. Please re-upload a clear, valid document." : "",
+    });
+  };
+
+  const submitCertAuditModal = async () => {
+    if (!certAuditModal) return;
+    setProcessingId(certAuditModal.cert.id);
+    try {
+      await fetch("/api/staff/verify-certification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          candidateId: certAuditModal.cert.id,
+          action: certAuditModal.action,
+          notes: certAuditModal.notes,
+          rejectionReason: certAuditModal.reason,
+        }),
+      });
+      fetchDashboard();
+      setCertAuditModal(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  // Job Post Approval (onboarding first-JD or a later "Job Posts" posting)
+  // — mirrors handleAuditCertification / submitCertAuditModal above, scoped
+  // to a company's job post instead of a candidate's certification claim.
+  const handleAuditJob = (job, action) => {
+    setJobAuditModal({
+      job,
+      action,
+      reason: action === "reject" ? "Job post did not meet Talentera's listing guidelines. Please review and resubmit." : "",
+    });
+  };
+
+  const submitJobAuditModal = async () => {
+    if (!jobAuditModal) return;
+    setProcessingId(jobAuditModal.job.id);
+    try {
+      await fetch("/api/staff/verify-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          source: jobAuditModal.job.source,
+          id: jobAuditModal.job.id,
+          action: jobAuditModal.action,
+          rejectionReason: jobAuditModal.reason,
+        }),
+      });
+      fetchDashboard();
+      setJobAuditModal(null);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleVerifyAssessment = async (candidateId) => {
     setProcessingId(candidateId);
     try {
@@ -290,7 +367,168 @@ export default function StaffHub() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", fontFamily: "sans-serif" }}>Loading Staff Operations Hub...</div>;
 
-  const { stats, pipeline, incomingBucket, companyKycQueue, videoIntrosQueue, textAssessmentQueue, reportsData, tasks, leaderboard, liveQueueCount } = dashData || {};
+  const { stats, pipeline, incomingBucket, companyKycQueue, videoIntrosQueue, textAssessmentQueue, certificationQueue, jobApprovalQueue, reportsData, tasks, leaderboard, liveQueueCount } = dashData || {};
+
+  // Per-queue status breakdowns - KYC, Certifications, and Job Approvals
+  // each got their own dedicated tab (previously all three were stacked
+  // into one long "Audit Queue" page); these power the stat pills on each
+  // tab's own header and the quick-access cards on Overview.
+  const kycCounts = {
+    pending: (companyKycQueue || []).filter((c) => c.kycStatus === "pending" || c.kycStatus === "under_review").length,
+    verified: (companyKycQueue || []).filter((c) => c.kycStatus === "verified").length,
+    rejected: (companyKycQueue || []).filter((c) => c.kycStatus === "rejected").length,
+  };
+  const certCounts = {
+    pending: (certificationQueue || []).filter((c) => c.certStatus === "pending").length,
+    verified: (certificationQueue || []).filter((c) => c.certStatus === "verified").length,
+    rejected: (certificationQueue || []).filter((c) => c.certStatus === "rejected").length,
+  };
+  const jobCounts = {
+    pending: (jobApprovalQueue || []).filter((j) => j.approvalStatus === "pending").length,
+    approved: (jobApprovalQueue || []).filter((j) => j.approvalStatus === "approved").length,
+    rejected: (jobApprovalQueue || []).filter((j) => j.approvalStatus === "rejected").length,
+  };
+
+  // Sidebar nav + the header's "Active Module" label are both driven off
+  // this one list so the two never drift out of sync.
+  const NAV_ITEMS = [
+    { id: "overview", label: "Overview", icon: "⚡" },
+    { id: "kyc", label: "KYC Verification", icon: "🔍" },
+    { id: "certifications", label: "Certifications", icon: "🎓" },
+    { id: "jobapprovals", label: "Job Approvals", icon: "📋" },
+    { id: "assessment", label: "Text Assessment", icon: "📝" },
+    { id: "video", label: "Video Introductions", icon: "📹" },
+    { id: "questions", label: "Interview Questions", icon: "🎤" },
+    { id: "reports", label: "Reports & Metrics", icon: "📊" },
+    { id: "activity", label: "Activity Log", icon: "🗒️" },
+  ];
+  const activeNavLabel = NAV_ITEMS.find((n) => n.id === activeNav)?.label || activeNav;
+
+  // Small stat pill used on each queue tab's page header (KYC /
+  // Certifications / Job Approvals) to show a pending/approved/rejected
+  // breakdown at a glance.
+  function StatPill({ count, label, tone }) {
+    const tones = {
+      pending: {
+        bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+        border: "rgba(245, 158, 11, 0.3)",
+        color: "#92400E",
+        dot: "#F59E0B",
+        glow: "rgba(245, 158, 11, 0.12)",
+      },
+      good: {
+        bg: "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)",
+        border: "rgba(34, 197, 94, 0.3)",
+        color: "#15803D",
+        dot: "#22C55E",
+        glow: "rgba(34, 197, 94, 0.12)",
+      },
+      bad: {
+        bg: "linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)",
+        border: "rgba(239, 68, 68, 0.3)",
+        color: "#B91C1C",
+        dot: "#EF4444",
+        glow: "rgba(239, 68, 68, 0.12)",
+      },
+    };
+    const t = tones[tone] || tones.pending;
+    return (
+      <div
+        style={{
+          background: t.bg,
+          border: `1px solid ${t.border}`,
+          borderRadius: 14,
+          padding: "10px 18px",
+          textAlign: "center",
+          minWidth: 96,
+          boxShadow: `0 2px 8px ${t.glow}`,
+          transition: "all 0.15s ease",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: t.dot, display: "inline-block" }} />
+          <span style={{ fontSize: 9.5, fontWeight: 800, color: t.color, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</span>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: t.color, fontFamily: "var(--font-display)", lineHeight: 1.1 }}>{count}</div>
+      </div>
+    );
+  }
+
+  // Page header used at the top of each standalone queue tab.
+  function QueuePageHeader({ icon, title, subtitle, accent = "#2563EB", pills }) {
+    return (
+      <div
+        style={{
+          background: "#FFFFFF",
+          borderRadius: 18,
+          border: "1px solid #E2E8F0",
+          boxShadow: "0 4px 20px -2px rgba(15, 23, 42, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02)",
+          padding: "20px 24px",
+          marginBottom: 24,
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* Top Accent Gradient Bar */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 4,
+            background: `linear-gradient(90deg, ${accent} 0%, ${accent}66 100%)`,
+          }}
+        />
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16, maxWidth: 640 }}>
+            {/* Dual-ring Styled Icon Badge */}
+            <div
+              style={{
+                width: 52,
+                height: 52,
+                flexShrink: 0,
+                borderRadius: 14,
+                background: `linear-gradient(135deg, ${accent}1A 0%, ${accent}0D 100%)`,
+                border: `1px solid ${accent}33`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 24,
+                boxShadow: `0 4px 12px ${accent}15`,
+              }}
+            >
+              {icon}
+            </div>
+
+            <div>
+              {/* Module Tag Pill */}
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: accent, background: `${accent}12`, padding: "2px 8px", borderRadius: 999 }}>
+                  Staff Moderation Module
+                </span>
+              </div>
+
+              <h2 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, color: "#0F172A", margin: 0, letterSpacing: "-0.01em" }}>
+                {title}
+              </h2>
+              <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B", lineHeight: 1.5 }}>
+                {subtitle}
+              </p>
+            </div>
+          </div>
+
+          {/* Stat Pills */}
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>{pills}</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FA" }}>
@@ -320,40 +558,57 @@ export default function StaffHub() {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {[
-              { id: "overview", label: "Overview & Bucket", icon: "⚡" },
-              { id: "audit", label: "Audit Queue", icon: "🔍" },
-              { id: "assessment", label: "Text Assessment", icon: "📝" },
-              { id: "video", label: "Video Introductions", icon: "📹" },
-              { id: "questions", label: "Interview Questions", icon: "🎤" },
-              { id: "reports", label: "Reports & Metrics", icon: "📊" },
-              { id: "activity", label: "Activity Log", icon: "🗒️" },
-            ].map((nav) => (
-              <button
-                key={nav.id}
-                type="button"
-                onClick={() => setActiveNav(nav.id)}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  background: activeNav === nav.id ? "rgba(229,168,46,0.15)" : "transparent",
-                  color: activeNav === nav.id ? "var(--gold)" : "rgba(255,255,255,0.7)",
-                  fontWeight: activeNav === nav.id ? 700 : 500,
-                  fontSize: 13,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  border: activeNav === nav.id ? "1px solid rgba(229,168,46,0.3)" : "none",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "all 0.15s",
-                }}
-              >
-                <span>{nav.icon}</span>
-                <span>{nav.label}</span>
-              </button>
-            ))}
+            {NAV_ITEMS.map((nav) => {
+              // Pending-count badges for the three review queues, so staff
+              // can see where the work is without opening each tab.
+              const badgeCount =
+                nav.id === "kyc" ? kycCounts.pending :
+                nav.id === "certifications" ? certCounts.pending :
+                nav.id === "jobapprovals" ? jobCounts.pending :
+                0;
+              return (
+                <button
+                  key={nav.id}
+                  type="button"
+                  onClick={() => setActiveNav(nav.id)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: activeNav === nav.id ? "rgba(229,168,46,0.15)" : "transparent",
+                    color: activeNav === nav.id ? "var(--gold)" : "rgba(255,255,255,0.7)",
+                    fontWeight: activeNav === nav.id ? 700 : 500,
+                    fontSize: 13,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    border: activeNav === nav.id ? "1px solid rgba(229,168,46,0.3)" : "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <span>{nav.icon}</span>
+                  <span style={{ flex: 1 }}>{nav.label}</span>
+                  {badgeCount > 0 && (
+                    <span
+                      style={{
+                        background: activeNav === nav.id ? "var(--gold)" : "rgba(229,168,46,0.25)",
+                        color: activeNav === nav.id ? "#0A1F3D" : "var(--gold)",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        borderRadius: 999,
+                        padding: "2px 7px",
+                        minWidth: 18,
+                        textAlign: "center",
+                      }}
+                    >
+                      {badgeCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
           <button
@@ -380,7 +635,7 @@ export default function StaffHub() {
                 Welcome back, Senior Auditor
               </h2>
               <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", marginTop: 4 }}>
-                Active Module: <strong style={{ color: "var(--gold)" }}>{activeNav.toUpperCase()}</strong> • 24 Verifications Approved Today
+                Active Module: <strong style={{ color: "var(--gold)" }}>{activeNavLabel}</strong> • 24 Verifications Approved Today
               </p>
             </div>
 
@@ -492,8 +747,71 @@ export default function StaffHub() {
           {/* TAB MODULE 1: OVERVIEW & BUCKET */}
           {activeNav === "overview" && (
             <div>
+              {/* Quick-access cards for the three dedicated review queues -
+                  KYC, Certifications, and Job Approvals used to be stacked
+                  together on one long "Audit Queue" page; each is now its
+                  own tab (see NAV_ITEMS above), and this is the landing
+                  page's jumping-off point into them. */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+                {[
+                  { id: "kyc", icon: "🔍", title: "KYC Verification", desc: "Company Account & GSTIN/PAN documents", accent: "#0A1F3D", counts: kycCounts, pendingLabel: "pending" },
+                  { id: "certifications", icon: "🎓", title: "Certifications", desc: "Candidate AAPC/AHIMA certificate uploads", accent: "#9333EA", counts: certCounts, pendingLabel: "pending" },
+                  { id: "jobapprovals", icon: "📋", title: "Job Approvals", desc: "Employer job posts awaiting listing approval", accent: "#2563EB", counts: jobCounts, pendingLabel: "pending" },
+                ].map((q) => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => setActiveNav(q.id)}
+                    style={{
+                      textAlign: "left",
+                      background: "#fff",
+                      border: "1px solid #E8EAEE",
+                      borderRadius: 18,
+                      padding: 20,
+                      boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      transition: "box-shadow 0.15s, transform 0.15s",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <span
+                        style={{
+                          fontSize: 20,
+                          width: 40,
+                          height: 40,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: 12,
+                          background: `${q.accent}14`,
+                        }}
+                      >
+                        {q.icon}
+                      </span>
+                      {q.counts.pending > 0 ? (
+                        <span style={{ background: "#FEF3C7", color: "#92400E", fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: 999 }}>
+                          {q.counts.pending} PENDING
+                        </span>
+                      ) : (
+                        <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10, fontWeight: 800, padding: "3px 9px", borderRadius: 999 }}>
+                          ALL CLEAR
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <div style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 800, color: "var(--navy)" }}>{q.title}</div>
+                      <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3 }}>{q.desc}</div>
+                    </div>
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: q.accent }}>Open queue →</div>
+                  </button>
+                ))}
+              </div>
+
               {/* Core Pipeline Visualization */}
-              <div style={{ background: "#fff", borderRadius: 14, padding: 20, border: "1px solid var(--border-light)", borderTop: "3px solid var(--gold)", marginBottom: 24 }}>
+              <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)", marginBottom: 24 }}>
                 <h3 style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, marginBottom: 16 }}>
                   Core Verification Pipeline Stages
                 </h3>
@@ -510,19 +828,19 @@ export default function StaffHub() {
               {/* Grid: Incoming Academy Bucket & Staff Tasks */}
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
                 {/* Incoming Bucket */}
-                <div style={{ background: "linear-gradient(135deg, #FFF8E7 0%, #FFFCF5 100%)", border: "2px solid var(--gold)", borderRadius: 14, padding: 22 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                    <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                <div style={{ background: "#FEFCF6", border: "1px solid #F3E4BE", borderRadius: 18, padding: 24, boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                    <h3 style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
                       Incoming Academy Uploads Bucket
                     </h3>
-                    <span style={{ background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999 }}>
+                    <span style={{ background: "#FDECC8", color: "#92400E", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 999 }}>
                       ACTION REQUIRED ({incomingBucket ? incomingBucket.length : 0})
                     </span>
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {incomingBucket && incomingBucket.map((item) => (
-                      <div key={item.id} style={{ background: "#fff", border: "1px solid rgba(229,168,46,0.3)", borderRadius: 10, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div key={item.id} style={{ background: "#fff", border: "1px solid #EEE3C6", borderRadius: 12, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <div>
                           <div style={{ fontWeight: 700, color: "var(--navy)", fontSize: 14 }}>{item.studentName}</div>
                           <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{item.academy} • {item.course}</div>
@@ -552,7 +870,7 @@ export default function StaffHub() {
                 </div>
 
                 {/* Operations Task Queue */}
-                <div style={{ background: "#fff", borderRadius: 14, padding: 20, border: "1px solid var(--border-light)" }}>
+                <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
                   <h3 style={{ fontFamily: "var(--font-display)", fontSize: 16, fontWeight: 700, marginBottom: 14 }}>
                     Operations Task Queue
                   </h3>
@@ -569,92 +887,141 @@ export default function StaffHub() {
             </div>
           )}
 
-          {/* TAB MODULE 2: AUDIT QUEUE */}
-          {activeNav === "audit" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {/* Dedicated Company Account & KYC Verification Queue */}
-              <div style={{ background: "#fff", borderRadius: 14, padding: 22, border: "1px solid var(--border-light)", borderTop: "3px solid #0A1F3D" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <div>
-                    <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-                      🔍 Company Account & KYC Document Audit Queue
-                    </h3>
-                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "#64748B" }}>
-                      Audit business registration, GSTIN, PAN, and KYC certificates submitted by employer accounts.
-                    </p>
-                  </div>
-                  <span style={{ background: "#0A1F3D", color: "#fff", fontSize: 10, fontWeight: 800, padding: "4px 10px", borderRadius: 999 }}>
-                    {(companyKycQueue || []).length} REGISTERED COMPANIES
-                  </span>
-                </div>
-
+          {/* TAB MODULE 2A: KYC VERIFICATION (own tab) */}
+          {activeNav === "kyc" && (
+            <div>
+              <QueuePageHeader
+                icon="🔍"
+                accent="#0A1F3D"
+                title="KYC Verification"
+                subtitle="Audit business registration, GSTIN, PAN, and KYC certificates submitted by employer accounts before granting the Gold Trust Badge."
+                pills={
+                  <>
+                    <StatPill count={kycCounts.pending} label="PENDING" tone="pending" />
+                    <StatPill count={kycCounts.verified} label="VERIFIED" tone="good" />
+                    <StatPill count={kycCounts.rejected} label="REJECTED" tone="bad" />
+                  </>
+                }
+              />
+              {/* Inbox-style list + detail panel: a narrow list of
+                  companies on the left, the selected company's full KYC
+                  detail (fields, documents, actions) on the right - swapped
+                  in for the old one-full-card-per-company stack per staff
+                  feedback that the stacked layout was hard to scan. */}
+              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)", overflow: "hidden" }}>
                 {!(companyKycQueue && companyKycQueue.length) ? (
-                  <div style={{ padding: 20, textAlign: "center", color: "#64748B", fontSize: 13 }}>
+                  <div style={{ padding: 40, textAlign: "center", color: "#64748B", fontSize: 13 }}>
                     No companies in the verification queue.
                   </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    {companyKycQueue.map((comp) => (
-                      <div
-                        key={comp.id}
-                        style={{
-                          background: comp.kycStatus === "verified" ? "#F0FDF4" : comp.kycStatus === "rejected" ? "#FEF2F2" : "#F8FAFC",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 10,
-                          padding: 16,
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                ) : (() => {
+                  const selectedComp = companyKycQueue.find((c) => c.id === selectedKycId) || companyKycQueue[0];
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", minHeight: 520 }}>
+                      {/* LEFT: company list */}
+                      <div style={{ borderRight: "1px solid #EEF0F3", display: "flex", flexDirection: "column" }}>
+                        <div style={{ padding: "14px 16px", borderBottom: "1px solid #EEF0F3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <h3 style={{ fontFamily: "var(--font-display)", fontSize: 12.5, fontWeight: 800, color: "var(--navy)", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Registered Companies
+                          </h3>
+                          <span style={{ background: "#EEF2F7", color: "#0A1F3D", fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999 }}>
+                            {companyKycQueue.length}
+                          </span>
+                        </div>
+                        <div style={{ overflowY: "auto", maxHeight: 560 }}>
+                          {companyKycQueue.map((comp) => {
+                            const isSelected = selectedComp && selectedComp.id === comp.id;
+                            return (
+                              <button
+                                key={comp.id}
+                                type="button"
+                                onClick={() => setSelectedKycId(comp.id)}
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                  padding: "12px 16px",
+                                  border: "none",
+                                  borderLeft: isSelected ? "3px solid #0A1F3D" : "3px solid transparent",
+                                  borderBottom: "1px solid #F5F6F8",
+                                  background: isSelected ? "#F5F7FB" : "transparent",
+                                  cursor: "pointer",
+                                  display: "block",
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {comp.companyName}
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 9.5,
+                                    fontWeight: 800,
+                                    padding: "2px 7px",
+                                    borderRadius: 4,
+                                    background: comp.kycStatus === "verified" ? "#DCFCE7" : comp.kycStatus === "under_review" ? "#FEF3C7" : comp.kycStatus === "rejected" ? "#FEE2E2" : "#E2E8F0",
+                                    color: comp.kycStatus === "verified" ? "#15803D" : comp.kycStatus === "under_review" ? "#B45309" : comp.kycStatus === "rejected" ? "#B91C1C" : "#475569",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  {comp.kycStatus}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* RIGHT: detail panel for the selected company */}
+                      <div style={{ padding: 24, overflowY: "auto" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <span style={{ fontWeight: 800, color: "var(--navy)", fontSize: 16 }}>{comp.companyName}</span>
+                            <span style={{ fontWeight: 800, color: "var(--navy)", fontSize: 18 }}>{selectedComp.companyName}</span>
                             <span
                               style={{
                                 fontSize: 10,
                                 fontWeight: 800,
                                 padding: "3px 8px",
                                 borderRadius: 4,
-                                background: comp.kycStatus === "verified" ? "#DCFCE7" : comp.kycStatus === "under_review" ? "#FEF3C7" : comp.kycStatus === "rejected" ? "#FEE2E2" : "#E2E8F0",
-                                color: comp.kycStatus === "verified" ? "#15803D" : comp.kycStatus === "under_review" ? "#B45309" : comp.kycStatus === "rejected" ? "#B91C1C" : "#475569",
+                                background: selectedComp.kycStatus === "verified" ? "#DCFCE7" : selectedComp.kycStatus === "under_review" ? "#FEF3C7" : selectedComp.kycStatus === "rejected" ? "#FEE2E2" : "#E2E8F0",
+                                color: selectedComp.kycStatus === "verified" ? "#15803D" : selectedComp.kycStatus === "under_review" ? "#B45309" : selectedComp.kycStatus === "rejected" ? "#B91C1C" : "#475569",
                                 textTransform: "uppercase",
                               }}
                             >
-                              {comp.kycStatus}
+                              {selectedComp.kycStatus}
                             </span>
                           </div>
 
                           <div style={{ display: "flex", gap: 8 }}>
                             <button
-                              style={{ background: "#22C55E", color: "#fff", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                              disabled={processingId === comp.id}
-                              onClick={() => handleVerifyCompany(comp, "verify")}
+                              style={{ background: "#ECFDF5", color: "#047857", border: "1px solid #A7F3D0", padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                              disabled={processingId === selectedComp.id}
+                              onClick={() => handleVerifyCompany(selectedComp, "verify")}
                             >
                               Approve KYC & Grant Badge →
                             </button>
                             <button
-                              style={{ background: "#EF4444", color: "#fff", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                              disabled={processingId === comp.id}
-                              onClick={() => handleVerifyCompany(comp, "reject")}
+                              style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                              disabled={processingId === selectedComp.id}
+                              onClick={() => handleVerifyCompany(selectedComp, "reject")}
                             >
                               Request Revision ✖
                             </button>
                           </div>
                         </div>
 
-                        <div style={{ fontSize: 12, color: "#475569", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 16px", background: "#fff", padding: 12, borderRadius: 8, border: "1px solid #E2E8F0" }}>
-                          <div><strong>Legal Name:</strong> {comp.legalName}</div>
-                          <div><strong>Entity:</strong> {comp.entity}</div>
-                          <div><strong>GSTIN:</strong> <code style={{ background: "#E2E8F0", padding: "1px 4px", borderRadius: 3 }}>{comp.gstin}</code></div>
-                          <div><strong>PAN:</strong> <code style={{ background: "#E2E8F0", padding: "1px 4px", borderRadius: 3 }}>{comp.pan}</code></div>
-                          <div><strong>POC:</strong> {comp.contactName} ({comp.email})</div>
-                          <div><strong>Mobile:</strong> {comp.mobile}</div>
+                        <div style={{ fontSize: 12, color: "#475569", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 16px", background: "#F8FAFC", padding: 14, borderRadius: 10, border: "1px solid #EEF0F3" }}>
+                          <div><strong>Legal Name:</strong> {selectedComp.legalName}</div>
+                          <div><strong>Entity:</strong> {selectedComp.entity}</div>
+                          <div><strong>GSTIN:</strong> <code style={{ background: "#E2E8F0", padding: "1px 4px", borderRadius: 3 }}>{selectedComp.gstin}</code></div>
+                          <div><strong>PAN:</strong> <code style={{ background: "#E2E8F0", padding: "1px 4px", borderRadius: 3 }}>{selectedComp.pan}</code></div>
+                          <div><strong>POC:</strong> {selectedComp.contactName} ({selectedComp.email})</div>
+                          <div><strong>Mobile:</strong> {selectedComp.mobile}</div>
                         </div>
 
                         {/* Document Verification Row */}
-                        <div style={{ marginTop: 12 }}>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>DOCUMENT CERTIFICATES AUDIT</div>
+                        <div style={{ marginTop: 16 }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 8 }}>DOCUMENT CERTIFICATES AUDIT</div>
                           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                            {comp.docs.map((doc) => (
-                              <div key={doc.id} style={{ background: "#fff", border: "1px solid #CBD5E1", borderRadius: 6, padding: "6px 10px", fontSize: 11, display: "flex", alignItems: "center", gap: 8 }}>
+                            {selectedComp.docs.map((doc) => (
+                              <div key={doc.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 12px", fontSize: 11.5, display: "flex", alignItems: "center", gap: 8 }}>
                                 <span>{doc.label}</span>
                                 {doc.uploaded ? (
                                   <span style={{ color: doc.isValid ? "#22C55E" : doc.isValid === false ? "#EF4444" : "#B45309", fontWeight: 700 }}>
@@ -668,16 +1035,378 @@ export default function StaffHub() {
                           </div>
                         </div>
                       </div>
-                    ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* TAB MODULE 2B: CERTIFICATIONS (own tab) — makes the
+              candidate's professional accreditation claim (AAPC/AHIMA etc.)
+              mean something: a staff member reviews the actual uploaded
+              certificate before it counts as verified, same spirit as the
+              KYC Verification tab. */}
+          {activeNav === "certifications" && (
+            <div>
+              <QueuePageHeader
+                icon="🎓"
+                accent="#9333EA"
+                title="Certifications"
+                subtitle="Confirm each candidate's uploaded AAPC/AHIMA (or other) certificate is genuine before it shows as verified on their profile."
+                pills={
+                  <>
+                    <StatPill count={certCounts.pending} label="PENDING" tone="pending" />
+                    <StatPill count={certCounts.verified} label="VERIFIED" tone="good" />
+                    <StatPill count={certCounts.rejected} label="REJECTED" tone="bad" />
+                  </>
+                }
+              />
+              {/* Inbox-style list + detail panel, matching the KYC
+                  Verification tab's layout: a narrow candidate list on the
+                  left, the selected candidate's full certification detail
+                  on the right. */}
+              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)", overflow: "hidden" }}>
+                {!(certificationQueue && certificationQueue.length) ? (
+                  <div style={{ padding: 40, textAlign: "center", color: "#64748B", fontSize: 13 }}>
+                    No certification submissions in the queue.
                   </div>
-                )}
+                ) : (() => {
+                  const selectedCert = certificationQueue.find((c) => c.id === selectedCertId) || certificationQueue[0];
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "300px 1fr", minHeight: 520 }}>
+                      {/* LEFT: candidate list */}
+                      <div style={{ borderRight: "1px solid #EEF0F3", display: "flex", flexDirection: "column" }}>
+                        <div style={{ padding: "14px 16px", borderBottom: "1px solid #EEF0F3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <h3 style={{ fontFamily: "var(--font-display)", fontSize: 12.5, fontWeight: 800, color: "var(--navy)", margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            Submissions
+                          </h3>
+                          <span style={{ background: "#F5F0FF", color: "#7C3AED", fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999 }}>
+                            {certificationQueue.length}
+                          </span>
+                        </div>
+                        <div style={{ overflowY: "auto", maxHeight: 560 }}>
+                          {certificationQueue.map((cert) => {
+                            const isSelected = selectedCert && selectedCert.id === cert.id;
+                            return (
+                              <button
+                                key={cert.id}
+                                type="button"
+                                onClick={() => setSelectedCertId(cert.id)}
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                  padding: "12px 16px",
+                                  border: "none",
+                                  borderLeft: isSelected ? "3px solid #9333EA" : "3px solid transparent",
+                                  borderBottom: "1px solid #F5F6F8",
+                                  background: isSelected ? "#F5F7FB" : "transparent",
+                                  cursor: "pointer",
+                                  display: "block",
+                                }}
+                              >
+                                <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)", marginBottom: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {cert.studentName}
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 9.5,
+                                    fontWeight: 800,
+                                    padding: "2px 7px",
+                                    borderRadius: 4,
+                                    background: cert.certStatus === "verified" ? "#DCFCE7" : cert.certStatus === "rejected" ? "#FEE2E2" : "#FEF3C7",
+                                    color: cert.certStatus === "verified" ? "#15803D" : cert.certStatus === "rejected" ? "#B91C1C" : "#B45309",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  {cert.certStatus}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* RIGHT: detail panel for the selected candidate */}
+                      <div style={{ padding: 24, overflowY: "auto" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontWeight: 800, color: "var(--navy)", fontSize: 18 }}>{selectedCert.studentName}</span>
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 800,
+                                padding: "3px 8px",
+                                borderRadius: 4,
+                                background: selectedCert.certStatus === "verified" ? "#DCFCE7" : selectedCert.certStatus === "rejected" ? "#FEE2E2" : "#FEF3C7",
+                                color: selectedCert.certStatus === "verified" ? "#15803D" : selectedCert.certStatus === "rejected" ? "#B91C1C" : "#B45309",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {selectedCert.certStatus}
+                            </span>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 8 }}>
+                            {selectedCert.docUrl && (
+                              <a
+                                href={selectedCert.docUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ background: "#fff", color: "var(--navy)", border: "1px solid #CBD5E1", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                              >
+                                View Certificate ↗
+                              </a>
+                            )}
+                            <button
+                              style={{ background: "#ECFDF5", color: "#047857", border: "1px solid #A7F3D0", padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                              disabled={processingId === selectedCert.id || selectedCert.certStatus === "verified"}
+                              onClick={() => handleAuditCertification(selectedCert, "verify")}
+                            >
+                              {selectedCert.certStatus === "verified" ? "Verified ✓" : "Confirm Genuine →"}
+                            </button>
+                            <button
+                              style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: "7px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                              disabled={processingId === selectedCert.id}
+                              onClick={() => handleAuditCertification(selectedCert, "reject")}
+                            >
+                              Reject ✖
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ fontSize: 12, color: "#475569", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 16px", background: "#F8FAFC", padding: 14, borderRadius: 10, border: "1px solid #EEF0F3" }}>
+                          <div><strong>Certification:</strong> {selectedCert.certName || "N/A"}</div>
+                          <div><strong>Issuing Body:</strong> {selectedCert.issuingBody || "N/A"}</div>
+                          <div><strong>Member ID:</strong> <code style={{ background: "#E2E8F0", padding: "1px 4px", borderRadius: 3 }}>{selectedCert.memberId || "N/A"}</code></div>
+                          <div><strong>Issue Date:</strong> {selectedCert.issueDate || "N/A"}</div>
+                          <div><strong>Email:</strong> {selectedCert.email}</div>
+                          <div><strong>Document:</strong> {selectedCert.docName ? `${selectedCert.docName} ✓` : "Not uploaded"}</div>
+                        </div>
+
+                        {selectedCert.certStatus === "rejected" && selectedCert.certRejectionReason && (
+                          <div style={{ marginTop: 16, fontSize: 12, color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: 10 }}>
+                            <strong>Rejection reason:</strong> {selectedCert.certRejectionReason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* TAB MODULE 2C: JOB APPROVALS (own tab) — every job a company
+              has submitted (onboarding first-JD or an additional Job Posts
+              screen posting) waits here until staff approve it; only then
+              does it show on the public job board (see routes/public.js
+              GET /jobs). */}
+          {activeNav === "jobapprovals" && (
+            <div>
+              <QueuePageHeader
+                icon="📋"
+                accent="#2563EB"
+                title="Job Approvals"
+                subtitle="Approve or reject each job post before it appears on the public job board for candidates."
+                pills={
+                  <>
+                    <StatPill count={jobCounts.pending} label="PENDING" tone="pending" />
+                    <StatPill count={jobCounts.approved} label="APPROVED" tone="good" />
+                    <StatPill count={jobCounts.rejected} label="REJECTED" tone="bad" />
+                  </>
+                }
+              />
+              {/* Inbox-style list + detail panel, matching the KYC
+                  Verification tab's layout: a narrow job list on the left,
+                  the selected job's full detail on the right. */}
+              <div style={{ background: "#fff", borderRadius: 18, border: "1px solid #E2E8F0", boxShadow: "0 4px 20px -2px rgba(15, 23, 42, 0.04)", overflow: "hidden" }}>
+                {!(jobApprovalQueue && jobApprovalQueue.length) ? (
+                  <div style={{ padding: "60px 20px", textAlign: "center", background: "#FAFBFD" }}>
+                    <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#0F172A", marginBottom: 4 }}>No Job Posts in Queue</div>
+                    <div style={{ fontSize: 13, color: "#64748B" }}>Employer job listings waiting for staff review will appear here.</div>
+                  </div>
+                ) : (() => {
+                  const selectedJob = jobApprovalQueue.find((j) => j.id === selectedJobId) || jobApprovalQueue[0];
+                  return (
+                    <div style={{ display: "grid", gridTemplateColumns: "320px 1fr", minHeight: 540 }}>
+                      {/* LEFT: job list */}
+                      <div style={{ borderRight: "1px solid #EEF0F3", display: "flex", flexDirection: "column", background: "#FAFBFD" }}>
+                        <div style={{ padding: "16px 18px", borderBottom: "1px solid #EEF0F3", display: "flex", justifyContent: "space-between", alignItems: "center", background: "#FFFFFF" }}>
+                          <h3 style={{ fontFamily: "var(--font-display)", fontSize: 12, fontWeight: 800, color: "#0F172A", margin: 0, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            Job Posts Queue
+                          </h3>
+                          <span style={{ background: "#EFF6FF", color: "#2563EB", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+                            {jobApprovalQueue.length} {jobApprovalQueue.length === 1 ? "item" : "items"}
+                          </span>
+                        </div>
+                        <div style={{ overflowY: "auto", maxHeight: 580 }}>
+                          {jobApprovalQueue.map((job) => {
+                            const isSelected = selectedJob && selectedJob.id === job.id;
+                            const initial = (job.companyName || "C").charAt(0).toUpperCase();
+                            return (
+                              <button
+                                key={`${job.source}-${job.id}`}
+                                type="button"
+                                onClick={() => setSelectedJobId(job.id)}
+                                style={{
+                                  width: "100%",
+                                  textAlign: "left",
+                                  padding: "14px 18px",
+                                  border: "none",
+                                  borderLeft: isSelected ? "4px solid #2563EB" : "4px solid transparent",
+                                  borderBottom: "1px solid #EEF0F3",
+                                  background: isSelected ? "#FFFFFF" : "transparent",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: 12,
+                                  transition: "all 0.15s ease",
+                                  boxShadow: isSelected ? "0 2px 8px rgba(37, 99, 235, 0.06)" : "none",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 34,
+                                    height: 34,
+                                    borderRadius: 10,
+                                    background: isSelected ? "#2563EB" : "#E2E8F0",
+                                    color: isSelected ? "#FFFFFF" : "#475569",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    fontWeight: 800,
+                                    fontSize: 13,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {initial}
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 700, fontSize: 13, color: isSelected ? "#0F172A" : "#334155", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {job.roleTitle}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#64748B", marginBottom: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {job.companyName}
+                                  </div>
+                                  <span
+                                    style={{
+                                      fontSize: 9,
+                                      fontWeight: 800,
+                                      padding: "2px 8px",
+                                      borderRadius: 999,
+                                      background: job.approvalStatus === "approved" ? "#DCFCE7" : job.approvalStatus === "rejected" ? "#FEE2E2" : "#FEF3C7",
+                                      color: job.approvalStatus === "approved" ? "#15803D" : job.approvalStatus === "rejected" ? "#B91C1C" : "#B45309",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.04em",
+                                    }}
+                                  >
+                                    ● {job.approvalStatus}
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* RIGHT: detail panel for the selected job */}
+                      <div style={{ padding: 28, overflowY: "auto", background: "#FFFFFF" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                              <h3 style={{ fontWeight: 800, color: "#0F172A", fontSize: 20, margin: 0, fontFamily: "var(--font-display)" }}>{selectedJob.roleTitle}</h3>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 800,
+                                  padding: "3px 10px",
+                                  borderRadius: 999,
+                                  background: selectedJob.approvalStatus === "approved" ? "#DCFCE7" : selectedJob.approvalStatus === "rejected" ? "#FEE2E2" : "#FEF3C7",
+                                  color: selectedJob.approvalStatus === "approved" ? "#15803D" : selectedJob.approvalStatus === "rejected" ? "#B91C1C" : "#B45309",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.04em",
+                                }}
+                              >
+                                ● {selectedJob.approvalStatus}
+                              </span>
+                              {selectedJob.source === "onboarding" && (
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "#2563EB", background: "#EFF6FF", padding: "2px 8px", borderRadius: 6 }}>
+                                  From Onboarding
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>
+                              Posted by <strong>{selectedJob.companyName}</strong>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                              style={{
+                                background: selectedJob.approvalStatus === "approved" ? "#F1F5F9" : "#ECFDF5",
+                                color: selectedJob.approvalStatus === "approved" ? "#64748B" : "#047857",
+                                border: selectedJob.approvalStatus === "approved" ? "1px solid #E2E8F0" : "1px solid #A7F3D0",
+                                padding: "8px 16px",
+                                borderRadius: 10,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: selectedJob.approvalStatus === "approved" ? "default" : "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                              disabled={processingId === selectedJob.id || selectedJob.approvalStatus === "approved"}
+                              onClick={() => handleAuditJob(selectedJob, "verify")}
+                            >
+                              {selectedJob.approvalStatus === "approved" ? "Approved ✓" : "Approve Job Post →"}
+                            </button>
+                            <button
+                              style={{
+                                background: "#FEF2F2",
+                                color: "#B91C1C",
+                                border: "1px solid #FECACA",
+                                padding: "8px 16px",
+                                borderRadius: 10,
+                                fontSize: 12,
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                              disabled={processingId === selectedJob.id}
+                              onClick={() => handleAuditJob(selectedJob, "reject")}
+                            >
+                              Reject ✖
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Metadata Box */}
+                        <div style={{ fontSize: 12, color: "#475569", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px 20px", background: "#F8FAFC", padding: 18, borderRadius: 14, border: "1px solid #E2E8F0" }}>
+                          <div><span style={{ color: "#64748B", fontSize: 11, display: "block" }}>COMPANY</span><strong>{selectedJob.companyName}</strong></div>
+                          <div><span style={{ color: "#64748B", fontSize: 11, display: "block" }}>JOB ID</span><code style={{ background: "#E2E8F0", padding: "2px 6px", borderRadius: 4, fontFamily: "var(--font-mono)", fontSize: 11 }}>{selectedJob.jobId}</code></div>
+                          <div><span style={{ color: "#64748B", fontSize: 11, display: "block" }}>SPECIALTY</span><strong>{selectedJob.specialty || "N/A"}</strong></div>
+                          <div><span style={{ color: "#64748B", fontSize: 11, display: "block" }}>LOCATION</span><strong>📍 {selectedJob.location || "N/A"}</strong></div>
+                          <div><span style={{ color: "#64748B", fontSize: 11, display: "block" }}>WORK MODE</span><strong>💼 {selectedJob.workMode || "N/A"}</strong></div>
+                          <div><span style={{ color: "#64748B", fontSize: 11, display: "block" }}>OPENINGS</span><strong>👥 {selectedJob.openings ?? "N/A"}</strong></div>
+                        </div>
+
+                        {selectedJob.approvalStatus === "rejected" && selectedJob.rejectionReason && (
+                          <div style={{ marginTop: 20, fontSize: 12, color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 10, padding: 14 }}>
+                            <strong style={{ display: "block", marginBottom: 2 }}>Rejection Reason:</strong>
+                            {selectedJob.rejectionReason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
 
           {/* TAB MODULE: TEXT ASSESSMENT (Stage 4 MCQ Answer Review) */}
           {activeNav === "assessment" && (
-            <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid #0EA5E9" }}>
+            <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                 <div>
                   <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
@@ -687,7 +1416,7 @@ export default function StaffHub() {
                     Review each candidate's submitted proctored MCQ answers and verify how many questions were answered correctly.
                   </p>
                 </div>
-                <span style={{ background: "#0EA5E9", color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
+                <span style={{ background: "#F0F9FF", color: "#0369A1", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
                   {(textAssessmentQueue || []).length} SUBMISSIONS
                 </span>
               </div>
@@ -794,7 +1523,7 @@ export default function StaffHub() {
 
           {/* TAB MODULE 3: VIDEO INTRODUCTIONS */}
           {activeNav === "video" && (
-            <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid #A855F7" }}>
+            <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
                 <div>
                   <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
@@ -804,7 +1533,7 @@ export default function StaffHub() {
                     Audit Stage 5 video self-introductions for communication clarity, audio quality, and candidate authenticity.
                   </p>
                 </div>
-                <span style={{ background: "#A855F7", color: "#fff", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
+                <span style={{ background: "#FAF5FF", color: "#9333EA", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
                   {(videoIntrosQueue || []).length} VIDEO INTROS IN QUEUE
                 </span>
               </div>
@@ -943,7 +1672,7 @@ export default function StaffHub() {
 
           {/* TAB MODULE: INTERVIEW QUESTIONS (Stage 5 AI Video / AI Audio interview bank) */}
           {activeNav === "questions" && (
-            <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid #F59E0B" }}>
+            <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
                 <div>
                   <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
@@ -1059,7 +1788,7 @@ export default function StaffHub() {
           {/* TAB MODULE 4: REPORTS & METRICS */}
           {activeNav === "reports" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid #22C55E" }}>
+              <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
                 <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: "0 0 6px 0" }}>
                   📊 System Performance & Operations Metrics
                 </h3>
@@ -1146,7 +1875,7 @@ export default function StaffHub() {
           )}
 
           {activeNav === "activity" && (
-            <div style={{ background: "#fff", borderRadius: 14, padding: 24, border: "1px solid var(--border-light)", borderTop: "3px solid var(--gold)" }}>
+            <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
               <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: "0 0 6px 0" }}>
                 🗒️ Staff Activity Log
               </h3>
@@ -1270,6 +1999,104 @@ export default function StaffHub() {
                   onClick={submitAuditModal}
                 >
                   {processingId === auditModal.company.id ? "Processing..." : "Confirm Action →"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CERTIFICATION AUDIT MODAL */}
+      {certAuditModal && (
+        <div className="modal-overlay" onClick={() => setCertAuditModal(null)}>
+          <div className="modal-content" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: 28 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, marginBottom: 6 }}>
+                {certAuditModal.action === "verify" ? "Confirm Certificate Is Genuine" : "Reject Certification Claim"}
+              </h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 18 }}>
+                Candidate: <strong style={{ color: "var(--navy)" }}>{certAuditModal.cert.studentName}</strong>
+                {" · "}{certAuditModal.cert.certName || "Certification"} ({certAuditModal.cert.memberId || "no ID on file"})
+              </p>
+
+              {certAuditModal.action === "verify" ? (
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>AUDIT NOTES</label>
+                  <textarea
+                    rows={3}
+                    value={certAuditModal.notes}
+                    onChange={(e) => setCertAuditModal({ ...certAuditModal, notes: e.target.value })}
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1" }}
+                  />
+                </div>
+              ) : (
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>REJECTION REASON</label>
+                  <textarea
+                    rows={3}
+                    value={certAuditModal.reason}
+                    onChange={(e) => setCertAuditModal({ ...certAuditModal, reason: e.target.value })}
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1" }}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #E5E7EB" }} onClick={() => setCertAuditModal(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  disabled={processingId === certAuditModal.cert.id}
+                  onClick={submitCertAuditModal}
+                >
+                  {processingId === certAuditModal.cert.id ? "Processing..." : "Confirm Action →"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* JOB POST APPROVAL MODAL */}
+      {jobAuditModal && (
+        <div className="modal-overlay" onClick={() => setJobAuditModal(null)}>
+          <div className="modal-content" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ padding: 28 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, marginBottom: 6 }}>
+                {jobAuditModal.action === "verify" ? "Approve Job Post" : "Reject Job Post"}
+              </h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 18 }}>
+                {jobAuditModal.job.companyName}
+                {" · "}{jobAuditModal.job.roleTitle} ({jobAuditModal.job.jobId})
+              </p>
+
+              {jobAuditModal.action === "reject" && (
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>REJECTION REASON</label>
+                  <textarea
+                    rows={3}
+                    value={jobAuditModal.reason}
+                    onChange={(e) => setJobAuditModal({ ...jobAuditModal, reason: e.target.value })}
+                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1" }}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #E5E7EB" }} onClick={() => setJobAuditModal(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  disabled={processingId === jobAuditModal.job.id}
+                  onClick={submitJobAuditModal}
+                >
+                  {processingId === jobAuditModal.job.id ? "Processing..." : "Confirm Action →"}
                 </button>
               </div>
             </div>

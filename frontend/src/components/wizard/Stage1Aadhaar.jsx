@@ -284,6 +284,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         <AadhaarOtpVerificationCard
           existingMaskedAadhaar={existingData?.maskedAadhaar || ""}
           candidateMobile={mobile}
+          docUploaded={Boolean(aadhaarDocName || aadhaarDocUrl)}
           initialStatus={existingData?.aadhaarVerified || aadhaarState === "valid" ? "VERIFIED" : "NOT_STARTED"}
           onVerificationSuccess={(data) => {
             setAadhaarState("valid");

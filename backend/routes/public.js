@@ -163,7 +163,17 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
         currentRole: stage1.currentRole || "RCM Specialist",
         aadhaarVerified: !!stage1.aadhaarVerified,
         academyName: stage2.skipped ? null : (stage2.academyName || "Partner Academy"),
-        certificationName: stage3.skipped ? null : (stage3.name || "AAPC Certified"),
+        // stage3.certName is what the real Stage3Certification.jsx form
+        // saves; stage3.name only exists on the SEED_CANDIDATES mock data
+        // below - was reading .name only, so a real candidate's
+        // certification never actually displayed here. certVerified
+        // reflects staff review (see routes/staff.js
+        // POST /verify-certification), not just that the candidate typed
+        // something - seed data's plain `verified: true` is treated as
+        // already-verified for demo purposes.
+        certificationName: stage3.skipped ? null : (stage3.certName || stage3.name || "AAPC Certified"),
+        certVerified: !stage3.skipped && (stage3.certStatus === "verified" || (stage3.certStatus === undefined && stage3.verified === true)),
+        certStatus: stage3.skipped ? null : (stage3.certStatus || (stage3.verified ? "verified" : "pending")),
         assessmentScore: stage4.score || 85,
         videoUrl: stage5.videoUrl || null,
         accuracyScore: stage6.accuracyScore || 95,
@@ -292,10 +302,14 @@ function formatPostedJob(job, companiesById) {
 //   ?workMode=   exact match (e.g. "Remote", "Hybrid", "On-site")
 router.get("/jobs", async (req, res) => {
   try {
-    const companies = await Company.find({ jdPublished: true }).lean();
+    // Both sources now require Talentera staff sign-off (jdApprovalStatus /
+    // approvalStatus === "approved") before a job is discoverable here - a
+    // company publishing a JD or posting an additional job no longer makes
+    // it live immediately, see routes/staff.js POST /verify-job.
+    const companies = await Company.find({ jdPublished: true, jdApprovalStatus: "approved" }).lean();
     const fromOnboarding = companies.filter((c) => c.jobId).map(formatCompanyJob);
 
-    const postedJobs = await Job.find({ published: true }).lean();
+    const postedJobs = await Job.find({ published: true, approvalStatus: "approved" }).lean();
     let fromPosted = [];
     if (postedJobs.length > 0) {
       const companyIds = [...new Set(postedJobs.map((j) => String(j.companyId)))];
@@ -377,6 +391,12 @@ router.get("/verify/candidate/:id", async (req, res) => {
     experience: stage1.experience || "1-3",
     currentRole: stage1.currentRole || "Specialist",
     aadhaarVerified: !!stage1.aadhaarVerified,
+    // Which stages the candidate actually completed - added so the
+    // frontend (VerifyCandidate.jsx) can show each stage's real state
+    // instead of an unconditional checkmark regardless of whether it was
+    // ever done. See that file for the previous "every stage shows
+    // verified with fallback text" bug.
+    completedStages: candidate.completedStages || [],
     academy: stage2,
     certification: stage3,
     assessment: stage4,

@@ -62,8 +62,50 @@ export default function VerifyCandidate() {
     );
   }
 
-  const { name, email, mobile, city, currentRole, experience, aadhaarVerified, scoring, academy, certification, assessment, videoIntro, liveCharts, summary, verifiedAt } = data;
-  const isGold = scoring?.badge === "gold";
+  const { name, email, mobile, city, currentRole, experience, aadhaarVerified, scoring, academy, certification, assessment, videoIntro, liveCharts, summary, verifiedAt, completedStages: rawCompletedStages } = data;
+  // BUG FIX: this used to read scoring?.badge, but calculateVerificationScore()
+  // returns isGoldBadge, not badge - so the Gold Verified Badge here never
+  // actually showed even for genuinely gold-tier candidates.
+  const isGold = scoring?.isGoldBadge === true;
+  const completedStages = rawCompletedStages || [];
+
+  // Every stage card below used to render an unconditional green checkmark
+  // with hardcoded fallback text ("Batch 2025", "VERIFIED-8821", "Proctored
+  // Score: 90/100"...) regardless of whether the candidate actually
+  // completed, skipped, or was ever reviewed on that stage - meaning this
+  // PUBLIC credential page (the one thing meant to let an employer confirm
+  // a profile is genuine) could show a fabricated "verified" trail for a
+  // candidate who hadn't actually done most of it. Each card now renders
+  // only when the stage is genuinely complete; a small helper keeps that
+  // check consistent across all of them.
+  function StageStatusRow({ done, icon, color, bg, title, detail, points }) {
+    if (!done) {
+      return (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "#F8FAFC", border: "1px dashed #E2E8F0" }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: "#E2E8F0", color: "#94A3B8", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+            ·
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, color: "#94A3B8" }}>{title}</div>
+            <p style={{ fontSize: 13, color: "#9CA3AF", margin: "2px 0 0" }}>Not yet completed</p>
+          </div>
+          <span style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8", background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>+0 Pts</span>
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: bg, border: `1px solid ${color}33` }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: color, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+          {icon}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, color: "#111827" }}>{title}</div>
+          <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>{detail}</p>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 800, color, background: `${color}22`, padding: "4px 10px", borderRadius: 999 }}>+{points} Pts</span>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "#FAF7F0", color: "#0A1F3D", paddingBottom: 64 }}>
@@ -152,64 +194,83 @@ export default function VerifyCandidate() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {/* Aadhaar Identity */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.2)" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "#059669", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                    ✓
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: "#111827" }}>Stage 1: Government Identity (e-KYC)</div>
-                    <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>Aadhaar verified • Name: {name} • Phone: {mobile}</p>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#047857", background: "#D1FAE5", padding: "4px 10px", borderRadius: 999 }}>+5 Pts</span>
-                </div>
+                <StageStatusRow
+                  done={completedStages.includes(1)}
+                  icon="✓" color="#059669" bg="rgba(16,185,129,0.06)"
+                  title="Stage 1: Government Identity (e-KYC)"
+                  detail={`Aadhaar verified • Name: ${name} • Phone: ${mobile}`}
+                  points={5}
+                />
 
                 {/* Academy Training */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.2)" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "#2563EB", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                    ✓
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: "#111827" }}>Stage 2: Academy Training Certification</div>
-                    <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>{academy?.academyName || "Verified Training Institution"} ({academy?.batch || "Batch 2025"})</p>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#1D4ED8", background: "#DBEAFE", padding: "4px 10px", borderRadius: 999 }}>+15 Pts</span>
-                </div>
+                <StageStatusRow
+                  done={completedStages.includes(2) && !academy?.skipped}
+                  icon="✓" color="#2563EB" bg="rgba(37,99,235,0.06)"
+                  title="Stage 2: Academy Training Certification"
+                  detail={`${academy?.academyName || "Verified Training Institution"} (${academy?.duration || academy?.batch || "duration not on file"})`}
+                  points={15}
+                />
 
-                {/* Professional Certifications */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(147,51,234,0.06)", border: "1px solid rgba(147,51,234,0.2)" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "#9333EA", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                    ✓
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: "#111827" }}>Stage 3: Professional Accreditation</div>
-                    <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>{certification?.name || "AAP/AHIMA Certification"} (ID: {certification?.certId || "VERIFIED-8821"})</p>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#7E22CE", background: "#F3E8FF", padding: "4px 10px", borderRadius: 999 }}>+20 Pts</span>
-                </div>
+                {/* Professional Certifications — three-way status (verified /
+                    pending staff review / rejected), not just done/not-done,
+                    since a submitted-but-unreviewed certificate isn't the
+                    same as a genuinely confirmed one. */}
+                {completedStages.includes(3) && !certification?.skipped ? (
+                  certification?.certStatus === "verified" ? (
+                    <StageStatusRow
+                      done icon="✓" color="#9333EA" bg="rgba(147,51,234,0.06)"
+                      title="Stage 3: Professional Accreditation — Staff Verified"
+                      detail={`${certification?.certName || certification?.name || "Certification"} (${certification?.issuingBody || "Issuing body"} · ID ending ${String(certification?.memberId || "").slice(-4) || "****"})`}
+                      points={20}
+                    />
+                  ) : certification?.certStatus === "rejected" ? (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "#DC2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                        ✕
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, color: "#111827" }}>Stage 3: Professional Accreditation — Not Verified</div>
+                        <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>
+                          {certification?.certName || certification?.name || "Certification"} claim submitted but could not be confirmed by Talentera staff.
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "#DC2626", background: "#FEE2E2", padding: "4px 10px", borderRadius: 999 }}>+0 Pts</span>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.25)" }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D97706", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
+                        ⏳
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, color: "#111827" }}>Stage 3: Professional Accreditation — Pending Staff Review</div>
+                        <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>
+                          {certification?.certName || certification?.name || "Certification"} submitted with a certificate document; awaiting confirmation by Talentera staff.
+                        </p>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "#B45309", background: "#FEF3C7", padding: "4px 10px", borderRadius: 999 }}>Counted, pending review</span>
+                    </div>
+                  )
+                ) : (
+                  <StageStatusRow done={false} title="Stage 3: Professional Accreditation" points={0} />
+                )}
 
                 {/* Proctored Assessment */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.2)" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D97706", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                    ✓
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: "#111827" }}>Stage 4: Skill Assessment Score</div>
-                    <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>Proctored Score: {assessment?.score || 90}/100 • Topic: {assessment?.topic || "Domain Competency"}</p>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#B45309", background: "#FEF3C7", padding: "4px 10px", borderRadius: 999 }}>+25 Pts</span>
-                </div>
+                <StageStatusRow
+                  done={completedStages.includes(4)}
+                  icon="✓" color="#D97706" bg="rgba(217,119,6,0.06)"
+                  title="Stage 4: Skill Assessment Score"
+                  detail={`Proctored Score: ${assessment?.foundationScore ?? assessment?.score ?? "N/A"}/100 • Topic: ${assessment?.topic || "Domain Competency"}`}
+                  points={25}
+                />
 
                 {/* Live Charts Performance */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(79,70,229,0.06)", border: "1px solid rgba(79,70,229,0.2)" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "#4F46E5", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                    ✓
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, color: "#111827" }}>Stage 6: Live Performance Audit</div>
-                    <p style={{ fontSize: 13, color: "#4B5563", margin: "2px 0 0" }}>Accuracy Score: {liveCharts?.accuracyScore || 96}% • Charts Audited: {liveCharts?.liveChartsAudited || 40}</p>
-                  </div>
-                  <span style={{ fontSize: 11, fontWeight: 800, color: "#4338CA", background: "#E0E7FF", padding: "4px 10px", borderRadius: 999 }}>+10 Pts</span>
-                </div>
+                <StageStatusRow
+                  done={completedStages.includes(6)}
+                  icon="✓" color="#4F46E5" bg="rgba(79,70,229,0.06)"
+                  title="Stage 6: Live Performance Audit"
+                  detail={`Accuracy Score: ${liveCharts?.accuracyScore ?? "N/A"}% • Charts Audited: ${liveCharts?.liveChartsAudited ?? liveCharts?.chartsAudited ?? "N/A"}`}
+                  points={10}
+                />
               </div>
             </div>
 

@@ -30,7 +30,7 @@ const AuditLogSchema = new mongoose.Schema(
     },
     targetType: {
       type: String,
-      enum: ["candidate", "company", "interview_question", "application", "other"],
+      enum: ["candidate", "company", "job", "interview_question", "application", "other"],
       default: "other",
     },
     targetId: { type: String, default: "" },

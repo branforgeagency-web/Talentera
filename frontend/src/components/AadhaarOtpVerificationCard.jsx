@@ -12,6 +12,7 @@ export default function AadhaarOtpVerificationCard({
   initialStatus = "NOT_STARTED",
   existingMaskedAadhaar = "",
   candidateMobile = "",
+  docUploaded = true,
   onVerificationSuccess,
   onStatusChange,
 }) {
@@ -26,6 +27,7 @@ export default function AadhaarOtpVerificationCard({
   const [maskedAadhaar, setMaskedAadhaar] = useState(existingMaskedAadhaar || "");
   const [maskedMobile, setMaskedMobile] = useState("");
   const [otpInput, setOtpInput] = useState("");
+  const [devOtpUsed, setDevOtpUsed] = useState(false);
 
   const [sendingOtp, setSendingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
@@ -74,6 +76,10 @@ export default function AadhaarOtpVerificationCard({
       e.preventDefault();
       e.stopPropagation();
     }
+    if (!docUploaded) {
+      setErrorMsg("Please upload your Aadhaar card (photo or PDF) above before requesting an OTP.");
+      return;
+    }
     if (!isChecksumValid) {
       setErrorMsg("Please enter a valid 12-digit Aadhaar number with correct checksum.");
       return;
@@ -97,6 +103,17 @@ export default function AadhaarOtpVerificationCard({
         // Start 30s Resend Timer
         setResendTimer(res.data.resendCooldown || 30);
         setCanResend(false);
+
+        // Dev-only convenience: the backend includes the generated OTP
+        // directly in the response outside production (there's no real
+        // Aadhaar gateway wired up in dev/sandbox), so pre-fill it instead
+        // of making testers tail server logs.
+        if (res.data.devOtp) {
+          setOtpInput(res.data.devOtp);
+          setDevOtpUsed(true);
+        } else {
+          setDevOtpUsed(false);
+        }
 
         toast(`OTP sent to your Aadhaar-registered mobile number (${res.data.maskedMobile || "linked to your Aadhaar"})`, "✓");
       }
@@ -163,6 +180,7 @@ export default function AadhaarOtpVerificationCard({
     }
     setStatus("NOT_STARTED");
     setOtpInput("");
+    setDevOtpUsed(false);
     setErrorMsg("");
   }
 
@@ -231,11 +249,18 @@ export default function AadhaarOtpVerificationCard({
             Your Aadhaar will be verified using an authorized Aadhaar authentication service.
           </p>
 
+          {!docUploaded && (
+            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E", padding: 10, borderRadius: 8, fontSize: 12, fontWeight: 600, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <i className="fa-solid fa-circle-info"></i>
+              <span>Upload your Aadhaar card above first - OTP verification unlocks once the document is attached.</span>
+            </div>
+          )}
+
           <button
             type="button"
             className="btn btn-gold"
             style={{ width: "100%", justifyContent: "center", padding: "12px 20px" }}
-            disabled={!isChecksumValid || sendingOtp}
+            disabled={!isChecksumValid || sendingOtp || !docUploaded}
             onClick={handleSendOtp}
           >
             {sendingOtp ? (
@@ -272,6 +297,11 @@ export default function AadhaarOtpVerificationCard({
               style={{ fontSize: 20, letterSpacing: "0.25em", textAlign: "center", fontWeight: 800 }}
               autoFocus
             />
+            {devOtpUsed && (
+              <span style={{ display: "block", marginTop: 6, fontSize: 11, color: "#94A3B8", textAlign: "center" }}>
+                Dev/sandbox mode: no real Aadhaar gateway is configured, so this code was pre-filled for you.
+              </span>
+            )}
           </div>
 
           <button

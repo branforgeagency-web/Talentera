@@ -82,7 +82,7 @@ export default function CompanyJobs() {
     setSubmitting(true);
     try {
       await companyApi.post("/company/jobs", form);
-      toast("Job posted!", "✓");
+      toast("Submitted for Talentera's approval ✓", "✓");
       setShowForm(false);
       setForm(emptyFormState());
       fetchJobs();
@@ -147,7 +147,8 @@ export default function CompanyJobs() {
           <div>
             <h1 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Job Posts</h1>
             <p style={{ fontSize: 13.5, color: "#64748B" }}>
-              Your profile is complete and verified — post as many open roles as you need.
+              Your profile is complete and verified — post as many open roles as you need. Every job post is
+              reviewed by Talentera staff before it appears on the public job board.
             </p>
           </div>
           {canPostMoreJobs ? (
@@ -244,7 +245,7 @@ export default function CompanyJobs() {
               disabled={submitting}
               style={{ marginTop: 20, width: "100%", padding: 14, background: "var(--gold)", color: "var(--navy)", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
             >
-              {submitting ? "Publishing…" : "Publish job →"}
+              {submitting ? "Submitting…" : "Submit for approval →"}
             </button>
           </form>
         )}
@@ -261,13 +262,31 @@ export default function CompanyJobs() {
           jobs.map((job) => {
             const f = job.fields || {};
             const isOpen = job.published && !job.closedAt;
+            const approvalStatus = job.approvalStatus || "pending";
+
+            // Approval status takes priority over Open/Closed - a job isn't
+            // visible to candidates at all until Talentera staff approve it,
+            // however the company itself is toggling published/closed.
+            let statusLabel = isOpen ? "Open" : "Closed";
+            let statusBg = isOpen ? "#DCFCE7" : "#F1F5F9";
+            let statusColor = isOpen ? "#166534" : "#64748B";
+            if (isOpen && approvalStatus === "pending") {
+              statusLabel = "⏳ Waiting for approval";
+              statusBg = "#FEF3C7";
+              statusColor = "#92400E";
+            } else if (isOpen && approvalStatus === "rejected") {
+              statusLabel = "✕ Rejected";
+              statusBg = "#FEE2E2";
+              statusColor = "#B91C1C";
+            }
+
             return (
               <div key={job.jobId} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, padding: "18px 20px", marginBottom: 14, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
                     <strong style={{ fontSize: 15.5 }}>{f.roletitle || "Untitled role"}</strong>
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", padding: "2px 9px", borderRadius: 999, background: isOpen ? "#DCFCE7" : "#F1F5F9", color: isOpen ? "#166534" : "#64748B" }}>
-                      {isOpen ? "Open" : "Closed"}
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", padding: "2px 9px", borderRadius: 999, background: statusBg, color: statusColor }}>
+                      {statusLabel}
                     </span>
                     {job.source === "onboarding" && (
                       <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>· From onboarding</span>
@@ -276,6 +295,17 @@ export default function CompanyJobs() {
                   <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 6 }}>
                     {job.jobId} {f.location ? `· ${f.location}` : ""} {f.workmode ? `· ${f.workmode}` : ""}
                   </div>
+                  {isOpen && approvalStatus === "pending" && (
+                    <div style={{ fontSize: 12, color: "#92400E", marginBottom: 6 }}>
+                      Talentera staff are reviewing this job post — it isn't visible on the public job board yet.
+                    </div>
+                  )}
+                  {approvalStatus === "rejected" && job.rejectionReason && (
+                    <div style={{ fontSize: 12, color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 10px", marginBottom: 6, maxWidth: 480 }}>
+                      <strong>Not approved:</strong> {job.rejectionReason}
+                      {job.source === "posted" && " Fix the issue and use Reopen listing below to resubmit."}
+                    </div>
+                  )}
                   <Link to="/companies/applicants" style={{ fontSize: 12.5, color: "var(--gold)", fontWeight: 700, textDecoration: "none" }}>
                     {job.applicantsCount} applicant{job.applicantsCount === 1 ? "" : "s"} →
                   </Link>
@@ -288,7 +318,7 @@ export default function CompanyJobs() {
                     onClick={() => toggleJob(job)}
                     style={{ alignSelf: "flex-start", padding: "8px 16px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
                   >
-                    {isOpen ? "Close listing" : "Reopen listing"}
+                    {isOpen ? "Close listing" : approvalStatus === "rejected" ? "Reopen & resubmit" : "Reopen listing"}
                   </button>
                 )}
               </div>

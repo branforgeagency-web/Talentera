@@ -28,8 +28,19 @@ const POINTS_PER_QUESTION = 10;
  * @param {Object} proctorLogs Object containing tabSwitches, focusLosses, livenessVerified
  * @returns {Object} Evaluated AI scores, feedback, and pass status
  */
+function parseJsonResponse(rawText) {
+  if (!rawText) return {};
+  let cleaned = rawText.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  }
+  return JSON.parse(cleaned.trim());
+}
+
 async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
+  const hasLlmKey = Boolean(anthropicKey || openAiKey);
 
   // Best-effort translation pass first: candidates who answer in a language
   // other than English still get a readable English transcript in the
@@ -39,9 +50,9 @@ async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
   // untouched if there's no API key or the call fails - grading still works
   // either way, it just grades the original text as a second line of defense.
   let translations = null;
-  if (apiKey) {
+  if (hasLlmKey) {
     try {
-      translations = await translateQaPairs(apiKey, qaPairs);
+      translations = await translateQaPairs(qaPairs);
     } catch (err) {
       console.warn("Transcript translation failed, grading/showing original transcripts:", err.message);
     }
@@ -53,11 +64,11 @@ async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
   }));
 
   let questionScores;
-  if (apiKey) {
+  if (hasLlmKey) {
     try {
-      questionScores = await scoreAgainstAnswerKeyLlm(apiKey, qaPairsWithTranslation);
+      questionScores = await scoreAgainstAnswerKeyLlm(qaPairsWithTranslation);
     } catch (err) {
-      console.warn("OpenAI answer-key scoring failed or not configured, using keyword-match heuristic:", err.message);
+      console.warn("LLM answer-key scoring failed or not configured, using keyword-match heuristic:", err.message);
       questionScores = computeHeuristicRubrics(qaPairsWithTranslation).questionScores;
     }
   } else {
@@ -107,16 +118,17 @@ async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
 
 /**
  * Translates each candidate transcript to English (returned unchanged if
- * it's already English) using the same OpenAI key as the answer-key scorer
- * below - one batched call for the whole interview rather than one call per
- * question. Very short/empty transcripts are skipped since there's nothing
+ * it's already English) using Anthropic Claude or OpenAI API.
+ * Very short/empty transcripts are skipped since there's nothing
  * meaningful to translate.
  *
- * @param {string} apiKey
  * @param {Array<{transcript: string}>} qaPairs
  * @returns {Promise<Array<{translatedTranscript: string, detectedLanguage: string}>>} Aligned by index to qaPairs
  */
-async function translateQaPairs(apiKey, qaPairs) {
+async function translateQaPairs(qaPairs) {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
+
   const withContent = qaPairs
     .map((pair, idx) => ({ idx, transcript: (pair.transcript || "").trim() }))
     .filter((p) => p.transcript.split(/\s+/).filter(Boolean).length >= 3);
@@ -134,24 +146,49 @@ ${withContent.map((p) => `A${p.idx + 1}: ${p.transcript}`).join("\n\n")}
 
 Return strictly JSON: {"translations": [{"index": <the A-number above, as an integer>, "language": "<language name, e.g. Hindi, Tagalog, English>", "translatedText": "<English translation>"}, ...]} with one entry per answer above.`;
 
-  const response = await axios.post(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0.1,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 20000,
-    }
-  );
+  let parsed = {};
 
-  const parsed = JSON.parse(response.data.choices[0].message.content);
+  if (anthropicKey) {
+    const response = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2000,
+        system: "You are an interview language translator. Return strictly JSON.",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      },
+      {
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        timeout: 20000,
+      }
+    );
+    const textContent = response.data?.content?.[0]?.text || "";
+    parsed = parseJsonResponse(textContent);
+  } else if (openAiKey) {
+    const response = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${openAiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 20000,
+      }
+    );
+    parsed = parseJsonResponse(response.data.choices[0].message.content);
+  }
+
   const translationList = Array.isArray(parsed.translations) ? parsed.translations : [];
   const byIndex = new Map(translationList.map((t) => [Number(t.index) - 1, t]));
 
@@ -167,17 +204,12 @@ Return strictly JSON: {"translations": [{"index": <the A-number above, as an int
 
 /**
  * LLM-based correctness grading - one call scores every Q&A pair at once.
- * This grades like a subject-matter expert would (the way ChatGPT, Gemini,
- * or Claude reason about an answer): the model uses its OWN knowledge of
- * Healthcare RCM / Medical Coding to judge whether the candidate's answer is
- * conceptually correct and relevant to the question, rather than diffing the
- * candidate's wording against the reference key. The staff-provided
- * expectedAnswer (when present) is passed along only as a scope guide/rubric
- * hint - the candidate does not need to match its phrasing, terminology, or
- * word choice to be marked correct. A question with no expectedAnswer is
- * graded purely on RCM domain knowledge + relevance.
+ * Uses Anthropic Claude (if ANTHROPIC_API_KEY is configured) or OpenAI (if OPENAI_API_KEY is configured).
  */
-async function scoreAgainstAnswerKeyLlm(apiKey, qaPairs) {
+async function scoreAgainstAnswerKeyLlm(qaPairs) {
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const openAiKey = process.env.OPENAI_API_KEY;
+
   const prompt = `You are a senior Healthcare RCM (Revenue Cycle Management) / Medical Coding subject-matter expert, acting as an interviewer grading a candidate's SPOKEN, transcribed answers. Grade the way a knowledgeable AI assistant (like ChatGPT, Gemini, or Claude) would when asked "is this answer correct?" - by reasoning from your own understanding of the subject, not by pattern-matching the candidate's wording against a script.
 
 HOW TO GRADE EACH ANSWER:
@@ -201,24 +233,49 @@ Candidate's Spoken Answer (translated to English where needed): ${pair.translate
 
 Return strictly JSON: {"scores": [{"marks": <integer, either 0 or 10>, "feedback": "<short sentence explaining why correct (what concept they got right) or why 0 marks (wrong/off-topic/no understanding shown)>"}, ...]} with exactly ${qaPairs.length} entries, in the same order as the questions above.`;
 
-  const response = await axios.post(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-      temperature: 0.1,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      timeout: 20000,
-    }
-  );
+  let parsed = {};
 
-  const parsed = JSON.parse(response.data.choices[0].message.content);
+  if (anthropicKey) {
+    const response = await axios.post(
+      "https://api.anthropic.com/v1/messages",
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2500,
+        system: "You are a senior Healthcare RCM expert evaluator. Output strictly JSON.",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      },
+      {
+        headers: {
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        timeout: 25000,
+      }
+    );
+    const textContent = response.data?.content?.[0]?.text || "";
+    parsed = parseJsonResponse(textContent);
+  } else if (openAiKey) {
+    const response = await axios.post(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        response_format: { type: "json_object" },
+        temperature: 0.1,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${openAiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 20000,
+      }
+    );
+    parsed = parseJsonResponse(response.data.choices[0].message.content);
+  }
+
   const scores = Array.isArray(parsed.scores) ? parsed.scores : [];
 
   return qaPairs.map((pair, idx) => {

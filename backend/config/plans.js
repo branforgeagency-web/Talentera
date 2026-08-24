@@ -32,7 +32,17 @@ const PLANS = {
   enterprise: {
     id: "enterprise",
     label: "Enterprise",
-    maxActiveJobPosts: Infinity,
+    // BUG FIX (2026-08-21): this was JS `Infinity`, which isn't valid JSON -
+    // JSON.stringify silently turns it into `null` on the way out of
+    // GET /api/company/billing and GET /api/staff/plans, so any frontend
+    // reading this field would have seen `maxActiveJobPosts: null` for
+    // Enterprise (and `activeCount < null` is always false in JS, which
+    // would incorrectly block Enterprise companies from posting more jobs
+    // the moment a UI consumed this field). `null` is now the deliberate,
+    // documented sentinel for "unlimited" - see isUnlimitedJobPosts() /
+    // isUnderJobPostLimit() below, which every caller should use instead of
+    // comparing directly against this field.
+    maxActiveJobPosts: null, // null = unlimited
     candidatePoolSearch: true,
     monthlyPriceInr: null, // "Contact sales"
   },
@@ -42,4 +52,18 @@ function getPlan(planId) {
   return PLANS[planId] || PLANS.free;
 }
 
-module.exports = { PLANS, getPlan };
+// true if `plan.maxActiveJobPosts` represents "no limit" (Enterprise).
+function isUnlimitedJobPosts(plan) {
+  return plan.maxActiveJobPosts === null || plan.maxActiveJobPosts === undefined;
+}
+
+// Whichever plan gating needs a "is activeCount still under the cap?"
+// check should go through this helper rather than comparing
+// `activeCount < plan.maxActiveJobPosts` directly, since that comparison is
+// wrong (always false) once maxActiveJobPosts is null for "unlimited".
+function isUnderJobPostLimit(plan, activeCount) {
+  if (isUnlimitedJobPosts(plan)) return true;
+  return activeCount < plan.maxActiveJobPosts;
+}
+
+module.exports = { PLANS, getPlan, isUnlimitedJobPosts, isUnderJobPostLimit };
