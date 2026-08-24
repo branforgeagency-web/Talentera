@@ -4,13 +4,12 @@ import { safeJson } from "../utils/safeJson.js";
 
 export default function StaffHub() {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav] = useState("overview"); // see NAV_ITEMS below for the full id list - "overview" | "kyc" | "certifications" | "jobapprovals" | "assessment" | "video" | "questions" | "reports" | "activity"
+  const [activeNav, setActiveNav] = useState("overview"); // see NAV_ITEMS below for the full id list - "overview" | "kyc" | "certifications" | "jobapprovals" | "questions" | "reports" | "activity"
   const [dashData, setDashData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
   const [previewDoc, setPreviewDoc] = useState(null);
   const [previewVideo, setPreviewVideo] = useState(null);
-  const [expandedAssessmentId, setExpandedAssessmentId] = useState(null);
 
   // Which company/candidate/job is open in each queue tab's list+detail
   // (inbox style) layout - null falls back to the first item in that queue.
@@ -109,8 +108,8 @@ export default function StaffHub() {
   const submitQuestionModal = async () => {
     if (!questionModal) return;
     const { id, text, correctAnswer, mode, order, active } = questionModal;
-    if (!text.trim() || !correctAnswer.trim()) {
-      alert("Both the question text and the correct answer are required.");
+    if (!text.trim()) {
+      alert("Question text is required.");
       return;
     }
     setProcessingId(id || "new-question");
@@ -332,22 +331,6 @@ export default function StaffHub() {
     }
   };
 
-  const handleVerifyAssessment = async (candidateId) => {
-    setProcessingId(candidateId);
-    try {
-      await fetch("/api/staff/verify-assessment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ candidateId }),
-      });
-      fetchDashboard();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setProcessingId(null);
-    }
-  };
-
   const handleVerifyDoc = async (companyId, docId, isValid) => {
     try {
       const res = await fetch("/api/staff/verify-document", {
@@ -367,7 +350,7 @@ export default function StaffHub() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", fontFamily: "sans-serif" }}>Loading Staff Operations Hub...</div>;
 
-  const { stats, pipeline, incomingBucket, companyKycQueue, videoIntrosQueue, textAssessmentQueue, certificationQueue, jobApprovalQueue, reportsData, tasks, leaderboard, liveQueueCount } = dashData || {};
+  const { stats, pipeline, incomingBucket, companyKycQueue, certificationQueue, jobApprovalQueue, reportsData, tasks, leaderboard, liveQueueCount } = dashData || {};
 
   // Per-queue status breakdowns - KYC, Certifications, and Job Approvals
   // each got their own dedicated tab (previously all three were stacked
@@ -396,8 +379,6 @@ export default function StaffHub() {
     { id: "kyc", label: "KYC Verification", icon: "🔍" },
     { id: "certifications", label: "Certifications", icon: "🎓" },
     { id: "jobapprovals", label: "Job Approvals", icon: "📋" },
-    { id: "assessment", label: "Text Assessment", icon: "📝" },
-    { id: "video", label: "Video Introductions", icon: "📹" },
     { id: "questions", label: "Interview Questions", icon: "🎤" },
     { id: "reports", label: "Reports & Metrics", icon: "📊" },
     { id: "activity", label: "Activity Log", icon: "🗒️" },
@@ -1404,272 +1385,6 @@ export default function StaffHub() {
             </div>
           )}
 
-          {/* TAB MODULE: TEXT ASSESSMENT (Stage 4 MCQ Answer Review) */}
-          {activeNav === "assessment" && (
-            <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <div>
-                  <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-                    📝 Stage 4 Text Assessment Review Console
-                  </h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>
-                    Review each candidate's submitted proctored MCQ answers and verify how many questions were answered correctly.
-                  </p>
-                </div>
-                <span style={{ background: "#F0F9FF", color: "#0369A1", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
-                  {(textAssessmentQueue || []).length} SUBMISSIONS
-                </span>
-              </div>
-
-              {!(textAssessmentQueue && textAssessmentQueue.length) ? (
-                <div style={{ padding: 40, textAlign: "center", background: "#F8FAFC", borderRadius: 12, border: "1px dashed #CBD5E1", color: "#64748B" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>No Text Assessment Submissions Yet</div>
-                  <div style={{ fontSize: 13 }}>Candidates who complete the Stage 4 proctored assessment will appear here with their full answer sheet for review.</div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  {textAssessmentQueue.map((a) => {
-                    const isExpanded = expandedAssessmentId === a.id;
-                    const hasAnswers = Array.isArray(a.answers) && a.answers.length > 0;
-                    return (
-                      <div key={a.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
-                          <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>{a.studentName}</div>
-                              <span style={{
-                                padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800,
-                                background: a.verified ? "#DCFCE7" : "#FEF3C7",
-                                color: a.verified ? "#15803D" : "#B45309"
-                              }}>
-                                {a.verified ? "Staff Verified" : "Pending Staff Review"}
-                              </span>
-                              {a.autoSubmittedReason && (
-                                <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800, background: "#FEE2E2", color: "#DC2626" }}>
-                                  Auto-Submitted
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{a.email} • {a.assessmentType}</div>
-                            <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
-                              Submitted {a.submittedAt ? new Date(a.submittedAt).toLocaleString() : "N/A"}
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                            <div style={{ textAlign: "center" }}>
-                              <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>SCORE</div>
-                              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{a.foundationScore}%</div>
-                            </div>
-                            {a.correctCount !== null && a.totalQuestions ? (
-                              <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>CORRECT</div>
-                                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{a.correctCount}/{a.totalQuestions}</div>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                          <button
-                            style={{ padding: "8px 14px", fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, cursor: hasAnswers ? "pointer" : "not-allowed", opacity: hasAnswers ? 1 : 0.5 }}
-                            disabled={!hasAnswers}
-                            onClick={() => setExpandedAssessmentId(isExpanded ? null : a.id)}
-                          >
-                            {hasAnswers ? (isExpanded ? "Hide Answer Sheet ▲" : "View Answer Sheet ▼") : "No Per-Question Answers Recorded"}
-                          </button>
-                          <button
-                            className="btn-gold"
-                            style={{ padding: "8px 14px", fontSize: 11 }}
-                            disabled={a.verified}
-                            onClick={() => handleVerifyAssessment(a.id)}
-                          >
-                            {a.verified ? "Verified ✓" : "Mark as Reviewed & Verified →"}
-                          </button>
-                        </div>
-
-                        {isExpanded && hasAnswers && (
-                          <div style={{ marginTop: 16, borderTop: "1px solid #E2E8F0", paddingTop: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-                            {a.answers.map((qa, idx) => (
-                              <div key={qa.questionId || idx} style={{ background: qa.isCorrect ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${qa.isCorrect ? "#BBF7D0" : "#FECACA"}`, borderRadius: 10, padding: 12 }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
-                                  <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)" }}>
-                                    Q{idx + 1}. {qa.question}
-                                  </div>
-                                  <span style={{ background: qa.isCorrect ? "#DCFCE7" : "#FEE2E2", color: qa.isCorrect ? "#15803D" : "#DC2626", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 4, flexShrink: 0 }}>
-                                    {qa.isCorrect ? "✓ Correct" : "✕ Incorrect"}
-                                  </span>
-                                </div>
-                                <div style={{ fontSize: 12, color: "#374151" }}>
-                                  <strong>Candidate's Answer:</strong> {qa.selectedAnswerText || "Not Answered"}
-                                </div>
-                                {!qa.isCorrect && (
-                                  <div style={{ fontSize: 12, color: "#15803D", fontWeight: 700, marginTop: 2 }}>
-                                    <strong>Correct Answer:</strong> {qa.correctAnswerText}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB MODULE 3: VIDEO INTRODUCTIONS */}
-          {activeNav === "video" && (
-            <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <div>
-                  <h3 style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-                    📹 Candidate Video Introduction Review Console
-                  </h3>
-                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>
-                    Audit Stage 5 video self-introductions for communication clarity, audio quality, and candidate authenticity.
-                  </p>
-                </div>
-                <span style={{ background: "#FAF5FF", color: "#9333EA", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
-                  {(videoIntrosQueue || []).length} VIDEO INTROS IN QUEUE
-                </span>
-              </div>
-
-              {!(videoIntrosQueue && videoIntrosQueue.length) ? (
-                <div style={{ padding: 40, textAlign: "center", background: "#F8FAFC", borderRadius: 12, border: "1px dashed #CBD5E1", color: "#64748B" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>📹</div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>No Video Introductions Submitted Yet</div>
-                  <div style={{ fontSize: 13 }}>Candidates who submit their Stage 5 video introduction recording during verification will appear here for staff audit.</div>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {videoIntrosQueue.map((vid) => {
-                    const isExpanded = expandedAssessmentId === `video-${vid.id}`;
-                    const hasQuestions = Array.isArray(vid.questions) && vid.questions.length > 0;
-                    return (
-                      <div key={vid.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", gap: 16, flexWrap: "wrap" }}>
-                        {/* Video Player Column */}
-                        <div style={{ width: 260, flexShrink: 0 }}>
-                          <div style={{ borderRadius: 8, overflow: "hidden", background: "#06152A", marginBottom: 10 }}>
-                            {vid.videoUrl && (vid.videoUrl.endsWith(".mp4") || vid.videoUrl.endsWith(".webm") || vid.videoUrl.startsWith("blob:") || vid.videoUrl.startsWith("http") || vid.videoUrl.startsWith("/uploads")) ? (
-                              <video controls src={vid.videoUrl} style={{ width: "100%", maxHeight: 180, borderRadius: 8 }} />
-                            ) : (
-                              <div style={{ height: 140, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#fff" }}>
-                                <div style={{ fontSize: 28, marginBottom: 4 }}>📹</div>
-                                <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>Recorded Video File Attached</div>
-                              </div>
-                            )}
-                          </div>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <button
-                              className="btn-gold"
-                              style={{ flex: 1, padding: 8, fontSize: 11, justifyContent: "center" }}
-                              disabled={vid.verified}
-                              onClick={() => handleVerifyCandidate(vid.id, "verify")}
-                            >
-                              {vid.verified ? "Approved ✓" : "Approve Video →"}
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Details + Questions Column */}
-                        <div style={{ flex: 1, minWidth: 260 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-                            <div>
-                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <div style={{ fontWeight: 800, fontSize: 15, color: "var(--navy)" }}>{vid.studentName}</div>
-                                <span style={{
-                                  padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800,
-                                  background: vid.verified ? "#DCFCE7" : "#FEF3C7",
-                                  color: vid.verified ? "#15803D" : "#B45309"
-                                }}>
-                                  {vid.status}
-                                </span>
-                                <span style={{ padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 800, background: "#EDE9FE", color: "#6D28D9", textTransform: "uppercase" }}>
-                                  {vid.interviewMode === "audio" ? "Audio Interview" : "Video Interview"}
-                                </span>
-                              </div>
-                              <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{vid.role} • {vid.email}</div>
-                              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
-                                Submitted {vid.submittedAt ? new Date(vid.submittedAt).toLocaleString() : "N/A"} • Duration: {vid.duration}
-                              </div>
-                            </div>
-
-                            {vid.totalMarks !== null && vid.maxMarks ? (
-                              <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>MARKS</div>
-                                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{vid.totalMarks}/{vid.maxMarks}</div>
-                              </div>
-                            ) : vid.aiScore !== null ? (
-                              <div style={{ textAlign: "center" }}>
-                                <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>SCORE</div>
-                                <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>{vid.aiScore}%</div>
-                              </div>
-                            ) : null}
-                          </div>
-
-                          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                            <button
-                              style={{ padding: "8px 14px", fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, cursor: hasQuestions ? "pointer" : "not-allowed", opacity: hasQuestions ? 1 : 0.5 }}
-                              disabled={!hasQuestions}
-                              onClick={() => setExpandedAssessmentId(isExpanded ? null : `video-${vid.id}`)}
-                            >
-                              {hasQuestions ? (isExpanded ? "Hide Interview Questions ▲" : `View Interview Questions (${vid.questions.length}) ▼`) : "No Interview Questions Recorded"}
-                            </button>
-                            <button
-                              style={{ padding: "8px 14px", fontSize: 11, borderRadius: 6, border: "1px solid #CBD5E1", background: "#fff", color: "#64748B", cursor: "pointer" }}
-                              onClick={() => alert("Re-recording request sent to candidate email.")}
-                            >
-                              Flag Re-record
-                            </button>
-                          </div>
-
-                          {isExpanded && hasQuestions && (
-                            <div style={{ marginTop: 14, borderTop: "1px solid #E2E8F0", paddingTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-                              {vid.questions.map((q, idx) => {
-                                const showVerdict = q.marks !== null;
-                                const isCorrect = q.marks > 0;
-                                return (
-                                  <div key={idx} style={{
-                                    background: !showVerdict ? "#F8FAFC" : (isCorrect ? "#F0FDF4" : "#FEF2F2"),
-                                    border: `1px solid ${!showVerdict ? "#E2E8F0" : (isCorrect ? "#BBF7D0" : "#FECACA")}`,
-                                    borderRadius: 10, padding: 12
-                                  }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
-                                      <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)" }}>
-                                        Q{idx + 1}. {q.question}
-                                      </div>
-                                      {showVerdict && (
-                                        <span style={{ background: isCorrect ? "#DCFCE7" : "#FEE2E2", color: isCorrect ? "#15803D" : "#DC2626", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 4, flexShrink: 0 }}>
-                                          {isCorrect ? "✓ Correct" : "✕ Incorrect"}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div style={{ fontSize: 12, color: "#374151" }}>
-                                      <strong>Candidate's Answer:</strong> {q.answerTranscript || "No spoken response recorded"}
-                                    </div>
-                                    {q.feedback && (
-                                      <div style={{ fontSize: 11, color: "#64748B", background: "rgba(255,255,255,0.7)", padding: "6px 10px", borderRadius: 6, marginTop: 6, lineHeight: 1.5 }}>
-                                        <strong>AI Evaluator Note:</strong> {q.feedback}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
           {/* TAB MODULE: INTERVIEW QUESTIONS (Stage 5 AI Video / AI Audio interview bank) */}
           {activeNav === "questions" && (
             <div style={{ background: "#fff", borderRadius: 18, padding: 24, border: "1px solid #E8EAEE", boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
@@ -1680,7 +1395,9 @@ export default function StaffHub() {
                   </h3>
                   <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B", maxWidth: 640 }}>
                     These are the exact questions the AI asks candidates in the Live AI Video Assessment and AI Audio Interview.
-                    The correct answer is used server-side to grade each spoken response - candidates never see it.
+                    This stage scores spoken COMMUNICATION quality (clarity, fluency, vocabulary/grammar, confidence &amp; delivery) -
+                    not answer correctness - so keep questions conversational (e.g. "tell me about yourself", your training, your background)
+                    rather than technical recall. There's no answer key to grade against.
                   </p>
                 </div>
                 <button type="button" className="btn-gold" style={{ padding: "8px 16px", fontSize: 12, flexShrink: 0 }} onClick={openCreateQuestionModal}>
@@ -1723,7 +1440,7 @@ export default function StaffHub() {
                   <div style={{ fontSize: 32, marginBottom: 8 }}>🎤</div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy)", marginBottom: 4 }}>No Interview Questions Configured Yet</div>
                   <div style={{ fontSize: 13, marginBottom: 16 }}>
-                    Until you add questions here, candidates are asked a small built-in default set with no answer key (graded generically).
+                    Until you add questions here, candidates are asked a small built-in default set of conversational questions.
                   </div>
                   <button type="button" className="btn-gold" style={{ padding: "8px 16px", fontSize: 12 }} onClick={openCreateQuestionModal}>
                     + Add Your First Question
@@ -1747,9 +1464,11 @@ export default function StaffHub() {
                               )}
                             </div>
                             <div style={{ fontWeight: 700, fontSize: 14, color: "var(--navy)", marginBottom: 4 }}>{q.text}</div>
-                            <div style={{ fontSize: 12, color: "#64748B" }}>
-                              <strong>Correct answer:</strong> {q.correctAnswer}
-                            </div>
+                            {q.correctAnswer && (
+                              <div style={{ fontSize: 12, color: "#64748B" }}>
+                                <strong>Staff notes (not used for grading):</strong> {q.correctAnswer}
+                              </div>
+                            )}
                           </div>
 
                           <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
@@ -2113,7 +1832,8 @@ export default function StaffHub() {
                 {questionModal.id ? "Edit Interview Question" : "Add Interview Question"}
               </h3>
               <p style={{ fontSize: 13, color: "#64748B", marginBottom: 18 }}>
-                The correct answer is only used to grade the candidate's spoken response - it's never shown to them.
+                This stage grades spoken COMMUNICATION (clarity, fluency, vocabulary/grammar, confidence &amp; delivery) - not
+                whether the answer is "correct". Prefer conversational/biographical questions candidates can just talk about.
               </p>
 
               <div style={{ marginBottom: 14 }}>
@@ -2122,16 +1842,18 @@ export default function StaffHub() {
                   rows={2}
                   value={questionModal.text}
                   onChange={(e) => setQuestionModal({ ...questionModal, text: e.target.value })}
+                  placeholder='e.g. "Tell me about yourself and your background."'
                   style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
                 />
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>CORRECT ANSWER (used to grade - never shown to candidate)</label>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, marginBottom: 6 }}>STAFF NOTES (optional - not used for grading, never shown to candidate)</label>
                 <textarea
                   rows={3}
                   value={questionModal.correctAnswer}
                   onChange={(e) => setQuestionModal({ ...questionModal, correctAnswer: e.target.value })}
+                  placeholder="Optional context for other staff, e.g. what a strong answer tends to cover. This is not graded."
                   style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
                 />
               </div>

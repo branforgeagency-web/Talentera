@@ -6,7 +6,12 @@ import ClaudeMockInterviewBot from "../ClaudeMockInterviewBot.jsx";
 export default function Stage8Track({ stage, existingData, onSaved }) {
   const toast = useToast();
   const [consent, setConsent] = useState(existingData?.consent ?? true);
-  const [mockScore, setMockScore] = useState(existingData?.mockScore || 92);
+  // Only true score data goes here - no fabricated default. mockScore stays
+  // null/mockCompleted stays false unless the candidate actually finishes a
+  // live session with ClaudeMockInterviewBot (see onCompleted below), so we
+  // never submit a made-up "92%" for someone who never opened the bot.
+  const [mockScore, setMockScore] = useState(typeof existingData?.mockScore === "number" ? existingData.mockScore : null);
+  const [mockCompleted, setMockCompleted] = useState(Boolean(existingData?.mockInterviewCompleted));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,8 +28,11 @@ export default function Stage8Track({ stage, existingData, onSaved }) {
     try {
       const res = await api.put(`/candidate/stage/${stage.num}`, {
         consent,
-        mockScore,
-        mockInterviewCompleted: true,
+        // The mock interview is an optional practice tool, not a
+        // requirement to finish this stage - only send real results if the
+        // candidate actually completed a session.
+        mockScore: mockCompleted ? mockScore : null,
+        mockInterviewCompleted: mockCompleted,
       });
       toast("Stage 8 submitted & verification complete!", "✓");
       if (onSaved) onSaved(res.data);
@@ -43,32 +51,41 @@ export default function Stage8Track({ stage, existingData, onSaved }) {
           <div className="wiz-option-body">
             <div className="wiz-option-title">I consent to interview-track auto-capture</div>
             <div className="wiz-option-sub">
-              Required for the Verified Pool. Companies see anonymized summaries only — never company names or
-              feedback. Data deletion on request.
+              Required for the Verified Pool. From your first Talentera-routed interview onward, companies will see
+              anonymized summaries only — never company names or feedback. Data deletion on request.
             </div>
           </div>
           <div className="wiz-option-pts">+{stage.pts} pts</div>
         </button>
       </div>
 
-      {/* ====== LIVE CLAUDE AI MOCK INTERVIEW BOT SECTION ====== */}
+      {/* ====== LIVE AI MOCK INTERVIEWER (MESSI) SECTION ======
+          This is an optional practice tool, not a requirement to complete
+          this stage - the submit button below only checks `consent`, so
+          mockScore/mockCompleted stay whatever they actually are (including
+          untouched) rather than being forced to look "done". */}
       <div style={{ marginTop: 24, marginBottom: 24 }}>
         <div style={{ marginBottom: 12 }}>
           <span style={{ background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-            POWERED BY CLAUDE 3.5 SONNET API
+            POWERED BY CLAUDE AI · OPTIONAL PRACTICE
           </span>
           <h3 style={{ margin: "4px 0 0", fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>
             Live AI Technical Mock Interviewer Bot
           </h3>
           <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
-            Interact live with Claude AI to test your medical coding &amp; RCM technical interview readiness.
+            Practice a realistic live voice interview with Messi, our AI interviewer, to rehearse your medical coding &amp; RCM technical
+            interview readiness before the real thing. This is for your own preparation - it&rsquo;s not required to finish this stage and
+            isn&rsquo;t shown to companies.
           </p>
         </div>
 
         <ClaudeMockInterviewBot
           candidateData={existingData}
           onCompleted={(data) => {
-            if (data.score) setMockScore(data.score);
+            if (typeof data.score === "number") {
+              setMockScore(data.score);
+              setMockCompleted(true);
+            }
           }}
         />
       </div>

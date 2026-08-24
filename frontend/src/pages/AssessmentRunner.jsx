@@ -150,6 +150,7 @@ export default function AssessmentRunner() {
   const [autoSubmitted, setAutoSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [calculatedScore, setCalculatedScore] = useState(0);
+  const [resultDetails, setResultDetails] = useState({ correctCount: null, totalQuestions: null });
   const isSubmittingRef = useRef(false);
 
   // Load candidate profile
@@ -160,6 +161,10 @@ export default function AssessmentRunner() {
         const stage4Data = res.data.candidate?.stage4;
         if (stage4Data && stage4Data.foundationScore !== undefined) {
           setCalculatedScore(stage4Data.foundationScore);
+          setResultDetails({
+            correctCount: typeof stage4Data.correctCount === "number" ? stage4Data.correctCount : null,
+            totalQuestions: typeof stage4Data.totalQuestions === "number" ? stage4Data.totalQuestions : null,
+          });
           setTestState("locked");
         }
       })
@@ -240,6 +245,7 @@ export default function AssessmentRunner() {
 
     const scorePercent = Math.round((correctCount / QUESTIONS.length) * 100);
     setCalculatedScore(scorePercent);
+    setResultDetails({ correctCount, totalQuestions: QUESTIONS.length });
     setAutoSubmitted(wasAutoSubmit);
     setTestState("result");
     setSaving(true);
@@ -289,8 +295,17 @@ export default function AssessmentRunner() {
             🔒
           </div>
           <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)" }}>Assessment Completed &amp; Locked</h2>
+
+          <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", margin: "12px 0" }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: 0.5 }}>YOUR SCORE</div>
+            <div style={{ fontSize: 44, fontWeight: 800, color: "var(--navy)" }}>{calculatedScore}%</div>
+            {resultDetails.correctCount !== null && resultDetails.totalQuestions ? (
+              <div style={{ fontSize: 13, color: "#64748B" }}>{resultDetails.correctCount} of {resultDetails.totalQuestions} correct</div>
+            ) : null}
+          </div>
+
           <p style={{ fontSize: 14, color: "#64748B", margin: "8px 0 20px" }}>
-            Single-Attempt Policy Enforced: Your responses have been recorded and locked. Retaking the assessment is not permitted. Our team will review your submission.
+            Single-Attempt Policy Enforced: Your responses have been recorded and locked, and this score is final. Retaking the assessment is not permitted.
           </p>
           <button type="button" className="btn btn-gold" onClick={() => navigate("/dashboard")}>
             Return to Dashboard →
@@ -454,8 +469,14 @@ export default function AssessmentRunner() {
               </span>
             </div>
 
+            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: 0.5 }}>YOUR SCORE</div>
+              <div style={{ fontSize: 44, fontWeight: 800, color: "var(--navy)" }}>{calculatedScore}%</div>
+              <div style={{ fontSize: 13, color: "#64748B" }}>{resultDetails.correctCount} of {resultDetails.totalQuestions} correct</div>
+            </div>
+
             <p style={{ fontSize: 14, color: "#64748B", maxWidth: 480, margin: "0 auto" }}>
-              Your responses have been recorded and sent to our team for review. Our staff will verify your answers and update your candidate profile accordingly.
+              Graded automatically - this score is final, no staff review needed.
             </p>
 
             <div style={{ marginTop: 28 }}>

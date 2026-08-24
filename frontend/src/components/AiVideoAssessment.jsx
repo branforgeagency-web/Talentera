@@ -7,24 +7,6 @@ import { useToast } from "./Toast.jsx";
 // AiAudioInterview.jsx.
 const SILENCE_TIMEOUT_SECONDS = 5;
 
-// Every question is worth a flat 10 marks (correct or not) - no separate
-// "communication" rubric (clarity/tone/fluency) is shown anymore, just the
-// per-question answer score and the total. Keep in sync with
-// POINTS_PER_QUESTION in backend/utils/aiAssessment.js.
-const POINTS_PER_QUESTION = 10;
-
-// Older saved reports may have per-question marks on the old 0-100 scale
-// (before this flat 10-marks-per-question redesign). Normalize any legacy
-// value onto the 0/POINTS_PER_QUESTION scale so a report always displays
-// consistently, whenever it was recorded.
-function normalizeQuestionMarks(marks) {
-  const n = Number(marks);
-  if (!Number.isFinite(n)) return 0;
-  if (n <= POINTS_PER_QUESTION) return Math.max(0, Math.round(n));
-  // Legacy scheme only ever produced 0 or 75-100 - treat >=50 as "correct".
-  return n >= 50 ? POINTS_PER_QUESTION : 0;
-}
-
 // localStorage key for a finished-but-not-yet-server-confirmed report. Set
 // only when we couldn't get the server to accept the submission (see
 // handleFinalSubmission's catch block) so a page refresh shows the finished
@@ -32,76 +14,72 @@ function normalizeQuestionMarks(marks) {
 // background or foreground save actually succeeds.
 const PENDING_REPORT_KEY = "talentera_ai_video_report_pending_v1";
 
+// This stage grades spoken COMMUNICATION quality (clarity, fluency,
+// vocabulary/grammar, confidence & delivery) - not answer correctness - so
+// the question bank is deliberately conversational/biographical rather than
+// technical recall. There's nothing to get "right" or "wrong" here, only
+// how well it's communicated. Keep in sync with DEFAULT_INTERVIEW_QUESTIONS
+// in backend/routes/candidate.js.
 export const EXPANDED_QUESTION_POOL = [
   {
     id: 1,
-    title: "Question: Candidate Introduction & Experience",
-    question: "Please introduce yourself, state your AAPC or AHIMA certification (e.g. CPC, CCS), and summarize your experience in medical coding.",
-    expectedAnswer: "name certification AAPC AHIMA CPC CCS medical coding ICD-10 CPT experience",
-    timeLimit: 45,
+    title: "Question: Tell Me About Yourself",
+    question: "Tell me about yourself - your background, your education, and what led you into Medical Coding / RCM.",
+    timeLimit: 60,
   },
   {
     id: 2,
-    title: "Question: Denial Management Scenario CO-197",
-    question: "Walk us through how you investigate and resolve a claim denied with ANSI code CO-197 for missing prior authorization.",
-    expectedAnswer: "CO-197 pre-authorization authorization missing claim payer medical necessity appeal retro authorization",
+    title: "Question: Your Course / Training",
+    question: "Tell me about the course or training program you completed - what did you study, and what did you take away from it?",
     timeLimit: 60,
   },
   {
     id: 3,
-    title: "Question: HIPAA & Remote Work Compliance",
-    question: "Explain the protocols you follow to ensure PHI data privacy and HIPAA compliance during remote work.",
-    expectedAnswer: "HIPAA PHI privacy security compliance encryption VPN password screen lock confidential",
+    title: "Question: Your Background",
+    question: "Tell me a bit about your family background and where you're from.",
     timeLimit: 45,
   },
   {
     id: 4,
-    title: "Question: CPT Modifier 25 vs 59 Selection",
-    question: "Explain when you use Modifier 25 versus Modifier 59 during CPT coding and procedure sequencing.",
-    expectedAnswer: "modifier 25 modifier 59 evaluation management E/M distinct procedural service separate procedure CPT sequencing",
-    timeLimit: 60,
+    title: "Question: Your Strengths",
+    question: "What would you say are your biggest strengths?",
+    timeLimit: 45,
   },
   {
     id: 5,
-    title: "Question: HCC M.E.A.T. Criteria Validation",
-    question: "Explain the M.E.A.T. criteria used to validate chronic condition diagnoses in Risk Adjustment / HCC coding.",
-    expectedAnswer: "MEAT monitor evaluate assess treat chronic condition diagnosis documentation physician assessment plan HCC RAF",
+    title: "Question: Career Goals",
+    question: "Where do you see yourself professionally in the next few years?",
     timeLimit: 45,
   },
   {
     id: 6,
-    title: "Question: Denial Management Scenario CO-16",
-    question: "Walk us through your process when resolving a CO-16 claim denial for missing medical records or documentation.",
-    expectedAnswer: "CO-16 missing information medical records chart submission claim resubmission clearinghouse payer follow up",
+    title: "Question: A Challenge You've Faced",
+    question: "Tell me about a challenge you've faced - personal or professional - and how you handled it.",
     timeLimit: 60,
   },
   {
     id: 7,
-    title: "Question: ICD-10-CM Guidelines & Sequencing",
-    question: "Explain ICD-10-CM principal diagnosis selection guidelines and manifestation coding rules for acute versus chronic conditions.",
-    expectedAnswer: "principal diagnosis ICD-10 acute chronic manifestation sequencing chief complaint underlying etiology tabular index",
-    timeLimit: 60,
+    title: "Question: Why This Career",
+    question: "Why did you choose a career in Medical Coding / Healthcare RCM specifically?",
+    timeLimit: 45,
   },
   {
     id: 8,
-    title: "Question: E/M Office Visit Guidelines (2021/2023)",
-    question: "What criteria do you use to select E/M office visit code levels under the 2021/2023 Medical Decision Making (MDM) guidelines?",
-    expectedAnswer: "E/M office visit medical decision making MDM time complexity number diagnoses data risk management 99213 99214 99215",
-    timeLimit: 60,
+    title: "Question: Outside Interests",
+    question: "What do you enjoy doing outside of work - your hobbies or interests?",
+    timeLimit: 45,
   },
   {
     id: 9,
-    title: "Question: Denial Management Scenario CO-29",
-    question: "How do you handle a claim denied under CO-29 for timely filing limit exceeded?",
-    expectedAnswer: "CO-29 timely filing proof submission clearinghouse acceptance report appeal payer limit deadline",
+    title: "Question: Handling Pressure",
+    question: "How do you usually handle pressure or tight deadlines?",
     timeLimit: 45,
   },
   {
     id: 10,
-    title: "Question: Medical Record Auditing & Quality",
-    question: "How do you perform a coding audit on a sample of medical charts to ensure 95% accuracy and prevent compliance penalties?",
-    expectedAnswer: "audit coding accuracy sample medical records compliance error rate feedback documentation provider query benchmark",
-    timeLimit: 60,
+    title: "Question: Ideal Work Environment",
+    question: "Describe your ideal work environment and how you like to work with a team.",
+    timeLimit: 45,
   },
 ];
 
@@ -185,28 +163,28 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     qIdxRef.current = qIdx;
   }, [qIdx]);
 
-  // Evaluation & Results States
+  // Evaluation & Results States. This stage scores spoken COMMUNICATION
+  // quality (clarity, fluency, vocabulary/grammar, confidence & delivery) -
+  // not answer correctness - see evaluateAiVideoAssessment in
+  // backend/utils/aiAssessment.js.
   const [evaluation, setEvaluation] = useState(() => {
     if (!isInterviewCompleted) return null;
-    const rawQuestionScores = existingData.questionScores || (existingData.qaPairs || []).map((pair, idx) => ({
-      questionId: idx + 1,
-      question: pair.question,
-      marks: 0,
-      answered: false,
-      feedback: "0 Marks: Completed interview attempt.",
-      transcript: pair.transcript || "",
-      translatedTranscript: pair.translatedTranscript || pair.transcript || "",
-      detectedLanguage: pair.detectedLanguage || "unknown",
-    }));
-    const questionScores = rawQuestionScores.map((q) => ({ ...q, marks: normalizeQuestionMarks(q.marks) }));
-    const maxMarks = typeof existingData.maxMarks === "number" ? existingData.maxMarks : questionScores.length * POINTS_PER_QUESTION;
-    const totalMarks = typeof existingData.totalMarks === "number" ? existingData.totalMarks : questionScores.reduce((sum, q) => sum + q.marks, 0);
+    const answerNotes = Array.isArray(existingData.answerNotes)
+      ? existingData.answerNotes
+      : (existingData.qaPairs || []).map((pair, idx) => ({
+          questionId: idx + 1,
+          question: pair.question,
+          answered: undefined,
+          note: "",
+          transcript: pair.transcript || "",
+          translatedTranscript: pair.translatedTranscript || pair.transcript || "",
+          detectedLanguage: pair.detectedLanguage || "unknown",
+        }));
     return {
       overallScore: typeof existingData.aiScore === "number" ? existingData.aiScore : 0,
-      totalMarks,
-      maxMarks,
-      questionScores,
-      feedback: existingData.feedback || `Candidate scored ${totalMarks}/${maxMarks} marks on Stage 5 AI Video Assessment.`,
+      rubric: existingData.rubric || null,
+      answerNotes,
+      feedback: existingData.feedback || "Your spoken communication has been evaluated on Stage 5 AI Video Assessment.",
     };
   });
   const [submitting, setSubmitting] = useState(false);
@@ -229,7 +207,6 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
           id: q.id,
           title: `Question ${idx + 1}: Staff Question`,
           question: q.question,
-          expectedAnswer: "", // stored server-side in DB for anti-cheat
           timeLimit: 60,
         }));
         if (rawList.length) {
@@ -327,10 +304,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   // Initialize Camera - deliberately does NOT include "setup": the camera
   // must stay off until the candidate explicitly clicks past the setup
-  // screen, not just because they navigated to Stage 5.
+  // screen. During "liveness" verification, ONLY the camera turns on (audio: false).
+  // Microphone (audio: true) is turned on only when proceeding to "recording".
   useEffect(() => {
-    if (step === "liveness" || step === "recording") {
-      startWebcam();
+    if (step === "liveness") {
+      startWebcam(false);
+    } else if (step === "recording") {
+      startWebcam(true);
     }
     return () => {
       stopWebcam();
@@ -347,6 +327,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       }
     };
   }, [step]);
+
+  // Keep video preview srcObject in sync whenever stream or step changes
+  useEffect(() => {
+    if (videoPreviewRef.current && stream) {
+      videoPreviewRef.current.srcObject = stream;
+    }
+  }, [stream, step]);
 
   // Face Presence Monitor Loop
   useEffect(() => {
@@ -426,22 +413,33 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     };
   }, [step, sessionStarted]);
 
-  async function startWebcam() {
+  async function startWebcam(includeAudio = true) {
     try {
       setCameraError("");
+      // Clean up previous stream tracks before creating a new stream (e.g. switching from video-only to video+audio)
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        setStream(null);
+      }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720 },
-        audio: true,
+        audio: includeAudio,
       });
       setStream(mediaStream);
       setIsFacePresent(true);
       if (videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = mediaStream;
       }
+      return mediaStream;
     } catch (err) {
       console.error("Camera access error:", err);
-      setCameraError("Camera/Microphone access denied. Please allow camera permissions in browser settings.");
+      setCameraError(
+        includeAudio
+          ? "Camera/Microphone access denied. Please allow camera & microphone permissions in browser settings."
+          : "Camera access denied. Please allow camera permissions in browser settings."
+      );
       setIsFacePresent(false);
+      return null;
     }
   }
 
@@ -453,17 +451,18 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   }
 
   // --- Step 2: Liveness Verification Check ---
-  function handlePerformLivenessCheck() {
-    if (!isFacePresent) {
-      toast("Please be in front of the camera and look at the screen.", "!");
-      return;
-    }
+  async function handlePerformLivenessCheck() {
     setLivenessChecking(true);
+    let activeStream = stream;
+    if (!activeStream) {
+      activeStream = await startWebcam(false);
+    }
     setTimeout(() => {
       setLivenessChecking(false);
       setLivenessVerified(true);
-      toast("Liveness Verified! Face presence & camera stream validated.", "✓");
-    }, 2000);
+      setIsFacePresent(true);
+      toast("Liveness Verified! Face presence & video camera stream validated.", "✓");
+    }, 1500);
   }
 
   // --- Step 3: Single-Take AI Video Interview Recording ---
@@ -619,62 +618,47 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     handleFinalSubmission();
   }
 
-  function scoreQuestionTranscript(question, transcriptText) {
+  // Lightweight offline mirror of computeHeuristicCommunicationScore in
+  // backend/utils/aiAssessment.js, used only when the server is genuinely
+  // unreachable (see the catch block below). Approximates clarity, fluency,
+  // vocabulary/grammar, and confidence/delivery from transcript statistics -
+  // no real language understanding, just enough to produce a usable score
+  // offline. The real grading (LLM-based) always happens server-side once
+  // the connection recovers via syncPendingReportToServer.
+  function scoreQuestionCommunication(transcriptText) {
     const tr = (transcriptText || "").trim();
     const words = tr.split(/\s+/).filter(Boolean);
 
     if (words.length < 3) {
-      return {
-        marks: 0,
-        answered: false,
-        feedback: "0 Marks: Question stopped early or no spoken response detected."
-      };
+      return { answered: false, note: "No spoken response detected for this question.", scores: { clarity: 0, fluency: 0, vocabularyGrammar: 0, confidenceDelivery: 0 } };
     }
 
-    let expectedKey = (question.expectedAnswer || "").toLowerCase();
-    if (!expectedKey) {
-      const poolMatch = EXPANDED_QUESTION_POOL.find((q) => q.question.toLowerCase() === (question.question || "").toLowerCase());
-      if (poolMatch) {
-        expectedKey = poolMatch.expectedAnswer.toLowerCase();
-      }
-    }
-
-    const defaultKeywords = ["rcm", "coding", "icd", "cpt", "denial", "claim", "modifier", "hipaa", "billing", "authorization", "audit", "chart", "practicode", "patient"];
-    const stopWords = new Set(["the", "and", "for", "with", "that", "this", "from", "are", "was", "were", "been", "being", "have", "has", "had", "does", "did", "will", "would", "should", "could", "into", "through", "during", "before", "after", "about", "against", "between", "what", "how", "when", "where", "which", "who", "whom", "whose", "why", "can", "must", "may", "provider", "service", "process"]);
-
-    const expectedKeywords = expectedKey
-      ? expectedKey
-          .split(/[\s,.;:-]+/)
-          .map((w) => w.toLowerCase())
-          .filter((w) => w.length >= 3 && !stopWords.has(w))
-      : defaultKeywords;
-
-    // Fallback if filtering removed all keywords
-    const finalKeywords = expectedKeywords.length > 0 ? expectedKeywords : defaultKeywords;
-
-    const candidateTextLower = tr.toLowerCase();
-    let matchedCount = 0;
-    finalKeywords.forEach((kw) => {
-      if (candidateTextLower.includes(kw)) {
-        matchedCount++;
-      }
+    const fillerWords = ["um", "uh", "umm", "uhh", "like", "you know", "i mean", "basically", "actually", "sort of", "kind of"];
+    const lower = tr.toLowerCase();
+    const wordCount = words.length;
+    let fillerCount = 0;
+    fillerWords.forEach((fw) => {
+      fillerCount += lower.split(fw).length - 1;
     });
+    const fillerRatio = fillerCount / wordCount;
 
-    const requiredMatches = Math.min(2, finalKeywords.length || 1);
-    if (matchedCount < requiredMatches) {
-      return {
-        marks: 0,
-        answered: true,
-        feedback: "0 Marks: Incorrect answer. Spoken response did not match expected key terms (requires at least 2 matching keywords)."
-      };
-    }
+    const uniqueWords = new Set(words.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, ""))).size;
+    const vocabDiversity = uniqueWords / wordCount;
 
-    // Flat marks: hitting the required keyword threshold earns the full 10,
-    // there's no partial-credit scaling by match ratio anymore.
+    const sentenceCount = Math.max(1, tr.split(/[.!?]+/).filter((s) => s.trim().length > 0).length);
+    const avgSentenceLen = wordCount / sentenceCount;
+
+    const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
+
+    let clarity = clamp(75 - fillerRatio * 200 + Math.min(15, Math.max(0, wordCount - 15) * 0.3));
+    let fluency = clamp(80 - fillerRatio * 220 - (avgSentenceLen < 5 ? (5 - avgSentenceLen) * 4 : 0) - (avgSentenceLen > 28 ? (avgSentenceLen - 28) * 2 : 0));
+    let vocabularyGrammar = clamp(40 + vocabDiversity * 90 + Math.min(10, wordCount * 0.1));
+    let confidenceDelivery = clamp(Math.min(90, 30 + wordCount * 1.5) - fillerRatio * 100);
+
     return {
-      marks: POINTS_PER_QUESTION,
       answered: true,
-      feedback: `Correct answer evaluated: ${POINTS_PER_QUESTION}/${POINTS_PER_QUESTION} Marks based on matching ${matchedCount} key term(s).`
+      note: `Approximate offline scoring based on response length (${wordCount} words) and speech pattern.`,
+      scores: { clarity, fluency, vocabularyGrammar, confidenceDelivery },
     };
   }
 
@@ -688,7 +672,6 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const formattedQaPairs = questionsList.map((q) => ({
       questionId: q.id,
       question: q.question,
-      expectedAnswer: q.expectedAnswer || "",
       transcript: qaTranscripts[q.id] || "", // Empty if candidate did not answer / stopped early
     }));
 
@@ -742,32 +725,38 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       // shows this same finished report instead of restarting the interview
       // ("once done, it's done") - the mount effect above retries saving it
       // server-side in the background once the connection recovers.
-      const fallbackScores = questionsList.map((q) => {
+      const fallbackScored = questionsList.map((q) => {
         const tr = qaTranscripts[q.id] || "";
-        const scoring = scoreQuestionTranscript(q, tr);
+        const scoring = scoreQuestionCommunication(tr);
         return {
           questionId: q.id,
           question: q.question,
-          marks: scoring.marks,
           answered: scoring.answered,
-          feedback: scoring.feedback,
+          note: scoring.note,
           transcript: tr,
           // No translation possible offline - just show the original.
           translatedTranscript: tr,
           detectedLanguage: "unknown",
+          scores: scoring.scores,
         };
       });
 
-      const totalMarks = fallbackScores.reduce((sum, item) => sum + item.marks, 0);
-      const maxMarks = fallbackScores.length * POINTS_PER_QUESTION;
-      const avg = maxMarks > 0 ? Math.round((totalMarks / maxMarks) * 100) : 0;
+      const answeredCount = fallbackScored.filter((q) => q.answered).length;
+      const avgDim = (key) =>
+        answeredCount ? Math.round(fallbackScored.reduce((sum, q) => sum + q.scores[key], 0) / fallbackScored.length) : 0;
+      const rubric = {
+        clarity: avgDim("clarity"),
+        fluency: avgDim("fluency"),
+        vocabularyGrammar: avgDim("vocabularyGrammar"),
+        confidenceDelivery: avgDim("confidenceDelivery"),
+      };
+      const overallScore = Math.round((rubric.clarity + rubric.fluency + rubric.vocabularyGrammar + rubric.confidenceDelivery) / 4);
 
       const fallbackEvaluation = {
-        overallScore: avg,
-        totalMarks,
-        maxMarks,
-        questionScores: fallbackScores,
-        feedback: `Candidate evaluated: ${totalMarks}/${maxMarks} marks across verbal assessment questions.`,
+        overallScore,
+        rubric,
+        answerNotes: fallbackScored.map(({ scores, ...rest }) => rest),
+        feedback: `Candidate's spoken communication was evaluated (offline) across ${fallbackScored.length} interview questions (${answeredCount} answered).`,
       };
 
       setEvaluation(fallbackEvaluation);
@@ -798,10 +787,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
         <div>
           <span style={{ background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-            STAGE 05 · LIVE AI VIDEO VERIFICATION
+            STAGE 05 · COMMUNICATION &amp; VIDEO INTERVIEW
           </span>
           <h3 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>
-            AI Video &amp; Verbal Communication Assessment
+            Live AI Communication &amp; Video Interview
           </h3>
         </div>
 
@@ -826,13 +815,11 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       {step === "setup" && (
         <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 28 }}>
           <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginBottom: 8 }}>
-            <i className="fa-solid fa-video" style={{ marginRight: 8, color: "var(--gold)" }}></i>
-            A live, on-camera Q&amp;A interview
+            <i className="fa-solid fa-comments" style={{ marginRight: 8, color: "var(--gold)" }}></i>
+            Live AI Verbal Communication &amp; Video Interview
           </h4>
           <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, margin: "0 0 16px" }}>
-            The AI will ask {questionsList.length} question{questionsList.length === 1 ? "" : "s"} out loud, one at a time. Your camera
-            and microphone turn on only once you click below - not just by opening this page - and turn off the
-            moment the interview ends.
+            The AI interviewer will ask {questionsList.length} question{questionsList.length === 1 ? "" : "s"} out loud to evaluate your spoken communication, fluency, and RCM technical knowledge. First, you'll perform a quick camera liveness check (video camera only), followed by the interactive verbal interview.
           </p>
 
           {cameraError && <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginBottom: 16 }}>{cameraError}</div>}
@@ -893,7 +880,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                   <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#B45309", padding: 12, borderRadius: 8, fontSize: 11, fontWeight: 600, marginBottom: 16 }}>
                     Prompt: Look directly at the camera, blink twice, and click Verify.
                   </div>
-                  <button type="button" className="btn btn-navy" style={{ width: "100%", justifyContent: "center" }} onClick={handlePerformLivenessCheck} disabled={livenessChecking || !isFacePresent}>
+                  <button type="button" className="btn btn-navy" style={{ width: "100%", justifyContent: "center" }} onClick={handlePerformLivenessCheck} disabled={livenessChecking}>
                     {livenessChecking ? "Validating Liveness…" : "Perform Liveness Verification →"}
                   </button>
                 </div>
@@ -993,20 +980,19 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 40, textAlign: "center" }}>
           <i className="fa-solid fa-brain" style={{ fontSize: 48, color: "var(--gold)", marginBottom: 16, animation: "spin 2s linear infinite" }}></i>
           <h3 style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: "0 0 8px" }}>
-            AI Evaluating Spoken Answers &amp; Calculating Marks…
+            AI Analyzing Your Spoken Communication…
           </h3>
           <p style={{ fontSize: 13, color: "#64748B" }}>
-            The AI Bot is evaluating your spoken answers question-by-question. Unanswered questions receive 0 marks.
+            The AI is listening to your answers and scoring your clarity, fluency, vocabulary, and delivery.
           </p>
         </div>
       )}
 
-      {/* STEP 5: SUBMISSION CONFIRMATION - no score or per-question marks
-          shown to the candidate; our team reviews the recorded answers and
-          verifies correctness as part of the candidate verification process.
-          (Marks are still computed and saved server-side - see
-          evaluateAiVideoAssessment in backend/utils/aiAssessment.js - just
-          not surfaced here.) */}
+      {/* STEP 5: SUBMISSION CONFIRMATION - shows the AI's communication
+          score + rubric breakdown directly, since this stage is scored
+          entirely by AI (clarity/fluency/vocabulary & grammar/confidence &
+          delivery) and isn't gated on a staff correctness review. See
+          evaluateAiVideoAssessment in backend/utils/aiAssessment.js. */}
       {step === "report" && evaluation && (
         <div>
           <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 32, boxShadow: "0 10px 30px rgba(0,0,0,0.04)", textAlign: "center" }}>
@@ -1026,9 +1012,41 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>
               Thank you for completing the interview!
             </h3>
-            <p style={{ fontSize: 13, color: "#475569", margin: "0 auto", maxWidth: 440, lineHeight: 1.6 }}>
-              Your spoken answers have been recorded and submitted to our team for review as part of your candidate verification.
+            <p style={{ fontSize: 13, color: "#475569", margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.6 }}>
+              Our AI has analyzed your spoken communication - no manual review needed. Here's how you did:
             </p>
+
+            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: 0.5 }}>COMMUNICATION SCORE</div>
+              <div style={{ fontSize: 40, fontWeight: 800, color: "var(--navy)" }}>{evaluation.overallScore}%</div>
+            </div>
+
+            {evaluation.rubric && (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, maxWidth: 520, margin: "0 auto 16px", textAlign: "left" }}>
+                {[
+                  { key: "clarity", label: "Clarity & Pronunciation" },
+                  { key: "fluency", label: "Fluency & Pace" },
+                  { key: "vocabularyGrammar", label: "Vocabulary & Grammar" },
+                  { key: "confidenceDelivery", label: "Confidence & Delivery" },
+                ].map(({ key, label }) => (
+                  <div key={key}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#64748B", marginBottom: 4 }}>
+                      <span>{label}</span>
+                      <span style={{ fontWeight: 800, color: "var(--navy)" }}>{evaluation.rubric[key]}</span>
+                    </div>
+                    <div style={{ height: 6, borderRadius: 999, background: "#E2E8F0", overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${evaluation.rubric[key]}%`, background: "var(--gold, #F59E0B)", borderRadius: 999 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {evaluation.feedback && (
+              <p style={{ fontSize: 12, color: "#64748B", margin: "0 auto", maxWidth: 460, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
+                {evaluation.feedback}
+              </p>
+            )}
           </div>
         </div>
       )}

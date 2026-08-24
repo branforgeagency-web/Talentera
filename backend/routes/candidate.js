@@ -10,7 +10,7 @@ const { calculateVerificationScore } = require("../utils/verificationScore");
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
-const { getClaudeMockInterviewResponse, evaluateAndCompareAnswerWithClaude } = require("../utils/claudeInterview");
+const { generateInterviewQuestions, getMessiTurn, generateFinalReport } = require("../utils/claudeInterview");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
@@ -31,28 +31,34 @@ const SKIPPABLE_STAGES = [7];
 const JOB_SEARCH_MIN_SCORE = 90;
 
 // Built-in questions used only when staff haven't configured any interview
-// questions yet in the Staff Hub (Interview Questions screen). These carry no
-// answer key, so evaluateAiVideoAssessment() grades them with the generic
-// RCM-keyword heuristic instead of against a reference answer.
+// questions yet in the Staff Hub (Interview Questions screen). These are
+// deliberately conversational/biographical, not technical recall - Stage 5
+// grades COMMUNICATION quality (clarity, fluency, confidence/delivery), not
+// answer correctness, so there's no "right answer" to check for. See
+// evaluateAiVideoAssessment() in backend/utils/aiAssessment.js.
 const DEFAULT_INTERVIEW_QUESTIONS = {
   video: [
-    "Please introduce yourself and highlight your professional background, certifications (AAPC/AHIMA), and Medical Coding / RCM experience.",
-    "Walk us through how you investigate and resolve a claim denied with ANSI code CO-197 (Pre-authorization / Pre-certification missing).",
-    "Explain the protocols you follow to ensure PHI (Protected Health Information) data privacy and HIPAA compliance during remote work.",
+    "Tell me about yourself - your background, education, and what led you into Medical Coding / RCM.",
+    "Tell me about the course or training program you completed - what did you study, and what did you take away from it?",
+    "Tell me a bit about your family background and where you're from.",
+    "What would you say are your biggest strengths, and where do you see yourself professionally in the next few years?",
+    "Why did you choose a career in Medical Coding / Healthcare RCM specifically?",
   ],
   audio: [
-    "Let's start with you - walk me through your RCM or medical coding background, and the specialty you're strongest in.",
-    "Tell me about a time you handled a difficult claim denial. What was the denial reason and how did you resolve it?",
-    "How do you stay compliant with HIPAA and protect PHI when working remotely on US healthcare accounts?",
-    "Where do you see gaps in your current RCM knowledge, and what are you doing to close them?",
+    "Let's start with you - tell me about yourself, your background, and what led you into RCM or medical coding.",
+    "Tell me about your training or course - what did you study, and what did you learn from it?",
+    "Tell me about a challenge you've faced (personal or professional) and how you handled it.",
+    "What are your strengths, and where do you see yourself professionally a few years from now?",
   ],
 };
 
-// Looks up each { questionId, transcript } pair's question text + answer key
-// from the staff-managed InterviewQuestion bank, so the evaluator always
-// grades against the real reference answer rather than trusting anything the
-// candidate's browser sent. questionId can be a Mongo id (staff-configured
-// question) or a "default-N" id (built-in fallback question, no answer key).
+// Looks up each { questionId, transcript } pair's real question text from
+// the staff-managed InterviewQuestion bank, so grading always uses the
+// actual configured question rather than trusting whatever text the
+// candidate's browser sent (anti-tamper). questionId can be a Mongo id
+// (staff-configured question) or a "default-N" id (built-in fallback
+// question). Communication scoring (evaluateAiVideoAssessment) doesn't grade
+// against an answer key, so correctAnswer is no longer resolved/used here.
 async function enrichQaPairsWithAnswerKey(qaPairs = []) {
   const mongoIds = qaPairs.map((p) => p.questionId).filter((id) => id && /^[a-f0-9]{24}$/i.test(String(id)));
   const dbQuestions = mongoIds.length ? await InterviewQuestion.find({ _id: { $in: mongoIds } }).lean() : [];
@@ -71,7 +77,6 @@ async function enrichQaPairsWithAnswerKey(qaPairs = []) {
       questionId: pair.questionId,
       question: finalQuestion?.text || pair.question || "",
       transcript: pair.transcript || "",
-      expectedAnswer: finalQuestion?.correctAnswer || pair.expectedAnswer || "",
     };
   });
 }
@@ -451,8 +456,10 @@ router.get("/interview-questions", async (req, res) => {
   }
 });
 
-// POST /api/candidate/ai-video/assess - Live AI Video Verification & Q&A
-// Communication Assessment, graded against the staff-configured answer key.
+// POST /api/candidate/ai-video/assess - Live AI Video Verification & Spoken
+// Communication Assessment. Scored entirely by AI on communication quality
+// (clarity, fluency, vocabulary/grammar, confidence & delivery) - not
+// answer correctness, and not staff-reviewed before the score is final.
 router.post(
   "/ai-video/assess",
   upload.single("video"),
@@ -501,10 +508,11 @@ router.post(
         // browser qaPairs is what makes the translation survive page
         // reloads/report re-views, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
+        // aiScore is now a communication score (clarity/fluency/vocabulary &
+        // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: evaluation.overallScore,
-        totalMarks: evaluation.totalMarks,
-        maxMarks: evaluation.maxMarks,
-        questionScores: evaluation.questionScores,
+        rubric: evaluation.rubric,
+        answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
@@ -521,7 +529,7 @@ router.post(
       const scoring = calculateVerificationScore(candidate.completedStages);
       res.json({
         success: true,
-        message: `AI Video Verification & Communication Assessment Completed! Score: ${evaluation.overallScore}%`,
+        message: `AI Video Interview submitted! Communication Score: ${evaluation.overallScore}%`,
         evaluation,
         videoUrl: fileUrl,
         candidate,
@@ -585,10 +593,11 @@ router.post(
         // translatedTranscript/detectedLanguage per question so it survives
         // page reloads, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
+        // aiScore is now a communication score (clarity/fluency/vocabulary &
+        // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: evaluation.overallScore,
-        totalMarks: evaluation.totalMarks,
-        maxMarks: evaluation.maxMarks,
-        questionScores: evaluation.questionScores,
+        rubric: evaluation.rubric,
+        answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
@@ -605,7 +614,7 @@ router.post(
       const scoring = calculateVerificationScore(candidate.completedStages);
       res.json({
         success: true,
-        message: `AI Audio Interview Completed! Score: ${evaluation.overallScore}%`,
+        message: `AI Audio Interview submitted! Communication Score: ${evaluation.overallScore}%`,
         evaluation,
         videoUrl: fileUrl,
         candidate,
@@ -618,97 +627,257 @@ router.post(
   }
 );
 
-// POST /api/candidate/stage8-mock/assess - Live Interview Track Mock Interview (Audio/Text Q&A, Same Evaluation Engine as Stage 5, No Video)
-router.post("/stage8-mock/assess", async (req, res) => {
+// ---------------------------------------------------------------------------
+// Live AI Technical Mock Interview ("Messi") - Stage 8 Track's optional
+// practice tool (frontend/src/components/ClaudeMockInterviewBot.jsx). A full
+// live, voice-led, dynamically-generated 10-question interview with natural
+// follow-ups - replaces the old shuffle-and-compare bot that used to live at
+// /claude-mock-interview and /claude-compare-answer above.
+//
+// Session state is persisted at candidate.stage8.aiInterview (same
+// loosely-typed-Mixed convention every other stage already uses) so a
+// browser refresh recovers mid-interview instead of losing progress, and so
+// Stage8Track's "Interview Completed / View Result / Retake" card has
+// something to read on load. mockScore/mockInterviewCompleted on stage8
+// itself are still set on completion, unchanged, so Stage8Track.jsx's
+// existing submit payload keeps working exactly as it does today.
+// ---------------------------------------------------------------------------
+
+async function buildFreshAiInterviewSession(candidate) {
+  const candidateName = candidate.stage1?.fullName || "Candidate";
+  const role = candidate.stage1?.currentRole || "Medical Coder";
+  const experienceYears = candidate.stage1?.experience ?? null;
+
+  const questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
+
+  return {
+    status: "IN_PROGRESS",
+    candidateName,
+    role,
+    experienceYears,
+    questions,
+    turns: [],
+    questionRecords: [],
+    currentQuestionIndex: 0,
+    followUpCountForCurrent: 0,
+    proctorLogs: { tabSwitches: 0, focusLosses: 0 },
+    startedAt: new Date(),
+    endedAt: null,
+    result: null,
+  };
+}
+
+// Shared by the natural end-of-interview path (last question answered, or
+// the candidate says "stop the interview") and the explicit End Interview
+// button - both need the exact same finalize behavior.
+async function finalizeAiInterviewSession(candidate, session, status) {
+  const result = await generateFinalReport({
+    candidateName: session.candidateName,
+    role: session.role,
+    questionRecords: session.questionRecords,
+  });
+  session.status = status; // "COMPLETED" | "STOPPED"
+  session.endedAt = new Date();
+  session.result = result;
+
+  candidate.stage8 = {
+    ...(candidate.stage8 || {}),
+    aiInterview: session,
+    // Kept in sync with the pre-existing Stage8Track.jsx contract - it reads
+    // these two fields off `existingData` regardless of how the session
+    // that produced them was built.
+    mockScore: result.overallScore,
+    mockInterviewCompleted: true,
+  };
+  candidate.markModified("stage8");
+  return result;
+}
+
+// GET /api/candidate/ai-interview/state - current/last AI Interview session,
+// for resume-on-refresh and for the Stage 8 "Interview Completed" card.
+router.get("/ai-interview/state", async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
 
+    res.json({ session: candidate.stage8?.aiInterview || { status: "NOT_STARTED" } });
+  } catch (err) {
+    logger.error(`AI Interview state fetch error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to load AI Interview session." });
+  }
+});
+
+// POST /api/candidate/ai-interview/start - generates (or resumes) a session.
+// body: { retake?: boolean } - retake explicitly discards a COMPLETED/STOPPED
+// session and starts a fresh one; otherwise an IN_PROGRESS session is simply
+// handed back rather than regenerated out from under the candidate.
+router.post("/ai-interview/start", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
     if (!candidate.completedStages.includes(1)) {
-      return res.status(400).json({ message: "You must complete Stage 1 before taking Stage 8 Mock Interview." });
+      return res.status(400).json({ message: "You must complete Stage 1 before starting the AI Interview." });
     }
 
-    let qaPairs = [];
-    let proctorLogs = {};
+    const existing = candidate.stage8?.aiInterview;
+    const retake = Boolean(req.body?.retake);
 
-    if (req.body.qaPairs) {
-      try {
-        qaPairs = typeof req.body.qaPairs === "string" ? JSON.parse(req.body.qaPairs) : req.body.qaPairs;
-      } catch (e) {}
-    }
-    if (req.body.proctorLogs) {
-      try {
-        proctorLogs = typeof req.body.proctorLogs === "string" ? JSON.parse(req.body.proctorLogs) : req.body.proctorLogs;
-      } catch (e) {}
+    if (existing && existing.status === "IN_PROGRESS" && !retake) {
+      const currentQ = existing.questions[existing.currentQuestionIndex];
+      return res.json({
+        session: existing,
+        messiReply: `Welcome back - let's pick up where we left off. Question ${existing.currentQuestionIndex + 1} of ${existing.questions.length}: ${currentQ?.question || ""}`,
+      });
     }
 
-    // Enrich Q&A pairs with reference answer key from database / default question bank
-    const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
-    // Grade candidate answers against answer key using Claude API / LLM evaluator
-    const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
-
-    candidate.stage8 = {
-      ...(candidate.stage8 || {}),
-      interviewMode: "stage8-mock-audio",
-      mockScore: evaluation.overallScore,
-      mockEvaluation: evaluation,
-      qaPairs: evaluation.qaPairs || qaPairs,
-      totalMarks: evaluation.totalMarks,
-      maxMarks: evaluation.maxMarks,
-      questionScores: evaluation.questionScores,
-      feedback: evaluation.feedback,
-      completedAt: new Date(),
-    };
+    const session = await buildFreshAiInterviewSession(candidate);
+    candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
     candidate.markModified("stage8");
+    await candidate.save();
 
-    if (!candidate.completedStages.includes(8)) {
-      candidate.completedStages.push(8);
+    const firstQ = session.questions[0];
+    const messiReply = `Hi ${session.candidateName}! I'm Messi, and I'll be conducting your technical mock interview today for the ${session.role} track. I'll ask you ${session.questions.length} questions based on your role and experience - take your time with your answers. Let's begin.\n\n${firstQ.question}`;
+
+    res.json({ session, messiReply });
+  } catch (err) {
+    logger.error(`AI Interview start error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to start AI Interview." });
+  }
+});
+
+// POST /api/candidate/ai-interview/turn - body: { candidateUtterance, proctorLogs? }
+// Processes one candidate utterance (typed or transcribed) and returns
+// Messi's reply plus the updated interview state.
+router.post("/ai-interview/turn", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    const session = candidate.stage8?.aiInterview;
+    if (!session || session.status !== "IN_PROGRESS") {
+      return res.status(400).json({ message: "No active AI Interview session. Start a new one first." });
     }
 
+    if (req.body?.proctorLogs && typeof req.body.proctorLogs === "object") {
+      session.proctorLogs = {
+        tabSwitches: Number(req.body.proctorLogs.tabSwitches) || session.proctorLogs?.tabSwitches || 0,
+        focusLosses: Number(req.body.proctorLogs.focusLosses) || session.proctorLogs?.focusLosses || 0,
+      };
+    }
+
+    const utterance = String(req.body?.candidateUtterance || "").trim();
+    const currentIndex = session.currentQuestionIndex;
+    const currentQuestion = session.questions[currentIndex];
+
+    const turnResult = await getMessiTurn({ session, candidateUtterance: utterance });
+
+    session.turns.push({
+      questionIndex: currentIndex,
+      questionText: currentQuestion.question,
+      candidateAnswer: utterance,
+      intent: turnResult.intent,
+      evaluation: turnResult.evaluation,
+      score: turnResult.score,
+      messiReply: turnResult.messiReply,
+      isFollowUp: session.followUpCountForCurrent > 0,
+      flags: turnResult.evaluation === "no_answer" && utterance ? ["very_short_answer"] : [],
+      timestamp: new Date(),
+    });
+
+    let interviewEnded = false;
+
+    if (turnResult.intent === "stop") {
+      interviewEnded = true;
+    } else if (["hint", "repeat", "clarify", "unclear"].includes(turnResult.intent)) {
+      // Same question (or pending follow-up) again - no record change, no advance.
+    } else {
+      // "answer" or "skip" - record this question's (or follow-up's) result,
+      // then decide whether to open a follow-up or advance.
+      const isFollowUpAnswer = session.followUpCountForCurrent > 0;
+      const existingRecord = session.questionRecords.find((r) => r.index === currentIndex);
+
+      if (isFollowUpAnswer && existingRecord) {
+        existingRecord.followUp = {
+          question: existingRecord.followUp?.question || "",
+          candidateAnswer: utterance,
+          evaluation: turnResult.evaluation,
+          score: turnResult.score,
+          missingConcepts: turnResult.missingConcepts,
+        };
+      } else {
+        session.questionRecords.push({
+          index: currentIndex,
+          question: currentQuestion.question,
+          expectedConcepts: currentQuestion.expectedConcepts,
+          candidateAnswer: utterance,
+          evaluation: turnResult.evaluation,
+          score: turnResult.score,
+          missingConcepts: turnResult.missingConcepts,
+          followUp: turnResult.askFollowUp
+            ? { question: turnResult.messiReply, candidateAnswer: "", evaluation: "no_answer", score: 0, missingConcepts: [] }
+            : null,
+        });
+      }
+
+      if (turnResult.askFollowUp && !isFollowUpAnswer) {
+        session.followUpCountForCurrent = 1; // still the same question - awaiting the follow-up answer
+      } else if (currentIndex >= session.questions.length - 1) {
+        interviewEnded = true;
+      } else {
+        session.currentQuestionIndex = currentIndex + 1;
+        session.followUpCountForCurrent = 0;
+      }
+    }
+
+    let result = null;
+    if (interviewEnded) {
+      result = await finalizeAiInterviewSession(candidate, session, turnResult.intent === "stop" ? "STOPPED" : "COMPLETED");
+    } else {
+      candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
+      candidate.markModified("stage8");
+    }
     await candidate.save();
-    const scoring = calculateVerificationScore(candidate.completedStages);
 
     res.json({
-      success: true,
-      message: `Stage 8 AI Mock Interview Completed! Score: ${evaluation.totalMarks}/${evaluation.maxMarks} Marks (${evaluation.overallScore}%)`,
-      evaluation,
-      candidate,
-      ...scoring,
+      messiReply: turnResult.messiReply,
+      nextQuestion: interviewEnded ? null : session.questions[session.currentQuestionIndex],
+      progress: { index: session.currentQuestionIndex, total: session.questions.length },
+      interviewEnded,
+      result,
+      session,
     });
   } catch (err) {
-    logger.error(`Stage 8 Mock Interview assessment error: ${err.message}`);
-    res.status(500).json({ message: err.message || "Failed to process Stage 8 Mock Interview." });
+    logger.error(`AI Interview turn error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to process AI Interview turn." });
   }
 });
 
-// POST /api/candidate/claude-mock-interview - Live Claude AI Mock Interview Bot Endpoint
-router.post("/claude-mock-interview", async (req, res) => {
+// POST /api/candidate/ai-interview/end - explicit "End Interview" button path.
+// body: { proctorLogs? }
+router.post("/ai-interview/end", async (req, res) => {
   try {
-    const { messages = [] } = req.body;
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
 
-    const response = await getClaudeMockInterviewResponse(messages, candidate.toObject());
-    res.json(response);
-  } catch (err) {
-    logger.error(`Claude Mock Interview Route error: ${err.message}`);
-    res.status(500).json({ message: err.message || "Failed to process Claude AI Mock Interview turn." });
-  }
-});
-
-// POST /api/candidate/claude-compare-answer - Evaluate & Compare Candidate Answer against Reference Model Answer
-router.post("/claude-compare-answer", async (req, res) => {
-  try {
-    const { question, referenceAnswer, candidateAnswer } = req.body;
-    if (!question || !referenceAnswer) {
-      return res.status(400).json({ message: "Question and referenceAnswer are required." });
+    const session = candidate.stage8?.aiInterview;
+    if (!session || session.status !== "IN_PROGRESS") {
+      return res.status(400).json({ message: "No active AI Interview session to end." });
     }
 
-    const evaluation = await evaluateAndCompareAnswerWithClaude({ question, referenceAnswer, candidateAnswer });
-    res.json(evaluation);
+    if (req.body?.proctorLogs && typeof req.body.proctorLogs === "object") {
+      session.proctorLogs = {
+        tabSwitches: Number(req.body.proctorLogs.tabSwitches) || session.proctorLogs?.tabSwitches || 0,
+        focusLosses: Number(req.body.proctorLogs.focusLosses) || session.proctorLogs?.focusLosses || 0,
+      };
+    }
+
+    const result = await finalizeAiInterviewSession(candidate, session, "STOPPED");
+    await candidate.save();
+
+    res.json({ session, result });
   } catch (err) {
-    logger.error(`Claude Compare Answer Route error: ${err.message}`);
-    res.status(500).json({ message: err.message || "Failed to compare answer with Claude API." });
+    logger.error(`AI Interview end error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to end AI Interview." });
   }
 });
 

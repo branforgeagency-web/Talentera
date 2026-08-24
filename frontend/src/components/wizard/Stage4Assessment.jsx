@@ -68,9 +68,10 @@ export default function Stage4Assessment({ stage, existingData, onSaved }) {
           </button>
         </div>
       ) : (
-        /* ALREADY COMPLETED - no score shown here; our team reviews the
-           recorded responses and verifies correctness as part of the
-           candidate verification process. */
+        /* ALREADY COMPLETED - the score is shown directly: this is a
+           multiple-choice test graded automatically against a fixed answer
+           key the moment it's submitted, so there's nothing for staff to
+           verify and no reason to withhold the score from the candidate. */
         <div>
           <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 24, marginBottom: 20, boxShadow: "0 10px 30px rgba(0,0,0,0.04)", textAlign: "center" }}>
             <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>
@@ -82,8 +83,17 @@ export default function Stage4Assessment({ stage, existingData, onSaved }) {
             <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "10px 0 6px" }}>
               Thank you for completing the assessment!
             </h2>
+
+            <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", margin: "8px 0 6px" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: 0.5 }}>YOUR SCORE</div>
+              <div style={{ fontSize: 40, fontWeight: 800, color: "var(--navy)" }}>{scorePercent}%</div>
+              {typeof profileData?.correctCount === "number" && typeof profileData?.totalQuestions === "number" && (
+                <div style={{ fontSize: 12, color: "#64748B" }}>{profileData.correctCount} of {profileData.totalQuestions} correct</div>
+              )}
+            </div>
+
             <p style={{ fontSize: 13, color: "#475569", margin: "0 auto", maxWidth: 440, lineHeight: 1.6 }}>
-              Your responses have been recorded and submitted to our team for review as part of your candidate verification.
+              Scored automatically and final the moment you submitted - no staff review needed.
             </p>
           </div>
 

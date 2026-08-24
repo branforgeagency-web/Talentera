@@ -225,26 +225,39 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         const videoPath = s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || "";
 
         // Interview questions asked + candidate's transcribed answers. Prefer
-        // questionScores (has marks + feedback per question, saved by
+        // answerNotes (per-question communication note, saved by
         // /api/candidate/ai-video/assess and /ai-audio/assess) - fall back to
-        // the plain qaPairs (question + transcript, no marks) for older
-        // submissions saved before questionScores persistence existed.
-        const scoredQuestions = Array.isArray(s5.questionScores) ? s5.questionScores : [];
+        // the plain qaPairs (question + transcript, no note) for older
+        // submissions, and to the legacy questionScores/marks shape for
+        // submissions saved before the communication-scoring redesign.
+        const noteQuestions = Array.isArray(s5.answerNotes) ? s5.answerNotes : [];
+        const legacyScoredQuestions = Array.isArray(s5.questionScores) ? s5.questionScores : [];
         const rawPairs = Array.isArray(s5.qaPairs) ? s5.qaPairs : [];
-        const questions = scoredQuestions.length
-          ? scoredQuestions.map((q, idx) => ({
+        const questions = noteQuestions.length
+          ? noteQuestions.map((q, idx) => ({
               question: q.question || rawPairs[idx]?.question || `Question ${idx + 1}`,
               answerTranscript: q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript || "",
-              marks: typeof q.marks === "number" ? q.marks : null,
+              note: q.note || "",
               answered: q.answered !== undefined ? Boolean(q.answered) : undefined,
-              feedback: q.feedback || "",
+              legacyMarks: null,
+            }))
+          : legacyScoredQuestions.length
+          ? legacyScoredQuestions.map((q, idx) => ({
+              question: q.question || rawPairs[idx]?.question || `Question ${idx + 1}`,
+              answerTranscript: q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript || "",
+              note: q.feedback || "",
+              answered: q.answered !== undefined ? Boolean(q.answered) : undefined,
+              // Old correctness-graded submissions, kept only so historical
+              // reports still show something meaningful - new submissions
+              // don't produce this field anymore.
+              legacyMarks: typeof q.marks === "number" ? q.marks : null,
             }))
           : rawPairs.map((p, idx) => ({
               question: p.question || `Question ${idx + 1}`,
               answerTranscript: p.translatedTranscript || p.transcript || "",
-              marks: null,
+              note: "",
               answered: undefined,
-              feedback: "",
+              legacyMarks: null,
             }));
 
         return {
@@ -258,17 +271,21 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
           duration: s5.duration || "1m 30s",
           status: s5.verified ? "Verified" : "Pending Audit",
           verified: Boolean(s5.verified),
+          // Communication score (0-100) - not an answer-correctness score.
           aiScore: typeof s5.aiScore === "number" ? s5.aiScore : (s5.score || null),
-          totalMarks: typeof s5.totalMarks === "number" ? s5.totalMarks : null,
-          maxMarks: typeof s5.maxMarks === "number" ? s5.maxMarks : null,
+          rubric: s5.rubric || null,
           questions,
           submittedAt: s5.completedAt || c.createdAt,
         };
       });
 
-    // Text Assessment (Stage 4) Review Queue - candidates who submitted the
-    // proctored MCQ test, with their full per-question answers so staff can
-    // verify how many questions were answered correctly.
+    // Text Assessment (Stage 4) Log - candidates who submitted the proctored
+    // MCQ test. Grading is deterministic (multiple choice against a fixed
+    // answer key) and final the instant the candidate submits - the score is
+    // already shown to the candidate (see PUT /candidate/stage/4 and
+    // AssessmentRunner.jsx) and doesn't need staff review. This list is for
+    // reference/audit only; "verified"/staffVerified is an optional internal
+    // flag, not a gate on anything.
     const textAssessmentQueue = candidates
       .filter((c) => {
         const s4 = c.stage4 || {};
