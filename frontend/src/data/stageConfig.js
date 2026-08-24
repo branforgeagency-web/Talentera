@@ -68,8 +68,8 @@ export const STAGES = [
   {
     id: 5,
     key: "stage5",
-    title: "Video Introduction",
-    subtitle: "A short verified intro video — mandatory.",
+    title: "Communication + Video Interview",
+    subtitle: "Live AI verbal communication & video interview — mandatory.",
     mandatory: true,
     skippable: false,
     isVideoUpload: true,

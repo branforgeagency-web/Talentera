@@ -4,11 +4,16 @@ const mongoose = require("mongoose");
  * Staff-managed question bank for the Stage 5 AI Video / AI Audio interviews
  * (frontend/src/components/AiVideoAssessment.jsx and AiAudioInterview.jsx).
  *
- * `correctAnswer` is the reference/model answer used server-side to grade the
- * candidate's transcribed spoken response - it is NEVER sent to the candidate
- * (see the GET /api/candidate/interview-questions route in
- * backend/routes/candidate.js, which strips it before responding). Only the
- * grading step, which runs entirely server-side, reads it.
+ * This stage grades COMMUNICATION quality (clarity, fluency, vocabulary &
+ * grammar, confidence/delivery) - see backend/utils/aiAssessment.js - not
+ * whether the answer is factually/technically "correct". Questions here are
+ * meant to be conversational/biographical (tell me about yourself, your
+ * training, your background) so there is no answer key to check against.
+ *
+ * `correctAnswer` is kept as an OPTIONAL free-text field for staff's own
+ * reference (e.g. notes on what a strong answer should touch on) - it is
+ * never sent to the candidate and, as of the communication-scoring redesign,
+ * is no longer read by the grading step at all.
  */
 const InterviewQuestionSchema = new mongoose.Schema(
   {
@@ -19,7 +24,8 @@ const InterviewQuestionSchema = new mongoose.Schema(
     },
     correctAnswer: {
       type: String,
-      required: true,
+      required: false,
+      default: "",
       trim: true,
     },
     // Which interview mode this question is asked in. "both" means it's

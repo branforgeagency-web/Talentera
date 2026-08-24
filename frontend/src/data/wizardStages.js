@@ -166,39 +166,39 @@ const RAW_WIZARD_STAGES = [
   },
   {
     num: 5,
-    short: "Video",
-    long: "Communication + Video",
+    short: "Communication + Video",
+    long: "Communication + Video Interview",
     pts: 10,
     mins: 10,
     icon: "video",
     intro:
-      "Most RCM rejections happen on communication, not coding. A 90-second video plus AI-scored mock interview tells companies what 50 resumes can't.",
+      "Communication is the primary filter for top RCM roles. Conduct your live AI verbal communication and video interview so our AI can score your spoken English clarity, fluency, and professional delivery.",
     rules: [
       {
         type: "why",
-        title: "Why communication matters",
-        body: "For US-payer-facing work (HCC, AR calling, denial mgmt), spoken English clarity is non-negotiable. Companies have wasted thousands of hours interviewing candidates whose written resumes were great but who couldn't communicate. The video + mock fix this upfront.",
+        title: "Why communication & video interview matters",
+        body: "For US-payer-facing work (HCC, AR calling, denial mgmt), spoken English clarity and professional delivery are essential. Companies rely on this AI-scored interview to assess communication skills upfront.",
       },
       {
         type: "check",
-        title: "What we capture",
-        body: "90-second self-intro: structured script (education → training → specialty → why RCM → close). 5-minute AI mock: specialty-tuned scenario questions, AI scores fluency, confidence, structured answering. Both recordings are yours forever.",
+        title: "How it's scored",
+        body: "Step 1: Live face liveness & camera check (camera only). Step 2: A short interactive AI interview with real-time speech transcription. Claude AI scores your clarity, fluency, vocabulary & grammar, and confidence/delivery - not whether your answers are 'correct', since the questions are conversational (tell us about yourself, your training, your background).",
       },
       {
         type: "eye",
         title: "What companies see",
-        body: "Full 90-sec video (they can replay anytime). Mock interview numerical score only (e.g., Fluency 78 / Confidence 70). Detailed mock feedback stays in your dashboard for self-improvement — never shared with companies.",
+        body: "Recorded video interview session, your overall communication score, and a verified communication badge. The score is generated entirely by AI - no staff review needed.",
       },
     ],
     trustChips: [
-      { num: "90 sec", label: "self intro" },
-      { num: "5 min", label: "AI mock" },
-      { num: "AI-scored", label: "fluency + confidence" },
+      { num: "Live AI", label: "verbal Q&A" },
+      { num: "5 Qs", label: "communication interview" },
+      { num: "Claude AI", label: "evaluated" },
       { num: "~10 min", label: "your time" },
     ],
     theme: { p1: "#EC4899", p2: "#F43F5E" },
     context:
-      "Voice + video raises your shortlist rate by 4.3×. US-payer companies watch your intro before any phone call.",
+      "Verified communication & video interview scores raise candidate shortlist rates by 4.3× with US-payer employers.",
   },
   {
     num: 6,
@@ -277,36 +277,36 @@ const RAW_WIZARD_STAGES = [
     short: "Track",
     long: "Live Interview Track",
     pts: 5,
-    mins: 2,
+    mins: 8,
     icon: "trend",
     intro:
-      "Past interview performance predicts future. Companies that shortlist you see whether you've done 0 interviews or 10 — and what percentage you cleared.",
+      "Two things happen here: you consent to having your real interview outcomes tracked from here on as Talentera routes you to companies, and you can practice right now with a live Claude AI mock interview to sharpen your readiness.",
     rules: [
       {
         type: "why",
-        title: "Why we track interviews",
-        body: "A candidate who has been through 8 real company interviews and cleared 5 is dramatically different from one who has zero history. Companies value this signal a lot. The track auto-captures every Talentera-routed interview so you build proof of interview-readiness over time.",
+        title: "Why we ask for consent now",
+        body: "A track record only builds from real interviews over time - there's nothing to show yet if you're just joining. Consenting today means every interview Talentera routes you to from your first one onward gets logged, so your track record starts building immediately instead of retroactively.",
       },
       {
         type: "check",
-        title: "What's captured",
-        body: "For each interview: round number, type (HR / tech / ops / final), date, result (selected / rejected / on-hold), and any anonymized feedback. You see the full track in your dashboard with company names; companies viewing your profile see anonymized summaries.",
+        title: "Practice with the live AI mock interview",
+        body: "Right now, you can run a live Q&A session with Claude AI against a bank of technical RCM/medical-coding questions - it scores each answer and gives you feedback, so you can walk into a real interview having already rehearsed. This is a practice tool for you; it's not visible to companies.",
       },
       {
         type: "lock",
         title: "What stays private",
-        body: "Companies see only: '3 interviews · 2 cleared' — never the specific company or feedback. You can request anonymization or full deletion at any time. Right-to-be-forgotten honored. Consent is mandatory to enter the Verified Pool.",
+        body: "Once real interview outcomes start being logged, companies would only ever see anonymized summaries - never the specific company or feedback tied to another employer. You can request anonymization or full deletion at any time. Right-to-be-forgotten honored. Consent is mandatory to enter the Verified Pool.",
       },
     ],
     trustChips: [
-      { num: "Auto", label: "interview capture" },
-      { num: "Anon", label: "company view" },
+      { num: "Auto", label: "future interview capture" },
+      { num: "Live AI", label: "mock interview practice" },
       { num: "Delete", label: "anytime" },
-      { num: "~2 min", label: "your time" },
+      { num: "~8 min", label: "your time" },
     ],
     theme: { p1: "#8B5CF6", p2: "#D946EF" },
     context:
-      "Track-active candidates get 3.2× more interview invitations. Companies see your readiness signal even before they call.",
+      "Practicing with the live AI mock interview helps you walk into real interviews more prepared - and every interview Talentera routes you to from here on starts building your track record.",
   },
 ];
 
