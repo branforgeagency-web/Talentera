@@ -10,6 +10,7 @@ const { calculateVerificationScore } = require("../utils/verificationScore");
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
+const { getClaudeMockInterviewResponse, evaluateAndCompareAnswerWithClaude } = require("../utils/claudeInterview");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
@@ -309,6 +310,37 @@ router.put("/stage/:n", async (req, res) => {
 
     candidate.markModified(key);
 
+    if (stageNum === 1) {
+      candidate.manualResume = {
+        ...(candidate.manualResume || {}),
+        fullName: req.body.fullName || candidate.stage1?.fullName,
+        jobTitle: req.body.currentRole || candidate.stage1?.currentRole,
+        mobile: req.body.mobile || candidate.stage1?.mobile,
+        email: req.body.email || candidate.stage1?.email,
+        city: req.body.city || candidate.stage1?.city,
+        state: req.body.state || candidate.stage1?.state,
+        country: req.body.country || candidate.stage1?.country,
+        linkedin: req.body.linkedin || candidate.stage1?.linkedin,
+        summary: req.body.summary || candidate.stage1?.summary,
+
+        certName: req.body.certName || candidate.stage1?.certName,
+        issuingBody: req.body.issuingBody || candidate.stage1?.issuingBody,
+        memberId: req.body.memberId || candidate.stage1?.memberId,
+        certStatus: req.body.certStatus || candidate.stage1?.certStatus,
+        apprenticeStatus: req.body.apprenticeStatus || candidate.stage1?.apprenticeStatus,
+
+        codeSets: req.body.codeSets || candidate.stage1?.codeSets,
+        specializedKnowledge: req.body.specializedKnowledge || candidate.stage1?.specializedKnowledge,
+        ehrSoftware: req.body.ehrSoftware || candidate.stage1?.ehrSoftware,
+        coreCompetencies: req.body.coreCompetencies || candidate.stage1?.coreCompetencies,
+
+        skills: req.body.skills || candidate.stage1?.skills,
+        workHistory: req.body.workHistory || candidate.stage1?.workHistory || [],
+        education: req.body.education || candidate.stage1?.education || [],
+      };
+      candidate.markModified("manualResume");
+    }
+
     if (!candidate.completedStages.includes(stageNum)) {
       candidate.completedStages.push(stageNum);
     }
@@ -586,6 +618,37 @@ router.post(
     }
   }
 );
+
+// POST /api/candidate/claude-mock-interview - Live Claude AI Mock Interview Bot Endpoint
+router.post("/claude-mock-interview", async (req, res) => {
+  try {
+    const { messages = [] } = req.body;
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    const response = await getClaudeMockInterviewResponse(messages, candidate.toObject());
+    res.json(response);
+  } catch (err) {
+    logger.error(`Claude Mock Interview Route error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to process Claude AI Mock Interview turn." });
+  }
+});
+
+// POST /api/candidate/claude-compare-answer - Evaluate & Compare Candidate Answer against Reference Model Answer
+router.post("/claude-compare-answer", async (req, res) => {
+  try {
+    const { question, referenceAnswer, candidateAnswer } = req.body;
+    if (!question || !referenceAnswer) {
+      return res.status(400).json({ message: "Question and referenceAnswer are required." });
+    }
+
+    const evaluation = await evaluateAndCompareAnswerWithClaude({ question, referenceAnswer, candidateAnswer });
+    res.json(evaluation);
+  } catch (err) {
+    logger.error(`Claude Compare Answer Route error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to compare answer with Claude API." });
+  }
+});
 
 // POST /api/candidate/upload/video - Stage 5 video introduction (Cloudinary / Local disk)
 router.post(
