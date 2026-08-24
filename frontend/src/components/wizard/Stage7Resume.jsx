@@ -24,6 +24,7 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
   const [selectedTemplate, setSelectedTemplate] = useState("executive");
   const [selectedColor, setSelectedColor] = useState("#0A1F3D");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
@@ -55,6 +56,24 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
 
   function handleDownloadPdf() {
     window.print();
+  }
+
+  async function handleSaveAndContinue() {
+    setSaving(true);
+    try {
+      await api.put("/candidate/resume-template", { template: selectedTemplate });
+      const res = await api.put(`/candidate/stage/${stage?.num || 7}`, {
+        template: selectedTemplate,
+        accentColor: selectedColor,
+      });
+      toast("Stage 7 Verified Resume Saved!", "✓");
+      if (onSaved) onSaved(res.data);
+    } catch (err) {
+      console.error("Save Stage 7 error:", err);
+      toast(err.response?.data?.message || "Could not save Stage 7.", "!");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading || !profileData) {
@@ -200,6 +219,19 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
       {/* LIVE VERIFIED RESUME TEMPLATE DISPLAY */}
       <div style={{ background: "#525659", padding: 24, borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.15)" }} className="printable-area">
         <TemplateComponent data={displayData} accentColor={selectedColor} />
+      </div>
+
+      {/* SAVE & CONTINUE ACTION BAR */}
+      <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end", gap: 12 }} className="no-print">
+        <button
+          type="button"
+          className="btn btn-gold"
+          style={{ padding: "14px 32px", fontSize: 16, fontWeight: 800 }}
+          onClick={handleSaveAndContinue}
+          disabled={saving}
+        >
+          {saving ? "Saving Verified Resume…" : "Save & continue →"}
+        </button>
       </div>
     </div>
   );

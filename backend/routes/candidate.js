@@ -328,11 +328,10 @@ router.put("/stage/:n", async (req, res) => {
         linkedin: req.body.linkedin || candidate.stage1?.linkedin,
         summary: req.body.summary || candidate.stage1?.summary,
 
-        certName: req.body.certName || candidate.stage1?.certName,
-        issuingBody: req.body.issuingBody || candidate.stage1?.issuingBody,
-        memberId: req.body.memberId || candidate.stage1?.memberId,
-        certStatus: req.body.certStatus || candidate.stage1?.certStatus,
-        apprenticeStatus: req.body.apprenticeStatus || candidate.stage1?.apprenticeStatus,
+        certName: candidate.stage3?.certName || candidate.stage3?.certificationName || "AAPC Certified Professional Coder (CPC)",
+        issuingBody: candidate.stage3?.issuingBody || "AAPC",
+        memberId: candidate.stage3?.memberId || "AAPC-987654",
+        issueDate: candidate.stage3?.issueDate || "2021",
 
         codeSets: req.body.codeSets || candidate.stage1?.codeSets,
         specializedKnowledge: req.body.specializedKnowledge || candidate.stage1?.specializedKnowledge,
