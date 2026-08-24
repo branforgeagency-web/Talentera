@@ -2,29 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
-const DEFAULT_QA_BANK = [
-  {
-    id: 1,
-    question: "How do you determine the appropriate Medical Decision Making (MDM) level for an E/M encounter according to current CMS guidelines?",
-    referenceAnswer: "MDM is evaluated across 3 elements: (1) Number and complexity of problems addressed, (2) Amount and/or complexity of data to be reviewed and analyzed, and (3) Risk of complications or morbidity of patient management. 2 out of 3 elements must meet or exceed the target level criteria.",
-  },
-  {
-    id: 2,
-    question: "In denial management, if a claim is rejected with ANSI code CO-197 (Pre-authorization missing), what step-by-step audit process do you follow?",
-    referenceAnswer: "First, verify whether prior authorization was mandatory under payer guidelines. Second, check if retro-authorization can be requested from the insurer. Third, submit a formal appeal packet containing clinical notes, physician order, and pre-cert documentation proving medical necessity.",
-  },
-  {
-    id: 3,
-    question: "When should Modifier 25 be appended to an E/M service vs. Modifier 59 for distinct procedural services performed on the same date?",
-    referenceAnswer: "Modifier 25 is appended to an E/M code when a significant, separately identifiable E/M service is performed on the same date as a procedure. Modifier 59 is appended to a non-E/M CPT code to indicate a distinct procedural service performed on a different organ system, lesion, or anatomical site.",
-  },
-  {
-    id: 4,
-    question: "Explain the protocols you follow to ensure PHI privacy and HIPAA compliance during remote medical coding work.",
-    referenceAnswer: "Use WPA3 encrypted VPN connections, multi-factor authentication (MFA), privacy screen filters, zero storage of PHI on local personal drives, strict clean-desk policies, and locked private workspace environment.",
-  },
-];
-
 // Helper: Fisher-Yates Array Shuffle
 function shuffleArray(array) {
   const arr = [...array];
@@ -41,67 +18,73 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const recognitionRef = useRef(null);
 
   const candidateName = candidateData?.fullName || candidateData?.stage1?.fullName || "Candidate";
-  const candidateRole = candidateData?.currentRole || candidateData?.stage1?.currentRole || "Medical Coder II";
+  const candidateRole = candidateData?.currentRole || candidateData?.stage1?.currentRole || "Medical Coder & RCM Specialist";
 
-  // Custom Q&A Bank States
-  const [qaBank, setQaBank] = useState(DEFAULT_QA_BANK);
+  // Question & Session States
+  const [questions, setQuestions] = useState([]);
   const [shuffledQuestions, setShuffledQuestions] = useState([]);
   const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [showQaUploader, setShowQaUploader] = useState(false);
 
-  // Manual Q&A Upload Form Inputs
-  const [newQuestion, setNewQuestion] = useState("");
-  const [newReferenceAnswer, setNewReferenceAnswer] = useState("");
+  // Q&A Recorded Transcripts: { [questionId]: string }
+  const [qaTranscripts, setQaTranscripts] = useState({});
 
-  // Conversation & Evaluation States
+  // Chat & UI States
   const [messages, setMessages] = useState([]);
-  const [questionEvaluations, setQuestionEvaluations] = useState([]);
   const [inputMsg, setInputMsg] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interviewStarted, setInterviewStarted] = useState(false);
   const [interviewCompleted, setInterviewCompleted] = useState(false);
+  const [evaluation, setEvaluation] = useState(null);
 
   // Auto-scroll chat to latest message
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages, loading, submitting]);
 
-  // Start & Shuffle Interview Session
+  // 1. Fetch Same Question Bank as Stage 5 Video/Audio Section
+  useEffect(() => {
+    api.get("/candidate/interview-questions?mode=audio")
+      .then((res) => {
+        if (res.data && res.data.questions) {
+          setQuestions(res.data.questions);
+        }
+      })
+      .catch((err) => {
+        console.warn("Fetch interview questions error:", err);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // 2. Start & Shuffle Session
   function handleStartInterviewSession() {
-    const shuffled = shuffleArray(qaBank);
+    const baseQuestions = questions.length > 0
+      ? questions
+      : [
+          { id: "default-1", question: "Let's start with you - walk me through your RCM or medical coding background, and the specialty you're strongest in." },
+          { id: "default-2", question: "Tell me about a time you handled a difficult claim denial with ANSI code CO-197. What was the denial reason and how did you resolve it?" },
+          { id: "default-3", question: "How do you stay compliant with HIPAA and protect PHI when working remotely on US healthcare accounts?" },
+          { id: "default-4", question: "Where do you see gaps in your current RCM knowledge, and what are you doing to close them?" },
+        ];
+
+    const shuffled = shuffleArray(baseQuestions);
     setShuffledQuestions(shuffled);
     setCurrentQIndex(0);
-    setQuestionEvaluations([]);
+    setQaTranscripts({});
     setInterviewCompleted(false);
+    setEvaluation(null);
     setInterviewStarted(true);
 
     const firstQ = shuffled[0];
     setMessages([
       {
         role: "assistant",
-        content: `Hello ${candidateName}! Welcome to your live 1-on-1 Claude AI Technical Mock Interview for the **${candidateRole}** position.\n\nI have shuffled ${shuffled.length} technical questions from the uploaded Question & Answer Bank.\n\n**Question 1 of ${shuffled.length}**:\n${firstQ.question}`,
+        content: `Hello ${candidateName}! Welcome to your Stage 8 Live Technical AI Mock Interview for the **${candidateRole}** position.\n\nI have randomly shuffled ${shuffled.length} technical interview questions.\n\n**Question 1 of ${shuffled.length}**:\n${firstQ.question}`,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       },
     ]);
-    toast(`✓ Shuffled ${shuffled.length} Questions! Interview Started.`, "✓");
-  }
-
-  // Add Custom Manual Question & Reference Answer
-  function handleAddCustomQa() {
-    if (!newQuestion.trim() || !newReferenceAnswer.trim()) {
-      toast("Please enter both Question and Reference Answer.", "!");
-      return;
-    }
-    const newEntry = {
-      id: Date.now(),
-      question: newQuestion.trim(),
-      referenceAnswer: newReferenceAnswer.trim(),
-    };
-    setQaBank((prev) => [...prev, newEntry]);
-    setNewQuestion("");
-    setNewReferenceAnswer("");
-    toast("✓ Custom Question & Reference Answer uploaded!", "✓");
+    toast(`✓ Shuffled ${shuffled.length} Technical Questions! Interview Started.`, "✓");
   }
 
   // Web Speech API Voice Recognition Toggle
@@ -147,11 +130,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
-  // Handle Candidate Answer Submission & Claude API Comparison
-  async function handleSendMessage(e) {
+  // Submit Answer & Move to Next Shuffled Question
+  async function handleSendAnswer(e) {
     if (e) e.preventDefault();
     const candidateAnswerText = inputMsg.trim();
-    if (!candidateAnswerText || loading || !interviewStarted || interviewCompleted) return;
+    if (!candidateAnswerText || submitting || !interviewStarted || interviewCompleted) return;
 
     if (isListening) {
       recognitionRef.current?.stop();
@@ -165,87 +148,73 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     };
 
+    const updatedTranscripts = { ...qaTranscripts, [currentQ.id || currentQ._id]: candidateAnswerText };
+    setQaTranscripts(updatedTranscripts);
     setMessages((prev) => [...prev, userMsgObj]);
     setInputMsg("");
-    setLoading(true);
 
-    try {
-      // Call Backend Claude Compare Answer Endpoint
-      const res = await api.post("/candidate/claude-compare-answer", {
-        question: currentQ.question,
-        referenceAnswer: currentQ.referenceAnswer,
-        candidateAnswer: candidateAnswerText,
-      });
+    const nextIndex = currentQIndex + 1;
+    if (nextIndex < shuffledQuestions.length) {
+      // Move to Next Shuffled Question
+      const nextQ = shuffledQuestions[nextIndex];
+      setCurrentQIndex(nextIndex);
 
-      const evalData = res.data;
-      const qScore = evalData.score || 85;
-      const qFeedback = evalData.feedback || "Good response covering key technical aspects.";
-
-      const newEval = {
-        questionId: currentQIndex + 1,
-        question: currentQ.question,
-        referenceAnswer: currentQ.referenceAnswer,
-        candidateAnswer: candidateAnswerText,
-        score: qScore,
-        rating: evalData.rating || 8.5,
-        feedback: qFeedback,
-      };
-
-      const updatedEvals = [...questionEvaluations, newEval];
-      setQuestionEvaluations(updatedEvals);
-
-      const nextIndex = currentQIndex + 1;
-      if (nextIndex < shuffledQuestions.length) {
-        // Ask Next Shuffled Question
-        const nextQ = shuffledQuestions[nextIndex];
-        setCurrentQIndex(nextIndex);
-
-        const botReply = `**Answer Evaluation (Q${currentQIndex + 1})**: ${qScore}/100 Marks (${evalData.rating}/10)\n_${qFeedback}_\n\n---\n\n**Question ${nextIndex + 1} of ${shuffledQuestions.length}**:\n${nextQ.question}`;
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: botReply,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
-      } else {
-        // All Questions Completed — Generate Final Evaluation
-        const totalMarks = updatedEvals.reduce((sum, item) => sum + item.score, 0);
-        const avgScore = Math.round(totalMarks / updatedEvals.length);
-
-        setInterviewCompleted(true);
-        const finalBotReply = `### 🏆 Live Claude AI Mock Interview Complete!\n\n- **Overall Performance Score**: **${avgScore} / 100 Marks** (${(avgScore / 10).toFixed(1)}/10 Rating)\n- **Questions Evaluated**: ${updatedEvals.length} Shuffled Questions against Model Answer Key\n- **Verification Status**: **GOLD VERIFIED MOCK INTERVIEW CERTIFICATE**`;
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: finalBotReply,
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-          },
-        ]);
-
-        toast(`✓ Interview Complete! Overall Score: ${avgScore}%`, "✓");
-        if (onCompleted) onCompleted({ score: avgScore, questionEvaluations: updatedEvals });
-      }
-    } catch (err) {
-      console.error("Claude Compare Answer API error:", err);
-      toast("Failed to evaluate answer with Claude API.", "!");
-    } finally {
-      setLoading(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `✓ Answer recorded for Question ${currentQIndex + 1}.\n\n---\n\n**Question ${nextIndex + 1} of ${shuffledQuestions.length}**:\n${nextQ.question}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        },
+      ]);
+    } else {
+      // All Questions Completed — Submit for Stage 5 Evaluation Engine Grading
+      await handleFinalSubmission(updatedTranscripts);
     }
   }
 
-  // Calculate Average Score
-  const avgOverallScore = questionEvaluations.length > 0
-    ? Math.round(questionEvaluations.reduce((sum, item) => sum + item.score, 0) / questionEvaluations.length)
-    : 92;
+  // Final Submission to Stage 8 Mock Evaluation API (Uses Stage 5 aiAssessment engine server-side)
+  async function handleFinalSubmission(finalTranscripts = qaTranscripts) {
+    setSubmitting(true);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `All ${shuffledQuestions.length} questions completed! Submitting spoken/typed answers to Stage 5 AI Evaluation Engine for grading against reference answer keys…`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      },
+    ]);
+
+    const formattedQaPairs = shuffledQuestions.map((q) => ({
+      questionId: q.id || q._id,
+      question: q.question,
+      transcript: finalTranscripts[q.id || q._id] || "",
+    }));
+
+    try {
+      const res = await api.post("/candidate/stage8-mock/assess", {
+        qaPairs: JSON.stringify(formattedQaPairs),
+        proctorLogs: JSON.stringify({ livenessVerified: true }),
+      });
+
+      if (res.data && res.data.success) {
+        const evalRes = res.data.evaluation;
+        setEvaluation(evalRes);
+        setInterviewCompleted(true);
+        toast(`✓ AI Evaluation Complete! Score: ${evalRes.totalMarks}/${evalRes.maxMarks} Marks (${evalRes.overallScore}%)`, "✓");
+        if (onCompleted) onCompleted(res.data);
+      }
+    } catch (err) {
+      console.error("Stage 8 Mock evaluation error:", err);
+      toast("Error grading answers with AI evaluation engine.", "!");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <div className="card" style={{ padding: 0, borderRadius: 16, border: "2px solid var(--navy)", overflow: "hidden", background: "#fff" }}>
-      {/* HEADER BANNER & Q&A BANK CONFIG BAR */}
+      {/* HEADER BANNER */}
       <div style={{ background: "var(--navy)", color: "#fff", padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -253,92 +222,33 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           </div>
           <div>
             <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>
-              Claude 3.5 Sonnet · Shuffled Q&amp;A Evaluator Bot
+              Live AI Mock Interviewer Bot (Stage 5 Grading Engine)
             </h4>
             <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>
-              <i className="fa-solid fa-layer-group" style={{ marginRight: 4 }}></i>
-              {qaBank.length} Uploaded Model Q&amp;A Items in Bank
+              <i className="fa-solid fa-microphone" style={{ marginRight: 4 }}></i>
+              Voice &amp; Text Q&amp;A • No Video Camera Needed
             </span>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            className="btn btn-outline"
-            style={{ fontSize: 11, padding: "6px 12px", color: "#fff", borderColor: "rgba(255,255,255,0.4)" }}
-            onClick={() => setShowQaUploader(!showQaUploader)}
-          >
-            <i className="fa-solid fa-plus-minus" style={{ marginRight: 4 }}></i>
-            {showQaUploader ? "Close Q&A Manager" : "Manage Q&A Bank"}
-          </button>
-
           {!interviewStarted && (
             <button type="button" className="btn btn-gold" style={{ fontSize: 12, padding: "6px 14px" }} onClick={handleStartInterviewSession}>
-              <i className="fa-solid fa-shuffle" style={{ marginRight: 6 }}></i> Shuffle &amp; Start Session
+              <i className="fa-solid fa-shuffle" style={{ marginRight: 6 }}></i> Shuffle &amp; Start Interview
             </button>
           )}
         </div>
       </div>
 
-      {/* MANUAL Q&A UPLOAD & MANAGEMENT DRAWER */}
-      {showQaUploader && (
-        <div style={{ background: "#F8FAFC", borderBottom: "2px solid var(--navy)", padding: 20 }}>
-          <h4 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-            <i className="fa-solid fa-upload" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-            Upload / Manage Custom Technical Questions &amp; Reference Model Answers
-          </h4>
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>Custom Question</label>
-              <input
-                type="text"
-                value={newQuestion}
-                onChange={(e) => setNewQuestion(e.target.value)}
-                placeholder="e.g. How do you audit a chart for CO-197 denial?"
-                style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>Reference Model Answer (For Comparison)</label>
-              <input
-                type="text"
-                value={newReferenceAnswer}
-                onChange={(e) => setNewReferenceAnswer(e.target.value)}
-                placeholder="e.g. Check prior-auth requirements, request retro-auth, submit appeal..."
-                style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
-              />
-            </div>
-          </div>
-
-          <button type="button" className="btn btn-navy" style={{ fontSize: 12, padding: "6px 14px" }} onClick={handleAddCustomQa}>
-            + Add Question &amp; Model Answer to Bank
-          </button>
-
-          {/* List of Loaded Bank Questions */}
-          <div style={{ marginTop: 14, fontSize: 11, color: "#334155" }}>
-            <strong>Loaded Question Bank ({qaBank.length} Items):</strong>
-            <ul style={{ margin: "6px 0 0", paddingLeft: 18, lineHeight: 1.5 }}>
-              {qaBank.map((item, idx) => (
-                <li key={item.id}>
-                  <strong>Q{idx + 1}:</strong> {item.question}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      {/* CHAT THREAD / QUESTIONING WINDOW */}
+      {/* CHAT / QUESTIONING THREAD */}
       {!interviewStarted ? (
         <div style={{ padding: 40, textAlign: "center", background: "#F8FAFC" }}>
           <i className="fa-solid fa-shuffle" style={{ fontSize: 40, color: "var(--gold)", marginBottom: 14 }}></i>
           <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: "0 0 8px" }}>
-            Click "Shuffle &amp; Start Session" to Begin Live AI Interview
+            Click "Shuffle &amp; Start Interview" to Begin
           </h3>
           <p style={{ fontSize: 13, color: "#64748B", maxWidth: 500, margin: "0 auto 20px" }}>
-            The Claude AI Bot will randomly shuffle the uploaded question bank ({qaBank.length} questions) and compare your entered answers against the reference answer key.
+            The AI Bot will shuffle technical questions from the Stage 5 question bank and grade your spoken/typed responses against official reference answer keys.
           </p>
           <button type="button" className="btn btn-gold" style={{ padding: "12px 24px", fontSize: 14 }} onClick={handleStartInterviewSession}>
             <i className="fa-solid fa-play" style={{ marginRight: 8 }}></i> Shuffle Questions &amp; Start Live Session →
@@ -359,7 +269,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   }}
                 >
                   <div style={{ fontSize: 10, color: "#64748B", fontWeight: 700, marginBottom: 3, padding: "0 4px" }}>
-                    {isBot ? "Claude AI Senior Interviewer" : candidateName} • {msg.timestamp}
+                    {isBot ? "AI Senior Interviewer" : candidateName} • {msg.timestamp}
                   </div>
 
                   <div
@@ -382,66 +292,79 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               );
             })}
 
-            {loading && (
+            {submitting && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--navy)", fontSize: 12, fontWeight: 700, padding: 8 }}>
                 <i className="fa-solid fa-brain fa-spin" style={{ color: "var(--gold)" }}></i>
-                Claude AI is comparing your answer with the uploaded reference answer key…
+                AI Engine is grading your responses against official reference answer keys…
               </div>
             )}
             <div ref={chatEndRef} />
           </div>
 
-          {/* PER-QUESTION MARKS SUMMARY & FINAL REPORT */}
-          {interviewCompleted && (
-            <div style={{ background: "#F0FDF4", borderTop: "2px solid #22C55E", padding: 20 }}>
+          {/* EVALUATION REPORT CARD (SAME DESIGN & CODE AS STAGE 5) */}
+          {interviewCompleted && evaluation && (
+            <div style={{ background: "#fff", borderTop: "2px solid #22C55E", padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
                 <div>
                   <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                    ✓ SHUFFLED MOCK INTERVIEW EVALUATION COMPLETE
+                    <i className="fa-solid fa-circle-check"></i> AI MOCK INTERVIEW EVALUATED
                   </span>
-                  <h3 style={{ margin: "6px 0 2px", fontSize: 20, fontWeight: 800, color: "#15803D" }}>
-                    Overall Score: {avgOverallScore} / 100 Marks ({(avgOverallScore / 10).toFixed(1)}/10)
+                  <h3 style={{ margin: "6px 0 2px", fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>
+                    Total Marks: {evaluation.totalMarks} / {evaluation.maxMarks} Marks ({evaluation.overallScore}%)
                   </h3>
-                  <p style={{ margin: 0, fontSize: 12, color: "#166534" }}>
-                    Evaluated against uploaded reference model answer key across {questionEvaluations.length} shuffled technical questions.
+                  <p style={{ margin: 0, fontSize: 12, color: "#475569" }}>
+                    Graded against official staff reference answer keys • Audio/Text Q&amp;A Session
                   </p>
                 </div>
 
-                <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 12, padding: "12px 20px", textAlign: "center" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>VERIFICATION</div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>GOLD VERIFIED</div>
+                <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "12px 20px", textAlign: "center" }}>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>STAGE 8 MARKS</div>
+                  <div style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)" }}>{evaluation.totalMarks}<span style={{ fontSize: 14, color: "#94A3B8" }}>/{evaluation.maxMarks}</span></div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#15803D" }}>✓ Verified</div>
                 </div>
               </div>
 
-              {/* Individual Question Comparison Cards */}
-              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Detailed Question-by-Question Comparison:</h4>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {questionEvaluations.map((qEval, idx) => (
-                  <div key={idx} style={{ background: "#fff", border: "1px solid #BBF7D0", borderRadius: 10, padding: 12, fontSize: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                      <strong style={{ color: "var(--navy)" }}>Q{idx + 1}. {qEval.question}</strong>
-                      <span style={{ background: "#DCFCE7", color: "#15803D", fontWeight: 800, padding: "2px 8px", borderRadius: 999, fontSize: 11 }}>
-                        {qEval.score} / 100 Marks
-                      </span>
+              {/* Individual Question Marks List */}
+              <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Per-Question Evaluation Breakdown:</h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+                {(evaluation.questionScores || []).map((qScore, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      background: qScore.marks > 0 ? "#F0FDF4" : "#FEF2F2",
+                      border: `1px solid ${qScore.marks > 0 ? "#BBF7D0" : "#FECACA"}`,
+                      borderRadius: 10,
+                      padding: "12px 16px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy)" }}>
+                        Q{idx + 1}. {qScore.question}
+                      </div>
+                      <div style={{ fontSize: 11, color: qScore.marks > 0 ? "#15803D" : "#DC2626", marginTop: 2 }}>
+                        {qScore.feedback}
+                      </div>
                     </div>
-                    <div style={{ color: "#475569", marginBottom: 4 }}>
-                      <strong>Your Answer:</strong> "{qEval.candidateAnswer}"
-                    </div>
-                    <div style={{ color: "#15803D", fontSize: 11 }}>
-                      <strong>Reference Answer Key:</strong> "{qEval.referenceAnswer}"
-                    </div>
-                    <div style={{ color: "#334155", marginTop: 4, fontStyle: "italic", background: "#F8FAFC", padding: 6, borderRadius: 6 }}>
-                      <strong>Claude Evaluation:</strong> {qEval.feedback}
-                    </div>
+
+                    <span style={{ background: qScore.marks > 0 ? "#DCFCE7" : "#FEE2E2", color: qScore.marks > 0 ? "#15803D" : "#DC2626", fontSize: 12, fontWeight: 800, padding: "4px 12px", borderRadius: 999, flexShrink: 0 }}>
+                      {qScore.marks} / {evaluation.pointsPerQuestion || 10} Marks
+                    </span>
                   </div>
                 ))}
+              </div>
+
+              <div style={{ background: "#F1F5F9", borderRadius: 8, padding: 14, fontSize: 12, color: "#334155", lineHeight: 1.6 }}>
+                <strong>AI Evaluator Feedback:</strong> {evaluation.feedback}
               </div>
             </div>
           )}
 
           {/* INPUT CONTROLS BAR */}
           {!interviewCompleted && (
-            <form onSubmit={handleSendMessage} style={{ padding: 14, background: "#ffffff", borderTop: "1px solid #CBD5E1", display: "flex", gap: 10, alignItems: "center" }}>
+            <form onSubmit={handleSendAnswer} style={{ padding: 14, background: "#ffffff", borderTop: "1px solid #CBD5E1", display: "flex", gap: 10, alignItems: "center" }}>
               <button
                 type="button"
                 onClick={toggleSpeechRecognition}
@@ -469,7 +392,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 value={inputMsg}
                 onChange={(e) => setInputMsg(e.target.value)}
                 placeholder={`Answer Question ${currentQIndex + 1} of ${shuffledQuestions.length}...`}
-                disabled={loading}
+                disabled={submitting}
                 style={{
                   flex: 1,
                   padding: "10px 14px",
@@ -483,7 +406,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               <button
                 type="submit"
                 className="btn btn-gold"
-                disabled={!inputMsg.trim() || loading}
+                disabled={!inputMsg.trim() || submitting}
                 style={{ padding: "10px 18px", fontSize: 13 }}
               >
                 Submit Answer <i className="fa-solid fa-paper-plane" style={{ marginLeft: 6 }}></i>

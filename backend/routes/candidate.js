@@ -323,11 +323,10 @@ router.put("/stage/:n", async (req, res) => {
         linkedin: req.body.linkedin || candidate.stage1?.linkedin,
         summary: req.body.summary || candidate.stage1?.summary,
 
-        certName: req.body.certName || candidate.stage1?.certName,
-        issuingBody: req.body.issuingBody || candidate.stage1?.issuingBody,
-        memberId: req.body.memberId || candidate.stage1?.memberId,
-        certStatus: req.body.certStatus || candidate.stage1?.certStatus,
-        apprenticeStatus: req.body.apprenticeStatus || candidate.stage1?.apprenticeStatus,
+        certName: candidate.stage3?.certName || candidate.stage3?.certificationName || "AAPC Certified Professional Coder (CPC)",
+        issuingBody: candidate.stage3?.issuingBody || "AAPC",
+        memberId: candidate.stage3?.memberId || "AAPC-987654",
+        issueDate: candidate.stage3?.issueDate || "2021",
 
         codeSets: req.body.codeSets || candidate.stage1?.codeSets,
         specializedKnowledge: req.body.specializedKnowledge || candidate.stage1?.specializedKnowledge,
@@ -618,6 +617,69 @@ router.post(
     }
   }
 );
+
+// POST /api/candidate/stage8-mock/assess - Live Interview Track Mock Interview (Audio/Text Q&A, Same Evaluation Engine as Stage 5, No Video)
+router.post("/stage8-mock/assess", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    if (!candidate.completedStages.includes(1)) {
+      return res.status(400).json({ message: "You must complete Stage 1 before taking Stage 8 Mock Interview." });
+    }
+
+    let qaPairs = [];
+    let proctorLogs = {};
+
+    if (req.body.qaPairs) {
+      try {
+        qaPairs = typeof req.body.qaPairs === "string" ? JSON.parse(req.body.qaPairs) : req.body.qaPairs;
+      } catch (e) {}
+    }
+    if (req.body.proctorLogs) {
+      try {
+        proctorLogs = typeof req.body.proctorLogs === "string" ? JSON.parse(req.body.proctorLogs) : req.body.proctorLogs;
+      } catch (e) {}
+    }
+
+    // Enrich Q&A pairs with reference answer key from database / default question bank
+    const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
+    // Grade candidate answers against answer key using Claude API / LLM evaluator
+    const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
+
+    candidate.stage8 = {
+      ...(candidate.stage8 || {}),
+      interviewMode: "stage8-mock-audio",
+      mockScore: evaluation.overallScore,
+      mockEvaluation: evaluation,
+      qaPairs: evaluation.qaPairs || qaPairs,
+      totalMarks: evaluation.totalMarks,
+      maxMarks: evaluation.maxMarks,
+      questionScores: evaluation.questionScores,
+      feedback: evaluation.feedback,
+      completedAt: new Date(),
+    };
+    candidate.markModified("stage8");
+
+    if (!candidate.completedStages.includes(8)) {
+      candidate.completedStages.push(8);
+    }
+
+    await candidate.save();
+    const scoring = calculateVerificationScore(candidate.completedStages);
+
+    res.json({
+      success: true,
+      message: `Stage 8 AI Mock Interview Completed! Score: ${evaluation.totalMarks}/${evaluation.maxMarks} Marks (${evaluation.overallScore}%)`,
+      evaluation,
+      candidate,
+      ...scoring,
+    });
+  } catch (err) {
+    logger.error(`Stage 8 Mock Interview assessment error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to process Stage 8 Mock Interview." });
+  }
+});
 
 // POST /api/candidate/claude-mock-interview - Live Claude AI Mock Interview Bot Endpoint
 router.post("/claude-mock-interview", async (req, res) => {

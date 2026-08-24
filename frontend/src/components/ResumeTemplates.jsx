@@ -35,13 +35,12 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
     score = 90,
     badgeTier = "Gold Verified",
     manualWorkHistory = [],
-    manualEducation = [],
   } = data;
 
   const cid = data.id || data._id || "VERIFIED-CANDIDATE";
   const publicUrl = `${window.location.origin}/verify/${cid}`;
 
-  // Contact Info
+  // Contact Info (Stage 1)
   const fullName = basicInfo.fullName || "Candidate Name";
   const email = basicInfo.email || data.email || "candidate@talentera.com";
   const mobile = basicInfo.mobile || "+91 98765 43210";
@@ -49,25 +48,29 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
   const linkedin = basicInfo.linkedin || "linkedin.com/in/medical-coder";
   const maskedAadhaar = basicInfo.maskedAadhaar || "";
 
-  // Certification Details
-  const certName = certification.certName || certification.certificationName || basicInfo.certName || "CPC (Certified Professional Coder)";
-  const issuingBody = certification.issuingBody || basicInfo.issuingBody || "AAPC";
-  const memberId = certification.memberId || basicInfo.memberId || "AAPC-987654";
-  const certStatus = basicInfo.certStatus || "Active";
-  const issueDate = certification.issueDate || basicInfo.issueDate || "2021";
-  const expiryDate = basicInfo.expiryDate || "Active & Current";
-  const apprenticeStatus = basicInfo.apprenticeStatus || "CPC Full Status (Apprentice Removed)";
+  // Certification Details (Sourced directly from Stage 3 Certification)
+  const certName = certification.certName || certification.certificationName || certification.certCode || "CPC (Certified Professional Coder)";
+  const issuingBody = certification.issuingBody || certification.bodyName || "AAPC";
+  const memberId = certification.memberId || certification.certId || "AAPC-987654";
+  const issueDate = certification.issueDate || "2021";
+  const certDocName = certification.docName || "";
 
-  // Summary
-  const summary = basicInfo.summary || "AAPC Certified Professional Coder (CPC) with 3+ years experience in Outpatient, Inpatient, and ED Medical Coding. Proven track record maintaining 98% coding accuracy across 60+ charts daily while ensuring full HIPAA & CMS compliance.";
+  // Academy & Training Details (Sourced directly from Stage 2 Training)
+  const academyName = training.academyName || "ThoughtFlows Medical Coding Academy";
+  const courseName = training.courseName || `${training.domain || "Medical Coding"} - ${training.specialty || "HCC"}`;
+  const trainingDuration = training.duration || "6 months";
+  const trainerName = training.trainerName || "";
 
-  // Technical & Coding Skill Sets
+  // Summary (Stage 1)
+  const summary = basicInfo.summary || "Healthcare RCM Specialist & Medical Coder with 3+ years experience in Outpatient, Inpatient, and ED Medical Coding. Proven track record maintaining 98% coding accuracy across 60+ charts daily while ensuring full HIPAA & CMS compliance.";
+
+  // Technical & Coding Skill Sets (Stage 1)
   const codeSets = basicInfo.codeSets || "ICD-10-CM, ICD-10-PCS, CPT, HCPCS Level II, CDT";
   const specializedKnowledge = basicInfo.specializedKnowledge || "E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA Compliance, Medical Necessity, DRG Assignment, HCC Risk Adjustment";
   const ehrSoftware = basicInfo.ehrSoftware || "Epic Hyperspace, Cerner, Meditech, Athenahealth, 3M CodeRyte / Encoder Pro, Optum Encoder";
   const coreCompetencies = basicInfo.coreCompetencies || "Anatomy & Physiology, Medical Terminology, Clinical Documentation Improvement (CDI), Denial & Audit Appeals Resolution";
 
-  // Work History
+  // Work History (Stage 1)
   const workHistoryList = manualWorkHistory && manualWorkHistory.length > 0
     ? manualWorkHistory
     : (basicInfo.workHistory || [
@@ -82,20 +85,14 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
         },
       ]);
 
-  // Education Details
-  const collegeName = basicInfo.collegeName || training.academyName || "Bangalore University / Life Sciences Institute";
+  // Education Details (Stage 1)
+  const collegeName = basicInfo.collegeName || "Bangalore University / Life Sciences Institute";
   const degree = basicInfo.degree || "B.Sc. Life Sciences / Healthcare Information Management";
   const graduationYear = basicInfo.graduationYear || "2021";
 
   const schoolName = basicInfo.schoolName || "St. Joseph's Higher Secondary School";
   const schoolBoard = basicInfo.schoolBoard || "CBSE Board";
   const schoolYear = basicInfo.schoolYear || "2018";
-
-  // Proctored Scores
-  const testScore = assessment.foundationScore !== undefined ? assessment.foundationScore : (assessment.score || 90);
-  const aiVideoScore = videoIntro.aiScore || 88;
-  const chartAccuracy = liveCharts.accuracyScore || 96;
-  const chartCount = liveCharts.liveChartsAudited || 40;
 
   return (
     <div style={{ fontFamily: "'Space Grotesk', 'Manrope', sans-serif", padding: 36, background: "#fff", color: "#1E293B", borderRadius: 12 }}>
@@ -133,23 +130,45 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
         </p>
       </div>
 
-      {/* 3. CORE CERTIFICATIONS & LICENSING */}
+      {/* 3. CORE CERTIFICATIONS & CREDENTIALS (SOURCED FROM STAGE 3 CERTIFICATION) */}
       <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 24 }}>
         <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 12px" }}>
-          Core Certifications &amp; Credentials (Verified)
+          Core Certifications &amp; Credentials (Stage 3 Verified)
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div>
             <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A" }}>
-              {certName} <VerifiedBadge text="Verified Active" />
+              {certName} <VerifiedBadge text="Stage 3 Verified" />
             </div>
             <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>
               Issuing Body: <strong>{issuingBody}</strong> • Member ID: <strong>{memberId}</strong>
             </div>
+            {certDocName && <div style={{ fontSize: 11, color: "#15803D", marginTop: 2 }}>Certificate Attached: {certDocName}</div>}
           </div>
           <div style={{ fontSize: 12, color: "#475569" }}>
-            <div>Status: <strong style={{ color: "#15803D" }}>{certStatus}</strong> ({apprenticeStatus})</div>
-            <div>Valid From: <strong>{issueDate}</strong> • Expiry: <strong>{expiryDate}</strong></div>
+            <div>Status: <strong style={{ color: "#15803D" }}>Active Verified Credential</strong></div>
+            <div>Issue Date: <strong>{issueDate}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      {/* ACADEMY & FORMAL TRAINING (SOURCED FROM STAGE 2 TRAINING) */}
+      <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 24 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 12px" }}>
+          Academy &amp; Formal Training (Stage 2 Verified)
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: "#0F172A" }}>
+              {academyName} <VerifiedBadge text="Stage 2 Academy Verified" />
+            </div>
+            <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>
+              Course / Domain: <strong>{courseName}</strong>
+            </div>
+          </div>
+          <div style={{ fontSize: 12, color: "#475569" }}>
+            <div>Training Duration: <strong>{trainingDuration}</strong></div>
+            {trainerName && <div>Trainer / Mentor: <strong>{trainerName}</strong></div>}
           </div>
         </div>
       </div>
@@ -226,7 +245,7 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
         </div>
       </div>
 
-      {/* VERIFIED AUDIT AUDITING & SCORES SUMMARY */}
+      {/* VERIFIED AUDIT STAMP */}
       <div style={{ background: "#F8FAFC", border: "1px dashed #CBD5E1", borderRadius: 8, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 800, color: accentColor }}>OFFICIAL TALENTERA VERIFIED CREDENTIAL</div>
