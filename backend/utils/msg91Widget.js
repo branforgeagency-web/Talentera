@@ -23,7 +23,18 @@ async function verifyWidgetAccessToken(accessToken) {
     return { success: true, message: "OTP access token verified." };
   }
 
-  const authKey = process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || "561692AqG2zdR0nSb6a83f285P1";
+  const authKey = process.env.MSG91_AUTH_KEY || process.env.MSG91_AUTHKEY || "";
+  if (!authKey) {
+    // No hardcoded fallback here on purpose - a shared credential baked
+    // into the source is a leak risk. Deployments that only use Brevo
+    // (like this one) never reach this branch: their accessToken always
+    // starts with "brevo_token_" and is verified above without calling
+    // MSG91 at all. Genuine MSG91 widget tokens require MSG91_AUTH_KEY to
+    // be configured for real verification.
+    const err = new Error("MSG91 verification is not configured on this server.");
+    err.code = "OTP_VERIFY_FAILED";
+    throw err;
+  }
 
   try {
     const response = await axios.post(

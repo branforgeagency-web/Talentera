@@ -17,8 +17,17 @@ const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
 
 const VALID_STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
-// Stages the candidate is allowed to skip, per handoff doc section 4.5
-const SKIPPABLE_STAGES = [2, 3, 7];
+// Stages the candidate is allowed to skip. Training (2) and Certification (3)
+// used to be skippable but are now mandatory, same as every other stage
+// except Build Resume (7) — matches frontend/src/data/wizardStages.js
+// SKIPPABLE_STAGE_NUMS exactly.
+const SKIPPABLE_STAGES = [7];
+
+// A candidate must have completed every stage AND hold a verification score
+// above this threshold before they're allowed to search or apply for jobs —
+// enforced again below in POST /apply/:jobId (the frontend Jobs.jsx page
+// enforces the same rule, but that's a UI convenience, not security).
+const JOB_SEARCH_MIN_SCORE = 90;
 
 // Built-in questions used only when staff haven't configured any interview
 // questions yet in the Staff Hub (Interview Questions screen). These carry no
@@ -227,23 +236,45 @@ router.put("/stage/:n", async (req, res) => {
       if (!city || String(city).trim() === "") {
         return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
       }
-    } else if (stageNum === 2 && !req.body.skipped) {
+    } else if (stageNum === 2) {
+      // Training is now mandatory (see SKIPPABLE_STAGES above) — validation
+      // no longer has a "&& !req.body.skipped" escape hatch, since that let
+      // a direct API call bypass required fields by setting skipped:true on
+      // this route even though the dedicated /stage/2/skip route (below)
+      // already rejects stage 2.
       const { academyName, specialty, domain, courseName } = req.body;
       const courseOrSpec = courseName || specialty || domain;
       if (!academyName || !courseOrSpec) {
         return res.status(400).json({ message: "Stage 2 incomplete: Academy / Institute name and Specialty / Domain are required." });
       }
-    } else if (stageNum === 3 && !req.body.skipped) {
-      const { certName, certificationName, certCode, memberId } = req.body;
+    } else if (stageNum === 3) {
+      // Certification is now mandatory — same reasoning as Stage 2 above.
+      // Also now requires the certificate document itself (docName, set by
+      // POST /upload/doc/3 before this save) — a self-typed member ID with
+      // nothing to show a human reviewer isn't verifiable at all, and this
+      // is what staff actually review in the new Certification Documents
+      // queue (see certStatus handling below and routes/staff.js
+      // /verify-certification).
+      const { certName, certificationName, certCode, memberId, docName } = req.body;
       const cName = certName || certificationName || certCode;
       if (!cName || !memberId) {
         return res.status(400).json({ message: "Stage 3 incomplete: Certification name and Member / Cert ID are required." });
       }
+      if (!docName && !candidate.stage3?.docName) {
+        return res.status(400).json({ message: "Stage 3 incomplete: Please upload your certificate document — this is what our staff review to confirm it's genuine." });
+      }
     } else if (stageNum === 4) {
-      if (candidate.stage4 && candidate.stage4.foundationScore !== undefined && !req.body.foundationScore) {
+      // Single-attempt policy: once a foundationScore has been recorded,
+      // block ANY further save to stage 4 - including one that carries a
+      // new score. BUG FIX (2026-08-21): this used to only block a
+      // resubmission that OMITTED foundationScore, which let a direct API
+      // call (bypassing AssessmentRunner.jsx's client-side lock) retake the
+      // test and silently overwrite an already-locked score - exactly the
+      // case "single attempt" is supposed to prevent.
+      if (candidate.stage4 && candidate.stage4.foundationScore !== undefined) {
         return res.status(400).json({ message: "Single-attempt policy: Stage 4 Assessment has already been completed and locked. Retakes are not permitted." });
       }
-      if (req.body.foundationScore === undefined && !candidate.stage4?.foundationScore) {
+      if (req.body.foundationScore === undefined) {
         return res.status(400).json({ message: "Stage 4 incomplete: Proctored assessment test must be completed before saving." });
       }
     } else if (stageNum === 5) {
@@ -261,6 +292,21 @@ router.put("/stage/:n", async (req, res) => {
       ...(candidate[key] || {}),
       ...req.body,
     };
+
+    // Certification authenticity is decided by staff, never by the
+    // candidate's own request — force certStatus to "pending" on every
+    // stage 3 save server-side (ignoring anything the client sent for it)
+    // so a direct API call can't self-mark a certificate verified. A
+    // resubmission after a rejection also goes back to "pending" here,
+    // which is what re-queues it for staff review. See
+    // routes/staff.js certificationQueue / POST /verify-certification.
+    if (stageNum === 3) {
+      candidate.stage3.certStatus = "pending";
+      candidate.stage3.certVerifiedAt = null;
+      candidate.stage3.certVerifiedBy = null;
+      candidate.stage3.certRejectionReason = "";
+    }
+
     candidate.markModified(key);
 
     if (!candidate.completedStages.includes(stageNum)) {
@@ -659,6 +705,19 @@ router.post("/apply/:jobId", async (req, res) => {
 
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+  // Job search / apply eligibility gate: every stage must be verified
+  // (all 8, now including Training and Certification since they're no
+  // longer skippable) AND the overall score must be above 90%. Mirrors the
+  // check in frontend/src/pages/Jobs.jsx, but enforced here too since the
+  // frontend gate is only a UI convenience — this is the real one.
+  const eligibility = calculateVerificationScore(candidate.completedStages);
+  const isFullyVerified = VALID_STAGES.every((n) => candidate.completedStages.includes(n));
+  if (!isFullyVerified || eligibility.score <= JOB_SEARCH_MIN_SCORE) {
+    return res.status(403).json({
+      message: `Job applications are only open to fully verified candidates with a score above ${JOB_SEARCH_MIN_SCORE}%. Your current score is ${eligibility.score}/100 — complete the remaining verification stages to unlock job search.`,
+    });
+  }
 
   // A jobId now resolves against two possible sources: the legacy "first
   // JD" published straight off Company (jdPublished/jobId, from onboarding

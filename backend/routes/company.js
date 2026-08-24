@@ -6,7 +6,7 @@ const Job = require("../models/Job");
 const { requireCompanyAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
-const { getPlan } = require("../config/plans");
+const { getPlan, isUnderJobPostLimit } = require("../config/plans");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
@@ -248,8 +248,24 @@ router.post("/publish-jd", async (req, res) => {
     company.jdPublished = true;
     company.jobId = jobId;
     company.jdPublishedAt = new Date();
+    company.jdApprovalStatus = "pending";
+    company.jdApprovedAt = null;
+    company.jdRejectionReason = "";
     if (!company.completedStages.includes("9")) company.completedStages.push("9");
     await company.save();
+
+    // Notify staff there's a new job post waiting in the approval queue -
+    // see routes/staff.js GET /dashboard's jobApprovalQueue and
+    // POST /verify-job. Every job (onboarding first-JD or a later posting
+    // via /company/jobs below) is pending until a staff member reviews it.
+    await Notification.create({
+      recipientType: "staff",
+      recipientId: "staff",
+      title: "New Job Post Awaiting Approval",
+      message: `${company.companyName || company.email} submitted a job post ("${stage9.roletitle || "Untitled role"}", ${jobId}) for review.`,
+      type: "job_submitted",
+      meta: { source: "onboarding", companyId: String(company._id), jobId },
+    });
   }
 
   res.json({ company });
@@ -278,6 +294,10 @@ router.get("/jobs", async (req, res) => {
         closedAt: null,
         applicantsCount,
         fields: s9,
+        // Staff approval status - a job only reaches the public board once
+        // this is "approved" (see routes/public.js GET /jobs).
+        approvalStatus: company.jdApprovalStatus || "pending",
+        rejectionReason: company.jdRejectionReason || "",
       });
     }
 
@@ -293,6 +313,8 @@ router.get("/jobs", async (req, res) => {
         closedAt: job.closedAt,
         applicantsCount,
         fields: job.fields || {},
+        approvalStatus: job.approvalStatus || "pending",
+        rejectionReason: job.rejectionReason || "",
       });
     }
 
@@ -308,7 +330,7 @@ router.get("/jobs", async (req, res) => {
       // other verified-only feature in this app (contact unmasking,
       // company badge, etc.) keys off, so multi-job posting uses the same
       // gate rather than re-deriving a separate "100% profile" check here.
-      canPostMoreJobs: company.kycStatus === "verified" && activeCount < plan.maxActiveJobPosts,
+      canPostMoreJobs: company.kycStatus === "verified" && isUnderJobPostLimit(plan, activeCount),
       plan: plan.id,
       activeJobPosts: activeCount,
       maxActiveJobPosts: plan.maxActiveJobPosts,
@@ -338,7 +360,7 @@ router.post("/jobs", async (req, res) => {
     const postedActiveCount = await Job.countDocuments({ companyId: req.companyId, published: true });
     const activeCount = legacyActive + postedActiveCount;
 
-    if (activeCount >= plan.maxActiveJobPosts) {
+    if (!isUnderJobPostLimit(plan, activeCount)) {
       return res.status(403).json({
         message: `Your "${plan.label}" plan allows up to ${plan.maxActiveJobPosts} active job post(s). Close an existing job or ask Talentera staff to upgrade your plan to post more.`,
         plan: plan.id,
@@ -359,10 +381,22 @@ router.post("/jobs", async (req, res) => {
       jobId,
       published: true,
       publishedAt: new Date(),
+      approvalStatus: "pending",
       fields,
     });
 
-    res.status(201).json({ message: "Job posted!", job });
+    // Notify staff there's a new job post waiting in the approval queue -
+    // same event as /publish-jd above, see routes/staff.js POST /verify-job.
+    await Notification.create({
+      recipientType: "staff",
+      recipientId: "staff",
+      title: "New Job Post Awaiting Approval",
+      message: `${company.companyName || company.email} submitted a job post ("${fields.roletitle || "Untitled role"}", ${jobId}) for review.`,
+      type: "job_submitted",
+      meta: { source: "posted", companyId: String(company._id), jobId, jobDocId: String(job._id) },
+    });
+
+    res.status(201).json({ message: "Job submitted for Talentera's approval — it'll go live on the board once a staff member reviews it.", job });
   } catch (err) {
     logger.error(`Post job error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to post job." });
@@ -371,7 +405,11 @@ router.post("/jobs", async (req, res) => {
 
 // PUT /api/company/jobs/:id - close or reopen a posted job (the legacy
 // onboarding first-JD isn't covered here; it doesn't have a close toggle
-// today, same as before this change).
+// today, same as before this change). Reopening a job staff had rejected
+// puts it back into the approval queue as "pending" - there's no separate
+// edit form here, so this is also how a company resubmits after fixing
+// whatever staff flagged (e.g. talking to their POC, updating the listing
+// on their end) - see routes/staff.js POST /verify-job for the review side.
 router.put("/jobs/:id", async (req, res) => {
   try {
     const { published } = req.body;
@@ -380,9 +418,29 @@ router.put("/jobs/:id", async (req, res) => {
 
     job.published = Boolean(published);
     job.closedAt = job.published ? null : new Date();
+
+    let resubmitted = false;
+    if (job.published && job.approvalStatus === "rejected") {
+      job.approvalStatus = "pending";
+      job.rejectionReason = "";
+      resubmitted = true;
+
+      const company = await Company.findById(req.companyId).lean();
+      await Notification.create({
+        recipientType: "staff",
+        recipientId: "staff",
+        title: "Job Post Resubmitted for Approval",
+        message: `${company?.companyName || company?.email || "A company"} resubmitted a previously rejected job post (${job.jobId}) for review.`,
+        type: "job_submitted",
+        meta: { source: "posted", companyId: String(req.companyId), jobId: job.jobId, jobDocId: String(job._id) },
+      });
+    }
     await job.save();
 
-    res.json({ message: job.published ? "Job reopened." : "Job closed.", job });
+    res.json({
+      message: resubmitted ? "Job reopened and resubmitted for approval." : job.published ? "Job reopened." : "Job closed.",
+      job,
+    });
   } catch (err) {
     logger.error(`Update job error: ${err.message}`);
     res.status(500).json({ message: "Failed to update job." });

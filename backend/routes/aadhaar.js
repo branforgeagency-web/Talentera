@@ -49,6 +49,8 @@ router.post(
         maskedAadhaar: result.maskedAadhaar,
         maskedMobile: result.maskedMobile,
         resendCooldown: result.resendCooldown,
+        // Only present outside production - see aadhaarService.sendOtp().
+        ...(result.devOtp ? { devOtp: result.devOtp } : {}),
       });
     } catch (err) {
       logger.error(`Aadhaar send-otp error: ${err.message}`);

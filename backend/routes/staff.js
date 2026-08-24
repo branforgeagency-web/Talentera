@@ -1,6 +1,7 @@
 const express = require("express");
 const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
+const Job = require("../models/Job");
 const Staff = require("../models/Staff");
 const Notification = require("../models/Notification");
 const InterviewQuestion = require("../models/InterviewQuestion");
@@ -40,10 +41,31 @@ async function recordAudit(req, { action, targetType, targetId, summary, meta })
   }
 }
 
+// The one hardcoded sandbox account behind StaffLogin.jsx's "Quick Demo
+// Auditor Sandbox Login" button. Auto-provisioned on first use ONLY for
+// this exact email+password pair - never for an arbitrary unknown username.
+const DEMO_STAFF_EMAIL = "anita.reddy@talentera.in";
+const DEMO_STAFF_PASSWORD = "Password123";
+
 // POST /api/staff/login - Staff login with real DB verification & JWT token
+//
+// SECURITY FIX (2026-08-21 bug audit): this route used to (1) silently
+// auto-create AND log in as a brand-new staff/admin account for ANY
+// username that didn't already exist, with no password required at all
+// (defaulting to "Password123" if none was sent), and (2) for a username
+// that DID exist, skip the bcrypt check entirely whenever the request
+// simply omitted the password field. Together those meant anyone who could
+// reach this endpoint - no browser, no invite, nothing - could hand
+// themselves a valid staff JWT, which now gates KYC verification, the
+// interview answer-key bank, the audit log, and billing/plan assignment.
+// Staff accounts must be provisioned deliberately (see backend/seed.js);
+// this route never creates one except for the one demo sandbox account
+// below, and a password is always required and always verified.
 router.post("/login", authLimiter, async (req, res) => {
   const { username, password } = req.body;
-  if (!username) return res.status(400).json({ message: "Staff ID or Username required." });
+  if (!username || !password) {
+    return res.status(400).json({ message: "Staff ID/Email and password are required." });
+  }
 
   try {
     const cleanUser = username.trim().toLowerCase();
@@ -52,17 +74,23 @@ router.post("/login", authLimiter, async (req, res) => {
     });
 
     if (!staff) {
-      // Auto-seed default staff auditor account if DB is fresh or first login
-      const defaultHash = await bcrypt.hash(password || "Password123", 10);
+      if (cleanUser !== DEMO_STAFF_EMAIL || password !== DEMO_STAFF_PASSWORD) {
+        // Same message as a wrong password below - never reveal whether a
+        // username exists to an unauthenticated caller.
+        return res.status(401).json({ message: "Invalid username or password." });
+      }
       staff = await Staff.create({
-        username: cleanUser,
-        email: cleanUser.includes("@") ? cleanUser : `${cleanUser}@talentera.in`,
-        passwordHash: defaultHash,
-        name: cleanUser.includes("@") ? cleanUser.split("@")[0].replace(".", " ").toUpperCase() : "Staff Auditor",
+        username: DEMO_STAFF_EMAIL,
+        email: DEMO_STAFF_EMAIL,
+        passwordHash: await bcrypt.hash(DEMO_STAFF_PASSWORD, 10),
+        name: "Anita Reddy",
         role: "Senior Operations Auditor",
         badge: "Gold Certified Lead",
       });
-    } else if (password) {
+    } else {
+      if (!staff.active) {
+        return res.status(401).json({ message: "This staff account has been deactivated." });
+      }
       const isMatch = await bcrypt.compare(password, staff.passwordHash);
       if (!isMatch) {
         return res.status(401).json({ message: "Invalid username or password." });
@@ -268,6 +296,95 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       })
       .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
 
+    // Certification (Stage 3) Document Audit Queue - candidates who
+    // submitted a professional certification claim (AAPC/AHIMA etc.) with
+    // an uploaded certificate document, so staff can confirm it's genuine
+    // before the candidate's profile shows it as verified. Training (2) and
+    // Certification (3) stopped being skippable in 2026-08 - this queue is
+    // the actual verification step that makes Stage 3 mean something,
+    // mirroring the existing Company Account & KYC queue below and the
+    // textAssessmentQueue pattern above.
+    const certificationQueue = candidates
+      .filter((c) => {
+        const s3 = c.stage3 || {};
+        return s3 && !s3.skipped && (s3.certName || s3.memberId);
+      })
+      .map((c) => {
+        const s1 = c.stage1 || {};
+        const s3 = c.stage3 || {};
+        return {
+          id: c._id,
+          studentName: s1.fullName || c.email.split("@")[0],
+          email: c.email,
+          mobile: s1.mobile || c.mobile || "N/A",
+          issuingBody: s3.issuingBody || "",
+          certName: s3.certName || "",
+          memberId: s3.memberId || "",
+          issueDate: s3.issueDate || "",
+          docUrl: s3.docUrl || null,
+          docName: s3.docName || null,
+          certStatus: s3.certStatus || "pending",
+          certRejectionReason: s3.certRejectionReason || "",
+          submittedAt: c.updatedAt,
+        };
+      })
+      .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+
+    // Job Post Approval Queue - every job a company has submitted (the
+    // legacy onboarding "first JD" on Company, or an additional posting
+    // from the Job Posts screen in the Job collection) that isn't
+    // discoverable to candidates yet. Combines both sources into one list
+    // with a `source` discriminator so POST /verify-job below knows which
+    // document to update - mirrors the companyKycQueue/certificationQueue
+    // pattern above: nothing here counts as "live" until a staff member
+    // reviews it (see routes/public.js GET /jobs, which now requires
+    // approvalStatus === "approved").
+    const jobApprovalQueue = [];
+    for (const comp of companies) {
+      if (comp.jdPublished && comp.jobId) {
+        const s9 = comp.stage9 || {};
+        jobApprovalQueue.push({
+          source: "onboarding",
+          id: String(comp._id), // companyId - the target for /verify-job on this source
+          jobId: comp.jobId,
+          companyName: comp.companyName || (comp.stage1a && comp.stage1a.legalname) || "Unnamed Company",
+          companyEmail: comp.email,
+          roleTitle: s9.roletitle || "Untitled role",
+          specialty: s9.specialty || "",
+          location: s9.location || "",
+          workMode: s9.workmode || "",
+          openings: s9.openings ?? null,
+          submittedAt: comp.jdPublishedAt,
+          approvalStatus: comp.jdApprovalStatus || "pending",
+          rejectionReason: comp.jdRejectionReason || "",
+        });
+      }
+    }
+    const postedJobsForQueue = await Job.find().limit(DASHBOARD_FETCH_CAP).lean();
+    if (postedJobsForQueue.length > 0) {
+      const companiesById = new Map(companies.map((c) => [String(c._id), c]));
+      for (const job of postedJobsForQueue) {
+        const comp = companiesById.get(String(job.companyId)) || {};
+        const f = job.fields || {};
+        jobApprovalQueue.push({
+          source: "posted",
+          id: String(job._id), // Job _id - the target for /verify-job on this source
+          jobId: job.jobId,
+          companyName: comp.companyName || (comp.stage1a && comp.stage1a.legalname) || "Unnamed Company",
+          companyEmail: comp.email || "",
+          roleTitle: f.roletitle || "Untitled role",
+          specialty: f.specialty || "",
+          location: f.location || "",
+          workMode: f.workmode || "",
+          openings: f.openings ?? null,
+          submittedAt: job.publishedAt || job.createdAt,
+          approvalStatus: job.approvalStatus || "pending",
+          rejectionReason: job.rejectionReason || "",
+        });
+      }
+    }
+    jobApprovalQueue.sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
+
     // Performance & Audit Metrics Report Data
     const reportsData = {
       totalCandidates,
@@ -297,7 +414,11 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     ];
 
     res.json({
-      liveQueueCount: incomingBucket.length + companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
+      liveQueueCount:
+        incomingBucket.length +
+        companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length +
+        certificationQueue.filter((c) => c.certStatus === "pending").length +
+        jobApprovalQueue.filter((j) => j.approvalStatus === "pending").length,
       stats: {
         pendingVerifications: incomingBucket.length + companyKycQueue.filter((c) => c.kycStatus === "under_review").length,
         verifiedToday: 42 + fullyVerified.length + companyKycQueue.filter((c) => c.kycStatus === "verified").length,
@@ -305,12 +426,16 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         placedThisMonth: 86,
         pendingCompanyKycs: companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
         verifiedCompanies: companyKycQueue.filter((c) => c.kycStatus === "verified").length,
+        pendingCertifications: certificationQueue.filter((c) => c.certStatus === "pending").length,
+        pendingJobApprovals: jobApprovalQueue.filter((j) => j.approvalStatus === "pending").length,
       },
       pipeline,
       incomingBucket,
       companyKycQueue,
       videoIntrosQueue,
       textAssessmentQueue,
+      certificationQueue,
+      jobApprovalQueue,
       reportsData,
       tasks: staffTasks,
       leaderboard: [
@@ -541,6 +666,164 @@ router.post("/verify-assessment", requireStaffAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Verify assessment error: ${err.message}`);
     res.status(500).json({ message: "Failed to verify assessment." });
+  }
+});
+
+// POST /api/staff/verify-certification - Approve or reject a candidate's
+// Stage 3 certification claim after a staff member reviews the uploaded
+// certificate document. This is the actual authenticity check: candidates
+// can no longer self-declare a certification as verified (see
+// candidate.js PUT /stage/3, which always forces certStatus back to
+// "pending" server-side). Mirrors POST /verify-company below.
+router.post("/verify-certification", requireStaffAuth, async (req, res) => {
+  try {
+    const { candidateId, action, notes, rejectionReason } = req.body;
+    if (!["verify", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Action must be \"verify\" or \"reject\"." });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    if (!candidate.stage3 || candidate.stage3.skipped) {
+      return res.status(400).json({ message: "This candidate has no certification submission to review." });
+    }
+
+    if (action === "verify") {
+      candidate.stage3.certStatus = "verified";
+      candidate.stage3.certVerifiedAt = new Date();
+      candidate.stage3.certVerifiedBy = req.staffName || "";
+      candidate.stage3.certRejectionReason = "";
+    } else {
+      candidate.stage3.certStatus = "rejected";
+      candidate.stage3.certVerifiedAt = null;
+      candidate.stage3.certVerifiedBy = "";
+      candidate.stage3.certRejectionReason =
+        rejectionReason || "Certificate could not be confirmed as genuine. Please re-upload a clear, valid document.";
+    }
+    candidate.markModified("stage3");
+    await candidate.save();
+
+    // Best-effort candidate-facing notification. There's no in-app
+    // notification channel for candidates yet (Notification.recipientType
+    // only supports "company"/"staff") and no email service call site for
+    // this event yet either - logged the same way sendKycAuditEmail below
+    // logs company KYC results, ready to wire to a real send once a
+    // candidate notification channel exists.
+    logger.info(
+      `[CERT AUDIT] ${candidate.email}: Stage 3 certification ${action === "verify" ? "VERIFIED" : "REJECTED"}` +
+        (notes ? ` — ${notes}` : "") +
+        (action === "reject" ? ` (reason: ${candidate.stage3.certRejectionReason})` : "")
+    );
+
+    await recordAudit(req, {
+      action: action === "verify" ? "verify_certification" : "reject_certification",
+      targetType: "candidate",
+      targetId: candidateId,
+      summary: `Stage 3 certification (${candidate.stage3.certName || "certification"}) for ${candidate.email} ${action === "verify" ? "verified" : "rejected"} by staff.`,
+      meta: { rejectionReason: candidate.stage3.certRejectionReason || undefined },
+    });
+
+    res.json({
+      message: `Certification ${action === "verify" ? "verified" : "marked for revision"}.`,
+      candidate,
+    });
+  } catch (err) {
+    logger.error(`Verify certification error: ${err.message}`);
+    res.status(500).json({ message: "Failed to verify certification." });
+  }
+});
+
+// POST /api/staff/verify-job - Approve or reject a company's job post
+// before it can appear on the public job board (routes/public.js GET
+// /jobs). Handles both job sources - the legacy onboarding "first JD" on
+// Company (source: "onboarding", id = companyId) and an additional
+// posting from the Job Posts screen (source: "posted", id = Job _id) - see
+// GET /dashboard's jobApprovalQueue for how the two get merged into one
+// list for the Staff Hub. Mirrors POST /verify-company / verify-certification.
+router.post("/verify-job", requireStaffAuth, async (req, res) => {
+  try {
+    const { source, id, action, rejectionReason } = req.body;
+    if (!["verify", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Action must be \"verify\" or \"reject\"." });
+    }
+    if (!["onboarding", "posted"].includes(source)) {
+      return res.status(400).json({ message: "Source must be \"onboarding\" or \"posted\"." });
+    }
+
+    let companyId, jobId, roleTitle;
+
+    if (source === "onboarding") {
+      const company = await Company.findById(id);
+      if (!company || !company.jdPublished) {
+        return res.status(404).json({ message: "Job post not found." });
+      }
+      companyId = company._id;
+      jobId = company.jobId;
+      roleTitle = (company.stage9 || {}).roletitle || "Untitled role";
+
+      if (action === "verify") {
+        company.jdApprovalStatus = "approved";
+        company.jdApprovedAt = new Date();
+        company.jdApprovedBy = req.staffName || "";
+        company.jdRejectionReason = "";
+      } else {
+        company.jdApprovalStatus = "rejected";
+        company.jdApprovedAt = null;
+        company.jdApprovedBy = "";
+        company.jdRejectionReason = rejectionReason || "Job post did not meet Talentera's listing guidelines. Please review and resubmit.";
+      }
+      await company.save();
+    } else {
+      const job = await Job.findById(id);
+      if (!job) return res.status(404).json({ message: "Job post not found." });
+      companyId = job.companyId;
+      jobId = job.jobId;
+      roleTitle = (job.fields || {}).roletitle || "Untitled role";
+
+      if (action === "verify") {
+        job.approvalStatus = "approved";
+        job.approvedAt = new Date();
+        job.approvedBy = req.staffName || "";
+        job.rejectionReason = "";
+      } else {
+        job.approvalStatus = "rejected";
+        job.approvedAt = null;
+        job.approvedBy = "";
+        job.rejectionReason = rejectionReason || "Job post did not meet Talentera's listing guidelines. Please review and resubmit.";
+      }
+      await job.save();
+    }
+
+    // Notify the company through the in-app notification bell (see
+    // GET /api/company/notifications, consumed today by
+    // CompanyDashboardSetup.jsx) - the same channel POST /verify-company
+    // uses for KYC results.
+    await Notification.create({
+      recipientType: "company",
+      recipientId: String(companyId),
+      title: action === "verify" ? "Job Post Approved" : "Job Post Rejected",
+      message:
+        action === "verify"
+          ? `Your job post "${roleTitle}" (${jobId}) has been approved by Talentera staff and is now live on the job board.`
+          : `Your job post "${roleTitle}" (${jobId}) was not approved: ${rejectionReason || "it did not meet Talentera's listing guidelines."} Update it and resubmit from Job Posts.`,
+      type: action === "verify" ? "job_approved" : "job_rejected",
+      meta: { source, jobId, action },
+    });
+
+    await recordAudit(req, {
+      action: action === "verify" ? "verify_job" : "reject_job",
+      targetType: "job",
+      targetId: source === "onboarding" ? String(companyId) : String(id),
+      summary: `Job post "${roleTitle}" (${jobId}) ${action === "verify" ? "approved" : "rejected"} by staff.`,
+      meta: { source, rejectionReason: action === "reject" ? rejectionReason : undefined },
+    });
+
+    res.json({
+      message: `Job post ${action === "verify" ? "approved and now live on the job board" : "rejected"}.`,
+    });
+  } catch (err) {
+    logger.error(`Verify job error: ${err.message}`);
+    res.status(500).json({ message: "Failed to verify job post." });
   }
 });
 

@@ -74,6 +74,11 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
       toast("Issue Date is required.", "!");
       return;
     }
+    if (!docName) {
+      setError("Please upload your certificate document — this is what our staff review to confirm it's genuine.");
+      toast("Certificate document is required.", "!");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -170,7 +175,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
           <input type="text" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} placeholder="e.g., Mar 2024" />
         </div>
         <div className="wiz-field">
-          <label>Upload certificate (PDF / image)</label>
+          <label>Upload certificate (PDF / image) <span style={{ color: "#E5A82E" }}>*</span></label>
           <button type="button" className="btn btn-outline" onClick={handleUpload} disabled={uploading}>
             {uploading ? "Uploading…" : docName ? `✓ ${docName}` : "Choose file"}
           </button>
@@ -193,9 +198,18 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
         </div>
         <div className="cert-validation-row">
           <span className={`cert-validation-icon ${docName ? "pass" : ""}`}>{docName ? "✓" : "·"}</span>
-          Certificate uploaded as evidence <span className="cert-validation-tag">OPTIONAL</span>
+          Certificate uploaded as evidence <span className="cert-validation-tag">REQUIRED</span>
+        </div>
+        <div className="cert-validation-row">
+          <span className="cert-validation-icon">·</span>
+          Reviewed by Talentera staff before it counts as verified <span className="cert-validation-tag">MANUAL</span>
         </div>
       </div>
+
+      <p style={{ fontSize: 12.5, color: "#64748B", marginTop: -4, marginBottom: 4 }}>
+        The format checks above just catch obvious typos — a Talentera staff member reviews your uploaded certificate
+        to confirm it's genuine before it shows as verified on your profile. This usually takes 1–2 business days.
+      </p>
 
       {error && <div className="error-text">{error}</div>}
 

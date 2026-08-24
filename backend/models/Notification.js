@@ -21,7 +21,16 @@ const NotificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["kyc_approved", "kyc_revision", "kyc_submitted", "doc_updated", "system"],
+      enum: [
+        "kyc_approved",
+        "kyc_revision",
+        "kyc_submitted",
+        "doc_updated",
+        "job_submitted",
+        "job_approved",
+        "job_rejected",
+        "system",
+      ],
       default: "system",
     },
     read: {

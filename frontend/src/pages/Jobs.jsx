@@ -4,6 +4,26 @@ import api from "../api/client";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { buildJobSearchParams } from "../utils/jobFilters.js";
+import { WIZARD_STAGES, STAGE_POINTS } from "../data/wizardStages.js";
+
+// Job search is only unlocked once a candidate has completed every
+// verification stage AND their overall score is above this threshold.
+// Mirrored (and actually enforced) server-side in
+// backend/routes/candidate.js JOB_SEARCH_MIN_SCORE / POST /apply/:jobId.
+const JOB_SEARCH_MIN_SCORE = 90;
+
+function getJobSearchEligibility(candidate) {
+  const completedStages = candidate?.completedStages || [];
+  const score = completedStages.reduce((sum, n) => sum + (STAGE_POINTS[n] || 0), 0);
+  const isFullyVerified = WIZARD_STAGES.every((s) => completedStages.includes(s.num));
+  const remainingStages = WIZARD_STAGES.filter((s) => !completedStages.includes(s.num));
+  return {
+    score,
+    isFullyVerified,
+    remainingStages,
+    isEligible: isFullyVerified && score > JOB_SEARCH_MIN_SCORE,
+  };
+}
 
 const STATUS_CONFIG = {
   rejected: {
@@ -80,9 +100,16 @@ export default function Jobs() {
   const [appliedJobIds, setAppliedJobIds] = useState([]);
   const [applyingJobId, setApplyingJobId] = useState(null);
 
+  const eligibility = getJobSearchEligibility(candidate);
+
+  // Job search itself (browsing + applying) is locked until the candidate
+  // is fully verified with a score above JOB_SEARCH_MIN_SCORE — don't even
+  // fetch the open-roles list until that's true, so there's nothing to
+  // glimpse from the locked screen below.
   useEffect(() => {
+    if (authLoading || !eligibility.isEligible) return;
     fetchJobs({});
-  }, []);
+  }, [authLoading, eligibility.isEligible]);
 
   useEffect(() => {
     if (candidate) fetchMyApplications();
@@ -133,6 +160,13 @@ export default function Jobs() {
     if (!candidate) {
       toast("Create your free candidate profile to apply.", "!");
       navigate("/register", { state: { redirectTo: "/jobs" } });
+      return;
+    }
+    // Belt-and-suspenders — the job list/Apply button shouldn't even be
+    // reachable while locked, but the backend is what actually enforces
+    // this (POST /candidate/apply/:jobId).
+    if (!eligibility.isEligible) {
+      toast(`Job applications need a score above ${JOB_SEARCH_MIN_SCORE}% and every stage verified.`, "!");
       return;
     }
     setApplyingJobId(jobId);
@@ -245,7 +279,7 @@ export default function Jobs() {
               transition: "all 0.2s",
             }}
           >
-            🏢 Open Roles ({jobs.length})
+            {eligibility.isEligible ? `🏢 Open Roles (${jobs.length})` : "🔒 Open Roles"}
           </button>
           {candidate && (
             <button
@@ -271,8 +305,70 @@ export default function Jobs() {
           )}
         </div>
 
+        {/* Job search lock screen — shown instead of search/browse/apply
+            until the candidate is fully verified with a score above
+            JOB_SEARCH_MIN_SCORE. Nothing job-related is fetched while
+            locked (see the fetchJobs useEffect above). */}
+        {activeTab === "jobs" && !eligibility.isEligible && !authLoading && (
+          <div
+            style={{
+              background: "#fff",
+              border: "1.5px solid #E2E8F0",
+              borderRadius: 16,
+              padding: "36px 32px",
+              textAlign: "center",
+              marginBottom: 24,
+            }}
+          >
+            <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+            <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginBottom: 8 }}>
+              Job search unlocks once you're fully verified
+            </h2>
+            <p style={{ fontSize: 13.5, color: "#64748B", maxWidth: 480, margin: "0 auto 18px" }}>
+              To keep this pool trustworthy for employers, browsing and applying to roles is only open to
+              candidates who've completed every verification stage with a score above {JOB_SEARCH_MIN_SCORE}%.
+            </p>
+            <div style={{ maxWidth: 320, margin: "0 auto 18px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                <span>Your score</span>
+                <span>{eligibility.score} / 100</span>
+              </div>
+              <div style={{ height: 8, background: "#F1F5F9", borderRadius: 999, overflow: "hidden" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${Math.min(eligibility.score, 100)}%`,
+                    background: "var(--gold, #E5A82E)",
+                    borderRadius: 999,
+                  }}
+                />
+              </div>
+            </div>
+            {eligibility.remainingStages.length > 0 && (
+              <p style={{ fontSize: 12.5, color: "#64748B", marginBottom: 20 }}>
+                Remaining: {eligibility.remainingStages.map((s) => s.short).join(", ")}
+              </p>
+            )}
+            <Link
+              to="/dashboard"
+              style={{
+                display: "inline-block",
+                background: "var(--gold, #E5A82E)",
+                color: "var(--navy, #0A1F3D)",
+                padding: "12px 24px",
+                borderRadius: 10,
+                fontWeight: 800,
+                fontSize: 13.5,
+                textDecoration: "none",
+              }}
+            >
+              Continue verification →
+            </Link>
+          </div>
+        )}
+
         {/* Search / Filter bar */}
-        {activeTab === "jobs" && (
+        {activeTab === "jobs" && eligibility.isEligible && (
           <form
             onSubmit={handleSearchSubmit}
             style={{
@@ -332,7 +428,7 @@ export default function Jobs() {
         )}
 
         {/* TAB 1: OPEN ROLES */}
-        {activeTab === "jobs" && (
+        {activeTab === "jobs" && eligibility.isEligible && (
           <>
             {loading && <div style={{ textAlign: "center", padding: 60, color: "#64748B" }}>Loading open roles…</div>}
 
