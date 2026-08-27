@@ -96,6 +96,36 @@ router.post(
   }
 );
 
+// POST /api/auth/demo-login - 1-Click Sandbox Candidate Login
+router.post("/demo-login", async (req, res) => {
+  try {
+    const demoEmail = "demo.candidate@talentera.in";
+    let candidate = await Candidate.findOne({ email: demoEmail });
+
+    if (!candidate) {
+      const passwordHash = await bcrypt.hash("DemoCandidate2026", 10);
+      candidate = await Candidate.create({
+        email: demoEmail,
+        passwordHash,
+        fullName: "Ananya Sharma",
+        mobile: "+91 9876543210",
+        completedStages: [1, 2, 3, 4, 5],
+        stage1: { fullName: "Ananya Sharma", mobile: "+91 9876543210" },
+      });
+    }
+
+    const token = signToken(candidate._id, "candidate");
+    res.json({
+      token,
+      candidate,
+      message: "Logged in as Demo Candidate Sandbox.",
+    });
+  } catch (err) {
+    logger.error(`Demo candidate login error: ${err.message}`);
+    res.status(500).json({ message: "Failed to launch demo candidate sandbox." });
+  }
+});
+
 // POST /api/auth/forgot-password - request a reset code by email.
 // Candidates previously had no way to recover a forgotten password at all
 // (only companies had this flow) - see IMPROVEMENT_ROADMAP.md "Candidates

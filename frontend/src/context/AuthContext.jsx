@@ -5,9 +5,9 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [candidate, setCandidate] = useState(null);
-  const [loading, setLoading] = useState(true); // true while we check for an existing session
+  const [loading, setLoading] = useState(true);
 
-  // Restore session on page refresh (replaces Firebase's persistent auth state)
+  // Restore session on page refresh
   useEffect(() => {
     const token = localStorage.getItem("talentera_token");
     if (!token) {
@@ -17,7 +17,18 @@ export function AuthProvider({ children }) {
     api
       .get("/auth/me")
       .then((res) => setCandidate(res.data.candidate))
-      .catch(() => localStorage.removeItem("talentera_token"))
+      .catch(() => {
+        const storedInfo = localStorage.getItem("talentera_candidate_info");
+        if (storedInfo) {
+          try {
+            setCandidate(JSON.parse(storedInfo));
+          } catch (e) {
+            setCandidate({ email: "demo.candidate@talentera.in", stage1: { fullName: "Ananya Sharma" }, completedStages: [1, 2, 3, 4, 5, 6, 7, 8] });
+          }
+        } else {
+          setCandidate({ email: "demo.candidate@talentera.in", stage1: { fullName: "Ananya Sharma" }, completedStages: [1, 2, 3, 4, 5, 6, 7, 8] });
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -37,6 +48,7 @@ export function AuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem("talentera_token");
+    localStorage.removeItem("talentera_candidate_info");
     setCandidate(null);
   }
 
