@@ -287,8 +287,44 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(question);
-      utterance.rate = 1;
-      utterance.pitch = 1;
+      utterance.rate = 0.92;
+      utterance.pitch = 1.05;
+      const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+      const indianFemalePatterns = [
+        /heera/i,
+        /neerja/i,
+        /veena/i,
+        /ananya/i,
+        /kavya/i,
+        /swara/i,
+        /priya/i,
+        /english \(india\)/i,
+        /en[-_]in/i,
+        /microsoft heera.*natural/i,
+        /microsoft neerja.*natural/i,
+      ];
+      let indianVoice = null;
+      for (const pattern of indianFemalePatterns) {
+        const match = voices.find((v) => pattern.test(v.name) || (v.lang && pattern.test(v.lang)));
+        if (match) {
+          indianVoice = match;
+          break;
+        }
+      }
+      if (!indianVoice) {
+        indianVoice = voices.find((v) => v.lang && /en[-_]in/i.test(v.lang));
+      }
+      if (!indianVoice) {
+        const softFallbackPatterns = [/microsoft jenny/i, /microsoft aria/i, /google uk english female/i, /samantha/i];
+        for (const pattern of softFallbackPatterns) {
+          const match = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("en") && pattern.test(v.name));
+          if (match) {
+            indianVoice = match;
+            break;
+          }
+        }
+      }
+      if (indianVoice) utterance.voice = indianVoice;
       setIsSpeaking(true);
       const finish = () => {
         setIsSpeaking(false);

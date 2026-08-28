@@ -74,22 +74,46 @@ export default function CandidateWizard() {
   // report step + "Continue to Next Stage" button, which re-calls onSaved
   // with advance left at its default true once the candidate is ready).
   function handleStageSaved(data, opts = {}) {
-    const { advance = true } = opts;
-    setProfile(data);
-    const candidateObj = data?.candidate || data || {};
+    const { advance = true, nextStage } = opts;
+    
+    let mergedProfile = profile;
+    if (data?.candidate) {
+      mergedProfile = data;
+    } else if (data) {
+      mergedProfile = {
+        ...profile,
+        candidate: {
+          ...(profile?.candidate || profile || {}),
+          ...(data?.candidate || data || {}),
+        },
+      };
+    }
+    setProfile(mergedProfile);
+
+    const candidateObj = mergedProfile?.candidate || mergedProfile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+
     if (completed.length >= 8) {
       setShowComplete(true);
       return;
     }
+
     if (!advance) return;
-    const isStage1Done = completed.includes(1);
-    if (!isStage1Done) {
-      setActiveStageId(1);
+
+    if (nextStage) {
+      setActiveStageId(nextStage);
       return;
     }
-    const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));
-    if (nextIncomplete) setActiveStageId(nextIncomplete.num);
+
+    const nextIncomplete =
+      WIZARD_STAGES.find((s) => !completed.includes(s.num) && s.num > activeStageId) ||
+      WIZARD_STAGES.find((s) => !completed.includes(s.num));
+
+    if (nextIncomplete) {
+      setActiveStageId(nextIncomplete.num);
+    } else if (activeStageId < 8) {
+      setActiveStageId(activeStageId + 1);
+    }
   }
 
   function handleSubmitForVerification() {

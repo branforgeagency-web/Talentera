@@ -27,73 +27,138 @@ function formatDuration(totalSeconds) {
 }
 
 // ---------------------------------------------------------------------------
-// Messi's animated avatar - pure SVG + CSS, no external dependency. Three
-// visual states: idle (slow breathing/blink loop), speaking (mouth
-// animation while window.speechSynthesis is active), listening (pulsing mic
-// ring while SpeechRecognition is running).
+// AI Interviewer Video Avatar
+// Uses the video from public/ai bot.mp4.
+// Plays the video when the AI audio is speaking (isSpeaking === true)
+// and pauses the video when the audio stops / candidate answers / idle.
 // ---------------------------------------------------------------------------
-function MessiAvatar({ state }) {
+function InterviewerVideoAvatar({ state, size = "large" }) {
   const isSpeaking = state === "speaking";
   const isListening = state === "listening";
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+
+    if (isSpeaking) {
+      video.muted = true;
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("Video play error:", err?.message);
+        });
+      }
+    } else {
+      video.pause();
+    }
+  }, [isSpeaking]);
+
+  const isCompact = size === "compact";
+  const containerWidth = isCompact ? "170px" : "260px";
+  const containerHeight = isCompact ? "150px" : "200px";
+
   return (
-    <div className={`messi-avatar-wrap ${isListening ? "messi-listening" : ""}`}>
-      <svg viewBox="0 0 120 120" width="96" height="96" className={`messi-avatar-svg ${isSpeaking ? "messi-speaking" : "messi-idle"}`}>
-        <circle cx="60" cy="60" r="56" fill="var(--navy)" />
-        <circle cx="60" cy="60" r="56" fill="url(#messiGradient)" opacity="0.9" />
-        <defs>
-          <radialGradient id="messiGradient" cx="35%" cy="30%" r="75%">
-            <stop offset="0%" stopColor="#173B6C" />
-            <stop offset="100%" stopColor="#0A1F3D" />
-          </radialGradient>
-        </defs>
-        {/* Face */}
-        <circle cx="60" cy="58" r="34" fill="#F4E4C1" />
-        {/* Eyes */}
-        <ellipse className="messi-eye" cx="48" cy="54" rx="4.2" ry="5.4" fill="#0A1F3D" />
-        <ellipse className="messi-eye" cx="72" cy="54" rx="4.2" ry="5.4" fill="#0A1F3D" />
-        {/* Eyebrows */}
-        <path d="M42 44 Q48 40 54 44" stroke="#6B4A2A" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-        <path d="M66 44 Q72 40 78 44" stroke="#6B4A2A" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-        {/* Mouth */}
-        <rect className="messi-mouth" x="48" y="72" width="24" height="6" rx="3" fill="#0A1F3D" />
-        {/* Headset / collar hint to read as "professional interviewer" */}
-        <path d="M30 78 Q60 100 90 78" stroke="var(--gold)" strokeWidth="3" fill="none" strokeLinecap="round" opacity="0.85" />
-      </svg>
-      {isListening && (
-        <div className="messi-mic-badge">
-          <i className="fa-solid fa-microphone"></i>
-        </div>
-      )}
-      {isSpeaking && (
-        <div className="messi-wave">
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-      )}
-      <style>{`
-        .messi-avatar-wrap { position: relative; width: 104px; height: 104px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .messi-avatar-svg { border-radius: 50%; box-shadow: 0 8px 24px rgba(10,31,61,0.25); }
-        .messi-idle { animation: messiBreathe 3.2s ease-in-out infinite; }
-        .messi-speaking { animation: messiBreathe 1.4s ease-in-out infinite; }
-        @keyframes messiBreathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.035); } }
-        .messi-eye { animation: messiBlink 4.5s ease-in-out infinite; transform-origin: center; }
-        @keyframes messiBlink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.12); } }
-        .messi-mouth { transform-origin: center; }
-        .messi-speaking .messi-mouth { animation: messiTalk 0.42s ease-in-out infinite; }
-        @keyframes messiTalk { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(2.4) translateY(-2px); } }
-        .messi-listening .messi-avatar-svg { box-shadow: 0 0 0 4px rgba(34,197,94,0.35), 0 8px 24px rgba(10,31,61,0.25); animation: messiListenPulse 1.6s ease-in-out infinite; }
-        @keyframes messiListenPulse { 0%, 100% { box-shadow: 0 0 0 4px rgba(34,197,94,0.35), 0 8px 24px rgba(10,31,61,0.25); } 50% { box-shadow: 0 0 0 9px rgba(34,197,94,0.12), 0 8px 24px rgba(10,31,61,0.25); } }
-        .messi-mic-badge { position: absolute; bottom: -2px; right: -2px; width: 26px; height: 26px; border-radius: 50%; background: #22C55E; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-        .messi-wave { position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%); display: flex; gap: 3px; align-items: flex-end; height: 14px; }
-        .messi-wave span { width: 3px; background: var(--gold); border-radius: 2px; animation: messiWaveBar 0.9s ease-in-out infinite; }
-        .messi-wave span:nth-child(1) { animation-delay: 0s; }
-        .messi-wave span:nth-child(2) { animation-delay: 0.15s; }
-        .messi-wave span:nth-child(3) { animation-delay: 0.3s; }
-        .messi-wave span:nth-child(4) { animation-delay: 0.45s; }
-        @keyframes messiWaveBar { 0%, 100% { height: 4px; } 50% { height: 14px; } }
-      `}</style>
+    <div
+      className={`interviewer-video-wrap ${isSpeaking ? "interviewer-speaking" : isListening ? "interviewer-listening" : ""}`}
+      style={{
+        position: "relative",
+        width: containerWidth,
+        height: containerHeight,
+        borderRadius: isCompact ? 16 : 20,
+        overflow: "hidden",
+        backgroundColor: "#0A1F3D",
+        boxShadow: isSpeaking
+          ? "0 0 0 4px rgba(245, 158, 11, 0.45), 0 10px 25px rgba(10,31,61,0.3)"
+          : isListening
+          ? "0 0 0 4px rgba(34, 197, 94, 0.4), 0 10px 25px rgba(10,31,61,0.25)"
+          : "0 8px 24px rgba(10,31,61,0.2)",
+        border: "2px solid var(--navy)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        transition: "all 0.3s ease",
+      }}
+    >
+      <video
+        ref={(el) => {
+          videoRef.current = el;
+          if (el) {
+            el.muted = true;
+            el.defaultMuted = true;
+          }
+        }}
+        src="/ai%20bot.mp4"
+        playsInline
+        muted
+        loop
+        preload="auto"
+        onLoadedData={(e) => {
+          e.target.muted = true;
+          e.target.defaultMuted = true;
+          if (isSpeaking) {
+            e.target.play().catch(() => {});
+          } else {
+            e.target.pause();
+          }
+        }}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          display: "block",
+        }}
+      >
+        <source src="/ai%20bot.mp4" type="video/mp4" />
+        <source src="/ai bot.mp4" type="video/mp4" />
+        <source src="/ai-bot.mp4" type="video/mp4" />
+        <source src="/ai_bot.mp4" type="video/mp4" />
+      </video>
+
+      {/* Live State Badge Overlay */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 8,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: isSpeaking ? "rgba(245, 158, 11, 0.9)" : isListening ? "rgba(34, 197, 94, 0.9)" : "rgba(15, 23, 42, 0.8)",
+          backdropFilter: "blur(4px)",
+          color: "#fff",
+          fontSize: 9,
+          fontWeight: 800,
+          letterSpacing: 0.5,
+          padding: "3px 8px",
+          borderRadius: 999,
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          boxShadow: "0 2px 6px rgba(0,0,0,0.3)",
+          whiteSpace: "nowrap",
+          zIndex: 2,
+        }}
+      >
+        {isSpeaking ? (
+          <>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", animation: "pulse 1s infinite" }}></span>
+            SPEAKING
+          </>
+        ) : isListening ? (
+          <>
+            <i className="fa-solid fa-microphone" style={{ fontSize: 8 }}></i>
+            LISTENING
+          </>
+        ) : (
+          <>
+            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#94A3B8" }}></span>
+            AI INTERVIEWER
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -144,9 +209,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         if (s && (s.status === "COMPLETED" || s.status === "STOPPED")) {
           setSession(s);
           setStep("report");
-          if (typeof s.result?.overallScore === "number" && onCompleted) {
-            onCompleted({ score: s.result.overallScore });
-          }
         } else if (s && s.status === "IN_PROGRESS") {
           setSession(s);
           setTranscript(hydrateTranscript(s));
@@ -274,16 +336,27 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       speechSafetyTimerRef.current = null;
     }
 
-    if (!window.speechSynthesis || !text) {
+    const cleanText = String(text)
+      .replace(/[*_#`~[\]]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!cleanText) {
       setIsSpeaking(false);
       if (onEnd) onEnd();
       return;
     }
 
     let finished = false;
+    let keepAliveTimer = null;
+
     const finish = () => {
       if (finished) return;
       finished = true;
+      if (keepAliveTimer) {
+        clearInterval(keepAliveTimer);
+        keepAliveTimer = null;
+      }
       if (speechSafetyTimerRef.current) {
         clearTimeout(speechSafetyTimerRef.current);
         speechSafetyTimerRef.current = null;
@@ -294,6 +367,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
     try {
       window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
     } catch (err) {
       // Nothing was speaking - fine to continue.
     }
@@ -302,26 +376,78 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       try {
         window.speechSynthesis.resume();
 
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1;
-        utterance.pitch = 1;
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.rate = 0.92; // natural, articulate Indian English conversational pace
+        utterance.pitch = 1.05; // soft, polite, warm tone
         const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-        const englishVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("en"));
-        if (englishVoice) utterance.voice = englishVoice;
 
-        utteranceRef.current = utterance; // keep alive - see note above
+        // Priority list for soft Indian English voices (en-IN), followed by natural soft female voices
+        const indianFemalePatterns = [
+          /heera/i,
+          /neerja/i,
+          /veena/i,
+          /ananya/i,
+          /kavya/i,
+          /swara/i,
+          /priya/i,
+          /english \(india\)/i,
+          /en[-_]in/i,
+          /microsoft heera.*natural/i,
+          /microsoft neerja.*natural/i,
+        ];
+
+        let indianVoice = null;
+        for (const pattern of indianFemalePatterns) {
+          const match = voices.find((v) => pattern.test(v.name) || (v.lang && pattern.test(v.lang)));
+          if (match) {
+            indianVoice = match;
+            break;
+          }
+        }
+
+        if (!indianVoice) {
+          // If no specific en-IN voice, check any en-IN locale
+          indianVoice = voices.find((v) => v.lang && /en[-_]in/i.test(v.lang));
+        }
+
+        if (!indianVoice) {
+          // Fallback to soft natural voices
+          const softFallbackPatterns = [/microsoft jenny/i, /microsoft aria/i, /google uk english female/i, /samantha/i];
+          for (const pattern of softFallbackPatterns) {
+            const match = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("en") && pattern.test(v.name));
+            if (match) {
+              indianVoice = match;
+              break;
+            }
+          }
+        }
+
+        if (indianVoice) utterance.voice = indianVoice;
+
+        utteranceRef.current = utterance;
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+        };
         utterance.onend = finish;
         utterance.onerror = finish;
 
         setIsSpeaking(true);
         window.speechSynthesis.speak(utterance);
 
-        const estimatedMs = Math.min(30000, Math.max(4000, text.length * 90));
+        // Keep-alive for Chrome 14s silence bug
+        keepAliveTimer = setInterval(() => {
+          if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+          }
+        }, 10000);
+
+        const estimatedMs = Math.min(90000, Math.max(6000, cleanText.length * 130));
         speechSafetyTimerRef.current = setTimeout(finish, estimatedMs);
       } catch (err) {
         finish();
       }
-    }, 60);
+    }, 50);
   }
 
   function openAnswerWindow() {
@@ -524,14 +650,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       {/* SETUP / RESUME */}
       {step === "setup" && (
         <div style={{ padding: 32, textAlign: "center", background: "#F8FAFC" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <MessiAvatar state="idle" />
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 18 }}>
+            <InterviewerVideoAvatar state="idle" size="large" />
           </div>
           {session?.status === "IN_PROGRESS" ? (
             <>
-              <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: "0 0 8px" }}>Resume your interview with Messi</h3>
+              <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: "0 0 8px" }}>Resume your interview with your AI Interviewer</h3>
               <p style={{ fontSize: 13, color: "#64748B", maxWidth: 480, margin: "0 auto 20px" }}>
-                You were on question {(session.currentQuestionIndex ?? 0) + 1} of {session.questions.length}. Messi will pick up right where you left off.
+                You were on question {(session.currentQuestionIndex ?? 0) + 1} of {session.questions.length}. The AI Interviewer will pick up right where you left off.
               </p>
               <button type="button" className="btn btn-gold" style={{ padding: "12px 24px", fontSize: 14 }} disabled={starting} onClick={() => handleStart(false)}>
                 {starting ? "Reconnecting…" : `Resume at Question ${(session.currentQuestionIndex ?? 0) + 1} →`}
@@ -541,7 +667,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             <>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: "0 0 8px" }}>Ready for a live mock interview?</h3>
               <p style={{ fontSize: 13, color: "#64748B", maxWidth: 480, margin: "0 auto 20px", lineHeight: 1.6 }}>
-                Messi will ask you 5 technical questions built around your role and experience, one at a time, out loud. Answer by speaking naturally
+                The AI Interviewer will ask you 5 technical questions built around your role and experience, one at a time, out loud. Answer by speaking naturally
                 &mdash; you can also type if you&rsquo;d rather. Say things like &ldquo;repeat that&rdquo;, &ldquo;give me a hint&rdquo;, or
                 &ldquo;stop the interview&rdquo; any time.
                 {!speechSupported && " Your browser doesn't support live speech recognition, so you'll answer by typing - everything else still works."}
@@ -569,17 +695,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "140px 1fr", gap: 16, alignItems: "center", padding: "16px 20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", gap: 16, alignItems: "center", padding: "16px 20px" }}>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-              <MessiAvatar state={avatarState} />
-              <span style={{ fontSize: 10, fontWeight: 800, color: isSpeaking ? "var(--gold)" : isListening ? "#22C55E" : "#94A3B8" }}>
-                {isSpeaking ? "SPEAKING" : isListening ? "LISTENING" : "READY"}
-              </span>
+              <InterviewerVideoAvatar state={avatarState} size="compact" />
             </div>
 
             <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 10, padding: 12, fontSize: 12, color: "#334155", fontStyle: "italic", minHeight: 60 }}>
               <strong style={{ fontStyle: "normal", color: "var(--navy)" }}>Live transcript: </strong>
-              {liveInterim || (isListening ? "Listening…" : loadingTurn ? "Messi is thinking…" : micDenied || !speechSupported ? "Type your answer below." : "")}
+              {liveInterim || (isListening ? "Listening…" : loadingTurn ? "AI Interviewer is thinking…" : micDenied || !speechSupported ? "Type your answer below." : "")}
             </div>
           </div>
 
