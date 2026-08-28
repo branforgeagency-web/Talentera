@@ -38,20 +38,27 @@ export default function CandidateWizard() {
       .get("/candidate/me")
       .then((res) => {
         setProfile(res.data);
-        const isStage1Done = res.data.candidate.completedStages.includes(1);
+        const candidateObj = res.data?.candidate || res.data || {};
+        const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+        const isStage1Done = completed.includes(1);
         if (!isStage1Done) {
           setActiveStageId(1);
         } else {
-          const nextIncomplete = WIZARD_STAGES.find((s) => !res.data.candidate.completedStages.includes(s.num));
+          const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));
           if (nextIncomplete) setActiveStageId(nextIncomplete.num);
         }
-        if (res.data.candidate.completedStages.length >= 8) setShowComplete(true);
+        if (completed.length >= 8) setShowComplete(true);
+      })
+      .catch((err) => {
+        console.error(err);
       })
       .finally(() => setLoading(false));
   }, []);
 
   function handleSelectStage(stageNum) {
-    const isStage1Done = profile?.candidate?.completedStages?.includes(1);
+    const candidateObj = profile?.candidate || profile || {};
+    const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+    const isStage1Done = completed.includes(1);
     if (stageNum > 1 && !isStage1Done) {
       toast("Please complete and save Stage 1 (Identity & Basics) first before moving to higher stages.", "!");
       setActiveStageId(1);
@@ -60,25 +67,37 @@ export default function CandidateWizard() {
     setActiveStageId(stageNum);
   }
 
-  function handleStageSaved(data) {
+  // `advance: false` lets a stage persist its result (score, completedStages,
+  // etc.) without immediately being switched away from - used by Stage 5 so
+  // its own completion report actually gets shown to the candidate instead
+  // of being unmounted the instant the save succeeds (see AiVideoAssessment.jsx's
+  // report step + "Continue to Next Stage" button, which re-calls onSaved
+  // with advance left at its default true once the candidate is ready).
+  function handleStageSaved(data, opts = {}) {
+    const { advance = true } = opts;
     setProfile(data);
-    if (data.candidate.completedStages.length >= 8) {
+    const candidateObj = data?.candidate || data || {};
+    const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+    if (completed.length >= 8) {
       setShowComplete(true);
       return;
     }
-    const isStage1Done = data.candidate.completedStages.includes(1);
+    if (!advance) return;
+    const isStage1Done = completed.includes(1);
     if (!isStage1Done) {
       setActiveStageId(1);
       return;
     }
-    const nextIncomplete = WIZARD_STAGES.find((s) => !data.candidate.completedStages.includes(s.num));
+    const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));
     if (nextIncomplete) setActiveStageId(nextIncomplete.num);
   }
 
   function handleSubmitForVerification() {
     if (!profile) return;
+    const candidateObj = profile?.candidate || profile || {};
+    const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
     const mandatoryStages = WIZARD_STAGES.filter((s) => s.mandatory);
-    const missing = mandatoryStages.filter((s) => !profile.candidate.completedStages.includes(s.num));
+    const missing = mandatoryStages.filter((s) => !completed.includes(s.num));
     if (missing.length > 0) {
       toast(`Finish ${missing.map((s) => s.short).join(", ")} before submitting.`, "!");
       setActiveStageId(missing[0].num);
@@ -91,7 +110,9 @@ export default function CandidateWizard() {
     navigate("/");
   }
 
-  if (loading || !profile) {
+  const candidateObj = profile?.candidate || profile;
+
+  if (loading || !profile || !candidateObj) {
     return <div style={{ padding: 40, textAlign: "center" }}>Loading your dashboard…</div>;
   }
 
@@ -99,20 +120,21 @@ export default function CandidateWizard() {
     return <Step9Verified profile={profile} onOpenDashboard={() => setShowComplete(false)} />;
   }
 
-  const activeStage = getStage(activeStageId);
+  const activeStage = getStage(activeStageId) || WIZARD_STAGES[0];
   const stageKey = `stage${activeStage.num}`;
-  const existingData = profile.candidate[stageKey];
-  const isDone = profile.candidate.completedStages.includes(activeStage.num);
+  const existingData = candidateObj?.[stageKey] || {};
+  const completedStages = Array.isArray(candidateObj?.completedStages) ? candidateObj.completedStages : [];
+  const isDone = completedStages.includes(activeStage.num);
   const prevStage = WIZARD_STAGES.find((s) => s.num === activeStage.num - 1);
   const StageComponent = STAGE_COMPONENTS[activeStage.num];
 
   return (
     <div className="wiz-shell">
       <WizardSidebar
-        completedStages={profile.candidate.completedStages}
+        completedStages={completedStages}
         activeStageId={activeStageId}
         onSelect={handleSelectStage}
-        earnedPoints={profile.score}
+        earnedPoints={profile?.score || profile?.earnedPoints || candidateObj?.score || 0}
         onSubmit={handleSubmitForVerification}
         onSaveExit={handleSaveExit}
       />

@@ -31,7 +31,7 @@ export const CERT_LIBRARY = {
     fullName: "American Academy of Professional Coders",
     color: "#F59E0B",
     memberCount: "230K+",
-    verifyUrl: "https://www.aapc.com/medical-coding-certification/verify-a-member.aspx",
+    verifyUrl: "https://www.aapc.com/certification/credential-verification.aspx",
     certs: [
       cert("CPC", "Certified Professional Coder", {
         target: "Physician-side / outpatient coders", time: "4 hrs", qs: 100, usd: 399, inr: "~₹33,500",
@@ -75,7 +75,7 @@ export const CERT_LIBRARY = {
     fullName: "American Health Information Management Association",
     color: "#0EA5E9",
     memberCount: "100K+",
-    verifyUrl: "https://my.ahima.org/certification/verify",
+    verifyUrl: "https://my.ahima.org/credential-verification",
     certs: [
       cert("CCA", "Certified Coding Associate", { target: "Entry-level coders", flag: "fresher", flagText: "Entry Level", desc: "AHIMA's entry-level coding credential, applicable across hospital and physician settings." }),
       cert("CCS", "Certified Coding Specialist", {

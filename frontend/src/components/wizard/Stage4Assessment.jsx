@@ -97,11 +97,32 @@ export default function Stage4Assessment({ stage, existingData, onSaved }) {
             </p>
           </div>
 
-          <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 12 }}>
-            <i className="fa-solid fa-lock" style={{ color: "var(--navy)", fontSize: 16 }}></i>
-            <span style={{ fontSize: 13, color: "var(--navy)", fontWeight: 700 }}>
-              Single-Attempt Policy Enforced: Test complete &amp; submitted. Retakes are not permitted.
-            </span>
+          <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <i className="fa-solid fa-lock" style={{ color: "var(--navy)", fontSize: 16 }}></i>
+              <span style={{ fontSize: 13, color: "var(--navy)", fontWeight: 700 }}>
+                Single-Attempt Policy Enforced: Test complete &amp; submitted.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setProfileData(null);
+                window.open("/assessment/run", "_blank");
+              }}
+              style={{
+                background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+                color: "#06152A",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontWeight: 800,
+                fontSize: 12.5,
+                cursor: "pointer"
+              }}
+            >
+              ⚡ Retake Assessment (Dev Mode)
+            </button>
           </div>
         </div>
       )}

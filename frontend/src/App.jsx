@@ -6,6 +6,8 @@ import ForgotPassword from "./pages/ForgotPassword.jsx";
 import Register from "./pages/Register.jsx";
 import CandidateWizard from "./pages/CandidateWizard.jsx";
 import ForCompanies from "./pages/ForCompanies.jsx";
+import ForCandidates from "./pages/ForCandidates.jsx";
+import ForAcademies from "./pages/ForAcademies.jsx";
 import CompanyRegister from "./pages/CompanyRegister.jsx";
 import CompanyLogin from "./pages/CompanyLogin.jsx";
 import CompanyPortal from "./pages/CompanyPortal.jsx";
@@ -28,6 +30,7 @@ export default function App() {
     <Routes>
       {/* 01. Main Landing Page */}
       <Route path="/" element={<Landing />} />
+      <Route path="/candidates" element={<ForCandidates />} />
 
       {/* Public Candidate Credential Verification */}
       <Route path="/verify/:candidateId" element={<VerifyCandidate />} />
@@ -124,13 +127,17 @@ export default function App() {
       />
 
       {/* 04. Academy Partner Portal */}
-      <Route path="/academy" element={<AcademyLogin />} />
+      <Route path="/academy" element={<ForAcademies />} />
+      <Route path="/academies" element={<ForAcademies />} />
       <Route path="/academy/login" element={<AcademyLogin />} />
       <Route path="/academy/*" element={<AcademyPortal />} />
 
-      {/* 05. Staff Operations Hub */}
+      {/* 05. Staff & Employee Operations Hub */}
       <Route path="/staff/login" element={<StaffLogin />} />
       <Route path="/staff/*" element={<StaffHub />} />
+      <Route path="/employee/login" element={<StaffLogin />} />
+      <Route path="/employee/*" element={<StaffHub />} />
+      <Route path="/employee" element={<StaffHub />} />
 
       {/* Catch-all redirect to Landing */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -14,7 +14,7 @@ export default function CompanyRequireAuth({ children }) {
   }
 
   if (!company) {
-    return <Navigate to="/companies" replace />;
+    return <Navigate to="/companies/login" replace />;
   }
 
   return children;

@@ -484,7 +484,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   const result = session?.result;
-  const totalQuestions = session?.questions?.length || 10;
+  const totalQuestions = session?.questions?.length || 5;
   const currentQNumber = Math.min((session?.currentQuestionIndex ?? 0) + 1, totalQuestions);
   const progressPercent = session?.questionRecords ? Math.round((session.questionRecords.length / totalQuestions) * 100) : 0;
 
@@ -500,7 +500,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#fff" }}>Meet Messi, your AI Interviewer</h4>
             <span style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700 }}>
               <i className="fa-solid fa-bolt" style={{ marginRight: 4 }}></i>
-              Live voice interview · 10 dynamic questions
+              Live voice interview · 5 dynamic questions
             </span>
           </div>
         </div>
@@ -541,7 +541,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             <>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: "0 0 8px" }}>Ready for a live mock interview?</h3>
               <p style={{ fontSize: 13, color: "#64748B", maxWidth: 480, margin: "0 auto 20px", lineHeight: 1.6 }}>
-                Messi will ask you 10 technical questions built around your role and experience, one at a time, out loud. Answer by speaking naturally
+                Messi will ask you 5 technical questions built around your role and experience, one at a time, out loud. Answer by speaking naturally
                 &mdash; you can also type if you&rsquo;d rather. Say things like &ldquo;repeat that&rdquo;, &ldquo;give me a hint&rdquo;, or
                 &ldquo;stop the interview&rdquo; any time.
                 {!speechSupported && " Your browser doesn't support live speech recognition, so you'll answer by typing - everything else still works."}

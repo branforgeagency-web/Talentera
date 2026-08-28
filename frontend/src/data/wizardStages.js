@@ -280,33 +280,33 @@ const RAW_WIZARD_STAGES = [
     mins: 8,
     icon: "trend",
     intro:
-      "Two things happen here: you consent to having your real interview outcomes tracked from here on as Talentera routes you to companies, and you can practice right now with a live Claude AI mock interview to sharpen your readiness.",
+      "Past interview performance predicts future. Companies that shortlist you see whether you've done 0 interviews or 10 — and what percentage you cleared. This stage activates that track.",
     rules: [
       {
         type: "why",
-        title: "Why we ask for consent now",
-        body: "A track record only builds from real interviews over time - there's nothing to show yet if you're just joining. Consenting today means every interview Talentera routes you to from your first one onward gets logged, so your track record starts building immediately instead of retroactively.",
+        title: "Why an interview track exists",
+        body: "A candidate who has been through 8 real company interviews and cleared 5 is dramatically different from one who has zero history. Companies value this signal a lot. The track auto-captures every Talentera-routed interview so you build proof of interview-readiness over time.",
       },
       {
         type: "check",
-        title: "Practice with the live AI mock interview",
-        body: "Right now, you can run a live Q&A session with Claude AI against a bank of technical RCM/medical-coding questions - it scores each answer and gives you feedback, so you can walk into a real interview having already rehearsed. This is a practice tool for you; it's not visible to companies.",
+        title: "What gets captured",
+        body: "For each interview: round number, type (HR / tech / ops / final), date, result (selected / rejected / on-hold), and any anonymized feedback. You see the full track in your dashboard with company names; companies viewing your profile see anonymized summaries.",
       },
       {
         type: "lock",
-        title: "What stays private",
-        body: "Once real interview outcomes start being logged, companies would only ever see anonymized summaries - never the specific company or feedback tied to another employer. You can request anonymization or full deletion at any time. Right-to-be-forgotten honored. Consent is mandatory to enter the Verified Pool.",
+        title: "Your privacy on this track",
+        body: "Companies see only: \"3 interviews · 2 cleared\" — never the specific company or feedback. You can request anonymization or full deletion at any time. Right-to-be-forgotten honored. Consent is mandatory to enter the Verified Pool.",
       },
     ],
     trustChips: [
-      { num: "Auto", label: "future interview capture" },
-      { num: "Live AI", label: "mock interview practice" },
+      { num: "Auto", label: "interview capture" },
+      { num: "Anon", label: "company view" },
       { num: "Delete", label: "anytime" },
-      { num: "~8 min", label: "your time" },
+      { num: "~2 min", label: "your time" },
     ],
-    theme: { p1: "#8B5CF6", p2: "#D946EF" },
+    theme: { p1: "#A855F7", p2: "#D946EF" },
     context:
-      "Practicing with the live AI mock interview helps you walk into real interviews more prepared - and every interview Talentera routes you to from here on starts building your track record.",
+      "Every interview Talentera routes you to from here on starts building your track record, boosting your shortlist visibility with top employers.",
   },
 ];
 

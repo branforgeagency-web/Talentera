@@ -96,6 +96,34 @@ router.post(
   }
 );
 
+// POST /api/auth/demo-login - One-click developer demo login
+router.post("/demo-login", async (req, res) => {
+  const cleanEmail = "demo.candidate@talentera.com";
+  try {
+    let candidate = await Candidate.findOne({ email: cleanEmail });
+    if (!candidate) {
+      const passwordHash = await bcrypt.hash("demo123456", 10);
+      candidate = await Candidate.create({
+        email: cleanEmail,
+        passwordHash,
+        mobile: "9876543210",
+        completedStages: [1, 2, 3, 4, 7, 8],
+        stage1: { fullName: "Priya Sharma (Demo Candidate)", mobile: "9876543210", city: "Chennai", experience: "4 Yrs", currentRole: "Medical Coder", aadhaarVerified: true },
+        stage2: { academyName: "Apex Medical Institute", completionYear: "2021" },
+        stage3: { certName: "AAPC CPC", certNumber: "CPC-987654", verified: true },
+        stage4: { score: 94, chartAccuracy: 98, status: "passed" },
+        stage8: { verifiedBadge: true, score: 96 }
+      });
+    }
+
+    const token = signToken(candidate._id, "candidate");
+    res.json({ token, candidate });
+  } catch (err) {
+    logger.error(`Demo login error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Server error during demo login." });
+  }
+});
+
 // POST /api/auth/forgot-password - request a reset code by email.
 // Candidates previously had no way to recover a forgotten password at all
 // (only companies had this flow) - see IMPROVEMENT_ROADMAP.md "Candidates

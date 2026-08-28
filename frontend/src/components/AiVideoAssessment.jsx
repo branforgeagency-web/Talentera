@@ -1,11 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
-// How many seconds of silence during an answer before it auto-advances to
-// the next question. Keep in sync with SILENCE_TIMEOUT_MS in
-// AiAudioInterview.jsx.
-const SILENCE_TIMEOUT_SECONDS = 5;
+// How many seconds of silence during an answer before it auto-advances or auto-submits.
+const SILENCE_TIMEOUT_SECONDS = 20;
 
 // localStorage key for a finished-but-not-yet-server-confirmed report. Set
 // only when we couldn't get the server to accept the submission (see
@@ -102,7 +100,14 @@ export const COURSE_QUESTION_BANKS = {
   hcc_risk_adjustment: shuffleAndPickQuestions(EXPANDED_QUESTION_POOL, 5),
 };
 
-export const DEFAULT_ASSESSMENT_QUESTIONS = COURSE_QUESTION_BANKS.medical_coding;
+export const SINGLE_SELF_INTRO_QUESTION = [
+  {
+    id: 1,
+    title: "90-Second Self-Introduction",
+    question: "Please tell me about yourself - your background, education, and your experience in Medical Coding and Healthcare RCM.",
+    timeLimit: 90,
+  }
+];
 
 export default function AiVideoAssessment({ existingData, onSaved, customQuestions }) {
   const toast = useToast();
@@ -110,16 +115,34 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
 
-  // Staff-configured question bank (Staff Hub -> Interview Questions), fetched
-  // from the server. Answer keys never travel to the browser - only text
-  // does; grading happens server-side by looking the question back up by id.
+  const [questionsLoading, setQuestionsLoading] = useState(!(customQuestions || existingData?.customQuestions));
   const [fetchedQuestions, setFetchedQuestions] = useState(null);
-  const [questionsLoading, setQuestionsLoading] = useState(true);
 
-  // Dynamically shuffle and pick 5 questions for each candidate test session
-  const [shuffledCandidateQuestions] = useState(() => shuffleAndPickQuestions(EXPANDED_QUESTION_POOL, 5));
-
-  const questionsList = customQuestions || existingData?.customQuestions || fetchedQuestions || shuffledCandidateQuestions;
+  // Stage 5 is one continuous recording that does two things at once: a
+  // 90-second self-introduction (always Question 1 - the exact clip
+  // companies watch) followed by a short AI-scored mock interview (4 more
+  // conversational questions, scored on communication - clarity, fluency,
+  // vocabulary & grammar, confidence). Staff can configure their own
+  // question bank (fetched below); when they haven't, fall back to a random
+  // draw from the built-in conversational pool. Question 1 is always the
+  // self-intro prompt either way, so the "90-second self-introduction" card
+  // keeps its promise regardless of which bank supplies the remaining 4.
+  const questionsList = useMemo(() => {
+    const intro = { ...SINGLE_SELF_INTRO_QUESTION[0] };
+    const customBank = customQuestions || existingData?.customQuestions;
+    const restSource =
+      customBank && customBank.length
+        ? customBank
+        : fetchedQuestions && fetchedQuestions.length
+        ? fetchedQuestions
+        : shuffleAndPickQuestions(
+            EXPANDED_QUESTION_POOL.filter((q) => q.question !== intro.question),
+            4
+          );
+    const rest = restSource.filter((q) => q.question !== intro.question).slice(0, 4);
+    return [intro, ...rest].map((q, idx) => ({ ...q, id: idx + 1 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customQuestions, fetchedQuestions]);
 
   const isInterviewCompleted = Boolean(
     existingData && (existingData.completedAt || existingData.videoUrl || typeof existingData.aiScore === "number")
@@ -191,6 +214,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   // Web Speech API
   const recognitionRef = useRef(null);
+
+  // Holds the most recent successful save response so the report
+  // step's "Continue to Next Stage" button can advance the wizard on
+  // the candidate's own click, rather than this component being torn
+  // down mid-render the instant the save succeeds.
+  const lastSavedDataRef = useRef(null);
 
   // Fetch the staff-configured question bank once on mount (unless the
   // caller passed customQuestions directly, in which case skip the network
@@ -266,7 +295,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         try {
           localStorage.removeItem(PENDING_REPORT_KEY);
         } catch (e) {}
-        if (onSaved) onSaved(res.data);
+        lastSavedDataRef.current = res.data;
+        if (onSaved) onSaved(res.data, { advance: false });
       }
     } catch (err) {
       // Still unreachable - leave the local backup in place so the report
@@ -662,6 +692,15 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     };
   }
 
+  // Manually advances the wizard once the candidate has seen their report -
+  // called from the "Continue to Next Stage" button below, not automatically
+  // on save (see the advance:false onSaved calls above).
+  function handleContinueToNextStage() {
+    if (onSaved && lastSavedDataRef.current) {
+      onSaved(lastSavedDataRef.current, { advance: true });
+    }
+  }
+
   async function handleFinalSubmission() {
     setStep("evaluating");
     setSubmitting(true);
@@ -689,7 +728,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         setEvaluation(res.data.evaluation);
         setStep("report");
         toast("Interview submitted! Thank you for completing it.", "✓");
-        if (onSaved) onSaved(res.data);
+        lastSavedDataRef.current = res.data;
+        if (onSaved) onSaved(res.data, { advance: false });
       }
     } catch (err) {
       console.error("Final AI submission error:", err);
@@ -713,7 +753,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
           setEvaluation(retryRes.data.evaluation);
           setStep("report");
           toast("Interview submitted! Thank you for completing it.", "✓");
-          if (onSaved) onSaved(retryRes.data);
+          lastSavedDataRef.current = retryRes.data;
+          if (onSaved) onSaved(retryRes.data, { advance: false });
           return; // saved server-side - skip the fully-offline fallback below
         }
       } catch (retryErr) {
@@ -811,34 +852,157 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         </div>
       )}
 
-      {/* STEP 0: SETUP - no camera access yet */}
+      {/* STEP 0: SETUP - Card matching media_1787810125816.png */}
       {step === "setup" && (
-        <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 28 }}>
-          <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginBottom: 8 }}>
-            <i className="fa-solid fa-comments" style={{ marginRight: 8, color: "var(--gold)" }}></i>
-            Live AI Verbal Communication &amp; Video Interview
-          </h4>
-          <p style={{ fontSize: 13, color: "#475569", lineHeight: 1.6, margin: "0 0 16px" }}>
-            The AI interviewer will ask {questionsList.length} question{questionsList.length === 1 ? "" : "s"} out loud to evaluate your spoken communication, fluency, and RCM technical knowledge. First, you'll perform a quick camera liveness check (video camera only), followed by the interactive verbal interview.
-          </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Card 1: 90-second self-introduction. This is Question 1 of the
+              single continuous recording below - there is only one video
+              take and one submission, so both cards start the exact same
+              flow; this card just frames the first part of it. */}
+          <div
+            style={{
+              background: "#FAF8F5",
+              border: "1px solid #EAE6DF",
+              borderRadius: 20,
+              padding: "24px 28px",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 20,
+              flexWrap: "wrap"
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1, minWidth: 280 }}>
+              {/* Pink Camera Icon Box */}
+              <div
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  fontSize: 22,
+                  flexShrink: 0,
+                  boxShadow: "0 8px 20px rgba(236, 72, 153, 0.28)"
+                }}
+              >
+                <i className="fa-solid fa-video" />
+              </div>
 
-          {cameraError && <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginBottom: 16 }}>{cameraError}</div>}
+              <div>
+                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
+                  90-second self-introduction
+                </h4>
+                <p style={{ fontSize: 13.5, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
+                  Tip: watch the 3 prep videos in your Learn Hub first. Companies watch this exact recording before they ever call you.
+                </p>
+                {cameraError && (
+                  <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginTop: 8 }}>
+                    ⚠️ {cameraError}
+                  </div>
+                )}
+              </div>
+            </div>
 
-          <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#B45309", padding: "12px 16px", borderRadius: 10, fontSize: 12, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
-            <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 16 }}></i>
-            <span>Find a quiet, well-lit spot facing the camera before you begin.</span>
+            {/* RECORD NOW Pink Button */}
+            <button
+              type="button"
+              onClick={() => setStep("liveness")}
+              disabled={questionsLoading}
+              style={{
+                background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
+                color: "#ffffff",
+                border: "none",
+                padding: "14px 32px",
+                borderRadius: 12,
+                fontWeight: 800,
+                fontSize: 14,
+                letterSpacing: "0.05em",
+                cursor: "pointer",
+                boxShadow: "0 6px 20px rgba(225, 29, 72, 0.35)",
+                transition: "all 0.2s ease",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {questionsLoading ? "LOADING..." : "RECORD NOW"}
+            </button>
           </div>
 
-          <button
-            type="button"
-            className="btn btn-gold"
-            style={{ width: "100%", justifyContent: "center", padding: "14px 24px", fontSize: 15 }}
-            onClick={() => setStep("liveness")}
-            disabled={questionsLoading}
+          {/* Card 2: AI-reviewed mock interview - questions 2-5 of the same
+              take, scored on communication (clarity/fluency/vocabulary &
+              grammar/confidence). Same underlying flow as Card 1 above. */}
+          <div
+            style={{
+              background: "#fff",
+              border: "1px solid #EAE6DF",
+              borderRadius: 20,
+              padding: "24px 28px",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 20,
+              flexWrap: "wrap"
+            }}
           >
-            <i className="fa-solid fa-camera" style={{ marginRight: 8 }}></i>
-            {questionsLoading ? "Loading Questions…" : "Enable Camera & Verify Liveness →"}
-          </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1, minWidth: 280 }}>
+              <div
+                style={{
+                  width: 54,
+                  height: 54,
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  fontSize: 22,
+                  flexShrink: 0,
+                  boxShadow: "0 8px 20px rgba(236, 72, 153, 0.28)"
+                }}
+              >
+                <i className="fa-solid fa-user" />
+              </div>
+
+              <div>
+                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
+                  AI-reviewed 5-minute mock interview
+                </h4>
+                <p style={{ fontSize: 13.5, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
+                  Specialty-tuned questions. Talentera AI scores fluency, confidence, and structured answering.
+                </p>
+              </div>
+            </div>
+
+            {/* START MOCK Pink Button - same flow as RECORD NOW above; the
+                self-introduction (Question 1) leads straight into these
+                mock-interview questions within one recording. */}
+            <button
+              type="button"
+              onClick={() => setStep("liveness")}
+              disabled={questionsLoading}
+              style={{
+                background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
+                color: "#ffffff",
+                border: "none",
+                padding: "14px 32px",
+                borderRadius: 12,
+                fontWeight: 800,
+                fontSize: 14,
+                letterSpacing: "0.05em",
+                cursor: "pointer",
+                boxShadow: "0 6px 20px rgba(225, 29, 72, 0.35)",
+                transition: "all 0.2s ease",
+                whiteSpace: "nowrap"
+              }}
+            >
+              {questionsLoading ? "LOADING..." : "START MOCK"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -951,21 +1115,21 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                     disabled={!isFacePresent}
                   >
                     <i className="fa-solid fa-video" style={{ marginRight: 6 }}></i>
-                    {isFacePresent ? "Start Single-Take AI Video Interview →" : "🔒 Face Required in Front of Camera"}
+                    {isFacePresent ? "Start 90s Self-Introduction Recording →" : "🔒 Face Required in Front of Camera"}
                   </button>
                 ) : (
                   <div>
                     <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--navy)", marginBottom: 10 }}>
                       <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 3s linear infinite" }}></i>
-                      {isSpeaking ? "AI is asking the question…" : `Questions auto-advance on ${SILENCE_TIMEOUT_SECONDS}s silence or time limit expiration.`}
+                      {isSpeaking ? "AI is asking you to introduce yourself..." : `Speak clearly. Recording will submit automatically in ${recTimeLeft}s or when you click submit.`}
                     </div>
                     <button
                       type="button"
-                      className="btn btn-outline"
-                      style={{ width: "100%", justifyContent: "center", color: "#DC2626", borderColor: "#DC2626", padding: "12px 16px", fontWeight: 800 }}
+                      className="btn btn-gold"
+                      style={{ width: "100%", justifyContent: "center", padding: "12px 16px", fontWeight: 800 }}
                       onClick={handleFinishSingleTakeInterview}
                     >
-                      <i className="fa-solid fa-stop" style={{ marginRight: 6 }}></i> Stop &amp; Submit Interview →
+                      <i className="fa-solid fa-check" style={{ marginRight: 6 }}></i> Submit 90s Video Recording →
                     </button>
                   </div>
                 )}
@@ -983,18 +1147,55 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             AI Analyzing Your Spoken Communication…
           </h3>
           <p style={{ fontSize: 13, color: "#64748B" }}>
-            The AI is listening to your answers and scoring your clarity, fluency, vocabulary, and delivery.
+            The AI is evaluating your self-introduction for spoken clarity, fluency, and professional delivery.
           </p>
         </div>
       )}
 
-      {/* STEP 5: SUBMISSION CONFIRMATION - shows the AI's communication
-          score + rubric breakdown directly, since this stage is scored
-          entirely by AI (clarity/fluency/vocabulary & grammar/confidence &
-          delivery) and isn't gated on a staff correctness review. See
-          evaluateAiVideoAssessment in backend/utils/aiAssessment.js. */}
+      {/* STEP 5: SUBMISSION CONFIRMATION */}
       {step === "report" && evaluation && (
         <div>
+          {evaluation.rubric && (
+            <div
+              style={{
+                background: "#F0FDF4",
+                border: "1px solid #86EFAC",
+                borderRadius: 14,
+                padding: "16px 20px",
+                marginBottom: 16,
+                display: "flex",
+                alignItems: "center",
+                gap: 14,
+                flexWrap: "wrap",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#22C55E", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                  <i className="fa-solid fa-check"></i>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, color: "#15803D", fontSize: 14 }}>
+                    Recording + mock complete · Fluency {evaluation.rubric.fluency} · Confidence {evaluation.rubric.confidenceDelivery}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#166534" }}>
+                    Available to companies that shortlist you. Re-record from your dashboard anytime.
+                  </div>
+                </div>
+              </div>
+              {lastSavedDataRef.current && (
+                <button
+                  type="button"
+                  className="btn btn-gold"
+                  onClick={handleContinueToNextStage}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  Continue to Next Stage →
+                </button>
+              )}
+            </div>
+          )}
+
           <div style={{ background: "#fff", border: "2px solid #22C55E", borderRadius: 16, padding: 32, boxShadow: "0 10px 30px rgba(0,0,0,0.04)", textAlign: "center" }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
               <i className="fa-solid fa-check"></i>
@@ -1002,11 +1203,41 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
               <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                <i className="fa-solid fa-circle-check"></i> INTERVIEW SUBMITTED &amp; RECORDED
+                <i className="fa-solid fa-circle-check"></i> 90s SELF-INTRODUCTION RECORDED
               </span>
               <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #F59E0B" }}>
-                <i className="fa-solid fa-lock"></i> Single Attempt Completed • Retakes Not Allowed
+                <i className="fa-solid fa-lock"></i> Single Attempt Completed
               </span>
+            </div>
+
+            <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>
+              Thank you for recording your self-introduction!
+            </h3>
+
+            {/* DEVELOPER RETAKE OPTION */}
+            <div style={{ marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("setup");
+                  setSessionStarted(false);
+                  setIsRecording(false);
+                  setRecTimeLeft(90);
+                }}
+                style={{
+                  background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+                  color: "#06152A",
+                  border: "none",
+                  padding: "10px 20px",
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(229,168,46,0.3)"
+                }}
+              >
+                ⚡ Developer Retake Video Recording (Dev Mode)
+              </button>
             </div>
 
             <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>

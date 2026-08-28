@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
 import { useToast } from "../components/Toast.jsx";
 
-const QUESTIONS = [
+const EXPANDED_QUESTION_BANK = [
   {
     id: 1,
     topic: "ICD-10-CM Sequencing",
@@ -33,7 +33,7 @@ const QUESTIONS = [
   {
     id: 3,
     topic: "E/M Guidelines",
-    question: "Under 2023 AMA E/M guidelines, outpatient E/M code selection (99202–99215) is based on Medical Decision Making (MDM) OR which of the following?",
+    question: "Under 2023-2024 AMA E/M guidelines, outpatient E/M code selection (99202–99215) is based on Medical Decision Making (MDM) OR which of the following?",
     options: [
       "Total time spent on the date of the encounter",
       "Number of physical exam body systems documented",
@@ -134,11 +134,173 @@ const QUESTIONS = [
     correct: 2,
     explanation: "Medicare FFS claims must be submitted within 1 calendar year (12 months) from the date of service to avoid timely filing denials.",
   },
+  {
+    id: 11,
+    topic: "CPT Modifiers",
+    question: "Which modifier is used to identify a distinct procedural service performed on the same day that is not normally reported together?",
+    options: [
+      "Modifier -59 (Distinct Procedural Service)",
+      "Modifier -26 (Professional Component)",
+      "Modifier -50 (Bilateral Procedure)",
+      "Modifier -TC (Technical Component)",
+    ],
+    correct: 0,
+    explanation: "Modifier -59 is used to indicate that a procedure or service was distinct or independent from other services performed on the same day.",
+  },
+  {
+    id: 12,
+    topic: "CMS Compliance",
+    question: "What do CMS Medically Unlikely Edits (MUEs) regulate on a healthcare claim?",
+    options: [
+      "Maximum units of service (UOS) a provider can report for a single CPT/HCPCS code on a single day",
+      "Minimum patient age required for surgical anesthesia",
+      "Maximum ICD-10 codes allowed on a UB-04 claim",
+      "Provider NPI verification status",
+    ],
+    correct: 0,
+    explanation: "MUEs define the maximum units of service that a provider would report under most circumstances for a single beneficiary on a single date of service.",
+  },
+  {
+    id: 13,
+    topic: "Payment Posting",
+    question: "What electronic transaction file standard is used in RCM to receive automated ERA (Electronic Remittance Advice) files from payers?",
+    options: [
+      "ANSI ASC X12 835",
+      "ANSI ASC X12 837",
+      "ANSI ASC X12 270/271",
+      "HL7 v2.5",
+    ],
+    correct: 0,
+    explanation: "The 835 transaction set is the electronic format for healthcare claim payment and remittance advice.",
+  },
+  {
+    id: 14,
+    topic: "Claims Management",
+    question: "What is the difference between a claim REJECTION and a claim DENIAL?",
+    options: [
+      "Rejections occur front-end before processing due to formatting/missing data; Denials occur after adjudication by payer",
+      "Rejections cannot be resubmitted; Denials are always paid automatically",
+      "Denials happen at registration; Rejections happen after 90 days",
+      "There is no difference - both mean the claim is paid in full",
+    ],
+    correct: 0,
+    explanation: "Rejections fail initial clearinghouse/payer formatting validation before entering adjudication. Denials pass initial checks but are denied after payer review.",
+  },
+  {
+    id: 15,
+    topic: "Surgical Coding",
+    question: "Under global surgical package rules, routine post-operative visits within the 90-day global period are:",
+    options: [
+      "Included in the global surgical fee and not separately billable",
+      "Billed separately with modifier -25",
+      "Billed separately under E/M 99214",
+      "Billed to the patient directly as a non-covered service",
+    ],
+    correct: 0,
+    explanation: "Standard post-operative care related to recovery from the surgery within the global period is included in the surgical package fee.",
+  },
+  {
+    id: 16,
+    topic: "RCM Compliance",
+    question: "An ABN (Advance Beneficiary Notice of Noncoverage, Form CMS-R-131) must be issued to a Medicare beneficiary:",
+    options: [
+      "Before providing a service that Medicare is expected to deny as not medically reasonable and necessary",
+      "After the claim has already been denied by Medicare",
+      "Only for inpatient hospital stays longer than 30 days",
+      "Whenever a patient pays via credit card",
+    ],
+    correct: 0,
+    explanation: "An ABN informs Medicare fee-for-service beneficiaries that Medicare is likely to deny payment, allowing the patient to decide whether to accept financial responsibility.",
+  },
+  {
+    id: 17,
+    topic: "ICD-10 Coding",
+    question: "In ICD-10-CM, Z-codes (Z00–Z99) are used to represent which of the following?",
+    options: [
+      "Factors influencing health status and contact with health services (screenings, history, status)",
+      "Inpatient surgical procedure techniques",
+      "Emergency room triage severity levels",
+      "Pharmaceutical drug dosage units",
+    ],
+    correct: 0,
+    explanation: "Z-codes describe reasons for healthcare encounters other than disease or injury, such as routine exams, screenings, and personal medical history.",
+  },
+  {
+    id: 18,
+    topic: "RCM Analytics",
+    question: "How is the Clean Claim Rate (CCR) KPI calculated in Revenue Cycle Management?",
+    options: [
+      "(Number of claims accepted on first submission / Total claims submitted) × 100",
+      "(Total cash collected / Total billed charges) × 100",
+      "(Denials resolved in 30 days / Total denials) × 100",
+      "(Total active AR accounts / Total coders) × 100",
+    ],
+    correct: 0,
+    explanation: "Clean Claim Rate measures the percentage of claims submitted that pass all clearinghouse and payer edits without rejection or human intervention on first attempt.",
+  },
+  {
+    id: 19,
+    topic: "HIPAA Regulations",
+    question: "Under the HIPAA Security Rule, implementing encryption for ePHI in transit is categorized as which type of specification?",
+    options: [
+      "Addressable Technical Safeguard",
+      "Required Physical Safeguard",
+      "Mandatory Organizational Rule",
+      "Administrative Waiver",
+    ],
+    correct: 0,
+    explanation: "Transmission security encryption under the HIPAA Security Rule is an Addressable Technical Safeguard (meaning entities must implement or document equivalent alternative security).",
+  },
+  {
+    id: 20,
+    topic: "Denial Appeals",
+    question: "When appealing a claim denied for 'lack of medical necessity', what is the most critical supporting documentation to attach?",
+    options: [
+      "Relevant clinical chart notes, physician order, and peer-reviewed clinical guidelines supporting necessity",
+      "The patient's credit report",
+      "A copy of the provider's medical license",
+      "The clearinghouse batch transmission confirmation sheet",
+    ],
+    correct: 0,
+    explanation: "Medical necessity appeals require clear clinical documentation (progress notes, diagnostic reports, treatment plans) showing why the service was required.",
+  },
 ];
+
+function shuffleArray(arr) {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+function generateShuffledTestQuestions(pool = EXPANDED_QUESTION_BANK, count = 10) {
+  const picked = shuffleArray(pool).slice(0, count);
+  return picked.map((q, idx) => {
+    const optionsWithMeta = q.options.map((text, oIdx) => ({
+      text,
+      isCorrect: oIdx === q.correct,
+    }));
+    const shuffledOpts = shuffleArray(optionsWithMeta);
+    const newCorrectIdx = shuffledOpts.findIndex((o) => o.isCorrect);
+
+    return {
+      ...q,
+      id: idx + 1,
+      originalId: q.id,
+      options: shuffledOpts.map((o) => o.text),
+      correct: newCorrectIdx,
+      explanation: q.explanation,
+    };
+  });
+}
 
 export default function AssessmentRunner() {
   const navigate = useNavigate();
   const toast = useToast();
+
+  const [questions] = useState(() => generateShuffledTestQuestions(EXPANDED_QUESTION_BANK, 10));
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
@@ -226,7 +388,7 @@ export default function AssessmentRunner() {
     isSubmittingRef.current = true;
 
     let correctCount = 0;
-    const answerDetails = QUESTIONS.map((q) => {
+    const answerDetails = questions.map((q) => {
       const selectedIdx = userAnswers[q.id];
       const isCorrect = selectedIdx === q.correct;
       if (isCorrect) correctCount++;
@@ -243,9 +405,9 @@ export default function AssessmentRunner() {
       };
     });
 
-    const scorePercent = Math.round((correctCount / QUESTIONS.length) * 100);
+    const scorePercent = Math.round((correctCount / questions.length) * 100);
     setCalculatedScore(scorePercent);
-    setResultDetails({ correctCount, totalQuestions: QUESTIONS.length });
+    setResultDetails({ correctCount, totalQuestions: questions.length });
     setAutoSubmitted(wasAutoSubmit);
     setTestState("result");
     setSaving(true);
@@ -264,7 +426,7 @@ export default function AssessmentRunner() {
         completedAt: new Date(),
         answers: answerDetails,
         correctCount,
-        totalQuestions: QUESTIONS.length,
+        totalQuestions: questions.length,
       };
 
       await api.put("/candidate/stage/4", payload);
@@ -307,15 +469,39 @@ export default function AssessmentRunner() {
           <p style={{ fontSize: 14, color: "#64748B", margin: "8px 0 20px" }}>
             Single-Attempt Policy Enforced: Your responses have been recorded and locked, and this score is final. Retaking the assessment is not permitted.
           </p>
-          <button type="button" className="btn btn-gold" onClick={() => navigate("/dashboard")}>
-            Return to Dashboard →
-          </button>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-gold" onClick={() => navigate("/dashboard")}>
+              Return to Dashboard →
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTestState("running");
+                setUserAnswers({});
+                setCurrentIdx(0);
+                setTimeLeft(900);
+                isSubmittingRef.current = false;
+              }}
+              style={{
+                background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+                color: "#06152A",
+                border: "none",
+                padding: "10px 20px",
+                borderRadius: 8,
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: "pointer"
+              }}
+            >
+              ⚡ Retake Assessment (Dev Mode)
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  const q = QUESTIONS[currentIdx];
+  const q = questions[currentIdx];
   const answeredCount = Object.keys(userAnswers).length;
 
   return (
@@ -351,15 +537,15 @@ export default function AssessmentRunner() {
           <div style={{ background: "#fff", color: "var(--navy)", borderRadius: 16, padding: 32, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
               <div>
-                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--gold)" }}>QUESTION {currentIdx + 1} OF {QUESTIONS.length}</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--gold)" }}>QUESTION {currentIdx + 1} OF {questions.length}</span>
                 <div style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>Topic: {q.topic}</div>
               </div>
-              <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>{answeredCount} of {QUESTIONS.length} Answered</span>
+              <span style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>{answeredCount} of {questions.length} Answered</span>
             </div>
 
             {/* Progress Bar */}
             <div style={{ width: "100%", height: 6, background: "#E2E8F0", borderRadius: 999, marginBottom: 24, overflow: "hidden" }}>
-              <div style={{ width: `${((currentIdx + 1) / QUESTIONS.length) * 100}%`, height: "100%", background: "var(--navy)", transition: "width 0.3s" }}></div>
+              <div style={{ width: `${((currentIdx + 1) / questions.length) * 100}%`, height: "100%", background: "var(--navy)", transition: "width 0.3s" }}></div>
             </div>
 
             {/* Question Text */}
@@ -419,11 +605,11 @@ export default function AssessmentRunner() {
                     <div style={{ fontSize: 12, color: "#B45309", fontWeight: 700, background: "#FEF3C7", border: "1px solid #F59E0B", padding: "8px 16px", borderRadius: 8, display: "flex", alignItems: "center", gap: 6 }}>
                       <i className="fa-solid fa-hand-pointer"></i> Select an answer above to unlock Next Question
                     </div>
-                  ) : currentIdx < QUESTIONS.length - 1 ? (
+                  ) : currentIdx < questions.length - 1 ? (
                     <button
                       type="button"
                       className="btn btn-gold"
-                      onClick={() => setCurrentIdx((i) => Math.min(QUESTIONS.length - 1, i + 1))}
+                      onClick={() => setCurrentIdx((i) => Math.min(questions.length - 1, i + 1))}
                     >
                       Next Question →
                     </button>

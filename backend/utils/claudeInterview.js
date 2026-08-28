@@ -9,7 +9,7 @@ const axios = require("axios");
  * (getClaudeMockInterviewResponse / evaluateAndCompareAnswerWithClaude) that
  * powered a shuffle-and-compare bot against a manually-typed reference
  * answer. It's been rebuilt around three calls that drive a full live
- * interview: generating a tailored 10-question set, judging + replying to
+ * interview: generating a tailored 5-question set, judging + replying to
  * each candidate utterance in natural language, and producing a final
  * scored report. Every call degrades to a heuristic fallback when
  * CLAUDE_API_KEY/ANTHROPIC_API_KEY is missing or the API call fails, so the
@@ -92,8 +92,17 @@ const FALLBACK_QUESTION_BANK = [
   },
 ];
 
+function shuffleArray(list) {
+  const arr = [...list];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function withIndices(list) {
-  return list.slice(0, 10).map((q, idx) => ({
+  return list.slice(0, 5).map((q, idx) => ({
     index: idx,
     question: q.question,
     expectedConcepts: Array.isArray(q.expectedConcepts) ? q.expectedConcepts.filter(Boolean).map(String) : [],
@@ -101,7 +110,7 @@ function withIndices(list) {
 }
 
 /**
- * Generate exactly 10 interview questions tailored to the candidate's role
+ * Generate exactly 5 interview questions tailored to the candidate's role
  * and experience level, in the Medical Coding / RCM domain.
  */
 async function generateInterviewQuestions({ candidateName = "", role = "", experienceYears } = {}) {
@@ -111,10 +120,10 @@ async function generateInterviewQuestions({ candidateName = "", role = "", exper
 
   if (key) {
     try {
-      const prompt = `Generate exactly 10 technical interview questions for a Healthcare Medical Coding / Revenue Cycle Management (RCM) candidate.
+      const prompt = `Generate exactly 5 technical interview questions for a Healthcare Medical Coding / Revenue Cycle Management (RCM) candidate.
 Candidate: ${candidateName || "the candidate"}, target role "${roleLabel}", ${expLabel}.
 Cover a realistic mix across: ICD-10/CPT coding guidelines, E/M leveling & modifiers, denial management & appeals, HIPAA/PHI compliance, RCM workflow (eligibility, charge capture, AR follow-up), payer policy, coding compliance/fraud awareness, and at least one real-world scenario/problem-solving question. Scale difficulty to the stated experience (junior = foundational recall, senior = judgment/edge cases).
-Return STRICT JSON only: an array of exactly 10 objects, each shaped { "question": string, "expectedConcepts": string[] } where expectedConcepts is 3-6 short key terms/concepts a strong answer should mention. No prose outside the JSON array, no markdown fences.`;
+Return STRICT JSON only: an array of exactly 5 objects, each shaped { "question": string, "expectedConcepts": string[] } where expectedConcepts is 3-6 short key terms/concepts a strong answer should mention. No prose outside the JSON array, no markdown fences.`;
 
       const response = await axios.post(
         ANTHROPIC_URL,
@@ -136,8 +145,11 @@ Return STRICT JSON only: an array of exactly 10 objects, each shaped { "question
           .filter((q) => q && typeof q.question === "string" && q.question.trim())
           .map((q) => ({ question: q.question.trim(), expectedConcepts: q.expectedConcepts }));
         if (cleaned.length >= 5) {
-          const padded = cleaned.length >= 10 ? cleaned : [...cleaned, ...FALLBACK_QUESTION_BANK];
-          return withIndices(padded);
+          // Target is 5 questions and cleaned already has at least 5, so no
+          // padding from the fallback bank is needed (unlike when the
+          // target used to be 10 and a shorter LLM response needed topping
+          // up) - just take the first 5.
+          return withIndices(cleaned);
         }
       }
     } catch (err) {
@@ -145,7 +157,9 @@ Return STRICT JSON only: an array of exactly 10 objects, each shaped { "question
     }
   }
 
-  return withIndices(FALLBACK_QUESTION_BANK);
+  // Shuffle so a fallback (no API key / API call failed) session doesn't
+  // always ask the same first 5 of the 10-question bank.
+  return withIndices(shuffleArray(FALLBACK_QUESTION_BANK));
 }
 
 // ---------------------------------------------------------------------------
@@ -253,11 +267,28 @@ function normalizeTurnResult(parsed, quickIntent) {
   // model getting it right.
   if (quickIntent === "stop") intent = "stop";
 
-  const evaluation = VALID_EVALUATIONS.includes(parsed.evaluation) ? parsed.evaluation : "no_answer";
-  const score = Number.isFinite(Number(parsed.score)) ? Math.max(0, Math.min(10, Number(parsed.score))) : 0;
-  const missingConcepts = Array.isArray(parsed.missingConcepts) ? parsed.missingConcepts.filter(Boolean).map(String) : [];
-  const messiReply = typeof parsed.messiReply === "string" && parsed.messiReply.trim() ? parsed.messiReply.trim() : "Thank you - let's continue.";
-  const askFollowUp = Boolean(parsed.askFollowUp) && intent === "answer";
+  let evaluation = VALID_EVALUATIONS.includes(parsed.evaluation) ? parsed.evaluation : "no_answer";
+  let score = Number.isFinite(Number(parsed.score)) ? Math.max(0, Math.min(10, Number(parsed.score))) : 0;
+  let missingConcepts = Array.isArray(parsed.missingConcepts) ? parsed.missingConcepts.filter(Boolean).map(String) : [];
+  let messiReply = typeof parsed.messiReply === "string" && parsed.messiReply.trim() ? parsed.messiReply.trim() : "Thank you - let's continue.";
+  let askFollowUp = Boolean(parsed.askFollowUp) && intent === "answer";
+
+  // detectQuickIntent() only ever returns "unclear" for a candidateUtterance
+  // that is genuinely empty (silence-timeout auto-submit, or nothing was
+  // typed/heard) - see detectQuickIntent above. That specifically means "no
+  // answer was given", not "the LLM was confused by real words". Always
+  // treat it as a skip and advance to the next question, regardless of what
+  // the LLM guessed - otherwise a candidate who stays silent gets stuck
+  // repeating the same question forever (this must not depend on the model
+  // getting it right, same rationale as the "stop" override above).
+  if (quickIntent === "unclear") {
+    intent = "skip";
+    evaluation = "no_answer";
+    score = 0;
+    missingConcepts = [];
+    askFollowUp = false;
+    messiReply = "No worries, let's move on to the next question.";
+  }
 
   return { intent, evaluation, score, missingConcepts, messiReply, askFollowUp };
 }

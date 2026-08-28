@@ -55,7 +55,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
     if (onPostRequirement) {
       onPostRequirement();
     } else {
-      navigate("/companies/register");
+      navigate("/companies/jobs");
     }
   };
 
@@ -67,7 +67,7 @@ export default function HireVerifiedTalentContent({ onPostRequirement, onPostJob
     if (onPostJob) {
       onPostJob();
     } else {
-      navigate("/companies/register");
+      navigate("/companies/jobs");
     }
   };
 
