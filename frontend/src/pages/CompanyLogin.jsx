@@ -45,25 +45,23 @@ export default function CompanyLogin() {
     }
   }
 
-  const handleDemoEmployerLogin = async () => {
+  const handleDemoEmployerLogin = async (e) => {
+    if (e) e.preventDefault();
     setError("");
     setSubmitting(true);
     try {
-      const res = await fetch("/api/company/auth/demo-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await fetch("/api/company/auth/demo-login", { method: "POST" });
       const data = await safeJson(res);
       if (res.ok && data.token) {
         localStorage.setItem("talentera_company_token", data.token);
         localStorage.setItem("talentera_company_info", JSON.stringify(data.company));
-        window.location.href = "/companies/jobs";
+        navigate("/companies/jobs");
       } else {
         setError(data.message || "Demo login failed.");
       }
     } catch (err) {
       console.error(err);
-      setError("Demo login error.");
+      setError("Demo login error: " + (err.message || "Failed to log in"));
     } finally {
       setSubmitting(false);
     }

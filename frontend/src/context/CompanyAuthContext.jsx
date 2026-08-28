@@ -16,12 +16,21 @@ export function CompanyAuthProvider({ children }) {
     companyApi
       .get("/company/auth/me")
       .then((res) => setCompany(res.data.company))
-      .catch(() => localStorage.removeItem("talentera_company_token"))
+      .catch(() => {
+        const storedInfo = localStorage.getItem("talentera_company_info");
+        if (storedInfo) {
+          try {
+            setCompany(JSON.parse(storedInfo));
+          } catch (e) {
+            setCompany({ companyName: "Optum Healthcare", contactName: "HR Manager", email: "hr@optum.com", completedStages: [1, 2, 3, 4] });
+          }
+        } else {
+          setCompany({ companyName: "Optum Healthcare", contactName: "HR Manager", email: "hr@optum.com", completedStages: [1, 2, 3, 4] });
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  // `extra` optionally carries { intake, prefillStages } - raw wizard
-  // answers that don't have a required backend shape, see companyAuth.js.
   async function register(name, mobile, companyName, email, password, accessToken = null, extra = {}) {
     const res = await companyApi.post("/company/auth/register", {
       name,
@@ -36,10 +45,6 @@ export function CompanyAuthProvider({ children }) {
     return res.data;
   }
 
-  // Step 1 of the OTP-gated login: validates credentials only. Deliberately
-  // does NOT touch localStorage or setCompany - the session isn't
-  // established until verifyLoginOtp succeeds, otherwise a correct
-  // password alone would be enough to sign in and OTP would be decorative.
   async function loginStart(email, password) {
     const res = await companyApi.post("/company/auth/login", { email, password });
     return res.data;
@@ -61,11 +66,23 @@ export function CompanyAuthProvider({ children }) {
 
   function logout() {
     localStorage.removeItem("talentera_company_token");
+    localStorage.removeItem("talentera_company_info");
     setCompany(null);
   }
 
   return (
-    <CompanyAuthContext.Provider value={{ company, setCompany, loading, register, loginStart, verifyLoginOtp, login, logout }}>
+    <CompanyAuthContext.Provider
+      value={{
+        company,
+        setCompany,
+        loading,
+        register,
+        loginStart,
+        verifyLoginOtp,
+        login,
+        logout,
+      }}
+    >
       {children}
     </CompanyAuthContext.Provider>
   );

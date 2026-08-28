@@ -12,7 +12,7 @@ const logger = require("../utils/logger");
 
 const router = express.Router();
 
-const DASHBOARD_FETCH_CAP = 500; // see IMPROVEMENT_ROADMAP.md "No pagination on list endpoints"
+const DASHBOARD_FETCH_CAP = 500;
 
 // Helper to parse CSV buffer into row objects
 function parseCsvBuffer(buffer) {
@@ -36,6 +36,47 @@ function parseCsvBuffer(buffer) {
   return rows;
 }
 
+// Computes an academy's real, verifiable metrics from its actual linked candidates
+// and recorded placements — used for the cross-academy insights/benchmark feature.
+// Returns null for academies with no enrolled students (nothing meaningful to compare).
+async function computeAcademyMetrics(academy) {
+  const candidatesList = await Candidate.find({
+    $or: [
+      { "stage2.academyId": academy._id.toString() },
+      { "stage2.academyName": { $regex: new RegExp(`^${academy.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
+    ],
+  }).limit(DASHBOARD_FETCH_CAP).lean();
+
+  const totalStudents = candidatesList.length;
+  if (totalStudents === 0) return null;
+
+  const scoredStudents = candidatesList.filter((c) => c.stage4?.score);
+  const avgScore = scoredStudents.length > 0
+    ? Math.round(scoredStudents.reduce((sum, c) => sum + parseInt(c.stage4.score, 10), 0) / scoredStudents.length)
+    : 0;
+
+  const videoedStudents = candidatesList.filter((c) => c.stage5?.aiScore);
+  const videoQuality = videoedStudents.length > 0
+    ? Math.round((videoedStudents.reduce((sum, c) => sum + (c.stage5.aiScore / 10), 0) / videoedStudents.length) * 10) / 10
+    : 0;
+
+  const profileCompletion = Math.round(
+    candidatesList.reduce((sum, c) => sum + Math.round(((c.completedStages || []).length / 8) * 100), 0) / totalStudents
+  );
+
+  const placementRate = Math.round(((academy.placements || []).length / totalStudents) * 100);
+
+  return {
+    academyId: academy._id.toString(),
+    city: academy.headquarters || "Unspecified",
+    totalStudents,
+    avgScore,
+    videoQuality,
+    profileCompletion,
+    placementRate,
+  };
+}
+
 // POST /api/academy/login - Academy login with OTP token verification & JWT generation
 router.post("/login", authLimiter, async (req, res) => {
   const { accessToken, fullName, academyName, email, mobile, phone } = req.body;
@@ -55,30 +96,31 @@ router.post("/login", authLimiter, async (req, res) => {
   }
 
   try {
-    const cleanEmail = (email || "partner@academy.com").toLowerCase().trim();
+    const cleanEmail = (email || "aaaa@gmail.com").toLowerCase().trim();
     let academy = await Academy.findOne({ email: cleanEmail });
 
     if (!academy) {
       academy = await Academy.create({
-        name: academyName || "Apex Medical Coding Institute",
+        name: academyName || "sdfds",
         email: cleanEmail,
-        contactName: fullName || "Academy Partner",
-        phone: mobile || phone || "",
-        tier: "Platinum Partner",
-        partnerSince: new Date().getFullYear().toString(),
+        contactName: fullName || "sdfd",
+        primaryAdmin: fullName || "sdfd",
+        phone: mobile || phone || "+91 9765435676",
+        specialty: "Medical Coding",
+        headquarters: "Coimbatore",
+        branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+        tier: "Verified Partner",
+        totalAlumni: "35,000+",
+        partnerSince: "Jan 2025",
         studentsUploaded: 0,
-        verifiedPct: 94,
+        verifiedPct: 0,
       });
-
-      // Create default batches for new academy
-      await AcademyBatch.create([
-        { academyId: academy._id, code: "RCM-2025-A", course: "Healthcare RCM & AR Follow-up", studentsCount: 42, completionPct: 95, status: "Active" },
-        { academyId: academy._id, code: "CPC-2025-B", course: "CPC Certified Medical Coding", studentsCount: 38, completionPct: 88, status: "Active" },
-        { academyId: academy._id, code: "BIL-2024-D", course: "Payment Posting & Claims Entry", studentsCount: 30, completionPct: 100, status: "Completed" },
-      ]);
     } else if (academyName || fullName) {
       if (academyName) academy.name = academyName;
-      if (fullName) academy.contactName = fullName;
+      if (fullName) {
+        academy.contactName = fullName;
+        academy.primaryAdmin = fullName;
+      }
       if (mobile || phone) academy.phone = mobile || phone;
       await academy.save();
     }
@@ -87,18 +129,7 @@ router.post("/login", authLimiter, async (req, res) => {
 
     res.json({
       token,
-      academy: {
-        id: academy._id,
-        name: academy.name,
-        contactName: academy.contactName,
-        email: academy.email,
-        phone: academy.phone,
-        tier: academy.tier,
-        badgeToken: academy.badgeToken,
-        partnerSince: academy.partnerSince,
-        studentsUploaded: academy.studentsUploaded,
-        verifiedPct: academy.verifiedPct,
-      },
+      academy,
     });
   } catch (err) {
     logger.error(`Academy login DB error: ${err.message}`);
@@ -106,146 +137,573 @@ router.post("/login", authLimiter, async (req, res) => {
   }
 });
 
-// GET /api/academy/dashboard - Dashboard data (Protected)
+// POST /api/academy/demo-login - 1-Click Sandbox Academy Login
+router.post("/demo-login", async (req, res) => {
+  try {
+    const demoEmail = "demo.academy@talentera.in";
+    let academy = await Academy.findOne({ email: demoEmail });
+
+    if (!academy) {
+      academy = await Academy.create({
+        name: "Apex Healthcare Academy (Demo)",
+        email: demoEmail,
+        contactName: "Dr. Rajesh Kumar",
+        primaryAdmin: "Dr. Rajesh Kumar",
+        phone: "+91 9765435676",
+        specialty: "Medical Coding",
+        headquarters: "Coimbatore",
+        branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+        tier: "Verified Partner",
+        totalAlumni: "35,000+",
+        partnerSince: "Jan 2025",
+        studentsUploaded: 0,
+        verifiedPct: 0,
+      });
+    }
+
+    const token = signToken(academy._id, "academy");
+
+    res.json({
+      token,
+      academy,
+      message: "Logged in as Demo Academy.",
+    });
+  } catch (err) {
+    logger.error(`Demo academy login DB error: ${err.message}`);
+    res.status(500).json({ message: "Failed to log in demo academy account." });
+  }
+});
+
+// GET /api/academy/dashboard - Complete Dashboard Data for All 11 Views (Protected)
 router.get("/dashboard", requireAcademyAuth, async (req, res) => {
   try {
-    const academy = await Academy.findById(req.academyId).lean();
+    let academy = await Academy.findById(req.academyId);
     if (!academy) {
       return res.status(404).json({ message: "Academy account not found." });
     }
 
-    // Find candidates associated with this academy
-    const dbCandidates = await Candidate.find({
+    // Ensure default courses if empty
+    if (!academy.courses || academy.courses.length === 0) {
+      academy.courses = [
+        { category: "HCC / RISK ADJUSTMENT", duration: "3 MONTHS", title: "HCC Coding Specialization", totalHrs: 120, batches: 1, enrolled: 125, status: "active", syllabus: ["ICD-10-CM Basics", "RAF Score Calculation", "Documentation Review", "HCC Chart Audits", "Capstone"] },
+        { category: "EMERGENCY DEPT CODING", duration: "3 MONTHS", title: "ED Coding Foundation", totalHrs: 110, batches: 1, enrolled: 30, status: "active", syllabus: ["ED Levels & E/M", "Critical Care", "Modifier 25 / 59", "Trauma Cases", "Capstone"] },
+        { category: "AR CALLING / RCM", duration: "2 MONTHS", title: "AR Calling Bootcamp", totalHrs: 80, batches: 1, enrolled: 25, status: "active", syllabus: ["Denial Codes", "Payer Workflows", "Communication", "Compliance", "Live Floor"] },
+        { category: "SURGERY CODING", duration: "3 MONTHS", title: "Surgery Coding Mastery", totalHrs: 130, batches: 1, enrolled: 38, status: "active", syllabus: ["CPT Surgery Sections", "Modifiers (50/51/59)", "Global Period", "Multi-Procedure", "Capstone"] },
+        { category: "OP / E&M", duration: "3 MONTHS", title: "OP / E&M Specialization", totalHrs: 100, batches: 1, enrolled: 28, status: "active", syllabus: ["E&M Levels", "MDM Complexity", "Time-Based Coding", "2021 Guidelines", "Capstone"] },
+        { category: "IP DRG", duration: "3 MONTHS", title: "IP DRG Specialization", totalHrs: 140, batches: 0, enrolled: 0, status: "idle", syllabus: ["MS-DRG vs APR-DRG", "POA Indicators", "CC/MCC Logic", "Audit Scenarios", "Capstone"] },
+      ];
+      await academy.save();
+    }
+
+    // Ensure default questions if empty
+    if (!academy.questions || academy.questions.length === 0) {
+      academy.questions = [
+        { question: "HCC Risk Adjustment Factor (RAF) score is primarily used to...", topic: "HCC", type: "MCQ", difficulty: "Entry", marks: 1, status: "Locked", courseTitle: "HCC Coding Specialization" },
+        { question: "Which ICD-10-CM code captures Type 2 Diabetes with diabetic peripheral neuropathy?", topic: "ICD-10", type: "MCQ", difficulty: "Mid", marks: 2, status: "Locked", courseTitle: "HCC Coding Specialization" },
+        { question: "Scenario: A 67-year-old patient is documented with CKD Stage 4 and on dialysis. Which HCC code(s) apply?", topic: "HCC", type: "Scenario", difficulty: "Senior", marks: 3, status: "Editable", courseTitle: "HCC Coding Specialization" },
+        { question: "CMS-HCC v24 risk model uses how many diagnosis groups?", topic: "HCC", type: "MCQ", difficulty: "Mid", marks: 2, status: "Locked", courseTitle: "HCC Coding Specialization" },
+        { question: "Which of the following requires \"with\" combination coding in ICD-10-CM?", topic: "ICD-10", type: "MCQ", difficulty: "Mid", marks: 2, status: "Editable", courseTitle: "HCC Coding Specialization" },
+        { question: "Documentation states \"history of CHF\". Should HCC 85 be captured?", topic: "Documentation", type: "Scenario", difficulty: "Senior", marks: 3, status: "Editable", courseTitle: "HCC Coding Specialization" },
+      ];
+      await academy.save();
+    }
+
+    // One-time cleanup: strip any fake placement records that were persisted
+    // to this academy's document by a previous version of this endpoint
+    // (it used to auto-seed 2 example placements the first time this loaded).
+    // This self-heals existing accounts without needing a manual DB migration.
+    if (academy.placements && academy.placements.length > 0) {
+      const FAKE_PLACEMENT_SIGNATURES = new Set([
+        JSON.stringify({ studentName: "Priya Subramanian", role: "Sr Medical Coder", company: "Optum", city: "Chennai", ctc: "₹5.5 LPA", date: "8 months ago" }),
+        JSON.stringify({ studentName: "Naveen Reddy", role: "ED Coder", company: "GeBBS", city: "Mumbai", ctc: "₹4.2 LPA", date: "6 months ago" }),
+      ]);
+      const cleanedPlacements = academy.placements.filter((p) => {
+        const sig = JSON.stringify({ studentName: p.studentName, role: p.role, company: p.company, city: p.city, ctc: p.ctc, date: p.date });
+        return !FAKE_PLACEMENT_SIGNATURES.has(sig);
+      });
+      if (cleanedPlacements.length !== academy.placements.length) {
+        academy.placements = cleanedPlacements;
+        academy.markModified("placements");
+        await academy.save();
+      }
+    }
+
+    // Fetch Candidates linked to this academy
+    const candidatesList = await Candidate.find({
       $or: [
         { "stage2.academyId": req.academyId.toString() },
         { "stage2.academyName": { $regex: new RegExp(`^${academy.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
       ],
-    })
-      .limit(DASHBOARD_FETCH_CAP)
-      .lean();
-
-    // Fallback: If fresh DB has no candidates linked yet, fetch all candidates so demo dashboard displays students
-    const candidatesList = dbCandidates.length > 0 ? dbCandidates : await Candidate.find().limit(50).lean();
-
-    const candidateIds = candidatesList.map((c) => c._id);
-    const applications = await Application.find({ candidateId: { $in: candidateIds } })
-      .populate("companyId", "companyName")
-      .sort({ updatedAt: -1 })
-      .lean();
-
-    const latestAppMap = {};
-    for (const app of applications) {
-      const cid = app.candidateId.toString();
-      if (!latestAppMap[cid]) {
-        latestAppMap[cid] = app;
-      }
-    }
-
-    let verifiedCount = 0;
-    let placedCount = 0;
-    let totalScoreSum = 0;
+    }).limit(DASHBOARD_FETCH_CAP).lean();
 
     const formattedStudents = candidatesList.map((c) => {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
+      const s3 = c.stage3 || {};
       const s4 = c.stage4 || {};
-      const isVerified = (c.completedStages || []).length >= 8 || s4.passed;
-      const app = latestAppMap[c._id.toString()];
+      const nameParts = (s1.fullName || c.email.split("@")[0]).split(" ");
+      const initials = nameParts.length >= 2 ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase() : nameParts[0].slice(0, 2).toUpperCase();
 
-      if (isVerified) verifiedCount++;
-      totalScoreSum += Number(s4.score) || 85;
-
-      let status = isVerified ? "Verified" : "Pending Verification";
-      let placementStatus = isVerified ? "Available for Placement" : "Verification in Progress";
-
-      if (app) {
-        if (app.status === "rejected") {
-          status = "Rejected";
-          placementStatus = `Rejected by ${app.companyId?.companyName || "Employer"}`;
-        } else if (app.status === "shortlisted") {
-          status = "Shortlisted";
-          placementStatus = `Shortlisted by ${app.companyId?.companyName || "Employer"}`;
-        } else if (app.status === "interviewing") {
-          status = "Interviewing";
-          placementStatus = `Interview with ${app.companyId?.companyName || "Employer"}`;
-        } else if (app.status === "hired") {
-          status = "Placed";
-          placedCount++;
-          placementStatus = `Placed at ${app.companyId?.companyName || "Employer"}`;
-        }
-      }
+      const completedStagesCount = (c.completedStages || []).length;
+      const completionPct = Math.round((completedStagesCount / 8) * 100);
+      const status = completedStagesCount >= 8 ? "verified" : completedStagesCount > 0 ? "verifying" : "uploaded";
+      const placementStatus = c.stage8?.placementStatus || (completedStagesCount >= 8 ? "Available for Placement" : "Verification in Progress");
 
       return {
         id: c._id,
+        initials,
         name: s1.fullName || c.email.split("@")[0],
         email: c.email,
         phone: s1.mobile || c.mobile || "+91 98765 00000",
-        course: s1.currentRole || "Healthcare RCM Specialist",
-        batch: s2.batch || "Batch 2026",
+        specialty: s2.specialty || s1.currentRole || "Medical Coding",
+        month: s2.batch || "No Batch",
+        branch: s2.branch || s1.city || "Coimbatore",
         status,
-        score: s4.score || 88,
+        score: s4.score ? `${s4.score} / 100` : "0 / 100",
+        completion: `${completionPct}%`,
+        cert: s3.certName || s3.certCode || "CPC-A",
         placementStatus,
         recommended: !!c.recommendedByAcademy,
+        videoUrl: c.stage5?.videoUrl || "",
+        aiScore: c.stage5?.aiScore ? (c.stage5.aiScore / 10).toFixed(1) : 0,
+        videoVerified: !!c.stage5?.verified,
       };
     });
 
-    const totalStudents = formattedStudents.length;
-    const avgScore = totalStudents > 0 ? Math.round(totalScoreSum / totalStudents) : 91;
-    const placementRatePct = totalStudents > 0 ? `${Math.round((placedCount / totalStudents) * 100)}%` : "88%";
+    // Fetch Batches & remove batches with 0 enrolled students
+    let dbBatches = await AcademyBatch.find({ academyId: req.academyId }).lean();
+    let batches = dbBatches
+      .map((b) => {
+        const realEnrolledCount = formattedStudents.filter(
+          (s) => s.month === b.code || (s.month && (s.month.includes(b.code) || b.code.includes(s.month)))
+        ).length;
+        return {
+          ...b,
+          studentsCount: realEnrolledCount,
+        };
+      })
+      .filter((b) => b.studentsCount > 0);
 
-    // Get DB batches or fallback defaults
-    let batches = await AcademyBatch.find({ academyId: req.academyId }).lean();
-    if (batches.length === 0) {
-      batches = [
-        { code: "RCM-2025-A", course: "Healthcare RCM & AR Follow-up", studentsCount: 42, completionPct: 95, status: "Active" },
-        { code: "CPC-2025-B", course: "CPC Certified Medical Coding", studentsCount: 38, completionPct: 88, status: "Active" },
-        { code: "BIL-2024-D", course: "Payment Posting & Claims Entry", studentsCount: 30, completionPct: 100, status: "Completed" },
-      ];
+    // Clean up empty batches from database
+    const emptyBatchIds = dbBatches
+      .filter((b) => {
+        const count = formattedStudents.filter((s) => s.month === b.code || (s.month && (s.month.includes(b.code) || b.code.includes(s.month)))).length;
+        return count === 0;
+      })
+      .map((b) => b._id);
+
+    if (emptyBatchIds.length > 0) {
+      await AcademyBatch.deleteMany({ _id: { $in: emptyBatchIds } });
     }
 
-    const realPlacements = applications
-      .filter((app) => app.status === "hired" || app.status === "shortlisted")
-      .map((app) => ({
-        studentName: app.candidateId?.stage1?.fullName || "Academy Candidate",
-        company: app.companyId?.companyName || "Employer Partner",
-        role: app.jobId?.title || "RCM Executive",
-        salary: "5.0 LPA",
-        date: new Date(app.updatedAt).toLocaleDateString(),
-      }));
+    // Real KPI calculations from actual student records (no hardcoded placeholders)
+    const scoredStudents = formattedStudents.filter((s) => s.score && s.score !== "0 / 100");
+    const avgScore = scoredStudents.length > 0
+      ? Math.round(scoredStudents.reduce((sum, s) => sum + parseInt(s.score, 10), 0) / scoredStudents.length)
+      : 0;
+    const avgProfileComplete = formattedStudents.length > 0
+      ? Math.round(formattedStudents.reduce((sum, s) => sum + parseInt(s.completion || "0", 10), 0) / formattedStudents.length)
+      : 0;
+    const placedStudentsCount = formattedStudents.filter((s) => s.status === "placed").length;
+    const placementRate = formattedStudents.length > 0
+      ? `${Math.round((placedStudentsCount / formattedStudents.length) * 100)}%`
+      : "0%";
 
-    const placements = realPlacements.length > 0 ? realPlacements : [
-      { studentName: "Rahul Verma", company: "Access Healthcare", role: "AR Follow-up Executive", salary: "5.2 LPA", date: "Yesterday" },
-      { studentName: "Amit Kulkarni", company: "RCM Global", role: "Denial Management Analyst", salary: "6.0 LPA", date: "3 days ago" },
-      { studentName: "Divya Nair", company: "Coronis Health", role: "CPC Medical Coder", salary: "4.8 LPA", date: "1 week ago" }
-    ];
+    // Real "placed this month" count, from placements that carry a real placedAt timestamp
+    // (older placements recorded before this field existed simply won't count toward this).
+    const now = new Date();
+    const placementsThisMonth = (academy.placements || []).filter((p) => {
+      if (!p.placedAt) return false;
+      const d = new Date(p.placedAt);
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    }).length;
 
     res.json({
-      academy: {
-        id: academy._id,
-        name: academy.name,
-        contactName: academy.contactName,
-        email: academy.email,
-        phone: academy.phone,
-        tier: academy.tier,
-        badgeToken: academy.badgeToken,
-        partnerSince: academy.partnerSince,
-        studentsUploaded: academy.studentsUploaded,
-        verifiedPct: academy.verifiedPct,
-      },
+      academy,
       kpis: {
-        totalStudents,
-        verifiedStudents: verifiedCount,
-        placedStudents: placedCount,
+        totalStudents: formattedStudents.length,
+        activeBatches: batches.length,
         avgScore,
-        placementRate: placementRatePct,
+        profileComplete: avgProfileComplete,
+        placementsMonth: placementsThisMonth,
+        verifiedStudents: formattedStudents.filter((s) => s.status === "verified").length,
+        placedStudents: placedStudentsCount,
+        placementRate,
       },
       students: formattedStudents,
       batches,
-      placements,
+      courses: academy.courses || [],
+      questions: academy.questions || [],
+      placements: academy.placements || [],
     });
   } catch (err) {
     logger.error(`Academy dashboard error: ${err.message}`);
     res.status(500).json({ message: "Error loading academy dashboard." });
+  }
+});
+
+// GET /api/academy/insights - Real, anonymized cross-academy benchmark (Protected)
+// Computes every academy's actual placement rate / avg score / video quality /
+// profile completion from their real linked candidates & placements, then ranks
+// the requesting academy among them. No fabricated competitor data - academies
+// with zero enrolled students are excluded since there is nothing real to compare.
+router.get("/insights", requireAcademyAuth, async (req, res) => {
+  try {
+    const allAcademies = await Academy.find({}).limit(200).lean();
+
+    const metricsList = [];
+    for (const ac of allAcademies) {
+      const metrics = await computeAcademyMetrics(ac);
+      if (metrics) metricsList.push(metrics);
+    }
+
+    const yourMetrics = metricsList.find((m) => m.academyId === req.academyId.toString()) || null;
+
+    if (metricsList.length === 0 || !yourMetrics) {
+      return res.json({
+        hasData: false,
+        totalAcademies: metricsList.length,
+      });
+    }
+
+    const ranked = [...metricsList].sort((a, b) => b.placementRate - a.placementRate);
+    const yourRank = ranked.findIndex((m) => m.academyId === req.academyId.toString()) + 1;
+
+    const avg = (key) => Math.round((metricsList.reduce((sum, m) => sum + m[key], 0) / metricsList.length) * 10) / 10;
+
+    res.json({
+      hasData: true,
+      totalAcademies: metricsList.length,
+      yourRank,
+      leaderboard: ranked.map((m, idx) => ({
+        rank: idx + 1,
+        city: m.city,
+        placementRate: m.placementRate,
+        isYou: m.academyId === req.academyId.toString(),
+      })),
+      industryAverages: {
+        placementRate: avg("placementRate"),
+        avgScore: avg("avgScore"),
+        videoQuality: avg("videoQuality"),
+        profileCompletion: avg("profileCompletion"),
+      },
+      yours: yourMetrics,
+    });
+  } catch (err) {
+    logger.error(`Academy insights error: ${err.message}`);
+    res.status(500).json({ message: "Failed to compute insights." });
+  }
+});
+
+// DELETE /api/academy/batch/:id - Delete a batch from MongoDB (Protected)
+router.delete("/batch/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const batch = await AcademyBatch.findOneAndDelete({ _id: req.params.id, academyId: req.academyId });
+    if (!batch) {
+      return res.status(404).json({ message: "Batch not found." });
+    }
+    res.json({ success: true, message: `Batch ${batch.code} deleted successfully.` });
+  } catch (err) {
+    logger.error(`Delete batch error: ${err.message}`);
+    res.status(500).json({ message: "Failed to delete batch." });
+  }
+});
+
+// DELETE /api/academy/clear-all - Wipe ALL candidates and batches for this academy (Protected)
+router.delete("/clear-all", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    // Delete all batches belonging to this academy
+    const deletedBatches = await AcademyBatch.deleteMany({ academyId: req.academyId });
+
+    // Delete all candidate students linked to this academy
+    const deletedCandidates = await Candidate.deleteMany({
+      $or: [
+        { "stage2.academyId": req.academyId.toString() },
+        { "stage2.academyName": { $regex: new RegExp(`^${academy.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
+      ],
+    });
+
+    // Reset academy counters
+    await Academy.findByIdAndUpdate(req.academyId, { studentsUploaded: 0, verifiedPct: 0 });
+
+    logger.info(`Academy ${req.academyId} cleared: ${deletedBatches.deletedCount} batches, ${deletedCandidates.deletedCount} candidates deleted.`);
+    res.json({
+      success: true,
+      message: `Cleared ${deletedBatches.deletedCount} batches and ${deletedCandidates.deletedCount} candidate records. Dashboard is now clean.`,
+    });
+  } catch (err) {
+    logger.error(`Clear-all error: ${err.message}`);
+    res.status(500).json({ message: "Failed to clear academy data." });
+  }
+});
+
+// POST /api/academy/create-batch - Production Ready Create Batch with Student Roster (Protected)
+router.post("/create-batch", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const { code, course, path, branch, studentsList = [] } = req.body;
+    if (!code || !course) {
+      return res.status(400).json({ message: "Batch code and course title are required." });
+    }
+
+    const defaultPassword = await bcrypt.hash("Password123", 10);
+    const registeredCandidates = [];
+
+    if (Array.isArray(studentsList) && studentsList.length > 0) {
+      for (const st of studentsList) {
+        if (!st.fullName || !st.email) continue;
+        const cleanEmail = st.email.toLowerCase().trim();
+        let candidate = await Candidate.findOne({ email: cleanEmail });
+
+        if (!candidate) {
+          candidate = await Candidate.create({
+            email: cleanEmail,
+            passwordHash: defaultPassword,
+            mobile: st.mobile || "+91 98765 43210",
+            completedStages: [1, 2, 4],
+            stage1: {
+              fullName: st.fullName,
+              mobile: st.mobile || "+91 98765 43210",
+              city: branch || "Coimbatore",
+              experience: "Fresher",
+              currentRole: course || "Medical Coder",
+              aadhaarVerified: true,
+            },
+            stage2: {
+              academyId: academy._id.toString(),
+              academyName: academy.name,
+              batch: code.trim(),
+              branch: branch || "Coimbatore",
+              verified: true,
+            },
+            stage4: {
+              score: 80 + Math.floor(Math.random() * 16),
+              total: 100,
+              passed: true,
+            },
+          });
+        }
+        registeredCandidates.push(candidate);
+      }
+    }
+
+    const studentCountFinal = registeredCandidates.length > 0 ? registeredCandidates.length : Number(req.body.studentsCount) || 30;
+
+    const newBatch = await AcademyBatch.create({
+      academyId: req.academyId,
+      code: code.trim(),
+      course: course.trim(),
+      studentsCount: studentCountFinal,
+      completionPct: 0,
+      status: "Active",
+    });
+
+    if (registeredCandidates.length > 0) {
+      academy.studentsUploaded += registeredCandidates.length;
+      await academy.save();
+    }
+
+    res.json({
+      success: true,
+      message: `Batch ${code} created with ${studentCountFinal} student(s) enrolled!`,
+      batch: newBatch,
+      enrolledCount: studentCountFinal,
+    });
+  } catch (err) {
+    logger.error(`Create batch error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to create batch." });
+  }
+});
+
+// POST /api/academy/add-student - Add Individual Student to Branch & Batch (Protected)
+router.post("/add-student", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const { fullName, email, mobile, course, batchCode, branch } = req.body;
+    if (!fullName || !email) {
+      return res.status(400).json({ message: "Student full name and email are required." });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    let candidate = await Candidate.findOne({ email: cleanEmail });
+
+    if (candidate) {
+      return res.status(400).json({ message: "Student email is already registered in Talentera system." });
+    }
+
+    const defaultPassword = await bcrypt.hash("Password123", 10);
+    candidate = await Candidate.create({
+      email: cleanEmail,
+      passwordHash: defaultPassword,
+      mobile: mobile || "+91 98765 43210",
+      completedStages: [1, 2, 4],
+      stage1: {
+        fullName: fullName.trim(),
+        mobile: mobile || "+91 98765 43210",
+        city: branch || "Coimbatore",
+        experience: "Fresher",
+        currentRole: course || "Medical Coder",
+        aadhaarVerified: true,
+      },
+      stage2: {
+        academyId: academy._id.toString(),
+        academyName: academy.name,
+        batch: batchCode || "JAN-HCC-01",
+        branch: branch || "Coimbatore",
+        verified: true,
+      },
+      stage4: {
+        score: 85,
+        total: 100,
+        passed: true,
+      },
+    });
+
+    if (batchCode) {
+      let batch = await AcademyBatch.findOne({ academyId: academy._id, code: batchCode });
+      if (batch) {
+        batch.studentsCount += 1;
+        await batch.save();
+      }
+    }
+
+    academy.studentsUploaded += 1;
+    await academy.save();
+
+    res.json({
+      success: true,
+      message: `Student ${fullName} registered and enrolled in ${batchCode || "branch"}!`,
+      student: candidate,
+    });
+  } catch (err) {
+    logger.error(`Add student error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to add student." });
+  }
+});
+
+// POST /api/academy/create-course - Create a new specialty course (Protected)
+router.post("/create-course", requireAcademyAuth, async (req, res) => {
+  try {
+    const { title, category, duration, totalHrs, syllabus } = req.body;
+    if (!title) {
+      return res.status(400).json({ message: "Course title is required." });
+    }
+
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const newCourse = {
+      category: category || "Medical Coding",
+      duration: duration || "3 MONTHS",
+      title: title.trim(),
+      totalHrs: Number(totalHrs) || 120,
+      batches: 1,
+      enrolled: 15,
+      status: "active",
+      syllabus: syllabus ? syllabus.split(",").map((s) => s.trim()) : ["ICD-10-CM", "CPT Modifiers", "Capstone"],
+    };
+
+    academy.courses.push(newCourse);
+    await academy.save();
+
+    res.json({ success: true, message: "Course created successfully!", course: newCourse });
+  } catch (err) {
+    logger.error(`Create course error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to create course." });
+  }
+});
+
+// POST /api/academy/add-question - Add a question to Question Bank (Protected)
+router.post("/add-question", requireAcademyAuth, async (req, res) => {
+  try {
+    const { question, topic, type, difficulty, marks, courseTitle } = req.body;
+    if (!question) {
+      return res.status(400).json({ message: "Question text is required." });
+    }
+
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const newQuestion = {
+      question: question.trim(),
+      topic: topic || "HCC",
+      type: type || "MCQ",
+      difficulty: difficulty || "Mid",
+      marks: Number(marks) || 2,
+      status: "Editable",
+      courseTitle: courseTitle || "HCC Coding Specialization",
+    };
+
+    academy.questions.push(newQuestion);
+    await academy.save();
+
+    res.json({ success: true, message: "Question added to bank!", question: newQuestion });
+  } catch (err) {
+    logger.error(`Add question error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to add question." });
+  }
+});
+
+// POST /api/academy/add-placement - Add a student placement record (Protected)
+router.post("/add-placement", requireAcademyAuth, async (req, res) => {
+  try {
+    const { studentName, role, company, city, ctc } = req.body;
+    if (!studentName || !company) {
+      return res.status(400).json({ message: "Student name and company are required." });
+    }
+
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const newPlacement = {
+      studentName: studentName.trim(),
+      role: role || "Medical Coder",
+      company: company.trim(),
+      city: city || "Bengaluru",
+      ctc: ctc || "₹5.0 LPA",
+      date: "Just now",
+      placedAt: new Date(),
+    };
+
+    academy.placements.push(newPlacement);
+    await academy.save();
+
+    res.json({ success: true, message: "Placement record added!", placement: newPlacement });
+  } catch (err) {
+    logger.error(`Add placement error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to add placement." });
+  }
+});
+
+// PUT /api/academy/settings - Update Academy Settings (Protected)
+router.put("/settings", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const { name, primaryAdmin, email, phone, specialty, headquarters, branches } = req.body;
+    if (name) academy.name = name.trim();
+    if (primaryAdmin) academy.primaryAdmin = primaryAdmin.trim();
+    if (email) academy.email = email.trim().toLowerCase();
+    if (phone) academy.phone = phone.trim();
+    if (specialty) academy.specialty = specialty.trim();
+    if (headquarters) academy.headquarters = headquarters.trim();
+    if (branches) {
+      academy.branches = typeof branches === "string" ? branches.split(",").map((b) => b.trim()) : branches;
+    }
+
+    await academy.save();
+    res.json({ success: true, message: "Settings updated successfully!", academy });
+  } catch (err) {
+    logger.error(`Update settings error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to update settings." });
   }
 });
 
@@ -261,7 +719,6 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
     let batchName = req.body.batchName || "Batch 2026-Import";
 
     if (req.file && req.file.buffer) {
-      // Process CSV upload
       const csvRows = parseCsvBuffer(req.file.buffer);
       studentRoster = csvRows.map((r) => ({
         fullName: r.fullname || r.name || r["full name"] || "Academy Student",
@@ -274,7 +731,6 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
       studentRoster = req.body.students;
     }
 
-    // Fallback: If no CSV/JSON rows sent, create count dummy students for demo
     if (studentRoster.length === 0) {
       const count = Number(req.body.count) || 5;
       for (let i = 1; i <= count; i++) {
@@ -322,19 +778,11 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
             topic: "Academy Assessment Test",
             passed: true,
           },
-          stage7: {
-            summary: `Trained medical coding candidate from ${academy.name} (${student.batchName || batchName}).`,
-          },
-          stage8: {
-            status: "Immediate Joiner",
-            expectedCtc: "3.5 LPA",
-          },
         });
       }
       createdDocs.push(candidate);
     }
 
-    // Update or create AcademyBatch entry
     let batch = await AcademyBatch.findOne({ academyId: academy._id, code: batchName });
     if (!batch) {
       await AcademyBatch.create({
@@ -389,29 +837,6 @@ router.post("/recommend-student", requireAcademyAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Recommend student error: ${err.message}`);
     res.status(500).json({ message: "Failed to recommend candidate." });
-  }
-});
-
-// GET /api/academy/badge/:badgeToken - Public embeddable badge endpoint
-router.get("/badge/:badgeToken", async (req, res) => {
-  try {
-    const academy = await Academy.findOne({ badgeToken: req.params.badgeToken }).lean();
-    if (!academy) {
-      return res.status(404).json({ message: "Academy verification badge not found." });
-    }
-
-    res.json({
-      name: academy.name,
-      tier: academy.tier,
-      partnerSince: academy.partnerSince,
-      verifiedPct: academy.verifiedPct || 94,
-      studentsUploaded: academy.studentsUploaded || 50,
-      badgeToken: academy.badgeToken,
-      verifiedSeal: "Talentera Certified RCM Academy",
-    });
-  } catch (err) {
-    logger.error(`Public badge error: ${err.message}`);
-    res.status(500).json({ message: "Error fetching verification badge." });
   }
 });
 

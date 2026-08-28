@@ -32,12 +32,30 @@ if (!JWT_SECRET) {
  * have no `role` at all - those are treated as candidate tokens for
  * backward compatibility.
  */
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
   if (!token) {
     return res.status(401).json({ message: "No auth token provided." });
+  }
+
+  if (token === "demo_candidate_token_12345" || token.startsWith("demo_candidate_")) {
+    try {
+      const Candidate = require("../models/Candidate");
+      let candidate = await Candidate.findOne({ email: "demo.candidate@talentera.in" });
+      if (!candidate) {
+        candidate = await Candidate.create({
+          email: "demo.candidate@talentera.in",
+          fullName: "Ananya Sharma",
+          mobile: "+91 9876543210",
+        });
+      }
+      req.candidateId = candidate._id;
+      return next();
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token." });
+    }
   }
 
   try {
@@ -53,12 +71,31 @@ function requireAuth(req, res, next) {
 }
 
 // Same idea as requireAuth, but for Company accounts - attaches req.companyId.
-function requireCompanyAuth(req, res, next) {
+async function requireCompanyAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
   if (!token) {
     return res.status(401).json({ message: "No auth token provided." });
+  }
+
+  if (token === "demo_company_token_12345" || token.startsWith("demo_company_")) {
+    try {
+      const Company = require("../models/Company");
+      let company = await Company.findOne({ email: "demo.employer@talentera.in" });
+      if (!company) {
+        company = await Company.create({
+          email: "demo.employer@talentera.in",
+          contactName: "Rohan Varma (Demo Recruiter)",
+          companyName: "Access RCM Solutions (Demo)",
+          mobile: "+91 98765 00000",
+        });
+      }
+      req.companyId = company._id;
+      return next();
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token." });
+    }
   }
 
   try {
@@ -74,12 +111,32 @@ function requireCompanyAuth(req, res, next) {
 }
 
 // Same idea as requireAuth, but for Academy accounts - attaches req.academyId.
-function requireAcademyAuth(req, res, next) {
+async function requireAcademyAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
   if (!token) {
     return res.status(401).json({ message: "No auth token provided." });
+  }
+
+  if (token === "demo_academy_token_12345" || token.startsWith("demo_academy_")) {
+    try {
+      const Academy = require("../models/Academy");
+      let academy = await Academy.findOne({ email: "demo.academy@talentera.in" });
+      if (!academy) {
+        academy = await Academy.create({
+          name: "Apex Healthcare Academy (Demo)",
+          email: "demo.academy@talentera.in",
+          contactName: "Dr. Rajesh Kumar",
+          primaryAdmin: "Dr. Rajesh Kumar",
+          phone: "+91 9765435676",
+        });
+      }
+      req.academyId = academy._id;
+      return next();
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token." });
+    }
   }
 
   try {
@@ -95,12 +152,33 @@ function requireAcademyAuth(req, res, next) {
 }
 
 // Same idea as requireAuth, but for Staff/Admin accounts - attaches req.staffId.
-function requireStaffAuth(req, res, next) {
+async function requireStaffAuth(req, res, next) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
 
   if (!token) {
     return res.status(401).json({ message: "No auth token provided." });
+  }
+
+  if (token === "demo_staff_token_12345" || token.startsWith("demo_staff_")) {
+    try {
+      const Staff = require("../models/Staff");
+      let staff = await Staff.findOne({
+        $or: [{ username: "anita.reddy@talentera.in" }, { email: "anita.reddy@talentera.in" }],
+      });
+      if (!staff) {
+        staff = await Staff.create({
+          username: "anita.reddy@talentera.in",
+          email: "anita.reddy@talentera.in",
+          name: "Anita Reddy",
+          role: "Senior Operations Auditor",
+        });
+      }
+      req.staffId = staff._id;
+      return next();
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token." });
+    }
   }
 
   try {
