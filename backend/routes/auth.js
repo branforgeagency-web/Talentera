@@ -96,31 +96,33 @@ router.post(
   }
 );
 
-// POST /api/auth/demo-login - One-click developer demo login
+// POST /api/auth/demo-login - 1-Click Sandbox Candidate Login
 router.post("/demo-login", async (req, res) => {
-  const cleanEmail = "demo.candidate@talentera.com";
   try {
-    let candidate = await Candidate.findOne({ email: cleanEmail });
+    const demoEmail = "demo.candidate@talentera.in";
+    let candidate = await Candidate.findOne({ email: demoEmail });
+
     if (!candidate) {
-      const passwordHash = await bcrypt.hash("demo123456", 10);
+      const passwordHash = await bcrypt.hash("DemoCandidate2026", 10);
       candidate = await Candidate.create({
-        email: cleanEmail,
+        email: demoEmail,
         passwordHash,
-        mobile: "9876543210",
-        completedStages: [1, 2, 3, 4, 7, 8],
-        stage1: { fullName: "Priya Sharma (Demo Candidate)", mobile: "9876543210", city: "Chennai", experience: "4 Yrs", currentRole: "Medical Coder", aadhaarVerified: true },
-        stage2: { academyName: "Apex Medical Institute", completionYear: "2021" },
-        stage3: { certName: "AAPC CPC", certNumber: "CPC-987654", verified: true },
-        stage4: { score: 94, chartAccuracy: 98, status: "passed" },
-        stage8: { verifiedBadge: true, score: 96 }
+        fullName: "Ananya Sharma",
+        mobile: "+91 9876543210",
+        completedStages: [1, 2, 3, 4, 5],
+        stage1: { fullName: "Ananya Sharma", mobile: "+91 9876543210" },
       });
     }
 
     const token = signToken(candidate._id, "candidate");
-    res.json({ token, candidate });
+    res.json({
+      token,
+      candidate,
+      message: "Logged in as Demo Candidate Sandbox.",
+    });
   } catch (err) {
-    logger.error(`Demo login error: ${err.message}`);
-    res.status(500).json({ message: err.message || "Server error during demo login." });
+    logger.error(`Demo candidate login error: ${err.message}`);
+    res.status(500).json({ message: "Failed to launch demo candidate sandbox." });
   }
 });
 

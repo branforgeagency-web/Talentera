@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import AuthLayout from "../components/AuthLayout.jsx";
 
+import { safeJson } from "../utils/safeJson.js";
+
 export default function Login() {
   const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
@@ -26,23 +28,27 @@ export default function Login() {
     }
   }
 
-  async function handleDemoLogin() {
+  async function handleDemoCandidateLogin(e) {
+    if (e) e.preventDefault();
     setError("");
-    setDemoSubmitting(true);
+    setSubmitting(true);
     try {
-      await demoLogin();
-      navigate("/dashboard");
+      const res = await fetch("/api/auth/demo-login", { method: "POST" });
+      const data = await safeJson(res);
+      if (res.ok && data.token) {
+        localStorage.setItem("talentera_token", data.token);
+        localStorage.setItem("talentera_candidate_info", JSON.stringify(data.candidate));
+        navigate("/wizard");
+      } else {
+        setError(data.message || "Demo login failed.");
+      }
     } catch (err) {
-      setError(err.response?.data?.message || "Demo login failed. Please try again.");
+      console.error(err);
+      setError("Demo login error: " + (err.message || "Failed to log in"));
     } finally {
-      setDemoSubmitting(false);
+      setSubmitting(false);
     }
   }
-
-  const fillDemoCreds = () => {
-    setEmail("demo.candidate@talentera.com");
-    setPassword("demo123456");
-  };
 
   return (
     <AuthLayout
@@ -120,6 +126,31 @@ export default function Login() {
         {error && <div className="error-text">{error}</div>}
         <button type="submit" className="btn btn-gold" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} disabled={submitting}>
           {submitting ? "Logging in…" : "Log In"}
+        </button>
+
+        {/* Quick Developer Demo Login Button */}
+        <button
+          type="button"
+          onClick={handleDemoCandidateLogin}
+          disabled={submitting}
+          style={{
+            width: "100%",
+            background: "rgba(229,168,46,0.15)",
+            color: "#E5A82E",
+            fontSize: 13,
+            fontWeight: 800,
+            border: "1.5px dashed #E5A82E",
+            borderRadius: 8,
+            padding: "12px 18px",
+            cursor: "pointer",
+            marginTop: 10,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8
+          }}
+        >
+          ⚡ Quick Developer Demo Login →
         </button>
       </form>
       <p style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem" }}>

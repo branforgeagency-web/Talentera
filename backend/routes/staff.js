@@ -138,6 +138,44 @@ router.post("/login", authLimiter, async (req, res) => {
   }
 });
 
+// POST /api/staff/demo-login - 1-Click Sandbox Staff/Auditor Login
+router.post("/demo-login", async (req, res) => {
+  try {
+    let staff = await Staff.findOne({
+      $or: [{ username: DEMO_STAFF_EMAIL }, { email: DEMO_STAFF_EMAIL }],
+    });
+
+    if (!staff) {
+      staff = await Staff.create({
+        username: DEMO_STAFF_EMAIL,
+        email: DEMO_STAFF_EMAIL,
+        passwordHash: await bcrypt.hash(DEMO_STAFF_PASSWORD, 10),
+        name: "Anita Reddy",
+        role: "Senior Operations Auditor",
+        badge: "Gold Certified Lead",
+      });
+    }
+
+    const token = signToken(staff._id, "staff");
+
+    res.json({
+      token,
+      staff: {
+        id: staff._id,
+        username: staff.username,
+        email: staff.email,
+        role: staff.role,
+        name: staff.name,
+        badge: staff.badge,
+      },
+      message: "Logged in as Demo Staff Sandbox.",
+    });
+  } catch (err) {
+    logger.error(`Demo staff login error: ${err.message}`);
+    res.status(500).json({ message: "Failed to launch demo staff sandbox." });
+  }
+});
+
 // GET /api/staff/dashboard - Staff Operations Hub metrics (Protected)
 router.get("/dashboard", requireStaffAuth, async (req, res) => {
   try {

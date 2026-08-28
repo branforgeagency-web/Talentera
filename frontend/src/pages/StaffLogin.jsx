@@ -244,23 +244,23 @@ export default function StaffLogin() {
 
             <button
               type="button"
-              disabled={loading}
-              onClick={async () => {
+              onClick={async (e) => {
+                if (e) e.preventDefault();
+                setError("");
                 setLoading(true);
                 try {
-                  const res = await fetch("/api/staff/login", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username: "anita.reddy@talentera.in", password: "Password123" })
-                  });
+                  const res = await fetch("/api/staff/demo-login", { method: "POST" });
                   const data = await safeJson(res);
-                  if (res.ok) {
+                  if (res.ok && data.token) {
                     localStorage.setItem("talentera_staff_token", data.token);
                     localStorage.setItem("talentera_staff_info", JSON.stringify(data.staff));
                     navigate("/staff/hub");
+                  } else {
+                    setError(data.message || "Demo login failed.");
                   }
                 } catch (err) {
                   console.error(err);
+                  setError("Demo login error: " + (err.message || "Failed to log in"));
                 } finally {
                   setLoading(false);
                 }
@@ -268,21 +268,21 @@ export default function StaffLogin() {
               style={{
                 width: "100%",
                 padding: "12px",
-                background: "#F1F5F9",
+                background: "rgba(10,31,61,0.06)",
                 color: "var(--navy)",
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 800,
                 borderRadius: 10,
-                border: "1px solid #CBD5E1",
+                border: "1.5px dashed var(--navy)",
                 cursor: "pointer",
                 marginTop: 4,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6
+                gap: 8
               }}
             >
-              ⚡ Quick Demo Auditor Sandbox Login
+              ⚡ Quick Developer Demo Login →
             </button>
           </form>
 

@@ -48,6 +48,28 @@ export default function AcademyLogin() {
     }
   };
 
+  const handleDemoAcademyLogin = async (e) => {
+    if (e) e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/academy/demo-login", { method: "POST" });
+      const data = await safeJson(res);
+      if (res.ok && data.token) {
+        localStorage.setItem("talentera_academy_token", data.token);
+        localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
+        navigate("/academy/dashboard");
+      } else {
+        setError(data.message || "Demo login failed.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Demo login error: " + (err.message || "Failed to log in"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Reusable input wrapper style
   const inputWrapStyle = {
     display: "flex",
@@ -387,6 +409,31 @@ export default function AcademyLogin() {
               }}
             >
               {loading ? "Opening OTP..." : "Verify OTP & Sign In →"}
+            </button>
+
+            {/* Quick Developer Demo Login Button */}
+            <button
+              type="button"
+              onClick={handleDemoAcademyLogin}
+              disabled={loading}
+              style={{
+                width: "100%",
+                background: "rgba(229,168,46,0.12)",
+                color: "var(--gold)",
+                fontSize: 13,
+                fontWeight: 800,
+                border: "1.5px dashed var(--gold)",
+                borderRadius: 12,
+                padding: "12px 18px",
+                cursor: "pointer",
+                marginTop: 4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8
+              }}
+            >
+              ⚡ Quick Developer Demo Login →
             </button>
           </form>
 
