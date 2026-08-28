@@ -195,6 +195,25 @@ router.post("/qr/verify", async (req, res) => {
   }
 });
 
+// NOTE (2026-08-27): a "/stage/3/auto-verify" route used to live here. It claimed to
+// verify a candidate's Member ID live against the real AAPC/AHIMA website and then
+// auto-download the official certificate, but it never actually did either: the "check"
+// was a regex/dummy-number heuristic that defaulted to verified=true even when the real
+// HTTP request to the issuing body failed, and the "downloaded certificate" was a PDF
+// fabricated locally (see the now-deleted backend/utils/certVerifier.js) stamped as an
+// "OFFICIAL VERIFIED CREDENTIAL CERTIFICATE" — a counterfeit-looking document, auto-set
+// to certStatus "verified" with no staff involved at all, bypassing the mandatory
+// staff-review pipeline enforced below in PUT /stage/:num for stage 3.
+//
+// Removed rather than "fixed" because there is no reliable way to replace it: AAPC's
+// real verification page (aapc.com/certification/credential-verification.aspx) is
+// reCAPTCHA-protected, so it cannot be queried by server-side code or headless-browser
+// automation — only a human clicking through it themselves can pass that check. The
+// honest version of this feature is a "Verify on official site ↗" link surfaced to the
+// candidate and to staff (see CERT_LIBRARY[body].verifyUrl on the frontend and the
+// Certification Document Audit Queue in routes/staff.js) — a human completes the real
+// lookup; Talentera staff still make the final verified/rejected call.
+
 // GET /api/candidate/me - full profile
 router.get("/me", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
@@ -630,7 +649,7 @@ router.post(
 // ---------------------------------------------------------------------------
 // Live AI Technical Mock Interview ("Messi") - Stage 8 Track's optional
 // practice tool (frontend/src/components/ClaudeMockInterviewBot.jsx). A full
-// live, voice-led, dynamically-generated 10-question interview with natural
+// live, voice-led, dynamically-generated 5-question interview with natural
 // follow-ups - replaces the old shuffle-and-compare bot that used to live at
 // /claude-mock-interview and /claude-compare-answer above.
 //

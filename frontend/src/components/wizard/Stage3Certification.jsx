@@ -16,6 +16,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   const [memberId, setMemberId] = useState(existingData?.memberId || "");
   const [issueDate, setIssueDate] = useState(existingData?.issueDate || "");
   const [docName, setDocName] = useState(existingData?.docName || "");
+  const [docUrl, setDocUrl] = useState(existingData?.docUrl || "");
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -51,8 +52,9 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
     try {
       const form = new FormData();
       form.append("doc", file);
-      await api.post(`/candidate/upload/doc/${stage.num}`, form, { headers: { "Content-Type": "multipart/form-data" } });
+      const res = await api.post(`/candidate/upload/doc/${stage.num}`, form, { headers: { "Content-Type": "multipart/form-data" } });
       setDocName(file.name);
+      setDocUrl(res.data.docUrl);
       toast(`✓ ${file.name}`, "✓");
     } catch (err) {
       toast(err.response?.data?.message || "Upload failed.", "!");
@@ -75,7 +77,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
       return;
     }
     if (!docName) {
-      setError("Please upload your certificate document — this is what our staff review to confirm it's genuine.");
+      setError("Please verify online or upload your certificate document — this is what confirms it's genuine.");
       toast("Certificate document is required.", "!");
       return;
     }
@@ -83,7 +85,14 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
     setSaving(true);
     try {
       const res = await api.put(`/candidate/stage/${stage.num}`, {
-        body, certCode, certName: selectedCert.name, issuingBody: bodyData.name, memberId: memberId.trim(), issueDate: issueDate.trim(), docName,
+        body,
+        certCode,
+        certName: selectedCert.name,
+        issuingBody: bodyData.name,
+        memberId: memberId.trim(),
+        issueDate: issueDate.trim(),
+        docName,
+        docUrl,
       });
       onSaved(res.data);
     } catch (err) {
@@ -154,7 +163,9 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
         <input
           type="text"
           value={memberId}
-          onChange={(e) => setMemberId(e.target.value)}
+          onChange={(e) => {
+            setMemberId(e.target.value);
+          }}
           placeholder={pattern.placeholder}
         />
         <span className={`wiz-inline-status wiz-inline-status-${idState}`}>
@@ -162,11 +173,33 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
           {idState === "valid" && "Format matches"}
           {idState === "invalid" && `Expected: ${pattern.description}`}
         </span>
-        {bodyData.verifyUrl && (
-          <a href={bodyData.verifyUrl} target="_blank" rel="noreferrer" className="wiz-link-step">
-            Verify yourself on {bodyData.name} ↗
-          </a>
-        )}
+      </div>
+
+      <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14, margin: "8px 0 16px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 13.5, color: "#1E293B", display: "flex", alignItems: "center", gap: 6 }}>
+              <span>🔍 Double-check it yourself</span>
+            </div>
+            <p style={{ fontSize: 12, color: "#64748B", margin: "2px 0 0 0" }}>
+              {bodyData.verifyUrl
+                ? `You can look your own Member ID up on the official ${bodyData.name} registry before submitting. Talentera staff verify it there too as part of reviewing your uploaded certificate.`
+                : `Talentera staff verify your Member ID and uploaded certificate manually before it's marked confirmed.`}
+            </p>
+          </div>
+
+          {bodyData.verifyUrl && (
+            <a
+              href={bodyData.verifyUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-outline"
+              style={{ fontSize: 13, padding: "8px 16px" }}
+            >
+              Open {bodyData.name} verification site ↗
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="wiz-field-row">
@@ -174,11 +207,81 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
           <label>Issue date (month / year)</label>
           <input type="text" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} placeholder="e.g., Mar 2024" />
         </div>
-        <div className="wiz-field">
-          <label>Upload certificate (PDF / image) <span style={{ color: "#E5A82E" }}>*</span></label>
-          <button type="button" className="btn btn-outline" onClick={handleUpload} disabled={uploading}>
-            {uploading ? "Uploading…" : docName ? `✓ ${docName}` : "Choose file"}
-          </button>
+        <div className="wiz-field" style={{ minWidth: 280, flex: 1 }}>
+          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <span>Certificate Document (PDF / Image) <span style={{ color: "#E5A82E" }}>*</span></span>
+            {docName && (
+              <span style={{ fontSize: 10, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 999, textTransform: "uppercase" }}>
+                ✓ Attached
+              </span>
+            )}
+          </label>
+
+          {docName ? (
+            <div style={{ background: "#F0FDF4", border: "1.5px solid #22C55E", borderRadius: 10, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+                  <span style={{ fontSize: 20, color: "#15803D" }}>📄</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: "#15803D", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {docName}
+                    </div>
+                    <div style={{ fontSize: 10.5, color: "#166534" }}>Certificate proof document attached</div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  {docUrl && (
+                    <a
+                      href={docUrl.startsWith("http") ? docUrl : `http://localhost:5000${docUrl}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="btn btn-ghost"
+                      style={{ fontSize: 11.5, padding: "5px 10px", background: "#FFFFFF", border: "1px solid #CBD5E1", color: "#0F172A", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4 }}
+                    >
+                      👁 View / Download PDF
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleUpload}
+                    disabled={uploading}
+                    style={{ fontSize: 11.5, padding: "5px 10px", background: "#FFFFFF" }}
+                    title="Upload a different certificate document"
+                  >
+                    🔄 {uploading ? "Uploading…" : "Change / Replace File"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={() => {
+                      setDocName("");
+                      setDocUrl("");
+                      if (fileRef.current) fileRef.current.value = "";
+                      toast("Document cleared. Select a new certificate document to attach.", "!");
+                    }}
+                    style={{ fontSize: 11.5, padding: "5px 10px", color: "#DC2626", border: "1px solid #FCA5A5", background: "#FEF2F2" }}
+                    title="Remove this certificate document"
+                  >
+                    ✕ Clear File
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={handleUpload}
+                disabled={uploading}
+                style={{ width: "100%", justifyContent: "center", padding: "10px 16px", fontSize: 12.5, background: "#FFFFFF" }}
+              >
+                {uploading ? "Uploading Certificate Document…" : "📁 Choose Certificate Document (PDF / Image)"}
+              </button>
+            </div>
+          )}
           <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: "none" }} onChange={handleFileSelected} />
         </div>
       </div>
@@ -198,17 +301,17 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
         </div>
         <div className="cert-validation-row">
           <span className={`cert-validation-icon ${docName ? "pass" : ""}`}>{docName ? "✓" : "·"}</span>
-          Certificate uploaded as evidence <span className="cert-validation-tag">REQUIRED</span>
+          Certificate document uploaded <span className="cert-validation-tag">{docName ? "UPLOADED" : "REQUIRED"}</span>
         </div>
         <div className="cert-validation-row">
           <span className="cert-validation-icon">·</span>
-          Reviewed by Talentera staff before it counts as verified <span className="cert-validation-tag">MANUAL</span>
+          Reviewed by Talentera staff before it counts as verified <span className="cert-validation-tag" style={{ background: "#E2E8F0", color: "#475569" }}>MANUAL REVIEW</span>
         </div>
       </div>
 
       <p style={{ fontSize: 12.5, color: "#64748B", marginTop: -4, marginBottom: 4 }}>
-        The format checks above just catch obvious typos — a Talentera staff member reviews your uploaded certificate
-        to confirm it's genuine before it shows as verified on your profile. This usually takes 1–2 business days.
+        Upload your real certificate document above — a Talentera staff member reviews it (and checks your Member ID
+        against the official {bodyData.name} registry) within 1–2 business days before it's marked verified.
       </p>
 
       {error && <div className="error-text">{error}</div>}

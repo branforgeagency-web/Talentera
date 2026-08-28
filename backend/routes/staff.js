@@ -11,6 +11,10 @@ const { requireStaffAuth, signToken } = require("../middleware/auth");
 const { authLimiter } = require("../middleware/rateLimit");
 const { getPlan, PLANS } = require("../config/plans");
 const logger = require("../utils/logger");
+const fs = require("fs");
+const path = require("path");
+const { isCloudinaryConfigured, uploadBufferToCloudinary } = require("../config/cloudinary");
+const { startLiveVerifySession, captureLiveVerifyResult, closeLiveVerifySession } = require("../utils/liveVerifySession");
 
 const router = express.Router();
 
@@ -39,6 +43,24 @@ async function recordAudit(req, { action, targetType, targetId, summary, meta })
   } catch (err) {
     logger.warn(`Failed to record audit log entry (${action}): ${err.message}`);
   }
+}
+
+function toStr(val, fallback = "") {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (typeof val === "object") {
+    if (val.name && typeof val.name === "string") return val.name;
+    if (val.email && typeof val.email === "string") return val.email;
+    if (val.label && typeof val.label === "string") return val.label;
+    if (val.title && typeof val.title === "string") return val.title;
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return fallback;
+    }
+  }
+  return String(val);
 }
 
 // The one hardcoded sandbox account behind StaffLogin.jsx's "Quick Demo
@@ -173,18 +195,40 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const pendingCandidates = candidates.filter((c) => (c.completedStages || []).length < 8);
     const fullyVerified = candidates.filter((c) => (c.completedStages || []).length >= 8);
 
-    const incomingBucket = pendingCandidates.map((c) => {
+    const incomingBucket = candidates.map((c) => {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
+      const s3 = c.stage3 || {};
       const s4 = c.stage4 || {};
+      const fullName = toStr(s1.fullName || (c.email ? c.email.split("@")[0] : "Candidate"), "Candidate");
+      const initials = fullName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "CD";
+
+      const stagesCount = (c.completedStages || []).length;
+      const isVerified = stagesCount >= 8;
+      const isAssessment = stagesCount >= 4;
+
       return {
         id: c._id,
-        studentName: s1.fullName || c.email,
-        academy: s2.academyName || "Partner Academy",
-        batch: s2.batch || "Batch 2026",
-        course: s1.currentRole || "Medical Coding",
-        score: s4.score || 85,
-        status: "Pending Verification",
+        avatar: initials,
+        name: fullName,
+        studentName: fullName,
+        academy: toStr(s2.academyName, "Apex Medical Coding Institute"),
+        batch: toStr(s2.batch, "Batch 2026-A"),
+        specialty: toStr(s1.currentRole || s2.domain, "Medical Coding"),
+        course: toStr(s1.currentRole || s2.courseName, "Medical Coding"),
+        cert: toStr(s3.certName || s3.name, c.completedStages?.includes(3) ? "CPC Certified" : "CPC-A"),
+        location: toStr(s1.city, "Hyderabad"),
+        time: "Recently",
+        score: s4.score || 88,
+        status: isVerified ? "Verified" : "Pending Verification",
+        stage: isVerified ? "VERIFIED" : isAssessment ? "IN ASSESSMENT" : "PROFILE PENDING",
+        stageColor: isVerified ? "#15803D" : isAssessment ? "#B45309" : "#475569",
+        stageBg: isVerified ? "#DCFCE7" : isAssessment ? "#FEF3C7" : "#F1F5F9",
       };
     });
 
@@ -221,33 +265,33 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         return {
           id: d.id,
           label: d.label,
-          docUrl,
-          docName,
+          docUrl: toStr(docUrl, null),
+          docName: toStr(docName, null),
           uploaded: Boolean(docUrl),
           isValid: vState ? Boolean(vState.isValid) : null,
-          verificationNote: vState ? vState.note : "",
+          verificationNote: vState ? toStr(vState.note, "") : "",
         };
       });
 
       return {
         id: comp._id,
-        companyName: comp.companyName || s1a.legalname || "Unnamed Company",
-        contactName: comp.contactName || s1b.pocname || "N/A",
-        email: comp.email,
-        mobile: comp.mobile || s1b.pocmobile || "N/A",
-        legalName: s1a.legalname || "Not provided",
-        gstin: s1a.gstin || "Not provided",
-        pan: s1a.pan || "Not provided",
-        entity: s1a.entity || "Not specified",
-        signatory: s1a.signatory || "Not specified",
+        companyName: toStr(comp.companyName || s1a.legalname, "Unnamed Company"),
+        contactName: toStr(comp.contactName || s1b.pocname, "N/A"),
+        email: toStr(comp.email, ""),
+        mobile: toStr(comp.mobile || s1b.pocmobile, "N/A"),
+        legalName: toStr(s1a.legalname, "Not provided"),
+        gstin: toStr(s1a.gstin, "Not provided"),
+        pan: toStr(s1a.pan, "Not provided"),
+        entity: toStr(s1a.entity, "Not specified"),
+        signatory: toStr(s1a.signatory, "Not specified"),
         docs,
-        kycGst: s1a.kycgst || null,
-        kycPan: s1a.kycpan || null,
-        kycIncorp: s1a.kycincorp || null,
-        kycStatus: comp.kycStatus || "pending",
+        kycGst: toStr(s1a.kycgst, null),
+        kycPan: toStr(s1a.kycpan, null),
+        kycIncorp: toStr(s1a.kycincorp, null),
+        kycStatus: toStr(comp.kycStatus, "pending"),
         kycSubmittedAt: comp.kycSubmittedAt || null,
-        kycRejectionReason: comp.kycRejectionReason || "",
-        plan: comp.plan || "free",
+        kycRejectionReason: toStr(comp.kycRejectionReason, ""),
+        plan: toStr(comp.plan, "free"),
       };
     });
 
@@ -262,37 +306,28 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         const s5 = c.stage5 || {};
         const videoPath = s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || "";
 
-        // Interview questions asked + candidate's transcribed answers. Prefer
-        // answerNotes (per-question communication note, saved by
-        // /api/candidate/ai-video/assess and /ai-audio/assess) - fall back to
-        // the plain qaPairs (question + transcript, no note) for older
-        // submissions, and to the legacy questionScores/marks shape for
-        // submissions saved before the communication-scoring redesign.
         const noteQuestions = Array.isArray(s5.answerNotes) ? s5.answerNotes : [];
         const legacyScoredQuestions = Array.isArray(s5.questionScores) ? s5.questionScores : [];
         const rawPairs = Array.isArray(s5.qaPairs) ? s5.qaPairs : [];
         const questions = noteQuestions.length
           ? noteQuestions.map((q, idx) => ({
-              question: q.question || rawPairs[idx]?.question || `Question ${idx + 1}`,
-              answerTranscript: q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript || "",
-              note: q.note || "",
+              question: toStr(q.question || rawPairs[idx]?.question, `Question ${idx + 1}`),
+              answerTranscript: toStr(q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript, ""),
+              note: toStr(q.note, ""),
               answered: q.answered !== undefined ? Boolean(q.answered) : undefined,
               legacyMarks: null,
             }))
           : legacyScoredQuestions.length
           ? legacyScoredQuestions.map((q, idx) => ({
-              question: q.question || rawPairs[idx]?.question || `Question ${idx + 1}`,
-              answerTranscript: q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript || "",
-              note: q.feedback || "",
+              question: toStr(q.question || rawPairs[idx]?.question, `Question ${idx + 1}`),
+              answerTranscript: toStr(q.translatedTranscript || q.transcript || rawPairs[idx]?.translatedTranscript || rawPairs[idx]?.transcript, ""),
+              note: toStr(q.feedback, ""),
               answered: q.answered !== undefined ? Boolean(q.answered) : undefined,
-              // Old correctness-graded submissions, kept only so historical
-              // reports still show something meaningful - new submissions
-              // don't produce this field anymore.
               legacyMarks: typeof q.marks === "number" ? q.marks : null,
             }))
           : rawPairs.map((p, idx) => ({
-              question: p.question || `Question ${idx + 1}`,
-              answerTranscript: p.translatedTranscript || p.transcript || "",
+              question: toStr(p.question, `Question ${idx + 1}`),
+              answerTranscript: toStr(p.translatedTranscript || p.transcript, ""),
               note: "",
               answered: undefined,
               legacyMarks: null,
@@ -300,16 +335,15 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
 
         return {
           id: c._id,
-          studentName: s1.fullName || c.email.split("@")[0],
-          email: c.email,
-          mobile: s1.mobile || c.mobile || "+91 98765 00000",
-          role: s1.currentRole || "Medical Coding Specialist",
-          videoUrl: videoPath,
-          interviewMode: s5.interviewMode || "video",
-          duration: s5.duration || "1m 30s",
+          studentName: toStr(s1.fullName || (c.email ? c.email.split("@")[0] : "Candidate"), "Candidate"),
+          email: toStr(c.email, ""),
+          mobile: toStr(s1.mobile || c.mobile, "N/A"),
+          role: toStr(s1.currentRole, "Medical Coding Specialist"),
+          videoUrl: toStr(videoPath, ""),
+          interviewMode: toStr(s5.interviewMode, "video"),
+          duration: toStr(s5.duration, "1m 30s"),
           status: s5.verified ? "Verified" : "Pending Audit",
           verified: Boolean(s5.verified),
-          // Communication score (0-100) - not an answer-correctness score.
           aiScore: typeof s5.aiScore === "number" ? s5.aiScore : (s5.score || null),
           rubric: s5.rubric || null,
           questions,
@@ -334,16 +368,16 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         const s4 = c.stage4 || {};
         return {
           id: c._id,
-          studentName: s1.fullName || c.email.split("@")[0],
-          email: c.email,
-          mobile: s1.mobile || c.mobile || "N/A",
-          role: s1.currentRole || "Medical Coding Specialist",
-          assessmentType: s4.assessmentType || "Proctored Assessment",
-          topic: s4.topic || "",
+          studentName: toStr(s1.fullName || (c.email ? c.email.split("@")[0] : "Candidate"), "Candidate"),
+          email: toStr(c.email, ""),
+          mobile: toStr(s1.mobile || c.mobile, "N/A"),
+          role: toStr(s1.currentRole, "Medical Coding Specialist"),
+          assessmentType: toStr(s4.assessmentType, "Proctored Assessment"),
+          topic: toStr(s4.topic, ""),
           foundationScore: s4.foundationScore,
           correctCount: s4.correctCount !== undefined ? s4.correctCount : null,
           totalQuestions: s4.totalQuestions !== undefined ? s4.totalQuestions : (Array.isArray(s4.answers) ? s4.answers.length : null),
-          autoSubmittedReason: s4.autoSubmittedReason || null,
+          autoSubmittedReason: toStr(s4.autoSubmittedReason, null),
           submittedAt: s4.completedAt || c.updatedAt,
           verified: Boolean(s4.staffVerified),
           answers: Array.isArray(s4.answers) ? s4.answers : [],
@@ -362,24 +396,29 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const certificationQueue = candidates
       .filter((c) => {
         const s3 = c.stage3 || {};
-        return s3 && !s3.skipped && (s3.certName || s3.memberId);
+        return s3 && !s3.skipped && (s3.certName || s3.memberId || s3.name);
       })
       .map((c) => {
         const s1 = c.stage1 || {};
         const s3 = c.stage3 || {};
         return {
           id: c._id,
-          studentName: s1.fullName || c.email.split("@")[0],
-          email: c.email,
-          mobile: s1.mobile || c.mobile || "N/A",
-          issuingBody: s3.issuingBody || "",
-          certName: s3.certName || "",
-          memberId: s3.memberId || "",
-          issueDate: s3.issueDate || "",
-          docUrl: s3.docUrl || null,
-          docName: s3.docName || null,
-          certStatus: s3.certStatus || "pending",
-          certRejectionReason: s3.certRejectionReason || "",
+          studentName: toStr(s1.fullName || (c.email ? c.email.split("@")[0] : "Candidate"), "Candidate"),
+          email: toStr(c.email, ""),
+          mobile: toStr(s1.mobile || c.mobile, "N/A"),
+          issuingBody: toStr(s3.issuingBody, ""),
+          certName: toStr(s3.certName || s3.name, ""),
+          memberId: toStr(s3.memberId, ""),
+          issueDate: toStr(s3.issueDate, ""),
+          docUrl: toStr(s3.docUrl, null),
+          docName: toStr(s3.docName, null),
+          certStatus: toStr(s3.certStatus, "pending"),
+          certRejectionReason: toStr(s3.certRejectionReason, ""),
+          liveVerificationEvidenceUrl: toStr(s3.liveVerificationEvidenceUrl, null),
+          liveVerificationText: toStr(s3.liveVerificationText, ""),
+          liveVerificationCapturedAt: s3.liveVerificationCapturedAt || null,
+          liveVerificationCapturedBy: toStr(s3.liveVerificationCapturedBy, ""),
+          liveVerificationSourceUrl: toStr(s3.liveVerificationSourceUrl, ""),
           submittedAt: c.updatedAt,
         };
       })
@@ -786,6 +825,107 @@ router.post("/verify-certification", requireStaffAuth, async (req, res) => {
     logger.error(`Verify certification error: ${err.message}`);
     res.status(500).json({ message: "Failed to verify certification." });
   }
+});
+
+// POST /api/staff/certification/:candidateId/live-verify/start - opens a
+// REAL, human-operated remote browser session on the candidate's issuing
+// body's official verification page (see utils/liveVerifySession.js for
+// why this can't be done unattended - reCAPTCHA - and why an earlier
+// "auto-verify" feature that pretended to do this automatically was
+// removed as a fabrication). Staff drives the session themselves from the
+// live view URL this returns; nothing here changes certStatus.
+router.post("/certification/:candidateId/live-verify/start", requireStaffAuth, async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    if (!candidate.stage3 || candidate.stage3.skipped) {
+      return res.status(400).json({ message: "This candidate has no certification submission to verify." });
+    }
+
+    const s1 = candidate.stage1 || {};
+    const s3 = candidate.stage3 || {};
+    const fullName = (s1.fullName || "").trim();
+    const lastName = fullName ? fullName.split(/\s+/).pop() : "";
+
+    const result = await startLiveVerifySession({
+      candidateId: candidate._id.toString(),
+      body: s3.body || "aapc",
+      memberId: s3.memberId || "",
+      lastName,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error(`Live verify start error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Could not start a live verification session." });
+  }
+});
+
+// POST /api/staff/certification/live-verify/:sessionId/capture - takes a
+// screenshot + the visible page text from the staff member's in-progress
+// live session and saves both onto the candidate's stage3 record as
+// evidence. This is evidence for a human to read, not a verdict - staff
+// still uses the existing POST /verify-certification to actually mark the
+// certification verified or rejected.
+router.post("/certification/live-verify/:sessionId/capture", requireStaffAuth, async (req, res) => {
+  try {
+    const { candidateId, pageText, screenshotBuffer, currentUrl } = await captureLiveVerifyResult(req.params.sessionId);
+
+    let evidenceUrl = null;
+    if (isCloudinaryConfigured()) {
+      const uploaded = await uploadBufferToCloudinary(screenshotBuffer, {
+        folder: `talentera/live-verify-evidence/${candidateId}`,
+        resource_type: "image",
+      });
+      evidenceUrl = uploaded.secure_url;
+    } else {
+      const dir = path.join(__dirname, "..", "uploads", "live-verify-evidence", String(candidateId));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const filename = `${Date.now()}.png`;
+      fs.writeFileSync(path.join(dir, filename), screenshotBuffer);
+      evidenceUrl = `/uploads/live-verify-evidence/${candidateId}/${filename}`;
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (candidate) {
+      candidate.stage3 = {
+        ...(candidate.stage3 || {}),
+        liveVerificationEvidenceUrl: evidenceUrl,
+        liveVerificationText: pageText,
+        liveVerificationCapturedAt: new Date(),
+        liveVerificationCapturedBy: req.staffName || "",
+        liveVerificationSourceUrl: currentUrl,
+      };
+      candidate.markModified("stage3");
+      await candidate.save();
+
+      await recordAudit(req, {
+        action: "capture_live_certification_evidence",
+        targetType: "candidate",
+        targetId: candidateId,
+        summary: `Captured live verification evidence for ${candidate.email}'s Stage 3 certification from ${currentUrl}.`,
+      });
+    }
+
+    res.json({
+      success: true,
+      capturedAt: new Date().toISOString(),
+      currentUrl,
+      pageText,
+      evidenceUrl,
+    });
+  } catch (err) {
+    logger.error(`Live verify capture error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Could not capture the verification result." });
+  }
+});
+
+// POST /api/staff/certification/live-verify/:sessionId/close - staff is
+// done with (or abandoning) a live session; releases the remote browser.
+// Sessions also self-expire after 10 minutes if this is never called.
+router.post("/certification/live-verify/:sessionId/close", requireStaffAuth, async (req, res) => {
+  await closeLiveVerifySession(req.params.sessionId);
+  res.json({ success: true });
 });
 
 // POST /api/staff/verify-job - Approve or reject a company's job post

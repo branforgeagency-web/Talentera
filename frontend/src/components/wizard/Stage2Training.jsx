@@ -7,7 +7,7 @@ const SPECIALTIES = ["HCC / Risk Adjustment", "ED Coding", "Surgery Coding", "IP
 export default function Stage2Training({ stage, existingData, onSaved }) {
   const [domain, setDomain] = useState(existingData?.domain || "Medical Coding");
   const [specialty, setSpecialty] = useState(existingData?.specialty || SPECIALTIES[0]);
-  const [academyName, setAcademyName] = useState(existingData?.academyName ?? "ThoughtFlows Medical Coding Academy");
+  const [academyName, setAcademyName] = useState(existingData?.academyName ?? "Apex Medical Coding Institute");
   const [duration, setDuration] = useState(existingData?.duration ?? "6 months");
   const [trainerName, setTrainerName] = useState(existingData?.trainerName ?? "Mr. Karthik");
   const [saving, setSaving] = useState(false);

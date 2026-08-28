@@ -6,12 +6,13 @@ import AuthLayout from "../components/AuthLayout.jsx";
 import { safeJson } from "../utils/safeJson.js";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [demoSubmitting, setDemoSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -54,6 +55,53 @@ export default function Login() {
       title="Welcome back"
       subtitle="Enter your credentials to access your candidate portal."
     >
+      {/* DEVELOPER DEMO LOGIN BOX */}
+      <div style={{
+        background: "rgba(229, 168, 46, 0.1)",
+        border: "1px solid rgba(229, 168, 46, 0.35)",
+        borderRadius: 12,
+        padding: "14px 16px",
+        marginBottom: 20,
+        textAlign: "center"
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: "#F5C95B", letterSpacing: "0.08em", marginBottom: 6 }}>
+          ⚡ DEVELOPER / DEMO ACCESS
+        </div>
+        <button
+          type="button"
+          onClick={handleDemoLogin}
+          disabled={demoSubmitting}
+          style={{
+            width: "100%",
+            background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+            color: "#06152A",
+            border: "none",
+            borderRadius: 8,
+            padding: "10px 14px",
+            fontWeight: 800,
+            fontSize: 13.5,
+            cursor: "pointer",
+            marginBottom: 8
+          }}
+        >
+          {demoSubmitting ? "Logging in Demo Candidate..." : "⚡ 1-Click Demo Candidate Login"}
+        </button>
+        <button
+          type="button"
+          onClick={fillDemoCreds}
+          style={{
+            background: "transparent",
+            color: "rgba(255,255,255,0.7)",
+            border: "none",
+            fontSize: 11.5,
+            cursor: "pointer",
+            textDecoration: "underline"
+          }}
+        >
+          Auto-fill Demo Credentials (demo.candidate@talentera.com)
+        </button>
+      </div>
+
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>EMAIL ADDRESS</label>

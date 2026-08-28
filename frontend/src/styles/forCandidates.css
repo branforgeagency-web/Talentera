@@ -1,0 +1,789 @@
+/* ====== FOR CANDIDATES PAGE STYLES ====== */
+
+.fc-page {
+  min-height: 100vh;
+  background: var(--cream);
+  color: var(--navy);
+  position: relative;
+  font-family: var(--font-body);
+}
+
+.fc-ticker-bar {
+  background: #061324;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 0;
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.fc-ticker-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  flex-shrink: 0;
+}
+
+/* Nav Bar */
+.fc-nav {
+  position: relative;
+  z-index: 100;
+  background: transparent !important;
+  border-bottom: none !important;
+  padding-top: 16px;
+}
+
+.fc-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+}
+
+.fc-logo {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fc-logo img {
+  height: 38px;
+  width: auto;
+}
+
+.fc-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.fc-nav-links a {
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 14px;
+  transition: color 0.2s ease;
+}
+
+.fc-nav-links a:hover,
+.fc-nav-links a.active {
+  color: #ffffff;
+}
+
+.fc-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fc-btn-outline {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.fc-btn-outline:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.fc-btn-gold {
+  background: linear-gradient(135deg, var(--gold-bright) 0%, var(--gold) 100%);
+  color: var(--navy-deep);
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 4px 16px rgba(229, 168, 46, 0.3);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-btn-gold:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(229, 168, 46, 0.45);
+}
+
+/* SECTION 1: HERO */
+.fc-hero {
+  background: radial-gradient(ellipse at top, #0f2950 0%, var(--navy-deep) 85%);
+  color: #ffffff;
+  padding: 40px 0 80px;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+
+.fc-hero-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 56px 56px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}
+
+.fc-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(229, 168, 46, 0.12);
+  border: 1px solid rgba(229, 168, 46, 0.35);
+  color: var(--gold-light);
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-bottom: 24px;
+}
+
+.fc-hero-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(38px, 5.5vw, 68px);
+  line-height: 1.05;
+  margin-bottom: 20px;
+  letter-spacing: -0.02em;
+}
+
+.fc-text-gold {
+  color: var(--gold-bright);
+}
+
+.fc-hero-sub {
+  font-size: clamp(16px, 2vw, 19px);
+  color: #cbd5e1;
+  max-width: 720px;
+  margin: 0 auto 36px;
+  line-height: 1.6;
+}
+
+.fc-hero-ctas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 56px;
+}
+
+.fc-hero-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 20px;
+  max-width: 900px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.fc-stat-item {
+  text-align: center;
+}
+
+.fc-stat-num {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--gold-bright);
+}
+
+.fc-stat-label {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* SECTION 2: THE OLD WAY VS TALENTERA WAY */
+.fc-section {
+  padding: 90px 0;
+}
+
+.fc-section-head {
+  text-align: center;
+  max-width: 720px;
+  margin: 0 auto 50px;
+}
+
+.fc-section-eyebrow {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: var(--gold);
+  margin-bottom: 12px;
+}
+
+.fc-section-title {
+  font-family: var(--font-display);
+  font-size: clamp(28px, 4vw, 44px);
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--navy);
+  margin-bottom: 16px;
+}
+
+.fc-section-title-dark {
+  color: #ffffff;
+}
+
+.fc-section-sub {
+  font-size: 16px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.fc-section-sub-dark {
+  color: #94a3b8;
+}
+
+.fc-pain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 24px;
+}
+
+.fc-pain-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fc-pain-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.fc-pain-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+.fc-pain-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 10px;
+}
+
+.fc-pain-desc {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* SECTION 3: 8 STAGES GRID */
+.fc-stages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 20px;
+  margin-bottom: 36px;
+}
+
+.fc-stage-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 24px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.fc-stage-card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 8px 24px rgba(229, 168, 46, 0.12);
+}
+
+.fc-stage-num {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--gold);
+  background: rgba(229, 168, 46, 0.12);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+
+.fc-stage-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: rgba(10, 31, 61, 0.05);
+  color: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.fc-stage-title {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 8px;
+}
+
+.fc-stage-desc {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.fc-fasttrack-box {
+  background: var(--navy-deep);
+  border: 1px solid rgba(229, 168, 46, 0.3);
+  border-radius: 16px;
+  padding: 28px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgba(6, 21, 42, 0.2);
+  flex-wrap: wrap;
+}
+
+.fc-fasttrack-title {
+  font-family: var(--font-heading);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gold-bright);
+  margin-bottom: 4px;
+}
+
+.fc-fasttrack-desc {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+/* SECTION 4: BENEFITS (DARK) */
+.fc-benefits-section {
+  background: var(--navy-deep);
+  color: #ffffff;
+}
+
+.fc-benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.fc-benefit-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 28px;
+  transition: all 0.2s ease;
+}
+
+.fc-benefit-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(229, 168, 46, 0.4);
+}
+
+.fc-benefit-icon {
+  font-size: 24px;
+  margin-bottom: 16px;
+  color: var(--gold-bright);
+}
+
+.fc-benefit-title {
+  font-family: var(--font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 10px;
+}
+
+.fc-benefit-desc {
+  font-size: 14px;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+/* SECTION 5: CITIES & ROSTER */
+.fc-city-pills {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  margin-bottom: 32px;
+  scrollbar-width: thin;
+}
+
+.fc-city-pill {
+  white-space: nowrap;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--navy);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-city-pill.active {
+  background: var(--navy);
+  color: #ffffff;
+  border-color: var(--navy);
+  box-shadow: 0 4px 14px rgba(10, 31, 61, 0.2);
+}
+
+.fc-city-pill-num {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(229, 168, 46, 0.15);
+  color: var(--gold);
+}
+
+.fc-city-pill.active .fc-city-pill-num {
+  background: var(--gold);
+  color: var(--navy-deep);
+}
+
+.fc-company-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+  margin-bottom: 36px;
+}
+
+.fc-company-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s ease;
+}
+
+.fc-company-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+  border-color: #cbd5e1;
+}
+
+.fc-co-name {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--navy);
+  margin-bottom: 4px;
+}
+
+.fc-co-tag {
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.tag-rcm { background: #eff6ff; color: #2563eb; }
+.tag-mc { background: #f0fdf4; color: #16a34a; }
+.tag-bar { background: #fefce8; color: #ca8a04; }
+
+/* SECTION 6: TESTIMONIALS */
+.fc-testi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.fc-testi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 28px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.fc-testi-quote {
+  font-size: 14.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  margin-bottom: 24px;
+  font-style: italic;
+}
+
+.fc-testi-user {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.fc-testi-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--gold-bright);
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.fc-testi-name {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--navy);
+}
+
+.fc-testi-role {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.fc-testi-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #16a34a;
+  background: #dcfce7;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+/* SECTION 7: RECRUITER PREVIEW */
+.fc-recruiter-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+@media (max-width: 868px) {
+  .fc-recruiter-box {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+}
+
+.fc-rec-feature-item {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.fc-rec-feature-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.fc-rec-feature-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--navy);
+  margin-bottom: 2px;
+}
+
+.fc-rec-feature-desc {
+  font-size: 13.5px;
+  color: var(--text-muted);
+}
+
+/* Mock Card */
+.fc-mock-card {
+  background: var(--navy-deep);
+  border: 1px solid rgba(229, 168, 46, 0.3);
+  border-radius: 18px;
+  padding: 24px;
+  color: #ffffff;
+  box-shadow: 0 12px 32px rgba(6, 21, 42, 0.25);
+}
+
+.fc-mock-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+
+.fc-mock-name {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 18px;
+}
+
+.fc-mock-title {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.fc-mock-vbadge {
+  background: #22c55e;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fc-mock-scores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.fc-mock-score-box {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.fc-mock-score-val {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--gold-bright);
+}
+
+.fc-mock-score-lbl {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* SECTION 8: FAQ ACCORDION */
+.fc-faq-list {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fc-faq-item {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.fc-faq-item.open {
+  border-color: var(--gold);
+}
+
+.fc-faq-q {
+  padding: 20px 24px;
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 16.5px;
+  color: var(--navy);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.fc-faq-a {
+  padding: 0 24px 20px;
+  font-size: 14.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* SECTION 9: FOOTER HERO */
+.fc-cta-hero {
+  background: radial-gradient(ellipse at center, #0f2950 0%, var(--navy-deep) 90%);
+  color: #ffffff;
+  text-align: center;
+  padding: 90px 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.fc-cta-title {
+  font-family: var(--font-display);
+  font-size: clamp(32px, 5vw, 56px);
+  font-weight: 800;
+  margin-bottom: 16px;
+}
+
+.fc-cta-sub {
+  font-size: 17px;
+  color: #cbd5e1;
+  max-width: 600px;
+  margin: 0 auto 32px;
+}
+
+/* Responsive queries */
+@media (max-width: 768px) {
+  .fc-nav-links {
+    display: none;
+  }
+  .fc-hero {
+    padding: 60px 0 75px;
+  }
+  .fc-fasttrack-box {
+    flex-direction: column;
+    text-align: center;
+  }
+}

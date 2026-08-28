@@ -6,7 +6,7 @@ import { useToast } from "./Toast.jsx";
 // this many seconds of silence - whichever comes first. Keep in sync with
 // AiVideoAssessment.jsx.
 const ANSWER_TIME_LIMIT = 60;
-const SILENCE_TIMEOUT_MS = 5000;
+const SILENCE_TIMEOUT_MS = 20000;
 
 // Every question is worth a flat 10 marks (correct or not) - no separate
 // "communication" rubric (clarity/tone/fluency) is shown anymore, just the
@@ -655,9 +655,29 @@ export default function AiAudioInterview({ existingData, onSaved }) {
                 <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "12px 0 8px" }}>
                   Thank you for completing the interview!
                 </h3>
-                <p style={{ fontSize: 13, color: "#475569", margin: "0 auto", maxWidth: 440, lineHeight: 1.6 }}>
+                <p style={{ fontSize: 13, color: "#475569", margin: "0 auto 16px", maxWidth: 440, lineHeight: 1.6 }}>
                   Your spoken answers have been recorded and submitted to our team for review as part of your candidate verification.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep("setup");
+                    setEvaluation(null);
+                  }}
+                  style={{
+                    background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+                    color: "#06152A",
+                    border: "none",
+                    padding: "10px 20px",
+                    borderRadius: 10,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(229,168,46,0.3)"
+                  }}
+                >
+                  ⚡ Retake AI Verbal Interview (Dev Mode)
+                </button>
               </div>
             </div>
           )}

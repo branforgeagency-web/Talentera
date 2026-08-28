@@ -46,6 +46,13 @@ export function AuthProvider({ children }) {
     return res.data.candidate;
   }
 
+  async function demoLogin() {
+    const res = await api.post("/auth/demo-login");
+    localStorage.setItem("talentera_token", res.data.token);
+    setCandidate(res.data.candidate);
+    return res.data.candidate;
+  }
+
   function logout() {
     localStorage.removeItem("talentera_token");
     localStorage.removeItem("talentera_candidate_info");
@@ -53,7 +60,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ candidate, setCandidate, loading, register, login, logout }}>
+    <AuthContext.Provider value={{ candidate, setCandidate, loading, register, login, demoLogin, logout }}>
       {children}
     </AuthContext.Provider>
   );

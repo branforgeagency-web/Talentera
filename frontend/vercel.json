@@ -5,6 +5,10 @@
       "destination": "https://talentera-1.onrender.com/api/:path*"
     },
     {
+      "source": "/uploads/:path*",
+      "destination": "https://talentera-1.onrender.com/uploads/:path*"
+    },
+    {
       "source": "/((?!assets/|favicon|logo).*)",
       "destination": "/index.html"
     }
