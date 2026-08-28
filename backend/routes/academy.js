@@ -1,6 +1,5 @@
 const express = require("express");
 const Candidate = require("../models/Candidate");
-const Application = require("../models/Application");
 const Academy = require("../models/Academy");
 const AcademyBatch = require("../models/AcademyBatch");
 const bcrypt = require("bcryptjs");
@@ -446,7 +445,7 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
-    const { code, course, path, branch, studentsList = [] } = req.body;
+    const { code, course, branch, studentsList = [] } = req.body;
     if (!code || !course) {
       return res.status(400).json({ message: "Batch code and course title are required." });
     }

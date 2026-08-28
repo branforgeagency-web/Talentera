@@ -1,3 +1,4 @@
+/* global document */
 /**
  * Live, human-operated browser verification sessions for Stage 3
  * certification review (Staff Hub - Certification Document Audit Queue).

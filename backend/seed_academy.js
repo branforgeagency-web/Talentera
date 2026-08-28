@@ -4,7 +4,6 @@ const bcrypt = require("bcryptjs");
 const Academy = require("./models/Academy");
 const AcademyBatch = require("./models/AcademyBatch");
 const Candidate = require("./models/Candidate");
-const logger = require("./utils/logger");
 
 const COIMBATORE_NAMES = [
   "Aravind Swamy", "Bavani Shankar", "Chandran Pillai", "Deepika Raj", "Ezhil Vannan",
@@ -56,7 +55,7 @@ async function seedAcademyBranches() {
     const passwordHash = await bcrypt.hash("Password123", 10);
 
     // Create Branch 1: Coimbatore Batch (20 Students, 0% Progress)
-    const coimBatch = await AcademyBatch.create({
+    await AcademyBatch.create({
       academyId: academy._id,
       code: "COIM-HCC-2026",
       course: "HCC Coding Specialization",
@@ -66,7 +65,7 @@ async function seedAcademyBranches() {
     });
 
     // Create Branch 2: Chennai Batch (20 Students, 0% Progress)
-    const chenBatch = await AcademyBatch.create({
+    await AcademyBatch.create({
       academyId: academy._id,
       code: "CHEN-ED-2026",
       course: "ED Coding Foundation",
