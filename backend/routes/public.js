@@ -287,14 +287,10 @@ router.get("/verify/candidate/:id", async (req, res) => {
   const { id } = req.params;
 
   let candidate = null;
-  if (id.startsWith("cand_")) {
-    candidate = SEED_CANDIDATES.find((c) => c._id === id);
-  } else {
-    try {
-      candidate = await Candidate.findById(id).lean();
-    } catch (e) {
-      candidate = null;
-    }
+  try {
+    candidate = await Candidate.findById(id).lean();
+  } catch (e) {
+    candidate = null;
   }
 
   if (!candidate) {
