@@ -415,11 +415,7 @@ export default function AssessmentRunner() {
     try {
       const payload = {
         foundationScore: scorePercent,
-        specialtyScore: Math.min(100, scorePercent + 4),
         score: scorePercent,
-        icdScore: userAnswers[1] === 1 && userAnswers[7] === 1 ? 100 : 50,
-        cptScore: userAnswers[2] === 1 && userAnswers[5] === 0 ? 100 : 50,
-        rafScore: userAnswers[4] === 0 ? 100 : 50,
         assessmentType: "AAPC / RCM 10-Q Proctored Assessment",
         topic: "Medical Coding & RCM Domain Competency",
         autoSubmittedReason: reason || null,

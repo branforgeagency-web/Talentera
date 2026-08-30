@@ -67,10 +67,17 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
   async function handleProceedToStage6() {
     if (!bothCompleted) return;
     try {
+      // Deliberately NOT sending videoUrl/aiScore here: the real self-intro
+      // video + score were already saved by AiVideoAssessment's own call to
+      // /candidate/ai-video/assess (or the mock interview's own save) before
+      // this ever runs. The backend does a raw shallow merge on stage5
+      // (`{...existing, ...req.body}`), so sending a placeholder fallback
+      // value here would silently overwrite the real recording/score with
+      // fake data if `existingData` hasn't been refreshed yet with the
+      // latest candidate doc. This call's only job is to flip the two
+      // completion flags so the wizard can advance.
       const res = await api.put("/candidate/stage/5", {
         completed: true,
-        videoUrl: existingData?.videoUrl || existingData?.url || "candidate_self_intro_recorded",
-        aiScore: mockScore || existingData?.aiScore || 85,
         selfIntroCompleted: true,
         mockInterviewCompleted: true,
       });

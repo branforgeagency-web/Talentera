@@ -151,16 +151,16 @@ export default function CompanyPortal() {
     if (c.verificationScore < minScore) return false;
     if (selectedExp !== "All" && c.experience !== selectedExp) return false;
     if (selectedDomain !== "All") {
-      const roleText = c.currentRole.toLowerCase();
+      const roleText = (c.currentRole || "").toLowerCase();
       const keywords = DOMAIN_KEYWORDS[selectedDomain] || [selectedDomain.toLowerCase()];
       if (!keywords.some((kw) => roleText.includes(kw))) return false;
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      const matchName = c.name.toLowerCase().includes(q);
-      const matchRole = c.currentRole.toLowerCase().includes(q);
-      const matchSummary = c.summary.toLowerCase().includes(q);
-      const matchCity = c.city.toLowerCase().includes(q);
+      const matchName = (c.name || "").toLowerCase().includes(q);
+      const matchRole = (c.currentRole || "").toLowerCase().includes(q);
+      const matchSummary = (c.summary || "").toLowerCase().includes(q);
+      const matchCity = (c.city || "").toLowerCase().includes(q);
       if (!matchName && !matchRole && !matchSummary && !matchCity) return false;
     }
     return true;
@@ -416,12 +416,12 @@ export default function CompanyPortal() {
             }}
           >
             <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>14</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>DAYS TO HIRE</div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>{candidates.length}</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>VERIFIED PROFILES</div>
             </div>
             <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>88%</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>OFFER ACCEPTANCE</div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>{candidates.filter((c) => c.badge).length}</div>
+              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>GOLD BADGE PROFILES</div>
             </div>
             <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
               <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>4-Layer</div>
@@ -675,7 +675,7 @@ export default function CompanyPortal() {
                           <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, color: "var(--navy)", display: "flex", alignItems: "center", gap: 6 }}>
                             {c.name} {c.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 14 }} title="Aadhaar Verified">✓</span>}
                           </div>
-                          <div style={{ fontSize: 12, color: "#64748B" }}>{c.currentRole} • {c.experience} yrs</div>
+                          <div style={{ fontSize: 12, color: "#64748B" }}>{c.currentRole || "Role not specified"}{c.experience ? ` • ${c.experience} yrs` : ""}</div>
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
@@ -715,7 +715,7 @@ export default function CompanyPortal() {
 
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.15)", color: "#92400E", fontWeight: 700 }}>
-                        📍 {c.city}
+                        📍 {c.city || "Location not specified"}
                       </span>
                       {c.academyName && (
                         <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DCFCE7", color: "#15803D", fontWeight: 700 }}>
@@ -818,7 +818,7 @@ export default function CompanyPortal() {
                     <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800, margin: 0 }}>
                       {selectedCandidate.name} {selectedCandidate.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 18 }} title="Aadhaar Verified">✓ Aadhaar Verified</span>}
                     </h2>
-                    <div style={{ fontSize: 14, color: "#64748B" }}>{selectedCandidate.currentRole} • {selectedCandidate.city}</div>
+                    <div style={{ fontSize: 14, color: "#64748B" }}>{selectedCandidate.currentRole || "Role not specified"}{selectedCandidate.city ? ` • ${selectedCandidate.city}` : ""}</div>
                   </div>
                 </div>
 
@@ -856,17 +856,17 @@ export default function CompanyPortal() {
                   <div>
                     <strong style={{ color: "#64748B" }}>MOBILE NUMBER: </strong>
                     <span style={{ color: "var(--navy)", fontWeight: 700 }}>
-                      {isVerifiedCompany ? selectedCandidate.mobile : maskMobile(selectedCandidate.mobile)}
+                      {isVerifiedCompany ? (selectedCandidate.mobile || "Not provided") : maskMobile(selectedCandidate.mobile)}
                     </span>
                     {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}>🔒 Locked</span>}
                   </div>
                   <div>
                     <strong style={{ color: "#64748B" }}>AVAILABILITY / NOTICE: </strong>
-                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>{selectedCandidate.noticePeriod}</span>
+                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>{selectedCandidate.noticePeriod || "Not specified"}</span>
                   </div>
                   <div>
                     <strong style={{ color: "#64748B" }}>EXPECTED CTC: </strong>
-                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>{selectedCandidate.expectedCtc}</span>
+                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>{selectedCandidate.expectedCtc || "Not specified"}</span>
                   </div>
                 </div>
               </div>
@@ -875,16 +875,16 @@ export default function CompanyPortal() {
               <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                 <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em", marginBottom: 10, margin: 0 }}>VERIFICATION AUDIT BREAKDOWN</h4>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, marginTop: 10 }}>
-                  <div>✓ Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></div>
-                  <div>✓ Academy Claim: <strong style={{ color: "#15803D" }}>{selectedCandidate.academyName || "Verified Partner"}</strong></div>
-                  <div>✓ Proctored Test: <strong style={{ color: "#15803D" }}>{selectedCandidate.assessmentScore}% Score</strong></div>
-                  <div>✓ Live Chart Audit: <strong style={{ color: "#15803D" }}>{selectedCandidate.accuracyScore}% Accuracy ({selectedCandidate.chartsAudited} Charts)</strong></div>
+                  <div>{selectedCandidate.aadhaarVerified ? (<>✓ Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
+                  <div>{selectedCandidate.academyName ? (<>✓ Academy Claim: <strong style={{ color: "#15803D" }}>{selectedCandidate.academyName}</strong></>) : (<>Academy Claim: <strong style={{ color: "#94A3B8" }}>Not claimed</strong></>)}</div>
+                  <div>{selectedCandidate.assessmentScore != null ? (<>✓ Proctored Test: <strong style={{ color: "#15803D" }}>{selectedCandidate.assessmentScore}% Score</strong></>) : (<>Proctored Test: <strong style={{ color: "#94A3B8" }}>Not yet completed</strong></>)}</div>
+                  <div>{selectedCandidate.accuracyScore != null ? (<>✓ Live Chart Audit: <strong style={{ color: "#15803D" }}>{selectedCandidate.accuracyScore}% Accuracy ({selectedCandidate.chartsAudited} Charts)</strong></>) : (<>Live Chart Audit: <strong style={{ color: "#94A3B8" }}>Not yet completed</strong></>)}</div>
                 </div>
               </div>
 
               <div style={{ marginBottom: 20 }}>
                 <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em", marginBottom: 6 }}>CANDIDATE SUMMARY</h4>
-                <p style={{ fontSize: 14, color: "var(--navy)", lineHeight: 1.6 }}>{selectedCandidate.summary}</p>
+                <p style={{ fontSize: 14, color: "var(--navy)", lineHeight: 1.6 }}>{selectedCandidate.summary || "No summary provided yet."}</p>
               </div>
 
               {/* Modal Buttons */}

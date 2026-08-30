@@ -413,16 +413,21 @@ router.post("/video-platform/sync", async (req, res) => {
       return res.status(400).json({ message: "You must complete Stage 1 before syncing Stage 5 Video Assessment." });
     }
 
+    const resolvedVideoUrl = videoUrl || candidate.stage5?.videoUrl;
+    if (!resolvedVideoUrl || typeof aiScore !== "number") {
+      return res.status(400).json({ message: "Missing real results from the assessment platform (videoUrl and aiScore are required) - cannot sync." });
+    }
+
     const stage5Data = {
       ...(candidate.stage5 || {}),
       platform: platformName || "Talview AI",
       platformId: platformId || "talview",
       inviteLink: inviteLink || "",
       inviteCode: inviteCode || "",
-      aiScore: aiScore || 88,
-      proctoringFlags: proctoringFlags || "0 Flags · Passed",
-      videoUrl: videoUrl || candidate.stage5?.videoUrl || "https://res.cloudinary.com/demo/video/upload/sample.mp4",
-      transcript: transcript || "Candidate completed video Q&A assessment session.",
+      aiScore,
+      proctoringFlags: proctoringFlags || "Not reported by platform",
+      videoUrl: resolvedVideoUrl,
+      transcript: transcript || "",
       livenessVerified: Boolean(livenessVerified),
       syncedAt: new Date(),
     };
@@ -512,7 +517,10 @@ router.post(
         }
       }
 
-      const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl || "https://res.cloudinary.com/demo/video/upload/sample.mp4";
+      const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl;
+      if (!fileUrl) {
+        return res.status(400).json({ message: "No video was received. Please re-record and submit again." });
+      }
 
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
@@ -599,7 +607,10 @@ router.post(
         }
       }
 
-      const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl || "";
+      const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl;
+      if (!fileUrl) {
+        return res.status(400).json({ message: "No recording was received. Please re-record and submit again." });
+      }
 
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);

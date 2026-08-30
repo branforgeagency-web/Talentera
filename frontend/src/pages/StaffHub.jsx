@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { safeJson } from "../utils/safeJson.js";
+import "../styles/staffHub.css";
 
 function isPdfUrl(url = "", fileName = "") {
   const lowerUrl = String(url || "").toLowerCase();
@@ -78,126 +79,101 @@ function Icon({ name, size = 18, sw = 2, style, className }) {
   );
 }
 
-// Department directory shown behind the sidebar's "6 Departments" nav items.
-// Talentera doesn't have a departments/teams API yet, so this is an
-// illustrative snapshot (clearly placeholder headcounts/rosters) rather than
-// live data — a reasonable stand-in until a real directory endpoint exists.
+// Department directory shown behind the sidebar's "6 Departments" nav
+// items. Only icon/title/description/isMine live here - those are just
+// evergreen text describing what each team does, not data. Every number,
+// team roster, and action used to be hardcoded here too (fake headcounts,
+// fake staff names, a "Message Team" button with no messaging backend) -
+// those are now computed live from real dashData in getDeptLiveData()
+// below, or dropped entirely where no real backend data exists at all
+// (there is no staff-directory or matching-engine-metrics API yet).
 const DEPARTMENTS = {
   dept_candidate_acquisition: {
     icon: "👥", title: "Candidate Acquisition", isMine: true,
-    description: "Sources candidates from partner academies, colleges, walk-ins, and referrals, then onboards their profiles into the verification pipeline. Anita's own team.",
-    heroLabel: "Team Size", heroValue: "6", heroUnit: "people",
-    stats: [
-      { label: "Team Size", value: "6", icon: "userPlus", cls: "tt-kpi-1" },
-      { label: "Profiles / Day (Team)", value: "94", icon: "zap", cls: "tt-kpi-2" },
-      { label: "Avg. Time to Verify", value: "2.3 days", icon: "clock", cls: "tt-kpi-3" },
-    ],
-    team: [
-      { name: "Anita Reddy", role: "Sr. Acquisition Executive · Hyderabad", initials: "AR", isMe: true },
-      { name: "Suresh Kumar", role: "Acquisition Executive · Chennai", initials: "SK" },
-      { name: "Priya Menon", role: "Acquisition Executive · Coimbatore", initials: "PM" },
-      { name: "Rajesh Iyer", role: "Acquisition Executive · Vizag", initials: "RI" },
-      { name: "Kavya S.", role: "Acquisition Executive · Bangalore", initials: "KS" },
-    ],
-    actions: [
-      { title: "Message Team", desc: "Ping the whole Candidate Acquisition group.", icon: "message", cls: "sf-a1" },
-      { title: "Weekly Standup Notes", desc: "Review this week's targets and blockers.", icon: "doc", cls: "sf-a2" },
-      { title: "View Full Directory", desc: "See every acquisition executive across all cities.", icon: "userPlus", cls: "sf-a3" },
-    ],
+    description: "Sources candidates from partner academies, colleges, walk-ins, and referrals, then onboards their profiles into the verification pipeline.",
   },
   dept_company_relations: {
     icon: "🏢", title: "Company Relations",
     description: "Owns hiring-company relationships: onboarding new employers, KYC follow-up, and matching verified candidates to open roles.",
-    heroLabel: "Active Companies", heroValue: "68", heroUnit: "on platform",
-    stats: [
-      { label: "Active Companies", value: "68", icon: "buildingGrid", cls: "tt-kpi-1" },
-      { label: "Open Roles", value: "142", icon: "briefcase", cls: "tt-kpi-2" },
-      { label: "Avg. Response Time", value: "4h", icon: "clock", cls: "tt-kpi-3" },
-    ],
-    team: [
-      { name: "Meera Krishnan", role: "Company Relations Lead · Chennai", initials: "MK" },
-      { name: "Arjun Nair", role: "Account Manager · Bangalore", initials: "AN" },
-      { name: "Divya Shah", role: "Account Manager · Mumbai", initials: "DS" },
-    ],
-    actions: [
-      { title: "Message Team", desc: "Ping the Company Relations group.", icon: "message", cls: "sf-a1" },
-      { title: "Company Directory", desc: "Browse active hiring companies and their KYC status.", icon: "buildingGrid", cls: "sf-a2" },
-    ],
   },
   dept_mapping_engine: {
     icon: "🔄", title: "Mapping Engine",
     description: "Maintains the matching logic that pairs verified candidates with company job requisitions by specialty, certification, location, and score.",
-    heroLabel: "Match Accuracy", heroValue: "88", heroUnit: "%",
-    stats: [
-      { label: "Matches / Week", value: "310", icon: "zap", cls: "tt-kpi-1" },
-      { label: "Match Accuracy", value: "88%", icon: "shieldCheck", cls: "tt-kpi-2" },
-      { label: "Rules in Production", value: "42", icon: "settingsGear", cls: "tt-kpi-3" },
-    ],
-    team: [
-      { name: "Karthik Subramaniam", role: "Mapping Engine Lead", initials: "KS" },
-      { name: "Fatima Sheikh", role: "Ops Analyst", initials: "FS" },
-    ],
-    actions: [
-      { title: "Message Team", desc: "Ping the Mapping Engine group.", icon: "message", cls: "sf-a1" },
-      { title: "Matching Rules", desc: "Review the active specialty / score matching rules.", icon: "settingsGear", cls: "sf-a2" },
-    ],
   },
   dept_assessment_video: {
     icon: "🎥", title: "Assessment + Video",
     description: "Reviews text assessments and video introductions flagged by the AI grading pipeline, and maintains the interview question bank.",
-    heroLabel: "In Review Today", heroValue: "12", heroUnit: "items",
-    stats: [
-      { label: "In Review Today", value: "12", icon: "video", cls: "tt-kpi-1" },
-      { label: "Avg. Turnaround", value: "6h", icon: "clock", cls: "tt-kpi-2" },
-      { label: "Question Bank Size", value: "180", icon: "mic", cls: "tt-kpi-3" },
-    ],
-    team: [
-      { name: "Sanjay Verma", role: "Assessment Lead", initials: "SV" },
-      { name: "Neha Kapoor", role: "Video Reviewer", initials: "NK" },
-      { name: "Ravi Teja", role: "Video Reviewer", initials: "RT" },
-    ],
-    actions: [
-      { title: "Message Team", desc: "Ping the Assessment + Video group.", icon: "message", cls: "sf-a1" },
-      { title: "Question Bank", desc: "Open the interview question bank.", icon: "mic", cls: "sf-a2", modalNav: "questions" },
-    ],
   },
   dept_crm_data: {
     icon: "📈", title: "CRM + Data",
     description: "Keeps candidate and company records clean, monitors pipeline data quality, and builds the operational reports leadership reviews weekly.",
-    heroLabel: "Data Quality Score", heroValue: "96", heroUnit: "%",
-    stats: [
-      { label: "Records Synced Today", value: "1,204", icon: "database", cls: "tt-kpi-1" },
-      { label: "Data Quality Score", value: "96%", icon: "shieldCheck", cls: "tt-kpi-2" },
-      { label: "Open Data Tickets", value: "5", icon: "alertTriangle", cls: "tt-kpi-3" },
-    ],
-    team: [
-      { name: "Ananya Rao", role: "Data Lead", initials: "AR" },
-      { name: "Vishal Mehta", role: "CRM Analyst", initials: "VM" },
-    ],
-    actions: [
-      { title: "Message Team", desc: "Ping the CRM + Data group.", icon: "message", cls: "sf-a1" },
-      { title: "Reports & Metrics", desc: "Open the operations analytics dashboard.", icon: "chartBar", cls: "sf-a2", modalNav: "reports" },
-    ],
   },
   dept_success_revenue: {
     icon: "💰", title: "Success + Revenue",
-    description: "Closes placements, manages commission payouts to acquisition staff, and tracks month-over-month revenue from successful hires.",
-    heroLabel: "Revenue MTD", heroValue: "₹18.4L", heroUnit: "",
-    stats: [
-      { label: "Placements This Month", value: "37", icon: "award", cls: "tt-kpi-1" },
-      { label: "Revenue MTD", value: "₹18.4L", icon: "trendingUp", cls: "tt-kpi-2" },
-      { label: "Avg. Days to Close", value: "11", icon: "clock", cls: "tt-kpi-3" },
-    ],
-    team: [
-      { name: "Ishaan Malhotra", role: "Success + Revenue Lead", initials: "IM" },
-      { name: "Pooja Desai", role: "Placement Coordinator", initials: "PD" },
-    ],
-    actions: [
-      { title: "Message Team", desc: "Ping the Success + Revenue group.", icon: "message", cls: "sf-a1" },
-      { title: "Commission Report", desc: "View this month's payout breakdown.", icon: "award", cls: "sf-a2" },
-    ],
+    description: "Tracks candidates who complete verification and are placed, and the platform's overall placement rate.",
   },
 };
+
+// Real, per-department numbers computed from the same dashData every other
+// tab already uses - no invented headcounts, match rates, or revenue
+// figures. Returns null stats/hero for a department with no real backing
+// data at all (there's no matching-engine metrics or revenue/commission
+// tracking anywhere in the app yet), so the page can show an honest empty
+// state instead of a fabricated number.
+function getDeptLiveData(deptId, dashData) {
+  const stats = dashData?.stats || {};
+  const reports = dashData?.reportsData || {};
+  switch (deptId) {
+    case "dept_candidate_acquisition":
+      return {
+        hero: { label: "Awaiting Review", value: stats.pendingVerifications ?? 0, unit: "profiles" },
+        tiles: [
+          { label: "Pending Verifications", value: stats.pendingVerifications ?? 0, icon: "userPlus", cls: "tt-kpi-1" },
+          { label: "Active Candidates", value: stats.activeCandidates ?? 0, icon: "clock", cls: "tt-kpi-2" },
+          { label: "Placed This Month", value: stats.placedThisMonth ?? 0, icon: "award", cls: "tt-kpi-3" },
+        ],
+        actions: [],
+      };
+    case "dept_company_relations":
+      return {
+        hero: { label: "Active Companies", value: reports.totalCompanies ?? 0, unit: "on platform" },
+        tiles: [
+          { label: "Total Companies", value: reports.totalCompanies ?? 0, icon: "buildingGrid", cls: "tt-kpi-1" },
+          { label: "Verified (Gold KYC)", value: stats.verifiedCompanies ?? 0, icon: "shieldCheck", cls: "tt-kpi-2" },
+          { label: "Pending KYC", value: stats.pendingCompanyKycs ?? 0, icon: "clock", cls: "tt-kpi-3" },
+        ],
+        actions: [
+          { title: "Company KYC Queue", desc: "Browse companies and their KYC status.", icon: "buildingGrid", cls: "sf-a2", modalNav: "kyc" },
+        ],
+      };
+    case "dept_mapping_engine":
+      return { hero: null, tiles: [], actions: [] };
+    case "dept_crm_data":
+      return {
+        hero: { label: "Total Records", value: (reports.totalCandidates ?? 0) + (reports.totalCompanies ?? 0), unit: "candidates + companies" },
+        tiles: [
+          { label: "Total Candidates", value: reports.totalCandidates ?? 0, icon: "database", cls: "tt-kpi-1" },
+          { label: "Total Companies", value: reports.totalCompanies ?? 0, icon: "buildingGrid", cls: "tt-kpi-2" },
+          { label: "Verified Candidates", value: reports.verifiedCandidates ?? 0, icon: "shieldCheck", cls: "tt-kpi-3" },
+        ],
+        actions: [
+          { title: "Reports & Metrics", desc: "Open the operations analytics dashboard.", icon: "chartBar", cls: "sf-a2", modalNav: "reports" },
+        ],
+      };
+    case "dept_success_revenue":
+      return {
+        hero: { label: "Placed This Month", value: stats.placedThisMonth ?? 0, unit: "candidates" },
+        tiles: [
+          { label: "Placed This Month", value: stats.placedThisMonth ?? 0, icon: "award", cls: "tt-kpi-1" },
+          { label: "Total Verified & Placed", value: reports.verifiedCandidates ?? 0, icon: "trendingUp", cls: "tt-kpi-2" },
+          { label: "Placement Rate", value: reports.placementRate ?? "0%", icon: "shieldCheck", cls: "tt-kpi-3" },
+        ],
+        actions: [],
+      };
+    default:
+      return { hero: null, tiles: [], actions: [] };
+  }
+}
 
 export default function StaffHub() {
   const navigate = useNavigate();
@@ -230,28 +206,16 @@ export default function StaffHub() {
   const [questionsLoading, setQuestionsLoading] = useState(true);
 
   // --- EMPLOYEE DASHBOARD INTERACTIVE STATE (CANDIDATE & COMPANY THEME UNIFIED) ---
-  const [partnerBucket, setPartnerBucket] = useState([
-    { id: "p1", avatar: "AS", name: "Ananya Sharma", academy: "Apex Medical Coding Institute", specialty: "Senior AR Caller", cert: "CPC Certified (AAPC)", location: "Bengaluru", time: "10 min ago" },
-    { id: "p2", avatar: "RK", name: "Rajesh Kumar", academy: "MedCode Academy", specialty: "Medical Coder", cert: "CPC-A", location: "Hyderabad", time: "25 min ago" },
-    { id: "p3", avatar: "PN", name: "Priya Nair", academy: "National Health Training Inst.", specialty: "Denial Management Lead", cert: "CCS-P Certified", location: "Chennai", time: "40 min ago" },
-  ]);
+  // These start empty rather than seeded with fictional names/academies -
+  // partnerBucket is synced from the real dashData.incomingBucket below;
+  // todayTasksList has no backend at all yet (see the "My Tasks" tab's own
+  // "not yet synced to a shared backend" note), so it should read as a
+  // genuinely empty to-do list rather than someone else's fake schedule.
+  const [partnerBucket, setPartnerBucket] = useState([]);
 
-  const [todayTasksList, setTodayTasksList] = useState([
-    { id: "t1", time: "11:00 AM", title: "Visit Apex Medical Coding Institute (Bengaluru)", detail: "Pick up new batch resumes • Bhanu", priority: "HIGH", color: "#EF4444", completed: false },
-    { id: "t2", time: "2:00 PM", title: "Call Optum HR - Siddharth Rao", detail: "5 verified candidates ready • Sr Coder role", priority: "HIGH", color: "#EF4444", completed: false },
-    { id: "t3", time: "3:30 PM", title: "Follow-up : 5 pending Aadhaar verifications", detail: "Push to verification team", priority: "MED", color: "#F59E0B", completed: false },
-    { id: "t4", time: "5:00 PM", title: "Schedule mock interview - Vikram Singh", detail: "For Optum 2nd round", priority: "MED", color: "#F59E0B", completed: false },
-    { id: "t5", time: "6:00 PM", title: "Daily report submission", detail: "KPI sheet to Department Lead", priority: "LOW", color: "#2563EB", completed: false },
-  ]);
+  const [todayTasksList, setTodayTasksList] = useState([]);
 
-  const [recentUploadsList, setRecentUploadsList] = useState([
-    { id: "u1", avatar: "AS", name: "Ananya Sharma", timeAgo: "1 hr ago", source: "Apex Medical Coding Institute", specialty: "Senior AR Caller", stage: "VERIFIED", stageColor: "#15803D", stageBg: "#DCFCE7" },
-    { id: "u2", avatar: "RK", name: "Rajesh Kumar", timeAgo: "2 hrs ago", source: "MedCode Academy", specialty: "Medical Coder", stage: "IN ASSESSMENT", stageColor: "#B45309", stageBg: "#FEF3C7" },
-    { id: "u3", avatar: "PN", name: "Priya Nair", timeAgo: "3 hrs ago", source: "National Health Training Inst.", specialty: "Denial Management", stage: "VERIFIED", stageColor: "#15803D", stageBg: "#DCFCE7" },
-    { id: "u4", avatar: "VS", name: "Vikram Singh", timeAgo: "4 hrs ago", source: "Walk-in (Delhi NCR)", specialty: "Trainee AR Executive", stage: "IN ASSESSMENT", stageColor: "#B45309", stageBg: "#FEF3C7" },
-    { id: "u5", avatar: "KR", name: "Kavita Reddy", timeAgo: "1 day ago", source: "Apex Medical Coding Institute", specialty: "Payment Posting", stage: "VERIFIED", stageColor: "#15803D", stageBg: "#DCFCE7" },
-    { id: "u6", avatar: "SM", name: "Sanjay Mehta", timeAgo: "1 day ago", source: "Apex Medical Coding Institute", specialty: "Junior Medical Coder", stage: "PROFILE PENDING", stageColor: "#475569", stageBg: "#F1F5F9" },
-  ]);
+  const [recentUploadsList, setRecentUploadsList] = useState([]);
 
   const [activeModal, setActiveModal] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -283,6 +247,7 @@ export default function StaffHub() {
     fetchDashboard();
     fetchStaffNotifications();
     fetchInterviewQuestions();
+    fetchActivityLog(1);
   }, []);
 
   useEffect(() => {
@@ -301,20 +266,19 @@ export default function StaffHub() {
       }
       const data = await safeJson(res);
       setDashData(data);
-      if (data?.incomingBucket && Array.isArray(data.incomingBucket) && data.incomingBucket.length > 0) {
-        setPartnerBucket(data.incomingBucket.slice(0, 5));
-        setRecentUploadsList(data.incomingBucket.map((c) => ({
-          id: c.id,
-          avatar: c.avatar || "CD",
-          name: c.name || "Candidate",
-          timeAgo: c.time || "Recently",
-          source: c.academy || "Apex Medical Coding Institute",
-          specialty: c.specialty || "Medical Coding",
-          stage: c.stage || "PROFILE PENDING",
-          stageColor: c.stageColor || "#475569",
-          stageBg: c.stageBg || "#F1F5F9",
-        })));
-      }
+      const incoming = Array.isArray(data?.incomingBucket) ? data.incomingBucket : [];
+      setPartnerBucket(incoming.slice(0, 5));
+      setRecentUploadsList(incoming.map((c) => ({
+        id: c.id,
+        avatar: c.avatar || "CD",
+        name: c.name || "Candidate",
+        timeAgo: c.time || "Recently",
+        source: c.academy || "Unspecified",
+        specialty: c.specialty || "Medical Coding",
+        stage: c.stage || "PROFILE PENDING",
+        stageColor: c.stageColor || "#475569",
+        stageBg: c.stageBg || "#F1F5F9",
+      })));
     } catch (err) {
       console.error(err);
     } finally {
@@ -472,6 +436,29 @@ export default function StaffHub() {
     }
   };
 
+  const handleVerifyVideo = async (candidateId, action) => {
+    setProcessingId(candidateId);
+    try {
+      const res = await fetch("/api/staff/verify-video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ candidateId, action }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        fetchDashboard();
+        showToast(data.message || (action === "verify" ? "Video verified." : "Video sent back for re-record."));
+      } else {
+        showToast(data.message || "Could not update video verification status.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not update video verification status.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleAuditCertification = async (candidateId, action, rejectionReason = "") => {
     setProcessingId(candidateId);
     try {
@@ -585,7 +572,12 @@ export default function StaffHub() {
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", fontFamily: "var(--font-body, 'Manrope', sans-serif)", color: "var(--navy, #0A1F3D)" }}>Loading Talentera Operations Console...</div>;
 
-  const { companyKycQueue, certificationQueue, jobApprovalQueue } = dashData || {};
+  const { companyKycQueue, certificationQueue, jobApprovalQueue, videoIntrosQueue, textAssessmentQueue } = dashData || {};
+
+  const videoCounts = {
+    pending: (videoIntrosQueue || []).filter((v) => !v.verified).length,
+    verified: (videoIntrosQueue || []).filter((v) => v.verified).length,
+  };
 
   const kycCounts = {
     pending: (companyKycQueue || []).filter((c) => c.kycStatus === "pending" || c.kycStatus === "under_review").length,
@@ -704,7 +696,7 @@ export default function StaffHub() {
                 { id: "dept_candidate_acquisition", icon: "userPlus", label: "Candidate Acquisition", badge: "YOU" },
                 { id: "dept_company_relations", icon: "buildingGrid", label: "Company Relations" },
                 { id: "dept_mapping_engine", icon: "settingsGear", label: "Mapping Engine" },
-                { id: "dept_assessment_video", icon: "video", label: "Assessment + Video", badge: "12", muted: true },
+                { id: "dept_assessment_video", icon: "video", label: "Assessment + Video", badge: videoCounts.pending > 0 ? String(videoCounts.pending) : null, muted: true },
                 { id: "dept_crm_data", icon: "database", label: "CRM + Data" },
                 { id: "dept_success_revenue", icon: "trendingUp", label: "Success + Revenue" },
               ].map((d) => (
@@ -739,10 +731,18 @@ export default function StaffHub() {
           {/* USER PROFILE FOOTER */}
           <div className="staff-sidebar-user">
             <div className="staff-user-card">
-              <div className="staff-user-avatar">AR</div>
+              <div className="staff-user-avatar">
+                {(dashData?.staffProfile?.name || "?")
+                  .split(" ")
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0])
+                  .join("")
+                  .toUpperCase() || "?"}
+              </div>
               <div className="staff-user-info">
-                <div className="staff-user-name">Anita Reddy</div>
-                <div className="staff-user-role">SENIOR ACQUISITION EXECUTIVE · T-014</div>
+                <div className="staff-user-name">{dashData?.staffProfile?.name || "Staff Member"}</div>
+                <div className="staff-user-role">{(dashData?.staffProfile?.role || "STAFF").toUpperCase()}</div>
               </div>
               <span className="staff-user-action"><Icon name="kebab" size={16} /></span>
             </div>
@@ -841,19 +841,19 @@ export default function StaffHub() {
                 </div>
               </div>
 
-              {/* 4 TOP KPI CARDS GRID */}
+              {/* 4 TOP KPI CARDS GRID - all real, from dashData.stats
+                  (staff.js GET /dashboard), no invented targets/commissions */}
               <div className="tt-kpi-grid">
                 {[
-                  { title: "Profiles Today", value: "18", unit: "/25", sub: "72% of daily target", trend: "up", icon: "user", cls: "tt-kpi-1" },
-                  { title: "In Verification", value: "12", sub: "Across assessment, video, Aadhaar", trend: "flat", icon: "clock", cls: "tt-kpi-3" },
-                  { title: "Verified Today", value: "8", sub: "↑ 3 vs yesterday", trend: "up", icon: "shieldCheck", cls: "tt-kpi-2" },
-                  { title: "Placed This Month", value: "14", sub: "₹35K commission earned", trend: "up", icon: "award", cls: "tt-kpi-4" },
+                  { title: "Pending Verifications", value: dashData?.stats?.pendingVerifications ?? 0, icon: "user", cls: "tt-kpi-1" },
+                  { title: "Active Candidates", value: dashData?.stats?.activeCandidates ?? 0, icon: "clock", cls: "tt-kpi-3" },
+                  { title: "Verified Today", value: dashData?.stats?.verifiedToday ?? 0, icon: "shieldCheck", cls: "tt-kpi-2" },
+                  { title: "Placed This Month", value: dashData?.stats?.placedThisMonth ?? 0, icon: "award", cls: "tt-kpi-4" },
                 ].map((kpi, idx) => (
                   <div key={idx} className="tt-kpi">
                     <div className={`tt-kpi-icon ${kpi.cls}`}><Icon name={kpi.icon} size={18} /></div>
                     <div className="tt-kpi-label">{kpi.title}</div>
-                    <div className="tt-kpi-value">{kpi.value}{kpi.unit && <span className="tt-kpi-unit">{kpi.unit}</span>}</div>
-                    <div className={`tt-kpi-trend tt-trend-${kpi.trend}`}>{kpi.sub}</div>
+                    <div className="tt-kpi-value">{kpi.value}</div>
                   </div>
                 ))}
               </div>
@@ -886,20 +886,13 @@ export default function StaffHub() {
                   <span className="tt-card-link" onClick={() => setActiveModal("kanban")}>Open Full Kanban →</span>
                 </div>
 
-                {/* 7 STAGE CARDS */}
+                {/* 7 STAGE CARDS - real, from dashData.pipeline (staff.js
+                    GET /dashboard), each a genuine completedStages count */}
                 <div className="sf-pipeline-stages">
-                  {[
-                    { count: 8, label: "Onboarded" },
-                    { count: 5, label: "Profile ✓" },
-                    { count: 4, label: "Assessment" },
-                    { count: 3, label: "Video" },
-                    { count: 2, label: "Aadhaar" },
-                    { count: 12, label: "Verified ✓" },
-                    { count: 14, label: "Placed", placed: true },
-                  ].map((stg, idx) => (
-                    <div key={idx} className={`sf-pipe-stage${stg.placed ? " placed" : ""}`} onClick={() => setActiveModal("kanban")}>
+                  {(dashData?.pipeline || []).map((stg, idx) => (
+                    <div key={idx} className={`sf-pipe-stage${stg.isPlaced ? " placed" : ""}`} onClick={() => setActiveModal("kanban")}>
                       <div className="sf-pipe-num">{stg.count}</div>
-                      <div className="sf-pipe-label">{stg.label}</div>
+                      <div className="sf-pipe-label">{stg.stage}</div>
                     </div>
                   ))}
                 </div>
@@ -932,25 +925,29 @@ export default function StaffHub() {
                           </tr>
                         </thead>
                         <tbody>
-                          {recentUploadsList.map((row) => (
-                            <tr key={row.id}>
-                              <td>
-                                <div className="sf-name-cell">
-                                  <div className="sf-mini-avatar">{row.avatar}</div>
-                                  <div>
-                                    <div style={{ fontWeight: 600 }}>{row.name}</div>
-                                    <div style={{ fontSize: 11, color: "#94A3B8" }}>{row.timeAgo}</div>
+                          {recentUploadsList.length === 0 ? (
+                            <tr><td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted, #4A5568)" }}>No recent candidate uploads.</td></tr>
+                          ) : (
+                            recentUploadsList.map((row) => (
+                              <tr key={row.id}>
+                                <td>
+                                  <div className="sf-name-cell">
+                                    <div className="sf-mini-avatar">{row.avatar}</div>
+                                    <div>
+                                      <div style={{ fontWeight: 600 }}>{row.name}</div>
+                                      <div style={{ fontSize: 11, color: "#94A3B8" }}>{row.timeAgo}</div>
+                                    </div>
                                   </div>
-                                </div>
-                              </td>
-                              <td style={{ color: "var(--text-muted)" }}>{row.source}</td>
-                              <td>{row.specialty}</td>
-                              <td><span className="sf-stage-pill" style={{ background: row.stageBg, color: row.stageColor }}>{row.stage}</span></td>
-                              <td style={{ textAlign: "right" }}>
-                                <button type="button" className="sf-action-btn outline" onClick={() => showToast(`Pushed ${row.name} to next stage.`)}>Push →</button>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                                <td style={{ color: "var(--text-muted)" }}>{row.source}</td>
+                                <td>{row.specialty}</td>
+                                <td><span className="sf-stage-pill" style={{ background: row.stageBg, color: row.stageColor }}>{row.stage}</span></td>
+                                <td style={{ textAlign: "right" }}>
+                                  <button type="button" className="sf-action-btn outline" onClick={() => showToast(`Pushed ${row.name} to next stage.`)}>Push →</button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
                         </tbody>
                       </table>
                     </div>
@@ -965,21 +962,21 @@ export default function StaffHub() {
                       </div>
                     </div>
                     <div style={{ padding: "4px 22px 18px" }}>
-                      {[
-                        { text: <>Priya S. got placed at Optum — your candidate! ₹5.5 LPA</>, time: "2 hrs ago", color: "rgba(229,168,46,0.15)", dot: "#B47E0E" },
-                        { text: <>Vikram completed video introduction</>, time: "4 hrs ago", color: "#DCFCE7", dot: "#15803D" },
-                        { text: <>You added 3 new candidates from ThoughtFlows</>, time: "5 hrs ago", color: "rgba(229,168,46,0.15)", dot: "#B47E0E" },
-                        { text: <>Lakshmi P. shortlisted by R1 RCM</>, time: "1 day ago", color: "#EDE9FE", dot: "#6D28D9" },
-                        { text: <>You signed MoU with Apollo Coding Institute</>, time: "2 days ago", color: "rgba(229,168,46,0.15)", dot: "#B47E0E" },
-                      ].map((item, idx) => (
-                        <div key={idx} className="sf-feed-item">
-                          <div className="sf-feed-icon" style={{ background: item.color, color: item.dot }}>●</div>
-                          <div className="sf-feed-info">
-                            <div className="sf-feed-text">{item.text}</div>
-                            <div className="sf-feed-time">{item.time}</div>
-                          </div>
+                      {activityEntries.length === 0 ? (
+                        <div style={{ textAlign: "center", color: "var(--text-muted, #4A5568)", fontSize: 12, padding: "12px 0" }}>
+                          No staff activity recorded yet.
                         </div>
-                      ))}
+                      ) : (
+                        activityEntries.slice(0, 5).map((act) => (
+                          <div key={act._id} className="sf-feed-item">
+                            <div className="sf-feed-icon" style={{ background: "rgba(229,168,46,0.15)", color: "#B47E0E" }}>●</div>
+                            <div className="sf-feed-info">
+                              <div className="sf-feed-text">{act.staffName ? `${act.staffName}: ` : ""}{act.summary}</div>
+                              <div className="sf-feed-time">{new Date(act.createdAt).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -1010,34 +1007,6 @@ export default function StaffHub() {
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-
-                  {/* DEPARTMENT LEADERBOARD CARD */}
-                  <div className="tt-card">
-                    <div className="tt-card-head">
-                      <div>
-                        <div className="tt-card-title">Department Leaderboard</div>
-                        <div className="tt-card-sub">Profiles registered today · Candidate Acquisition</div>
-                      </div>
-                    </div>
-                    <div style={{ padding: "4px 22px 18px" }}>
-                      {[
-                        { rank: 1, name: "Suresh Kumar", dept: "Candidate Acquisition · Chennai", score: 23 },
-                        { rank: 2, name: "Anita Reddy", dept: "Candidate Acquisition · Hyderabad", score: 18, isMe: true },
-                        { rank: 3, name: "Priya Menon", dept: "Candidate Acquisition · Coimbatore", score: 16 },
-                        { rank: 4, name: "Rajesh Iyer", dept: "Candidate Acquisition · Vizag", score: 14 },
-                        { rank: 5, name: "Kavya S.", dept: "Candidate Acquisition · Bangalore", score: 12 },
-                      ].map((lb) => (
-                        <div key={lb.rank} className={`sf-leader-row${lb.isMe ? " me" : ""}`}>
-                          <div className="sf-leader-rank">{lb.rank}</div>
-                          <div className="sf-leader-info">
-                            <div className="sf-leader-name">{lb.name}{lb.isMe && <span style={{ color: "var(--gold)", fontSize: 11 }}> (you)</span>}</div>
-                            <div className="sf-leader-dept">{lb.dept}</div>
-                          </div>
-                          <div className="sf-leader-score">{lb.score}</div>
-                        </div>
-                      ))}
                     </div>
                   </div>
 
@@ -1265,9 +1234,176 @@ export default function StaffHub() {
             );
           })()}
 
-          {/* TAB MODULE: DEPARTMENT PAGES */}
-          {activeNav.startsWith("dept_") && DEPARTMENTS[activeNav] && (() => {
+          {/* TAB MODULE: DEPARTMENT PAGES - Assessment + Video gets a real-data
+              view built from dashData.videoIntrosQueue / textAssessmentQueue
+              (both genuinely computed server-side in staff.js) instead of the
+              illustrative DEPARTMENTS config used by the other five
+              departments below, which have no real staff-directory API yet. */}
+          {activeNav === "dept_assessment_video" ? (() => {
+            const dept = DEPARTMENTS.dept_assessment_video;
+            const videoQueue = videoIntrosQueue || [];
+            const textQueue = textAssessmentQueue || [];
+            const scored = videoQueue.filter((v) => typeof v.aiScore === "number");
+            const avgAiScore = scored.length > 0 ? Math.round((scored.reduce((s, v) => s + v.aiScore, 0) / scored.length) * 10) / 10 : null;
+            return (
+              <div style={{ padding: "20px 28px" }}>
+                {/* WELCOME-STYLE HERO BANNER */}
+                <div className="sf-welcome">
+                  <div className="sf-welcome-row">
+                    <div className="sf-welcome-info">
+                      <div className="sf-greet" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontSize: 26, lineHeight: 1 }}>{dept.icon}</span> {dept.title}
+                      </div>
+                      <div className="sf-meta">
+                        <span className="sf-meta-pill">{videoQueue.length} VIDEO INTROS</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 520 }}>{dept.description}</span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Pending Review</div>
+                      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
+                        {videoCounts.pending}
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>videos</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPI TILES - all real */}
+                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-1"><Icon name="video" size={18} /></div>
+                    <div className="tt-kpi-label">Video Intros Submitted</div>
+                    <div className="tt-kpi-value">{videoQueue.length}</div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-2"><Icon name="clock" size={18} /></div>
+                    <div className="tt-kpi-label">Avg. AI Score</div>
+                    <div className="tt-kpi-value">{avgAiScore !== null ? avgAiScore : "—"}</div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-3"><Icon name="mic" size={18} /></div>
+                    <div className="tt-kpi-label">Question Bank Size</div>
+                    <div className="tt-kpi-value">{interviewQuestions.length}</div>
+                  </div>
+                </div>
+
+                {/* QUICK ACTION - real, wired to the actual question bank view */}
+                <div className="sf-actions-grid" style={{ gridTemplateColumns: "repeat(1, 1fr)" }}>
+                  <button type="button" className="sf-action" onClick={() => setActiveNav("questions")}>
+                    <div className="sf-action-icon sf-a2"><Icon name="mic" size={22} /></div>
+                    <div className="sf-action-title">Question Bank</div>
+                    <div className="sf-action-desc">Open the interview question bank.</div>
+                    <div className="sf-action-cta">Open →</div>
+                  </button>
+                </div>
+
+                {/* REAL VIDEO REVIEW LIST - actual <video> players over each
+                    candidate's real recorded videoUrl, with a genuine
+                    staff-verify action (POST /api/staff/verify-video). */}
+                <div className="tt-card">
+                  <div className="tt-card-head">
+                    <div>
+                      <div className="tt-card-title">Video Introductions</div>
+                      <div className="tt-card-sub">Real self-introduction videos submitted by candidates · review and verify</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "4px 22px 18px", display: "flex", flexDirection: "column", gap: 16 }}>
+                    {videoQueue.length === 0 ? (
+                      <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted, #4A5568)", fontSize: 13 }}>
+                        No candidates have submitted a video introduction yet.
+                      </div>
+                    ) : (
+                      videoQueue.map((v) => (
+                        <div key={v.id} style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 18, border: "1px solid var(--border-light, #E2E8F0)", borderRadius: 14, padding: 16 }}>
+                          <div>
+                            {v.videoUrl ? (
+                              <video src={v.videoUrl} controls style={{ width: "100%", borderRadius: 10, background: "#000", display: "block" }} />
+                            ) : (
+                              <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 10, background: "rgba(10,31,61,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
+                                No playable file
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                              <div>
+                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>{v.studentName}</div>
+                                <div style={{ fontSize: 12, color: "var(--text-muted, #4A5568)" }}>{v.role} · {v.email}</div>
+                              </div>
+                              <span className="sf-stage-pill" style={{ background: v.verified ? "#DCFCE7" : "#FEF3C7", color: v.verified ? "#15803D" : "#B45309" }}>
+                                {v.verified ? "Verified" : "Pending Audit"}
+                              </span>
+                            </div>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 10, fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
+                              <span>Mode: {v.interviewMode}</span>
+                              {typeof v.aiScore === "number" && <span>AI Score: {v.aiScore}</span>}
+                              <span>Duration: {v.duration}</span>
+                              {v.questions && v.questions.length > 0 && <span>{v.questions.length} question(s) answered</span>}
+                            </div>
+                            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                              {!v.verified ? (
+                                <button type="button" className="sf-action-btn" disabled={processingId === v.id} onClick={() => handleVerifyVideo(v.id, "verify")}>
+                                  {processingId === v.id ? "Processing…" : "✓ Verify"}
+                                </button>
+                              ) : (
+                                <button type="button" className="sf-action-btn outline" disabled={processingId === v.id} onClick={() => handleVerifyVideo(v.id, "reject")}>
+                                  {processingId === v.id ? "Processing…" : "Send back for re-record"}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* REAL TEXT ASSESSMENT LOG */}
+                <div className="tt-card" style={{ marginTop: 22 }}>
+                  <div className="tt-card-head">
+                    <div>
+                      <div className="tt-card-title">Text Assessment Log</div>
+                      <div className="tt-card-sub">Proctored knowledge assessments submitted by candidates (auto-graded, reference only)</div>
+                    </div>
+                  </div>
+                  <div className="sf-table-wrap">
+                    <table className="sf-table">
+                      <thead>
+                        <tr>
+                          <th>Candidate</th>
+                          <th>Topic</th>
+                          <th>Score</th>
+                          <th>Submitted</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {textQueue.length === 0 ? (
+                          <tr><td colSpan={4} style={{ textAlign: "center", padding: 24, color: "var(--text-muted, #4A5568)" }}>No assessments submitted yet.</td></tr>
+                        ) : (
+                          textQueue.map((t) => (
+                            <tr key={t.id}>
+                              <td>
+                                <div className="sf-name-cell">
+                                  <div className="sf-mini-avatar">{(t.studentName || "C").slice(0, 2).toUpperCase()}</div>
+                                  <div style={{ fontWeight: 600 }}>{t.studentName}</div>
+                                </div>
+                              </td>
+                              <td>{t.topic || t.assessmentType}</td>
+                              <td>{t.foundationScore != null ? `${t.foundationScore} / 100` : "—"}</td>
+                              <td style={{ color: "var(--text-muted, #4A5568)" }}>{t.submittedAt ? new Date(t.submittedAt).toLocaleDateString() : "—"}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : activeNav.startsWith("dept_") && DEPARTMENTS[activeNav] && (() => {
             const dept = DEPARTMENTS[activeNav];
+            const live = getDeptLiveData(activeNav, dashData);
             return (
               <div style={{ padding: "20px 28px" }}>
                 {/* WELCOME-STYLE HERO BANNER */}
@@ -1279,40 +1415,47 @@ export default function StaffHub() {
                       </div>
                       <div className="sf-meta">
                         {dept.isMine && <span className="sf-day-pill">YOUR TEAM</span>}
-                        <span className="sf-meta-pill">{dept.team.length} PEOPLE</span>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 520 }}>{dept.description}</span>
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{dept.heroLabel}</div>
-                      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
-                        {dept.heroValue}
+                    {live.hero && (
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{live.hero.label}</div>
+                        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
+                          {live.hero.value}
+                        </div>
+                        {live.hero.unit && <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{live.hero.unit}</div>}
                       </div>
-                      {dept.heroUnit && <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>{dept.heroUnit}</div>}
-                    </div>
+                    )}
                   </div>
                 </div>
 
-                {/* KPI TILES */}
-                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-                  {dept.stats.map((s, idx) => (
-                    <div key={idx} className="tt-kpi">
-                      <div className={`tt-kpi-icon ${s.cls}`}><Icon name={s.icon} size={18} /></div>
-                      <div className="tt-kpi-label">{s.label}</div>
-                      <div className="tt-kpi-value">{s.value}</div>
-                    </div>
-                  ))}
-                </div>
+                {/* KPI TILES - real, from dashData (see getDeptLiveData) */}
+                {live.tiles.length > 0 ? (
+                  <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                    {live.tiles.map((s, idx) => (
+                      <div key={idx} className="tt-kpi">
+                        <div className={`tt-kpi-icon ${s.cls}`}><Icon name={s.icon} size={18} /></div>
+                        <div className="tt-kpi-label">{s.label}</div>
+                        <div className="tt-kpi-value">{s.value}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="tt-card" style={{ padding: 24, textAlign: "center", color: "var(--text-muted, #4A5568)", fontSize: 13 }}>
+                    No live metrics are wired up for this department yet.
+                  </div>
+                )}
 
-                {/* QUICK ACTION CARDS */}
-                {dept.actions && dept.actions.length > 0 && (
-                  <div className="sf-actions-grid" style={{ gridTemplateColumns: `repeat(${dept.actions.length}, 1fr)` }}>
-                    {dept.actions.map((act, idx) => (
+                {/* QUICK ACTION CARDS - only real, working actions */}
+                {live.actions && live.actions.length > 0 && (
+                  <div className="sf-actions-grid" style={{ gridTemplateColumns: `repeat(${live.actions.length}, 1fr)` }}>
+                    {live.actions.map((act, idx) => (
                       <button
                         key={idx}
                         type="button"
                         className="sf-action"
-                        onClick={() => (act.modalNav ? setActiveNav(act.modalNav) : showToast(act.title + " — coming soon."))}
+                        onClick={() => setActiveNav(act.modalNav)}
                       >
                         <div className={`sf-action-icon ${act.cls}`}><Icon name={act.icon} size={22} /></div>
                         <div className="sf-action-title">{act.title}</div>
@@ -1322,26 +1465,6 @@ export default function StaffHub() {
                     ))}
                   </div>
                 )}
-
-                <div className="tt-card">
-                  <div className="tt-card-head">
-                    <div>
-                      <div className="tt-card-title">Team</div>
-                      <div className="tt-card-sub">{dept.isMine ? "Your acquisition team" : "Department roster · directory sync not yet connected"}</div>
-                    </div>
-                  </div>
-                  <div style={{ padding: "4px 22px 18px" }}>
-                    {dept.team.map((member, idx) => (
-                      <div key={idx} className="sf-leader-row">
-                        <div className="sf-mini-avatar" style={{ width: 30, height: 30 }}>{member.initials}</div>
-                        <div className="sf-leader-info">
-                          <div className="sf-leader-name">{member.name}{member.isMe && <span style={{ color: "var(--gold)", fontSize: 11 }}> (you)</span>}</div>
-                          <div className="sf-leader-dept">{member.role}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
             );
           })()}
@@ -1803,19 +1926,78 @@ export default function StaffHub() {
           )}
 
           {/* TAB MODULE 6: REPORTS */}
-          {activeNav === "reports" && (
-            <div style={{ padding: "20px 28px" }}>
-              <QueuePageHeader
-                icon="📊"
-                accent="#D97706"
-                title="Operations Analytics & Reports"
-                subtitle="Overall placement velocity, candidate conversion funnel, and verification turnaround."
-              />
-              <div style={{ background: "#fff", padding: 24, borderRadius: 16, border: "1px solid var(--border-light, #E2E8F0)" }}>
-                <p style={{ color: "var(--text-muted, #4A5568)" }}>Verification conversion metrics & weekly ops report generator.</p>
+          {activeNav === "reports" && (() => {
+            const rp = dashData?.reportsData || {};
+            const maxMonthly = Math.max(1, ...((rp.monthlyVerifications || []).map((m) => m.count)));
+            return (
+              <div style={{ padding: "20px 28px" }}>
+                <QueuePageHeader
+                  icon="📊"
+                  accent="#D97706"
+                  title="Operations Analytics & Reports"
+                  subtitle="Real counts pulled straight from the candidate, company, and audit-log records - no simulated figures."
+                />
+                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-1"><Icon name="user" size={18} /></div>
+                    <div className="tt-kpi-label">Total Candidates</div>
+                    <div className="tt-kpi-value">{rp.totalCandidates ?? 0}</div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-2"><Icon name="shieldCheck" size={18} /></div>
+                    <div className="tt-kpi-label">Verified Candidates</div>
+                    <div className="tt-kpi-value">{rp.verifiedCandidates ?? 0}</div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-3"><Icon name="buildingGrid" size={18} /></div>
+                    <div className="tt-kpi-label">Total Companies</div>
+                    <div className="tt-kpi-value">{rp.totalCompanies ?? 0}</div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon tt-kpi-4"><Icon name="award" size={18} /></div>
+                    <div className="tt-kpi-label">Placement Rate</div>
+                    <div className="tt-kpi-value">{rp.placementRate ?? "0%"}</div>
+                  </div>
+                </div>
+
+                <div className="tt-card">
+                  <div className="tt-card-head">
+                    <div>
+                      <div className="tt-card-title">Verifications Per Month</div>
+                      <div className="tt-card-sub">Real staff verify actions (candidate + video + certification), from the audit log</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "8px 22px 22px", display: "flex", alignItems: "flex-end", gap: 18, minHeight: 140 }}>
+                    {(rp.monthlyVerifications || []).length === 0 ? (
+                      <div style={{ color: "var(--text-muted, #4A5568)", fontSize: 13 }}>No verification activity recorded yet.</div>
+                    ) : (
+                      rp.monthlyVerifications.map((m, idx) => (
+                        <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flex: 1 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>{m.count}</div>
+                          <div style={{ width: "100%", maxWidth: 36, height: Math.max(6, (m.count / maxMonthly) * 90), background: "var(--gold, #E5A82E)", borderRadius: "6px 6px 0 0" }} />
+                          <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)" }}>{m.month}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="tt-card">
+                  <div className="tt-card-head">
+                    <div>
+                      <div className="tt-card-title">Company Accounts</div>
+                      <div className="tt-card-sub">Real KYC status breakdown</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "4px 22px 18px", display: "flex", gap: 24, flexWrap: "wrap", fontSize: 13 }}>
+                    <div><strong style={{ color: "#15803D" }}>{rp.verifiedCompanies ?? 0}</strong> verified</div>
+                    <div><strong style={{ color: "#B45309" }}>{rp.pendingCompanies ?? 0}</strong> pending</div>
+                    <div><strong style={{ color: "var(--navy, #0A1F3D)" }}>{rp.totalCompanies ?? 0}</strong> total</div>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB MODULE 7: ACTIVITY LOG */}
           {activeNav === "activity" && (
@@ -1880,15 +2062,10 @@ export default function StaffHub() {
                   style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 14, outline: "none", marginBottom: 16, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}
                 />
                 <div style={{ fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
-                  Searching across 12,480 candidates & 423 company accounts...
+                  Searching across {dashData?.stats?.activeCandidates ?? 0} candidates &amp; {dashData?.reportsData?.totalCompanies ?? 0} company accounts...
                 </div>
-                <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ padding: 10, background: "#F8FAFC", borderRadius: 8, cursor: "pointer" }} onClick={() => { showToast("Opening candidate Lakshmi Pillai"); setActiveModal(null); }}>
-                    <strong style={{ fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}>Lakshmi Pillai</strong> • ED Coding • THOUGHTFLOWS
-                  </div>
-                  <div style={{ padding: 10, background: "#F8FAFC", borderRadius: 8, cursor: "pointer" }} onClick={() => { showToast("Opening company Optum Health"); setActiveModal(null); }}>
-                    <strong style={{ fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}>Optum Health</strong> • Enterprise Hiring Partner
-                  </div>
+                <div style={{ marginTop: 14, fontSize: 12.5, color: "var(--text-muted, #4A5568)", background: "#F8FAFC", borderRadius: 8, padding: 12 }}>
+                  Global search results aren't wired up yet - use the KYC, Certifications, Job Approvals, or Video/Assessment queues in the sidebar to find a specific candidate or company.
                 </div>
               </div>
             )}

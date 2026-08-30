@@ -52,74 +52,6 @@ async function attachVerifiedCompanyStatus(req, _res, next) {
   next();
 }
 
-// Mock candidate seed data for rich demo preview when database is fresh
-const SEED_CANDIDATES = [
-  {
-    _id: "cand_101",
-    email: "ananya.sharma@talentera.com",
-    completedStages: [1, 2, 3, 4, 5, 6, 7, 8],
-    stage1: { fullName: "Ananya Sharma", mobile: "+91 98765 43210", city: "Bengaluru", experience: "3-5", currentRole: "Senior AR Caller", aadhaarVerified: true },
-    stage2: { academyName: "Apex Medical Coding Institute", batch: "RCM Batch 2025-A", verified: true },
-    stage3: { name: "CPC Certified (AAPC)", certId: "CPC-884920", verified: true },
-    stage4: { score: 92, total: 100, topic: "Healthcare RCM & AR Follow-up", passed: true },
-    stage5: { videoUrl: "/uploads/sample_video.mp4", duration: "1m 45s", verified: true },
-    stage6: { liveChartsAudited: 45, accuracyScore: 98, verified: true },
-    stage7: { summary: "3.5 years of experience in US Healthcare RCM, specializing in AR follow-up and denial management for multi-specialty clinics." },
-    stage8: { status: "Immediate Joiner", expectedCtc: "5.5 LPA" }
-  },
-  {
-    _id: "cand_102",
-    email: "rajesh.kumar@talentera.com",
-    completedStages: [1, 2, 4, 5, 6, 7],
-    stage1: { fullName: "Rajesh Kumar", mobile: "+91 98123 45678", city: "Hyderabad", experience: "1-3", currentRole: "Medical Coder", aadhaarVerified: true },
-    stage2: { academyName: "MedCode Academy", batch: "Batch 2025-B", verified: true },
-    stage3: { skipped: true },
-    stage4: { score: 85, total: 100, topic: "ICD-10-CM & CPT Coding", passed: true },
-    stage5: { videoUrl: "/uploads/sample_video2.mp4", duration: "1m 20s", verified: true },
-    stage6: { liveChartsAudited: 30, accuracyScore: 94, verified: true },
-    stage7: { summary: "2 years in outpatient coding and chart audit with high accuracy." },
-    stage8: { status: "15 Days Notice", expectedCtc: "4.2 LPA" }
-  },
-  {
-    _id: "cand_103",
-    email: "priya.nair@talentera.com",
-    completedStages: [1, 2, 3, 4, 5, 6, 7, 8],
-    stage1: { fullName: "Priya Nair", mobile: "+91 97654 32109", city: "Chennai", experience: "5+", currentRole: "Denial Management Lead", aadhaarVerified: true },
-    stage2: { academyName: "National Health Training Inst.", batch: "Senior RCM 2024", verified: true },
-    stage3: { name: "CCS-P Certified (AHIMA)", certId: "CCS-339102", verified: true },
-    stage4: { score: 96, total: 100, topic: "Denials & Appeals Mastery", passed: true },
-    stage5: { videoUrl: "/uploads/sample_video3.mp4", duration: "2m 00s", verified: true },
-    stage6: { liveChartsAudited: 60, accuracyScore: 99, verified: true },
-    stage7: { summary: "5+ years resolving complex denial trends and leading AR teams." },
-    stage8: { status: "Immediate Joiner", expectedCtc: "7.5 LPA" }
-  },
-  {
-    _id: "cand_104",
-    email: "vikram.singh@talentera.com",
-    completedStages: [1, 4, 5, 6, 7],
-    stage1: { fullName: "Vikram Singh", mobile: "+91 99887 76655", city: "Delhi NCR", experience: "Fresher", currentRole: "Trainee AR Executive", aadhaarVerified: true },
-    stage2: { skipped: true },
-    stage3: { skipped: true },
-    stage4: { score: 78, total: 100, topic: "Basic RCM & Billing Terms", passed: true },
-    stage5: { videoUrl: "/uploads/sample_video4.mp4", duration: "1m 10s", verified: true },
-    stage6: { liveChartsAudited: 20, accuracyScore: 90, verified: true },
-    stage7: { summary: "Enthusiastic RCM fresher trained in basic billing & claims entry." },
-    stage8: { status: "Immediate Joiner", expectedCtc: "3.0 LPA" }
-  },
-  {
-    _id: "cand_105",
-    email: "kavita.reddy@talentera.com",
-    completedStages: [1, 2, 3, 4, 5, 6, 7, 8],
-    stage1: { fullName: "Kavita Reddy", mobile: "+91 98440 11223", city: "Bengaluru", experience: "3-5", currentRole: "Payment Posting Specialist", aadhaarVerified: true },
-    stage2: { academyName: "Apex Medical Coding Institute", batch: "RCM Batch 2025-A", verified: true },
-    stage3: { name: "Certified Revenue Cycle Specialist (CRCS)", certId: "CRCS-55102", verified: true },
-    stage4: { score: 88, total: 100, topic: "EOB & Payment Posting", passed: true },
-    stage5: { videoUrl: "/uploads/sample_video5.mp4", duration: "1m 30s", verified: true },
-    stage6: { liveChartsAudited: 50, accuracyScore: 96, verified: true },
-    stage7: { summary: "4 years experience processing electronic and manual EOB/ERA payment posting." },
-    stage8: { status: "1 Month Notice", expectedCtc: "5.0 LPA" }
-  }
-];
 
 // GET /api/public/candidates - browse verified profiles for companies.
 // Anonymous visitors and companies that haven't completed KYC get masked
@@ -136,8 +68,7 @@ const SEED_CANDIDATES = [
 //   ?minScore=   minimum verificationScore (0-100)
 router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
   try {
-    let dbCandidates = await Candidate.find().limit(1000).lean();
-    let candidatesList = dbCandidates.length > 0 ? dbCandidates : SEED_CANDIDATES;
+    let candidatesList = await Candidate.find().limit(1000).lean();
 
     let formatted = candidatesList.map((c) => {
       const scoring = calculateVerificationScore(c.completedStages || []);
@@ -151,40 +82,38 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       const stage8 = c.stage8 || {};
 
       const email = c.email;
-      const mobile = stage1.mobile || "+91 98765 43210";
+      const mobile = stage1.mobile || null;
 
       return {
         id: c._id,
-        name: stage1.fullName || c.name || "Verified Candidate",
+        name: stage1.fullName || c.name || "Unnamed Candidate",
         email: req.isVerifiedCompany ? email : maskEmail(email),
         mobile: req.isVerifiedCompany ? mobile : maskMobile(mobile),
-        city: stage1.city || "Bengaluru",
-        experience: stage1.experience || "1-3",
-        currentRole: stage1.currentRole || "RCM Specialist",
+        city: stage1.city || null,
+        experience: stage1.experience || null,
+        currentRole: stage1.currentRole || null,
         aadhaarVerified: !!stage1.aadhaarVerified,
-        academyName: stage2.skipped ? null : (stage2.academyName || "Partner Academy"),
+        academyName: stage2.skipped ? null : (stage2.academyName || null),
         // stage3.certName is what the real Stage3Certification.jsx form
-        // saves; stage3.name only exists on the SEED_CANDIDATES mock data
-        // below - was reading .name only, so a real candidate's
-        // certification never actually displayed here. certVerified
-        // reflects staff review (see routes/staff.js
+        // saves; stage3.name is a legacy/alternate field name - kept as a
+        // fallback so an older record's certification still displays.
+        // certVerified reflects staff review (see routes/staff.js
         // POST /verify-certification), not just that the candidate typed
-        // something - seed data's plain `verified: true` is treated as
-        // already-verified for demo purposes.
-        certificationName: stage3.skipped ? null : (stage3.certName || stage3.name || "AAPC Certified"),
+        // something.
+        certificationName: stage3.skipped ? null : (stage3.certName || stage3.name || null),
         certVerified: !stage3.skipped && (stage3.certStatus === "verified" || (stage3.certStatus === undefined && stage3.verified === true)),
         certStatus: stage3.skipped ? null : (stage3.certStatus || (stage3.verified ? "verified" : "pending")),
-        assessmentScore: stage4.score || 85,
+        assessmentScore: typeof stage4.score === "number" ? stage4.score : (parseInt(stage4.score, 10) || null),
         videoUrl: stage5.videoUrl || null,
-        accuracyScore: stage6.accuracyScore || 95,
-        chartsAudited: stage6.liveChartsAudited || 35,
-        summary: stage7.summary || "Fully verified Healthcare RCM professional.",
-        noticePeriod: stage8.status || "Immediate Joiner",
-        expectedCtc: stage8.expectedCtc || "4.5 LPA",
+        accuracyScore: typeof stage6.accuracyScore === "number" ? stage6.accuracyScore : null,
+        chartsAudited: typeof stage6.liveChartsAudited === "number" ? stage6.liveChartsAudited : null,
+        summary: stage7.summary || null,
+        noticePeriod: stage8.status || null,
+        expectedCtc: stage8.expectedCtc || null,
         verificationScore: scoring.score,
         badge: scoring.isGoldBadge,
         badgeLabel: scoring.badgeTier,
-        completedStages: c.completedStages || [1, 2, 4, 5, 6, 7]
+        completedStages: c.completedStages || []
       };
     });
 
@@ -195,19 +124,19 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       formatted = formatted.filter(
         (c) =>
           c.name.toLowerCase().includes(needle) ||
-          c.currentRole.toLowerCase().includes(needle) ||
-          c.summary.toLowerCase().includes(needle)
+          (c.currentRole || "").toLowerCase().includes(needle) ||
+          (c.summary || "").toLowerCase().includes(needle)
       );
     }
     if (city && String(city).trim()) {
       const needle = String(city).trim().toLowerCase();
-      formatted = formatted.filter((c) => c.city.toLowerCase().includes(needle));
+      formatted = formatted.filter((c) => (c.city || "").toLowerCase().includes(needle));
     }
     if (domain && String(domain).trim()) {
       const needle = String(domain).trim().toLowerCase();
       formatted = formatted.filter(
         (c) =>
-          c.currentRole.toLowerCase().includes(needle) ||
+          (c.currentRole || "").toLowerCase().includes(needle) ||
           (c.academyName || "").toLowerCase().includes(needle) ||
           (c.certificationName || "").toLowerCase().includes(needle)
       );
