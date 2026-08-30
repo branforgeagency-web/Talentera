@@ -5,7 +5,7 @@ import { useToast } from "./Toast.jsx";
 // Messi listens for this many seconds of silence before auto-submitting the
 // candidate's current answer - same convention (and same constant value) as
 // the Stage 5 AI Audio Interview (frontend/src/components/AiAudioInterview.jsx).
-const SILENCE_TIMEOUT_MS = 5000;
+const SILENCE_TIMEOUT_MS = 12000;
 
 // A fast client-side pre-check so "stop the interview" always works
 // instantly, without waiting on a full backend round-trip - belt-and-
@@ -336,8 +336,21 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       speechSafetyTimerRef.current = null;
     }
 
-    const cleanText = String(text)
+    // Convert technical terms and punctuation into natural human conversational speech
+    const cleanText = String(text || "")
       .replace(/[*_#`~[\]]/g, " ")
+      .replace(/\bE\/M\b/gi, "E and M")
+      .replace(/\bICD-10-CM\b/gi, "I C D 10 C M")
+      .replace(/\bICD-10-PCS\b/gi, "I C D 10 P C S")
+      .replace(/\bICD-10\b/gi, "I C D 10")
+      .replace(/\bCPT\b/g, "C P T")
+      .replace(/\bMDM\b/g, "M D M")
+      .replace(/\bHIPAA\b/gi, "Hippa")
+      .replace(/\bPHI\b/g, "P H I")
+      .replace(/\bANSI\b/g, "Ansi")
+      .replace(/\bCO-197\b/gi, "C O 197")
+      .replace(/\bvs\.?\b/gi, "versus")
+      .replace(/Question\s*(\d+)\s*of\s*(\d+):?/gi, "Question $1 of $2. ")
       .replace(/\s+/g, " ")
       .trim();
 
@@ -377,52 +390,64 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         window.speechSynthesis.resume();
 
         const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.rate = 0.92; // natural, articulate Indian English conversational pace
-        utterance.pitch = 1.05; // soft, polite, warm tone
+        utterance.lang = "en-US";
+        utterance.rate = 0.95; // natural human conversational pace
+        utterance.pitch = 1.0; // authentic human tone
+        utterance.volume = 1.0;
         const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
 
-        // Priority list for soft Indian English voices (en-IN), followed by natural soft female voices
-        const indianFemalePatterns = [
-          /heera/i,
-          /neerja/i,
-          /veena/i,
-          /ananya/i,
-          /kavya/i,
-          /swara/i,
-          /priya/i,
-          /english \(india\)/i,
-          /en[-_]in/i,
-          /microsoft heera.*natural/i,
-          /microsoft neerja.*natural/i,
+        // Priority list for real human neural/natural voices (Edge, Chrome, Safari, macOS)
+        const realHumanVoicePatterns = [
+          /microsoft.*(jenny|aria|ava|emma|sonia|libby|michelle).*natural/i,
+          /samantha.*(enhanced|premium)/i,
+          /karen.*(enhanced|premium)/i,
+          /serena.*(enhanced|premium)/i,
+          /ava.*(enhanced|premium)/i,
+          /zoe.*(enhanced|premium)/i,
+          /google us english/i,
+          /google uk english female/i,
+          /google.*female/i,
+          /microsoft (jenny|aria|ava|emma|sonia|libby)/i,
+          /samantha/i,
+          /karen/i,
+          /victoria/i,
+          /serena/i,
         ];
 
-        let indianVoice = null;
-        for (const pattern of indianFemalePatterns) {
-          const match = voices.find((v) => pattern.test(v.name) || (v.lang && pattern.test(v.lang)));
+        let selectedVoice = null;
+        for (const pattern of realHumanVoicePatterns) {
+          const match = voices.find(
+            (v) => pattern.test(v.name) && v.lang && v.lang.toLowerCase().startsWith("en") && !/desktop|espeak/i.test(v.name)
+          );
           if (match) {
-            indianVoice = match;
+            selectedVoice = match;
             break;
           }
         }
 
-        if (!indianVoice) {
-          // If no specific en-IN voice, check any en-IN locale
-          indianVoice = voices.find((v) => v.lang && /en[-_]in/i.test(v.lang));
+        if (!selectedVoice) {
+          selectedVoice = voices.find(
+            (v) =>
+              v.lang &&
+              v.lang.toLowerCase().startsWith("en") &&
+              /(natural|neural|female|enhanced)/i.test(v.name) &&
+              !/desktop|espeak|male/i.test(v.name)
+          );
         }
 
-        if (!indianVoice) {
-          // Fallback to soft natural voices
-          const softFallbackPatterns = [/microsoft jenny/i, /microsoft aria/i, /google uk english female/i, /samantha/i];
-          for (const pattern of softFallbackPatterns) {
-            const match = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("en") && pattern.test(v.name));
-            if (match) {
-              indianVoice = match;
-              break;
-            }
-          }
+        if (!selectedVoice) {
+          selectedVoice = voices.find(
+            (v) =>
+              v.lang &&
+              (v.lang === "en-US" || v.lang === "en-GB" || v.lang.startsWith("en")) &&
+              !/desktop|espeak|male|david/i.test(v.name)
+          );
         }
 
-        if (indianVoice) utterance.voice = indianVoice;
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+          if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
+        }
 
         utteranceRef.current = utterance;
         utterance.onstart = () => {
@@ -552,16 +577,23 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       const body = endpoint.endsWith("/end") ? { proctorLogs } : { candidateUtterance: text, proctorLogs };
 
       const res = await api.post(endpoint, body);
-      const messiReply = res.data.messiReply || (res.data.result ? "Thanks - that wraps up the interview." : "Let's continue.");
+      let fullReply = res.data.messiReply || (res.data.result ? "Thanks - that wraps up the interview." : "Let's continue.");
       const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
       const nextSession = res.data.session;
 
-      setTranscript((prev) => [...prev, { speaker: "messi", text: messiReply }]);
+      if (!interviewEnded && nextSession) {
+        const nextQ = nextSession.questions?.[nextSession.currentQuestionIndex];
+        if (nextQ?.question && !fullReply.includes(nextQ.question)) {
+          fullReply = `${fullReply}\n\nQuestion ${nextSession.currentQuestionIndex + 1} of ${nextSession.questions.length}: ${nextQ.question}`;
+        }
+      }
+
+      setTranscript((prev) => [...prev, { speaker: "messi", text: fullReply }]);
       if (nextSession) setSession(nextSession);
       stoppingAnswerRef.current = false;
 
       if (interviewEnded) {
-        speakText(messiReply, () => {});
+        speakText(fullReply, () => {});
         setStep("report");
         const finalResult = res.data.result || nextSession?.result;
         if (typeof finalResult?.overallScore === "number" && onCompleted) {
@@ -569,7 +601,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         }
         toast(`Interview complete! Overall score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
       } else {
-        speakText(messiReply, () => openAnswerWindow());
+        speakText(fullReply, () => openAnswerWindow());
       }
     } catch (err) {
       console.error("AI Interview turn error:", err);

@@ -315,45 +315,76 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(questionText);
-      utterance.rate = 0.92;
-      utterance.pitch = 1.05;
+      const cleanQuestion = String(questionText || "")
+        .replace(/[*_#`~[\]]/g, " ")
+        .replace(/\bE\/M\b/gi, "E and M")
+        .replace(/\bICD-10-CM\b/gi, "I C D 10 C M")
+        .replace(/\bICD-10-PCS\b/gi, "I C D 10 P C S")
+        .replace(/\bICD-10\b/gi, "I C D 10")
+        .replace(/\bCPT\b/g, "C P T")
+        .replace(/\bMDM\b/g, "M D M")
+        .replace(/\bHIPAA\b/gi, "Hippa")
+        .replace(/\bPHI\b/g, "P H I")
+        .replace(/\bANSI\b/g, "Ansi")
+        .replace(/\bCO-197\b/gi, "C O 197")
+        .replace(/\bvs\.?\b/gi, "versus")
+        .replace(/Question\s*(\d+)\s*of\s*(\d+):?/gi, "Question $1 of $2. ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const utterance = new SpeechSynthesisUtterance(cleanQuestion);
+      utterance.lang = "en-US";
+      utterance.rate = 0.95;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
       const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-      const indianFemalePatterns = [
-        /heera/i,
-        /neerja/i,
-        /veena/i,
-        /ananya/i,
-        /kavya/i,
-        /swara/i,
-        /priya/i,
-        /english \(india\)/i,
-        /en[-_]in/i,
-        /microsoft heera.*natural/i,
-        /microsoft neerja.*natural/i,
+      const realHumanVoicePatterns = [
+        /microsoft.*(jenny|aria|ava|emma|sonia|libby|michelle).*natural/i,
+        /samantha.*(enhanced|premium)/i,
+        /karen.*(enhanced|premium)/i,
+        /serena.*(enhanced|premium)/i,
+        /ava.*(enhanced|premium)/i,
+        /zoe.*(enhanced|premium)/i,
+        /google us english/i,
+        /google uk english female/i,
+        /google.*female/i,
+        /microsoft (jenny|aria|ava|emma|sonia|libby)/i,
+        /samantha/i,
+        /karen/i,
+        /victoria/i,
+        /serena/i,
       ];
-      let indianVoice = null;
-      for (const pattern of indianFemalePatterns) {
-        const match = voices.find((v) => pattern.test(v.name) || (v.lang && pattern.test(v.lang)));
+      let selectedVoice = null;
+      for (const pattern of realHumanVoicePatterns) {
+        const match = voices.find(
+          (v) => pattern.test(v.name) && v.lang && v.lang.toLowerCase().startsWith("en") && !/desktop|espeak/i.test(v.name)
+        );
         if (match) {
-          indianVoice = match;
+          selectedVoice = match;
           break;
         }
       }
-      if (!indianVoice) {
-        indianVoice = voices.find((v) => v.lang && /en[-_]in/i.test(v.lang));
+      if (!selectedVoice) {
+        selectedVoice = voices.find(
+          (v) =>
+            v.lang &&
+            v.lang.toLowerCase().startsWith("en") &&
+            /(natural|neural|female|enhanced)/i.test(v.name) &&
+            !/desktop|espeak|male/i.test(v.name)
+        );
       }
-      if (!indianVoice) {
-        const softFallbackPatterns = [/microsoft jenny/i, /microsoft aria/i, /google uk english female/i, /samantha/i];
-        for (const pattern of softFallbackPatterns) {
-          const match = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("en") && pattern.test(v.name));
-          if (match) {
-            indianVoice = match;
-            break;
-          }
-        }
+      if (!selectedVoice) {
+        selectedVoice = voices.find(
+          (v) =>
+            v.lang &&
+            (v.lang === "en-US" || v.lang === "en-GB" || v.lang.startsWith("en")) &&
+            !/desktop|espeak|male|david/i.test(v.name)
+        );
       }
-      if (indianVoice) utterance.voice = indianVoice;
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
+      }
       setIsSpeaking(true);
       const finish = () => {
         setIsSpeaking(false);

@@ -1091,6 +1091,188 @@ router.post("/apply/:jobId", async (req, res) => {
   }
 });
 
+// POST /api/candidate/stage8/book-slot - Request a Live Interview Track Slot
+router.post("/stage8/book-slot", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    const { preferredDate, preferredTimeSlot, notes } = req.body;
+    if (!preferredDate || !preferredTimeSlot) {
+      return res.status(400).json({ message: "Preferred date and time slot are required." });
+    }
+
+    const slotData = {
+      preferredDate,
+      preferredTimeSlot,
+      notes: notes || "",
+      requestedAt: new Date(),
+      status: "REQUESTED",
+    };
+
+    candidate.stage8 = {
+      ...(candidate.stage8 || {}),
+      scheduledSlot: `${preferredDate}, ${preferredTimeSlot}`,
+      slotReservation: slotData,
+    };
+    candidate.markModified("stage8");
+    await candidate.save();
+
+    const candidateName = candidate.fullName || candidate.stage1?.fullName || "Candidate";
+    const candidateEmail = candidate.email;
+    const candidateMobile = candidate.mobile || candidate.stage1?.mobile || "Not provided";
+    const candidateRole = candidate.stage1?.currentRole || candidate.stage1?.specialty || "Medical Coder";
+    const candidateExp = candidate.stage1?.experience || "Experienced";
+    const candidateLocation = [candidate.stage1?.city, candidate.stage1?.state, candidate.stage1?.country].filter(Boolean).join(", ") || "India";
+    const candidateSkills = candidate.stage1?.skills || candidate.stage1?.codeSets || "ICD-10-CM, CPT, HCPCS";
+    const candidateLinkedin = candidate.stage1?.linkedin || "";
+    
+    const academyName = candidate.stage2?.academyName || "Direct Candidate";
+    const trainingCourse = candidate.stage2?.specialty || candidate.stage2?.courseName || "Medical Coding";
+    
+    const certName = candidate.stage3?.certName || candidate.stage3?.certificationName || "AAPC Certified Professional Coder (CPC)";
+    const certMemberId = candidate.stage3?.memberId || "N/A";
+    const certIssuingBody = candidate.stage3?.issuingBody || "AAPC";
+    const certStatus = candidate.stage3?.certStatus || "Verified";
+
+    const stage4Score = candidate.stage4?.foundationScore !== undefined ? `${candidate.stage4.foundationScore}%` : "Completed";
+    const stage5Score = candidate.stage5?.aiScore !== undefined ? `${candidate.stage5.aiScore}%` : "Completed";
+    const earnedPoints = candidate.score || 85;
+
+    const replySubject = encodeURIComponent(`Confirmed: Talentera Live Interview Slot - ${preferredDate} (${preferredTimeSlot})`);
+    const replyBody = encodeURIComponent(
+      `Dear ${candidateName},\n\n` +
+      `We are pleased to confirm your Live Interview Track slot on ${preferredDate} at ${preferredTimeSlot}.\n\n` +
+      `Meeting Link: [Insert Google Meet / Zoom Link Here]\n` +
+      `Interviewer: [Interviewer Name / Title]\n\n` +
+      `Please ensure your camera and microphone are tested before joining.\n\n` +
+      `Best regards,\n` +
+      `Talentera Recruitment Operations Team`
+    );
+    const replyMailto = `mailto:${candidateEmail}?subject=${replySubject}&body=${replyBody}`;
+
+    const employeeEmail = process.env.OPERATIONS_EMAIL || process.env.BREVO_SENDER_EMAIL || "branforgeagency@gmail.com";
+
+    // 1. Send Rich Notification Email to Employee / Recruiter
+    sendTransactionalEmail({
+      to: employeeEmail,
+      toName: "Talentera Recruitment Operations",
+      subject: `[Action Required] Live Interview Slot Request: ${candidateName} (${preferredDate})`,
+      html: wrapEmailTemplate(
+        "Live Interview Slot Reservation Request",
+        `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #1E293B; line-height: 1.6;">
+          <p style="font-size: 15px; margin-top: 0;">
+            A candidate has requested a <strong>Stage 08 Live Interview Track</strong> appointment. Please review the verified profile details below and send a confirmation email manually.
+          </p>
+
+          <!-- Appointment Box -->
+          <div style="background: #FAF5FF; border: 1.5px solid #C084FC; border-radius: 10px; padding: 16px; margin: 16px 0;">
+            <div style="font-size: 12px; font-weight: 800; color: #7E22CE; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+              Requested Appointment Slot
+            </div>
+            <div style="font-size: 16px; font-weight: 700; color: #581C87;">
+              📅 ${preferredDate} &nbsp;|&nbsp; ⏰ ${preferredTimeSlot}
+            </div>
+            ${notes ? `<div style="font-size: 13px; color: #6B21A8; margin-top: 6px;"><strong>Candidate Notes:</strong> ${notes}</div>` : ""}
+          </div>
+
+          <!-- Section 1: Candidate Identity & Contact Details -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px; margin-bottom: 14px;">
+            <div style="font-size: 13px; font-weight: 800; color: #0F172A; text-transform: uppercase; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 10px;">
+              1. Candidate Contact & Identity Details
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+              <tr><td style="padding: 4px 0; font-weight: 700; width: 140px; color: #64748B;">Full Legal Name:</td><td style="font-weight: 700; color: #0F172A;">${candidateName}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Candidate Email:</td><td><a href="mailto:${candidateEmail}" style="color: #2563EB; font-weight: 700; text-decoration: underline;">${candidateEmail}</a></td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Mobile Number:</td><td style="font-weight: 600;">${candidateMobile}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Location:</td><td>${candidateLocation}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Target Role:</td><td style="font-weight: 600;">${candidateRole} (${candidateExp})</td></tr>
+              ${candidateLinkedin ? `<tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">LinkedIn:</td><td><a href="https://${candidateLinkedin.replace(/^https?:\/\//, "")}" target="_blank" style="color: #2563EB;">${candidateLinkedin}</a></td></tr>` : ""}
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Core Skills:</td><td>${candidateSkills}</td></tr>
+            </table>
+          </div>
+
+          <!-- Section 2: Training & Certification Details -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px; margin-bottom: 14px;">
+            <div style="font-size: 13px; font-weight: 800; color: #0F172A; text-transform: uppercase; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 10px;">
+              2. Training & Certification Credentials
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+              <tr><td style="padding: 4px 0; font-weight: 700; width: 140px; color: #64748B;">Academy / Institute:</td><td style="font-weight: 600;">${academyName} (${trainingCourse})</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Certification:</td><td style="font-weight: 600; color: #0F172A;">${certName}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Member ID / Body:</td><td>${certMemberId} (${certIssuingBody}) - <span style="color: #16A34A; font-weight: 700;">Status: ${certStatus}</span></td></tr>
+            </table>
+          </div>
+
+          <!-- Section 3: Assessment Performance & Scores -->
+          <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+            <div style="font-size: 13px; font-weight: 800; color: #0F172A; text-transform: uppercase; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 10px;">
+              3. Verification & Assessment Performance
+            </div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+              <tr><td style="padding: 4px 0; font-weight: 700; width: 140px; color: #64748B;">Stage 04 Assessment:</td><td style="font-weight: 700; color: #16A34A;">${stage4Score}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Stage 05 AI Video:</td><td style="font-weight: 700; color: #16A34A;">${stage5Score}</td></tr>
+              <tr><td style="padding: 4px 0; font-weight: 700; color: #64748B;">Total Trust Points:</td><td style="font-weight: 800; color: #7C3AED;">${earnedPoints} pts</td></tr>
+            </table>
+          </div>
+
+          <!-- Action Button for Employee -->
+          <div style="text-align: center; margin: 24px 0 10px;">
+            <a
+              href="${replyMailto}"
+              style="display: inline-block; background: #7C3AED; color: #FFFFFF; font-weight: 800; font-size: 14px; text-decoration: none; padding: 12px 28px; border-radius: 8px; box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);"
+            >
+              ✉ Send Confirmation Email to Candidate (${candidateEmail})
+            </a>
+          </div>
+          <p style="text-align: center; font-size: 12px; color: #64748B; margin: 6px 0 0;">
+            Clicking the button above opens a pre-composed confirmation template in your email client.
+          </p>
+        </div>
+        `
+      ),
+    }).catch((err) => logger.warn(`Employee slot notification email failed: ${err.message}`));
+
+    // 2. Send Acknowledgement Email to Candidate
+    if (candidateEmail) {
+      sendTransactionalEmail({
+        to: candidateEmail,
+        toName: candidateName,
+        subject: `Live Interview Slot Request Received - ${preferredDate} (${preferredTimeSlot})`,
+        html: wrapEmailTemplate(
+          "Slot Reservation Request Sent",
+          `
+          <p style="color: #334155; font-size: 15px; line-height: 1.6;">
+            Hi <strong>${candidateName}</strong>,
+          </p>
+          <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+            We have received your slot reservation request for your <strong>Live Interview Track</strong>.
+          </p>
+          <div style="background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 8px; padding: 14px 18px; margin: 16px 0;">
+            <p style="margin: 0 0 6px; font-weight: 700; color: #6B21A8; font-size: 14px;">Requested Appointment:</p>
+            <p style="margin: 0; color: #4C1D95; font-size: 14px;">📅 <strong>${preferredDate}</strong> at ⏰ <strong>${preferredTimeSlot}</strong></p>
+          </div>
+          <p style="color: #475569; font-size: 13px; line-height: 1.6;">
+            Our recruitment operations team will review the schedule and send you a confirmation email with your interview/meeting link manually.
+          </p>
+          `
+        ),
+      }).catch((err) => logger.warn(`Candidate slot acknowledgement email failed: ${err.message}`));
+    }
+
+    res.json({
+      success: true,
+      message: "Slot reservation request sent successfully!",
+      slotReservation: slotData,
+      candidate,
+    });
+  } catch (err) {
+    logger.error(`Slot reservation error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to submit slot reservation request." });
+  }
+});
+
 // GET /api/candidate/applications - retrieve candidate's applications
 router.get("/applications", async (req, res) => {
   const applications = await Application.find({ candidateId: req.candidateId })

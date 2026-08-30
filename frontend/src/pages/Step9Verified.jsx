@@ -67,7 +67,25 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
         </div>
       </section>
 
-      <div className="wiz-verified-cta" style={{ marginTop: 28, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+      <div className="wiz-verified-cta" style={{ marginTop: 28, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+        <Link
+          to="/"
+          style={{
+            background: "#2563EB",
+            color: "#FFFFFF",
+            padding: "12px 24px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 14,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 4px 14px rgba(37, 99, 235, 0.3)",
+          }}
+        >
+          <i className="fa-solid fa-house"></i> Home
+        </Link>
         <Link to="/jobs" className="btn btn-gold" style={{ padding: "12px 24px", fontWeight: 800 }}>
           Browse open jobs →
         </Link>
@@ -83,7 +101,8 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
             fontSize: 14,
             textDecoration: "none",
             display: "inline-flex",
-            alignItems: "center"
+            alignItems: "center",
+            gap: 6,
           }}
         >
           📄 Open my verified resume
@@ -101,7 +120,8 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
             fontSize: 14,
             cursor: "pointer",
             display: "inline-flex",
-            alignItems: "center"
+            alignItems: "center",
+            gap: 6,
           }}
         >
           ← Back to verification wizard
