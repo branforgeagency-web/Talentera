@@ -516,7 +516,7 @@ export default function AcademyPortal() {
           <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>ASSESSMENT</div>
           <SidebarItem id="questionbank" label="Question Bank" icon="fa-file-signature" activeMod={activeMod} setActiveMod={setActiveMod} />
           <SidebarItem id="assessments" label="Assessments" icon="fa-chart-simple" activeMod={activeMod} setActiveMod={setActiveMod} />
-          <SidebarItem id="videoquality" label="Video Quality" icon="fa-video" activeMod={activeMod} setActiveMod={setActiveMod} badge="5" badgeColor="#E5A82E" />
+          <SidebarItem id="videoquality" label="Video Quality" icon="fa-video" activeMod={activeMod} setActiveMod={setActiveMod} badge={students.filter((s) => s.videoUrl).length > 0 ? students.filter((s) => s.videoUrl).length : undefined} badgeColor="#E5A82E" />
 
           <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>OUTCOMES</div>
           <SidebarItem id="placements" label="Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={setActiveMod} />

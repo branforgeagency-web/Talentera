@@ -18,13 +18,6 @@ const { startLiveVerifySession, captureLiveVerifyResult, closeLiveVerifySession 
 
 const router = express.Router();
 
-let staffTasks = [
-  { id: "tsk_1", time: "10:30 AM", title: "Verify CPC Certificate for Sanjay Mehta", priority: "P1", category: "Audit" },
-  { id: "tsk_2", time: "11:45 AM", title: "Review Assessment Test #849 (MedCode Inst.)", priority: "P2", category: "Assessment" },
-  { id: "tsk_3", time: "02:15 PM", title: "Approve Academy Batch Batch 2025-A Upload", priority: "P1", category: "Batch" },
-  { id: "tsk_4", time: "04:30 PM", title: "Publish Weekly Verified Talent Leaderboard", priority: "P3", category: "Report" }
-];
-
 // Records a staff action to the audit trail. Best-effort: a logging failure
 // should never block the underlying action from completing, so this only
 // logs a warning rather than throwing. See IMPROVEMENT_ROADMAP.md "No audit
@@ -479,7 +472,28 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     }
     jobApprovalQueue.sort((a, b) => new Date(b.submittedAt || 0) - new Date(a.submittedAt || 0));
 
-    // Performance & Audit Metrics Report Data
+    // Performance & Audit Metrics Report Data. monthlyVerifications comes
+    // from AuditLog - the real record of every verify action staff have
+    // taken - grouped by calendar month, rather than a fabricated trend.
+    const verifyActions = ["verify_candidate", "verify_video_intro", "verify_certification"];
+    const monthlyVerifyLogs = await AuditLog.find({
+      action: { $in: verifyActions },
+      createdAt: { $gte: new Date(new Date().getFullYear(), new Date().getMonth() - 4, 1) },
+    }).select("createdAt").lean();
+    const monthLabels = [];
+    const now = new Date();
+    for (let i = 4; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      monthLabels.push({ key: `${d.getFullYear()}-${d.getMonth()}`, month: d.toLocaleString("en-US", { month: "short" }) });
+    }
+    const monthlyVerifications = monthLabels.map(({ key, month }) => {
+      const count = monthlyVerifyLogs.filter((log) => {
+        const d = new Date(log.createdAt);
+        return `${d.getFullYear()}-${d.getMonth()}` === key;
+      }).length;
+      return { month, count };
+    });
+
     const reportsData = {
       totalCandidates,
       totalCompanies: companies.length,
@@ -487,14 +501,8 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       pendingCompanies: companies.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
       verifiedCandidates: fullyVerified.length,
       pendingCandidatesCount: pendingCandidates.length,
-      placementRate: "86%",
-      monthlyVerifications: [
-        { month: "Jan", count: 120 },
-        { month: "Feb", count: 145 },
-        { month: "Mar", count: 180 },
-        { month: "Apr", count: 210 },
-        { month: "May", count: 260 },
-      ],
+      placementRate: totalCandidates > 0 ? `${Math.round((fullyVerified.length / totalCandidates) * 100)}%` : "0%",
+      monthlyVerifications,
     };
 
     const pipeline = [
@@ -507,6 +515,17 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       { stage: "Placed", count: fullyVerified.length, isPlaced: true }
     ];
 
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const verifiedTodayCount = await AuditLog.countDocuments({
+      action: { $in: verifyActions },
+      createdAt: { $gte: todayStart },
+    });
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const placedThisMonthCount = candidates.filter(
+      (c) => (c.completedStages || []).length >= 8 && c.updatedAt && new Date(c.updatedAt) >= thisMonthStart
+    ).length;
+
     res.json({
       liveQueueCount:
         incomingBucket.length +
@@ -515,9 +534,9 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         jobApprovalQueue.filter((j) => j.approvalStatus === "pending").length,
       stats: {
         pendingVerifications: incomingBucket.length + companyKycQueue.filter((c) => c.kycStatus === "under_review").length,
-        verifiedToday: 42 + fullyVerified.length + companyKycQueue.filter((c) => c.kycStatus === "verified").length,
+        verifiedToday: verifiedTodayCount,
         activeCandidates: totalCandidates,
-        placedThisMonth: 86,
+        placedThisMonth: placedThisMonthCount,
         pendingCompanyKycs: companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
         verifiedCompanies: companyKycQueue.filter((c) => c.kycStatus === "verified").length,
         pendingCertifications: certificationQueue.filter((c) => c.certStatus === "pending").length,
@@ -531,12 +550,10 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       certificationQueue,
       jobApprovalQueue,
       reportsData,
-      tasks: staffTasks,
-      leaderboard: [
-        { rank: 1, name: "Vikram Malhotra", dept: "RCM Quality Audit", score: 98 },
-        { rank: 2, name: "Neha Saxena", dept: "Coding Verification", score: 94 },
-        { rank: 3, name: "Rohan Das", dept: "Video & Assessment QC", score: 91 }
-      ]
+      // Real logged-in staff identity (from requireStaffAuth's Staff
+      // lookup) - the sidebar used to show a hardcoded "Anita Reddy" for
+      // every staff member regardless of who was actually logged in.
+      staffProfile: { name: req.staffName || "", role: req.staffRole || "", badge: req.staffBadge || "" },
     });
   } catch (err) {
     logger.error(`Staff dashboard error: ${err.message}`);
@@ -824,6 +841,52 @@ router.post("/verify-certification", requireStaffAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Verify certification error: ${err.message}`);
     res.status(500).json({ message: "Failed to verify certification." });
+  }
+});
+
+// POST /api/staff/verify-video - Approve (or send back) a candidate's Stage
+// 5 self-introduction video after a staff member actually watches it. This
+// is the real gate behind the "Assessment + Video" department view: a
+// candidate's video/aiScore is never marked verified just because it was
+// uploaded (see candidate.js stage5 save routes), only when staff confirms
+// it here. Deliberately scoped to stage5 only - does NOT touch other
+// stages or grant a full gold badge (that's the separate, broader
+// /verify-candidate action).
+router.post("/verify-video", requireStaffAuth, async (req, res) => {
+  try {
+    const { candidateId, action, notes } = req.body;
+    if (!["verify", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Action must be \"verify\" or \"reject\"." });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    const s5 = candidate.stage5 || {};
+    if (!s5.videoUrl && !s5.url && !s5.fileUrl && !s5.videoFileName) {
+      return res.status(400).json({ message: "This candidate has no video introduction to review." });
+    }
+
+    if (action === "verify") {
+      candidate.stage5 = { ...s5, verified: true, verifiedAt: new Date(), verifiedBy: req.staffName || "" };
+    } else {
+      candidate.stage5 = { ...s5, verified: false, verifiedAt: null, verifiedBy: "" };
+    }
+    candidate.markModified("stage5");
+    await candidate.save();
+
+    await recordAudit(req, {
+      action: action === "verify" ? "verify_video_intro" : "reject_video_intro",
+      targetType: "candidate",
+      targetId: candidateId,
+      summary: `Stage 5 video introduction for ${candidate.email} ${action === "verify" ? "verified" : "sent back for re-record"} by staff.` + (notes ? ` — ${notes}` : ""),
+    });
+
+    res.json({
+      message: `Video introduction ${action === "verify" ? "verified" : "sent back for re-record"}.`,
+    });
+  } catch (err) {
+    logger.error(`Verify video error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update video verification status." });
   }
 });
 

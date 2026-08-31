@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import api from "../api/client";
 
 const SEES = [
   "Assessment scores (Foundation + Specialty, per-topic)",
@@ -19,6 +20,31 @@ const PRIVATE = [
 
 export default function Step9Verified({ profile, onOpenDashboard }) {
   const firstName = (profile?.candidate?.stage1?.fullName || "").split(" ")[0] || "there";
+  const city = profile?.candidate?.stage1?.city || "";
+  const [jobStats, setJobStats] = useState({ loaded: false, total: 0, local: 0 });
+
+  // Real counts from the same public job board every candidate/company
+  // sees (GET /api/public/jobs) - replaces two numbers that used to be
+  // hardcoded ("47" / "12") with no backing at all.
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get("/public/jobs")
+      .then((res) => {
+        if (cancelled) return;
+        const jobs = res.data?.jobs || [];
+        const local = city
+          ? jobs.filter((j) => (j.location || "").toLowerCase().includes(city.toLowerCase())).length
+          : 0;
+        setJobStats({ loaded: true, total: jobs.length, local });
+      })
+      .catch(() => {
+        if (!cancelled) setJobStats({ loaded: true, total: 0, local: 0 });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [city]);
 
   return (
     <div className="wiz-verified-shell">
@@ -31,7 +57,7 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
           All 8 stages complete. Your profile has just entered the Talentera Verified Pool — the only RCM
           hiring pool in India where every candidate is gate-verified before companies ever see them.
         </p>
-        <div className="wiz-verified-points">100 OF 100 POINTS</div>
+        <div className="wiz-verified-points">{typeof profile?.score === "number" ? profile.score : 0} OF 100 POINTS</div>
       </section>
 
       <section className="wiz-mission-card">
@@ -44,14 +70,16 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
         </p>
         <div className="wiz-pool-grid">
           <div className="wiz-pool-card">
-            <div className="wiz-pool-num">47</div>
-            <div className="wiz-pool-label">RIGHT NOW · IN YOUR SPECIALTY</div>
-            <div className="wiz-pool-sub">RCM companies hiring HCC coders this week. You're already in their search pool.</div>
+            <div className="wiz-pool-num">{jobStats.loaded ? jobStats.total : "—"}</div>
+            <div className="wiz-pool-label">OPEN ROLES · RIGHT NOW</div>
+            <div className="wiz-pool-sub">Live openings on Talentera's job board. You're already in their search pool.</div>
           </div>
           <div className="wiz-pool-card">
-            <div className="wiz-pool-num">12</div>
+            <div className="wiz-pool-num">{jobStats.loaded ? jobStats.local : "—"}</div>
             <div className="wiz-pool-label">IN YOUR LOCALITY</div>
-            <div className="wiz-pool-sub">Companies within your Aadhaar-verified locality. No 80-km surprise commutes.</div>
+            <div className="wiz-pool-sub">
+              {city ? `Open roles in or near ${city}.` : "Companies within your Aadhaar-verified locality."} No 80-km surprise commutes.
+            </div>
           </div>
         </div>
       </section>
@@ -67,7 +95,25 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
         </div>
       </section>
 
-      <div className="wiz-verified-cta" style={{ marginTop: 28, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap" }}>
+      <div className="wiz-verified-cta" style={{ marginTop: 28, display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", alignItems: "center" }}>
+        <Link
+          to="/"
+          style={{
+            background: "#2563EB",
+            color: "#FFFFFF",
+            padding: "12px 24px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 14,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            boxShadow: "0 4px 14px rgba(37, 99, 235, 0.3)",
+          }}
+        >
+          <i className="fa-solid fa-house"></i> Home
+        </Link>
         <Link to="/jobs" className="btn btn-gold" style={{ padding: "12px 24px", fontWeight: 800 }}>
           Browse open jobs →
         </Link>
@@ -83,7 +129,8 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
             fontSize: 14,
             textDecoration: "none",
             display: "inline-flex",
-            alignItems: "center"
+            alignItems: "center",
+            gap: 6,
           }}
         >
           📄 Open my verified resume
@@ -101,7 +148,8 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
             fontSize: 14,
             cursor: "pointer",
             display: "inline-flex",
-            alignItems: "center"
+            alignItems: "center",
+            gap: 6,
           }}
         >
           ← Back to verification wizard

@@ -175,6 +175,9 @@ async function requireStaffAuth(req, res, next) {
         });
       }
       req.staffId = staff._id;
+      req.staffName = staff.name || "";
+      req.staffRole = staff.role || "";
+      req.staffBadge = staff.badge || "";
       return next();
     } catch (err) {
       return res.status(401).json({ message: "Invalid or expired token." });
@@ -187,6 +190,25 @@ async function requireStaffAuth(req, res, next) {
       return res.status(401).json({ message: "Invalid or expired staff token." });
     }
     req.staffId = decoded.id;
+    // req.staffName/req.staffRole are read all over routes/staff.js (audit
+    // log attribution, "verifiedBy"/"approvedBy" fields) but were never
+    // actually set before this fix - every one of those always silently
+    // wrote an empty string. Populated here from the real Staff record so
+    // attribution is genuine, and the dashboard can show the real logged-in
+    // staff member instead of a hardcoded name.
+    try {
+      const Staff = require("../models/Staff");
+      const staff = await Staff.findById(decoded.id).select("name role badge").lean();
+      req.staffName = staff?.name || "";
+      req.staffRole = staff?.role || "";
+      req.staffBadge = staff?.badge || "";
+    } catch (lookupErr) {
+      // Attribution is best-effort - don't fail the whole request just
+      // because the name lookup hiccuped.
+      req.staffName = "";
+      req.staffRole = "";
+      req.staffBadge = "";
+    }
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token." });
