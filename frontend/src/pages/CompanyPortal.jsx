@@ -253,188 +253,6 @@ export default function CompanyPortal() {
         </div>
       </nav>
 
-      {/* ====== HERO HEADER BANNER ====== */}
-      <section
-        style={{
-          background: "radial-gradient(ellipse at top, #0F2950 0%, var(--navy-deep) 100%)",
-          color: "#fff",
-          padding: "50px 24px 60px",
-          textAlign: "center",
-          position: "relative",
-          overflow: "hidden"
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            backgroundImage: `linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)`,
-            backgroundSize: "48px 48px",
-            pointerEvents: "none"
-          }}
-        />
-
-        <div className="container" style={{ position: "relative", zIndex: 2, maxWidth: 960, margin: "0 auto" }}>
-          <div
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              background: "rgba(229,168,46,0.12)",
-              border: "1px solid rgba(229,168,46,0.35)",
-              color: "var(--gold-light)",
-              padding: "6px 16px",
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 800,
-              letterSpacing: "0.12em",
-              marginBottom: 18
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--gold)" }} />
-            FOR RCM HIRING TEAMS · INDIA-FIRST · VERIFIED CANDIDATE DIRECTORY
-          </div>
-
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(36px, 5vw, 64px)",
-              fontWeight: 800,
-              lineHeight: 1.05,
-              letterSpacing: "-0.03em",
-              marginBottom: 16
-            }}
-          >
-            Browse Verified RCM Candidates <br />
-            <span style={{ color: "var(--gold)", fontStyle: "italic" }}>
-              {isVerifiedCompany ? "with Full Contact & Profile Access" : "🔒 Verify Account to Unlock Full Profiles"}
-            </span>
-          </h1>
-
-          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.85)", maxWidth: 720, margin: "0 auto 12px", lineHeight: 1.55 }}>
-            Talentera connects healthcare hiring managers with <strong style={{ color: "#fff" }}>verified, specialty-audited candidates</strong> ready to interview in 24 hours.
-          </p>
-
-          <div style={{ display: "flex", gap: 14, justifyContent: "center", alignItems: "center", marginTop: 20, flexWrap: "wrap" }}>
-            {!isVerifiedCompany ? (
-              <button
-                className="btn-gold"
-                style={{ padding: "12px 24px", borderRadius: 10, fontSize: 14, fontWeight: 800, background: "#F59E0B", color: "#1E293B" }}
-                onClick={() => navigate("/companies/dashboard")}
-              >
-                🔒 Verify Company Account (Stage 1A KYC) →
-              </button>
-            ) : (
-              <button
-                className="btn-gold"
-                style={{ padding: "12px 24px", borderRadius: 10, fontSize: 14, fontWeight: 800 }}
-                onClick={() => navigate("/companies/dashboard")}
-              >
-                ✓ Dashboard & Job Posting
-              </button>
-            )}
-
-            <button
-              style={{
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.25)",
-                color: "#fff",
-                padding: "12px 20px",
-                borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer"
-              }}
-              onClick={() => {
-                if (!company) {
-                  alert("Please log in to your company account to add a candidate profile.");
-                  navigate("/companies/login");
-                  return;
-                }
-                setShowAddModal(true);
-              }}
-            >
-              + Add Candidate Profile
-            </button>
-            <button
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                color: "#fff",
-                padding: "14px 24px",
-                borderRadius: 10,
-                fontSize: 15,
-                fontWeight: 700,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                cursor: "pointer"
-              }}
-              onClick={() => navigate("/companies/register")}
-            >
-              <i className="fa-solid fa-magnifying-glass"></i> Hire Verified Candidates
-            </button>
-          </div>
-
-          {/* Registration Sub-link */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 40, fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-            <span>New to Talentera?</span>
-            <Link
-              to="/companies/register"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                background: "rgba(229,168,46,0.1)",
-                border: "1px solid rgba(229,168,46,0.3)",
-                color: "var(--gold)",
-                padding: "5px 14px",
-                borderRadius: 999,
-                fontSize: 12,
-                fontWeight: 700,
-                textDecoration: "none"
-              }}
-            >
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--gold)" }} />
-              Register your company free →
-            </Link>
-          </div>
-
-          {/* Stats Card */}
-          <div
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.12)",
-              borderRadius: 16,
-              padding: "18px 12px",
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 12,
-              maxWidth: 720,
-              margin: "0 auto",
-              backdropFilter: "blur(10px)"
-            }}
-          >
-            <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>{candidates.length}</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>VERIFIED PROFILES</div>
-            </div>
-            <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>{candidates.filter((c) => c.badge).length}</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>GOLD BADGE PROFILES</div>
-            </div>
-            <div style={{ borderRight: "1px solid rgba(255,255,255,0.08)", padding: "4px 8px" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>4-Layer</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>VERIFICATION</div>
-            </div>
-            <div style={{ padding: "4px 8px" }}>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, color: "var(--gold)", lineHeight: 1 }}>30-Day</div>
-              <div style={{ fontSize: 9, fontWeight: 800, color: "rgba(255,255,255,0.65)", letterSpacing: "0.1em", marginTop: 6 }}>REPLACEMENT</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ====== SEARCH & CANDIDATE DIRECTORY SECTION ====== */}
       <div id="directory" className="container" style={{ padding: "30px 0 60px" }}>
         {/* Verification Status Banner */}
@@ -727,6 +545,11 @@ export default function CompanyPortal() {
                           {c.certificationName}
                         </span>
                       )}
+                      {c.videoUrl && (
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.18)", color: "#B45309", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <i className="fa-solid fa-video" style={{ fontSize: 10 }}></i> Video Intro ✓
+                        </span>
+                      )}
                     </div>
 
                     <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", margin: 0 }}>
@@ -880,6 +703,42 @@ export default function CompanyPortal() {
                   <div>{selectedCandidate.assessmentScore != null ? (<>✓ Proctored Test: <strong style={{ color: "#15803D" }}>{selectedCandidate.assessmentScore}% Score</strong></>) : (<>Proctored Test: <strong style={{ color: "#94A3B8" }}>Not yet completed</strong></>)}</div>
                   <div>{selectedCandidate.accuracyScore != null ? (<>✓ Live Chart Audit: <strong style={{ color: "#15803D" }}>{selectedCandidate.accuracyScore}% Accuracy ({selectedCandidate.chartsAudited} Charts)</strong></>) : (<>Live Chart Audit: <strong style={{ color: "#94A3B8" }}>Not yet completed</strong></>)}</div>
                 </div>
+              </div>
+
+              {/* AI Self-Introduction & Video Assessment Section */}
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", margin: 0, display: "flex", alignItems: "center", gap: 8, letterSpacing: "0.08em" }}>
+                    <i className="fa-solid fa-video" style={{ color: "var(--gold)" }}></i>
+                    STAGE 5 · AI SELF-INTRODUCTION &amp; VIDEO INTERVIEW
+                  </h4>
+                  {selectedCandidate.videoUrl && (
+                    <span style={{ fontSize: 11, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "2px 8px", borderRadius: 999 }}>
+                      ✓ Video Recorded
+                    </span>
+                  )}
+                </div>
+
+                {selectedCandidate.videoUrl ? (
+                  <div>
+                    <video
+                      controls
+                      src={selectedCandidate.videoUrl}
+                      style={{ width: "100%", maxHeight: 320, borderRadius: 10, background: "#000", display: "block", marginBottom: 10 }}
+                    />
+                    <div style={{ fontSize: 12, color: "#64748B", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                      <span>Recorded on Talentera Single-Take Assessment Platform</span>
+                      {selectedCandidate.stage5Score !== null && selectedCandidate.stage5Score !== undefined && (
+                        <strong style={{ color: "#15803D" }}>AI Communication Score: {selectedCandidate.stage5Score}%</strong>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: 18, textAlign: "center", color: "#64748B", fontSize: 12.5, background: "#fff", borderRadius: 8, border: "1px dashed #CBD5E1" }}>
+                    <i className="fa-solid fa-video-slash" style={{ fontSize: 20, color: "#94A3B8", marginBottom: 6, display: "block" }}></i>
+                    Candidate has not completed their AI video introduction yet.
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: 20 }}>

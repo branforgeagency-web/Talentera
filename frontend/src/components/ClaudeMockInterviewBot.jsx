@@ -3,8 +3,7 @@ import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
 // Messi listens for this many seconds of silence before auto-submitting the
-// candidate's current answer - same convention (and same constant value) as
-// the Stage 5 AI Audio Interview (frontend/src/components/AiAudioInterview.jsx).
+// candidate's current answer. Set to 12s so candidates have natural pause time to think.
 const SILENCE_TIMEOUT_MS = 12000;
 
 // A fast client-side pre-check so "stop the interview" always works
@@ -174,6 +173,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const utteranceRef = useRef(null);
   const speechDelayTimerRef = useRef(null);
   const speechSafetyTimerRef = useRef(null);
+  const accumulatedTranscriptRef = useRef("");
+  const liveInterimRef = useRef("");
 
   // loading | setup | interview | report
   const [step, setStep] = useState("loading");
@@ -260,14 +261,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         setProctorLogs((prev) => ({ ...prev, tabSwitches: prev.tabSwitches + 1 }));
       }
     }
-    function handleBlur() {
+    function handleWindowBlur() {
       setProctorLogs((prev) => ({ ...prev, focusLosses: prev.focusLosses + 1 }));
     }
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("blur", handleBlur);
+    window.addEventListener("blur", handleWindowBlur);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("blur", handleBlur);
+      window.removeEventListener("blur", handleWindowBlur);
     };
   }, [step]);
 
@@ -283,18 +284,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
   // Silence auto-submit: while listening, if SILENCE_TIMEOUT_MS passes with
   // no new speech, submit whatever's been transcribed so far.
-  //
-  // BUG FIX: this effect only re-runs when `isListening` flips, so the
-  // setInterval callback used to close over whatever `handleStopAnswer`
-  // (and, inside it, whatever `liveInterim`) existed at the exact render
-  // where listening started - almost always "" fresh off openAnswerWindow's
-  // reset. Every silence-triggered auto-submit was firing with an empty
-  // answer no matter what the candidate actually said (the on-screen live
-  // transcript still updated fine, since that's a normal render, but the
-  // interval's closure never saw it) - candidates saw their words appear
-  // and still got graded "no answer" on every question. Routing the call
-  // through a ref that's refreshed every render fixes it: the interval
-  // always invokes the CURRENT handleStopAnswer/liveInterim, not a stale one.
   const handleStopAnswerRef = useRef(() => {});
   useEffect(() => {
     handleStopAnswerRef.current = handleStopAnswer;
@@ -310,22 +299,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     return () => clearInterval(timer);
   }, [isListening]);
 
-  // Web Speech API TTS is notoriously flaky in Chrome in ways that fail
-  // completely silently (no error, onend/onerror never fire), which used to
-  // leave the interview hung forever waiting on a callback that was never
-  // coming - looking exactly like "voice not working" with no obvious
-  // symptom. Three known Chrome bugs, all worked around below:
-  //  1. Calling speak() in the same tick as cancel() (or right after a prior
-  //     utterance) can silently drop the new utterance - a short delay fixes it.
-  //  2. speechSynthesis can get stuck "paused" (e.g. after the tab was
-  //     backgrounded) so a later speak() just queues forever - resume()
-  //     first as a defensive no-op.
-  //  3. An utterance with no live reference besides a local variable can be
-  //     garbage-collected mid-speech, killing playback with zero events -
-  //     keeping it on a ref keeps it alive for the duration.
-  // On top of all three, a safety timeout guarantees onEnd always fires
-  // eventually even if the browser never calls onend/onerror at all, so the
-  // interview can't get stuck silently mid-question.
   function speakText(text, onEnd) {
     if (speechDelayTimerRef.current) {
       clearTimeout(speechDelayTimerRef.current);
@@ -477,6 +450,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
   function openAnswerWindow() {
     if (micDenied || !speechSupported) return;
+    accumulatedTranscriptRef.current = "";
+    liveInterimRef.current = "";
     setLiveInterim("");
     lastSpeechAtRef.current = Date.now();
     stoppingAnswerRef.current = false;
@@ -487,9 +462,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
   // Starts (or, via onend, restarts) live transcription. Chrome can
   // silently stop a "continuous" SpeechRecognition session on its own even
-  // mid-answer - this restart-on-end pattern (with the
-  // recognitionShouldRunRef guard so it doesn't fight an intentional stop)
-  // is the fix, reused verbatim from AiAudioInterview.jsx.
+  // mid-answer - accumulatedTranscriptRef preserves previously finalized chunks.
   function startSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition || !recognitionShouldRunRef.current) return;
@@ -499,12 +472,25 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     recognition.interimResults = true;
     recognition.lang = "en-US";
     recognition.onresult = (e) => {
-      let text = "";
-      for (let i = 0; i < e.results.length; i++) {
-        text += e.results[i][0].transcript + " ";
+      let interim = "";
+      let finalChunk = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const tr = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          finalChunk += tr + " ";
+        } else {
+          interim += tr + " ";
+        }
       }
-      lastSpeechAtRef.current = Date.now();
-      setLiveInterim(text.trim());
+      if (finalChunk) {
+        accumulatedTranscriptRef.current += finalChunk;
+      }
+      const fullText = (accumulatedTranscriptRef.current + " " + interim).replace(/\s+/g, " ").trim();
+      if (fullText) {
+        lastSpeechAtRef.current = Date.now();
+      }
+      liveInterimRef.current = fullText;
+      setLiveInterim(fullText);
     };
     recognition.onerror = (e) => {
       if (e.error === "not-allowed" || e.error === "service-not-allowed") {
@@ -549,19 +535,23 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     if (stoppingAnswerRef.current) return;
     stoppingAnswerRef.current = true;
     stopListening();
-    const text = liveInterim.trim();
+    const text = (liveInterimRef.current || liveInterim || inputText).trim();
     setLiveInterim("");
+    liveInterimRef.current = "";
+    accumulatedTranscriptRef.current = "";
     submitUtterance(text);
   }
 
   function handleTextSubmit(e) {
     if (e) e.preventDefault();
-    const text = inputText.trim();
+    const text = (inputText.trim() || liveInterimRef.current || liveInterim).trim();
     if (!text || loadingTurn) return;
     stoppingAnswerRef.current = true;
     stopListening();
     setInputText("");
     setLiveInterim("");
+    liveInterimRef.current = "";
+    accumulatedTranscriptRef.current = "";
     submitUtterance(text);
   }
 
@@ -905,9 +895,30 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             })}
           </div>
 
-          {/* <button type="button" className="btn btn-outline" style={{ padding: "10px 20px", fontSize: 13 }} disabled={starting} onClick={() => handleStart(true)}>
-            <i className="fa-solid fa-rotate-right" style={{ marginRight: 6 }}></i> {starting ? "Restarting…" : "Retake Interview"}
-          </button> */}
+          <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", marginTop: 24, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
+            <button
+              type="button"
+              disabled={starting}
+              onClick={() => handleStart(true)}
+              style={{
+                background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+                color: "#06152A",
+                border: "none",
+                padding: "12px 24px",
+                borderRadius: 10,
+                fontWeight: 800,
+                fontSize: 13.5,
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(229,168,46,0.3)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <i className={`fa-solid ${starting ? "fa-spinner fa-spin" : "fa-rotate-right"}`}></i>
+              {starting ? "Starting Fresh Session…" : "⚡ Retake AI Interview (Dev Mode)"}
+            </button>
+          </div>
         </div>
       )}
     </div>

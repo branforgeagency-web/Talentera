@@ -39,7 +39,7 @@ export default function AadhaarOtpVerificationCard({
 
   const cleanDigits = aadhaarInput.replace(/\D/g, "");
   const isLengthValid = cleanDigits.length === 12;
-  const isChecksumValid = isLengthValid && verhoeffValidate(cleanDigits);
+  const isChecksumValid = isLengthValid;
 
   // Notify parent on status changes
   useEffect(() => {
@@ -76,12 +76,8 @@ export default function AadhaarOtpVerificationCard({
       e.preventDefault();
       e.stopPropagation();
     }
-    if (!docUploaded) {
-      setErrorMsg("Please upload your Aadhaar card (photo or PDF) above before requesting an OTP.");
-      return;
-    }
-    if (!isChecksumValid) {
-      setErrorMsg("Please enter a valid 12-digit Aadhaar number with correct checksum.");
+    if (!isLengthValid) {
+      setErrorMsg("Please enter a valid 12-digit Aadhaar number.");
       return;
     }
 
@@ -151,20 +147,26 @@ export default function AadhaarOtpVerificationCard({
       if (res.data && res.data.verified) {
         setStatus("VERIFIED");
         setMaskedAadhaar(res.data.maskedAadhaar);
-        toast("✓ Aadhaar Verified Successfully!", "✓");
+        toast("✓ Aadhaar Verified Successfully via Cashfree!", "✓");
 
         if (onVerificationSuccess) {
           onVerificationSuccess({
             maskedAadhaar: res.data.maskedAadhaar,
             verifiedAt: res.data.verifiedAt,
             transactionId,
-            candidate: res.data.candidate,
+            ...(res.data.details || {}),
+            name: res.data.details?.fullName || res.data.candidate?.stage1?.fullName || "",
+            city: res.data.details?.city || res.data.candidate?.stage1?.city || "",
+            state: res.data.details?.state || res.data.candidate?.stage1?.state || "",
+            dob: res.data.details?.dob || res.data.candidate?.stage1?.dob || "",
+            gender: res.data.details?.gender || res.data.candidate?.stage1?.gender || "",
+            address: res.data.details?.address || res.data.candidate?.stage1?.address || "",
           });
         }
       }
     } catch (err) {
       console.error("Verify OTP error:", err);
-      const msg = err.response?.data?.message || err.message || "Invalid OTP. Please try again.";
+      const msg = err.response?.data?.message || err.message || "Invalid or expired OTP.";
       setErrorMsg(msg);
       toast(msg, "!");
     } finally {
@@ -189,19 +191,24 @@ export default function AadhaarOtpVerificationCard({
       {/* CARD HEADER */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(10,31,61,0.06)", color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(7, 26, 53, 0.08)", color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
             <i className="fa-solid fa-shield-halved"></i>
           </div>
           <div>
-            <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "var(--navy)" }}>
-              Aadhaar Verification
-            </h4>
-            <span style={{ fontSize: 11, color: "#64748B" }}>Authorized Aadhaar OTP Authentication</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "var(--navy)" }}>
+                Aadhaar OTP Verification
+              </h4>
+              <span style={{ fontSize: 9.5, fontWeight: 800, color: "#0369A1", background: "#E0F2FE", padding: "2px 8px", borderRadius: 999, letterSpacing: "0.04em" }}>
+                CASHFREE IDENTITY
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: "#64748B" }}>Official UIDAI OTP sent directly to your registered mobile number</span>
           </div>
         </div>
 
         {status === "VERIFIED" && (
-          <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999 }}>
+          <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6 }}>
             <i className="fa-solid fa-circle-check"></i> VERIFIED
           </span>
         )}
@@ -220,10 +227,10 @@ export default function AadhaarOtpVerificationCard({
         <div>
           <div className="field" style={{ marginBottom: 16 }}>
             <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span>Aadhaar Number (12 Digits)</span>
+              <span>Enter 12-Digit Aadhaar Number</span>
               {cleanDigits.length > 0 && (
-                <span style={{ fontSize: 11, fontWeight: 700, color: isChecksumValid ? "#15803D" : "#DC2626" }}>
-                  {isChecksumValid ? "✓ Valid Checksum" : `✕ ${cleanDigits.length}/12 Digits`}
+                <span style={{ fontSize: 11, fontWeight: 700, color: isLengthValid ? "#15803D" : "#64748B" }}>
+                  {isLengthValid ? "✓ 12/12 Digits" : `${cleanDigits.length}/12 Digits`}
                 </span>
               )}
             </label>
@@ -234,10 +241,10 @@ export default function AadhaarOtpVerificationCard({
               maxLength={14}
               value={aadhaarInput}
               onChange={handleAadhaarChange}
-              placeholder="Enter 12-digit Aadhaar Number"
+              placeholder="e.g. 5482 1234 5678"
               style={{
-                fontSize: 15,
-                letterSpacing: "0.06em",
+                fontSize: 16,
+                letterSpacing: "0.08em",
                 fontWeight: 700,
                 borderColor: isChecksumValid ? "#22C55E" : undefined,
                 background: isChecksumValid ? "#F0FDF4" : "#fff",
@@ -246,29 +253,22 @@ export default function AadhaarOtpVerificationCard({
           </div>
 
           <p style={{ fontSize: 12, color: "#64748B", marginBottom: 16, lineHeight: 1.5 }}>
-            Your Aadhaar will be verified using an authorized Aadhaar authentication service.
+            No physical document needed. An official UIDAI OTP will be sent directly to the mobile phone number linked to your Aadhaar card.
           </p>
-
-          {!docUploaded && (
-            <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", color: "#92400E", padding: 10, borderRadius: 8, fontSize: 12, fontWeight: 600, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
-              <i className="fa-solid fa-circle-info"></i>
-              <span>Upload your Aadhaar card above first - OTP verification unlocks once the document is attached.</span>
-            </div>
-          )}
 
           <button
             type="button"
             className="btn btn-gold"
             style={{ width: "100%", justifyContent: "center", padding: "12px 20px" }}
-            disabled={!isChecksumValid || sendingOtp || !docUploaded}
+            disabled={!isChecksumValid || sendingOtp}
             onClick={handleSendOtp}
           >
             {sendingOtp ? (
               <>
-                <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: 6 }}></i> Sending OTP…
+                <i className="fa-solid fa-spinner fa-spin" style={{ marginRight: 6 }}></i> Sending OTP to Registered Mobile…
               </>
             ) : (
-              "Send OTP →"
+              "Send OTP to Aadhaar Mobile →"
             )}
           </button>
         </div>

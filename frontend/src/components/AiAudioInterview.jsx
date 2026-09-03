@@ -69,6 +69,8 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   const recognitionRef = useRef(null);
   const lastSpeechAtRef = useRef(0);
   const stoppingAnswerRef = useRef(false);
+  const accumulatedTranscriptRef = useRef("");
+  const liveTranscriptRef = useRef("");
   // True only while an answer window should actively be listening. Browsers
   // (Chrome in particular) can silently stop a "continuous" SpeechRecognition
   // session on their own after a while - even mid-answer, with the candidate
@@ -371,6 +373,8 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   }
 
   function handleStartAnswer() {
+    accumulatedTranscriptRef.current = "";
+    liveTranscriptRef.current = "";
     setLiveTranscript("");
     setTimeLeft(ANSWER_TIME_LIMIT);
     lastSpeechAtRef.current = Date.now();
@@ -388,8 +392,7 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   // Starts (or restarts) live transcription for the current answer window.
   // Wired with onend/onerror so that if the browser drops the recognition
   // session on its own mid-answer, it comes straight back instead of leaving
-  // the candidate talking to a mic that's stopped capturing. See
-  // recognitionShouldRunRef above for why the guard is needed.
+  // the candidate talking to a mic that's stopped capturing.
   function startSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition || !recognitionShouldRunRef.current) return;
@@ -398,12 +401,25 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.onresult = (e) => {
-      let text = "";
-      for (let i = 0; i < e.results.length; i++) {
-        text += e.results[i][0].transcript + " ";
+      let interim = "";
+      let finalChunk = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const tr = e.results[i][0].transcript;
+        if (e.results[i].isFinal) {
+          finalChunk += tr + " ";
+        } else {
+          interim += tr + " ";
+        }
       }
-      lastSpeechAtRef.current = Date.now();
-      setLiveTranscript(text);
+      if (finalChunk) {
+        accumulatedTranscriptRef.current += finalChunk;
+      }
+      const fullText = (accumulatedTranscriptRef.current + " " + interim).replace(/\s+/g, " ").trim();
+      if (fullText) {
+        lastSpeechAtRef.current = Date.now();
+      }
+      liveTranscriptRef.current = fullText;
+      setLiveTranscript(fullText);
     };
     // "no-speech"/"network"/"aborted" are expected during normal pauses -
     // swallow them here and let onend decide whether to restart.
@@ -437,8 +453,11 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     setIsRecording(false);
 
     const currentQ = questions[qIdx];
-    const updatedTranscripts = { ...qaTranscripts, [currentQ.id]: liveTranscript.trim() };
+    const text = (liveTranscriptRef.current || liveTranscript).trim();
+    const updatedTranscripts = { ...qaTranscripts, [currentQ.id]: text };
     setQaTranscripts(updatedTranscripts);
+    accumulatedTranscriptRef.current = "";
+    liveTranscriptRef.current = "";
 
     if (qIdx < questions.length - 1) {
       const nextIdx = qIdx + 1;

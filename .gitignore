@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.*
+!.env.example
+backend/gcp-key.json
+backend/*-key.json
+backend/*.pem
+gcp-key.json
+*-key.json
+*.pem
+vite.config.js.timestamp*
+frontend/vite.config.js.timestamp*
+dist/
+build/

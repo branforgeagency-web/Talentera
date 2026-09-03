@@ -148,12 +148,19 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
     }
   }
 
+  const isFilled =
+    (typeof text === "string" && text.trim().length > 0) ||
+    (typeof text === "number") ||
+    (item.input === "multi" && Array.isArray(multiVal) && multiVal.length > 0) ||
+    (item.input === "file" && Boolean(fileInfo && (fileInfo.docUrl || fileInfo.docName || fileInfo.url || fileInfo.fileUrl))) ||
+    (item.input === "name-email" && Boolean(nameEmail?.name && String(nameEmail.name).trim() && nameEmail?.email && String(nameEmail.email).trim()));
+
   return (
     <div
-      className="conb-field"
+      className={`conb-field ${isFilled ? "conb-field-filled" : ""}`}
       style={
         isRejectedField
-          ? { border: "2px solid #EF4444", background: "#FEF2F2", borderRadius: 8, padding: 12, marginBottom: 12 }
+          ? { border: "2px solid #EF4444", background: "#FEF2F2", borderRadius: 14, padding: 18, marginBottom: 12 }
           : {}
       }
     >
@@ -163,8 +170,12 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         </div>
       )}
       <div className="conb-field-head">
-        <label className="conb-field-label">{item.name.toUpperCase()}</label>
-        <span className="conb-field-tag" style={badgeStyle(item.tag)}>{TAG_LABEL[item.tag]}</span>
+        <label className="conb-field-label">{item.name}</label>
+        {isFilled ? (
+          <div className="conb-field-check">✓</div>
+        ) : (
+          <span className="conb-field-tag" style={badgeStyle(item.tag)}>{TAG_LABEL[item.tag]}</span>
+        )}
       </div>
 
       {["text", "gstin", "pan", "email", "url", "number"].includes(item.input) && (

@@ -28,26 +28,24 @@ export default function Login() {
     }
   }
 
-  async function handleDemoCandidateLogin(e) {
+  async function handleDemoLogin(e) {
     if (e) e.preventDefault();
     setError("");
-    setSubmitting(true);
+    setDemoSubmitting(true);
     try {
-      const res = await fetch("/api/auth/demo-login", { method: "POST" });
-      const data = await safeJson(res);
-      if (res.ok && data.token) {
-        localStorage.setItem("talentera_token", data.token);
-        localStorage.setItem("talentera_candidate_info", JSON.stringify(data.candidate));
-        navigate("/wizard");
-      } else {
-        setError(data.message || "Demo login failed.");
-      }
+      await demoLogin();
+      navigate("/dashboard");
     } catch (err) {
       console.error(err);
-      setError("Demo login error: " + (err.message || "Failed to log in"));
+      setError(err.response?.data?.message || err.message || "Demo login failed.");
     } finally {
-      setSubmitting(false);
+      setDemoSubmitting(false);
     }
+  }
+
+  function fillDemoCreds() {
+    setEmail("demo.candidate@talentera.in");
+    setPassword("DemoCandidate2026");
   }
 
   return (
@@ -98,7 +96,7 @@ export default function Login() {
             textDecoration: "underline"
           }}
         >
-          Auto-fill Demo Credentials (demo.candidate@talentera.com)
+          Auto-fill Demo Credentials (demo.candidate@talentera.in)
         </button>
       </div>
 
@@ -131,8 +129,8 @@ export default function Login() {
         {/* Quick Developer Demo Login Button */}
         <button
           type="button"
-          onClick={handleDemoCandidateLogin}
-          disabled={submitting}
+          onClick={handleDemoLogin}
+          disabled={demoSubmitting || submitting}
           style={{
             width: "100%",
             background: "rgba(229,168,46,0.15)",

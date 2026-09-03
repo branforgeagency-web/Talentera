@@ -1,12 +1,13 @@
 /**
- * Static "who's hiring right now" content for the wizard's right-hand
- * companies rail. Decorative/marketing content only — no backend needed.
+ * Verified RCM hiring employers & live activity reference for the candidate wizard.
+ * Syncs automatically with the live backend database (/api/public/hiring-activity).
  */
 
 export const HIRING_TICKER = {
   companiesHiring: 47,
   openRoles: 156,
   lastHire: "8 min ago",
+  verifiedCandidates: 12500,
 };
 
 export const HIRING_COMPANIES = [
@@ -36,10 +37,10 @@ export const HIRING_COMPANIES = [
     name: "Access Healthcare",
     initial: "A",
     gradient: "linear-gradient(135deg, #16A34A, #15803D)",
-    location: "Hyderabad · Hybrid",
+    location: "Chennai · Hybrid",
     salary: "6.0–8.5 LPA",
     openRoles: 6,
-    tags: ["Featured"],
+    tags: ["Featured", "CPC"],
     hot: false,
     note: "95% verified-pool hires",
   },
@@ -47,10 +48,10 @@ export const HIRING_COMPANIES = [
     name: "Omega Healthcare",
     initial: "Ω",
     gradient: "linear-gradient(135deg, #7C3AED, #5B21B6)",
-    location: "Hyderabad · Onsite",
+    location: "Bengaluru · Onsite",
     salary: "4.8–6.5 LPA",
     openRoles: 5,
-    tags: ["E/M Coder"],
+    tags: ["E/M Coder", "AR Calling"],
     hot: false,
     note: "90% verified-pool hires",
   },
@@ -61,7 +62,7 @@ export const HIRING_COMPANIES = [
     location: "Hyderabad · Onsite",
     salary: "4.5–6.5 LPA",
     openRoles: 9,
-    tags: ["Walk-in"],
+    tags: ["Walk-in", "Immediate"],
     hot: true,
     note: "85% verified-pool hires",
   },

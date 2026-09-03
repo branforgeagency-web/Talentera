@@ -1,6 +1,7 @@
 const crypto = require("crypto");
 const axios = require("axios");
 const { verhoeffValidate } = require("./verhoeffBackend");
+const { cashfreeVerificationService } = require("./cashfreeVerificationService");
 const logger = require("./logger");
 
 /**
@@ -12,10 +13,6 @@ async function sendRealSmsOtp(mobile, otp) {
   const cleanMobile = String(mobile || "").replace(/\D/g, "");
 
   if (!authKey) {
-    // No MSG91 key configured - deployments that only set up Brevo (email
-    // OTP) rely on sendRealEmailOtp below instead. Do NOT fall back to a
-    // hardcoded key here - a shared credential baked into the source is a
-    // real secret-leak risk even for something as narrow as an SMS key.
     return false;
   }
 
@@ -65,9 +62,9 @@ async function sendRealEmailOtp(email, otp, maskedAadhaar) {
           subject: "Your Talentera Aadhaar Verification OTP Code",
           htmlContent: `
             <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background-color: #ffffff;">
-              <h2 style="color: #0A1F3D; margin-top: 0; font-size: 22px;">Aadhaar Verification OTP Code</h2>
-              <p style="color: #475569; font-size: 15px; line-height: 1.5;">Use the following 6-digit OTP code to verify your Aadhaar card (<strong>${maskedAadhaar}</strong>):</p>
-              <div style="background: #0A1F3D; color: #E5A82E; padding: 18px; text-align: center; border-radius: 10px; font-size: 32px; font-weight: bold; letter-spacing: 6px; margin: 24px 0;">
+              <h2 style="color: #071A35; margin-top: 0; font-size: 22px;">Aadhaar Verification OTP Code</h2>
+              <p style="color: #475569; font-size: 15px; line-height: 1.5;">Use the following 6-digit OTP code to verify your Aadhaar card (<strong>${maskedAadhaar}</strong>) via Cashfree Verification Suite:</p>
+              <div style="background: #071A35; color: #C8A96B; padding: 18px; text-align: center; border-radius: 10px; font-size: 32px; font-weight: bold; letter-spacing: 6px; margin: 24px 0;">
                 ${otp}
               </div>
               <p style="color: #64748B; font-size: 13px; margin-bottom: 0;">This OTP code is valid for 10 minutes. If you did not request this code, please ignore this message.</p>
@@ -94,20 +91,12 @@ async function sendRealEmailOtp(email, otp, maskedAadhaar) {
 
 /**
  * Aadhaar Provider Service Layer Abstraction (AadhaarVerificationService)
- * Handles authorized Aadhaar Verification Gateways (Sandbox API, Cashfree, Surepass, Digilocker, UIDAI KUA)
- *
- * Note on data-at-rest: the raw 12-digit Aadhaar number handled by this
- * class lives ONLY in the in-memory `this.transactions` map below, for the
- * lifetime of the OTP flow - it is never written to MongoDB. Only the
- * masked form ("XXXX XXXX 1234") gets persisted onto Candidate.stage1 by
- * routes/aadhaar.js. See backend/utils/encryption.js for ready-to-use
- * AES-256-GCM helpers if a genuine need to persist the raw number ever
- * comes up.
+ * Primary Provider: Cashfree Verification Suite (Identity & OKYC)
  */
 class AadhaarVerificationService {
   constructor() {
     this.transactions = new Map();
-    this.provider = (process.env.AADHAAR_PROVIDER || "sandbox").toLowerCase();
+    this.provider = (process.env.AADHAAR_PROVIDER || "cashfree").toLowerCase();
     this.apiKey = process.env.AADHAAR_API_KEY || process.env.SANDBOX_API_KEY || "";
     this.apiSecret = process.env.AADHAAR_API_SECRET || process.env.SANDBOX_API_SECRET || "";
     this.baseUrl = process.env.AADHAAR_BASE_URL || "https://api.sandbox.co.in";
@@ -125,7 +114,6 @@ class AadhaarVerificationService {
 
   /**
    * Helper: Mask Mobile Number (First 6 numbers hashed + Last 4 digits shown)
-   * Formats raw digits (e.g. 9876543210) or provider response (e.g. XXXXXX3210) -> +91 ######3210
    */
   maskMobileNumber(rawMobile) {
     if (!rawMobile) return "+91 XXXXX XXXXX";
@@ -160,12 +148,23 @@ class AadhaarVerificationService {
       throw new Error("Aadhaar number must contain exactly 12 digits.");
     }
 
-    // 2. Verhoeff Checksum Validation
-    if (!verhoeffValidate(cleanAadhaar)) {
-      throw new Error("Invalid Aadhaar number checksum. Please verify the 12 digits.");
+    // 3. Primary: Cashfree Verification Suite
+    if (this.provider === "cashfree" || Boolean(process.env.CASHFREE_CLIENT_ID || process.env.CASHFREE_APP_ID)) {
+      const result = await cashfreeVerificationService.sendAadhaarOtp(cleanAadhaar, candidateMobile, candidateEmail);
+      this.transactions.set(result.transactionId, {
+        aadhaarNumber: cleanAadhaar,
+        maskedAadhaar: result.maskedAadhaar,
+        maskedMobile: result.maskedMobile,
+        isCashfree: true,
+        status: "OTP_SENT",
+        expiresAt: Date.now() + 10 * 60 * 1000,
+        resendAvailableAt: Date.now() + 30 * 1000,
+        attempts: 0,
+      });
+      return result;
     }
 
-    // 3. Check Cooldown Rate Limiting for existing active transaction on this Aadhaar
+    // 4. Cooldown check for fallback sessions
     for (const [, tx] of this.transactions.entries()) {
       if (tx.aadhaarNumber === cleanAadhaar && tx.resendAvailableAt > Date.now()) {
         const remainingSecs = Math.ceil((tx.resendAvailableAt - Date.now()) / 1000);
@@ -311,6 +310,13 @@ class AadhaarVerificationService {
       throw new Error("OTP expired. Please request a new OTP.");
     }
 
+    // Cashfree Verification Suite Integration
+    if (tx.isCashfree || transactionId.startsWith("cf_") || this.provider === "cashfree") {
+      const result = await cashfreeVerificationService.verifyAadhaarOtp(transactionId, cleanOtp);
+      tx.status = "VERIFIED";
+      return result;
+    }
+
     // Check attempt rate limits (max 3 retries)
     if (tx.attempts >= 3) {
       this.transactions.delete(transactionId);
@@ -319,7 +325,7 @@ class AadhaarVerificationService {
 
     tx.attempts += 1;
 
-    // External Provider OTP Verification (Sandbox / Cashfree / Surepass / Digilocker)
+    // External Provider OTP Verification (Sandbox / Surepass / Digilocker)
     if (tx.isExternalProvider && this.apiKey) {
       try {
         let endpoint = `${this.baseUrl}/kyc/aadhaar/okyc/otp/verify`;
@@ -329,10 +335,7 @@ class AadhaarVerificationService {
           otp: cleanOtp,
         };
 
-        if (this.provider === "cashfree") {
-          endpoint = `${this.baseUrl}/verification/aadhaar/verifyOtp`;
-          payload = { ref_id: transactionId, otp: cleanOtp };
-        } else if (this.provider === "surepass") {
+        if (this.provider === "surepass") {
           endpoint = `${this.baseUrl}/api/v1/aadhaar-v2/submit-otp`;
           payload = { client_id: transactionId, otp: cleanOtp };
         }
@@ -358,6 +361,7 @@ class AadhaarVerificationService {
             name: providerData.name || providerData.full_name || null,
             state: providerData.state || providerData.address?.state || null,
             city: providerData.district || providerData.city || providerData.address?.district || null,
+            verificationMethod: "Aadhaar OKYC (UIDAI Certified)",
             verifiedAt: new Date(),
           };
         } else {
