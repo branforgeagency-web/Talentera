@@ -234,14 +234,20 @@ function formatPostedJob(job, companiesById) {
 //   ?workMode=   exact match (e.g. "Remote", "Hybrid", "On-site")
 router.get("/jobs", async (req, res) => {
   try {
-    // Both sources now require Talentera staff sign-off (jdApprovalStatus /
-    // approvalStatus === "approved") before a job is discoverable here - a
-    // company publishing a JD or posting an additional job no longer makes
-    // it live immediately, see routes/staff.js POST /verify-job.
-    const companies = await Company.find({ jdPublished: true, jdApprovalStatus: "approved" }).lean();
+    // Verified companies do not require employee approval — their jobs are live immediately.
+    const companies = await Company.find({
+      jdPublished: true,
+      $or: [{ jdApprovalStatus: "approved" }, { kycStatus: "verified" }],
+    }).lean();
     const fromOnboarding = companies.filter((c) => c.jobId).map(formatCompanyJob);
 
-    const postedJobs = await Job.find({ published: true, approvalStatus: "approved" }).lean();
+    const verifiedCompanyDocs = await Company.find({ kycStatus: "verified" }).select("_id").lean();
+    const verifiedCompanyIds = verifiedCompanyDocs.map((c) => c._id);
+
+    const postedJobs = await Job.find({
+      published: true,
+      $or: [{ approvalStatus: "approved" }, { companyId: { $in: verifiedCompanyIds } }],
+    }).lean();
     let fromPosted = [];
     if (postedJobs.length > 0) {
       const companyIds = [...new Set(postedJobs.map((j) => String(j.companyId)))];

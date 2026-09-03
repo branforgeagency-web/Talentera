@@ -82,7 +82,7 @@ export default function CompanyJobs() {
     setSubmitting(true);
     try {
       await companyApi.post("/company/jobs", form);
-      toast("Submitted for Talentera's approval ✓", "✓");
+      toast("Job posted and published live! ✓", "✓");
       setShowForm(false);
       setForm(emptyFormState());
       fetchJobs();
@@ -245,7 +245,7 @@ export default function CompanyJobs() {
               disabled={submitting}
               style={{ marginTop: 20, width: "100%", padding: 14, background: "var(--gold)", color: "var(--navy)", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
             >
-              {submitting ? "Submitting…" : "Submit for approval →"}
+              {submitting ? "Publishing…" : "Publish Job Now →"}
             </button>
           </form>
         )}

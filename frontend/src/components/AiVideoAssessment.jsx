@@ -284,14 +284,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   async function syncPendingReportToServer(pending) {
     try {
-      const formData = new FormData();
-      formData.append("qaPairs", JSON.stringify(pending.qaPairs || []));
-      formData.append("proctorLogs", JSON.stringify(pending.proctorLogs || {}));
-      const res = await api.post("/candidate/ai-video/assess", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const res = await api.put("/candidate/stage/5", {
+        aiScore: pending.evaluation?.overallScore,
+        rubric: pending.evaluation?.rubric,
+        answerNotes: pending.evaluation?.answerNotes,
+        feedback: pending.evaluation?.feedback,
+        completedAt: new Date(),
+        selfIntroCompleted: true,
       });
-      if (res.data && res.data.success) {
-        setEvaluation(res.data.evaluation);
+      if (res.data) {
+        setEvaluation(pending.evaluation);
         try {
           localStorage.removeItem(PENDING_REPORT_KEY);
         } catch (e) {}
@@ -299,9 +301,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         if (onSaved) onSaved(res.data, { advance: false });
       }
     } catch (err) {
-      // Still unreachable - leave the local backup in place so the report
-      // keeps surviving refreshes and the next mount tries again.
-      console.warn("Background sync of pending AI video report failed, will retry next load:", err.message);
+      console.warn("Background sync of pending AI video report:", err.message);
     }
   }
 
@@ -563,8 +563,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   }
 
   // --- Step 3: Single-Take AI Video Interview Recording ---
-  function handleStartSingleTakeInterview() {
-    if (!stream || !isFacePresent) {
+  async function handleStartSingleTakeInterview() {
+    let activeStream = stream;
+    if (!activeStream || activeStream.getAudioTracks().length === 0) {
+      activeStream = await startWebcam(true);
+    }
+    if (!activeStream) {
+      toast("Please allow camera and microphone access to record your self-introduction.", "!");
+      return;
+    }
+    if (!isFacePresent) {
       toast("Please be in front of the camera and look directly at the screen.", "!");
       return;
     }
@@ -576,7 +584,30 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setSessionStarted(true);
 
     try {
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
+      let mimeType = "video/webm;codecs=vp8,opus";
+      if (typeof MediaRecorder !== "undefined") {
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          if (MediaRecorder.isTypeSupported("video/webm")) {
+            mimeType = "video/webm";
+          } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+            mimeType = "video/mp4";
+          } else {
+            mimeType = "";
+          }
+        }
+      }
+      let mediaRecorder;
+      try {
+        const recorderOptions = {
+          ...(mimeType ? { mimeType } : {}),
+          videoBitsPerSecond: 1500000,
+          audioBitsPerSecond: 128000,
+        };
+        mediaRecorder = new MediaRecorder(activeStream, recorderOptions);
+      } catch (optErr) {
+        console.warn("Falling back to default recorder options:", optErr.message);
+        mediaRecorder = mimeType ? new MediaRecorder(activeStream, { mimeType }) : new MediaRecorder(activeStream);
+      }
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (e) => {
@@ -588,6 +619,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       mediaRecorder.start(1000);
     } catch (err) {
       console.error("MediaRecorder start error:", err);
+      toast("Recording initialization error: " + err.message, "!");
     }
 
     // AI speaks Question 1 aloud first; the answer window (timer + silence
@@ -698,11 +730,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     advancingRef.current = true;
     recognitionShouldRunRef.current = false;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (e) {}
-    }
+    setIsRecording(false);
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onend = null;
@@ -711,8 +740,22 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       recognitionRef.current = null;
     }
 
-    setIsRecording(false);
-    handleFinalSubmission();
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== "inactive") {
+      rec.onstop = () => {
+        setTimeout(() => handleFinalSubmission(), 150);
+      };
+      try {
+        if (typeof rec.requestData === "function") {
+          rec.requestData();
+        }
+        rec.stop();
+      } catch (e) {
+        handleFinalSubmission();
+      }
+    } else {
+      handleFinalSubmission();
+    }
   }
 
   // Lightweight offline mirror of computeHeuristicCommunicationScore in
@@ -772,8 +815,20 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setStep("evaluating");
     setSubmitting(true);
 
-    const blob = new Blob(recordedChunksRef.current, { type: "video/webm" });
-    const videoFile = new File([blob], "candidate_ai_video.webm", { type: "video/webm" });
+    const rawMime = mediaRecorderRef.current?.mimeType || "";
+    const cleanMime = rawMime.includes("mp4") ? "video/mp4" : "video/webm";
+    const ext = cleanMime === "video/mp4" ? "mp4" : "webm";
+    const blob = new Blob(recordedChunksRef.current, { type: cleanMime });
+
+    if (!blob || blob.size === 0) {
+      console.warn("Recorded video blob is empty!");
+      toast("No video was captured. Please ensure your camera & microphone are enabled and record again.", "!");
+      setStep("recording");
+      setSubmitting(false);
+      return;
+    }
+
+    const videoFile = new File([blob], `candidate_self_intro_${Date.now()}.${ext}`, { type: cleanMime });
 
     const formattedQaPairs = questionsList.map((q) => ({
       questionId: q.id,
@@ -788,99 +843,22 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
     try {
       const res = await api.post("/candidate/ai-video/assess", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        timeout: 180000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
       });
 
       if (res.data && res.data.success) {
         setEvaluation(res.data.evaluation);
         setStep("report");
-        toast("Interview submitted! Thank you for completing it.", "✓");
+        toast("Self-introduction video submitted & recorded! Thank you.", "✓");
         lastSavedDataRef.current = res.data;
         if (onSaved) onSaved(res.data, { advance: false });
       }
     } catch (err) {
       console.error("Final AI submission error:", err);
-
-      // The most common cause of a failed submission here is the video
-      // upload itself timing out/erroring (large multipart blob) rather than
-      // anything wrong with the candidate's answers. Retry once WITHOUT the
-      // video attached so the Q&A still gets graded and properly saved
-      // server-side (completedAt/aiScore/completedStages) even when the
-      // recording can't be uploaded - this is what actually makes the
-      // result durable across a refresh, not just shown once in the UI.
-      const retryProctorLogs = { ...proctorLogs, livenessVerified };
-      try {
-        const retryFormData = new FormData();
-        retryFormData.append("qaPairs", JSON.stringify(formattedQaPairs));
-        retryFormData.append("proctorLogs", JSON.stringify(retryProctorLogs));
-        const retryRes = await api.post("/candidate/ai-video/assess", retryFormData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (retryRes.data && retryRes.data.success) {
-          setEvaluation(retryRes.data.evaluation);
-          setStep("report");
-          toast("Interview submitted! Thank you for completing it.", "✓");
-          lastSavedDataRef.current = retryRes.data;
-          if (onSaved) onSaved(retryRes.data, { advance: false });
-          return; // saved server-side - skip the fully-offline fallback below
-        }
-      } catch (retryErr) {
-        console.error("Retry without video also failed:", retryErr);
-      }
-
-      // Server is genuinely unreachable. Compute the report locally so the
-      // candidate isn't stuck, AND persist it to localStorage so a refresh
-      // shows this same finished report instead of restarting the interview
-      // ("once done, it's done") - the mount effect above retries saving it
-      // server-side in the background once the connection recovers.
-      const fallbackScored = questionsList.map((q) => {
-        const tr = qaTranscripts[q.id] || "";
-        const scoring = scoreQuestionCommunication(tr);
-        return {
-          questionId: q.id,
-          question: q.question,
-          answered: scoring.answered,
-          note: scoring.note,
-          transcript: tr,
-          // No translation possible offline - just show the original.
-          translatedTranscript: tr,
-          detectedLanguage: "unknown",
-          scores: scoring.scores,
-        };
-      });
-
-      const answeredCount = fallbackScored.filter((q) => q.answered).length;
-      const avgDim = (key) =>
-        answeredCount ? Math.round(fallbackScored.reduce((sum, q) => sum + q.scores[key], 0) / fallbackScored.length) : 0;
-      const rubric = {
-        clarity: avgDim("clarity"),
-        fluency: avgDim("fluency"),
-        vocabularyGrammar: avgDim("vocabularyGrammar"),
-        confidenceDelivery: avgDim("confidenceDelivery"),
-      };
-      const overallScore = Math.round((rubric.clarity + rubric.fluency + rubric.vocabularyGrammar + rubric.confidenceDelivery) / 4);
-
-      const fallbackEvaluation = {
-        overallScore,
-        rubric,
-        answerNotes: fallbackScored.map(({ scores, ...rest }) => rest),
-        feedback: `Candidate's spoken communication was evaluated (offline) across ${fallbackScored.length} interview questions (${answeredCount} answered).`,
-      };
-
-      setEvaluation(fallbackEvaluation);
-      setStep("report");
-
-      try {
-        localStorage.setItem(
-          PENDING_REPORT_KEY,
-          JSON.stringify({
-            evaluation: fallbackEvaluation,
-            qaPairs: formattedQaPairs,
-            proctorLogs: retryProctorLogs,
-            savedAt: Date.now(),
-          })
-        );
-      } catch (e) {}
+      toast(err.response?.data?.message || "Failed to upload video recording. Please check connection and try again.", "!");
+      setStep("recording");
     } finally {
       setSubmitting(false);
       stopWebcam();

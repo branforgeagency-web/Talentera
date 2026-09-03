@@ -24,7 +24,14 @@ function toStr(val, fallback = "") {
       return fallback;
     }
   }
-  return String(val);
+  return fallback;
+}
+
+function getAssetUrl(url) {
+  if (!url) return "#";
+  if (url.startsWith("http")) return url;
+  const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
+  return `${base}${url}`;
 }
 
 // Feather-style icon paths, ported verbatim from the Talentera design mockup's
@@ -553,15 +560,20 @@ export default function StaffHub() {
   const handleAuditJob = async (job, decision) => {
     setProcessingId(job.id);
     try {
-      const res = await fetch("/api/staff/audit-job", {
+      const res = await fetch("/api/staff/verify-job", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ jobId: job.id, decision }),
+        body: JSON.stringify({
+          source: job.source,
+          id: job.id,
+          action: decision === "approve" ? "verify" : "reject",
+          rejectionReason: decision === "reject" ? "Rejected by staff auditor." : "",
+        }),
       });
       if (res.ok) {
         setJobAuditModal(null);
         fetchDashboard();
-        showToast("Job approval status updated.");
+        showToast("Job status updated successfully.");
       }
     } catch (err) {
       console.error(err);
@@ -615,7 +627,7 @@ export default function StaffHub() {
 
   function QueuePageHeader({ icon, title, subtitle, accent = "var(--navy, #0A1F3D)", pills }) {
     return (
-      <div style={{ background: "#FFFFFF", borderRadius: 18, border: "1px solid var(--border-light, #E2E8F0)", padding: "20px 24px", marginBottom: 24, position: "relative", overflow: "hidden" }}>
+      <div style={{ background: "#FFFFFF", borderRadius: 18, border: "1px solid var(--border-light, #E2E8F0)", padding: "20px 24px", position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${accent} 0%, ${accent}66 100%)` }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 16, maxWidth: 640 }}>
@@ -675,16 +687,16 @@ export default function StaffHub() {
             <nav className="staff-nav">
               <button type="button" className={`staff-nav-item${activeNav === "overview" ? " active" : ""}`} onClick={() => setActiveNav("overview")}>
                 <Icon name="grid" size={18} className="staff-nav-icon" style={{ color: "inherit" }} />
-                Dashboard
+                <span style={{ flex: 1 }}>Dashboard</span>
               </button>
               <button type="button" className={`staff-nav-item${activeNav === "my_tasks" ? " active" : ""}`} onClick={() => setActiveNav("my_tasks")}>
                 <Icon name="checklist" size={18} style={{ color: "inherit" }} />
-                My Tasks
+                <span style={{ flex: 1 }}>My Tasks</span>
                 <span className="staff-nav-badge">5</span>
               </button>
               <button type="button" className={`staff-nav-item${activeNav === "notifications" ? " active" : ""}`} onClick={() => setActiveNav("notifications")}>
                 <Icon name="bell" size={18} style={{ color: "inherit" }} />
-                Notifications
+                <span style={{ flex: 1 }}>Notifications</span>
                 <span className="staff-nav-badge">3</span>
               </button>
             </nav>
@@ -714,7 +726,6 @@ export default function StaffHub() {
               {[
                 { id: "kyc", icon: "eye", label: "KYC Verification", count: kycCounts.pending },
                 { id: "certifications", icon: "graduation", label: "Certifications", count: certCounts.pending },
-                { id: "jobapprovals", icon: "doc", label: "Job Approvals", count: jobCounts.pending },
                 { id: "questions", icon: "mic", label: "Interview Questions" },
                 { id: "reports", icon: "chartBar", label: "Reports & Metrics" },
                 { id: "activity", icon: "clock", label: "Activity Log" },
@@ -1024,7 +1035,7 @@ export default function StaffHub() {
             const highPriority = todayTasksList.filter((t) => !t.completed && t.priority === "HIGH").length;
             const total = todayTasksList.length;
             return (
-              <div style={{ padding: "20px 28px" }}>
+              <div className="tt-content">
                 {/* WELCOME-STYLE HERO BANNER */}
                 <div className="sf-welcome">
                   <div className="sf-welcome-row">
@@ -1038,7 +1049,7 @@ export default function StaffHub() {
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Visits, calls &amp; follow-ups · not yet synced to a shared backend</span>
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
+                    <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                       <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Today</div>
                       <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
                         {done}<span style={{ color: "rgba(255,255,255,0.4)", fontSize: 20 }}>/{total}</span>
@@ -1071,19 +1082,19 @@ export default function StaffHub() {
                       <div className="tt-card-sub">Quick add — shows up in today's list and on your Dashboard tab.</div>
                     </div>
                   </div>
-                  <div style={{ padding: "16px 22px", display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <div className="sf-add-task-form">
                     <input
                       type="text"
+                      className="sf-task-input"
                       value={newTaskText}
                       onChange={(e) => setNewTaskText(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") addTask(); }}
                       placeholder="e.g. Call Apollo Coding Institute about new batch"
-                      style={{ flex: 1, minWidth: 220, padding: 10, borderRadius: 8, border: "1px solid var(--border-light, #E5E7EB)", fontSize: 13, fontFamily: "inherit" }}
                     />
                     <select
+                      className="sf-task-select"
                       value={newTaskPriority}
                       onChange={(e) => setNewTaskPriority(e.target.value)}
-                      style={{ padding: 10, borderRadius: 8, border: "1px solid var(--border-light, #E5E7EB)", fontSize: 13, fontFamily: "inherit" }}
                     >
                       <option value="HIGH">High priority</option>
                       <option value="MED">Medium priority</option>
@@ -1095,7 +1106,7 @@ export default function StaffHub() {
                   </div>
                 </div>
 
-                <div className="tt-card" style={{ marginTop: 16 }}>
+                <div className="tt-card">
                   <div className="tt-card-head">
                     <div>
                       <div className="tt-card-title">Today's List</div>
@@ -1104,7 +1115,7 @@ export default function StaffHub() {
                   </div>
                   <div style={{ padding: "4px 22px 18px" }}>
                     {todayTasksList.length === 0 && (
-                      <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No tasks yet — add one above.</div>
+                      <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No tasks yet — add one above.</div>
                     )}
                     {todayTasksList.map((task) => {
                       const pillCls = task.priority === "HIGH" ? "sf-task-p1" : task.priority === "MED" ? "sf-task-p2" : "sf-task-p3";
@@ -1112,9 +1123,9 @@ export default function StaffHub() {
                         <div key={task.id} className="sf-task" style={{ opacity: task.completed ? 0.5 : 1 }}>
                           <input
                             type="checkbox"
+                            className="sf-task-check"
                             checked={task.completed}
                             onChange={() => toggleTaskCompletion(task.id)}
-                            style={{ marginTop: 3, accentColor: "var(--gold, #E5A82E)", cursor: "pointer" }}
                           />
                           <div className="sf-task-time">{task.time}</div>
                           <div className="sf-task-info">
@@ -1124,9 +1135,9 @@ export default function StaffHub() {
                           <span className={`sf-task-pill ${pillCls}`}>{task.priority === "HIGH" ? "High" : task.priority === "MED" ? "Med" : "Low"}</span>
                           <button
                             type="button"
+                            className="sf-task-del-btn"
                             onClick={(e) => { e.stopPropagation(); removeTask(task.id); }}
                             title="Remove task"
-                            style={{ background: "transparent", border: "none", color: "#94A3B8", cursor: "pointer", fontSize: 16, padding: "0 4px", lineHeight: 1 }}
                           >
                             ×
                           </button>
@@ -1143,7 +1154,7 @@ export default function StaffHub() {
           {activeNav === "notifications" && (() => {
             const jobPostingCount = staffNotifications.filter((n) => n.type === "job_submitted" || n.type === "job_approved" || n.type === "job_rejected").length;
             return (
-            <div style={{ padding: "20px 28px" }}>
+            <div className="tt-content">
               {/* WELCOME-STYLE HERO BANNER */}
               <div className="sf-welcome">
                 <div className="sf-welcome-row">
@@ -1153,11 +1164,11 @@ export default function StaffHub() {
                     </div>
                     <div className="sf-meta">
                       <span className="sf-day-pill">{staffUnreadCount > 0 ? "NEW ACTIVITY" : "ALL CAUGHT UP"}</span>
-                      <span className="sf-meta-pill">JOB APPROVAL QUEUE</span>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Updates from companies posting or resubmitting jobs</span>
+                      <span className="sf-meta-pill">NOTIFICATIONS QUEUE</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Operational alerts and system updates</span>
                     </div>
                   </div>
-                  <div style={{ textAlign: "right" }}>
+                  <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                     <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Unread</div>
                     <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
                       {staffUnreadCount}
@@ -1168,7 +1179,7 @@ export default function StaffHub() {
               </div>
 
               {/* KPI TILES */}
-              <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+              <div className="tt-kpi-grid tt-kpi-grid-3">
                 {[
                   { title: "Unread", value: staffUnreadCount, icon: "bell", cls: "tt-kpi-1" },
                   { title: "Total Notifications", value: staffNotifications.length, icon: "database", cls: "tt-kpi-3" },
@@ -1246,7 +1257,7 @@ export default function StaffHub() {
             const scored = videoQueue.filter((v) => typeof v.aiScore === "number");
             const avgAiScore = scored.length > 0 ? Math.round((scored.reduce((s, v) => s + v.aiScore, 0) / scored.length) * 10) / 10 : null;
             return (
-              <div style={{ padding: "20px 28px" }}>
+              <div className="tt-content">
                 {/* WELCOME-STYLE HERO BANNER */}
                 <div className="sf-welcome">
                   <div className="sf-welcome-row">
@@ -1255,11 +1266,11 @@ export default function StaffHub() {
                         <span style={{ fontSize: 26, lineHeight: 1 }}>{dept.icon}</span> {dept.title}
                       </div>
                       <div className="sf-meta">
-                        <span className="sf-meta-pill">{videoQueue.length} VIDEO INTROS</span>
+                        <span className="sf-meta-pill">{videoQueue.length} SELF-INTRO VIDEOS</span>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 520 }}>{dept.description}</span>
                       </div>
                     </div>
-                    <div style={{ textAlign: "right" }}>
+                    <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                       <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Pending Review</div>
                       <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
                         {videoCounts.pending}
@@ -1270,10 +1281,10 @@ export default function StaffHub() {
                 </div>
 
                 {/* KPI TILES - all real */}
-                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                <div className="tt-kpi-grid tt-kpi-grid-3">
                   <div className="tt-kpi">
                     <div className="tt-kpi-icon tt-kpi-1"><Icon name="video" size={18} /></div>
-                    <div className="tt-kpi-label">Video Intros Submitted</div>
+                    <div className="tt-kpi-label">Self-Intro Videos Submitted</div>
                     <div className="tt-kpi-value">{videoQueue.length}</div>
                   </div>
                   <div className="tt-kpi">
@@ -1289,7 +1300,7 @@ export default function StaffHub() {
                 </div>
 
                 {/* QUICK ACTION - real, wired to the actual question bank view */}
-                <div className="sf-actions-grid" style={{ gridTemplateColumns: "repeat(1, 1fr)" }}>
+                <div className="sf-actions-grid" style={{ gridTemplateColumns: "1fr" }}>
                   <button type="button" className="sf-action" onClick={() => setActiveNav("questions")}>
                     <div className="sf-action-icon sf-a2"><Icon name="mic" size={22} /></div>
                     <div className="sf-action-title">Question Bank</div>
@@ -1304,21 +1315,39 @@ export default function StaffHub() {
                 <div className="tt-card">
                   <div className="tt-card-head">
                     <div>
-                      <div className="tt-card-title">Video Introductions</div>
-                      <div className="tt-card-sub">Real self-introduction videos submitted by candidates · review and verify</div>
+                      <div className="tt-card-title">Self-Introduction Videos</div>
+                      <div className="tt-card-sub">Recorded candidate self-introduction videos · review and verify</div>
                     </div>
                   </div>
                   <div style={{ padding: "4px 22px 18px", display: "flex", flexDirection: "column", gap: 16 }}>
                     {videoQueue.length === 0 ? (
                       <div style={{ padding: "24px 0", textAlign: "center", color: "var(--text-muted, #4A5568)", fontSize: 13 }}>
-                        No candidates have submitted a video introduction yet.
+                        No candidates have submitted a self-introduction video yet.
                       </div>
                     ) : (
                       videoQueue.map((v) => (
                         <div key={v.id} style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 18, border: "1px solid var(--border-light, #E2E8F0)", borderRadius: 14, padding: 16 }}>
                           <div>
                             {v.videoUrl ? (
-                              <video src={v.videoUrl} controls style={{ width: "100%", borderRadius: 10, background: "#000", display: "block" }} />
+                              <>
+                                <video
+                                  src={getAssetUrl(v.videoUrl)}
+                                  controls
+                                  playsInline
+                                  preload="metadata"
+                                  style={{ width: "100%", borderRadius: 10, background: "#000", display: "block", aspectRatio: "16/9" }}
+                                />
+                                <div style={{ marginTop: 6, textAlign: "right" }}>
+                                  <a
+                                    href={getAssetUrl(v.videoUrl)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ fontSize: 11, color: "var(--navy, #0A1F3D)", textDecoration: "none", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4 }}
+                                  >
+                                    <span>↗ Open video</span>
+                                  </a>
+                                </div>
+                              </>
                             ) : (
                               <div style={{ width: "100%", aspectRatio: "16/9", borderRadius: 10, background: "rgba(10,31,61,0.05)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
                                 No playable file
@@ -1360,7 +1389,7 @@ export default function StaffHub() {
                 </div>
 
                 {/* REAL TEXT ASSESSMENT LOG */}
-                <div className="tt-card" style={{ marginTop: 22 }}>
+                <div className="tt-card">
                   <div className="tt-card-head">
                     <div>
                       <div className="tt-card-title">Text Assessment Log</div>
@@ -1405,7 +1434,7 @@ export default function StaffHub() {
             const dept = DEPARTMENTS[activeNav];
             const live = getDeptLiveData(activeNav, dashData);
             return (
-              <div style={{ padding: "20px 28px" }}>
+              <div className="tt-content">
                 {/* WELCOME-STYLE HERO BANNER */}
                 <div className="sf-welcome">
                   <div className="sf-welcome-row">
@@ -1419,7 +1448,7 @@ export default function StaffHub() {
                       </div>
                     </div>
                     {live.hero && (
-                      <div style={{ textAlign: "right" }}>
+                      <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
                         <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{live.hero.label}</div>
                         <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
                           {live.hero.value}
@@ -1432,7 +1461,7 @@ export default function StaffHub() {
 
                 {/* KPI TILES - real, from dashData (see getDeptLiveData) */}
                 {live.tiles.length > 0 ? (
-                  <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+                  <div className="tt-kpi-grid tt-kpi-grid-3">
                     {live.tiles.map((s, idx) => (
                       <div key={idx} className="tt-kpi">
                         <div className={`tt-kpi-icon ${s.cls}`}><Icon name={s.icon} size={18} /></div>
@@ -1471,7 +1500,7 @@ export default function StaffHub() {
 
           {/* TAB MODULE 2: KYC VERIFICATION */}
           {activeNav === "kyc" && (
-            <div style={{ padding: "20px 28px" }}>
+            <div className="tt-content">
               <QueuePageHeader
                 icon="🔍"
                 accent="var(--navy, #0A1F3D)"
@@ -1616,7 +1645,7 @@ export default function StaffHub() {
                                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                                       {doc.docUrl && (
                                         <a
-                                          href={doc.docUrl.startsWith("http") ? doc.docUrl : `http://localhost:5000${doc.docUrl}`}
+                                          href={getAssetUrl(doc.docUrl)}
                                           target="_blank"
                                           rel="noreferrer"
                                           style={{ background: "#F1F5F9", color: "#0F172A", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: "none" }}
@@ -1678,7 +1707,7 @@ export default function StaffHub() {
 
           {/* TAB MODULE 3: CERTIFICATIONS */}
           {activeNav === "certifications" && (
-            <div style={{ padding: "20px 28px" }}>
+            <div className="tt-content">
               <QueuePageHeader
                 icon="🎓"
                 accent="#9333EA"
@@ -1793,7 +1822,7 @@ export default function StaffHub() {
                               </div>
                               {selectedCert.docUrl ? (
                                 <a
-                                  href={selectedCert.docUrl.startsWith("http") ? selectedCert.docUrl : `http://localhost:5000${selectedCert.docUrl}`}
+                                  href={getAssetUrl(selectedCert.docUrl)}
                                   target="_blank"
                                   rel="noreferrer"
                                   style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#9333EA", color: "#FFFFFF", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
@@ -1818,7 +1847,7 @@ export default function StaffHub() {
                                     {selectedCert.liveVerificationCapturedBy ? ` by ${selectedCert.liveVerificationCapturedBy}` : ""}
                                   </div>
                                   <a
-                                    href={selectedCert.liveVerificationEvidenceUrl.startsWith("http") ? selectedCert.liveVerificationEvidenceUrl : `http://localhost:5000${selectedCert.liveVerificationEvidenceUrl}`}
+                                    href={getAssetUrl(selectedCert.liveVerificationEvidenceUrl)}
                                     target="_blank"
                                     rel="noreferrer"
                                     style={{ fontSize: 12.5, fontWeight: 700, color: "#2563EB" }}
@@ -1874,45 +1903,11 @@ export default function StaffHub() {
             </div>
           )}
 
-          {/* TAB MODULE 4: JOB APPROVALS */}
-          {activeNav === "jobapprovals" && (
-            <div style={{ padding: "20px 28px" }}>
-              <QueuePageHeader
-                icon="📋"
-                accent="#2563EB"
-                title="Job Posting Approvals"
-                subtitle="Review job requisitions submitted by companies before publishing to candidate board."
-                pills={
-                  <>
-                    <StatPill count={jobCounts.pending} label="PENDING" tone="pending" />
-                    <StatPill count={jobCounts.approved} label="APPROVED" tone="good" />
-                    <StatPill count={jobCounts.rejected} label="REJECTED" tone="bad" />
-                  </>
-                }
-              />
-              <div style={{ background: "#fff", padding: 24, borderRadius: 16, border: "1px solid var(--border-light, #E2E8F0)" }}>
-                {(jobApprovalQueue || []).length === 0 ? (
-                  <p style={{ color: "var(--text-muted, #4A5568)" }}>No jobs pending approval.</p>
-                ) : (
-                  (jobApprovalQueue || []).map((job) => (
-                    <div key={job.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid #F1F5F9" }}>
-                      <div>
-                        <strong>{job.jobTitle}</strong> • {job.companyName} • {job.location}
-                      </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => handleAuditJob(job, "approve")} style={{ background: "#10B981", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, cursor: "pointer" }}>Approve</button>
-                        <button onClick={() => handleAuditJob(job, "reject")} style={{ background: "#EF4444", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, cursor: "pointer" }}>Reject</button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
+
 
           {/* TAB MODULE 5: INTERVIEW QUESTIONS */}
           {activeNav === "questions" && (
-            <div style={{ padding: "20px 28px" }}>
+            <div className="tt-content">
               <QueuePageHeader
                 icon="🎤"
                 accent="#059669"
@@ -1930,14 +1925,14 @@ export default function StaffHub() {
             const rp = dashData?.reportsData || {};
             const maxMonthly = Math.max(1, ...((rp.monthlyVerifications || []).map((m) => m.count)));
             return (
-              <div style={{ padding: "20px 28px" }}>
+              <div className="tt-content">
                 <QueuePageHeader
                   icon="📊"
                   accent="#D97706"
                   title="Operations Analytics & Reports"
                   subtitle="Real counts pulled straight from the candidate, company, and audit-log records - no simulated figures."
                 />
-                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+                <div className="tt-kpi-grid">
                   <div className="tt-kpi">
                     <div className="tt-kpi-icon tt-kpi-1"><Icon name="user" size={18} /></div>
                     <div className="tt-kpi-label">Total Candidates</div>
@@ -2001,7 +1996,7 @@ export default function StaffHub() {
 
           {/* TAB MODULE 7: ACTIVITY LOG */}
           {activeNav === "activity" && (
-            <div style={{ padding: "20px 28px" }}>
+            <div className="tt-content">
               <QueuePageHeader
                 icon="🗒️"
                 accent="#4B5563"
@@ -2065,7 +2060,7 @@ export default function StaffHub() {
                   Searching across {dashData?.stats?.activeCandidates ?? 0} candidates &amp; {dashData?.reportsData?.totalCompanies ?? 0} company accounts...
                 </div>
                 <div style={{ marginTop: 14, fontSize: 12.5, color: "var(--text-muted, #4A5568)", background: "#F8FAFC", borderRadius: 8, padding: 12 }}>
-                  Global search results aren't wired up yet - use the KYC, Certifications, Job Approvals, or Video/Assessment queues in the sidebar to find a specific candidate or company.
+                  Global search results aren't wired up yet - use the KYC, Certifications, or Video/Assessment queues in the sidebar to find a specific candidate or company.
                 </div>
               </div>
             )}

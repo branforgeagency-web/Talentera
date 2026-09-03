@@ -288,11 +288,15 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       };
     });
 
-    // Video Introductions Queue - strictly candidates who provided a real video introduction
+    // Video Introductions Queue - strictly candidates who provided a genuine self-introduction video
     const videoIntrosQueue = candidates
       .filter((c) => {
         const s5 = c.stage5 || {};
-        return s5 && (s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName) && !s5.skipped;
+        const videoUrl = s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || "";
+        if (!videoUrl || s5.skipped) return false;
+        if (c.email && c.email.includes("test.candidate.")) return false;
+        if (videoUrl.includes("/samples/") || videoUrl.includes("sample.mp4")) return false;
+        return true;
       })
       .map((c) => {
         const s1 = c.stage1 || {};
@@ -530,8 +534,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       liveQueueCount:
         incomingBucket.length +
         companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length +
-        certificationQueue.filter((c) => c.certStatus === "pending").length +
-        jobApprovalQueue.filter((j) => j.approvalStatus === "pending").length,
+        certificationQueue.filter((c) => c.certStatus === "pending").length,
       stats: {
         pendingVerifications: incomingBucket.length + companyKycQueue.filter((c) => c.kycStatus === "under_review").length,
         verifiedToday: verifiedTodayCount,
@@ -540,7 +543,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         pendingCompanyKycs: companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
         verifiedCompanies: companyKycQueue.filter((c) => c.kycStatus === "verified").length,
         pendingCertifications: certificationQueue.filter((c) => c.certStatus === "pending").length,
-        pendingJobApprovals: jobApprovalQueue.filter((j) => j.approvalStatus === "pending").length,
+        pendingJobApprovals: 0,
       },
       pipeline,
       incomingBucket,
@@ -624,6 +627,16 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
       if (!company.completedStages.includes("1a")) {
         company.completedStages.push("1a");
       }
+      // Verified companies do not need separate job approvals
+      if (company.jdPublished) {
+        company.jdApprovalStatus = "approved";
+        company.jdApprovedAt = new Date();
+        company.jdApprovedBy = req.staffName || "Auto-Approved (KYC Verified)";
+      }
+      await Job.updateMany(
+        { companyId: company._id },
+        { approvalStatus: "approved", approvedAt: new Date(), approvedBy: req.staffName || "Auto-Approved (KYC Verified)" }
+      );
     } else if (action === "reject") {
       company.kycStatus = "rejected";
       company.kycRejectionReason = rejectionReason || "Account & KYC documents require revision. Please verify GSTIN/PAN details.";

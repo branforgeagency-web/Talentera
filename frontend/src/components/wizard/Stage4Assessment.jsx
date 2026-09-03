@@ -5,21 +5,39 @@ export default function Stage4Assessment({ stage, existingData, onSaved }) {
   const [profileData, setProfileData] = useState(existingData || null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    // Refresh profile state when stage loads
+  const loadProfile = () => {
     api.get("/candidate/me").then((res) => {
       if (res.data.candidate?.stage4) {
         setProfileData(res.data.candidate.stage4);
       }
+      if (res.data.candidate?.completedStages?.includes(4) && onSaved) {
+        onSaved(res.data, { advance: false });
+      }
     }).catch(() => {});
+  };
+
+  useEffect(() => {
+    loadProfile();
+    const handleFocus = () => loadProfile();
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
   }, []);
 
   const isCompleted = profileData?.foundationScore !== undefined;
   const scorePercent = profileData?.foundationScore || 0;
 
   function handleTakeTest() {
-    // Open assessment runner in a new tab or current window
     window.open("/assessment/run", "_blank");
+  }
+
+  function handleContinue() {
+    if (onSaved) {
+      onSaved(profileData, { advance: true, nextStage: 5 });
+    }
   }
 
   return (
@@ -122,6 +140,17 @@ export default function Stage4Assessment({ stage, existingData, onSaved }) {
               }}
             >
               ⚡ Retake Assessment (Dev Mode)
+            </button>
+          </div>
+
+          <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
+            <button
+              type="button"
+              className="btn btn-gold"
+              onClick={handleContinue}
+              style={{ padding: "14px 28px", fontSize: 14.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              Continue to Stage 05 (Communication &amp; Video) →
             </button>
           </div>
         </div>

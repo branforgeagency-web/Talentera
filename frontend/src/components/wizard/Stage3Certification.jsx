@@ -233,7 +233,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                   {docUrl && (
                     <a
-                      href={docUrl.startsWith("http") ? docUrl : `http://localhost:5000${docUrl}`}
+                      href={docUrl.startsWith("http") ? docUrl : `${(import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "")}${docUrl}`}
                       target="_blank"
                       rel="noreferrer"
                       className="btn btn-ghost"

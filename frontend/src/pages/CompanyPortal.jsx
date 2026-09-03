@@ -487,7 +487,7 @@ export default function CompanyPortal() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                         <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--navy)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, fontFamily: "var(--font-display)" }}>
-                          {c.name.charAt(0)}
+                          {(c.name || "C").charAt(0)}
                         </div>
                         <div>
                           <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, color: "var(--navy)", display: "flex", alignItems: "center", gap: 6 }}>
