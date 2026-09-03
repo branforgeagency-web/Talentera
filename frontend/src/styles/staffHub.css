@@ -26,10 +26,11 @@
   height: 100vh;
   position: sticky;
   top: 0;
-  background: linear-gradient(180deg, var(--navy-deep, #06152A) 0%, #0F2540 60%, #0C1F3A 100%);
+  background: linear-gradient(180deg, var(--navy-deep, #071A35) 0%, #0D2A50 60%, #091F3D 100%);
   color: #fff;
-  box-shadow: 6px 0 30px -10px rgba(6, 21, 42, 0.5);
+  box-shadow: 6px 0 30px -10px rgba(7, 26, 53, 0.6);
   z-index: 30;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .staff-main-area {
@@ -54,11 +55,11 @@
   height: 36px;
   border-radius: 10px;
   object-fit: cover;
-  box-shadow: 0 0 0 2px rgba(229, 168, 46, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 2px rgba(200, 169, 107, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .staff-sidebar-wordmark {
-  font-family: var(--font-display, 'Bricolage Grotesque', sans-serif);
+  font-family: var(--font-display);
   font-weight: 800;
   font-size: 16px;
   letter-spacing: 0.01em;
@@ -67,14 +68,15 @@
 
 .staff-sidebar-wordmark .gold,
 .gold {
-  color: var(--gold, #E5A82E);
+  color: var(--gold, #E6C875);
 }
 
 .staff-sidebar-tag {
+  font-family: var(--font-mono);
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.16em;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(200, 209, 224, 0.5);
   margin-top: 3px;
 }
 
@@ -85,8 +87,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   padding: 8px 12px;
   border-radius: 999px;
   font-size: 11px;
@@ -111,8 +113,8 @@
 
 .staff-live-pill-num {
   margin-left: auto;
-  color: var(--gold-light, #F5C95B);
-  font-family: var(--font-mono, monospace);
+  color: var(--gold-light, #D8C08A);
+  font-family: var(--font-mono);
   font-size: 10.5px;
 }
 

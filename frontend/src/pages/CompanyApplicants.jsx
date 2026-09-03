@@ -375,16 +375,23 @@ function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose
             </Section>
           )}
 
-          {(videoIntro.videoUrl || videoIntro.duration) && (
-            <Section title="Video introduction">
-              {videoIntro.videoUrl ? (
-                <video controls src={videoIntro.videoUrl} style={{ width: "100%", borderRadius: 10, background: "#000" }} />
-              ) : (
-                <div style={{ fontSize: 13, color: "#64748B" }}>Not uploaded</div>
-              )}
-              <Row label="Duration" value={videoIntro.duration} />
-            </Section>
-          )}
+          <Section title="AI Video Introduction & Assessment">
+            {videoIntro.videoUrl || c.videoUrl ? (
+              <div>
+                <video controls src={videoIntro.videoUrl || c.videoUrl} style={{ width: "100%", maxHeight: 300, borderRadius: 10, background: "#000", display: "block" }} />
+                {videoIntro.aiScore !== undefined && (
+                  <div style={{ marginTop: 8, fontSize: 13, color: "#15803D", fontWeight: 700 }}>
+                    AI Communication Score: {videoIntro.aiScore}%
+                  </div>
+                )}
+                {videoIntro.duration && <Row label="Duration" value={videoIntro.duration} />}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                No video introduction recorded yet
+              </div>
+            )}
+          </Section>
 
           {liveCharts.liveChartsAudited !== undefined && (
             <Section title="Live chart audit">

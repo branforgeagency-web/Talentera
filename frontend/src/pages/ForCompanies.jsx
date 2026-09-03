@@ -139,8 +139,11 @@ export default function ForCompanies() {
           </p>
 
           <div className="fco-hero-ctas">
-            <Link to="/companies/jobs" className="fco-btn-gold" style={{ padding: "14px 32px", fontSize: 16 }}>
-              Post a Job / Requirement →
+            <Link to="/companies/register" className="fco-btn-gold" style={{ padding: "14px 32px", fontSize: 16 }}>
+              <i className="fa-solid fa-users" style={{ marginRight: 6 }} /> Browse Candidates →
+            </Link>
+            <Link to="/companies/jobs" className="fco-btn-outline" style={{ padding: "14px 28px", fontSize: 16 }}>
+              Post a Job / Requirement
             </Link>
             <Link to="/companies/login" className="fco-btn-outline" style={{ padding: "14px 28px", fontSize: 16 }}>
               Access Hiring Portal
@@ -348,8 +351,11 @@ export default function ForCompanies() {
             ))}
           </div>
 
-          <div style={{ textAlign: "center" }}>
-            <Link to="/companies/jobs" className="fco-btn-gold" style={{ padding: "14px 32px", textDecoration: "none" }}>
+          <div style={{ textAlign: "center", display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+            <Link to="/companies/register" className="fco-btn-gold" style={{ padding: "14px 32px", textDecoration: "none" }}>
+              <i className="fa-solid fa-users" style={{ marginRight: 6 }} /> Browse All Candidates →
+            </Link>
+            <Link to="/companies/jobs" className="fco-btn-outline" style={{ padding: "14px 28px", textDecoration: "none", color: "var(--navy)", borderColor: "rgba(10,31,61,0.25)" }}>
               Request Candidate Shortlist / Post Job →
             </Link>
           </div>
@@ -439,8 +445,11 @@ export default function ForCompanies() {
             Join 342+ RCM companies hiring pre-verified coders and billers across India.
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link to="/companies/jobs" className="fco-btn-gold" style={{ padding: "14px 36px", fontSize: 16, textDecoration: "none" }}>
-              + POST A JOB / REQUIREMENT NOW
+            <Link to="/companies/register" className="fco-btn-gold" style={{ padding: "14px 36px", fontSize: 16, textDecoration: "none" }}>
+              <i className="fa-solid fa-users" style={{ marginRight: 6 }} /> Browse Candidates →
+            </Link>
+            <Link to="/companies/jobs" className="fco-btn-outline" style={{ padding: "14px 32px", fontSize: 16, textDecoration: "none" }}>
+              + POST A JOB / REQUIREMENT
             </Link>
             <Link to="/companies/login" className="fco-btn-outline" style={{ padding: "14px 32px", fontSize: 16 }}>
               COMPANY LOGIN

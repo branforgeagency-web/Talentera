@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import api from "../api/client";
 import { HIRING_TICKER, HIRING_COMPANIES, RCM_INDUSTRY_STATS } from "../data/hiringCompanies";
 
 const STAGE_ICONS = {
@@ -19,6 +21,35 @@ const RULE_ICONS = {
 };
 
 export default function WizardStagePane({ stage, isDone, children, onPrev, prevNum }) {
+  const navigate = useNavigate();
+  const [ticker, setTicker] = useState(HIRING_TICKER);
+  const [companies, setCompanies] = useState(HIRING_COMPANIES);
+  const [industryStats, setIndustryStats] = useState(RCM_INDUSTRY_STATS);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/public/hiring-activity")
+      .then((res) => {
+        if (!isMounted || !res.data) return;
+        if (res.data.ticker) setTicker(res.data.ticker);
+        if (Array.isArray(res.data.companies) && res.data.companies.length > 0) {
+          setCompanies(res.data.companies);
+        }
+        if (Array.isArray(res.data.industryStats) && res.data.industryStats.length > 0) {
+          setIndustryStats(res.data.industryStats);
+        }
+      })
+      .catch((err) => {
+        // Graceful fallback to verified industry defaults on network error
+        console.debug("Hiring activity live sync fallback:", err.message);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="wiz-layout-main">
       <main className="wiz-content" style={{ "--st-1": stage.theme.p1, "--st-2": stage.theme.p2 }}>
@@ -80,9 +111,9 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
         <div className="wiz-rail-ticker">
           <span className="wiz-rail-dot" /> LIVE HIRING ACTIVITY
           <div className="wiz-rail-ticker-stats">
-            <strong>{HIRING_TICKER.companiesHiring}</strong> companies hiring · <strong>{HIRING_TICKER.openRoles}</strong> open roles
+            <strong>{ticker.companiesHiring}</strong> {ticker.companiesHiring === 1 ? "company" : "companies"} hiring · <strong>{ticker.openRoles}</strong> open {ticker.openRoles === 1 ? "role" : "roles"}
           </div>
-          <div className="wiz-rail-ticker-foot">Last hire from pool: <strong>{HIRING_TICKER.lastHire}</strong></div>
+          <div className="wiz-rail-ticker-foot">Last hire from pool: <strong>{ticker.lastHire}</strong></div>
         </div>
 
         <div className="wiz-rail-context">
@@ -92,11 +123,19 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
 
         <div className="wiz-rail-section-head">
           <span>HIRING RIGHT NOW</span>
-          <a href="#" onClick={(e) => e.preventDefault()}>See all {HIRING_TICKER.companiesHiring} →</a>
+          <Link to="/jobs" style={{ textDecoration: "none", color: "inherit", fontWeight: 600 }}>
+            See all {ticker.companiesHiring} →
+          </Link>
         </div>
         <div className="wiz-rail-companies">
-          {HIRING_COMPANIES.map((c) => (
-            <div className="wiz-rail-company" key={c.name}>
+          {companies.map((c) => (
+            <div
+              className="wiz-rail-company"
+              key={c.name}
+              onClick={() => navigate("/jobs")}
+              style={{ cursor: "pointer" }}
+              title="Click to explore open positions"
+            >
               <div className="wiz-rail-company-avatar" style={{ background: c.gradient }}>{c.initial}</div>
               <div className="wiz-rail-company-body">
                 <div className="wiz-rail-company-name">
@@ -104,7 +143,7 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
                 </div>
                 <div className="wiz-rail-company-meta">{c.location} · {c.salary}</div>
                 <div className="wiz-rail-company-tags">
-                  {c.tags.map((t) => <span key={t} className="wiz-rail-tag">{t}</span>)}
+                  {c.tags && c.tags.map((t) => <span key={t} className="wiz-rail-tag">{t}</span>)}
                   <span className="wiz-rail-tag wiz-rail-tag-roles">{c.openRoles} roles</span>
                 </div>
                 <div className="wiz-rail-company-note">{c.note}</div>
@@ -116,7 +155,7 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
         <div className="wiz-rail-industry">
           <div className="wiz-rail-eyebrow">WHY RCM HIRING IS HOT</div>
           <div className="wiz-rail-industry-grid">
-            {RCM_INDUSTRY_STATS.map((s) => (
+            {industryStats.map((s) => (
               <div key={s.label}>
                 <div className="wiz-rail-industry-val">{s.value}</div>
                 <div className="wiz-rail-industry-label">{s.label}</div>
@@ -128,3 +167,4 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
     </div>
   );
 }
+

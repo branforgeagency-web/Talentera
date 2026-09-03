@@ -38,8 +38,12 @@ function authHeaders(key) {
 }
 
 const MESSI_SYSTEM_PROMPT = `You are Messi, a professional, friendly, patient, and encouraging technical interviewer at Talentera, conducting a live 1-on-1 mock interview for a Healthcare Medical Coding / Revenue Cycle Management (RCM) candidate.
-You ask one question at a time, remember the conversation so far, and evaluate answers on technical meaning - never on exact wording, accent, grammar, or phrasing. You are never robotic or scripted, and you never bluntly say "Correct!" or "Wrong!" - you respond the way a real, warm but professional interviewer would, briefly acknowledging what was said before moving the conversation forward.
-You understand natural conversational commands (repeat the question, I don't know, skip this, give me a hint, what do you mean, stop the interview) and respond to them naturally rather than treating them as technical answers.
+You ask one question at a time, remember the conversation so far, and evaluate answers on technical meaning - never on exact wording, accent, grammar, or phrasing.
+IMPORTANT GUIDELINES:
+- The candidate's response is captured via live browser speech-to-text transcription. It may contain slight transcription artifacts, colloquial speech, or missing punctuation. Always treat the transcribed text as the candidate's actual spoken answer.
+- CRITICAL: NEVER claim or complain that the audio was inaudible, that there was a connection or microphone issue, or that you could not hear the candidate. Always evaluate the substance and concepts of whatever transcribed words were provided.
+- You are never robotic or scripted, and you never bluntly say "Correct!" or "Wrong!" - you respond the way a real, warm but professional interviewer would, briefly acknowledging what was said before moving the conversation forward.
+- You understand natural conversational commands (repeat the question, I don't know, skip this, give me a hint, what do you mean, stop the interview) and respond to them naturally rather than treating them as technical answers.
 Always return the exact JSON shape requested, and nothing else - no markdown fences, no commentary outside the JSON.`;
 
 // ---------------------------------------------------------------------------
@@ -259,7 +263,24 @@ function computeHeuristicTurn({ utterance, currentQuestion, quickIntent, followU
   return { intent: "answer", evaluation, score, missingConcepts, messiReply, askFollowUp };
 }
 
-function normalizeTurnResult(parsed, quickIntent) {
+function cleanMessiReply(text) {
+  let cleaned = String(text || "").trim();
+  // Filter out any LLM hallucinations about audio dropouts, mic issues, or inaudibility
+  if (/audio|connection|audible|couldn't hear|can't hear|microphone|cut out|hear you/i.test(cleaned)) {
+    cleaned = cleaned
+      .replace(/i (think|believe|guess|assume) (your|the) (audio|connection|voice) (was|is) (not|wasn't) (audible|clear|working|good)[^.]*\.?/gi, "")
+      .replace(/i couldn't hear (you|your response|anything)[^.]*\.?/gi, "")
+      .replace(/(there seems to be|due to|seems like) an? (audio|connection|microphone) (issue|problem)[^.]*\.?/gi, "")
+      .replace(/your (audio|voice) (was|is) (inaudible|unclear|cut out)[^.]*\.?/gi, "")
+      .trim();
+    if (!cleaned) {
+      cleaned = "Thank you for sharing that. Let's continue to the next question.";
+    }
+  }
+  return cleaned;
+}
+
+function normalizeTurnResult(parsed, quickIntent, utterance, currentQuestion) {
   let intent = VALID_INTENTS.includes(parsed.intent) ? parsed.intent : "unclear";
   // Safety net: if our fast local classifier is confident the candidate said
   // to stop, honor that even if the LLM classified it differently - ending
@@ -267,11 +288,27 @@ function normalizeTurnResult(parsed, quickIntent) {
   // model getting it right.
   if (quickIntent === "stop") intent = "stop";
 
+  // If candidate gave a substantive utterance but LLM marked it unclear, treat it as an answer
+  const wordCount = String(utterance || "").trim().split(/\s+/).filter(Boolean).length;
+  if (quickIntent === "answer" && wordCount >= 2 && (intent === "unclear" || intent === "skip")) {
+    intent = "answer";
+  }
+
   let evaluation = VALID_EVALUATIONS.includes(parsed.evaluation) ? parsed.evaluation : "no_answer";
   let score = Number.isFinite(Number(parsed.score)) ? Math.max(0, Math.min(10, Number(parsed.score))) : 0;
   let missingConcepts = Array.isArray(parsed.missingConcepts) ? parsed.missingConcepts.filter(Boolean).map(String) : [];
-  let messiReply = typeof parsed.messiReply === "string" && parsed.messiReply.trim() ? parsed.messiReply.trim() : "Thank you - let's continue.";
+  let messiReply = typeof parsed.messiReply === "string" && parsed.messiReply.trim() ? cleanMessiReply(parsed.messiReply.trim()) : "Thank you - let's continue.";
   let askFollowUp = Boolean(parsed.askFollowUp) && intent === "answer";
+
+  // If candidate provided a good answer but evaluation was left as no_answer, use heuristic evaluation
+  if (intent === "answer" && (evaluation === "no_answer" || score === 0) && wordCount >= 3) {
+    const heuristic = computeHeuristicAnswerEvaluation(utterance, currentQuestion?.expectedConcepts || []);
+    if (heuristic.score > score) {
+      score = heuristic.score;
+      evaluation = heuristic.evaluation;
+      missingConcepts = heuristic.missingConcepts;
+    }
+  }
 
   // detectQuickIntent() only ever returns "unclear" for a candidateUtterance
   // that is genuinely empty (silence-timeout auto-submit, or nothing was
@@ -320,13 +357,15 @@ async function getMessiTurn({ session, candidateUtterance }) {
 Key concepts a strong answer should touch: ${(currentQuestion.expectedConcepts || []).join(", ") || "(none specified)"}
 Follow-ups already asked on this question: ${followUpCount}
 ${recentContext ? `Recent conversation for context:\n${recentContext}\n` : ""}
-Candidate just said: "${utterance}"
+Candidate's transcribed answer: "${utterance}"
 
 Classify and respond. Return STRICT JSON only, shaped exactly like:
 {"intent": "answer|repeat|skip|hint|clarify|stop|unclear", "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "missingConcepts": string[], "messiReply": string, "askFollowUp": boolean}
 
 Rules:
-- evaluation/score/missingConcepts only matter when intent is "answer" - judge technical meaning and completeness, not exact wording; accent, grammar, and phrasing never count against the candidate.
+- The candidate's response is from live speech-to-text. Never say or claim the audio was inaudible, that connection was lost, or that you couldn't hear the candidate. Always evaluate the candidate's technical meaning and completeness based on the transcribed text.
+- Accent, grammar, transcription quirks, and phrasing never count against the candidate.
+- If the candidate provided an answer to the technical question, classify intent as "answer" and evaluate fairly (correct/partial/incorrect).
 - If intent is "repeat", messiReply must naturally re-ask the exact question above.
 - If intent is "hint", messiReply gives a small nudge toward one key concept WITHOUT giving the answer away, and askFollowUp must be false.
 - If intent is "clarify", messiReply rephrases the question in different words.
@@ -350,7 +389,7 @@ Rules:
       const match = text.match(/\{[\s\S]*\}/);
       if (match) {
         const parsed = JSON.parse(match[0]);
-        return normalizeTurnResult(parsed, quickIntent);
+        return normalizeTurnResult(parsed, quickIntent, utterance, currentQuestion);
       }
     } catch (err) {
       console.warn("Messi getMessiTurn warning, using heuristic evaluator:", err.message);

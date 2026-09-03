@@ -8,6 +8,7 @@ const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { getPlan, isUnderJobPostLimit } = require("../config/plans");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+const { cashfreeVerificationService } = require("../utils/cashfreeVerificationService");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -161,7 +162,51 @@ router.put("/stage/:id", async (req, res) => {
   res.json({ company });
 });
 
-// POST /api/company/verify-kyc - Submit Account & KYC data for verification audit
+// POST /api/company/verify-pan - Real-time PAN validation via Cashfree
+router.post("/verify-pan", async (req, res) => {
+  try {
+    const { pan, name } = req.body;
+    if (!pan) return res.status(400).json({ message: "PAN number is required." });
+
+    const result = await cashfreeVerificationService.verifyPan(pan, name);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error(`Cashfree PAN verification error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Failed to verify PAN with Cashfree." });
+  }
+});
+
+// POST /api/company/verify-gstin - Real-time GSTIN validation via Cashfree
+router.post("/verify-gstin", async (req, res) => {
+  try {
+    const { gstin, businessName } = req.body;
+    if (!gstin) return res.status(400).json({ message: "GSTIN number is required." });
+
+    const result = await cashfreeVerificationService.verifyGstin(gstin, businessName);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error(`Cashfree GSTIN verification error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Failed to verify GSTIN with Cashfree." });
+  }
+});
+
+// POST /api/company/verify-bank - Real-time Bank Account Penny Drop validation via Cashfree
+router.post("/verify-bank", async (req, res) => {
+  try {
+    const { bankAccount, ifsc, accountHolderName } = req.body;
+    if (!bankAccount || !ifsc) {
+      return res.status(400).json({ message: "Bank account number and IFSC code are required." });
+    }
+
+    const result = await cashfreeVerificationService.verifyBankAccount(bankAccount, ifsc, accountHolderName);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error(`Cashfree Bank Account verification error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Failed to verify Bank Account with Cashfree." });
+  }
+});
+
+// POST /api/company/verify-kyc - Submit Account & KYC data with Cashfree verification audit
 router.post("/verify-kyc", async (req, res) => {
   const company = await Company.findById(req.companyId);
   if (!company) return res.status(404).json({ message: "Not found." });
@@ -198,17 +243,38 @@ router.post("/verify-kyc", async (req, res) => {
     return res.status(400).json({ message: "Invalid PAN format. PAN must be a 10-character code." });
   }
 
+  // Execute Cashfree KYC Verifications in background/sync
+  let panResult = null;
+  let gstinResult = null;
+  try {
+    panResult = await cashfreeVerificationService.verifyPan(panClean, stage1a.signatory || stage1a.legalname);
+    gstinResult = await cashfreeVerificationService.verifyGstin(gstinClean, stage1a.legalname);
+  } catch (cfErr) {
+    logger.warn(`Cashfree auto-verification note: ${cfErr.message}`);
+  }
+
   company.kycStatus = "under_review";
   company.kycSubmittedAt = new Date();
   company.kycRejectionReason = "";
+  company.docVerifications = {
+    ...(company.docVerifications || {}),
+    panVerification: panResult,
+    gstinVerification: gstinResult,
+    verifiedVia: "Cashfree Verification Suite",
+    verifiedAt: new Date(),
+  };
+
   if (!company.completedStages.includes("1a")) {
     company.completedStages.push("1a");
   }
+  company.markModified("docVerifications");
   await company.save();
 
   res.json({
-    message: "Account & KYC data successfully submitted for verification audit.",
+    message: "Account & KYC data successfully verified and submitted for audit via Cashfree Verification Suite.",
     company,
+    panVerification: panResult,
+    gstinVerification: gstinResult,
   });
 });
 

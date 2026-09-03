@@ -143,7 +143,7 @@ export default function CompanyDashboardSetup() {
     }
   }
 
-  function goToStage(targetId) {
+  async function goToStage(targetId) {
     const currentIdx = ONBOARDING_STAGES.findIndex((s) => s.id === activeStageId);
     const targetIdx = ONBOARDING_STAGES.findIndex((s) => s.id === targetId);
 
@@ -154,6 +154,19 @@ export default function CompanyDashboardSetup() {
         setStageErrors((prev) => ({ ...prev, [activeStageId]: missing.map((i) => i.name) }));
         toast(`Please complete all required (MUST) fields in Section ${activeStage.key} before advancing.`, "!");
         return;
+      }
+
+      // If completing Stage 1 (1a or 1b), automatically submit KYC details to employee / staff verification queue
+      if (activeStageId === "1a" || activeStageId === "1b") {
+        try {
+          const res = await companyApi.post("/company/verify-kyc");
+          if (res.data?.company) {
+            setCompany(res.data.company);
+          }
+          toast("Stage 1 details submitted for Employee KYC verification ✓", "✓");
+        } catch (err) {
+          console.warn("KYC auto-submit note:", err.response?.data?.message || err.message);
+        }
       }
     }
 
@@ -617,110 +630,6 @@ export default function CompanyDashboardSetup() {
             </div>
             <h2 className="conb-form-title">{activeStage.name}</h2>
             <p className="conb-form-sub">{activeStage.sub}</p>
-
-            {/* STAGE 1A ACCOUNT & KYC VERIFICATION CARD */}
-            {activeStageId === "1a" && (
-              <div
-                style={{
-                  background:
-                    company.kycStatus === "verified"
-                      ? "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)"
-                      : company.kycStatus === "under_review"
-                      ? "linear-gradient(135deg, #FEF3C7 0%, #FFFBEB 100%)"
-                      : company.kycStatus === "rejected"
-                      ? "linear-gradient(135deg, #FEE2E2 0%, #FEF2F2 100%)"
-                      : "linear-gradient(135deg, #F1F5F9 0%, #F8FAFC 100%)",
-                  border:
-                    company.kycStatus === "verified"
-                      ? "1.5px solid #16A34A"
-                      : company.kycStatus === "under_review"
-                      ? "1.5px solid #D97706"
-                      : company.kycStatus === "rejected"
-                      ? "1.5px solid #DC2626"
-                      : "1.5px solid #CBD5E1",
-                  borderRadius: 12,
-                  padding: 20,
-                  marginBottom: 24,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16 }}>
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <span style={{ fontSize: 26, lineHeight: 1 }}>
-                      {company.kycStatus === "verified"
-                        ? "🟢"
-                        : company.kycStatus === "under_review"
-                        ? "⏳"
-                        : company.kycStatus === "rejected"
-                        ? "🔴"
-                        : "📝"}
-                    </span>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#64748B", textTransform: "uppercase" }}>
-                        OFFICIAL VERIFICATION AUDIT STATUS
-                      </div>
-                      <h4 style={{ margin: "2px 0 4px", fontSize: 17, fontWeight: 800, color: "var(--navy)" }}>
-                        Account &amp; KYC:{" "}
-                        <span
-                          style={{
-                            color:
-                              company.kycStatus === "verified"
-                                ? "#15803D"
-                                : company.kycStatus === "under_review"
-                                ? "#B45309"
-                                : company.kycStatus === "rejected"
-                                ? "#B91C1C"
-                                : "#475569",
-                          }}
-                        >
-                          {company.kycStatus === "verified"
-                            ? "VERIFIED ✓"
-                            : company.kycStatus === "under_review"
-                            ? "UNDER REVIEW ⌛"
-                            : company.kycStatus === "rejected"
-                            ? "REVISION REQUIRED ⚠️"
-                            : "UNVERIFIED (ACTION NEEDED)"}
-                        </span>
-                      </h4>
-                      <p style={{ margin: 0, fontSize: 13, color: "#475569", maxWidth: 520 }}>
-                        {company.kycStatus === "verified"
-                          ? "Your registered business entity, GSTIN, PAN, and KYC certificates are audited and verified."
-                          : company.kycStatus === "under_review"
-                          ? "Your Account & KYC details are submitted to Operations for document audit and validation."
-                          : company.kycStatus === "rejected"
-                          ? `Audit Feedback: ${company.kycRejectionReason || "Please verify your GSTIN/PAN details and re-upload documents."}`
-                          : "Provide valid GSTIN, PAN, Legal Business Name, and upload KYC files to request verification."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    className="conb-cta-btn"
-                    style={{
-                      padding: "10px 20px",
-                      fontSize: 13,
-                      background:
-                        company.kycStatus === "verified"
-                          ? "#16A34A"
-                          : company.kycStatus === "under_review"
-                          ? "#D97706"
-                          : "var(--gold)",
-                      color: company.kycStatus === "verified" || company.kycStatus === "under_review" ? "#fff" : "var(--navy)",
-                    }}
-                    disabled={submittingKyc || company.kycStatus === "under_review"}
-                    onClick={handleVerifyKyc}
-                  >
-                    {submittingKyc
-                      ? "Submitting…"
-                      : company.kycStatus === "verified"
-                      ? "KYC Verified ✓"
-                      : company.kycStatus === "under_review"
-                      ? "Under Audit ⌛"
-                      : "Submit Account & KYC Data →"}
-                  </button>
-                </div>
-              </div>
-            )}
 
             {activeStageId === "9" && jdIsLive && (
               <div className="conb-jd-live-banner">

@@ -54,7 +54,7 @@ const RAW_WIZARD_STAGES = [
     ],
     theme: { p1: "#4F8BFF", p2: "#6366F1" },
     context:
-      "After OTP verification, you join 12,500+ candidates in the Verified Pool. Companies search this pool daily for matches in your specialty.",
+      "After OTP verification, you join candidates in the Verified Pool. Companies search this pool daily for matches in your specialty.",
   },
   {
     num: 2,
@@ -90,7 +90,7 @@ const RAW_WIZARD_STAGES = [
     ],
     theme: { p1: "#A855F7", p2: "#C026D3" },
     context:
-      "Companies filter shortlists by academy. ThoughtFlows alumni placed 2,847 candidates in the last 12 months — the highest count in the entire pool.",
+      "Companies filter shortlists by academy. Verified partner academy alumni carry verified credential weight across the hiring pool.",
   },
   {
     num: 3,
@@ -126,7 +126,7 @@ const RAW_WIZARD_STAGES = [
     ],
     theme: { p1: "#F59E0B", p2: "#E5A82E" },
     context:
-      "Cognizant, Optum, and Omega Healthcare only consider AAPC-certified candidates for HCC and IP DRG roles. This stage opens 67% of available jobs.",
+      "Cognizant, Optum, and Omega Healthcare prioritize AAPC and AHIMA certified candidates for HCC and coding roles.",
   },
   {
     num: 4,

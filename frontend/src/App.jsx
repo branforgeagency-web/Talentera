@@ -22,6 +22,7 @@ import StaffHub from "./pages/StaffHub.jsx";
 import ResumeBuilder from "./pages/ResumeBuilder.jsx";
 import AssessmentRunner from "./pages/AssessmentRunner.jsx";
 import VerifyCandidate from "./pages/VerifyCandidate.jsx";
+import TypographyShowcase from "./pages/TypographyShowcase.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 
@@ -31,6 +32,7 @@ export default function App() {
       {/* 01. Main Landing Page */}
       <Route path="/" element={<Landing />} />
       <Route path="/candidates" element={<ForCandidates />} />
+      <Route path="/typography" element={<TypographyShowcase />} />
 
       {/* Public Candidate Credential Verification */}
       <Route path="/verify/:candidateId" element={<VerifyCandidate />} />

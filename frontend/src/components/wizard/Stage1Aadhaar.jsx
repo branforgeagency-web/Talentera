@@ -162,9 +162,9 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       return;
     }
 
-    if (!aadhaarDocName && !aadhaarDocUrl) {
-      setError("Please upload your Aadhaar Card (Photo image or PDF document) before submitting.");
-      toast("Aadhaar Card Photo / PDF upload is required.", "!");
+    if (!existingData?.aadhaarVerified && aadhaarState !== "valid" && !aadhaarInput && !aadhaarDocName && !aadhaarDocUrl) {
+      setError("Please verify your 12-digit Aadhaar Number via Mobile OTP.");
+      toast("Aadhaar OTP verification is required.", "!");
       setSaving(false);
       return;
     }
@@ -193,7 +193,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         aadhaarDocUrl,
         docName: aadhaarDocName,
         docUrl: aadhaarDocUrl,
-        aadhaarVerified: aadhaarState === "valid",
+        aadhaarVerified: aadhaarState === "valid" || existingData?.aadhaarVerified,
 
         summary,
 
@@ -218,14 +218,12 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         skills: `${codeSets}, ${specializedKnowledge}, ${ehrSoftware}`,
       };
 
-      const res = await api.put("/candidate/stage/1", payload);
-      toast("Stage 1 Basic Info Saved!", "✓");
-      if (onSaved) onSaved(res.data);
+      const res = await api.put(`/candidate/stage/1`, payload);
+      toast("Stage 1 details saved successfully!", "✓");
+      if (onSaved) onSaved(res.data.candidate);
     } catch (err) {
-      console.error("Save Stage 1 error:", err);
-      const msg = err.response?.data?.message || err.message || "Could not save Stage 1.";
-      setError(msg);
-      toast(msg, "!");
+      setError(err.response?.data?.message || "Failed to save Stage 1.");
+      toast("Failed to save. Please check required fields.", "!");
     } finally {
       setSaving(false);
     }
@@ -233,12 +231,44 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
   return (
     <form onSubmit={handleSubmit} className="wiz-stage-form">
-      {/* 1. CONTACT INFORMATION */}
-      <div style={{ background: "#F8FAFC", border: "1.5px solid var(--navy)", borderRadius: 16, padding: 20, marginBottom: 20 }}>
-        <h4 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>
-          <i className="fa-solid fa-address-card" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          1. Contact Information
-        </h4>
+      {error && (
+        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", padding: 14, borderRadius: 10, marginBottom: 20, fontSize: 13, fontWeight: 700 }}>
+          <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 8 }}></i>
+          {error}
+        </div>
+      )}
+
+      {/* 1. INSTANT AADHAAR OTP VERIFICATION CARD (PRIMARY) */}
+      <div style={{ marginBottom: 24 }}>
+        <AadhaarOtpVerificationCard
+          existingMaskedAadhaar={existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : "")}
+          candidateMobile={mobile}
+          docUploaded={true}
+          initialStatus={existingData?.aadhaarVerified || aadhaarState === "valid" ? "VERIFIED" : "NOT_STARTED"}
+          onVerificationSuccess={(data) => {
+            setAadhaarState("valid");
+            setAadhaarInput(data.maskedAadhaar);
+            if (data.name) setFullName(data.name);
+            if (data.city) setCity(data.city);
+            if (data.state) setState(data.state);
+            toast("✓ Profile details auto-filled from verified Aadhaar record", "✓");
+          }}
+        />
+      </div>
+
+      {/* 2. CONTACT INFORMATION */}
+      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
+            <i className="fa-solid fa-address-card" style={{ color: "var(--gold)", marginRight: 8 }}></i>
+            1. Contact &amp; Identity Details
+          </h4>
+          {aadhaarState === "valid" && (
+            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+              ✓ UIDAI VERIFIED IDENTITY
+            </span>
+          )}
+        </div>
 
         <div className="wiz-field" style={{ marginBottom: 12 }}>
           <label>Full legal name (as on Aadhaar card) *</label>
@@ -281,55 +311,37 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         </div>
       </div>
 
-      {/* AADHAAR CARD UPLOAD & OTP CARD */}
-      <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 20, marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <label style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-            <i className="fa-solid fa-file-arrow-up" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-            Upload Aadhaar Card (Photo Image or PDF Document) *
+      {/* OPTIONAL: AADHAAR CARD ATTACHMENT */}
+      <div style={{ background: "#FFFFFF", border: "1px dashed #CBD5E1", borderRadius: 12, padding: 16, marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <label style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>
+            <i className="fa-solid fa-paperclip" style={{ color: "#64748B", marginRight: 8 }}></i>
+            Optional: Attach Aadhaar Card Copy (Photo / PDF)
           </label>
           {aadhaarDocName && (
-            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-              ✓ DOCUMENT UPLOADED
+            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999 }}>
+              ✓ ATTACHED
             </span>
           )}
         </div>
 
         {aadhaarDocName ? (
-          <div style={{ background: "#F0FDF4", border: "1.5px solid #22C55E", borderRadius: 10, padding: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ background: "#F0FDF4", border: "1px solid #22C55E", borderRadius: 8, padding: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <i className="fa-solid fa-file-pdf" style={{ fontSize: 24, color: "#15803D" }}></i>
-              <div>
-                <strong style={{ fontSize: 13, color: "#15803D" }}>{aadhaarDocName}</strong>
-                <div style={{ fontSize: 11, color: "#166534" }}>Aadhaar document uploaded &amp; attached to profile</div>
-              </div>
+              <i className="fa-solid fa-file-pdf" style={{ fontSize: 20, color: "#15803D" }}></i>
+              <strong style={{ fontSize: 12, color: "#15803D" }}>{aadhaarDocName}</strong>
             </div>
-
-            <button type="button" className="btn btn-outline" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => aadhaarFileInputRef.current?.click()}>
-              Re-upload File ↻
+            <button type="button" className="btn btn-outline" style={{ fontSize: 11, padding: "5px 10px" }} onClick={() => aadhaarFileInputRef.current?.click()}>
+              Replace ↻
             </button>
           </div>
         ) : (
-          <button type="button" className="btn btn-outline" style={{ width: "100%", justifyContent: "center", padding: "14px 20px", fontSize: 13, background: "#ffffff" }} onClick={() => aadhaarFileInputRef.current?.click()} disabled={aadhaarUploading}>
-            {aadhaarUploading ? "Uploading Aadhaar Document…" : "Select & Upload Aadhaar Card (Image or PDF)"}
+          <button type="button" className="btn btn-outline" style={{ width: "100%", justifyContent: "center", padding: "11px 16px", fontSize: 12.5 }} onClick={() => aadhaarFileInputRef.current?.click()} disabled={aadhaarUploading}>
+            <i className="fa-solid fa-paperclip" style={{ marginRight: 6 }}></i>
+            {aadhaarUploading ? "Uploading file…" : "+ Attach Aadhaar File (Optional)"}
           </button>
         )}
-
         <input ref={aadhaarFileInputRef} type="file" accept="image/*,.pdf" style={{ display: "none" }} onChange={handleAadhaarFileUpload} />
-      </div>
-
-      <div style={{ marginBottom: 20 }}>
-        <AadhaarOtpVerificationCard
-          existingMaskedAadhaar={existingData?.maskedAadhaar || ""}
-          candidateMobile={mobile}
-          docUploaded={Boolean(aadhaarDocName || aadhaarDocUrl)}
-          initialStatus={existingData?.aadhaarVerified || aadhaarState === "valid" ? "VERIFIED" : "NOT_STARTED"}
-          onVerificationSuccess={(data) => {
-            setAadhaarState("valid");
-            setAadhaarInput(data.maskedAadhaar);
-            if (data.name) setFullName(data.name);
-          }}
-        />
       </div>
 
       {/* 2. PROFESSIONAL SUMMARY */}
@@ -384,8 +396,8 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
             <i className="fa-solid fa-briefcase" style={{ color: "var(--gold)", marginRight: 8 }}></i>
             4. Professional Experience &amp; Metrics
           </h4>
-          <button type="button" className="btn btn-outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={handleAddWorkHistory}>
-            + Add Position
+          <button type="button" className="btn btn-outline" style={{ fontSize: 12, padding: "6px 14px" }} onClick={handleAddWorkHistory}>
+            <i className="fa-solid fa-plus" style={{ marginRight: 4 }}></i> Add Position
           </button>
         </div>
 

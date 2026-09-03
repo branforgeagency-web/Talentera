@@ -97,17 +97,37 @@ router.post(
         aadhaarStatus: "VERIFIED",
         maskedAadhaar: verification.maskedAadhaar,
         aadhaarTransactionId: transactionId,
+        verificationMethod: verification.verificationMethod || "Cashfree Aadhaar OKYC (UIDAI Certified)",
         verifiedAt: verification.verifiedAt,
       };
 
-      if (verification.name && !candidate.stage1.fullName) {
+      if (verification.name) {
         candidate.stage1.fullName = verification.name;
       }
-      if (verification.state && !candidate.stage1.state) {
+      if (verification.dob) {
+        candidate.stage1.dob = verification.dob;
+      }
+      if (verification.gender) {
+        candidate.stage1.gender = verification.gender;
+      }
+      if (verification.state) {
         candidate.stage1.state = verification.state;
       }
-      if (verification.city && !candidate.stage1.city) {
+      if (verification.city) {
         candidate.stage1.city = verification.city;
+      }
+      if (verification.pincode) {
+        candidate.stage1.pincode = verification.pincode;
+      }
+      if (verification.address) {
+        candidate.stage1.address = verification.address;
+      }
+      if (verification.photoUrl) {
+        candidate.stage1.photoUrl = verification.photoUrl;
+      }
+
+      if (!candidate.completedStages.includes(1)) {
+        candidate.completedStages.push(1);
       }
 
       candidate.markModified("stage1");
@@ -119,7 +139,16 @@ router.post(
         success: true,
         verified: true,
         maskedAadhaar: verification.maskedAadhaar,
+        verificationMethod: candidate.stage1.verificationMethod,
         verifiedAt: verification.verifiedAt,
+        details: {
+          fullName: candidate.stage1.fullName,
+          dob: candidate.stage1.dob,
+          gender: candidate.stage1.gender,
+          city: candidate.stage1.city,
+          state: candidate.stage1.state,
+          address: candidate.stage1.address,
+        },
         candidate,
         ...scoring,
       });

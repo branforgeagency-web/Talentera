@@ -23,29 +23,29 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: rgba(6, 21, 42, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(7, 26, 51, 0.82);
+  border: 1px solid rgba(168, 183, 200, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 999px;
   padding: 8px 18px 8px 14px;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow:
-    0 16px 40px -10px rgba(0, 0, 0, 0.6),
-    0 0 30px rgba(14, 165, 233, 0.15),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+    0 20px 48px -10px rgba(0, 0, 0, 0.7),
+    0 0 30px rgba(7, 26, 51, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 1240px;
   width: 100%;
 }
 
 .liquid-capsule-shell:hover {
-  border-color: rgba(229, 168, 46, 0.4);
-  background: rgba(6, 21, 42, 0.55);
+  border-color: rgba(230, 200, 117, 0.45);
+  background: rgba(7, 26, 51, 0.92);
   box-shadow:
-    0 20px 48px -12px rgba(0, 0, 0, 0.75),
-    0 0 36px rgba(229, 168, 46, 0.25),
-    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    0 24px 56px -12px rgba(0, 0, 0, 0.8),
+    0 0 32px rgba(230, 200, 117, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 /* Left side: Orb + Logo */
@@ -78,7 +78,7 @@
   width: 52px;
   height: 52px;
   pointer-events: none;
-  filter: drop-shadow(0 0 12px rgba(14, 165, 233, 0.5));
+  filter: drop-shadow(0 0 12px rgba(230, 200, 117, 0.45));
   transition: transform 0.25s ease-out;
 }
 
@@ -100,28 +100,28 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
-  padding: 8px 16px;
-  color: #C8D1E0;
+  padding: 8px 18px;
+  color: rgba(255, 255, 255, 0.88);
   font-family: var(--font-heading, sans-serif);
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   overflow: hidden;
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   white-space: nowrap;
 }
 
 .liquid-btn-icon {
-  font-size: 14px;
-  color: #94A3C0;
-  transition: all 0.25s;
+  font-size: 13.5px;
+  color: #CBD5E1;
+  transition: all 0.22s;
 }
 
 .liquid-btn-text {
-  transition: color 0.25s;
+  transition: color 0.22s;
 }
 
 /* Faint light reflection sheen */
@@ -131,23 +131,24 @@
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transform: skewX(-20deg);
-  transition: left 0.6s ease;
+  transition: left 0.5s ease;
   pointer-events: none;
 }
 
 /* Hover State */
 .liquid-nav-btn:hover {
   transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(230, 200, 117, 0.6);
   color: #FFFFFF;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .liquid-nav-btn:hover .liquid-btn-icon {
-  color: #38BDF8;
-  transform: scale(1.1);
+  color: var(--gold-light, #F0D896);
+  transform: scale(1.12);
 }
 
 .liquid-nav-btn:hover .liquid-btn-sheen {
@@ -156,14 +157,16 @@
 
 /* Active Selected Button */
 .liquid-nav-btn.active {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
-  border-color: rgba(229, 168, 46, 0.6);
+  background: linear-gradient(180deg, rgba(229, 168, 46, 0.24) 0%, rgba(10, 31, 61, 0.8) 100%);
+  border-color: rgba(229, 168, 46, 0.8);
   color: #FFFFFF;
-  box-shadow: 0 4px 18px rgba(229, 168, 46, 0.2);
+  box-shadow: 0 0 18px rgba(229, 168, 46, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  font-weight: 700;
 }
 
 .liquid-nav-btn.active .liquid-btn-icon {
   color: var(--gold, #E5A82E);
+  transform: scale(1.05);
 }
 
 /* Right Side Desktop Actions */
@@ -175,19 +178,19 @@
 }
 
 .liquid-action-link {
-  color: var(--text-light, #C8D1E0);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 13.5px;
-  font-weight: 700;
+  font-weight: 600;
   transition: color 0.2s;
 }
 
 .liquid-action-link:hover {
-  color: #FFFFFF;
+  color: var(--gold-light, #F5C95B);
 }
 
 .liquid-action-cta {
-  font-size: 13.5px !important;
-  padding: 10px 20px !important;
+  font-size: 13px !important;
+  padding: 10px 22px !important;
 }
 
 /* Mobile Toggle Button */
@@ -223,12 +226,12 @@
     top: calc(100% + 12px);
     left: 0;
     right: 0;
-    background: rgba(6, 21, 42, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(7, 26, 51, 0.98);
+    border: 1.5px solid rgba(230, 200, 117, 0.35);
     border-radius: 20px;
-    padding: 16px;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
-    backdrop-filter: blur(20px);
+    padding: 20px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(24px);
   }
   .liquid-nav-buttons.mobile-open .liquid-nav-btn {
     width: 100%;
@@ -239,16 +242,17 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 14px;
+    padding-top: 14px;
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     width: 100%;
   }
   .liquid-mobile-login {
-    color: var(--gold-light, #F5C95B);
+    color: var(--gold-light, #F0D896);
     font-weight: 700;
     font-size: 14px;
     text-align: center;
     padding: 8px;
   }
 }
+

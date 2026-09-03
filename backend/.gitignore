@@ -2,3 +2,7 @@ node_modules/
 .env
 uploads/*
 !uploads/.gitkeep
+backend/gcp-key.json
+gcp-key.json
+*-key.json
+*.pem
