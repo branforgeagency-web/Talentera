@@ -220,7 +220,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
       const res = await api.put(`/candidate/stage/1`, payload);
       toast("Stage 1 details saved successfully!", "✓");
-      if (onSaved) onSaved(res.data.candidate);
+      if (onSaved) onSaved(res.data);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save Stage 1.");
       toast("Failed to save. Please check required fields.", "!");

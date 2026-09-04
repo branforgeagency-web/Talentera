@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useToast } from "../components/Toast.jsx";
 import { WIZARD_STAGES, getStage } from "../data/wizardStages";
@@ -27,6 +27,7 @@ const STAGE_COMPONENTS = {
 
 export default function CandidateWizard() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
   const [profile, setProfile] = useState(null);
   const [activeStageId, setActiveStageId] = useState(1);
@@ -41,7 +42,10 @@ export default function CandidateWizard() {
         const candidateObj = res.data?.candidate || res.data || {};
         const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
         const isStage1Done = completed.includes(1);
-        if (!isStage1Done) {
+        const stageParam = Number(searchParams.get("stage"));
+        if (stageParam >= 1 && stageParam <= 8) {
+          setActiveStageId(stageParam);
+        } else if (!isStage1Done) {
           setActiveStageId(1);
         } else {
           const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));

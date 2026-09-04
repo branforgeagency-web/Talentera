@@ -9544,3 +9544,80 @@ body {
   position: relative;
   z-index: 10;
 }
+
+/* ==========================================================================
+   PRINT STYLES - ISOLATE RESUME ONLY FOR DOWNLOAD PDF / PRINT
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide everything on page by default */
+  body {
+    visibility: hidden !important;
+  }
+
+  /* Only make #printable-resume and its children visible */
+  #printable-resume,
+  #printable-resume * {
+    visibility: visible !important;
+  }
+
+  #printable-resume {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Hide common UI headers, sidebars, buttons, containers */
+  .no-print,
+  nav,
+  header,
+  aside,
+  footer,
+  .wiz-sidebar,
+  .wiz-stage-header,
+  .btn,
+  button,
+  .liquid-nav,
+  .navbar,
+  #toast-container {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .printable-area,
+  .wiz-stage7-container,
+  .wiz-pane,
+  .wiz-container,
+  .container {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}

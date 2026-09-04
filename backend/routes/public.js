@@ -157,6 +157,31 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
 });
 
 // GET /api/public/jobs - browse published JDs for the candidate-facing job
+function resolveCompanyLogo(c) {
+  if (!c) return null;
+  const s2 = c.stage2 || {};
+  const s1a = c.stage1a || {};
+  const candidates = [
+    s2.logosquare?.docUrl,
+    s2.logosquare?.url,
+    typeof s2.logosquare === "string" ? s2.logosquare : null,
+    s2.logo?.docUrl,
+    s2.logo?.url,
+    typeof s2.logo === "string" ? s2.logo : null,
+    c.companyLogo,
+    c.logo,
+    s1a.logo?.docUrl,
+    s1a.logo?.url,
+  ];
+  for (const item of candidates) {
+    if (item && typeof item === "string" && item.trim()) {
+      return item.trim();
+    }
+  }
+  return null;
+}
+
+// GET /api/public/jobs - browse published JDs for the candidate-facing job
 // board (frontend/src/pages/Jobs.jsx). This is the other half of the loop
 // company onboarding Stage 9 ("First JD") publishes into: without this
 // route (and the frontend page that calls it) a published JD was reachable
@@ -168,7 +193,7 @@ function formatCompanyJob(c) {
     jobId: c.jobId,
     companyId: c._id,
     companyName: c.companyName || (c.stage1a && c.stage1a.legalname) || "Talentera Employer",
-    companyLogo: (s2.logosquare && (s2.logosquare.docUrl || s2.logosquare.url)) || null,
+    companyLogo: resolveCompanyLogo(c),
     verifiedEmployer: c.kycStatus === "verified",
     publishedAt: c.jdPublishedAt,
     roleTitle: s9.roletitle || "Untitled role",
@@ -198,7 +223,7 @@ function formatPostedJob(job, companiesById) {
     jobId: job.jobId,
     companyId: job.companyId,
     companyName: c.companyName || (c.stage1a && c.stage1a.legalname) || "Talentera Employer",
-    companyLogo: (s2.logosquare && (s2.logosquare.docUrl || s2.logosquare.url)) || null,
+    companyLogo: resolveCompanyLogo(c),
     verifiedEmployer: c.kycStatus === "verified",
     publishedAt: job.publishedAt,
     roleTitle: f.roletitle || "Untitled role",
@@ -234,14 +259,20 @@ function formatPostedJob(job, companiesById) {
 //   ?workMode=   exact match (e.g. "Remote", "Hybrid", "On-site")
 router.get("/jobs", async (req, res) => {
   try {
-    // Both sources now require Talentera staff sign-off (jdApprovalStatus /
-    // approvalStatus === "approved") before a job is discoverable here - a
-    // company publishing a JD or posting an additional job no longer makes
-    // it live immediately, see routes/staff.js POST /verify-job.
-    const companies = await Company.find({ jdPublished: true, jdApprovalStatus: "approved" }).lean();
+    // Verified companies do not require employee approval — their jobs are live immediately.
+    const companies = await Company.find({
+      jdPublished: true,
+      $or: [{ jdApprovalStatus: "approved" }, { kycStatus: "verified" }],
+    }).lean();
     const fromOnboarding = companies.filter((c) => c.jobId).map(formatCompanyJob);
 
-    const postedJobs = await Job.find({ published: true, approvalStatus: "approved" }).lean();
+    const verifiedCompanyDocs = await Company.find({ kycStatus: "verified" }).select("_id").lean();
+    const verifiedCompanyIds = verifiedCompanyDocs.map((c) => c._id);
+
+    const postedJobs = await Job.find({
+      published: true,
+      $or: [{ approvalStatus: "approved" }, { companyId: { $in: verifiedCompanyIds } }],
+    }).lean();
     let fromPosted = [];
     if (postedJobs.length > 0) {
       const companyIds = [...new Set(postedJobs.map((j) => String(j.companyId)))];

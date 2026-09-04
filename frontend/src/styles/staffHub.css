@@ -368,16 +368,17 @@
 
 .staff-icon-btn {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   border: 1px solid var(--border-light, #E5E7EB);
   background: #fff;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--navy, #0A1F3D);
   cursor: pointer;
+  box-sizing: border-box;
   transition: all 0.16s ease;
 }
 
@@ -400,14 +401,16 @@
 }
 
 .staff-quick-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
+  height: 40px;
   background: linear-gradient(135deg, var(--gold, #E5A82E), var(--gold-bright, #F5B41A));
   color: var(--navy-deep, #06152A);
   font-weight: 800;
   font-size: 12.5px;
-  padding: 10px 16px;
+  padding: 0 16px;
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -415,6 +418,7 @@
   transition: all 0.16s ease;
   font-family: inherit;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .staff-quick-btn:hover {
@@ -425,12 +429,13 @@
 /* ---------- Content container ---------- */
 
 .tt-content {
-  padding: 22px 28px 40px;
+  padding: 24px 28px 48px;
   display: flex;
   flex-direction: column;
   gap: 22px;
-  max-width: 1440px;
-  animation: ttFadeUp 0.45s ease both;
+  width: 100%;
+  box-sizing: border-box;
+  animation: ttFadeUp 0.35s ease both;
 }
 
 @keyframes ttFadeUp {
@@ -673,11 +678,23 @@
   gap: 16px;
 }
 
+.tt-kpi-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.tt-kpi-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
 .tt-kpi {
   background: #fff;
   border: 1px solid var(--border-light, #E5E7EB);
   border-radius: 16px;
-  padding: 18px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
@@ -696,6 +713,7 @@
   justify-content: center;
   margin-bottom: 12px;
   color: #fff;
+  flex-shrink: 0;
 }
 
 .tt-kpi-1 { background: linear-gradient(135deg, #F59E0B, #D97706); }
@@ -709,7 +727,10 @@
   color: var(--text-muted, #4A5568);
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  min-height: 16px;
+  display: flex;
+  align-items: flex-start;
 }
 
 .tt-kpi-value {
@@ -718,6 +739,7 @@
   font-weight: 800;
   color: var(--navy, #0A1F3D);
   line-height: 1;
+  margin-top: auto;
 }
 
 .tt-kpi-unit {
@@ -1036,13 +1058,67 @@
   margin-top: 2px;
 }
 
-/* ---------- Tasks list ---------- */
+/* ---------- Tasks list & add form ---------- */
+
+.sf-add-task-form {
+  padding: 16px 22px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sf-task-input {
+  flex: 1;
+  min-width: 240px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light, #E5E7EB);
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--navy, #0A1F3D);
+  box-sizing: border-box;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.sf-task-input:focus {
+  outline: none;
+  border-color: var(--gold, #E5A82E);
+  box-shadow: 0 0 0 3px rgba(229, 168, 46, 0.15);
+}
+
+.sf-task-select {
+  height: 40px;
+  padding: 0 34px 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light, #E5E7EB);
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  color: var(--navy, #0A1F3D);
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+}
+
+.sf-task-select:focus {
+  outline: none;
+  border-color: var(--gold, #E5A82E);
+  box-shadow: 0 0 0 3px rgba(229, 168, 46, 0.15);
+}
 
 .sf-task {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
-  padding: 11px 0;
+  padding: 12px 0;
   border-bottom: 1px solid #F1F5F9;
   cursor: pointer;
   transition: opacity 0.14s ease;
@@ -1052,12 +1128,20 @@
   border-bottom: none;
 }
 
+.sf-task-check {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--gold, #E5A82E);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .sf-task-time {
   font-family: var(--font-mono, monospace);
   font-size: 11px;
   color: #94A3B8;
-  min-width: 44px;
-  padding-top: 1px;
+  min-width: 48px;
   flex-shrink: 0;
 }
 
@@ -1086,12 +1170,34 @@
 .sf-task-pill {
   font-size: 9.5px;
   font-weight: 800;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   letter-spacing: 0.02em;
   height: fit-content;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+.sf-task-del-btn {
+  background: transparent;
+  border: none;
+  color: #94A3B8;
+  cursor: pointer;
+  font-size: 18px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: all 0.14s ease;
+  flex-shrink: 0;
+}
+
+.sf-task-del-btn:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #DC2626;
 }
 
 .sf-task-p1 { background: #FEE2E2; color: #DC2626; }
@@ -1179,7 +1285,7 @@
 
 /* ---------- Responsive ---------- */
 
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   .tt-kpi-grid,
   .sf-actions-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -1189,6 +1295,12 @@
   }
   .tt-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 992px) {
+  .tt-kpi-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -1220,6 +1332,8 @@
 
 @media (max-width: 640px) {
   .tt-kpi-grid,
+  .tt-kpi-grid-3,
+  .tt-kpi-grid-2,
   .sf-actions-grid {
     grid-template-columns: 1fr;
   }
@@ -1228,5 +1342,8 @@
   }
   .tt-content {
     padding: 16px 16px 32px;
+  }
+  .staff-topbar-v2 {
+    padding: 12px 16px;
   }
 }

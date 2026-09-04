@@ -24,11 +24,9 @@ const VALID_STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
 // SKIPPABLE_STAGE_NUMS exactly.
 const SKIPPABLE_STAGES = [7];
 
-// A candidate must have completed every stage AND hold a verification score
-// above this threshold before they're allowed to search or apply for jobs —
-// enforced again below in POST /apply/:jobId (the frontend Jobs.jsx page
-// enforces the same rule, but that's a UI convenience, not security).
-const JOB_SEARCH_MIN_SCORE = 90;
+// A candidate must hold a verification score of at least 75% before they're
+// allowed to search or apply for jobs — enforced below in POST /apply/:jobId.
+const JOB_SEARCH_MIN_SCORE = 75;
 
 // Built-in questions used only when staff haven't configured any interview
 // questions yet in the Staff Hub (Interview Questions screen). These are
@@ -713,13 +711,16 @@ async function finalizeAiInterviewSession(candidate, session, status) {
   candidate.stage8 = {
     ...(candidate.stage8 || {}),
     aiInterview: session,
-    // Kept in sync with the pre-existing Stage8Track.jsx contract - it reads
-    // these two fields off `existingData` regardless of how the session
-    // that produced them was built.
     mockScore: result.overallScore,
     mockInterviewCompleted: true,
   };
+  candidate.stage5 = {
+    ...(candidate.stage5 || {}),
+    mockInterviewCompleted: true,
+    mockScore: result.overallScore,
+  };
   candidate.markModified("stage8");
+  candidate.markModified("stage5");
   return result;
 }
 
@@ -766,7 +767,7 @@ router.post("/ai-interview/start", async (req, res) => {
     await candidate.save();
 
     const firstQ = session.questions[0];
-    const messiReply = `Hi ${session.candidateName}! I'm Messi, and I'll be conducting your technical mock interview today for the ${session.role} track. I'll ask you ${session.questions.length} questions based on your role and experience - take your time with your answers. Let's begin.\n\n${firstQ.question}`;
+    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you 5 simple questions covering your introduction, education, skills, projects, and career goals. Let's begin with our first question:\n\n${firstQ.question}`;
 
     res.json({ session, messiReply });
   } catch (err) {
@@ -809,7 +810,7 @@ router.post("/ai-interview/turn", async (req, res) => {
       evaluation: turnResult.evaluation,
       score: turnResult.score,
       messiReply: turnResult.messiReply,
-      isFollowUp: session.followUpCountForCurrent > 0,
+      isFollowUp: false,
       flags: turnResult.evaluation === "no_answer" && utterance ? ["very_short_answer"] : [],
       timestamp: new Date(),
     });
@@ -818,40 +819,23 @@ router.post("/ai-interview/turn", async (req, res) => {
 
     if (turnResult.intent === "stop") {
       interviewEnded = true;
-    } else if (["hint", "repeat", "clarify", "unclear"].includes(turnResult.intent)) {
-      // Same question (or pending follow-up) again - no record change, no advance.
+    } else if (["hint", "repeat", "clarify"].includes(turnResult.intent)) {
+      // Repeat/hint/clarify current question - no advance
     } else {
-      // "answer" or "skip" - record this question's (or follow-up's) result,
-      // then decide whether to open a follow-up or advance.
-      const isFollowUpAnswer = session.followUpCountForCurrent > 0;
-      const existingRecord = session.questionRecords.find((r) => r.index === currentIndex);
+      // Record result for this question
+      session.questionRecords.push({
+        index: currentIndex,
+        topic: currentQuestion.topic || ["Introduction", "Education", "Skills", "Projects", "Career Goals"][currentIndex] || `Topic ${currentIndex + 1}`,
+        question: currentQuestion.question,
+        expectedConcepts: currentQuestion.expectedConcepts,
+        candidateAnswer: utterance,
+        evaluation: turnResult.evaluation,
+        score: turnResult.score,
+        missingConcepts: turnResult.missingConcepts,
+        followUp: null,
+      });
 
-      if (isFollowUpAnswer && existingRecord) {
-        existingRecord.followUp = {
-          question: existingRecord.followUp?.question || "",
-          candidateAnswer: utterance,
-          evaluation: turnResult.evaluation,
-          score: turnResult.score,
-          missingConcepts: turnResult.missingConcepts,
-        };
-      } else {
-        session.questionRecords.push({
-          index: currentIndex,
-          question: currentQuestion.question,
-          expectedConcepts: currentQuestion.expectedConcepts,
-          candidateAnswer: utterance,
-          evaluation: turnResult.evaluation,
-          score: turnResult.score,
-          missingConcepts: turnResult.missingConcepts,
-          followUp: turnResult.askFollowUp
-            ? { question: turnResult.messiReply, candidateAnswer: "", evaluation: "no_answer", score: 0, missingConcepts: [] }
-            : null,
-        });
-      }
-
-      if (turnResult.askFollowUp && !isFollowUpAnswer) {
-        session.followUpCountForCurrent = 1; // still the same question - awaiting the follow-up answer
-      } else if (currentIndex >= session.questions.length - 1) {
+      if (currentIndex >= session.questions.length - 1) {
         interviewEnded = true;
       } else {
         session.currentQuestionIndex = currentIndex + 1;
@@ -1008,10 +992,24 @@ router.put("/manual-resume", async (req, res) => {
   }
 });
 
-// PUT /api/candidate/resume-template - switch between Classic / Modern / Minimal / Executive
+// PUT /api/candidate/resume-template - switch between 12+ verified resume templates
 router.put("/resume-template", async (req, res) => {
   const { template } = req.body;
-  if (!["classic", "modern", "minimal", "executive"].includes(template)) {
+  const allowed = [
+    "classic",
+    "modern",
+    "minimal",
+    "executive",
+    "creative",
+    "nordic",
+    "twocolumn",
+    "tech",
+    "elegant",
+    "bold",
+    "portfolio",
+    "atspro",
+  ];
+  if (!allowed.includes(template)) {
     return res.status(400).json({ message: "Invalid template." });
   }
   const candidate = await Candidate.findByIdAndUpdate(
@@ -1030,16 +1028,12 @@ router.post("/apply/:jobId", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
-  // Job search / apply eligibility gate: every stage must be verified
-  // (all 8, now including Training and Certification since they're no
-  // longer skippable) AND the overall score must be above 90%. Mirrors the
-  // check in frontend/src/pages/Jobs.jsx, but enforced here too since the
-  // frontend gate is only a UI convenience — this is the real one.
+  // Job search / apply eligibility gate: the overall verification score must be
+  // at least 75% (JOB_SEARCH_MIN_SCORE = 75). Mirrors the check in frontend/src/pages/Jobs.jsx.
   const eligibility = calculateVerificationScore(candidate.completedStages);
-  const isFullyVerified = VALID_STAGES.every((n) => candidate.completedStages.includes(n));
-  if (!isFullyVerified || eligibility.score <= JOB_SEARCH_MIN_SCORE) {
+  if (eligibility.score < JOB_SEARCH_MIN_SCORE) {
     return res.status(403).json({
-      message: `Job applications are only open to fully verified candidates with a score above ${JOB_SEARCH_MIN_SCORE}%. Your current score is ${eligibility.score}/100 — complete the remaining verification stages to unlock job search.`,
+      message: `Job applications are open to verified candidates with a score of at least ${JOB_SEARCH_MIN_SCORE}%. Your current score is ${eligibility.score}/100 — complete additional verification stages in your dashboard to reach 75% and unlock job search.`,
     });
   }
 

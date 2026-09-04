@@ -21,6 +21,8 @@ const ALLOWED_MIME_TYPES = {
     "audio/mpeg",
     "audio/ogg",
     "audio/wav",
+    "application/octet-stream",
+    "text/plain",
   ],
   // Aadhaar e-KYC PDF or offline e-KYC .zip package
   ekycZip: [
@@ -57,6 +59,17 @@ function fileFilter(req, file, cb) {
   if (!allowed) {
     return cb(new Error(`Uploads are not accepted on field "${file.fieldname}".`));
   }
+
+  // If uploading a video, normalize mimetype if browser sent text/plain or octet-stream for a dynamic Blob
+  if (file.fieldname === "video") {
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const validVideoExts = [".webm", ".mp4", ".mov", ".mkv", ".avi", ".ogg", ".wav"];
+    if (validVideoExts.includes(ext) || file.mimetype === "text/plain" || file.mimetype === "application/octet-stream") {
+      file.mimetype = ext === ".mp4" ? "video/mp4" : "video/webm";
+      return cb(null, true);
+    }
+  }
+
   if (!allowed.includes(file.mimetype)) {
     return cb(new Error(`Unsupported file type "${file.mimetype}" for this upload. Allowed: ${allowed.join(", ")}`));
   }
@@ -68,7 +81,7 @@ const memoryStorage = multer.memoryStorage();
 
 const upload = multer({
   storage: memoryStorage,
-  limits: { fileSize: Number(process.env.MAX_UPLOAD_SIZE) || 50 * 1024 * 1024 }, // 50MB limit
+  limits: { fileSize: Number(process.env.MAX_UPLOAD_SIZE) || 100 * 1024 * 1024 }, // 100MB limit for video uploads
   fileFilter,
 });
 
@@ -119,9 +132,10 @@ const handleUpload = (options = {}) => {
         req.file.provider = "gcp";
         req.file.gcp = true;
         req.file.cloudinary = false;
+        console.log(`[STORAGE:GCP] Successfully uploaded ${req.file.originalname} (${req.file.buffer.length} bytes) to ${gcpResult.fileUrl}`);
         return next();
       } catch (gcpErr) {
-        console.warn(`GCP Cloud Storage upload error (${gcpErr.message}), trying next fallback...`);
+        console.error(`[STORAGE:GCP] Upload failed: ${gcpErr.message}, falling back...`);
       }
     }
 

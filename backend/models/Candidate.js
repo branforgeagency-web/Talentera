@@ -62,6 +62,7 @@ const CandidateSchema = new mongoose.Schema(
     stage6: { type: mongoose.Schema.Types.Mixed, default: null },
     // Stage 7: Build Resume - skippable -> { skipped: true }
     stage7: { type: mongoose.Schema.Types.Mixed, default: null },
+    manualResume: { type: mongoose.Schema.Types.Mixed, default: null },
     // Stage 8: Track (employment status)
     stage8: { type: mongoose.Schema.Types.Mixed, default: null },
 
@@ -69,8 +70,21 @@ const CandidateSchema = new mongoose.Schema(
     resumeFileName: { type: String, default: null },
     resumeTemplate: {
       type: String,
-      enum: ["classic", "modern", "minimal", "executive"],
-      default: "classic",
+      enum: [
+        "classic",
+        "modern",
+        "minimal",
+        "executive",
+        "creative",
+        "nordic",
+        "twocolumn",
+        "tech",
+        "elegant",
+        "bold",
+        "portfolio",
+        "atspro",
+      ],
+      default: "executive",
     },
   },
   { timestamps: true } // gives createdAt / updatedAt automatically

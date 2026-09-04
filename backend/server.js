@@ -22,6 +22,7 @@ connectDB();
 
 const defaultOrigins = [
   "http://localhost:5173",
+  "http://127.0.0.1:5173",
   "http://localhost:3000",
   "https://talentera-nine.vercel.app",
 ];
@@ -60,7 +61,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
 // Serve uploaded files (resume assets, videos) - replaces Firebase Storage public URLs
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

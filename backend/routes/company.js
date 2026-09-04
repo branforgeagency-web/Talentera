@@ -311,27 +311,28 @@ router.post("/publish-jd", async (req, res) => {
 
   if (!company.jdPublished) {
     const jobId = `TLT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const isVerified = company.kycStatus === "verified";
     company.jdPublished = true;
     company.jobId = jobId;
     company.jdPublishedAt = new Date();
-    company.jdApprovalStatus = "pending";
-    company.jdApprovedAt = null;
+    company.jdApprovalStatus = isVerified ? "approved" : "pending";
+    company.jdApprovedAt = isVerified ? new Date() : null;
+    company.jdApprovedBy = isVerified ? "Auto-Approved (KYC Verified)" : "";
     company.jdRejectionReason = "";
     if (!company.completedStages.includes("9")) company.completedStages.push("9");
     await company.save();
 
-    // Notify staff there's a new job post waiting in the approval queue -
-    // see routes/staff.js GET /dashboard's jobApprovalQueue and
-    // POST /verify-job. Every job (onboarding first-JD or a later posting
-    // via /company/jobs below) is pending until a staff member reviews it.
-    await Notification.create({
-      recipientType: "staff",
-      recipientId: "staff",
-      title: "New Job Post Awaiting Approval",
-      message: `${company.companyName || company.email} submitted a job post ("${stage9.roletitle || "Untitled role"}", ${jobId}) for review.`,
-      type: "job_submitted",
-      meta: { source: "onboarding", companyId: String(company._id), jobId },
-    });
+    if (!isVerified) {
+      // Notify staff only if company is not yet verified and requires manual review
+      await Notification.create({
+        recipientType: "staff",
+        recipientId: "staff",
+        title: "New Job Post Awaiting Approval",
+        message: `${company.companyName || company.email} submitted a job post ("${stage9.roletitle || "Untitled role"}", ${jobId}) for review.`,
+        type: "job_submitted",
+        meta: { source: "onboarding", companyId: String(company._id), jobId },
+      });
+    }
   }
 
   res.json({ company });
@@ -447,22 +448,14 @@ router.post("/jobs", async (req, res) => {
       jobId,
       published: true,
       publishedAt: new Date(),
-      approvalStatus: "pending",
+      approvalStatus: "approved",
+      approvedAt: new Date(),
+      approvedBy: "Auto-Approved (KYC Verified)",
+      rejectionReason: "",
       fields,
     });
 
-    // Notify staff there's a new job post waiting in the approval queue -
-    // same event as /publish-jd above, see routes/staff.js POST /verify-job.
-    await Notification.create({
-      recipientType: "staff",
-      recipientId: "staff",
-      title: "New Job Post Awaiting Approval",
-      message: `${company.companyName || company.email} submitted a job post ("${fields.roletitle || "Untitled role"}", ${jobId}) for review.`,
-      type: "job_submitted",
-      meta: { source: "posted", companyId: String(company._id), jobId, jobDocId: String(job._id) },
-    });
-
-    res.status(201).json({ message: "Job submitted for Talentera's approval — it'll go live on the board once a staff member reviews it.", job });
+    res.status(201).json({ message: "Job posted and published live! Candidates can discover and apply now.", job });
   } catch (err) {
     logger.error(`Post job error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to post job." });

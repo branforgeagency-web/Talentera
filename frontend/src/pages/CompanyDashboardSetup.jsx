@@ -877,7 +877,7 @@ export default function CompanyDashboardSetup() {
             <div className="conb-jd-preview-footer">
               <button type="button" className="btn btn-ghost" onClick={() => setPreviewOpen(false)}>← Edit JD</button>
               <button type="button" className="conb-cta-btn" onClick={confirmPublish} disabled={publishing}>
-                {publishing ? "Submitting…" : "✓ Confirm & submit for approval"}
+                {publishing ? "Publishing…" : company.kycStatus === "verified" ? "✓ Confirm & Publish Job" : "✓ Confirm & submit"}
               </button>
             </div>
           </div>
@@ -889,19 +889,19 @@ export default function CompanyDashboardSetup() {
         <div className="conb-modal-backdrop">
           <div className="conb-modal conb-modal-success" onClick={(e) => e.stopPropagation()}>
             <div className="conb-success-check">✓</div>
-            <h2>Submitted for approval</h2>
+            <h2>{company.kycStatus === "verified" ? "Job Published & Live!" : "Submitted for Review"}</h2>
             <p style={{ color: "#64748B", marginBottom: 20 }}>
-              Job ID <strong>{company.jobId}</strong> — Talentera staff review every job post before it goes live
-              on the board and the matching engine starts scanning the verified pool. You'll be notified here as
-              soon as it's approved.
+              Job ID <strong>{company.jobId}</strong> — {company.kycStatus === "verified"
+                ? "Your company is KYC-verified, so this job is immediately published and live on the candidate job board!"
+                : "Your job requisition has been saved. Complete your company KYC verification to activate direct job publishing."}
             </p>
             <div className="conb-hero-stats" style={{ marginBottom: 24 }}>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>⏳</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>AWAITING STAFF REVIEW</div></div>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>~24 hrs</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>TYPICAL TURNAROUND</div></div>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>100%</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>VERIFIED</div></div>
+              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>{company.kycStatus === "verified" ? "⚡" : "⏳"}</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>{company.kycStatus === "verified" ? "ACTIVE & LIVE" : "AWAITING KYC"}</div></div>
+              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>{company.kycStatus === "verified" ? "Instant" : "~24 hrs"}</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>TURNAROUND</div></div>
+              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>100%</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>VERIFIED POOL</div></div>
             </div>
-            <button type="button" className="conb-cta-btn" onClick={() => navigate("/companies/applicants")}>
-              View your applicants →
+            <button type="button" className="conb-cta-btn" onClick={() => navigate("/companies/jobs")}>
+              Manage your jobs →
             </button>
           </div>
         </div>
