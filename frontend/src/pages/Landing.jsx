@@ -132,6 +132,38 @@ export default function Landing() {
 
   // Hero Banner Audience Switcher State (Students/Candidates, Companies, Academies)
   const [heroAudience, setHeroAudience] = useState("candidates");
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
+
+  const faqs = [
+    {
+      q: "What is Talentera?",
+      a: "Talentera is a verified talent ecosystem for the Healthcare RCM industry, connecting candidates, hiring companies, and academies through a structured verification journey."
+    },
+    {
+      q: "Is Talentera a job portal?",
+      a: "Talentera goes beyond a traditional job portal. Candidates build structured profiles and demonstrate their journey, helping companies understand talent with greater context."
+    },
+    {
+      q: "How does Talentera verification work?",
+      a: "Candidates progress through structured stages including profile information, training, certifications, assessments, practical evaluation, and professional profile building. Each stage adds more context and credibility."
+    },
+    {
+      q: "Is Talentera free for candidates?",
+      a: "Yes. Candidates can register and begin building their professional profile on Talentera for free."
+    },
+    {
+      q: "How can I find Healthcare RCM jobs on Talentera?",
+      a: "Candidates can build their profile, complete relevant verification stages, and explore Healthcare RCM job opportunities based on their skills and professional journey."
+    },
+    {
+      q: "What is a Talentera Verified Resume?",
+      a: "A Talentera Verified Resume is generated using structured information from a candidate's professional and verification journey, creating a profile that goes beyond self-written claims."
+    },
+    {
+      q: "How can Healthcare RCM companies hire through Talentera?",
+      a: "Companies can discover structured candidate profiles, review relevant verification information, shortlist suitable talent, and hire based on their requirements."
+    }
+  ];
 
   const heroAudiences = {
     candidates: {
@@ -141,11 +173,11 @@ export default function Landing() {
       activeClass: "active",
       eyebrow: "STUDENT & CANDIDATE CAREER ENGINE",
       eyebrowDotColor: "var(--gold)",
-      tagline: "Build your profile. Prove your skills. Get discovered by companies.",
-      description: "Talentera helps students and job seekers showcase their skills, complete assessments, practice AI interviews, build verified profiles, and discover relevant career opportunities.",
-      primaryCta: { label: "Build Your Career", link: "/register", icon: "fa-solid fa-arrow-right", cls: "btn-gold" },
-      secondaryCta: { label: "Explore Open Roles", link: "/jobs", icon: "fa-solid fa-briefcase", cls: "btn-outline" },
-      ticker: "⚡ 100% Free for Students · 12,480+ Verified Candidates · 140+ Hiring Companies",
+      tagline: "Build Your Profile. Prove Your Skills. Get Discovered.",
+      description: "Talentera connects Healthcare RCM candidates, hiring companies, and academies through a structured verification ecosystem built on proof and trust.",
+      primaryCta: { label: "Build Your Career →", link: "/register", icon: "", cls: "btn-gold" },
+      secondaryCta: { label: "Explore Healthcare RCM Jobs", link: "/jobs", icon: "fa-solid fa-briefcase", cls: "btn-outline" },
+      ticker: "Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities",
       leftCard: {
         pill: "SKILLS VERIFIED",
         pillCls: "",
@@ -172,11 +204,11 @@ export default function Landing() {
       activeClass: "active-companies",
       eyebrow: "ENTERPRISE RCM HIRING PORTAL",
       eyebrowDotColor: "#38BDF8",
-      tagline: "Hire verified RCM talent in 24 hours. Pay only when you hire.",
-      description: "Access 12,480+ pre-vetted medical coders and billers with proctored chart audit benchmarks, live AAPC/AHIMA API credential validation, and video screening. Zero upfront fees.",
-      primaryCta: { label: "Browse Candidates", link: "/companies/register", icon: "fa-solid fa-users", cls: "btn-gold" },
+      tagline: "Hire Verified Healthcare RCM Talent With Greater Confidence.",
+      description: "Discover structured candidate profiles with deeper visibility into skills, verification, and professional readiness — and pay only on successful placement.",
+      primaryCta: { label: "Browse Verified Candidates", link: "/companies/register", icon: "fa-solid fa-users", cls: "btn-gold" },
       secondaryCta: { label: "Post a Requirement", link: "/companies/jobs", icon: "fa-solid fa-file-invoice", cls: "btn-outline" },
-      ticker: "🏢 342+ Enterprise Employers · 14-Day Average Time-to-Hire · 90-Day Free Replacement",
+      ticker: "Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities",
       leftCard: {
         pill: "TOP EMPLOYER",
         pillCls: "hero-cand-pill-gold",
@@ -203,11 +235,11 @@ export default function Landing() {
       activeClass: "active-academies",
       eyebrow: "INSTITUTIONAL ACADEMY NETWORK",
       eyebrowDotColor: "#34D399",
-      tagline: "Certify your cohorts. Track skill readiness. Guarantee placements.",
-      description: "Empower your healthcare training institute with national benchmark assessments, proctored chart tests, AI mock interviews, and automated placement drives with leading hospital networks.",
-      primaryCta: { label: "Partner Your Institute", link: "/academy", icon: "fa-solid fa-handshake", cls: "btn-gold" },
+      tagline: "Turn Training Into Verified Outcomes.",
+      description: "Partner with Talentera to help students demonstrate their skills, build credible professional profiles, and connect training with Healthcare RCM career opportunities.",
+      primaryCta: { label: "Partner With Talentera", link: "/academy", icon: "fa-solid fa-handshake", cls: "btn-gold" },
       secondaryCta: { label: "Academy Portal Login", link: "/academy/login", icon: "fa-solid fa-graduation-cap", cls: "btn-outline" },
-      ticker: "🎓 68 Partner Institutes Across India · 85.4% Placement Rate · Pan-India Ranking",
+      ticker: "Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities",
       leftCard: {
         pill: "COHORT COCKPIT",
         pillCls: "hero-cand-pill-emerald",
@@ -236,7 +268,7 @@ export default function Landing() {
       id: "profile",
       title: "Build Your Profile",
       desc: "Create a professional profile that goes beyond a traditional resume.",
-      tag: "INTERACTIVE PORTFOLIO",
+      tag: "INTERACTIVE PROFILE",
       badgeColor: "#E5A82E",
       icon: "fa-solid fa-user-gear",
       points: [
@@ -252,7 +284,7 @@ export default function Landing() {
     {
       id: "assessment",
       title: "Skill Assessment",
-      desc: "Test your knowledge and understand your strengths.",
+      desc: "Test your knowledge and understand your professional strengths.",
       tag: "REAL JOB BENCHMARKS",
       badgeColor: "#8B5CF6",
       icon: "fa-solid fa-list-check",
@@ -269,7 +301,7 @@ export default function Landing() {
     {
       id: "interview",
       title: "AI Mock Interview",
-      desc: "Practice realistic interviews with an AI interviewer.",
+      desc: "Practice realistic interviews and improve your professional confidence.",
       tag: "INSTANT AI FEEDBACK",
       badgeColor: "#06B6D4",
       icon: "fa-solid fa-robot",
@@ -286,8 +318,8 @@ export default function Landing() {
     {
       id: "verification",
       title: "Skill Verification",
-      desc: "Show companies what you actually know.",
-      tag: "AADHAAR & SKILL BADGES",
+      desc: "Add structured proof to the skills behind your professional profile.",
+      tag: "SKILL & PROFILE VERIFICATION",
       badgeColor: "#10B981",
       icon: "fa-solid fa-certificate",
       points: [
@@ -303,7 +335,7 @@ export default function Landing() {
     {
       id: "matching",
       title: "Job Matching",
-      desc: "Discover opportunities that match your skills and profile.",
+      desc: "Discover Healthcare RCM jobs relevant to your skills and profile.",
       tag: "AI MATCH SCORES",
       badgeColor: "#EC4899",
       icon: "fa-solid fa-bullseye",
@@ -320,7 +352,7 @@ export default function Landing() {
     {
       id: "discovered",
       title: "Get Discovered",
-      desc: "Allow relevant companies to find your verified profile.",
+      desc: "Make your verified profile visible to relevant hiring companies.",
       tag: "RECRUITER VISIBILITY",
       badgeColor: "#3B82F6",
       icon: "fa-solid fa-magnifying-glass-chart",
@@ -1066,8 +1098,8 @@ export default function Landing() {
           {/* CURSOR REACTIVE VARIABLE TYPOGRAPHY HEADLINE */}
           <ReactiveVariableHeadline
             lines={[
-              { text: "The Era of Talent", isAccent: false },
-              { text: "Starts Now.", isAccent: true },
+              { text: "Where Talent Becomes", isAccent: false },
+              { text: "Trusted.", isAccent: true },
             ]}
             minWeight={300}
             maxWeight={800}
@@ -1096,11 +1128,11 @@ export default function Landing() {
           <div className="hero-clean-ctas">
             <Link to={currentAudience.primaryCta.link} className={currentAudience.primaryCta.cls} style={{ fontSize: 16, padding: "18px 36px" }}>
               <span>{currentAudience.primaryCta.label}</span>
-              <i className={currentAudience.primaryCta.icon} />
+              {currentAudience.primaryCta.icon && <i className={currentAudience.primaryCta.icon} style={{ marginLeft: 8 }} />}
             </Link>
             <Link to={currentAudience.secondaryCta.link} className={currentAudience.secondaryCta.cls} style={{ fontSize: 16, padding: "18px 32px" }}>
               <span>{currentAudience.secondaryCta.label}</span>
-              <i className={currentAudience.secondaryCta.icon} />
+              {currentAudience.secondaryCta.icon && <i className={currentAudience.secondaryCta.icon} style={{ marginLeft: 8 }} />}
             </Link>
           </div>
 
@@ -1115,7 +1147,7 @@ export default function Landing() {
               </div>
               <div className="hero-aud-text">
                 <div className="hero-aud-title">For Candidates</div>
-                <div className="hero-aud-desc">Prove skills, verify certs & get hired</div>
+                <div className="hero-aud-desc">Build proof. Get verified. Get discovered.</div>
               </div>
               <Link to="/candidates" className="hero-aud-arrow" onClick={(e) => e.stopPropagation()} title="Candidate Hub">
                 <i className="fa-solid fa-arrow-right" />
@@ -1131,7 +1163,7 @@ export default function Landing() {
               </div>
               <div className="hero-aud-text">
                 <div className="hero-aud-title">For Companies</div>
-                <div className="hero-aud-desc">5 verified candidates in 24h · Pay on hire</div>
+                <div className="hero-aud-desc">Discover verified talent. Hire with confidence.</div>
               </div>
               <Link to="/companies" className="hero-aud-arrow" onClick={(e) => e.stopPropagation()} title="Company Portal">
                 <i className="fa-solid fa-arrow-right" />
@@ -1147,7 +1179,7 @@ export default function Landing() {
               </div>
               <div className="hero-aud-text">
                 <div className="hero-aud-title">For Academies</div>
-                <div className="hero-aud-desc">Benchmark cohorts & corporate placements</div>
+                <div className="hero-aud-desc">Strengthen outcomes. Build credibility.</div>
               </div>
               <Link to="/academy" className="hero-aud-arrow" onClick={(e) => e.stopPropagation()} title="Academy Network">
                 <i className="fa-solid fa-arrow-right" />
@@ -1156,12 +1188,12 @@ export default function Landing() {
           </div>
 
           <div style={{ marginTop: 24, fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "var(--font-mono)" }}>
-            {currentAudience.ticker}
+            Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities
           </div>
         </div>
       </section>
 
-      {/* ====== 2. WHAT TALENTERA DOES FOR STUDENTS (BENTO GRID SHOWCASE) ====== */}
+      {/* ====== 2. WHAT TALENTERA DOES FOR CANDIDATES (BENTO GRID SHOWCASE) ====== */}
       <section
         className="section"
         id="student-features"
@@ -1174,18 +1206,18 @@ export default function Landing() {
       >
         <div className="container">
           <div style={{ textAlign: "center", maxWidth: 820, margin: "0 auto 52px" }}>
-            <div className="section-eyebrow">WHAT TALENTERA DOES FOR STUDENTS</div>
+            <div className="section-eyebrow">WHAT TALENTERA DOES FOR CANDIDATES</div>
             <h2
               className="section-title section-title-light"
               style={{ fontSize: "clamp(28px, 4.2vw, 46px)", marginBottom: 16 }}
             >
-              Everything you need to become job-ready.
+              Everything You Need to Build a Career Beyond Your Resume.
             </h2>
             <p
               className="section-lead"
               style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, maxWidth: 680, margin: "0 auto" }}
             >
-              Step-by-step tools built to empower your journey from student to hired professional.
+              Build your profile, prove your skills, and prepare for relevant Healthcare RCM career opportunities.
             </p>
           </div>
 
@@ -1272,18 +1304,16 @@ export default function Landing() {
                 className="live-dot"
                 style={{ background: "var(--gold)", boxShadow: "0 0 10px var(--gold)" }}
               />
-              SKILL-BASED OPPORTUNITIES · 1-CLICK MATCH
+              SKILL-BASED OPPORTUNITIES · SMARTER MATCHING
             </div>
             <h2
               className="section-title section-title-light"
               style={{ fontSize: "clamp(30px, 4.4vw, 48px)", lineHeight: 1.15, marginBottom: 16 }}
             >
-              Find opportunities that{" "}
-              <span style={{ color: "var(--gold)", fontStyle: "italic" }}>match your skills.</span>
+              Find Healthcare RCM Jobs That Match Your Skills.
             </h2>
             <p style={{ color: "rgba(200, 209, 224, 0.8)", fontSize: 16, lineHeight: 1.6, maxWidth: 680, margin: "0 auto" }}>
-              Our algorithmic matching engine pairs your Aadhaar identity, AAPC/AHIMA credentials, and proctored audit
-              scores directly with top healthcare enterprises.
+              Explore relevant Healthcare RCM and medical coding opportunities based on your skills, profile, and professional readiness.
             </p>
           </div>
 
@@ -1460,8 +1490,7 @@ export default function Landing() {
               className="section-lead"
               style={{ color: "rgba(255,255,255,0.7)", fontSize: 16, maxWidth: 660, margin: "0 auto" }}
             >
-              A structured, transparent pathway built to transition candidates from foundational medical coding & RCM
-              training directly into corporate hiring rooms.
+              A structured career journey designed to help Healthcare RCM candidates build skills, demonstrate readiness, and get discovered by hiring companies.
             </p>
           </div>
 
@@ -1486,7 +1515,7 @@ export default function Landing() {
                 </div>
               </div>
               <h3 className="pipe-step-title">Create Profile</h3>
-              <p className="pipe-step-desc">Initialize your interactive digital portfolio and Aadhaar identity.</p>
+              <p className="pipe-step-desc">Build your professional identity and create the foundation for your career journey.</p>
               <div>
                 <span className="pipe-step-tag">2 MIN SETUP</span>
               </div>
@@ -1511,7 +1540,7 @@ export default function Landing() {
                 </div>
               </div>
               <h3 className="pipe-step-title">Benchmark Audit</h3>
-              <p className="pipe-step-desc">Measure clinical coding accuracy with proctored hospital chart exams.</p>
+              <p className="pipe-step-desc">Measure your knowledge and understand how your skills compare.</p>
               <div>
                 <span className="pipe-step-tag">NATIONAL RANK</span>
               </div>
@@ -1536,7 +1565,7 @@ export default function Landing() {
                 </div>
               </div>
               <h3 className="pipe-step-title">AI Mock Voice</h3>
-              <p className="pipe-step-desc">Practice voice interviews with real-time feedback on clarity & tone.</p>
+              <p className="pipe-step-desc">Practice professional communication and prepare for real interview conversations.</p>
               <div>
                 <span className="pipe-step-tag">AUDIO COACH</span>
               </div>
@@ -1561,7 +1590,7 @@ export default function Landing() {
                 </div>
               </div>
               <h3 className="pipe-step-title">Verify Skills</h3>
-              <p className="pipe-step-desc">Unlock tamper-proof digital skill badges and recruiter trust scores.</p>
+              <p className="pipe-step-desc">Demonstrate your capabilities and add more credibility to your profile.</p>
               <div>
                 <span className="pipe-step-tag">GOLD BADGE</span>
               </div>
@@ -1586,7 +1615,7 @@ export default function Landing() {
                 </div>
               </div>
               <h3 className="pipe-step-title">AI Job Match</h3>
-              <p className="pipe-step-desc">Discover tailored clinical openings matched to your specialty score.</p>
+              <p className="pipe-step-desc">Discover Healthcare RCM opportunities matched to your skills and profile.</p>
               <div>
                 <span className="pipe-step-tag">94%+ ACCURACY</span>
               </div>
@@ -1611,7 +1640,7 @@ export default function Landing() {
                 </div>
               </div>
               <h3 className="pipe-step-title">Fast Interview</h3>
-              <p className="pipe-step-desc">Skip preliminary screenings and jump directly to final rounds.</p>
+              <p className="pipe-step-desc">Move forward with relevant opportunities and connect with hiring companies.</p>
               <div>
                 <span className="pipe-step-tag">DIRECT INVITE</span>
               </div>
@@ -1645,7 +1674,7 @@ export default function Landing() {
               <h3 className="pipe-step-title" style={{ color: "#86EFAC" }}>
                 Get Hired
               </h3>
-              <p className="pipe-step-desc">Accept verified corporate offers and launch your healthcare career.</p>
+              <p className="pipe-step-desc">Take the next step towards your Healthcare RCM career opportunity.</p>
               <div>
                 <span
                   className="pipe-step-tag"
@@ -1674,7 +1703,7 @@ export default function Landing() {
               className="section-title section-title-light"
               style={{ fontSize: "clamp(28px, 4.2vw, 44px)", marginBottom: 18 }}
             >
-              Why 12,480+ Students Build on Talentera.
+              Why 12,480+ Candidates Build Their Careers on Talentera.
             </h2>
             <div
               style={{
@@ -1692,7 +1721,7 @@ export default function Landing() {
               }}
             >
               <i className="fa-solid fa-bolt" />
-              <span>100% Free Forever for Students · Zero Hidden Placement Fees</span>
+              <span>100% Free to Register • Build Proof Beyond Your Resume</span>
             </div>
           </div>
 
@@ -1718,7 +1747,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Free Lifetime Profile</h3>
               <p className="adv-card-desc">
-                Never pay for tests, AI interviews, or job applications. Complete student access is always ₹0.
+                Create and build your professional Healthcare RCM profile without registration fees.
               </p>
             </div>
 
@@ -1742,7 +1771,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Tamper-Proof Badging</h3>
               <p className="adv-card-desc">
-                Aadhaar identity and proctored clinical test credentials establish instant employer credibility.
+                Add structured verification and credibility to your professional journey.
               </p>
             </div>
 
@@ -1766,8 +1795,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">AI Mock Interviews</h3>
               <p className="adv-card-desc">
-                Practice voice interviews with instant scoring on medical terminology, clarity, and communication
-                pacing.
+                Practice realistic interview scenarios and improve professional confidence.
               </p>
             </div>
 
@@ -1791,7 +1819,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Clinical Job Matching</h3>
               <p className="adv-card-desc">
-                Get matched with top hospital and RCM openings based on exact chart experience, not keyword filters.
+                Discover relevant Healthcare RCM and medical coding job opportunities.
               </p>
             </div>
 
@@ -1815,7 +1843,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Priority Recruiter Radar</h3>
               <p className="adv-card-desc">
-                Pre-verified candidate profiles get prominently featured in front of 140+ active hiring managers.
+                Increase your profile visibility with relevant hiring companies.
               </p>
             </div>
 
@@ -1839,7 +1867,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Skip Basic Phone Screens</h3>
               <p className="adv-card-desc">
-                Hiring teams review your verified test results upfront, inviting you straight to final technical rounds.
+                Help recruiters understand more about your profile before the first conversation.
               </p>
             </div>
 
@@ -1863,7 +1891,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Career Readiness Score</h3>
               <p className="adv-card-desc">
-                Understand your national ranking and exact strengths across ICD-10-CM, CPT, and modifier guidelines.
+                Get a clearer view of your professional readiness and development journey.
               </p>
             </div>
 
@@ -1887,7 +1915,7 @@ export default function Landing() {
               </div>
               <h3 className="adv-card-title">Direct Placement Drives</h3>
               <p className="adv-card-desc">
-                Access exclusive corporate hiring pipelines with top healthcare RCM employers nationwide.
+                Access relevant hiring opportunities across the Healthcare RCM industry.
               </p>
             </div>
           </div>
@@ -1917,8 +1945,7 @@ export default function Landing() {
               className="section-lead"
               style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, maxWidth: 660, margin: "0 auto" }}
             >
-              Our 6-stage algorithmic verification replaces slow traditional hiring cycles with instant, transparent
-              recruiter discovery.
+              A structured journey that helps Healthcare RCM candidates build credibility, demonstrate readiness, and become visible to hiring companies.
             </p>
           </div>
 
@@ -1945,7 +1972,7 @@ export default function Landing() {
               </div>
               <div className="prog-node-body">
                 <h3 className="prog-node-title">Profile & KYC</h3>
-                <p className="prog-node-sub">100% Gov-ID authenticated candidate profile initialization.</p>
+                <p className="prog-node-sub">Build a verified professional profile with authenticated identity details.</p>
               </div>
               <div className="prog-node-footer">
                 <span className="prog-metric-chip">
@@ -1976,7 +2003,7 @@ export default function Landing() {
               </div>
               <div className="prog-node-body">
                 <h3 className="prog-node-title">Chart Audit Test</h3>
-                <p className="prog-node-sub">Timed proctored exam matching real hospital benchmarks.</p>
+                <p className="prog-node-sub">Demonstrate your medical coding knowledge through structured assessment.</p>
               </div>
               <div className="prog-node-footer">
                 <span className="prog-metric-chip">
@@ -2007,7 +2034,7 @@ export default function Landing() {
               </div>
               <div className="prog-node-body">
                 <h3 className="prog-node-title">AI Voice Round</h3>
-                <p className="prog-node-sub">Instant evaluation on domain terminology & pacing.</p>
+                <p className="prog-node-sub">Practice communication and prepare for professional interview scenarios.</p>
               </div>
               <div className="prog-node-footer">
                 <span className="prog-metric-chip">
@@ -2038,7 +2065,7 @@ export default function Landing() {
               </div>
               <div className="prog-node-body">
                 <h3 className="prog-node-title">Verified Badges</h3>
-                <p className="prog-node-sub">Anti-fraud cryptographic badges issued to your portfolio.</p>
+                <p className="prog-node-sub">Add visible proof and credibility to your professional profile.</p>
               </div>
               <div className="prog-node-footer">
                 <span className="prog-metric-chip">
@@ -2069,7 +2096,7 @@ export default function Landing() {
               </div>
               <div className="prog-node-body">
                 <h3 className="prog-node-title">Recruiter Radar</h3>
-                <p className="prog-node-sub">Direct matching with 140+ active healthcare employers.</p>
+                <p className="prog-node-sub">Increase visibility among relevant Healthcare RCM hiring companies.</p>
               </div>
               <div className="prog-node-footer">
                 <span className="prog-metric-chip">
@@ -2118,7 +2145,7 @@ export default function Landing() {
                 <h3 className="prog-node-title" style={{ color: "#86EFAC" }}>
                   Job Offer Issued
                 </h3>
-                <p className="prog-node-sub">Fast-track interview invitations skipping basic screening.</p>
+                <p className="prog-node-sub">Move forward with relevant opportunities and take the next step in your career.</p>
               </div>
               <div className="prog-node-footer">
                 <span className="prog-metric-chip" style={{ color: "#4ADE80" }}>
@@ -2657,6 +2684,51 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* ====== 10. FAQ SECTION ====== */}
+      <section className="section" id="faq" style={{ background: "#051329", borderTop: "1px solid rgba(255,255,255,0.06)", padding: "90px 0" }}>
+        <div className="container">
+          <div style={{ textAlign: "center", maxWidth: 820, margin: "0 auto 52px" }}>
+            <div className="section-eyebrow" style={{ color: "var(--gold)" }}>
+              FREQUENTLY ASKED QUESTIONS
+            </div>
+            <h2
+              className="section-title section-title-light"
+              style={{ fontSize: "clamp(28px, 4.2vw, 44px)", marginBottom: 16 }}
+            >
+              Frequently Asked Questions
+            </h2>
+            <p
+              className="section-lead"
+              style={{ color: "rgba(255,255,255,0.7)", fontSize: 16, maxWidth: 660, margin: "0 auto" }}
+            >
+              Everything you need to know about Talentera and how our verified ecosystem works.
+            </p>
+          </div>
+
+          <div className="hv-faq-container">
+            {faqs.map((faq, idx) => {
+              const isOpen = openFaqIndex === idx;
+              return (
+                <div key={idx} className={`hv-faq-item ${isOpen ? "open" : ""}`}>
+                  <div
+                    className="hv-faq-question"
+                    onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                  >
+                    <span>{idx + 1}. {faq.q}</span>
+                    <span className="hv-faq-arrow">{isOpen ? "▲" : "▼"}</span>
+                  </div>
+                  {isOpen && (
+                    <div className="hv-faq-answer">
+                      <p style={{ margin: 0 }}>{faq.a}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* ====== FOOTER ====== */}
       <footer className="footer">
         <div className="container">
@@ -2680,6 +2752,7 @@ export default function Landing() {
               <Link to="/register">Student Registration</Link>
               <Link to="/companies">For Companies</Link>
               <Link to="/academy">For Academies</Link>
+              <a href="#faq">FAQ</a>
               <Link to="/typography">Interactive Typography</Link>
               <Link to="/staff/login">Employee Login</Link>
             </div>

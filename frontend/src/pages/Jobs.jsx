@@ -5,23 +5,21 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { buildJobSearchParams } from "../utils/jobFilters.js";
 import { WIZARD_STAGES, STAGE_POINTS } from "../data/wizardStages.js";
+import CompanyLogo from "../components/CompanyLogo.jsx";
 
-// Job search is only unlocked once a candidate has completed every
-// verification stage AND their overall score is above this threshold.
+// Job search is unlocked once a candidate's verification score is 75% or above.
 // Mirrored (and actually enforced) server-side in
 // backend/routes/candidate.js JOB_SEARCH_MIN_SCORE / POST /apply/:jobId.
-const JOB_SEARCH_MIN_SCORE = 90;
+const JOB_SEARCH_MIN_SCORE = 75;
 
 function getJobSearchEligibility(candidate) {
   const completedStages = candidate?.completedStages || [];
   const score = completedStages.reduce((sum, n) => sum + (STAGE_POINTS[n] || 0), 0);
-  const isFullyVerified = WIZARD_STAGES.every((s) => completedStages.includes(s.num));
   const remainingStages = WIZARD_STAGES.filter((s) => !completedStages.includes(s.num));
   return {
     score,
-    isFullyVerified,
     remainingStages,
-    isEligible: isFullyVerified && score > JOB_SEARCH_MIN_SCORE,
+    isEligible: score >= JOB_SEARCH_MIN_SCORE,
   };
 }
 
@@ -166,7 +164,7 @@ export default function Jobs() {
     // reachable while locked, but the backend is what actually enforces
     // this (POST /candidate/apply/:jobId).
     if (!eligibility.isEligible) {
-      toast(`Job applications need a score above ${JOB_SEARCH_MIN_SCORE}% and every stage verified.`, "!");
+      toast(`Job applications need a verification score of at least ${JOB_SEARCH_MIN_SCORE}%.`, "!");
       return;
     }
     setApplyingJobId(jobId);
@@ -322,11 +320,11 @@ export default function Jobs() {
           >
             <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginBottom: 8 }}>
-              Job search unlocks once you're fully verified
+              Job search unlocks with a verification score of {JOB_SEARCH_MIN_SCORE}%
             </h2>
             <p style={{ fontSize: 13.5, color: "#64748B", maxWidth: 480, margin: "0 auto 18px" }}>
-              To keep this pool trustworthy for employers, browsing and applying to roles is only open to
-              candidates who've completed every verification stage with a score above {JOB_SEARCH_MIN_SCORE}%.
+              To keep this pool trustworthy for employers, browsing and applying to roles is open to
+              candidates who have achieved a verification score of at least {JOB_SEARCH_MIN_SCORE}%.
             </p>
             <div style={{ maxWidth: 320, margin: "0 auto 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
@@ -470,38 +468,42 @@ export default function Jobs() {
                 return (
                   <div key={job.jobId} style={cardStyle}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0 }}>{job.roleTitle}</h3>
-                          {job.verifiedEmployer && (
-                            <span style={{ fontSize: 10, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 999 }}>
-                              ✓ VERIFIED EMPLOYER
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 13.5, color: "#475569", marginBottom: 10 }}>
-                          {job.companyName}
-                          {job.specialty ? ` · ${job.specialty}` : ""}
-                          {job.location ? ` · ${job.location}` : ""}
-                          {job.workMode ? ` · ${job.workMode}` : ""}
-                        </div>
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 11.5, color: "#334155" }}>
-                          {job.expMin !== null && job.expMax !== null && (
-                            <span style={{ background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>
-                              {job.expMin}–{job.expMax} yrs exp
-                            </span>
-                          )}
-                          {job.compMin !== null && job.compMax !== null && (
-                            <span style={{ background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>
-                              ₹{job.compMin}–{job.compMax} LPA
-                            </span>
-                          )}
-                          {job.openings !== null && (
-                            <span style={{ background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>
-                              {job.openings} opening{job.openings === 1 ? "" : "s"}
-                            </span>
-                          )}
-                          {job.urgency && <span style={{ background: "#FEF3C7", color: "#B45309", padding: "4px 10px", borderRadius: 999 }}>{job.urgency}</span>}
+                      <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flex: "1 1 320px", minWidth: 260 }}>
+                        <CompanyLogo companyName={job.companyName} logoUrl={job.companyLogo} size={54} />
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0 }}>{job.roleTitle}</h3>
+                            {job.verifiedEmployer && (
+                              <span style={{ fontSize: 10, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 999 }}>
+                                ✓ VERIFIED EMPLOYER
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 13.5, color: "#475569", marginBottom: 10 }}>
+                            <strong style={{ color: "var(--navy, #0A1F3D)" }}>{job.companyName}</strong>
+                            {job.specialty ? ` · ${job.specialty}` : ""}
+                            {job.location ? ` · ${job.location}` : ""}
+                            {job.workMode ? ` · ${job.workMode}` : ""}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 11.5, color: "#334155" }}>
+                            {job.expMin !== null && job.expMax !== null && (
+                              <span style={{ background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>
+                                {job.expMin}–{job.expMax} yrs exp
+                              </span>
+                            )}
+                            {job.compMin !== null && job.compMax !== null && (
+                              <span style={{ background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>
+                                ₹{job.compMin}–{job.compMax} LPA
+                              </span>
+                            )}
+                            {job.openings !== null && (
+                              <span style={{ background: "#F1F5F9", padding: "4px 10px", borderRadius: 999 }}>
+                                {job.openings} opening{job.openings === 1 ? "" : "s"}
+                              </span>
+                            )}
+                            {job.urgency && <span style={{ background: "#FEF3C7", color: "#B45309", padding: "4px 10px", borderRadius: 999 }}>{job.urgency}</span>}
+                          </div>
                         </div>
                       </div>
 
@@ -575,31 +577,34 @@ export default function Jobs() {
                 return (
                   <div key={app._id} style={{ ...cardStyle, borderLeft: `5px solid ${st.color}` }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
-                      <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                          <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0 }}>{roleTitle}</h3>
-                          <span
-                            style={{
-                              padding: "4px 12px",
-                              borderRadius: 999,
-                              fontWeight: 800,
-                              fontSize: 11.5,
-                              background: st.bg,
-                              color: st.color,
-                              border: `1px solid ${st.border}`,
-                            }}
-                          >
-                            {st.badgeLabel}
-                          </span>
-                        </div>
+                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flex: 1, minWidth: 260 }}>
+                        <CompanyLogo companyName={companyName} size={48} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, flexWrap: "wrap" }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0 }}>{roleTitle}</h3>
+                            <span
+                              style={{
+                                padding: "4px 12px",
+                                borderRadius: 999,
+                                fontWeight: 800,
+                                fontSize: 11.5,
+                                background: st.bg,
+                                color: st.color,
+                                border: `1px solid ${st.border}`,
+                              }}
+                            >
+                              {st.badgeLabel}
+                            </span>
+                          </div>
 
-                        <div style={{ fontSize: 13.5, color: "#475569", marginBottom: 12 }}>
-                          🏢 <strong>{companyName}</strong> {location ? `· ${location}` : ""} {appliedDate ? `· Applied on ${appliedDate}` : ""}
-                        </div>
+                          <div style={{ fontSize: 13.5, color: "#475569", marginBottom: 12 }}>
+                            <strong>{companyName}</strong> {location ? `· ${location}` : ""} {appliedDate ? `· Applied on ${appliedDate}` : ""}
+                          </div>
 
-                        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#334155" }}>
-                          <span style={{ fontWeight: 700, color: st.color }}>{st.icon} Status Note: </span>
-                          {st.message}
+                          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#334155" }}>
+                            <span style={{ fontWeight: 700, color: st.color }}>{st.icon} Status Note: </span>
+                            {st.message}
+                          </div>
                         </div>
                       </div>
                     </div>

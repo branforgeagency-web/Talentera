@@ -44,11 +44,12 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
     (mockSession && (mockSession.status === "COMPLETED" || mockSession.status === "STOPPED")) ||
     existingData?.stage8?.aiInterview?.status === "COMPLETED" ||
     existingData?.aiInterview?.status === "COMPLETED" ||
-    (existingData?.mockInterviewCompleted && mockSession?.status !== "IN_PROGRESS")
+    existingData?.mockInterviewCompleted ||
+    existingData?.stage5?.mockInterviewCompleted
   );
 
   const isMockInProgress = Boolean(mockSession?.status === "IN_PROGRESS");
-  const mockScore = mockSession?.result?.overallScore ?? existingData?.stage8?.aiInterview?.result?.overallScore ?? existingData?.mockScore ?? null;
+  const mockScore = mockSession?.result?.overallScore ?? existingData?.stage8?.aiInterview?.result?.overallScore ?? existingData?.mockScore ?? existingData?.stage5?.mockScore ?? null;
 
   // Both must be complete to unlock next stage
   const bothCompleted = hasSelfIntro && isMockCompleted;
@@ -564,7 +565,7 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
               <p className="stage5-card-desc">
                 {isMockCompleted
                   ? `Mock interview complete${mockScore !== null ? ` · Score: ${mockScore}/100` : ""}. Click View Score to inspect feedback.`
-                  : "Interactive voice interview with AI. Scores fluency, conceptual clarity, and structured technical answering."}
+                  : "Interactive AI mock interview covering 5 student/fresher topics: Introduction, Education, Skills, Projects, and Career Goals."}
               </p>
             </div>
           </div>
