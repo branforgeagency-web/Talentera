@@ -1,6 +1,5 @@
 const axios = require("axios");
 const crypto = require("crypto");
-const { verhoeffValidate } = require("./verhoeffBackend");
 const logger = require("./logger");
 
 /**

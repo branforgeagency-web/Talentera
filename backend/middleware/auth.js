@@ -46,7 +46,9 @@ async function requireAuth(req, res, next) {
           req.candidateId = candidate._id;
           return next();
         }
-      } catch (e) {}
+      } catch (_err) {
+        // Fallback candidate lookup failed; proceed to 401
+      }
     }
     return res.status(401).json({ message: "No auth token provided." });
   }
@@ -86,7 +88,9 @@ async function requireAuth(req, res, next) {
           req.candidateId = candidate._id;
           return next();
         }
-      } catch (e) {}
+      } catch (_err) {
+        // Fallback candidate lookup failed; proceed to 401
+      }
     }
     return res.status(401).json({ message: "Invalid or expired token." });
   }

@@ -187,7 +187,6 @@ function resolveCompanyLogo(c) {
 // route (and the frontend page that calls it) a published JD was reachable
 // by jobId only, with no way for a candidate to ever discover it.
 function formatCompanyJob(c) {
-  const s2 = c.stage2 || {};
   const s9 = c.stage9 || {};
   return {
     jobId: c.jobId,
@@ -217,7 +216,6 @@ function formatCompanyJob(c) {
 
 function formatPostedJob(job, companiesById) {
   const c = companiesById.get(String(job.companyId)) || {};
-  const s2 = c.stage2 || {};
   const f = job.fields || {};
   return {
     jobId: job.jobId,
