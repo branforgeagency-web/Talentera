@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LiquidNavCapsule from "../components/LiquidNavCapsule";
+import Footer from "../components/Footer.jsx";
 import "../styles/forAcademies.css";
 import { startOtpWidget } from "../utils/msg91Widget.js";
 import { safeJson } from "../utils/safeJson.js";
@@ -267,6 +268,9 @@ export default function ForAcademies() {
           </div>
         </div>
       </section>
+
+      {/* ====== FOOTER ====== */}
+      <Footer />
     </div>
   );
 }

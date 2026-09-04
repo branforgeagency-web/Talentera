@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LiquidNavCapsule from "../components/LiquidNavCapsule";
+import Footer from "../components/Footer.jsx";
 import "../styles/forCandidates.css";
 
 export default function ForCandidates() {
@@ -584,6 +585,9 @@ export default function ForCandidates() {
           </div>
         </div>
       </section>
+
+      {/* ====== FOOTER ====== */}
+      <Footer />
     </div>
   );
 }

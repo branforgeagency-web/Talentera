@@ -1,0 +1,741 @@
+/* ==========================================================================
+   TALENTERA MODERN FOOTER STYLES (REVAMPED)
+   ========================================================================== */
+
+.tal-footer {
+  position: relative;
+  background: linear-gradient(180deg, #07172d 0%, #030a14 100%);
+  color: #ffffff;
+  padding: 72px 0 32px;
+  border-top: 1px solid rgba(229, 168, 46, 0.18);
+  font-family: var(--font-body, "Manrope", sans-serif);
+  overflow: hidden;
+}
+
+/* Ambient glow accents */
+.tal-footer-ambient-1 {
+  position: absolute;
+  top: -120px;
+  left: 15%;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(229, 168, 46, 0.07) 0%, transparent 70%);
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.tal-footer-ambient-2 {
+  position: absolute;
+  bottom: -100px;
+  right: 10%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.08) 0%, transparent 70%);
+  filter: blur(90px);
+  pointer-events: none;
+}
+
+/* Background subtle grid pattern */
+.tal-footer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* --------------------------------------------------------------------------
+   1. NEWSLETTER / RCM PULSE RIBBON
+   -------------------------------------------------------------------------- */
+.tal-footer-newsletter-card {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(135deg, rgba(16, 37, 66, 0.85) 0%, rgba(10, 25, 46, 0.95) 100%);
+  border: 1px solid rgba(229, 168, 46, 0.25);
+  border-radius: 20px;
+  padding: 34px 40px;
+  margin-bottom: 56px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.tal-fn-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 36px;
+  align-items: center;
+}
+
+.tal-fn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: rgba(229, 168, 46, 0.12);
+  border: 1px solid rgba(229, 168, 46, 0.3);
+  color: var(--gold-bright, #f5b41a);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.tal-fn-title {
+  font-family: var(--font-display, "Bricolage Grotesque", sans-serif);
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: #ffffff;
+  margin-bottom: 8px;
+}
+
+.tal-fn-title span {
+  color: var(--gold, #e5a82e);
+}
+
+.tal-fn-desc {
+  font-size: 14px;
+  color: var(--text-light, #c8d1e0);
+  line-height: 1.6;
+}
+
+.tal-fn-form-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tal-fn-form {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.tal-fn-input {
+  flex: 1;
+  background: rgba(6, 21, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 13px 18px;
+  font-size: 14px;
+  color: #ffffff;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.tal-fn-input:focus {
+  border-color: var(--gold, #e5a82e);
+  box-shadow: 0 0 0 3px rgba(229, 168, 46, 0.2);
+  background: rgba(6, 21, 42, 0.95);
+}
+
+.tal-fn-btn {
+  padding: 13px 24px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--gold-bright, #f5b41a) 0%, var(--gold, #e5a82e) 100%);
+  color: #06152a;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 16px rgba(229, 168, 46, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tal-fn-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 22px rgba(229, 168, 46, 0.5);
+}
+
+.tal-fn-btn:active {
+  transform: translateY(0);
+}
+
+.tal-fn-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: rgba(34, 197, 94, 0.15);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 12px;
+  color: #4ade80;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.tal-fn-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 12px;
+  color: var(--text-faint, #94a3c0);
+}
+
+.tal-fn-tag {
+  color: rgba(229, 168, 46, 0.85);
+  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-size: 11px;
+}
+
+/* --------------------------------------------------------------------------
+   2. MAIN FOOTER CONTENT GRID (5-COLUMN BALANCED)
+   -------------------------------------------------------------------------- */
+.tal-footer-main {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr 1.15fr;
+  gap: 48px 36px;
+  margin-bottom: 56px;
+}
+
+/* Column 1: Brand & Contact Info */
+.tal-col-brand {
+  padding-right: 16px;
+}
+
+.tal-footer-logo-link {
+  display: inline-block;
+  margin-bottom: 16px;
+  transition: opacity 0.2s ease;
+}
+
+.tal-footer-logo-link:hover {
+  opacity: 0.9;
+}
+
+.tal-footer-logo {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+}
+
+.tal-footer-tagline {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #94a3b8;
+  margin-bottom: 20px;
+}
+
+.tal-footer-tagline strong {
+  color: #f1f5f9;
+  font-weight: 600;
+}
+
+/* Operational Status Pill */
+.tal-footer-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #34d399;
+  margin-bottom: 22px;
+}
+
+.tal-status-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  background: #10b981;
+  border-radius: 50%;
+}
+
+.tal-status-dot::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  background: rgba(16, 185, 129, 0.5);
+  animation: talPulse 2s infinite ease-in-out;
+}
+
+@keyframes talPulse {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+}
+
+/* Contact Info Snippet */
+.tal-footer-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 22px;
+}
+
+.tal-contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #cbd5e1;
+  transition: color 0.2s ease;
+  font-size: 13px;
+}
+
+.tal-contact-item i {
+  color: var(--gold, #e5a82e);
+  font-size: 12.5px;
+  width: 16px;
+  text-align: center;
+}
+
+.tal-contact-item:hover {
+  color: #ffffff;
+}
+
+/* Social Icon Badges */
+.tal-footer-socials {
+  display: flex;
+  gap: 10px;
+}
+
+.tal-social-link {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 14px;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tal-social-link:hover {
+  background: rgba(229, 168, 46, 0.15);
+  border-color: var(--gold, #e5a82e);
+  color: var(--gold-bright, #f5b41a);
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(229, 168, 46, 0.25);
+}
+
+/* Navigation Columns */
+.tal-footer-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.tal-col-heading {
+  font-family: var(--font-heading, "Space Grotesk", sans-serif);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffffff;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tal-col-heading::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--gold, #e5a82e);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(229, 168, 46, 0.6);
+}
+
+.tal-footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tal-footer-links li a,
+.tal-footer-links li button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #94a3b8;
+  text-decoration: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 2px 0;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.tal-footer-links li a:hover,
+.tal-footer-links li button:hover {
+  color: #ffffff;
+  transform: translateX(4px);
+}
+
+.tal-link-badge {
+  font-size: 9.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(229, 168, 46, 0.14);
+  color: var(--gold-bright, #f5b41a);
+  border: 1px solid rgba(229, 168, 46, 0.35);
+  letter-spacing: 0.04em;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.tal-link-badge.live {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.tal-link-badge.free {
+  background: rgba(229, 168, 46, 0.15);
+  color: #f5b41a;
+  border-color: rgba(229, 168, 46, 0.4);
+}
+
+.tal-link-badge.new {
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+/* --------------------------------------------------------------------------
+   3. BOTTOM LEGAL & COPYRIGHT BAR (BALANCED)
+   -------------------------------------------------------------------------- */
+.tal-footer-bottom {
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 12.5px;
+  color: #64748b;
+}
+
+.tal-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #64748b;
+}
+
+.tal-bottom-divider {
+  color: rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+}
+
+.tal-bottom-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.tal-flag-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.tal-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.tal-bottom-links {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.tal-bottom-links button,
+.tal-bottom-links a {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.tal-bottom-links button:hover,
+.tal-bottom-links a:hover {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.tal-bottom-back-to-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tal-bottom-back-to-top:hover {
+  background: var(--gold, #e5a82e);
+  color: #06152a !important;
+  border-color: var(--gold, #e5a82e);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(229, 168, 46, 0.35);
+  text-decoration: none !important;
+}
+
+/* --------------------------------------------------------------------------
+   4. INTERACTIVE MODAL DIALOGS (PRIVACY & TERMS)
+   -------------------------------------------------------------------------- */
+.tal-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(4, 12, 24, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: talModalFade 0.25s ease;
+}
+
+@keyframes talModalFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tal-modal-content {
+  background: #0a1f3d;
+  border: 1px solid rgba(229, 168, 46, 0.3);
+  border-radius: 20px;
+  max-width: 740px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  overflow: hidden;
+  animation: talModalSlide 0.25s ease;
+}
+
+@keyframes talModalSlide {
+  from {
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    transform: translateY(0) scale(1);
+  }
+}
+
+.tal-modal-header {
+  padding: 22px 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(6, 21, 42, 0.5);
+}
+
+.tal-modal-header h3 {
+  font-family: var(--font-display, "Bricolage Grotesque", sans-serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tal-modal-header h3 i {
+  color: var(--gold, #e5a82e);
+}
+
+.tal-modal-close-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tal-modal-close-btn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.tal-modal-body {
+  padding: 28px;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-light, #c8d1e0);
+}
+
+.tal-modal-body h4 {
+  color: #ffffff;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 20px 0 8px;
+}
+
+.tal-modal-body h4:first-child {
+  margin-top: 0;
+}
+
+.tal-modal-body p {
+  margin-bottom: 14px;
+}
+
+.tal-modal-body ul {
+  margin: 8px 0 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tal-modal-footer {
+  padding: 16px 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(6, 21, 42, 0.5);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tal-modal-done-btn {
+  padding: 10px 24px;
+  border-radius: 10px;
+  background: var(--gold, #e5a82e);
+  color: #06152a;
+  font-weight: 700;
+  font-size: 13.5px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.tal-modal-done-btn:hover {
+  background: var(--gold-bright, #f5b41a);
+}
+
+/* --------------------------------------------------------------------------
+   5. RESPONSIVE BREAKPOINTS
+   -------------------------------------------------------------------------- */
+@media (max-width: 1200px) {
+  .tal-footer-main {
+    grid-template-columns: 1.5fr 1fr 1fr 1fr;
+    gap: 40px 24px;
+  }
+}
+
+@media (max-width: 960px) {
+  .tal-fn-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .tal-footer-main {
+    grid-template-columns: 1fr 1fr;
+    gap: 36px 24px;
+  }
+  .tal-col-brand {
+    grid-column: span 2;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .tal-footer {
+    padding: 60px 0 30px;
+  }
+  .tal-footer-newsletter-card {
+    padding: 24px 20px;
+    margin-bottom: 48px;
+  }
+  .tal-fn-title {
+    font-size: 21px;
+  }
+  .tal-fn-form {
+    flex-direction: column;
+  }
+  .tal-fn-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .tal-footer-main {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .tal-col-brand {
+    grid-column: span 1;
+  }
+  .tal-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .tal-bottom-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

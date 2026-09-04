@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import LiquidNavCapsule from "../components/LiquidNavCapsule";
+import Footer from "../components/Footer.jsx";
 import "../styles/forCompaniesPage.css";
 
 export default function ForCompanies() {
@@ -457,6 +458,9 @@ export default function ForCompanies() {
           </div>
         </div>
       </section>
+
+      {/* ====== FOOTER ====== */}
+      <Footer />
 
       {/* INLINE JOB POSTING MODAL ON SAME PAGE */}
       {showJobModal && (

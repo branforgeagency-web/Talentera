@@ -2,13 +2,14 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import LiquidNavCapsule from "../components/LiquidNavCapsule";
 import ReactiveVariableHeadline from "../components/ReactiveVariableHeadline";
+import Footer from "../components/Footer.jsx";
 
 export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
   const [pulseText, setPulseText] = useState("5 candidates verified in the last hour");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeFeatureTab, setActiveFeatureTab] = useState(0);
+  const [activeFeatureTab, setActiveFeatureTab] = useState(null);
 
   // Location hiring hubs state
   const [activeCity, setActiveCity] = useState("Mumbai");
@@ -368,458 +369,397 @@ export default function Landing() {
     },
   ];
 
-  const renderStudentDetailPanel = (feat, idx) => (
-    <div className="student-preview-panel bento-detail-panel" key={feat.id}>
-      <div
-        className="student-preview-glow"
-        style={{ background: `radial-gradient(circle at 80% 20%, ${feat.badgeColor}22 0%, transparent 70%)` }}
-      />
-
-      <button
-        type="button"
-        className="bento-detail-close"
-        onClick={() => setActiveFeatureTab(null)}
-        aria-label="Collapse"
-      >
-        <i className="fa-solid fa-xmark" />
-      </button>
-
-      {/* PREVIEW HEADER */}
-      <div className="student-preview-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <span
-            className="student-preview-pill"
-            style={{ borderColor: `${feat.badgeColor}66`, color: feat.badgeColor, background: `${feat.badgeColor}15` }}
-          >
-            <i className={feat.icon} style={{ marginRight: 6 }} />
-            {feat.tag}
-          </span>
-          <span className="student-preview-live-badge">
-            <span className="live-dot" /> LIVE INTERACTIVE PREVIEW
-          </span>
-        </div>
-        <div className="student-preview-step-count">FEATURE 0{idx + 1} OF 06</div>
-      </div>
-
-      <div className="student-preview-headline-wrap">
-        <h3 className="student-preview-main-title">{feat.title}</h3>
-        <p className="student-preview-main-desc">{feat.desc}</p>
-      </div>
-
-      <div className="student-preview-visual-stage">
-        {/* 1. BUILD YOUR PROFILE */}
-        {feat.previewType === "profile" && (
-          <div className="st-mock-profile-card">
-            <div className="st-mock-profile-top">
-              <div className="st-mock-avatar">AK</div>
-              <div className="st-mock-user-info">
-                <div className="st-mock-name-row">
-                  <span className="st-mock-name">Arun Kumar</span>
-                  <span className="st-mock-verified-pill">
-                    <i className="fa-solid fa-circle-check" /> Aadhaar Verified
-                  </span>
-                </div>
-                <div className="st-mock-sub">Medical Coding Specialist · Chennai, TN</div>
-              </div>
-              <div className="st-mock-cert-pill">
-                <i className="fa-solid fa-award" /> CPC Certified
-              </div>
-            </div>
-
-            <div className="st-mock-strength-bar">
-              <div className="st-mock-strength-label">
-                <span>
-                  Profile Strength: <strong>All Star</strong>
+  const renderStudentVisualStage = (feat) => (
+    <div className="student-preview-visual-stage" key={feat.id}>
+      {/* 1. BUILD YOUR PROFILE */}
+      {feat.previewType === "profile" && (
+        <div className="st-mock-profile-card">
+          <div className="st-mock-profile-top">
+            <div className="st-mock-avatar">AK</div>
+            <div className="st-mock-user-info">
+              <div className="st-mock-name-row">
+                <span className="st-mock-name">Arun Kumar</span>
+                <span className="st-mock-verified-pill">
+                  <i className="fa-solid fa-circle-check" /> Aadhaar Verified
                 </span>
-                <span style={{ color: "#E5A82E", fontWeight: 700 }}>98% Complete</span>
               </div>
-              <div className="st-mock-progress-track">
+              <div className="st-mock-sub">Medical Coding Specialist · Chennai, TN</div>
+            </div>
+            <div className="st-mock-cert-pill">
+              <i className="fa-solid fa-award" /> CPC Certified
+            </div>
+          </div>
+
+          <div className="st-mock-strength-bar">
+            <div className="st-mock-strength-label">
+              <span>
+                Profile Strength: <strong>All Star</strong>
+              </span>
+              <span style={{ color: "#E5A82E", fontWeight: 700 }}>98% Complete</span>
+            </div>
+            <div className="st-mock-progress-track">
+              <div
+                className="st-mock-progress-fill"
+                style={{ width: "98%", background: "linear-gradient(90deg, #E5A82E, #FCD34D)" }}
+              />
+            </div>
+          </div>
+
+          <div className="st-mock-skills-row">
+            <span className="st-skill-chip">
+              <i className="fa-solid fa-code" /> ICD-10-CM
+            </span>
+            <span className="st-skill-chip">
+              <i className="fa-solid fa-file-medical" /> CPT Coding
+            </span>
+            <span className="st-skill-chip">
+              <i className="fa-solid fa-hospital-user" /> ED Auditing
+            </span>
+            <span className="st-skill-chip">
+              <i className="fa-solid fa-notes-medical" /> E/M Guidelines
+            </span>
+            <span className="st-skill-chip">
+              <i className="fa-solid fa-shield-halved" /> HIPAA
+            </span>
+          </div>
+
+          <div className="st-mock-meta-footer">
+            <span>
+              <i className="fa-solid fa-eye" /> 24 Recruiters viewed profile this week
+            </span>
+            <span className="st-mock-active-dot">● Active for Direct Hire</span>
+          </div>
+        </div>
+      )}
+
+      {/* 2. SKILL ASSESSMENT */}
+      {feat.previewType === "assessment" && (
+        <div className="st-mock-assessment-card">
+          <div className="st-mock-assessment-head">
+            <div>
+              <div className="st-mock-test-title">Clinical Chart Audit & Coding Benchmark</div>
+              <div className="st-mock-test-meta">Timed Proctored Exam · 50 Clinical Scenarios</div>
+            </div>
+            <div className="st-mock-score-badge">
+              <div className="st-mock-score-val">94%</div>
+              <div className="st-mock-score-lbl">Top 5% National</div>
+            </div>
+          </div>
+
+          <div className="st-mock-bars-list">
+            <div className="st-bar-item">
+              <div className="st-bar-header">
+                <span>Technical Guidelines & ICD-10</span>
+                <strong>96%</strong>
+              </div>
+              <div className="st-bar-track">
                 <div
-                  className="st-mock-progress-fill"
-                  style={{ width: "98%", background: "linear-gradient(90deg, #E5A82E, #FCD34D)" }}
+                  className="st-bar-fill"
+                  style={{ width: "96%", background: "linear-gradient(90deg, #8B5CF6, #C084FC)" }}
                 />
               </div>
             </div>
 
-            <div className="st-mock-skills-row">
-              <span className="st-skill-chip">
-                <i className="fa-solid fa-code" /> ICD-10-CM
-              </span>
-              <span className="st-skill-chip">
-                <i className="fa-solid fa-file-medical" /> CPT Coding
-              </span>
-              <span className="st-skill-chip">
-                <i className="fa-solid fa-hospital-user" /> ED Auditing
-              </span>
-              <span className="st-skill-chip">
-                <i className="fa-solid fa-notes-medical" /> E/M Guidelines
-              </span>
-              <span className="st-skill-chip">
-                <i className="fa-solid fa-shield-halved" /> HIPAA
-              </span>
-            </div>
-
-            <div className="st-mock-meta-footer">
-              <span>
-                <i className="fa-solid fa-eye" /> 24 Recruiters viewed profile this week
-              </span>
-              <span className="st-mock-active-dot">● Active for Direct Hire</span>
-            </div>
-          </div>
-        )}
-
-        {/* 2. SKILL ASSESSMENT */}
-        {feat.previewType === "assessment" && (
-          <div className="st-mock-assessment-card">
-            <div className="st-mock-assessment-head">
-              <div>
-                <div className="st-mock-test-title">Clinical Chart Audit & Coding Benchmark</div>
-                <div className="st-mock-test-meta">Timed Proctored Exam · 50 Clinical Scenarios</div>
+            <div className="st-bar-item">
+              <div className="st-bar-header">
+                <span>CPT Modifiers & Mutually Exclusive Edits</span>
+                <strong>91%</strong>
               </div>
-              <div className="st-mock-score-badge">
-                <div className="st-mock-score-val">94%</div>
-                <div className="st-mock-score-lbl">Top 5% National</div>
+              <div className="st-bar-track">
+                <div
+                  className="st-bar-fill"
+                  style={{ width: "91%", background: "linear-gradient(90deg, #6366F1, #818CF8)" }}
+                />
               </div>
             </div>
 
-            <div className="st-mock-bars-list">
-              <div className="st-bar-item">
-                <div className="st-bar-header">
-                  <span>Technical Guidelines & ICD-10</span>
-                  <strong>96%</strong>
-                </div>
-                <div className="st-bar-track">
-                  <div
-                    className="st-bar-fill"
-                    style={{ width: "96%", background: "linear-gradient(90deg, #8B5CF6, #C084FC)" }}
-                  />
-                </div>
+            <div className="st-bar-item">
+              <div className="st-bar-header">
+                <span>Audit Speed & Accuracy Rate</span>
+                <strong>95%</strong>
               </div>
-
-              <div className="st-bar-item">
-                <div className="st-bar-header">
-                  <span>CPT Modifiers & Mutually Exclusive Edits</span>
-                  <strong>91%</strong>
-                </div>
-                <div className="st-bar-track">
-                  <div
-                    className="st-bar-fill"
-                    style={{ width: "91%", background: "linear-gradient(90deg, #6366F1, #818CF8)" }}
-                  />
-                </div>
-              </div>
-
-              <div className="st-bar-item">
-                <div className="st-bar-header">
-                  <span>Audit Speed & Accuracy Rate</span>
-                  <strong>95%</strong>
-                </div>
-                <div className="st-bar-track">
-                  <div
-                    className="st-bar-fill"
-                    style={{ width: "95%", background: "linear-gradient(90deg, #10B981, #34D399)" }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="st-mock-benchmark-note">
-              <i className="fa-solid fa-bolt" style={{ color: "#8B5CF6" }} />
-              <span>
-                Scored higher than <strong>95% of candidates</strong> across Pan-India hiring benchmarks.
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* 3. AI MOCK INTERVIEW */}
-        {feat.previewType === "interview" && (
-          <div className="st-mock-interview-card">
-            <div className="st-ai-bubble-wrap">
-              <div className="st-ai-bubble-avatar">
-                <i className="fa-solid fa-robot" />
-              </div>
-              <div className="st-ai-bubble-content">
-                <div className="st-ai-bubble-author">AI Technical Evaluator · RCM & Coding</div>
-                <p className="st-ai-bubble-text">
-                  "In an emergency department encounter, how do you determine if modifier -25 is appropriate for a
-                  separate E/M service on the same day?"
-                </p>
-              </div>
-            </div>
-
-            <div className="st-audio-visualizer-box">
-              <div className="st-audio-label">
-                <span>
-                  <i className="fa-solid fa-microphone-lines" /> Voice Response Stream
-                </span>
-                <span className="st-audio-rec">● LIVE RECORDING</span>
-              </div>
-              <div className="st-waveform-bars">
-                {[35, 60, 45, 80, 95, 70, 50, 85, 90, 65, 40, 75, 100, 85, 60, 90, 70, 45, 65, 80, 55, 30].map(
-                  (h, i) => (
-                    <span
-                      key={i}
-                      className="st-wave-bar"
-                      style={{ height: `${h}%`, animationDelay: `${(i % 5) * 0.15}s` }}
-                    />
-                  )
-                )}
-              </div>
-            </div>
-
-            <div className="st-ai-metrics-grid">
-              <div className="st-ai-metric-box">
-                <span className="st-ai-m-val" style={{ color: "#06B6D4" }}>
-                  95%
-                </span>
-                <span className="st-ai-m-lbl">Guideline Accuracy</span>
-              </div>
-              <div className="st-ai-metric-box">
-                <span className="st-ai-m-val" style={{ color: "#10B981" }}>
-                  94%
-                </span>
-                <span className="st-ai-m-lbl">Clinical Terminology</span>
-              </div>
-              <div className="st-ai-metric-box">
-                <span className="st-ai-m-val" style={{ color: "#E5A82E" }}>
-                  92%
-                </span>
-                <span className="st-ai-m-lbl">Confidence & Clarity</span>
+              <div className="st-bar-track">
+                <div
+                  className="st-bar-fill"
+                  style={{ width: "95%", background: "linear-gradient(90deg, #10B981, #34D399)" }}
+                />
               </div>
             </div>
           </div>
-        )}
 
-        {/* 4. SKILL VERIFICATION */}
-        {feat.previewType === "verification" && (
-          <div className="st-mock-verify-card">
-            <div className="st-verify-badges-grid">
-              <div className="st-verify-badge-item">
-                <div
-                  className="st-verify-icon-circle"
-                  style={{
-                    background: "rgba(16, 185, 129, 0.15)",
-                    color: "#10B981",
-                    borderColor: "rgba(16, 185, 129, 0.4)",
-                  }}
-                >
-                  <i className="fa-solid fa-id-card-clip" />
-                </div>
-                <div className="st-verify-badge-info">
-                  <div className="st-verify-b-name">
-                    Aadhaar e-KYC Verified <i className="fa-solid fa-circle-check" style={{ color: "#10B981" }} />
-                  </div>
-                  <div className="st-verify-b-sub">100% Identity Authenticated</div>
-                </div>
-                <span className="st-verify-b-tag" style={{ color: "#10B981" }}>
-                  GOVT VALIDATED
-                </span>
-              </div>
-
-              <div className="st-verify-badge-item">
-                <div
-                  className="st-verify-icon-circle"
-                  style={{
-                    background: "rgba(229, 168, 46, 0.15)",
-                    color: "#E5A82E",
-                    borderColor: "rgba(229, 168, 46, 0.4)",
-                  }}
-                >
-                  <i className="fa-solid fa-certificate" />
-                </div>
-                <div className="st-verify-badge-info">
-                  <div className="st-verify-b-name">
-                    AAPC / CPC Professional Coder{" "}
-                    <i className="fa-solid fa-circle-check" style={{ color: "#E5A82E" }} />
-                  </div>
-                  <div className="st-verify-b-sub">Credential #849204 · Active Verified</div>
-                </div>
-                <span className="st-verify-b-tag" style={{ color: "#E5A82E" }}>
-                  GOLD TIER
-                </span>
-              </div>
-
-              <div className="st-verify-badge-item">
-                <div
-                  className="st-verify-icon-circle"
-                  style={{
-                    background: "rgba(139, 92, 246, 0.15)",
-                    color: "#8B5CF6",
-                    borderColor: "rgba(139, 92, 246, 0.4)",
-                  }}
-                >
-                  <i className="fa-solid fa-award" />
-                </div>
-                <div className="st-verify-badge-info">
-                  <div className="st-verify-b-name">
-                    Proctored Chart Audit Badge <i className="fa-solid fa-circle-check" style={{ color: "#8B5CF6" }} />
-                  </div>
-                  <div className="st-verify-b-sub">Anti-Fraud Proctor Verified · 98% Accuracy</div>
-                </div>
-                <span className="st-verify-b-tag" style={{ color: "#8B5CF6" }}>
-                  ACADEMY ENDORSED
-                </span>
-              </div>
-            </div>
-
-            <div className="st-verify-security-footer">
-              <i className="fa-solid fa-lock" />
-              <span>Cryptographically secured digital credentials trusted by 140+ verified employers.</span>
-            </div>
+          <div className="st-mock-benchmark-note">
+            <i className="fa-solid fa-bolt" style={{ color: "#8B5CF6" }} />
+            <span>
+              Scored higher than <strong>95% of candidates</strong> across Pan-India hiring benchmarks.
+            </span>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* 5. JOB MATCHING */}
-        {feat.previewType === "matching" && (
-          <div className="st-mock-jobs-card">
-            <div className="st-job-match-item">
-              <div className="st-job-match-top">
-                <div>
-                  <div className="st-job-company">Access Healthcare</div>
-                  <div className="st-job-role">Medical Coder II · Inpatient & ED</div>
-                </div>
-                <div
-                  className="st-job-match-score"
-                  style={{
-                    background: "rgba(16, 185, 129, 0.15)",
-                    color: "#10B981",
-                    borderColor: "rgba(16, 185, 129, 0.4)",
-                  }}
-                >
-                  <i className="fa-solid fa-bolt" /> 96% MATCH
-                </div>
-              </div>
-              <div className="st-job-meta-row">
-                <span>
-                  <i className="fa-solid fa-location-dot" /> Chennai / Hybrid
-                </span>
-                <span>
-                  <i className="fa-solid fa-money-bill-wave" /> ₹4.8 - ₹6.5 LPA
-                </span>
-                <span>
-                  <i className="fa-solid fa-briefcase" /> Full Time
-                </span>
-              </div>
+      {/* 3. AI MOCK INTERVIEW */}
+      {feat.previewType === "interview" && (
+        <div className="st-mock-interview-card">
+          <div className="st-ai-bubble-wrap">
+            <div className="st-ai-bubble-avatar">
+              <i className="fa-solid fa-robot" />
             </div>
-
-            <div className="st-job-match-item">
-              <div className="st-job-match-top">
-                <div>
-                  <div className="st-job-company">Omega Healthcare</div>
-                  <div className="st-job-role">RCM Quality Analyst & Billing Specialist</div>
-                </div>
-                <div
-                  className="st-job-match-score"
-                  style={{
-                    background: "rgba(6, 182, 212, 0.15)",
-                    color: "#06B6D4",
-                    borderColor: "rgba(6, 182, 212, 0.4)",
-                  }}
-                >
-                  <i className="fa-solid fa-bolt" /> 92% MATCH
-                </div>
-              </div>
-              <div className="st-job-meta-row">
-                <span>
-                  <i className="fa-solid fa-location-dot" /> Bangalore / Remote
-                </span>
-                <span>
-                  <i className="fa-solid fa-money-bill-wave" /> ₹4.2 - ₹5.8 LPA
-                </span>
-                <span>
-                  <i className="fa-solid fa-briefcase" /> Full Time
-                </span>
-              </div>
-            </div>
-
-            <div className="st-jobs-footer-note">
-              <i className="fa-solid fa-circle-nodes" />
-              <span>AI matches your verified score directly with hiring requisitions — zero spam applications.</span>
-            </div>
-          </div>
-        )}
-
-        {/* 6. GET DISCOVERED */}
-        {feat.previewType === "discovered" && (
-          <div className="st-mock-discovered-card">
-            <div className="st-recruiter-alert-bar">
-              <span className="st-rec-pulse" />
-              <span>
-                <strong>3 Healthcare Recruiters</strong> viewed your verified profile in the last 2 hours
-              </span>
-            </div>
-
-            <div className="st-recruiter-invite-box">
-              <div className="st-invite-header">
-                <div className="st-invite-co-logo">CH</div>
-                <div className="st-invite-co-meta">
-                  <div className="st-invite-co-name">CorroHealth Talent Acquisition</div>
-                  <div className="st-invite-time">Direct Interview Invitation · 15m ago</div>
-                </div>
-                <span className="st-invite-badge">PRIORITY INVITE</span>
-              </div>
-
-              <p className="st-invite-msg">
-                "We reviewed your 94% Chart Audit Benchmark and CPC Certification. We would like to fast-track your
-                application for the Senior Coder role."
+            <div className="st-ai-bubble-content">
+              <div className="st-ai-bubble-author">AI Technical Evaluator · RCM & Coding</div>
+              <p className="st-ai-bubble-text">
+                "In an emergency department encounter, how do you determine if modifier -25 is appropriate for a
+                separate E/M service on the same day?"
               </p>
-
-              <div className="st-invite-actions">
-                <button type="button" className="btn-gold" style={{ padding: "8px 18px", fontSize: 13 }}>
-                  <span>Accept Interview</span>
-                  <i className="fa-solid fa-calendar-check" />
-                </button>
-                <button type="button" className="btn-outline" style={{ padding: "8px 16px", fontSize: 13 }}>
-                  <span>View Job Requisition</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="st-discovered-stat-row">
-              <div className="st-disc-stat">
-                <strong>4.2x</strong>
-                <span>Faster Placement</span>
-              </div>
-              <div className="st-disc-stat">
-                <strong>140+</strong>
-                <span>Hiring Partners</span>
-              </div>
-              <div className="st-disc-stat">
-                <strong>0</strong>
-                <span>Recruiter Middlemen</span>
-              </div>
             </div>
           </div>
-        )}
-      </div>
-      {/* KEY HIGHLIGHTS / BULLET POINTS */}
-      <div className="student-preview-points-wrap">
-        <div className="student-preview-points-title">KEY CAPABILITIES & BENEFITS</div>
-        <div className="student-preview-points-grid">
-          {feat.points.map((pt, i) => (
-            <div key={i} className="student-preview-point-item">
-              <span className="st-point-check" style={{ color: feat.badgeColor }}>
-                <i className="fa-solid fa-check" />
+
+          <div className="st-audio-visualizer-box">
+            <div className="st-audio-label">
+              <span>
+                <i className="fa-solid fa-microphone-lines" /> Voice Response Stream
               </span>
-              <span className="st-point-text">{pt}</span>
+              <span className="st-audio-rec">● LIVE RECORDING</span>
             </div>
-          ))}
+            <div className="st-waveform-bars">
+              {[35, 60, 45, 80, 95, 70, 50, 85, 90, 65, 40, 75, 100, 85, 60, 90, 70, 45, 65, 80, 55, 30].map(
+                (h, i) => (
+                  <span
+                    key={i}
+                    className="st-wave-bar"
+                    style={{ height: `${h}%`, animationDelay: `${(i % 5) * 0.15}s` }}
+                  />
+                )
+              )}
+            </div>
+          </div>
+
+          <div className="st-ai-metrics-grid">
+            <div className="st-ai-metric-box">
+              <span className="st-ai-m-val" style={{ color: "#06B6D4" }}>
+                95%
+              </span>
+              <span className="st-ai-m-lbl">Guideline Accuracy</span>
+            </div>
+            <div className="st-ai-metric-box">
+              <span className="st-ai-m-val" style={{ color: "#10B981" }}>
+                94%
+              </span>
+              <span className="st-ai-m-lbl">Clinical Terminology</span>
+            </div>
+            <div className="st-ai-metric-box">
+              <span className="st-ai-m-val" style={{ color: "#E5A82E" }}>
+                92%
+              </span>
+              <span className="st-ai-m-lbl">Confidence & Clarity</span>
+            </div>
+          </div>
         </div>
-      </div>
-      {/* PREVIEW BOTTOM ACTION BAR */}
-      <div className="student-preview-action-footer">
-        <Link to={feat.ctaLink} className="btn-gold" style={{ fontSize: 15, padding: "14px 28px" }}>
-          <span>{feat.ctaText}</span>
-          <i className="fa-solid fa-arrow-right" />
-        </Link>
-        <div className="student-preview-guarantee">
-          <i className="fa-solid fa-shield-check" style={{ color: "var(--gold)" }} />
-          <span>100% Free for Students & Job Seekers</span>
+      )}
+
+      {/* 4. SKILL VERIFICATION */}
+      {feat.previewType === "verification" && (
+        <div className="st-mock-verify-card">
+          <div className="st-verify-badges-grid">
+            <div className="st-verify-badge-item">
+              <div
+                className="st-verify-icon-circle"
+                style={{
+                  background: "rgba(16, 185, 129, 0.15)",
+                  color: "#10B981",
+                  borderColor: "rgba(16, 185, 129, 0.4)",
+                }}
+              >
+                <i className="fa-solid fa-id-card-clip" />
+              </div>
+              <div className="st-verify-badge-info">
+                <div className="st-verify-b-name">
+                  Aadhaar e-KYC Verified <i className="fa-solid fa-circle-check" style={{ color: "#10B981" }} />
+                </div>
+                <div className="st-verify-b-sub">100% Identity Authenticated</div>
+              </div>
+              <span className="st-verify-b-tag" style={{ color: "#10B981" }}>
+                GOVT VALIDATED
+              </span>
+            </div>
+
+            <div className="st-verify-badge-item">
+              <div
+                className="st-verify-icon-circle"
+                style={{
+                  background: "rgba(229, 168, 46, 0.15)",
+                  color: "#E5A82E",
+                  borderColor: "rgba(229, 168, 46, 0.4)",
+                }}
+              >
+                <i className="fa-solid fa-certificate" />
+              </div>
+              <div className="st-verify-badge-info">
+                <div className="st-verify-b-name">
+                  AAPC / CPC Professional Coder{" "}
+                  <i className="fa-solid fa-circle-check" style={{ color: "#E5A82E" }} />
+                </div>
+                <div className="st-verify-b-sub">Credential #849204 · Active Verified</div>
+              </div>
+              <span className="st-verify-b-tag" style={{ color: "#E5A82E" }}>
+                GOLD TIER
+              </span>
+            </div>
+
+            <div className="st-verify-badge-item">
+              <div
+                className="st-verify-icon-circle"
+                style={{
+                  background: "rgba(139, 92, 246, 0.15)",
+                  color: "#8B5CF6",
+                  borderColor: "rgba(139, 92, 246, 0.4)",
+                }}
+              >
+                <i className="fa-solid fa-award" />
+              </div>
+              <div className="st-verify-badge-info">
+                <div className="st-verify-b-name">
+                  Proctored Chart Audit Badge <i className="fa-solid fa-circle-check" style={{ color: "#8B5CF6" }} />
+                </div>
+                <div className="st-verify-b-sub">Anti-Fraud Proctor Verified · 98% Accuracy</div>
+              </div>
+              <span className="st-verify-b-tag" style={{ color: "#8B5CF6" }}>
+                ACADEMY ENDORSED
+              </span>
+            </div>
+          </div>
+
+          <div className="st-verify-security-footer">
+            <i className="fa-solid fa-lock" />
+            <span>Cryptographically secured digital credentials trusted by 140+ verified employers.</span>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* 5. JOB MATCHING */}
+      {feat.previewType === "matching" && (
+        <div className="st-mock-jobs-card">
+          <div className="st-job-match-item">
+            <div className="st-job-match-top">
+              <div>
+                <div className="st-job-company">Access Healthcare</div>
+                <div className="st-job-role">Medical Coder II · Inpatient & ED</div>
+              </div>
+              <div
+                className="st-job-match-score"
+                style={{
+                  background: "rgba(16, 185, 129, 0.15)",
+                  color: "#10B981",
+                  borderColor: "rgba(16, 185, 129, 0.4)",
+                }}
+              >
+                <i className="fa-solid fa-bolt" /> 96% MATCH
+              </div>
+            </div>
+            <div className="st-job-meta-row">
+              <span>
+                <i className="fa-solid fa-location-dot" /> Chennai / Hybrid
+              </span>
+              <span>
+                <i className="fa-solid fa-money-bill-wave" /> ₹4.8 - ₹6.5 LPA
+              </span>
+              <span>
+                <i className="fa-solid fa-briefcase" /> Full Time
+              </span>
+            </div>
+          </div>
+
+          <div className="st-job-match-item">
+            <div className="st-job-match-top">
+              <div>
+                <div className="st-job-company">Omega Healthcare</div>
+                <div className="st-job-role">RCM Quality Analyst & Billing Specialist</div>
+              </div>
+              <div
+                className="st-job-match-score"
+                style={{
+                  background: "rgba(6, 182, 212, 0.15)",
+                  color: "#06B6D4",
+                  borderColor: "rgba(6, 182, 212, 0.4)",
+                }}
+              >
+                <i className="fa-solid fa-bolt" /> 92% MATCH
+              </div>
+            </div>
+            <div className="st-job-meta-row">
+              <span>
+                <i className="fa-solid fa-location-dot" /> Bangalore / Remote
+              </span>
+              <span>
+                <i className="fa-solid fa-money-bill-wave" /> ₹4.2 - ₹5.8 LPA
+              </span>
+              <span>
+                <i className="fa-solid fa-briefcase" /> Full Time
+              </span>
+            </div>
+          </div>
+
+          <div className="st-jobs-footer-note">
+            <i className="fa-solid fa-circle-nodes" />
+            <span>AI matches your verified score directly with hiring requisitions — zero spam applications.</span>
+          </div>
+        </div>
+      )}
+
+      {/* 6. GET DISCOVERED */}
+      {feat.previewType === "discovered" && (
+        <div className="st-mock-discovered-card">
+          <div className="st-recruiter-alert-bar">
+            <span className="st-rec-pulse" />
+            <span>
+              <strong>3 Healthcare Recruiters</strong> viewed your verified profile in the last 2 hours
+            </span>
+          </div>
+
+          <div className="st-recruiter-invite-box">
+            <div className="st-invite-header">
+              <div className="st-invite-co-logo">CH</div>
+              <div className="st-invite-co-meta">
+                <div className="st-invite-co-name">CorroHealth Talent Acquisition</div>
+                <div className="st-invite-time">Direct Interview Invitation · 15m ago</div>
+              </div>
+              <span className="st-invite-badge">PRIORITY INVITE</span>
+            </div>
+
+            <p className="st-invite-msg">
+              "We reviewed your 94% Chart Audit Benchmark and CPC Certification. We would like to fast-track your
+              application for the Senior Coder role."
+            </p>
+
+            <div className="st-invite-actions">
+              <button type="button" className="btn-gold" style={{ padding: "8px 18px", fontSize: 13 }}>
+                <span>Accept Interview</span>
+                <i className="fa-solid fa-calendar-check" />
+              </button>
+              <button type="button" className="btn-outline" style={{ padding: "8px 16px", fontSize: 13 }}>
+                <span>View Job Requisition</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="st-discovered-stat-row">
+            <div className="st-disc-stat">
+              <strong>4.2x</strong>
+              <span>Faster Placement</span>
+            </div>
+            <div className="st-disc-stat">
+              <strong>140+</strong>
+              <span>Hiring Partners</span>
+            </div>
+            <div className="st-disc-stat">
+              <strong>0</strong>
+              <span>Recruiter Middlemen</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+
+
 
   const pulseMessages = [
     "5 candidates verified in the last hour",
@@ -1222,55 +1162,118 @@ export default function Landing() {
           </div>
 
           <div className="bento-grid-wrap">
-            {[studentFeatures.slice(0, 3), studentFeatures.slice(3, 6)].map((rowFeats, rowIdx) => {
-              const rowStart = rowIdx * 3;
-              const spanClasses = [
-                "bento-span-2",
-                "bento-span-1",
-                "bento-span-1",
-                "bento-span-1",
-                "bento-span-1",
-                "bento-span-2",
-              ];
-              const activeIdxInRow =
-                activeFeatureTab !== null && activeFeatureTab >= rowStart && activeFeatureTab < rowStart + 3
-                  ? activeFeatureTab
-                  : null;
-              return (
-                <React.Fragment key={rowIdx}>
-                  <div className="bento-row">
-                    {rowFeats.map((feat, i) => {
-                      const idx = rowStart + i;
-                      const isActive = idx === activeFeatureTab;
-                      return (
-                        <button
-                          key={feat.id}
-                          type="button"
-                          className={`bento-card ${spanClasses[idx]} ${isActive ? "active" : ""}`}
-                          style={{ "--card-accent": feat.badgeColor }}
-                          onClick={() => setActiveFeatureTab(isActive ? null : idx)}
-                          aria-expanded={isActive}
-                        >
-                          <div className="bento-card-top">
-                            <div className="bento-card-icon">
-                              <i className={feat.icon} />
+            <div className="bento-cards-grid">
+              {studentFeatures.map((feat, idx) => {
+                const isActive = idx === activeFeatureTab;
+                const spanClasses = [
+                  "bento-span-2",
+                  "bento-span-1",
+                  "bento-span-1",
+                  "bento-span-1",
+                  "bento-span-1",
+                  "bento-span-2",
+                ];
+                const spanClass = spanClasses[idx];
+                return (
+                  <div
+                    key={feat.id}
+                    className={`bento-card ${spanClass} ${isActive ? "active expanded" : ""}`}
+                    style={{ "--card-accent": feat.badgeColor }}
+                    onClick={!isActive ? () => setActiveFeatureTab(idx) : undefined}
+                    role="region"
+                    aria-expanded={isActive}
+                  >
+                    {/* Background glow when active */}
+                    {isActive && (
+                      <div
+                        className="student-preview-glow"
+                        style={{
+                          background: `radial-gradient(circle at 80% 20%, ${feat.badgeColor}22 0%, transparent 70%)`,
+                        }}
+                      />
+                    )}
+
+                    {/* Close Button when active */}
+                    {isActive && (
+                      <button
+                        type="button"
+                        className="bento-card-close-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveFeatureTab(null);
+                        }}
+                        aria-label="Collapse card"
+                      >
+                        <i className="fa-solid fa-xmark" />
+                      </button>
+                    )}
+
+                    {/* Card Top Header */}
+                    <div
+                      className="bento-card-top"
+                      onClick={isActive ? () => setActiveFeatureTab(null) : undefined}
+                      style={{ cursor: "pointer" }}
+                    >
+                      <div className="bento-card-icon">
+                        <i className={feat.icon} />
+                      </div>
+                      <span className="bento-card-num">0{idx + 1}</span>
+                    </div>
+
+                    <span className="bento-card-tag">{feat.tag}</span>
+                    <h3 className="bento-card-title">{feat.title}</h3>
+                    <p className="bento-card-desc">{feat.desc}</p>
+
+                    {/* Chevron Expand Indicator */}
+                    <button
+                      type="button"
+                      className="bento-card-expand"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveFeatureTab(isActive ? null : idx);
+                      }}
+                      aria-label={isActive ? "Collapse card" : "Expand card"}
+                    >
+                      <i className={`fa-solid fa-chevron-down${isActive ? " flip" : ""}`} />
+                    </button>
+
+                    {/* EXPANDED CONTENT INSIDE THE CLICKED CARD */}
+                    {isActive && (
+                      <div className="bento-expanded-container">
+                        <div className="bento-expanded-left">
+                          <div className="bento-expanded-points-title">
+                            <i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />
+                            KEY CAPABILITIES &amp; BENEFITS
+                          </div>
+                          <div className="bento-expanded-points-list">
+                            {feat.points.map((pt, pIdx) => (
+                              <div key={pIdx} className="bento-point-item">
+                                <i className="fa-solid fa-circle-check" style={{ color: feat.badgeColor }} />
+                                <span>{pt}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="bento-expanded-actions">
+                            <Link to={feat.ctaLink} className="bento-cta-btn">
+                              <span>{feat.ctaText}</span>
+                              <i className="fa-solid fa-arrow-right" />
+                            </Link>
+                            <div className="bento-guarantee-tag">
+                              <i className="fa-solid fa-shield-check" style={{ color: "var(--gold)" }} />
+                              <span>100% Free for Candidates</span>
                             </div>
-                            <span className="bento-card-num">0{idx + 1}</span>
                           </div>
-                          <span className="bento-card-tag">{feat.tag}</span>
-                          <h3 className="bento-card-title">{feat.title}</h3>
-                          <p className="bento-card-desc">{feat.desc}</p>
-                          <div className="bento-card-expand">
-                            <i className={`fa-solid fa-chevron-down${isActive ? " flip" : ""}`} />
-                          </div>
-                        </button>
-                      );
-                    })}
+                        </div>
+
+                        <div className="bento-expanded-right">
+                          {renderStudentVisualStage(feat)}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {activeIdxInRow !== null && renderStudentDetailPanel(studentFeatures[activeIdxInRow], activeIdxInRow)}
-                </React.Fragment>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -2729,48 +2732,8 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ====== FOOTER ====== */}
-      <footer className="footer">
-        <div className="container">
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 20,
-            }}
-          >
-            <div>
-              <img src="/logo.png" alt="Talentera Logo" style={{ height: 32 }} />
-              <p style={{ fontSize: 13, color: "var(--text-faint)", marginTop: 8 }}>
-                The Era of Talent Begins Here. India's Verified Skill & Career Engine.
-              </p>
-            </div>
-            <div style={{ display: "flex", gap: 24, fontSize: 13, color: "var(--text-light)", flexWrap: "wrap" }}>
-              <Link to="/jobs">Explore Jobs</Link>
-              <Link to="/register">Student Registration</Link>
-              <Link to="/companies">For Companies</Link>
-              <Link to="/academy">For Academies</Link>
-              <a href="#faq">FAQ</a>
-              <Link to="/typography">Interactive Typography</Link>
-              <Link to="/staff/login">Employee Login</Link>
-            </div>
-          </div>
-          <div
-            style={{
-              borderTop: "1px solid rgba(255,255,255,0.06)",
-              marginTop: 32,
-              paddingTop: 24,
-              fontSize: 12,
-              color: "var(--text-faint)",
-              textAlign: "center",
-            }}
-          >
-            © {new Date().getFullYear()} Talentera Healthcare Network. All rights reserved.
-          </div>
-        </div>
-      </footer>
+      {/* ====== MODERN RICH FOOTER ====== */}
+      <Footer />
     </div>
   );
 }
