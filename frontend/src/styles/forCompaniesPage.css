@@ -486,10 +486,262 @@
   color: #64748b;
 }
 
-/* CTA HERO */
+/* ====== REDESIGNED BOTTOM CTA HERO ====== */
 .fco-cta-hero {
-  background: radial-gradient(ellipse at center, #0f2950 0%, var(--navy-deep) 90%);
+  position: relative;
+  background: radial-gradient(ellipse at 50% 20%, #0c274c 0%, #061528 70%, #040e1b 100%);
   color: #ffffff;
-  text-align: center;
-  padding: 90px 0;
+  padding: 100px 0 110px;
+  overflow: hidden;
+  border-top: 1px solid rgba(229, 168, 46, 0.15);
 }
+
+.fco-cta-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(200, 169, 107, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(200, 169, 107, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+}
+
+.fco-cta-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 650px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(229, 168, 46, 0.12) 0%, rgba(14, 165, 233, 0.06) 40%, transparent 70%);
+  filter: blur(50px);
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+.fco-cta-card {
+  position: relative;
+  max-width: 960px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 56px 40px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.015) 100%);
+  border: 1px solid rgba(229, 168, 46, 0.22);
+  border-radius: 28px;
+  box-shadow:
+    0 24px 64px -12px rgba(0, 0, 0, 0.56),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 40px rgba(229, 168, 46, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.fco-cta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(229, 168, 46, 0.1);
+  border: 1px solid rgba(229, 168, 46, 0.28);
+  color: var(--gold-bright);
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono, monospace);
+  margin-bottom: 24px;
+}
+
+.fco-cta-pill-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  display: inline-block;
+}
+
+.fco-cta-title {
+  font-family: var(--font-heading, "Plus Jakarta Sans", sans-serif);
+  font-size: clamp(32px, 4.8vw, 54px);
+  font-weight: 800;
+  line-height: 1.15;
+  color: #ffffff;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+
+.fco-cta-title-highlight {
+  color: var(--gold-bright, #F0D896);
+  background: linear-gradient(135deg, #F0D896 0%, #E6C875 50%, #C99E32 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+}
+
+.fco-cta-sub {
+  font-size: clamp(15px, 1.8vw, 17px);
+  line-height: 1.6;
+  color: #cbd5e1;
+  max-width: 680px;
+  margin: 0 auto 26px;
+}
+
+.fco-cta-perks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 16px;
+  margin-bottom: 36px;
+}
+
+.fco-cta-perk {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 6px 14px;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.fco-cta-perk i {
+  color: #22c55e;
+  font-size: 11px;
+}
+
+.fco-cta-perk:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(229, 168, 46, 0.3);
+}
+
+.fco-cta-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+.fco-cta-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(135deg, #E6C875 0%, #F0D896 100%);
+  color: #071A33 !important;
+  font-weight: 800;
+  font-size: 15.5px;
+  padding: 15px 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    0 10px 28px -6px rgba(230, 200, 117, 0.45),
+    0 0 0 1px rgba(229, 168, 46, 0.4);
+  text-decoration: none;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.fco-cta-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 14px 34px -4px rgba(230, 200, 117, 0.6),
+    0 0 20px rgba(240, 216, 150, 0.4);
+  color: #071A33 !important;
+}
+
+.fco-cta-btn-primary .fco-btn-arrow {
+  transition: transform 0.2s ease;
+  font-size: 13px;
+}
+
+.fco-cta-btn-primary:hover .fco-btn-arrow {
+  transform: translateX(3px);
+}
+
+.fco-cta-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff !important;
+  font-weight: 700;
+  font-size: 15.5px;
+  padding: 15px 30px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(8px);
+  text-decoration: none;
+  transition: all 0.25s ease;
+}
+
+.fco-cta-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(229, 168, 46, 0.45);
+  transform: translateY(-2px);
+  color: #ffffff !important;
+}
+
+.fco-cta-login-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #94a3b8;
+  margin-bottom: 22px;
+}
+
+.fco-cta-login-link {
+  color: var(--gold-bright, #F0D896);
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.fco-cta-login-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.fco-cta-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #64748b;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 20px;
+  max-width: 650px;
+}
+
+.fco-cta-footer i {
+  color: var(--gold);
+}
+
+@media (max-width: 768px) {
+  .fco-cta-card {
+    padding: 36px 20px;
+    border-radius: 20px;
+  }
+  .fco-cta-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .fco-cta-btn-primary,
+  .fco-cta-btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+  .fco-cta-login-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+

@@ -51,22 +51,38 @@ export default function ForAcademies() {
     }
   };
 
+  React.useEffect(() => {
+    document.title = "Medical Coding Institute Partnership | Talentera";
+  }, []);
+
   const faqs = [
     {
-      q: "How does the Academy Partner Program work?",
-      a: "Academies upload their batch of medical coding and billing graduates. Talentera verifies their certifications and matches them directly with live corporate RCM hiring managers."
+      q: "1. What is a medical coding institute partnership?",
+      a: "A medical coding institute partnership connects your academy with Talentera's healthcare talent and hiring ecosystem, helping qualified students move from training and certification toward verified employment opportunities."
     },
     {
-      q: "Is there any cost to join as an Academy Partner?",
-      a: "Zero cost! Joining Talentera as an Academy Partner is 100% free forever for institutes and training centers."
+      q: "2. How can my medical coding institute partner with Talentera?",
+      a: "Your institute can partner with Talentera to onboard student batches, verify credentials, assess candidate readiness, and connect eligible medical coding professionals with verified healthcare employers."
     },
     {
-      q: "What is the ₹2,500 placement bonus?",
-      a: "For every student placed at a hiring company via Talentera, your institute automatically earns a ₹2,500 placement performance reward."
+      q: "3. Can Talentera help with medical coding student placements?",
+      a: "Yes. Talentera helps create a structured pathway between medical coding students and healthcare employers, giving qualified candidates access to relevant medical coding and US healthcare RCM opportunities."
     },
     {
-      q: "How do corporate recruiters see our academy's students?",
-      a: "Your students receive an 'Academy Verified' badge alongside their AAPC/AHIMA verification score, giving them top priority in recruiter search results."
+      q: "4. Can we upload an entire student batch at once?",
+      a: "Yes. Partner institutes can use batch upload to add multiple student profiles through supported Excel or CSV formats, reducing manual data entry and simplifying student onboarding."
+    },
+    {
+      q: "5. Does Talentera verify AAPC and AHIMA certifications?",
+      a: "Talentera's verification process is designed to help validate relevant AAPC and AHIMA credentials, giving employers greater confidence when evaluating certified medical coding candidates."
+    },
+    {
+      q: "6. What types of healthcare roles can our students find?",
+      a: "Depending on qualifications and employer requirements, students may find opportunities across medical coding, medical billing, US healthcare RCM, risk adjustment, HCC coding, and related healthcare operations."
+    },
+    {
+      q: "7. Why should a medical coding academy partner with Talentera?",
+      a: "A medical coding academy partnership with Talentera can help strengthen your placement ecosystem by combining batch onboarding, candidate verification, assessments, employer connections, and structured medical coding placement opportunities."
     }
   ];
   const [openFaq, setOpenFaq] = useState(0);
@@ -106,34 +122,37 @@ export default function ForAcademies() {
 
         <div className="container" style={{ position: "relative", zIndex: 2, paddingTop: 60 }}>
           <div className="fa-eyebrow">
-            <i className="fa-solid fa-graduation-cap" /> ACADEMY PARTNER PORTAL
+            <i className="fa-solid fa-graduation-cap" /> MEDICAL CODING INSTITUTE PARTNERSHIP
           </div>
 
           <h1 className="fa-hero-title">
-            Your students. <span style={{ color: "var(--gold-bright)" }}>Their careers.</span> <br />
-            100% placement execution.
+            Your Students. <span style={{ color: "var(--gold-bright)" }}>Their Careers.</span> <br />
+            One Powerful Medical Coding Institute Partnership.
           </h1>
 
           <p className="fa-hero-sub">
-            Partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials automatically, and place graduates directly with 342+ verified hiring companies.
+            Partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.
+            <span style={{ display: "block", marginTop: 10, color: "rgba(255,255,255,0.9)", fontWeight: 500 }}>
+              From classroom to career — build your institute's placement network with Talentera.
+            </span>
           </p>
 
           <div className="fa-stats-grid">
             <div>
               <div className="fa-stat-num">₹2,500</div>
-              <div className="fa-stat-lbl">Bonus Per Student Placed</div>
+              <div className="fa-stat-lbl">Placement Reward Per Candidate</div>
             </div>
             <div>
               <div className="fa-stat-num">342+</div>
-              <div className="fa-stat-lbl">Hiring Companies Connected</div>
+              <div className="fa-stat-lbl">Verified Hiring Companies</div>
             </div>
             <div>
-              <div className="fa-stat-num">48 Hrs</div>
-              <div className="fa-stat-lbl">Average Student Placement Time</div>
+              <div className="fa-stat-num">1-Click</div>
+              <div className="fa-stat-lbl">Batch Profile Upload</div>
             </div>
             <div>
-              <div className="fa-stat-num">₹0</div>
-              <div className="fa-stat-lbl">Partner Joining Fee</div>
+              <div className="fa-stat-num">Instant</div>
+              <div className="fa-stat-lbl">AAPC & AHIMA Verification</div>
             </div>
           </div>
         </div>
@@ -143,9 +162,10 @@ export default function ForAcademies() {
       <section className="fa-section" style={{ background: "var(--cream)" }}>
         <div className="container">
           <div className="fa-section-head">
-            <div className="fa-section-eyebrow">WHY ACADEMIES CHOOSE TALENTERA</div>
+            <div className="fa-section-eyebrow">WHY MEDICAL CODING INSTITUTES CHOOSE TALENTERA</div>
             <h2 className="fa-section-title">
-              Empower your institute with <span style={{ color: "var(--gold)" }}>guaranteed corporate reach.</span>
+              A medical coding institute partnership built for{" "}
+              <span style={{ color: "var(--gold)" }}>student placement and career growth.</span>
             </h2>
           </div>
 
@@ -153,25 +173,33 @@ export default function ForAcademies() {
             <div className="fa-card">
               <div className="fa-card-icon"><i className="fa-solid fa-upload" /></div>
               <h3 className="fa-card-title">1-Click Batch Upload</h3>
-              <p className="fa-card-desc">Upload 50+ student profiles via Excel or CSV in seconds without manual form filling.</p>
+              <p className="fa-card-desc">
+                Upload 50+ medical coding student profiles through Excel or CSV in seconds. Bring your entire batch onto Talentera without manual form filling.
+              </p>
             </div>
 
             <div className="fa-card">
               <div className="fa-card-icon"><i className="fa-solid fa-shield-halved" /></div>
               <h3 className="fa-card-title">Instant AAPC & AHIMA Verification</h3>
-              <p className="fa-card-desc">Automated API verification proves student CPC/CCS credentials to recruiters instantly.</p>
+              <p className="fa-card-desc">
+                Verify AAPC and AHIMA credentials through automated verification, helping healthcare employers identify qualified and certified medical coding professionals.
+              </p>
             </div>
 
             <div className="fa-card">
               <div className="fa-card-icon"><i className="fa-solid fa-building-user" /></div>
               <h3 className="fa-card-title">Direct Recruiter Access</h3>
-              <p className="fa-card-desc">Corporate HR teams at Optum, Access Healthcare, and CorroHealth view your batch directly.</p>
+              <p className="fa-card-desc">
+                Connect your medical coding academy with verified healthcare employers actively hiring medical coding and US healthcare RCM professionals.
+              </p>
             </div>
 
             <div className="fa-card">
               <div className="fa-card-icon"><i className="fa-solid fa-sack-dollar" /></div>
               <h3 className="fa-card-title">₹2,500 Placement Reward</h3>
-              <p className="fa-card-desc">Earn automated placement rewards for every candidate hired through your academy portal.</p>
+              <p className="fa-card-desc">
+                Strengthen your medical coding placement program and earn ₹2,500 for every eligible candidate hired through your academy partnership.
+              </p>
             </div>
           </div>
         </div>
@@ -244,7 +272,7 @@ export default function ForAcademies() {
       <section className="fa-section" style={{ background: "var(--cream)" }}>
         <div className="container">
           <div className="fa-section-head">
-            <div className="fa-section-eyebrow">ACADEMY FAQ</div>
+            <div className="fa-section-eyebrow">FREQUENTLY ASKED QUESTIONS</div>
             <h2 className="fa-section-title">Frequently asked questions.</h2>
           </div>
 

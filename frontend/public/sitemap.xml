@@ -1,37 +1,82 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Static sitemap covering the public, indexable pages only - authenticated
-     portal routes (dashboard, staff, company onboarding, etc.) are excluded
-     via robots.txt and don't belong here. Update the <loc> host if a custom
-     domain replaces talentera-nine.vercel.app. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- 01. Homepage -->
   <url>
-    <loc>https://talentera-nine.vercel.app/</loc>
-    <changefreq>weekly</changefreq>
+    <loc>https://talentera.in/</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+
+  <!-- 02. Candidate Landing Page -->
   <url>
-    <loc>https://talentera-nine.vercel.app/jobs</loc>
+    <loc>https://talentera.in/candidates</loc>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
+
+  <!-- 03. Company / Employer Landing Page -->
   <url>
-    <loc>https://talentera-nine.vercel.app/companies</loc>
-    <changefreq>monthly</changefreq>
+    <loc>https://talentera.in/companies</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- 04. Job Board -->
+  <url>
+    <loc>https://talentera.in/jobs</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>daily</changefreq>
     <priority>0.8</priority>
   </url>
+
+  <!-- 05. Academy Partner Portal -->
   <url>
-    <loc>https://talentera-nine.vercel.app/companies/directory</loc>
+    <loc>https://talentera.in/academies</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- 06. Candidate Registration -->
+  <url>
+    <loc>https://talentera.in/register</loc>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
+
+  <!-- 07. Employer Registration -->
   <url>
-    <loc>https://talentera-nine.vercel.app/register</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <loc>https://talentera.in/companies/register</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>
+
+  <!-- 08. Candidate Login -->
   <url>
-    <loc>https://talentera-nine.vercel.app/login</loc>
+    <loc>https://talentera.in/login</loc>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.3</priority>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- 09. Employer Login -->
+  <url>
+    <loc>https://talentera.in/companies/login</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- 10. Academy Login -->
+  <url>
+    <loc>https://talentera.in/academy/login</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
   </url>
 </urlset>

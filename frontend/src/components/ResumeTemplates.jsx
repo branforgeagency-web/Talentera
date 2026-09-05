@@ -144,7 +144,6 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
         <div>
           <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 28, fontWeight: 800, color: accentColor, margin: 0 }}>
             {d.fullName}
-            <VerifiedBadge text={d.maskedAadhaar ? `Aadhaar ${d.maskedAadhaar}` : "Aadhaar KYC Verified"} />
           </h1>
           <p style={{ margin: "6px 0 0", color: "#475569", fontWeight: 600, fontSize: 15 }}>
             {d.currentRole} • {d.experience} • {d.location}
@@ -171,14 +170,14 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
         <p style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", margin: 0 }}>{d.summary}</p>
       </div>
 
-      {/* Certifications (Stage 3) */}
+      {/* Certifications */}
       <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 16, marginBottom: 20 }}>
         <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 10px" }}>
-          Core Certifications &amp; Credentials (Stage 3 Verified)
+          Core Certifications &amp; Credentials
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 12.5 }}>
           <div>
-            <strong style={{ color: "#0F172A", fontSize: 13.5 }}>{d.certName}</strong> <VerifiedBadge text="Stage 3" />
+            <strong style={{ color: "#0F172A", fontSize: 13.5 }}>{d.certName}</strong>
             <div style={{ color: "#475569", marginTop: 2 }}>Issuing Body: <strong>{d.issuingBody}</strong> • ID: <strong>{d.memberId}</strong></div>
           </div>
           <div style={{ color: "#475569" }}>
@@ -188,14 +187,14 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
         </div>
       </div>
 
-      {/* Training (Stage 2) */}
+      {/* Training */}
       <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 16, marginBottom: 22 }}>
         <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 10px" }}>
-          Academy &amp; Formal Training (Stage 2 Verified)
+          Academy &amp; Formal Training
         </h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 12.5 }}>
           <div>
-            <strong style={{ color: "#0F172A", fontSize: 13.5 }}>{d.academyName}</strong> <VerifiedBadge text="Stage 2" />
+            <strong style={{ color: "#0F172A", fontSize: 13.5 }}>{d.academyName}</strong>
             <div style={{ color: "#475569", marginTop: 2 }}>Course: <strong>{d.courseName}</strong></div>
           </div>
           <div style={{ color: "#475569" }}>
@@ -348,10 +347,10 @@ export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
           <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#334155", margin: 0 }}>{d.summary}</p>
         </div>
 
-        {/* Certifications (Stage 3) */}
+        {/* Certifications */}
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${accentColor}`, paddingBottom: 4, marginBottom: 8 }}>
-            Verified Certifications (Stage 3)
+            Verified Certifications
           </h3>
           <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}>
             <strong style={{ color: "#0F172A" }}>{d.certName}</strong>
@@ -359,10 +358,10 @@ export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
           </div>
         </div>
 
-        {/* Academy Training (Stage 2) */}
+        {/* Academy Training */}
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${accentColor}`, paddingBottom: 4, marginBottom: 8 }}>
-            Academy Training (Stage 2)
+            Academy Training
           </h3>
           <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}>
             <strong style={{ color: "#0F172A" }}>{d.academyName}</strong>
@@ -442,7 +441,7 @@ export function ClassicTemplate({ data, accentColor = "#1E293B" }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 20 }}>
         <div>
           <h3 style={{ fontSize: 13, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: accentColor, borderBottom: "1px solid #CBD5E1", paddingBottom: 4, marginBottom: 8 }}>
-            Certifications (Stage 3)
+            Certifications
           </h3>
           <div style={{ fontSize: 12 }}>
             <strong>{d.certName}</strong>
@@ -451,7 +450,7 @@ export function ClassicTemplate({ data, accentColor = "#1E293B" }) {
         </div>
         <div>
           <h3 style={{ fontSize: 13, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: accentColor, borderBottom: "1px solid #CBD5E1", paddingBottom: 4, marginBottom: 8 }}>
-            Academy Training (Stage 2)
+            Academy Training
           </h3>
           <div style={{ fontSize: 12 }}>
             <strong>{d.academyName}</strong>
@@ -637,12 +636,12 @@ export function CreativeTemplate({ data, accentColor = "#6366F1" }) {
         {/* Credentials Row */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
           <div style={{ background: "#F8FAFC", borderLeft: `4px solid ${accentColor}`, padding: 14, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Stage 3 Certification</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Certification</div>
             <strong style={{ fontSize: 13, color: "#0F172A" }}>{d.certName}</strong>
             <div style={{ fontSize: 11.5, color: "#64748B" }}>{d.issuingBody} • Member: {d.memberId}</div>
           </div>
           <div style={{ background: "#F8FAFC", borderLeft: "4px solid #F5B41A", padding: 14, borderRadius: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Stage 2 Academy</div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase" }}>Academy Training</div>
             <strong style={{ fontSize: 13, color: "#0F172A" }}>{d.academyName}</strong>
             <div style={{ fontSize: 11.5, color: "#64748B" }}>{d.courseName} • {d.trainingDuration}</div>
           </div>
@@ -710,12 +709,12 @@ export function NordicTemplate({ data, accentColor = "#0284C7" }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
         <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Stage 3 Certification</h4>
+          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Certification</h4>
           <strong style={{ fontSize: 13 }}>{d.certName}</strong>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>{d.issuingBody} • {d.memberId}</div>
         </div>
         <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Stage 2 Training</h4>
+          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Academy Training</h4>
           <strong style={{ fontSize: 13 }}>{d.academyName}</strong>
           <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>{d.courseName} • {d.trainingDuration}</div>
         </div>
@@ -958,12 +957,12 @@ export function BoldTemplate({ data, accentColor = "#BE123C" }) {
         {/* Credentials Grid */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 22 }}>
           <div style={{ background: "#FFF1F2", padding: 14, borderRadius: 10 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor }}>STAGE 3 CREDENTIAL</div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor }}>CERTIFICATION</div>
             <strong style={{ fontSize: 13.5, color: "#881337" }}>{d.certName}</strong>
             <div style={{ fontSize: 11.5, color: "#9F1239" }}>{d.issuingBody} ({d.memberId})</div>
           </div>
           <div style={{ background: "#FFF1F2", padding: 14, borderRadius: 10 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor }}>STAGE 2 TRAINING</div>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor }}>ACADEMY TRAINING</div>
             <strong style={{ fontSize: 13.5, color: "#881337" }}>{d.academyName}</strong>
             <div style={{ fontSize: 11.5, color: "#9F1239" }}>{d.courseName}</div>
           </div>
@@ -1027,7 +1026,7 @@ export function PortfolioTemplate({ data, accentColor = "#4338CA" }) {
         </div>
 
         <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 12, border: "1px solid #E2E8F0" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Stage 3 Certification</h4>
+          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Certification</h4>
           <strong style={{ fontSize: 12.5 }}>{d.certName}</strong>
           <div style={{ fontSize: 11, color: "#64748B" }}>{d.issuingBody} • {d.memberId}</div>
         </div>

@@ -85,36 +85,123 @@ export default function ForCandidates() {
 
   const faqs = [
     {
-      q: "Is Talentera completely free for candidates?",
-      a: "Yes, 100% free forever for job seekers. There are zero hidden registration charges, placement fees, or consultancy commissions."
+      q: "1. Who can create a candidate profile on Talentera?",
+      a: "Medical coders, medical billers, HCC coders, risk adjustment professionals, AR professionals, and other US Healthcare RCM professionals can create a Talentera candidate profile."
     },
     {
-      q: "Will my current company know I'm looking for a job?",
-      a: "No! Stealth Mode ensures your profile, contact details, and current status are strictly hidden from your current employer's corporate account."
+      q: "2. Do I need an AAPC or AHIMA certification to register?",
+      a: "Not necessarily. You can create a profile based on your education, experience, and skills. If you have credentials such as CPC, CIC, COC, or AHIMA certifications, you can add them to your profile for verification."
     },
     {
-      q: "What certifications are supported on the platform?",
-      a: "We verify AAPC credentials (CPC, CIC, COC, CPMA, CRC), AHIMA (CCS, CCA, RHIT), and specialized RCM/Medical Billing certifications."
+      q: "3. What does Talentera verify?",
+      a: "Talentera verifies key parts of your professional profile through an 8-stage, 100-point verification process, including identity, education, certifications, skills, communication, chart auditing, resume quality, and your verified profile."
     },
     {
-      q: "How long does the 8-stage verification take?",
-      a: "Most candidates complete the online verification within 24 to 48 hours. Stage 1 (Aadhaar OTP) takes under 2 minutes."
+      q: "4. How can I prove my medical coding skills to employers?",
+      a: "You can demonstrate your knowledge through skill assessments and live chart auditing. Your results can become part of your verified professional profile, giving employers more insight than a resume alone."
     },
     {
-      q: "What if I score low on an assessment?",
-      a: "You can re-attempt skill assessments after a 7-day refresher period. We provide free study resources to help you improve your score."
+      q: "5. Can I find US healthcare jobs for medical coders on Talentera?",
+      a: "Yes. Talentera helps candidates discover relevant US Healthcare RCM opportunities, including medical coding, medical billing, HCC, risk adjustment, AR, and other related roles."
+    },
+    {
+      q: "6. Can I use Talentera while I am currently working?",
+      a: "Yes. If you are looking for your next opportunity while employed, you can use Talentera's available privacy controls to manage how your professional information is shared."
+    },
+    {
+      q: "7. Does getting verified guarantee me a job?",
+      a: "No. Verification does not guarantee a job, interview, or specific salary. It helps you present your verified credentials, skills, experience, and assessment results to potential employers. Final hiring decisions depend on the employer and role requirements."
     }
   ];
 
   const stages = [
-    { num: "01", name: "Aadhaar Identity", desc: "Government identity verification via UIDAI OTP for fraud-free hiring.", icon: "fa-solid fa-id-card" },
-    { num: "02", name: "Education & Training", desc: "Verified diplomas, degrees, and certified RCM academy background.", icon: "fa-solid fa-graduation-cap" },
-    { num: "03", name: "Certifications", desc: "AAPC (CPC, CIC, COC) & AHIMA credential validation & badge checks.", icon: "fa-solid fa-certificate" },
-    { num: "04", name: "Skill Assessment", desc: "Specialty-specific medical coding & billing speed and accuracy tests.", icon: "fa-solid fa-laptop-code" },
-    { num: "05", name: "Audio / Video Intro", desc: "60-second professional voice and communication screening for recruiters.", icon: "fa-solid fa-video" },
-    { num: "06", name: "Live Chart Auditing", desc: "Real-world ED/IP/OP chart audit evaluation with instant accuracy scores.", icon: "fa-solid fa-file-waveform" },
-    { num: "07", name: "ATS Resume Score", desc: "Optimized RCM resume formatted to pass enterprise recruiter ATS screeners.", icon: "fa-solid fa-file-lines" },
-    { num: "08", name: "Verified Profile Badge", desc: "Public shareable verified profile & background trust index.", icon: "fa-solid fa-shield-halved" }
+    {
+      num: "01",
+      name: "Identity Verification",
+      desc: "Verify your identity through Aadhaar-based OTP verification and create a candidate profile with verified identity information.",
+      icon: "fa-solid fa-id-card"
+    },
+    {
+      num: "02",
+      name: "Education & Training",
+      desc: "Showcase your degrees, diplomas, and healthcare RCM training so employers can understand your educational and professional background.",
+      icon: "fa-solid fa-graduation-cap"
+    },
+    {
+      num: "03",
+      name: "Certifications",
+      desc: "Add relevant AAPC and AHIMA credentials, including CPC, CIC, and COC certifications, to your professional profile.",
+      icon: "fa-solid fa-certificate"
+    },
+    {
+      num: "04",
+      name: "Skill Assessment",
+      desc: "Demonstrate your knowledge through medical coding and billing assessments based on relevant healthcare RCM skills.",
+      icon: "fa-solid fa-laptop-code"
+    },
+    {
+      num: "05",
+      name: "Audio / Video Introduction",
+      desc: "Record a 60-second professional introduction to give employers a quick understanding of your communication and professional presence.",
+      icon: "fa-solid fa-video"
+    },
+    {
+      num: "06",
+      name: "Live Chart Auditing",
+      desc: "Demonstrate practical coding ability through ED, IP, and OP chart audit evaluations and receive an accuracy score.",
+      icon: "fa-solid fa-file-waveform"
+    },
+    {
+      num: "07",
+      name: "ATS Resume Score",
+      desc: "Build an ATS-friendly medical coding resume that clearly highlights your experience, certifications, skills, and professional strengths.",
+      icon: "fa-solid fa-file-lines"
+    },
+    {
+      num: "08",
+      name: "Verified Profile Badge",
+      desc: "Complete the verification process and receive a Verified Profile Badge that makes your Talentera profile easier for employers to identify.",
+      icon: "fa-solid fa-shield-halved"
+    }
+  ];
+
+  const benefits = [
+    {
+      tag: "GET SEEN BY THE RIGHT RECRUITERS",
+      title: "Let Your Profile Do the Talking",
+      desc: "Stop sending the same resume everywhere and hoping the right recruiter notices you. Your Talentera profile brings together your medical coding skills, certifications, experience, and assessment results, helping relevant healthcare recruiters understand your professional background.",
+      icon: "fa-solid fa-bullhorn"
+    },
+    {
+      tag: "SHOW WHAT YOU REALLY KNOW",
+      title: "Don't Just List Your Skills. Show Them.",
+      desc: "Anyone can add “Medical Coding” to a resume. Talentera lets you showcase your coding assessments, chart audit performance, verified credentials, and professional experience, giving employers more information than a traditional resume alone.",
+      icon: "fa-solid fa-laptop-code"
+    },
+    {
+      tag: "SPEND LESS TIME ON IRRELEVANT APPLICATIONS",
+      title: "Find Opportunities That Match Your Profile",
+      desc: "Your time matters. A complete profile helps present your skills, certifications, experience, and career preferences when you're exploring medical coding and US Healthcare RCM opportunities.",
+      icon: "fa-solid fa-crosshairs"
+    },
+    {
+      tag: "EXPLORE MORE WAYS TO WORK",
+      title: "Remote, Hybrid & On-Site RCM Opportunities",
+      desc: "Looking for flexibility? Depending on the employer and role, explore remote, hybrid, and on-site opportunities across medical coding, medical billing, risk adjustment, HCC coding, and other healthcare RCM roles.",
+      icon: "fa-solid fa-house-laptop"
+    },
+    {
+      tag: "MAKE YOUR PROFILE STAND OUT",
+      title: "Earn Your Verified Candidate Badge",
+      desc: "Complete all 8 verification stages and 100 verification points to earn your Talentera Verified Profile Badge. It gives employers a quick way to recognize that you've completed Talentera's verification process.",
+      icon: "fa-solid fa-shield-halved"
+    },
+    {
+      tag: "YOUR PROFILE. YOUR PRIVACY.",
+      title: "Stay in Control of Your Information",
+      desc: "Exploring a new opportunity while you're currently employed? Use Talentera's available privacy controls to manage how your professional information is shared while you search for your next career opportunity.",
+      icon: "fa-solid fa-user-lock"
+    }
   ];
 
   return (
@@ -172,12 +259,12 @@ export default function ForCandidates() {
           </div>
 
           <h1 className="fc-hero-title">
-            Your career in RCM <br />
-            <span className="fc-text-gold">begins here.</span>
+            Begin your RCM career <br />
+            <span className="fc-text-gold">with confidence.</span>
           </h1>
 
           <p className="fc-hero-sub">
-            Create a Verified Profile, take the 8-Stage Assessment, get direct access to 342+ verified RCM companies across India. Zero fees, guaranteed privacy.
+            Create your verified profile, complete the 8-stage assessment, and unlock direct access to 342+ verified RCM companies across India—opening the door to real US healthcare jobs for medical coders. Zero fees. Full privacy.
           </p>
 
           <div className="fc-hero-ctas">
@@ -216,10 +303,12 @@ export default function ForCandidates() {
           <div className="fc-section-head">
             <div className="fc-section-eyebrow">THE OLD WAY VS THE TALENTERA WAY</div>
             <h2 className="fc-section-title">
-              You've been job hunting the <span style={{ textDecoration: "line-through", color: "#ef4444" }}>wrong way.</span>
+              Tired of the Same Old <span className="fc-text-gold">Job Search?</span>
             </h2>
             <p className="fc-section-sub">
-              Traditional job portals and agencies were built for generalists, not specialized healthcare RCM professionals.
+              Finding US healthcare jobs for medical coders shouldn't mean endlessly applying, waiting for replies, or wondering whether a job is even genuine.
+              <br />
+              Traditional job portals and agencies are built for everyone. Your healthcare RCM career needs a more focused approach.
             </p>
           </div>
 
@@ -227,25 +316,45 @@ export default function ForCandidates() {
             <div className="fc-pain-card">
               <div className="fc-pain-icon"><i className="fa-solid fa-inbox" /></div>
               <h3 className="fc-pain-title">50+ Unread Applications</h3>
-              <p className="fc-pain-desc">Resumes swallowed by generic automated portal black holes with zero status updates.</p>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                You apply. Then you wait.
+              </div>
+              <p className="fc-pain-desc">
+                Your resume gets buried among hundreds of applications with little to no visibility into your application status.
+              </p>
             </div>
 
             <div className="fc-pain-card">
               <div className="fc-pain-icon"><i className="fa-solid fa-ghost" /></div>
-              <h3 className="fc-pain-title">0 Feedback from Recruiters</h3>
-              <p className="fc-pain-desc">Ghosted after multiple interview rounds without constructive closure or clarity.</p>
+              <h3 className="fc-pain-title">0 Feedback From Recruiters</h3>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                Interview done. Response? Nothing.
+              </div>
+              <p className="fc-pain-desc">
+                You spend time preparing for interviews, only to be left waiting without clear feedback or knowing what happens next.
+              </p>
             </div>
 
             <div className="fc-pain-card">
               <div className="fc-pain-icon"><i className="fa-solid fa-triangle-exclamation" /></div>
               <h3 className="fc-pain-title">500+ Fake / Scam Jobs</h3>
-              <p className="fc-pain-desc">Wasting hours dealing with unverified third-party consultancies asking for fees.</p>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                Not every job posting is worth your time.
+              </div>
+              <p className="fc-pain-desc">
+                Unverified recruiters and third-party consultancies can make it difficult to know which opportunities are genuine — especially when you're searching for US healthcare jobs for medical coders.
+              </p>
             </div>
 
             <div className="fc-pain-card">
               <div className="fc-pain-icon"><i className="fa-solid fa-eye-slash" /></div>
               <h3 className="fc-pain-title">0 Salary Transparency</h3>
-              <p className="fc-pain-desc">No visibility into true pay scale ranges, night shift allowances, or remote policies.</p>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                What does the job actually offer?
+              </div>
+              <p className="fc-pain-desc">
+                Candidates often struggle to find clear information about salary ranges, night-shift allowances, work-from-home options, and other important job details before applying.
+              </p>
             </div>
           </div>
         </div>
@@ -257,10 +366,12 @@ export default function ForCandidates() {
           <div className="fc-section-head">
             <div className="fc-section-eyebrow">THE 8-STAGE VERIFICATION PROCESS</div>
             <h2 className="fc-section-title">
-              Eight stages. <span className="fc-text-gold">100 verification points.</span>
+              8 Stages. 100 Verification Points. <span className="fc-text-gold">One Trusted Profile.</span>
             </h2>
             <p className="fc-section-sub">
-              Our 8-stage verification proves your skills to top healthcare recruiters before they even speak to you. Stand out from thousands of unverified resumes.
+              Finding the right US healthcare jobs for medical coders starts with a profile that clearly shows who you are, what you know, and what you can do.
+              <br />
+              Talentera's 8-stage verification process covers 100 verification points across your identity, education, certifications, skills, communication, coding ability, resume, and professional profile — helping you present your qualifications with greater clarity and confidence to healthcare employers.
             </p>
           </div>
 
@@ -275,14 +386,18 @@ export default function ForCandidates() {
             ))}
           </div>
 
-          {/* Fast-Track Box */}
+          {/* Meaning for Candidates Box */}
           <div className="fc-fasttrack-box">
-            <div>
-              <div className="fc-fasttrack-title">Have 10+ years experience? Jump to Fast-Track</div>
-              <div className="fc-fasttrack-desc">Exemptions available for senior coders & auditors with active AAPC/AHIMA credentials.</div>
+            <div style={{ maxWidth: 760 }}>
+              <div className="fc-fasttrack-title">What Does Talentera's 8-Stage Verification Mean for Candidates?</div>
+              <div className="fc-fasttrack-desc" style={{ marginTop: 8, lineHeight: 1.6 }}>
+                It brings your identity, education, certifications, skills, assessments, and professional information together in one candidate profile.
+                <br />
+                Instead of relying only on a resume, you can build a profile that gives employers a clearer picture of your qualifications when you're looking for medical coding and US Healthcare RCM opportunities.
+              </div>
             </div>
-            <Link to="/register?fasttrack=true" className="fc-btn-gold" style={{ whiteSpace: "nowrap" }}>
-              Claim Fast-Track Status →
+            <Link to="/register" className="fc-btn-gold" style={{ whiteSpace: "nowrap" }}>
+              Complete Your 100-Point Verification →
             </Link>
           </div>
         </div>
@@ -294,49 +409,53 @@ export default function ForCandidates() {
           <div className="fc-section-head">
             <div className="fc-section-eyebrow" style={{ color: "var(--gold-bright)" }}>WHY GET VERIFIED</div>
             <h2 className="fc-section-title fc-section-title-dark">
-              Once you're verified, <span className="fc-text-gold">everything changes.</span>
+              Make Your Medical Coding <span className="fc-text-gold">Profile Stand Out.</span>
             </h2>
             <p className="fc-section-sub fc-section-sub-dark">
-              Verified candidates skip phone screens, get priority interview callbacks, and earn 15-30% higher salary offers.
+              When you're looking for US healthcare jobs for medical coders, your resume is only part of your story. A verified Talentera profile brings your skills, certifications, experience, and assessments together so employers can get a clearer picture of what you bring to the role.
+              <br />
+              Complete your verification and build a profile that goes beyond a resume.
             </p>
           </div>
 
           <div className="fc-benefits-grid">
-            <div className="fc-benefit-card">
-              <div className="fc-benefit-icon"><i className="fa-solid fa-bolt" /></div>
-              <h3 className="fc-benefit-title">Direct Recruiter Access</h3>
-              <p className="fc-benefit-desc">Corporate recruiters approach you directly—no middleman agencies or commission cuts.</p>
-            </div>
+            {benefits.map((b, idx) => (
+              <div key={idx} className="fc-benefit-card">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <div className="fc-benefit-icon" style={{ marginBottom: 0 }}><i className={b.icon} /></div>
+                  <span style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    color: "var(--gold-bright)",
+                    background: "rgba(229, 168, 46, 0.12)",
+                    padding: "4px 10px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(229, 168, 46, 0.25)",
+                    textTransform: "uppercase"
+                  }}>
+                    {b.tag}
+                  </span>
+                </div>
+                <h3 className="fc-benefit-title">{b.title}</h3>
+                <p className="fc-benefit-desc">{b.desc}</p>
+              </div>
+            ))}
+          </div>
 
-            <div className="fc-benefit-card">
-              <div className="fc-benefit-icon"><i className="fa-solid fa-arrow-trend-up" /></div>
-              <h3 className="fc-benefit-title">15-30% Higher Pay Offers</h3>
-              <p className="fc-benefit-desc">Companies pay top-tier salary packages for pre-vetted, error-free certified coders.</p>
+          {/* Bottom callout */}
+          <div className="fc-fasttrack-box" style={{ marginTop: 40, background: "rgba(255, 255, 255, 0.03)", borderColor: "rgba(229, 168, 46, 0.3)" }}>
+            <div style={{ maxWidth: 740 }}>
+              <div className="fc-fasttrack-title">Why Get Verified With Talentera?</div>
+              <div className="fc-fasttrack-desc" style={{ marginTop: 6, lineHeight: 1.6 }}>
+                Because your next opportunity should see more than just your resume.
+                <br />
+                Show employers your skills, credentials, experience, and what you're ready to do next.
+              </div>
             </div>
-
-            <div className="fc-benefit-card">
-              <div className="fc-benefit-icon"><i className="fa-solid fa-forward-fast" /></div>
-              <h3 className="fc-benefit-title">Fast-Track Hiring Process</h3>
-              <p className="fc-benefit-desc">Skip initial screening rounds and move straight to technical/final hiring rounds.</p>
-            </div>
-
-            <div className="fc-benefit-card">
-              <div className="fc-benefit-icon"><i className="fa-solid fa-house-laptop" /></div>
-              <h3 className="fc-benefit-title">Work-From-Home Priority</h3>
-              <p className="fc-benefit-desc">Unlock remote & hybrid RCM roles with leading US healthcare service providers.</p>
-            </div>
-
-            <div className="fc-benefit-card">
-              <div className="fc-benefit-icon"><i className="fa-solid fa-badge-check" /></div>
-              <h3 className="fc-benefit-title">Verified Candidate Badge</h3>
-              <p className="fc-benefit-desc">Stand out with a green verified badge shared directly with hiring managers.</p>
-            </div>
-
-            <div className="fc-benefit-card">
-              <div className="fc-benefit-icon"><i className="fa-solid fa-user-lock" /></div>
-              <h3 className="fc-benefit-title">100% Privacy Control</h3>
-              <p className="fc-benefit-desc">Keep your current employer from seeing your profile with stealth privacy mode.</p>
-            </div>
+            <Link to="/register" className="fc-btn-gold" style={{ whiteSpace: "nowrap" }}>
+              Get Verified & Build Your Profile →
+            </Link>
           </div>
         </div>
       </section>
@@ -406,21 +525,21 @@ export default function ForCandidates() {
           <div className="fc-testi-grid">
             <div className="fc-testi-card">
               <p className="fc-testi-quote">
-                "Landed a 40% salary hike within 5 days of completing my AAPC stage verification. Corporate recruiters reached out directly without any consultancy middleman."
+                "Got placed within days of completing my verification on Talentera. My verified profile helped corporate recruiters see my AAPC certification and experience without going through a consultancy."
               </p>
               <div className="fc-testi-user">
                 <div className="fc-testi-avatar">PS</div>
                 <div>
                   <div className="fc-testi-name">Priya Sharma</div>
                   <div className="fc-testi-role">CPC Certified Coder · Placed at Access Healthcare</div>
-                  <span className="fc-testi-badge">✓ Salary +40%</span>
+                  <span className="fc-testi-badge">✓ Verified & Placed</span>
                 </div>
               </div>
             </div>
 
             <div className="fc-testi-card">
               <p className="fc-testi-quote">
-                "The live chart audit score proved my ED auditing accuracy to Optum hiring managers before my technical round even started. Fast-track process was seamless."
+                "My live chart audit score gave Optum hiring managers a clear view of my ED coding accuracy before the technical round. The hiring process was quick and straightforward."
               </p>
               <div className="fc-testi-user">
                 <div className="fc-testi-avatar">KR</div>
@@ -434,7 +553,7 @@ export default function ForCandidates() {
 
             <div className="fc-testi-card">
               <p className="fc-testi-quote">
-                "No more fake agency calls asking for money. Talentera verified my experience background and matched me with top billing leads at CorroHealth."
+                "No more wasting time on random agency calls. Talentera verified my experience and connected me with genuine billing opportunities at CorroHealth."
               </p>
               <div className="fc-testi-user">
                 <div className="fc-testi-avatar">AV</div>
@@ -543,7 +662,7 @@ export default function ForCandidates() {
       <section className="fc-section" style={{ background: "#ffffff" }}>
         <div className="container">
           <div className="fc-section-head">
-            <div className="fc-section-eyebrow">GOT QUESTIONS?</div>
+            <div className="fc-section-eyebrow">FREQUENTLY ASKED QUESTIONS</div>
             <h2 className="fc-section-title">
               Everything you want to <span className="fc-text-gold">ask first.</span>
             </h2>

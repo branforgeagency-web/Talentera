@@ -157,30 +157,30 @@ export default function AcademyLogin() {
         {/* LEFT BRAND PANEL */}
         <div className="acad-login-left">
           <div style={{ color: "var(--gold)", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", marginBottom: 16 }}>
-            TALENTERA · ACADEMY PARTNER PORTAL
+            TALENTERA · MEDICAL CODING INSTITUTE PARTNERSHIP
           </div>
 
           <h1
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(32px, 5vw, 56px)",
+              fontSize: "clamp(32px, 4.5vw, 52px)",
               fontWeight: 800,
-              lineHeight: 1.05,
+              lineHeight: 1.08,
               letterSpacing: "-0.02em",
               marginBottom: 20
             }}
           >
-            Your students. <br />
-            <span style={{ color: "var(--gold)" }}>Their careers.</span> <br />
-            One dashboard.
+            Your Students. <br />
+            <span style={{ color: "var(--gold)" }}>Their Careers.</span> <br />
+            One Powerful Medical Coding Institute Partnership.
           </h1>
 
           <p style={{ fontSize: 15, color: "rgba(255,255,255,0.75)", lineHeight: 1.55, maxWidth: 500, marginBottom: 36 }}>
-            Talentera is where the best RCM training academies prove their quality — with verified scores, bias-free assessments, and placement outcomes that companies trust.
+            Partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.
           </p>
 
           {/* Feature Points */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, marginBottom: 40 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 36 }}>
             {/* Feature 1 */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
               <div
@@ -197,14 +197,14 @@ export default function AcademyLogin() {
                   flexShrink: 0
                 }}
               >
-                🛡️
+                📁
               </div>
               <div>
                 <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  Bias-free Path B assessments
+                  1-Click Batch Upload
                 </h4>
                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  Your questions, Talentera-conducted · companies trust the score
+                  Upload 50+ student profiles via Excel/CSV in seconds without manual entry.
                 </p>
               </div>
             </div>
@@ -225,19 +225,47 @@ export default function AcademyLogin() {
                   flexShrink: 0
                 }}
               >
-                📊
+                🛡️
               </div>
               <div>
                 <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  Anonymized peer benchmark
+                  Instant AAPC & AHIMA Verification
                 </h4>
                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  See where you stand vs other academies · city-only labels
+                  Automated verification validates credentials so healthcare employers hire with confidence.
                 </p>
               </div>
             </div>
 
             {/* Feature 3 */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
+                  background: "rgba(59,130,246,0.18)",
+                  color: "#3B82F6",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 16,
+                  flexShrink: 0
+                }}
+              >
+                🏢
+              </div>
+              <div>
+                <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
+                  Direct Recruiter Access
+                </h4>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
+                  Connect your academy with verified employers actively hiring RCM professionals.
+                </p>
+              </div>
+            </div>
+
+            {/* Feature 4 */}
             <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
               <div
                 style={{
@@ -253,14 +281,14 @@ export default function AcademyLogin() {
                   flexShrink: 0
                 }}
               >
-                💼
+                💰
               </div>
               <div>
                 <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  Track every placement
+                  ₹2,500 Placement Reward
                 </h4>
                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  Month-wise outcomes · top hiring cities · per-batch rates
+                  Strengthen your placement program and earn ₹2,500 for every eligible hire.
                 </p>
               </div>
             </div>

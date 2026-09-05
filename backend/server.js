@@ -25,6 +25,8 @@ const defaultOrigins = [
   "http://127.0.0.1:5173",
   "http://localhost:3000",
   "https://talentera-nine.vercel.app",
+  "https://talentera.in",
+  "https://www.talentera.in",
 ];
 const envOrigins = (process.env.CLIENT_ORIGINS || "").split(",").map((o) => o.trim()).filter(Boolean);
 const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
