@@ -1,6 +1,5 @@
 # See IMPROVEMENT_ROADMAP.md "No SEO surface on the marketing site."
-# Update the sitemap URL below if a custom domain replaces
-# talentera-nine.vercel.app.
+# Production domain: https://talentera.in
 User-agent: *
 Allow: /
 Disallow: /dashboard
@@ -8,9 +7,10 @@ Disallow: /companies/dashboard
 Disallow: /companies/onboarding
 Disallow: /companies/applicants
 Disallow: /companies/jobs
+Disallow: /companies/directory
 Disallow: /staff
-Disallow: /academy/login
+Disallow: /employee
 Disallow: /resume
 Disallow: /assessment
 
-Sitemap: https://talentera-nine.vercel.app/sitemap.xml
+Sitemap: https://talentera.in/sitemap.xml

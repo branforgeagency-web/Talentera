@@ -9,7 +9,7 @@
       "destination": "https://talentera-1.onrender.com/uploads/:path*"
     },
     {
-      "source": "/((?!assets/|favicon|logo).*)",
+      "source": "/((?!assets/|favicon|logo|sitemap\\.xml|robots\\.txt).*)",
       "destination": "/index.html"
     }
   ]

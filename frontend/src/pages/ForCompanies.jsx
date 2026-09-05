@@ -70,24 +70,39 @@ export default function ForCompanies() {
 
   const faqs = [
     {
-      q: "How is Talentera different from generic job portals like Naukri or Indeed?",
-      a: "Traditional job portals are generic bulletin boards where anyone can upload unverified CVs. Talentera is an RCM-specialized talent platform where every candidate undergoes a 4-layer verification process: Aadhaar UIDAI identity verification, direct AAPC/AHIMA live API check, proctored specialty assessments, and 60-second video screening. You receive max 5 pre-screened, audit-ready profiles within 24 hours instead of 500 unvetted CVs."
+      q: "1. How does Talentera's medical coding recruitment process work?",
+      a: "Talentera helps healthcare companies find verified medical coders and RCM professionals based on role, specialty, experience, skills, shift preference, and other hiring requirements.",
+      example: "If you're hiring 10 ED coders for a US healthcare account, you can share your requirements with Talentera and receive a shortlist of relevant candidates instead of reviewing hundreds of unrelated resumes."
     },
     {
-      q: "How much does it cost to use Talentera?",
-      a: "Talentera operates strictly on a Pay-on-Placement model. There are zero subscription fees, zero posting costs, and zero upfront retainers. You only pay a standard placement fee 30 days after a candidate successfully joins your team."
+      q: "2. What types of healthcare RCM professionals can we hire through Talentera?",
+      a: "You can find talent across medical coding, medical billing, HCC coding, risk adjustment, AR, denial management, and other US Healthcare RCM roles.",
+      example: "If your organization needs CPC-certified inpatient coders with 3+ years of experience, Talentera can help you identify candidates who match those requirements."
     },
     {
-      q: "What is the 90-Day Free Replacement Guarantee?",
-      a: "We stand behind candidate quality and retention. If a candidate hired through Talentera leaves or fails probation within their first 90 days, we immediately provide a 100% free replacement candidate from our verified pool."
+      q: "3. Are Talentera candidates verified before we interview them?",
+      a: "Talentera uses a structured verification process covering identity, education, certifications, skills, assessments, communication, and professional information.",
+      example: "Before scheduling an interview with a medical coder, your hiring team can review available credential information, assessment results, and chart-audit performance through the candidate profile."
     },
     {
-      q: "Are candidate certifications really verified directly with AAPC & AHIMA?",
-      a: "Yes! We run direct API validation checks against AAPC and AHIMA databases to verify member ID, active standing, certification type (CPC, CIC, COC, CRC, CCS), and issue dates. Zero expired certificates make it into the verified pool."
+      q: "4. Can we hire candidates based on a specific medical coding specialty?",
+      a: "Yes. Talentera is designed for specialty-focused healthcare recruitment, allowing hiring teams to look for candidates based on relevant coding and RCM requirements.",
+      example: "If you're hiring for ED, IP, OP, HCC, risk adjustment, or medical billing roles, you can define the specialty and required skills before candidates are shortlisted."
     },
     {
-      q: "Can we hire candidates specifically for US night shifts?",
-      a: "Absolutely. Candidates are pre-tagged for US night shift willingness, notice period, location preference, and remote/on-site readiness. You can filter your shortlist specifically for night shift coders or billers."
+      q: "5. How quickly can we receive shortlisted candidates?",
+      a: "Talentera aims to provide up to 5 hand-curated, relevant candidates within 24 hours, depending on the role requirements and available talent pool.",
+      example: "If you suddenly need 5 experienced medical coders for a new client account, you can submit the requirement instead of waiting weeks for a traditional recruitment process to build a candidate pipeline."
+    },
+    {
+      q: "6. How does Talentera's pay-on-placement model work?",
+      a: "Talentera's hiring model is designed so companies pay when they successfully hire a candidate, rather than paying subscription or setup fees upfront.",
+      example: "If you review five shortlisted candidates but hire only one, your recruitment cost is tied to the successful placement rather than paying an upfront fee for the entire candidate search."
+    },
+    {
+      q: "7. Does Talentera provide replacement support if a candidate leaves?",
+      a: "Talentera provides 90-day replacement support for eligible placements, subject to the applicable replacement terms.",
+      example: "If a hired medical coder leaves during the eligible replacement period, your company can request a replacement candidate under Talentera's replacement policy instead of starting the entire medical coding recruitment process again."
     }
   ];
 
@@ -136,7 +151,7 @@ export default function ForCompanies() {
           </h1>
 
           <p className="fco-hero-sub">
-            Stop sifting 200 resumes for 1 hire. Talentera sends you 5 hand-curated, specialty-precise verified candidates — ready to interview in 24 hours. Pay only when you hire.
+            Stop sifting through 200 resumes to find 1 qualified hire. Talentera helps simplify your medical coding recruitment by sending you 5 hand-curated, specialty-matched verified candidates — ready to interview in as little as 24 hours. Pay only when you hire.
           </p>
 
           <div className="fco-hero-ctas">
@@ -181,7 +196,7 @@ export default function ForCompanies() {
               You've been hiring RCM talent the <span style={{ textDecoration: "line-through", color: "#ef4444" }}>wrong way.</span>
             </h2>
             <p className="fco-section-sub">
-              Traditional agencies take 60 days and charge massive upfront fees for unverified resumes with fake experience claims.
+              Traditional medical coding recruitment agencies can leave hiring teams sorting through large resume pools, spending weeks on screening, and manually checking whether a candidate's experience and credentials match what they claim.
             </p>
           </div>
 
@@ -189,25 +204,45 @@ export default function ForCompanies() {
             <div className="fco-pain-card">
               <div className="fco-pain-icon"><i className="fa-solid fa-file-excel" /></div>
               <h3 className="fco-pain-title">200+ Unscreened Resumes</h3>
-              <p className="fco-pain-desc">Wasting hiring manager hours interviewing candidates with fabricated CV experience claims.</p>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                Too many resumes. Too little certainty.
+              </div>
+              <p className="fco-pain-desc">
+                Recruiters spend valuable hours reviewing candidates who may not match the required RCM skills, experience, or specialty.
+              </p>
             </div>
 
             <div className="fco-pain-card">
               <div className="fco-pain-icon"><i className="fa-solid fa-clock-three" /></div>
               <h3 className="fco-pain-title">60-Day Time to Fill</h3>
-              <p className="fco-pain-desc">Dragging out open seats while revenue cycle billing backlogs pile up and client SLAs slip.</p>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                Open positions shouldn't stay open for months.
+              </div>
+              <p className="fco-pain-desc">
+                Long screening and interview cycles can leave critical RCM roles unfilled while your existing team handles increasing workloads.
+              </p>
             </div>
 
             <div className="fco-pain-card">
               <div className="fco-pain-icon"><i className="fa-solid fa-certificate" /></div>
-              <h3 className="fco-pain-title">Expired Credentials</h3>
-              <p className="fco-pain-desc">Candidates claiming AAPC CPC or AHIMA CCS credentials that expired or were forged.</p>
+              <h3 className="fco-pain-title">Unverified Credentials</h3>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                Can you trust what's on the resume?
+              </div>
+              <p className="fco-pain-desc">
+                Manually validating AAPC, AHIMA, and other professional credentials takes time and adds another step to your recruitment process.
+              </p>
             </div>
 
             <div className="fco-pain-card">
               <div className="fco-pain-icon"><i className="fa-solid fa-money-bill-transfer" /></div>
-              <h3 className="fco-pain-title">20-30% Agency Retainers</h3>
-              <p className="fco-pain-desc">Heavy upfront consultancy fees with zero retention guarantee if a candidate leaves in 30 days.</p>
+              <h3 className="fco-pain-title">20–30% Agency Retainers</h3>
+              <div style={{ fontWeight: 600, color: "var(--navy)", marginBottom: 6, fontSize: 14 }}>
+                Why pay upfront before you hire?
+              </div>
+              <p className="fco-pain-desc">
+                Traditional medical coding recruitment agency models can involve significant upfront fees before you know whether a candidate is the right fit. Talentera's model is designed around paying when you hire.
+              </p>
             </div>
           </div>
         </div>
@@ -219,10 +254,10 @@ export default function ForCompanies() {
           <div className="fco-section-head">
             <div className="fco-section-eyebrow">OUR VERIFICATION ENGINE</div>
             <h2 className="fco-section-title">
-              4 layers of verification. <span style={{ color: "var(--gold)" }}>100% audit-ready.</span>
+              4 layers of verification. <span style={{ color: "var(--gold)" }}>100% more confidence.</span>
             </h2>
             <p className="fco-section-sub">
-              Every candidate in our pool undergoes rigorous multi-layer screening before their profile ever reaches your hiring desk.
+              Every candidate goes through structured verification before their profile reaches your hiring team — giving recruiters more visibility into identity, credentials, skills, and professional communication.
             </p>
           </div>
 
@@ -231,28 +266,28 @@ export default function ForCompanies() {
               <div className="fco-layer-badge">Layer 01</div>
               <i className="fa-solid fa-id-card" style={{ fontSize: 24, color: "var(--navy)" }} />
               <h3 className="fco-layer-title">Aadhaar Identity</h3>
-              <p className="fco-layer-desc">Instant UIDAI OTP identity check eliminating ghost profiles & duplicate consultancy submissions.</p>
+              <p className="fco-layer-desc">Aadhaar-based OTP verification helps confirm candidate identity and reduce duplicate or incomplete profiles.</p>
             </div>
 
             <div className="fco-layer-card">
               <div className="fco-layer-badge">Layer 02</div>
               <i className="fa-solid fa-shield-check" style={{ fontSize: 24, color: "var(--navy)" }} />
-              <h3 className="fco-layer-title">Live Cert API Check</h3>
-              <p className="fco-layer-desc">Direct API verification against AAPC & AHIMA databases for active member standing & cert dates.</p>
+              <h3 className="fco-layer-title">Credential Verification</h3>
+              <p className="fco-layer-desc">Verify relevant AAPC and AHIMA credentials and review available certification details before moving candidates forward in your hiring process.</p>
             </div>
 
             <div className="fco-layer-card">
               <div className="fco-layer-badge">Layer 03</div>
               <i className="fa-solid fa-laptop-code" style={{ fontSize: 24, color: "var(--navy)" }} />
               <h3 className="fco-layer-title">Proctored Audit Test</h3>
-              <p className="fco-layer-desc">Specialty-specific coding & billing speed tests with verified 90%+ chart accuracy scores.</p>
+              <p className="fco-layer-desc">Specialty-specific medical coding and billing assessments help evaluate practical knowledge, coding accuracy, and role-relevant skills.</p>
             </div>
 
             <div className="fco-layer-card">
               <div className="fco-layer-badge">Layer 04</div>
               <i className="fa-solid fa-video" style={{ fontSize: 24, color: "var(--navy)" }} />
               <h3 className="fco-layer-title">Video & Voice Intro</h3>
-              <p className="fco-layer-desc">60-second professional communication and domain screening verified by RCM domain experts.</p>
+              <p className="fco-layer-desc">A 60-second professional introduction gives your hiring team an early view of the candidate's communication skills and professional presence.</p>
             </div>
           </div>
         </div>
@@ -264,10 +299,10 @@ export default function ForCompanies() {
           <div className="fco-section-head">
             <div className="fco-section-eyebrow" style={{ color: "var(--gold-bright)" }}>WHY TRUST TALENTERA</div>
             <h2 className="fco-section-title fco-section-title-dark">
-              Hire faster, scale higher, <span style={{ color: "var(--gold-bright)" }}>zero risk.</span>
+              Hire faster, scale higher, <span style={{ color: "var(--gold-bright)" }}>with more confidence.</span>
             </h2>
             <p className="fco-section-sub fco-section-sub-dark">
-              Built specifically for US healthcare RCM, medical coding, billing, and AR operations.
+              Built specifically for US healthcare RCM, medical coding, billing, and AR operations, Talentera helps hiring teams find and evaluate relevant talent with greater speed and visibility.
             </p>
           </div>
 
@@ -275,37 +310,37 @@ export default function ForCompanies() {
             <div className="fco-benefit-card">
               <div className="fco-benefit-icon"><i className="fa-solid fa-user-check" /></div>
               <h3 className="fco-benefit-title">5 Hand-Curated Shortlists</h3>
-              <p className="fco-benefit-desc">Receive max 5 top-matched, pre-screened candidates within 24 hours instead of 500 unvetted CVs.</p>
+              <p className="fco-benefit-desc">Receive up to 5 top-matched, pre-screened candidates within 24 hours instead of sorting through hundreds of unvetted CVs.</p>
             </div>
 
             <div className="fco-benefit-card">
               <div className="fco-benefit-icon"><i className="fa-solid fa-hand-holding-dollar" /></div>
               <h3 className="fco-benefit-title">Pay-on-Placement Model</h3>
-              <p className="fco-benefit-desc">Zero subscription fees or setup costs. Pay only 30 days after a candidate successfully joins.</p>
+              <p className="fco-benefit-desc">No subscription fees or setup costs. Pay only after a candidate successfully joins, giving you a hiring model aligned with actual placements.</p>
             </div>
 
             <div className="fco-benefit-card">
               <div className="fco-benefit-icon"><i className="fa-solid fa-arrows-rotate" /></div>
               <h3 className="fco-benefit-title">90-Day Free Replacement</h3>
-              <p className="fco-benefit-desc">100% free replacement guarantee if a candidate leaves or fails probation within 90 days.</p>
+              <p className="fco-benefit-desc">Get a free replacement if a hired candidate leaves or does not clear probation within 90 days, subject to Talentera's replacement terms.</p>
             </div>
 
             <div className="fco-benefit-card">
               <div className="fco-benefit-icon"><i className="fa-solid fa-moon" /></div>
               <h3 className="fco-benefit-title">US Shift & Commute Ready</h3>
-              <p className="fco-benefit-desc">Filter candidates specifically for US night shift willingness, locality commute, and notice period.</p>
+              <p className="fco-benefit-desc">Filter candidates based on US night-shift willingness, location, commute preferences, and notice period to improve role compatibility.</p>
             </div>
 
             <div className="fco-benefit-card">
               <div className="fco-benefit-icon"><i className="fa-solid fa-comments" /></div>
               <h3 className="fco-benefit-title">Direct Contact HR Dashboard</h3>
-              <p className="fco-benefit-desc">Reach shortlisted candidates directly via WhatsApp, call, or email from your dashboard.</p>
+              <p className="fco-benefit-desc">Connect with shortlisted candidates directly through WhatsApp, call, or email from your hiring dashboard.</p>
             </div>
 
             <div className="fco-benefit-card">
               <div className="fco-benefit-icon"><i className="fa-solid fa-file-circle-check" /></div>
               <h3 className="fco-benefit-title">Audit-Ready Compliance</h3>
-              <p className="fco-benefit-desc">Instant access to candidate test scorecards, chart accuracy reports, and AAPC verified badges.</p>
+              <p className="fco-benefit-desc">Access candidate assessment scorecards, chart accuracy reports, credential verification details, and verified profile information to support a more informed hiring decision.</p>
             </div>
           </div>
         </div>
@@ -369,14 +404,14 @@ export default function ForCompanies() {
           <div className="fco-section-head">
             <div className="fco-section-eyebrow">PROVEN CORPORATE RESULTS</div>
             <h2 className="fco-section-title">
-              Trusted by leading <span style={{ color: "var(--gold)" }}>US healthcare RCM firms.</span>
+              Trusted by <span style={{ color: "var(--gold)" }}>healthcare RCM hiring teams.</span>
             </h2>
           </div>
 
           <div className="fco-testi-grid">
             <div className="fco-testi-card">
               <p className="fco-testi-quote">
-                "We filled 12 ED Coder seats in 14 days — would have taken our internal talent acquisition team 60 days the traditional agency way."
+                "We filled 12 ED Coder positions in 14 days. Talentera helped us reduce the time spent screening and shortlisting candidates compared with our traditional recruitment process."
               </p>
               <div>
                 <div className="fco-testi-author">Director of Talent Acquisition</div>
@@ -386,7 +421,7 @@ export default function ForCompanies() {
 
             <div className="fco-testi-card">
               <p className="fco-testi-quote">
-                "The live AAPC credential API check eliminated fake certificate submissions completely. Every candidate interviewed was genuinely certified."
+                "The credential verification process gave our hiring team greater confidence in candidate certifications. We were able to review verified AAPC credentials before moving candidates forward."
               </p>
               <div>
                 <div className="fco-testi-author">VP of Global Operations</div>
@@ -396,7 +431,7 @@ export default function ForCompanies() {
 
             <div className="fco-testi-card">
               <p className="fco-testi-quote">
-                "The pay-on-placement model with 90-day replacement guarantee saved us over ₹15 Lakhs in upfront consultancy retainers."
+                "The pay-on-placement model helped us reduce our upfront recruitment costs. The 90-day replacement support also gave our team additional confidence when making hiring decisions."
               </p>
               <div>
                 <div className="fco-testi-author">Head of Human Resources</div>
@@ -426,8 +461,23 @@ export default function ForCompanies() {
                   <span style={{ color: "var(--gold)" }}>{openFaq === idx ? "▲" : "▼"}</span>
                 </div>
                 {openFaq === idx && (
-                  <div style={{ padding: "0 24px 18px", color: "var(--text-muted)", fontSize: 14.5, lineHeight: 1.6 }}>
-                    {faq.a}
+                  <div style={{ padding: "0 24px 20px", color: "var(--text-muted)", fontSize: 14.5, lineHeight: 1.6 }}>
+                    <p style={{ margin: "0 0 12px 0" }}>{faq.a}</p>
+                    {faq.example && (
+                      <div style={{
+                        background: "rgba(10, 31, 61, 0.03)",
+                        borderLeft: "3px solid var(--gold)",
+                        padding: "12px 16px",
+                        borderRadius: "0 8px 8px 0",
+                        fontSize: 13.5,
+                        color: "var(--navy)"
+                      }}>
+                        <strong style={{ display: "block", color: "#b47c18", marginBottom: 4, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                          Real-world example:
+                        </strong>
+                        {faq.example}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -438,23 +488,67 @@ export default function ForCompanies() {
 
       {/* SECTION 8: BOTTOM CTA HERO */}
       <section className="fco-cta-hero">
-        <div className="container">
-          <h2 className="fco-hero-title">
-            Transform your RCM hiring <span style={{ color: "var(--gold-bright)" }}>today.</span>
-          </h2>
-          <p className="fco-hero-sub">
-            Join 342+ RCM companies hiring pre-verified coders and billers across India.
-          </p>
-          <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link to="/companies/register" className="fco-btn-gold" style={{ padding: "14px 36px", fontSize: 16, textDecoration: "none" }}>
-              <i className="fa-solid fa-users" style={{ marginRight: 6 }} /> Browse Candidates →
-            </Link>
-            <Link to="/companies/jobs" className="fco-btn-outline" style={{ padding: "14px 32px", fontSize: 16, textDecoration: "none" }}>
-              + POST A JOB / REQUIREMENT
-            </Link>
-            <Link to="/companies/login" className="fco-btn-outline" style={{ padding: "14px 32px", fontSize: 16 }}>
-              COMPANY LOGIN
-            </Link>
+        <div className="fco-cta-bg-grid" />
+        <div className="fco-cta-glow" />
+
+        <div className="container" style={{ position: "relative", zIndex: 2 }}>
+          <div className="fco-cta-card">
+            {/* Top Pill */}
+            <div className="fco-cta-pill">
+              <span className="fco-cta-pill-dot" />
+              <span>PAY-ON-PLACEMENT · ZERO SUBSCRIPTION FEES · 90-DAY GUARANTEE</span>
+            </div>
+
+            <h2 className="fco-cta-title">
+              Transform your RCM hiring <span className="fco-cta-title-highlight">today.</span>
+            </h2>
+
+            <p className="fco-cta-sub">
+              Join 342+ US healthcare RCM companies hiring pre-verified medical coders, billers, and AR specialists across India.
+            </p>
+
+            {/* Micro value badges */}
+            <div className="fco-cta-perks">
+              <span className="fco-cta-perk">
+                <i className="fa-solid fa-check" /> 5 Shortlists in 24 Hours
+              </span>
+              <span className="fco-cta-perk">
+                <i className="fa-solid fa-check" /> 100% AAPC & AHIMA Verified
+              </span>
+              <span className="fco-cta-perk">
+                <i className="fa-solid fa-check" /> 90-Day Free Replacement
+              </span>
+              <span className="fco-cta-perk">
+                <i className="fa-solid fa-check" /> ₹0 Upfront Retainers
+              </span>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="fco-cta-actions">
+              <Link to="/companies/register" className="fco-cta-btn-primary">
+                <i className="fa-solid fa-users" />
+                <span>Browse Candidates</span>
+                <i className="fa-solid fa-arrow-right fco-btn-arrow" />
+              </Link>
+              <Link to="/companies/jobs" className="fco-cta-btn-secondary">
+                <i className="fa-solid fa-briefcase" />
+                <span>Post a Job / Requirement</span>
+              </Link>
+            </div>
+
+            {/* Member Sign-in Row */}
+            <div className="fco-cta-login-row">
+              <span>Already registered as an employer?</span>
+              <Link to="/companies/login" className="fco-cta-login-link">
+                Log in to Portal →
+              </Link>
+            </div>
+
+            {/* Bottom trust text */}
+            <div className="fco-cta-footer">
+              <i className="fa-solid fa-shield-halved" />
+              <span>Active hiring hubs in Chennai · Hyderabad · Bangalore · Coimbatore · Mumbai · Noida & Pan-India</span>
+            </div>
           </div>
         </div>
       </section>

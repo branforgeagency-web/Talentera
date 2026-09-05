@@ -234,13 +234,13 @@ export default function Landing() {
       tabLabel: "For Academies",
       tabIcon: "fa-solid fa-landmark",
       activeClass: "active-academies",
-      eyebrow: "INSTITUTIONAL ACADEMY NETWORK",
+      eyebrow: "MEDICAL CODING INSTITUTE PARTNERSHIP",
       eyebrowDotColor: "#34D399",
-      tagline: "Turn Training Into Verified Outcomes.",
-      description: "Partner with Talentera to help students demonstrate their skills, build credible professional profiles, and connect training with Healthcare RCM career opportunities.",
+      tagline: "Your Students. Their Careers. One Powerful Medical Coding Institute Partnership.",
+      description: "Partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.",
       primaryCta: { label: "Partner With Talentera", link: "/academy", icon: "fa-solid fa-handshake", cls: "btn-gold" },
       secondaryCta: { label: "Academy Portal Login", link: "/academy/login", icon: "fa-solid fa-graduation-cap", cls: "btn-outline" },
-      ticker: "Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities",
+      ticker: "1-Click Batch Upload • AAPC & AHIMA Verification • ₹2,500 Placement Reward",
       leftCard: {
         pill: "COHORT COCKPIT",
         pillCls: "hero-cand-pill-emerald",
@@ -2396,47 +2396,46 @@ export default function Landing() {
                   className="live-dot"
                   style={{ background: "#34D399", boxShadow: "0 0 8px #34D399", marginRight: 6 }}
                 />
-                FOR TRAINING INSTITUTES & ACADEMIES
+                WHY MEDICAL CODING INSTITUTES CHOOSE TALENTERA
               </div>
               <h2
                 className="section-title section-title-light"
                 style={{ fontSize: "clamp(26px, 3.8vw, 42px)", marginBottom: 16 }}
               >
-                Transform Student Training into Verified Career Placements.
+                A Medical Coding Institute Partnership Built for Student Placement and Career Growth.
               </h2>
               <p style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, marginBottom: 0 }}>
-                Provide your students with structured national assessments, AI mock interviews, and tamper-proof
-                credential badges that connect entire batches directly to hiring employers.
+                From classroom to career — partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.
               </p>
 
               {/* 4 Feature Chips */}
               <div className="partner-feature-grid">
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-landmark partner-feat-icon" style={{ color: "#34D399" }} />
+                  <i className="fa-solid fa-upload partner-feat-icon" style={{ color: "#34D399" }} />
                   <div className="partner-feat-text">
-                    <strong>Batch Management</strong>
-                    <span>Real-time student cohort dashboard</span>
+                    <strong>1-Click Batch Upload</strong>
+                    <span>50+ student profiles in seconds</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-chart-line partner-feat-icon" style={{ color: "#34D399" }} />
+                  <i className="fa-solid fa-shield-halved partner-feat-icon" style={{ color: "#34D399" }} />
                   <div className="partner-feat-text">
-                    <strong>Benchmark Testing</strong>
-                    <span>Standardized proctored exams</span>
+                    <strong>AAPC & AHIMA Verification</strong>
+                    <span>Automated credential verification</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-certificate partner-feat-icon" style={{ color: "#34D399" }} />
+                  <i className="fa-solid fa-building-user partner-feat-icon" style={{ color: "#34D399" }} />
                   <div className="partner-feat-text">
-                    <strong>Institutional Badging</strong>
-                    <span>Tamper-proof verifiable certificates</span>
+                    <strong>Direct Recruiter Access</strong>
+                    <span>Connect with 342+ hiring employers</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-briefcase partner-feat-icon" style={{ color: "#34D399" }} />
+                  <i className="fa-solid fa-sack-dollar partner-feat-icon" style={{ color: "#34D399" }} />
                   <div className="partner-feat-text">
-                    <strong>Corporate Placement</strong>
-                    <span>Direct partner hiring drives</span>
+                    <strong>₹2,500 Placement Reward</strong>
+                    <span>Earn for every eligible candidate hired</span>
                   </div>
                 </div>
               </div>
