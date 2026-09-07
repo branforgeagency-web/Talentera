@@ -212,17 +212,64 @@ router.post("/qr/verify", async (req, res) => {
 // Certification Document Audit Queue in routes/staff.js) — a human completes the real
 // lookup; Talentera staff still make the final verified/rejected call.
 
+async function enrichApplications(applications) {
+  if (!applications || applications.length === 0) return [];
+  const jobIds = applications.map((a) => a.jobId).filter(Boolean);
+  const jobs = await Job.find({ jobId: { $in: jobIds } }).lean();
+  const jobsByJobId = new Map(jobs.map((j) => [j.jobId, j]));
+
+  return applications.map((appDoc) => {
+    const app = typeof appDoc.toObject === "function" ? appDoc.toObject() : { ...appDoc };
+    const job = jobsByJobId.get(app.jobId);
+    const s9 = app.companyId?.stage9 || {};
+    const f = job?.fields || {};
+    return {
+      ...app,
+      roleTitle: f.roletitle || s9.roletitle || "Medical Coder",
+      location: f.location || s9.location || "Hyderabad",
+      workMode: f.workmode || s9.workmode || "Onsite",
+      compMin: f.compmin ?? s9.compmin ?? null,
+      compMax: f.compmax ?? s9.compmax ?? null,
+      companyName: app.companyId?.companyName || "Talentera Employer",
+    };
+  });
+}
+
 // GET /api/candidate/me - full profile
 router.get("/me", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
 
-  const applications = await Application.find({ candidateId: req.candidateId })
+  const rawApplications = await Application.find({ candidateId: req.candidateId })
     .populate("companyId", "companyName stage9 jobId")
     .sort({ createdAt: -1 });
 
-  const scoring = calculateVerificationScore(candidate.completedStages);
+  const applications = await enrichApplications(rawApplications);
+  const scoring = calculateVerificationScore(candidate.completedStages, candidate);
   res.json({ candidate, applications, ...scoring });
+});
+
+// POST /api/candidate/submit - marks candidate profile as submitted for verification
+router.post("/submit", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    candidate.isSubmitted = true;
+    candidate.submittedAt = new Date();
+    await candidate.save();
+
+    const rawApplications = await Application.find({ candidateId: req.candidateId })
+      .populate("companyId", "companyName stage9 jobId")
+      .sort({ createdAt: -1 });
+
+    const applications = await enrichApplications(rawApplications);
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
+    res.json({ candidate, applications, ...scoring, message: "Profile submitted for verification." });
+  } catch (err) {
+    logger.error("Error submitting candidate profile:", err);
+    res.status(500).json({ message: "Failed to submit profile for verification." });
+  }
 });
 
 // PUT /api/candidate/stage/:n - save-on-advance: persists one stage's form data
@@ -1280,10 +1327,11 @@ router.post("/stage8/book-slot", async (req, res) => {
 
 // GET /api/candidate/applications - retrieve candidate's applications
 router.get("/applications", async (req, res) => {
-  const applications = await Application.find({ candidateId: req.candidateId })
+  const rawApplications = await Application.find({ candidateId: req.candidateId })
     .populate("companyId", "companyName stage9 jobId")
     .sort({ createdAt: -1 });
 
+  const applications = await enrichApplications(rawApplications);
   res.json({ applications });
 });
 

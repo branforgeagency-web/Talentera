@@ -14,6 +14,7 @@ import Stage7Resume from "../components/wizard/Stage7Resume.jsx";
 import Stage8Track from "../components/wizard/Stage8Track.jsx";
 import VideoUploadStage from "../components/VideoUploadStage.jsx";
 import Step9Verified from "./Step9Verified.jsx";
+import CandidateDashboard from "./CandidateDashboard.jsx";
 
 const STAGE_COMPONENTS = {
   1: Stage1Aadhaar,
@@ -32,7 +33,8 @@ export default function CandidateWizard() {
   const [profile, setProfile] = useState(null);
   const [activeStageId, setActiveStageId] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [showComplete, setShowComplete] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
+  const [showVerifiedPool, setShowVerifiedPool] = useState(false);
 
   useEffect(() => {
     api
@@ -43,15 +45,29 @@ export default function CandidateWizard() {
         const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
         const isStage1Done = completed.includes(1);
         const stageParam = Number(searchParams.get("stage"));
+        const viewParam = searchParams.get("view");
+
+        if (viewParam === "verified") {
+          setShowVerifiedPool(true);
+          setShowDashboard(false);
+        } else if (viewParam === "dashboard" || candidateObj.isSubmitted) {
+          setShowDashboard(true);
+        } else if (completed.length >= 8) {
+          setShowDashboard(true);
+        }
+
         if (stageParam >= 1 && stageParam <= 8) {
           setActiveStageId(stageParam);
+          if (!viewParam) {
+            setShowDashboard(false);
+            setShowVerifiedPool(false);
+          }
         } else if (!isStage1Done) {
           setActiveStageId(1);
         } else {
           const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));
           if (nextIncomplete) setActiveStageId(nextIncomplete.num);
         }
-        if (completed.length >= 8) setShowComplete(true);
       })
       .catch((err) => {
         console.error(err);
@@ -98,7 +114,8 @@ export default function CandidateWizard() {
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
 
     if (completed.length >= 8) {
-      setShowComplete(true);
+      setShowVerifiedPool(true);
+      setShowDashboard(false);
       return;
     }
 
@@ -120,7 +137,7 @@ export default function CandidateWizard() {
     }
   }
 
-  function handleSubmitForVerification() {
+  async function handleSubmitForVerification() {
     if (!profile) return;
     const candidateObj = profile?.candidate || profile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
@@ -131,7 +148,17 @@ export default function CandidateWizard() {
       setActiveStageId(missing[0].num);
       return;
     }
-    setShowComplete(true);
+
+    try {
+      const res = await api.post("/candidate/submit");
+      if (res.data) setProfile(res.data);
+    } catch (err) {
+      console.warn("Submit endpoint fallback:", err);
+    }
+
+    toast("Profile submitted for verification!", "✓");
+    setShowVerifiedPool(true);
+    setShowDashboard(false);
   }
 
   function handleSaveExit() {
@@ -144,8 +171,29 @@ export default function CandidateWizard() {
     return <div style={{ padding: 40, textAlign: "center" }}>Loading your dashboard…</div>;
   }
 
-  if (showComplete) {
-    return <Step9Verified profile={profile} onOpenDashboard={() => setShowComplete(false)} />;
+  if (showVerifiedPool) {
+    return (
+      <Step9Verified
+        profile={profile}
+        onOpenDashboard={() => {
+          setShowVerifiedPool(false);
+          setShowDashboard(true);
+        }}
+      />
+    );
+  }
+
+  if (showDashboard) {
+    return (
+      <CandidateDashboard
+        profile={profile}
+        onEditStage={(stageNum) => {
+          setActiveStageId(stageNum || 1);
+          setShowDashboard(false);
+          setShowVerifiedPool(false);
+        }}
+      />
+    );
   }
 
   const activeStage = getStage(activeStageId) || WIZARD_STAGES[0];
@@ -155,6 +203,7 @@ export default function CandidateWizard() {
   const isDone = completedStages.includes(activeStage.num);
   const prevStage = WIZARD_STAGES.find((s) => s.num === activeStage.num - 1);
   const StageComponent = STAGE_COMPONENTS[activeStage.num];
+  const canViewDashboard = Boolean(candidateObj?.isSubmitted || completedStages.length >= 1);
 
   return (
     <div className="wiz-shell">
@@ -165,9 +214,16 @@ export default function CandidateWizard() {
         earnedPoints={profile?.score || profile?.earnedPoints || candidateObj?.score || 0}
         onSubmit={handleSubmitForVerification}
         onSaveExit={handleSaveExit}
+        onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
       />
 
-      <WizardStagePane stage={activeStage} isDone={isDone} onPrev={handleSelectStage} prevNum={prevStage?.num}>
+      <WizardStagePane
+        stage={activeStage}
+        isDone={isDone}
+        onPrev={handleSelectStage}
+        prevNum={prevStage?.num}
+        onBackToDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
+      >
         {activeStage.num === 5 && (
           <VideoUploadStage
             stage={{ id: 5, title: activeStage.long, subtitle: activeStage.intro }}

@@ -20,7 +20,7 @@ const RULE_ICONS = {
   lock: <i className="fa-solid fa-lock"></i>
 };
 
-export default function WizardStagePane({ stage, isDone, children, onPrev, prevNum }) {
+export default function WizardStagePane({ stage, isDone, children, onPrev, prevNum, onBackToDashboard }) {
   const navigate = useNavigate();
   const [ticker, setTicker] = useState(HIRING_TICKER);
   const [companies, setCompanies] = useState(HIRING_COMPANIES);
@@ -53,6 +53,29 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
   return (
     <div className="wiz-layout-main">
       <main className="wiz-content" style={{ "--st-1": stage.theme.p1, "--st-2": stage.theme.p2 }}>
+        {onBackToDashboard && (
+          <div style={{ marginBottom: 14 }}>
+            <button
+              type="button"
+              onClick={onBackToDashboard}
+              style={{
+                background: "#0A1F3D",
+                color: "#FFFFFF",
+                border: "none",
+                borderRadius: 8,
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              ← Back to My Dashboard
+            </button>
+          </div>
+        )}
         <section className="wiz-hero">
           <div className="wiz-hero-icon">{STAGE_ICONS[stage.icon] || "•"}</div>
           <div className="wiz-hero-pills">
