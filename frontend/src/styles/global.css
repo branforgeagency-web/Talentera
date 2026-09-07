@@ -9779,3 +9779,11 @@ body {
     border: none !important;
   }
 }
+
+/* Candidate Portal / Dashboard warm cream dot-grid background */
+.cand-cream-dot-bg {
+  background-color: #F6F2EB;
+  background-image: radial-gradient(#D5CEBE 1.5px, transparent 1.5px);
+  background-size: 35px 35px;
+}
+

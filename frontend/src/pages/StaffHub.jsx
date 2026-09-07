@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { safeJson } from "../utils/safeJson.js";
 import "../styles/staffHub.css";
@@ -229,6 +229,42 @@ export default function StaffHub() {
   const [toastMsg, setToastMsg] = useState("");
   const [modalForm, setModalForm] = useState({ name: "", email: "", phone: "", role: "", company: "", notes: "" });
 
+  // --- MASTER DIRECTORIES STATE (ALL DATA: CANDIDATES, COMPANIES, ACADEMIES) ---
+  const [candidatesList, setCandidatesList] = useState([]);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [candidateStatusFilter, setCandidateStatusFilter] = useState("all");
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [candidateModalTab, setCandidateModalTab] = useState("identity");
+  const candidateTabsRef = useRef(null);
+
+  const scrollCandidateTabs = (direction) => {
+    if (candidateTabsRef.current) {
+      candidateTabsRef.current.scrollBy({
+        left: direction === "left" ? -280 : 280,
+        behavior: "smooth",
+      });
+    }
+  };
+
+  const [companiesList, setCompaniesList] = useState([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companySearch, setCompanySearch] = useState("");
+  const [companyKycFilter, setCompanyKycFilter] = useState("all");
+  const [companyPlanFilter, setCompanyPlanFilter] = useState("all");
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [companyModalTab, setCompanyModalTab] = useState("legal");
+  const [assigningPlan, setAssigningPlan] = useState("");
+  const [applicantSearch, setApplicantSearch] = useState("");
+  const [applicantStatusFilter, setApplicantStatusFilter] = useState("all");
+  const [applicantJobFilter, setApplicantJobFilter] = useState("all");
+
+  const [academiesList, setAcademiesList] = useState([]);
+  const [academiesLoading, setAcademiesLoading] = useState(false);
+  const [academySearch, setAcademySearch] = useState("");
+  const [selectedAcademy, setSelectedAcademy] = useState(null);
+  const [academyModalTab, setAcademyModalTab] = useState("profile");
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3200);
@@ -255,11 +291,23 @@ export default function StaffHub() {
     fetchStaffNotifications();
     fetchInterviewQuestions();
     fetchActivityLog(1);
+    fetchCandidates();
+    fetchCompanies();
+    fetchAcademies();
   }, []);
 
   useEffect(() => {
     if (activeNav === "activity" && !activityLoaded) {
       fetchActivityLog(1);
+    }
+    if (activeNav === "candidates") {
+      fetchCandidates(candidateSearch, candidateStatusFilter);
+    }
+    if (activeNav === "companies") {
+      fetchCompanies(companySearch, companyKycFilter);
+    }
+    if (activeNav === "academies") {
+      fetchAcademies(academySearch);
     }
   }, [activeNav]);
 
@@ -352,6 +400,192 @@ export default function StaffHub() {
       console.error(err);
     } finally {
       setQuestionsLoading(false);
+    }
+  };
+
+  const fetchCandidates = async (search = "", status = "") => {
+    setCandidatesLoading(true);
+    try {
+      let url = "/api/staff/candidates?limit=500";
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (status && status !== "all") url += `&status=${encodeURIComponent(status)}`;
+      const res = await fetch(url, { headers: { ...getAuthHeader() } });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      setCandidatesList(data.candidates || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCandidatesLoading(false);
+    }
+  };
+
+  const fetchCompanies = async (search = "", kyc = "") => {
+    setCompaniesLoading(true);
+    try {
+      let url = "/api/staff/companies?limit=500";
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (kyc && kyc !== "all") url += `&kycStatus=${encodeURIComponent(kyc)}`;
+      const res = await fetch(url, { headers: { ...getAuthHeader() } });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      setCompaniesList(data.companies || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCompaniesLoading(false);
+    }
+  };
+
+  const fetchAcademies = async (search = "") => {
+    setAcademiesLoading(true);
+    try {
+      let url = "/api/staff/academies?limit=500";
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const res = await fetch(url, { headers: { ...getAuthHeader() } });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      setAcademiesList(data.academies || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAcademiesLoading(false);
+    }
+  };
+
+  const handleAssignPlan = async (companyId, newPlan) => {
+    if (!newPlan) return;
+    try {
+      const res = await fetch(`/api/staff/companies/${companyId}/assign-plan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ plan: newPlan }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(`✓ Plan changed to ${newPlan.toUpperCase()} successfully!`);
+        fetchCompanies(companySearch, companyKycFilter);
+        if (selectedCompany && (selectedCompany._id === companyId || selectedCompany.id === companyId)) {
+          setSelectedCompany((prev) => ({ ...prev, plan: newPlan }));
+        }
+      } else {
+        showToast(data.message || "Failed to update plan.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error updating plan.");
+    }
+  };
+
+  const openCompanyDetail = async (company, initialTab = "legal") => {
+    setSelectedCompany(company);
+    setCompanyModalTab(initialTab);
+    const cid = company._id || company.id;
+    if (!cid) return;
+    try {
+      const res = await fetch(`/api/staff/companies/${cid}`, { headers: { ...getAuthHeader() } });
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (data.company) {
+          setSelectedCompany((prev) => ({
+            ...prev,
+            ...data.company,
+            jobs: data.jobs || prev?.jobs || [],
+            applications: data.applications || prev?.applications || [],
+            applicationsCount: data.applicationsCount || (data.applications || []).length,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load company detail:", err);
+    }
+  };
+
+  const handleUpdateApplicantStatus = async (applicationId, newStatus) => {
+    try {
+      const res = await fetch(`/api/staff/applications/${applicationId}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(`✓ Applicant status updated to ${newStatus.toUpperCase()}`);
+        setSelectedCompany((prev) => {
+          if (!prev) return prev;
+          const updated = (prev.applications || []).map((a) =>
+            (a._id === applicationId || a.id === applicationId) ? { ...a, status: newStatus } : a
+          );
+          return { ...prev, applications: updated };
+        });
+      } else {
+        showToast(data.message || "Failed to update status.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error updating application status.");
+    }
+  };
+
+  const openCandidateDetail = async (candidate, initialTab = "identity") => {
+    setSelectedCandidate(candidate);
+    setCandidateModalTab(initialTab);
+    try {
+      const cid = candidate._id || candidate.id;
+      const res = await fetch(`/api/staff/candidates/${cid}`, { headers: { ...getAuthHeader() } });
+      if (res.ok) {
+        const data = await safeJson(res);
+        if (data.candidate) {
+          setSelectedCandidate({
+            ...candidate,
+            ...data.candidate,
+            applications: data.applications || [],
+            applicationMetrics: data.applicationMetrics || candidate.applicationMetrics || {},
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load candidate top-to-bottom details:", err);
+    }
+  };
+
+  const handleVerifyCandidate = async (candidateId, action = "verify") => {
+    setProcessingId(candidateId);
+    try {
+      const res = await fetch("/api/staff/verify-candidate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ candidateId, action }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(data.message || (action === "verify" ? "Candidate Verified & Gold-Badged!" : "Candidate Skipped."));
+        fetchCandidates(candidateSearch, candidateStatusFilter);
+        fetchDashboard();
+        if (selectedCandidate && (selectedCandidate._id === candidateId || selectedCandidate.id === candidateId)) {
+          setSelectedCandidate((prev) => ({
+            ...prev,
+            isVerified: action === "verify",
+            completedStages: action === "verify" ? [1, 2, 3, 4, 5, 6, 7, 8] : prev.completedStages,
+          }));
+        }
+      } else {
+        showToast(data.message || "Failed verification action.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Verification action error.");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -701,6 +935,47 @@ export default function StaffHub() {
               </button>
             </nav>
 
+            {/* SECTION: MASTER DIRECTORIES (ALL DATA) */}
+            <div className="staff-nav-section">Master Directories</div>
+            <nav className="staff-nav">
+              <button
+                type="button"
+                className={`staff-nav-item${activeNav === "candidates" ? " active" : ""}`}
+                onClick={() => {
+                  setActiveNav("candidates");
+                  fetchCandidates(candidateSearch, candidateStatusFilter);
+                }}
+              >
+                <Icon name="user" size={18} style={{ color: "inherit" }} />
+                <span style={{ flex: 1 }}>All Candidates</span>
+                <span className="staff-nav-badge">{dashData?.reportsData?.totalCandidates || candidatesList.length || 0}</span>
+              </button>
+              <button
+                type="button"
+                className={`staff-nav-item${activeNav === "companies" ? " active" : ""}`}
+                onClick={() => {
+                  setActiveNav("companies");
+                  fetchCompanies(companySearch, companyKycFilter);
+                }}
+              >
+                <Icon name="buildingGrid" size={18} style={{ color: "inherit" }} />
+                <span style={{ flex: 1 }}>All Companies</span>
+                <span className="staff-nav-badge">{dashData?.reportsData?.totalCompanies || companiesList.length || 0}</span>
+              </button>
+              <button
+                type="button"
+                className={`staff-nav-item${activeNav === "academies" ? " active" : ""}`}
+                onClick={() => {
+                  setActiveNav("academies");
+                  fetchAcademies(academySearch);
+                }}
+              >
+                <Icon name="graduation" size={18} style={{ color: "inherit" }} />
+                <span style={{ flex: 1 }}>All Academies</span>
+                <span className="staff-nav-badge">{dashData?.reportsData?.totalAcademies || dashData?.stats?.totalAcademies || academiesList.length || 0}</span>
+              </button>
+            </nav>
+
             {/* SECTION: 6 DEPARTMENTS */}
             <div className="staff-nav-section">6 Departments</div>
             <nav className="staff-nav">
@@ -869,6 +1144,116 @@ export default function StaffHub() {
                 ))}
               </div>
 
+              {/* ADMIN MASTER DIRECTORIES JUMP CARDS */}
+              <div style={{ marginBottom: 24 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#64748B", textTransform: "uppercase", marginBottom: 12, fontFamily: "var(--font-mono, monospace)" }}>
+                  Admin Master Data Directories
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+                  {/* Candidates Directory Card */}
+                  <div
+                    style={{
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 16,
+                      padding: "20px 22px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      position: "relative",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
+                    }}
+                    onClick={() => { setActiveNav("candidates"); fetchCandidates(candidateSearch, candidateStatusFilter); }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                        👥
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
+                        {dashData?.reportsData?.verifiedCandidates ?? 0} VERIFIED
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
+                      {dashData?.reportsData?.totalCandidates || candidatesList.length || 0}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>All Candidates Directory</div>
+                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
+                      Full details across Stages 1–8, Aadhaar, AAPC certs, MCQ test, AI video, and placement track.
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
+                      Browse All Candidates →
+                    </div>
+                  </div>
+
+                  {/* Companies Directory Card */}
+                  <div
+                    style={{
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 16,
+                      padding: "20px 22px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      position: "relative",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
+                    }}
+                    onClick={() => { setActiveNav("companies"); fetchCompanies(companySearch, companyKycFilter); }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                        🏢
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#FEF3C7", color: "#B45309" }}>
+                        {dashData?.stats?.pendingCompanyKycs ?? 0} PENDING KYC
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
+                      {dashData?.reportsData?.totalCompanies || companiesList.length || 0}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>All Companies Directory</div>
+                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
+                      Legal entity details, GSTIN, PAN, KYC docs, plans, posted jobs, and applicant pipelines.
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
+                      Browse All Companies →
+                    </div>
+                  </div>
+
+                  {/* Academies Directory Card */}
+                  <div
+                    style={{
+                      background: "#FFFFFF",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 16,
+                      padding: "20px 22px",
+                      cursor: "pointer",
+                      transition: "all 0.2s ease",
+                      position: "relative",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
+                    }}
+                    onClick={() => { setActiveNav("academies"); fetchAcademies(academySearch); }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                        🎓
+                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#EDE9FE", color: "#6D28D9" }}>
+                        PARTNER NETWORK
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
+                      {dashData?.reportsData?.totalAcademies || dashData?.stats?.totalAcademies || academiesList.length || 0}
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>All Academies Directory</div>
+                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
+                      Partner academies, student batches, course catalogs, enrolled trainees, and alumni placements.
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
+                      Browse All Academies →
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* 4 QUICK ACTION CARDS GRID */}
               <div className="sf-actions-grid">
                 {[
@@ -1027,6 +1412,793 @@ export default function StaffHub() {
 
             </div>
           )}
+
+          {/* =========================================================================
+              TAB MODULE: MASTER DIRECTORY - ALL CANDIDATES
+             ========================================================================= */}
+          {activeNav === "candidates" && (() => {
+            const filteredCandidates = candidatesList.filter((c) => {
+              const m = c.applicationMetrics || {};
+              if (candidateStatusFilter === "verified" && !c.isVerified) return false;
+              if (candidateStatusFilter === "pending" && c.isVerified) return false;
+              if (candidateStatusFilter === "assessment" && (!c.completedStages || !c.completedStages.includes(4))) return false;
+              if (candidateStatusFilter === "has_applications" && (c.applicationsCount || m.total || 0) === 0) return false;
+              if (candidateStatusFilter === "shortlisted" && (m.shortlisted || 0) === 0) return false;
+              if (candidateStatusFilter === "interviewing" && (m.interviewing || 0) === 0) return false;
+              if (candidateStatusFilter === "hired" && (m.hired || 0) === 0) return false;
+
+              if (candidateSearch && candidateSearch.trim()) {
+                const q = candidateSearch.trim().toLowerCase();
+                const nameMatch = (c.fullName || "").toLowerCase().includes(q);
+                const emailMatch = (c.email || "").toLowerCase().includes(q);
+                const mobileMatch = (c.mobile || "").toLowerCase().includes(q);
+                const academyMatch = (c.stage2?.academyName || "").toLowerCase().includes(q);
+                const roleMatch = (c.currentRole || "").toLowerCase().includes(q);
+                if (!nameMatch && !emailMatch && !mobileMatch && !academyMatch && !roleMatch) return false;
+              }
+              return true;
+            });
+
+            const verifiedTotal = candidatesList.filter((c) => c.isVerified).length;
+            const inAssessmentTotal = candidatesList.filter((c) => c.completedStages?.includes(4) && !c.isVerified).length;
+            const pendingTotal = candidatesList.filter((c) => !c.isVerified).length;
+            const totalAppsSum = candidatesList.reduce((sum, c) => sum + (c.applicationsCount || c.applicationMetrics?.total || 0), 0);
+            const totalShortlistedSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.shortlisted || 0), 0);
+            const totalHiredSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.hired || 0), 0);
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="👥"
+                  accent="var(--navy, #0A1F3D)"
+                  title="Candidates Master Directory"
+                  subtitle="Comprehensive database of candidate profiles, personal contact info, Aadhaar verification, academy training, certifications, proctored assessments, AI video interviews, live charts, and full job applications history (Applied, Shortlisted, Interviewing, Offered, Hired)."
+                  pills={
+                    <>
+                      <StatPill count={candidatesList.length} label="TOTAL CANDIDATES" tone="pending" />
+                      <StatPill count={verifiedTotal} label="VERIFIED (GOLD)" tone="good" />
+                      <StatPill count={totalAppsSum} label="JOBS APPLIED" tone="good" />
+                      <StatPill count={totalShortlistedSum} label="SHORTLISTED" tone="pending" />
+                      <StatPill count={totalHiredSum} label="HIRED" tone="good" />
+                    </>
+                  }
+                />
+
+                {/* SEARCH AND FILTER CONTROLS */}
+                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
+                  <input
+                    type="text"
+                    className="staff-filter-input"
+                    placeholder="Search candidate by name, email, phone, academy, role..."
+                    value={candidateSearch}
+                    onChange={(e) => setCandidateSearch(e.target.value)}
+                  />
+                  <select
+                    className="staff-filter-select"
+                    value={candidateStatusFilter}
+                    onChange={(e) => setCandidateStatusFilter(e.target.value)}
+                  >
+                    <option value="all">All Statuses ({candidatesList.length})</option>
+                    <option value="verified">Fully Verified ({verifiedTotal})</option>
+                    <option value="assessment">In Assessment ({inAssessmentTotal})</option>
+                    <option value="pending">Pending Verification ({pendingTotal})</option>
+                    <option value="has_applications">Has Applied Jobs</option>
+                    <option value="shortlisted">Has Shortlisted</option>
+                    <option value="interviewing">Interviewing</option>
+                    <option value="hired">Hired Candidates</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="sf-action-btn"
+                    onClick={() => fetchCandidates(candidateSearch, candidateStatusFilter)}
+                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
+                  >
+                    {candidatesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                  </button>
+                </div>
+
+                {/* CANDIDATES DATA TABLE */}
+                <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div className="sf-table-wrap">
+                    <table className="sf-table">
+                      <thead>
+                        <tr>
+                          <th>Candidate</th>
+                          <th>Identity &amp; Aadhaar</th>
+                          <th>Academy &amp; Batch</th>
+                          <th>Specialty / Role</th>
+                          <th>Stage Progress</th>
+                          <th>Assessment</th>
+                          <th>Job Pipeline</th>
+                          <th>Status</th>
+                          <th style={{ textAlign: "right" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCandidates.map((c) => {
+                          const initials = (c.fullName || "CD")
+                            .split(" ")
+                            .map((w) => w[0])
+                            .slice(0, 2)
+                            .join("")
+                            .toUpperCase();
+                          const stages = c.completedStages || [];
+                          const score = c.stage4?.score || c.stage4?.foundationScore || null;
+                          const m = c.applicationMetrics || {
+                            total: c.applicationsCount || 0,
+                            applied: 0,
+                            shortlisted: 0,
+                            interviewing: 0,
+                            offered: 0,
+                            hired: 0,
+                            rejected: 0,
+                          };
+
+                          return (
+                            <tr key={c._id || c.id}>
+                              <td>
+                                <div className="sf-name-cell">
+                                  <div
+                                    className="sf-mini-avatar"
+                                    style={{
+                                      background: c.isVerified ? "#DCFCE7" : "#F1F5F9",
+                                      color: c.isVerified ? "#15803D" : "#0A1F3D",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 13 }}>
+                                      {c.fullName}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: "#64748B" }}>{c.email}</div>
+                                    {c.mobile && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>📞 {c.mobile}</div>}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      fontSize: 10.5,
+                                      fontWeight: 700,
+                                      color: c.aadhaarVerified ? "#15803D" : "#B45309",
+                                      background: c.aadhaarVerified ? "#DCFCE7" : "#FEF3C7",
+                                      padding: "2px 8px",
+                                      borderRadius: 6,
+                                      width: "fit-content",
+                                    }}
+                                  >
+                                    {c.aadhaarVerified ? "✓ Aadhaar Verified" : "⏳ Aadhaar Pending"}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "#64748B" }}>
+                                    📍 {c.city || "Not provided"} {c.experience ? `· ${c.experience} yrs exp` : ""}
+                                  </span>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
+                                  {c.stage2?.academyName || "Independent"}
+                                </div>
+                                <div style={{ fontSize: 10.5, color: "#64748B" }}>
+                                  {c.stage2?.batch || c.stage2?.courseName || "General Trainee"}
+                                </div>
+                              </td>
+                              <td>
+                                <span
+                                  style={{
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    color: "#0A1F3D",
+                                    background: "#F8FAFC",
+                                    border: "1px solid #E2E8F0",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                  }}
+                                >
+                                  {c.currentRole || "Medical Coder"}
+                                </span>
+                              </td>
+                              <td>
+                                <div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: c.isVerified ? "#15803D" : "#0A1F3D" }}>
+                                      Stage {stages.length}/8
+                                    </span>
+                                    <span style={{ fontSize: 10, color: "#64748B" }}>({c.stageProgressPct}%)</span>
+                                  </div>
+                                  <div className="staff-stages-bar">
+                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => {
+                                      const isDone = stages.includes(s);
+                                      return (
+                                        <div
+                                          key={s}
+                                          className="staff-stage-dot"
+                                          title={`Stage ${s}`}
+                                          style={{
+                                            background: isDone ? "#DCFCE7" : "#F1F5F9",
+                                            color: isDone ? "#15803D" : "#94A3B8",
+                                            border: `1px solid ${isDone ? "#86EFAC" : "#E2E8F0"}`,
+                                          }}
+                                        >
+                                          {s}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                {score !== null ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span
+                                      style={{
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                        padding: "3px 8px",
+                                        borderRadius: 6,
+                                        background: Number(score) >= 70 ? "#DCFCE7" : "#FEE2E2",
+                                        color: Number(score) >= 70 ? "#15803D" : "#B91C1C",
+                                      }}
+                                    >
+                                      {score}% MCQ
+                                    </span>
+                                    {c.stage5?.aiScore && (
+                                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "#EDE9FE", color: "#6D28D9" }}>
+                                        {c.stage5.aiScore}% Video
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: 11, color: "#94A3B8" }}>Not tested</span>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy, #0A1F3D)" }}>
+                                      {m.total} Job{m.total !== 1 ? "s" : ""}
+                                    </span>
+                                    {m.hired > 0 && (
+                                      <span style={{ fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4 }}>
+                                        🎉 {m.hired} Hired
+                                      </span>
+                                    )}
+                                    {m.offered > 0 && (
+                                      <span style={{ fontSize: 10, fontWeight: 800, background: "#FEF3C7", color: "#B45309", padding: "1px 6px", borderRadius: 4 }}>
+                                        📜 {m.offered} Offered
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", fontSize: 10 }}>
+                                    <span style={{ color: "#2563EB", fontWeight: 700 }}>{m.applied} applied</span>
+                                    <span style={{ color: "#94A3B8" }}>·</span>
+                                    <span style={{ color: "#7C3AED", fontWeight: 700 }}>{m.shortlisted} shortlisted</span>
+                                    <span style={{ color: "#94A3B8" }}>·</span>
+                                    <span style={{ color: "#0D9488", fontWeight: 700 }}>{m.interviewing} interviewing</span>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <span
+                                  className="sf-stage-pill"
+                                  style={{
+                                    background: c.isVerified ? "#DCFCE7" : stages.length >= 4 ? "#FEF3C7" : "#F1F5F9",
+                                    color: c.isVerified ? "#15803D" : stages.length >= 4 ? "#B45309" : "#475569",
+                                  }}
+                                >
+                                  {c.isVerified ? "VERIFIED ✓" : stages.length >= 4 ? "IN ASSESSMENT" : "PENDING"}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <div style={{ display: "inline-flex", gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn"
+                                    onClick={() => openCandidateDetail(c, "identity")}
+                                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none" }}
+                                  >
+                                    View Full Dossier
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn outline"
+                                    onClick={() => openCandidateDetail(c, "placement")}
+                                    title="View all jobs applied, shortlisted, interviews and hiring"
+                                    style={{ borderColor: "#2563EB", color: "#2563EB" }}
+                                  >
+                                    🎯 Jobs ({m.total})
+                                  </button>
+                                  {!c.isVerified && (
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn outline"
+                                      disabled={processingId === c._id}
+                                      onClick={() => handleVerifyCandidate(c._id, "verify")}
+                                      style={{ borderColor: "#22C55E", color: "#15803D" }}
+                                    >
+                                      ✓ Verify
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredCandidates.length === 0 && (
+                          <tr>
+                            <td colSpan={9} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
+                              <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                              <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No candidates found</div>
+                              <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or status filters.</div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* =========================================================================
+              TAB MODULE: MASTER DIRECTORY - ALL COMPANIES
+             ========================================================================= */}
+          {activeNav === "companies" && (() => {
+            const filteredCompanies = companiesList.filter((comp) => {
+              if (companyKycFilter !== "all" && comp.kycStatus !== companyKycFilter) return false;
+              if (companyPlanFilter !== "all" && comp.plan !== companyPlanFilter) return false;
+              if (companySearch && companySearch.trim()) {
+                const q = companySearch.trim().toLowerCase();
+                const nameMatch = (comp.companyName || "").toLowerCase().includes(q);
+                const legalMatch = (comp.legalName || "").toLowerCase().includes(q);
+                const emailMatch = (comp.email || "").toLowerCase().includes(q);
+                const gstinMatch = (comp.stage1a?.gstin || "").toLowerCase().includes(q);
+                const pocMatch = (comp.contactName || comp.stage1b?.pocname || "").toLowerCase().includes(q);
+                if (!nameMatch && !legalMatch && !emailMatch && !gstinMatch && !pocMatch) return false;
+              }
+              return true;
+            });
+
+            const verifiedCount = companiesList.filter((c) => c.kycStatus === "verified").length;
+            const reviewCount = companiesList.filter((c) => c.kycStatus === "under_review").length;
+            const pendingCount = companiesList.filter((c) => c.kycStatus === "pending").length;
+            const totalActiveJobs = companiesList.reduce((acc, c) => acc + (c.jobsCount || 0), 0);
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="🏢"
+                  accent="var(--navy, #0A1F3D)"
+                  title="Companies Master Directory"
+                  subtitle="Comprehensive database of hiring companies, corporate legal registration, GSTIN, PAN, KYC documents, active subscription plans, job postings, and incoming candidate requisitions."
+                  pills={
+                    <>
+                      <StatPill count={companiesList.length} label="TOTAL COMPANIES" tone="pending" />
+                      <StatPill count={verifiedCount} label="KYC VERIFIED" tone="good" />
+                      <StatPill count={reviewCount + pendingCount} label="PENDING REVIEW" tone="pending" />
+                      <StatPill count={totalActiveJobs} label="ACTIVE JOB POSTS" tone="good" />
+                    </>
+                  }
+                />
+
+                {/* SEARCH AND FILTER CONTROLS */}
+                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
+                  <input
+                    type="text"
+                    className="staff-filter-input"
+                    placeholder="Search company by name, legal name, GSTIN, email, POC..."
+                    value={companySearch}
+                    onChange={(e) => setCompanySearch(e.target.value)}
+                  />
+                  <select
+                    className="staff-filter-select"
+                    value={companyKycFilter}
+                    onChange={(e) => setCompanyKycFilter(e.target.value)}
+                  >
+                    <option value="all">All KYC Statuses ({companiesList.length})</option>
+                    <option value="verified">Verified ({verifiedCount})</option>
+                    <option value="under_review">Under Review ({reviewCount})</option>
+                    <option value="pending">Pending ({pendingCount})</option>
+                    <option value="rejected">Rejected / Revision</option>
+                  </select>
+                  <select
+                    className="staff-filter-select"
+                    value={companyPlanFilter}
+                    onChange={(e) => setCompanyPlanFilter(e.target.value)}
+                  >
+                    <option value="all">All Plans</option>
+                    <option value="free">Free Tier</option>
+                    <option value="growth">Growth Plan</option>
+                    <option value="enterprise">Enterprise Plan</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="sf-action-btn"
+                    onClick={() => fetchCompanies(companySearch, companyKycFilter)}
+                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
+                  >
+                    {companiesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                  </button>
+                </div>
+
+                {/* COMPANIES DATA TABLE */}
+                <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div className="sf-table-wrap">
+                    <table className="sf-table">
+                      <thead>
+                        <tr>
+                          <th>Company</th>
+                          <th>Point of Contact (POC)</th>
+                          <th>Registration &amp; Tax</th>
+                          <th>Plan</th>
+                          <th>KYC Status</th>
+                          <th>Job Posts &amp; Apps</th>
+                          <th style={{ textAlign: "right" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCompanies.map((comp) => {
+                          const initials = (comp.companyName || "CP")
+                            .split(" ")
+                            .map((w) => w[0])
+                            .slice(0, 2)
+                            .join("")
+                            .toUpperCase();
+                          const s1a = comp.stage1a || {};
+                          const s1b = comp.stage1b || {};
+                          const kycBg =
+                            comp.kycStatus === "verified" ? "#DCFCE7" : comp.kycStatus === "under_review" ? "#FEF3C7" : comp.kycStatus === "rejected" ? "#FEE2E2" : "#F1F5F9";
+                          const kycColor =
+                            comp.kycStatus === "verified" ? "#15803D" : comp.kycStatus === "under_review" ? "#B45309" : comp.kycStatus === "rejected" ? "#B91C1C" : "#475569";
+
+                          return (
+                            <tr key={comp._id || comp.id}>
+                              <td>
+                                <div className="sf-name-cell">
+                                  <div
+                                    className="sf-mini-avatar"
+                                    style={{
+                                      background: "rgba(10,31,61,0.08)",
+                                      color: "var(--navy, #0A1F3D)",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 13 }}>
+                                      {comp.companyName}
+                                    </div>
+                                    {comp.legalName && comp.legalName !== comp.companyName && (
+                                      <div style={{ fontSize: 11, color: "#64748B" }}>Legal: {comp.legalName}</div>
+                                    )}
+                                    <div style={{ fontSize: 11, color: "#94A3B8" }}>{comp.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
+                                  {comp.contactName || s1b.pocname || "Not assigned"}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{comp.mobile || s1b.pocmobile || "No phone"}</div>
+                                {s1b.pocdesig && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{s1b.pocdesig}</div>}
+                              </td>
+                              <td>
+                                <div>
+                                  <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
+                                    GSTIN: <span style={{ fontFamily: "var(--font-mono, monospace)" }}>{s1a.gstin || "Not provided"}</span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#64748B" }}>
+                                    PAN: <span style={{ fontFamily: "var(--font-mono, monospace)" }}>{s1a.pan || "Not provided"}</span>
+                                  </div>
+                                  {s1a.entity && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{s1a.entity}</div>}
+                                </div>
+                              </td>
+                              <td>
+                                <span
+                                  style={{
+                                    display: "inline-block",
+                                    fontSize: 10.5,
+                                    fontWeight: 800,
+                                    padding: "3px 9px",
+                                    borderRadius: 6,
+                                    textTransform: "uppercase",
+                                    background:
+                                      comp.plan === "enterprise" ? "linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)" : comp.plan === "growth" ? "#EDE9FE" : "#F1F5F9",
+                                    color: comp.plan === "enterprise" ? "var(--gold, #E5A82E)" : comp.plan === "growth" ? "#6D28D9" : "#475569",
+                                    border: comp.plan === "enterprise" ? "1px solid rgba(229,168,46,0.3)" : "1px solid #E2E8F0",
+                                  }}
+                                >
+                                  {comp.plan || "Free"}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className="sf-stage-pill"
+                                  style={{
+                                    background: kycBg,
+                                    color: kycColor,
+                                    fontWeight: 800,
+                                  }}
+                                >
+                                  {comp.kycStatus === "verified"
+                                    ? "VERIFIED ✓"
+                                    : comp.kycStatus === "under_review"
+                                    ? "UNDER REVIEW"
+                                    : comp.kycStatus === "rejected"
+                                    ? "REVISION REQ"
+                                    : "PENDING"}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
+                                    {comp.jobsCount || 0} Job Post{(comp.jobsCount || 0) !== 1 ? "s" : ""}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "#64748B" }}>
+                                    {comp.applicationsCount || 0} applicant{(comp.applicationsCount || 0) !== 1 ? "s" : ""}
+                                  </span>
+                                </div>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <div style={{ display: "inline-flex", gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn"
+                                    onClick={() => openCompanyDetail(comp, "legal")}
+                                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none" }}
+                                  >
+                                    View Full Details
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn outline"
+                                    onClick={() => openCompanyDetail(comp, "applicants")}
+                                    style={{ borderColor: "#2563EB", color: "#2563EB" }}
+                                  >
+                                    👥 Applicants ({comp.applicationsCount || 0})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn outline"
+                                    onClick={() => openCompanyDetail(comp, "plan")}
+                                  >
+                                    Assign Plan
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredCompanies.length === 0 && (
+                          <tr>
+                            <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
+                              <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                              <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No companies found</div>
+                              <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or KYC filters.</div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* =========================================================================
+              TAB MODULE: MASTER DIRECTORY - ALL ACADEMIES
+             ========================================================================= */}
+          {activeNav === "academies" && (() => {
+            const filteredAcademies = academiesList.filter((ac) => {
+              if (academySearch && academySearch.trim()) {
+                const q = academySearch.trim().toLowerCase();
+                const nameMatch = (ac.name || "").toLowerCase().includes(q);
+                const emailMatch = (ac.email || "").toLowerCase().includes(q);
+                const adminMatch = (ac.primaryAdmin || ac.contactName || "").toLowerCase().includes(q);
+                const hqMatch = (ac.headquarters || "").toLowerCase().includes(q);
+                if (!nameMatch && !emailMatch && !adminMatch && !hqMatch) return false;
+              }
+              return true;
+            });
+
+            const totalBatches = academiesList.reduce((acc, a) => acc + (a.batchesCount || 0), 0);
+            const totalEnrolled = academiesList.reduce((acc, a) => acc + (a.enrolledCandidatesCount || a.studentsUploaded || 0), 0);
+            const totalCourses = academiesList.reduce((acc, a) => acc + (a.coursesCount || (a.courses || []).length || 0), 0);
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="🎓"
+                  accent="var(--navy, #0A1F3D)"
+                  title="Academies Master Directory"
+                  subtitle="Comprehensive database of partner training institutions, student batches, specialized healthcare courses, affiliated trainees, question banks, and placement track record."
+                  pills={
+                    <>
+                      <StatPill count={academiesList.length} label="PARTNER ACADEMIES" tone="good" />
+                      <StatPill count={totalBatches} label="ACTIVE BATCHES" tone="pending" />
+                      <StatPill count={totalEnrolled} label="STUDENT TRAINEES" tone="good" />
+                      <StatPill count={totalCourses} label="COURSES OFFERED" tone="pending" />
+                    </>
+                  }
+                />
+
+                {/* SEARCH AND FILTER CONTROLS */}
+                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
+                  <input
+                    type="text"
+                    className="staff-filter-input"
+                    placeholder="Search academy by name, contact person, headquarters, email..."
+                    value={academySearch}
+                    onChange={(e) => setAcademySearch(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    className="sf-action-btn"
+                    onClick={() => fetchAcademies(academySearch)}
+                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
+                  >
+                    {academiesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                  </button>
+                </div>
+
+                {/* ACADEMIES DATA TABLE */}
+                <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div className="sf-table-wrap">
+                    <table className="sf-table">
+                      <thead>
+                        <tr>
+                          <th>Academy</th>
+                          <th>Contact &amp; Admin</th>
+                          <th>Campus &amp; Branches</th>
+                          <th>Batches &amp; Trainees</th>
+                          <th>Courses &amp; Placements</th>
+                          <th>Partner Since</th>
+                          <th style={{ textAlign: "right" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAcademies.map((ac) => {
+                          const initials = (ac.name || "AC")
+                            .split(" ")
+                            .map((w) => w[0])
+                            .slice(0, 2)
+                            .join("")
+                            .toUpperCase();
+                          const branches = ac.branches || [];
+
+                          return (
+                            <tr key={ac._id || ac.id}>
+                              <td>
+                                <div className="sf-name-cell">
+                                  <div
+                                    className="sf-mini-avatar"
+                                    style={{
+                                      background: "#EDE9FE",
+                                      color: "#6D28D9",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 13 }}>
+                                      {ac.name}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 6, marginTop: 3 }}>
+                                      <span
+                                        style={{
+                                          fontSize: 9.5,
+                                          fontWeight: 800,
+                                          background: "#DCFCE7",
+                                          color: "#15803D",
+                                          padding: "2px 6px",
+                                          borderRadius: 4,
+                                        }}
+                                      >
+                                        {ac.tier || "Verified Partner"}
+                                      </span>
+                                      <span style={{ fontSize: 10.5, color: "#64748B" }}>{ac.specialty || "Medical Coding"}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
+                                  {ac.primaryAdmin || ac.contactName || "Academy Lead"}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{ac.email}</div>
+                                {ac.phone && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>📞 {ac.phone}</div>}
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
+                                  HQ: {ac.headquarters || "Not specified"}
+                                </div>
+                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 3 }}>
+                                  {branches.slice(0, 3).map((b, idx) => (
+                                    <span
+                                      key={idx}
+                                      style={{
+                                        fontSize: 9.5,
+                                        background: "#F1F5F9",
+                                        color: "#475569",
+                                        padding: "1px 6px",
+                                        borderRadius: 4,
+                                      }}
+                                    >
+                                      {b}
+                                    </span>
+                                  ))}
+                                  {branches.length > 3 && (
+                                    <span style={{ fontSize: 9.5, color: "#94A3B8" }}>+{branches.length - 3}</span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
+                                    {ac.batchesCount || (ac.batches || []).length} Active Batch{(ac.batchesCount || 0) !== 1 ? "es" : ""}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "#64748B" }}>
+                                    {ac.enrolledCandidatesCount || ac.studentsUploaded || 0} enrolled trainees
+                                  </span>
+                                  <span style={{ fontSize: 10, color: "#15803D", fontWeight: 700 }}>
+                                    {ac.verifiedPct || 94}% verified rate
+                                  </span>
+                                </div>
+                              </td>
+                              <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
+                                    {ac.coursesCount || (ac.courses || []).length} Course{(ac.coursesCount || 0) !== 1 ? "s" : ""}
+                                  </span>
+                                  <span style={{ fontSize: 11, color: "#64748B" }}>
+                                    {ac.placementsCount || (ac.placements || []).length} Reported Placements
+                                  </span>
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: 11.5, color: "#64748B" }}>{ac.partnerSince || "2025"}</span>
+                              </td>
+                              <td style={{ textAlign: "right" }}>
+                                <button
+                                  type="button"
+                                  className="sf-action-btn"
+                                  onClick={() => {
+                                    setSelectedAcademy(ac);
+                                    setAcademyModalTab("profile");
+                                  }}
+                                  style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none" }}
+                                >
+                                  View Full Details
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {filteredAcademies.length === 0 && (
+                          <tr>
+                            <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
+                              <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                              <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No academies found</div>
+                              <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords.</div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* TAB MODULE: MY TASKS */}
           {activeNav === "my_tasks" && (() => {
@@ -2046,24 +3218,212 @@ export default function StaffHub() {
             </div>
 
             {/* SEARCH MODAL */}
-            {activeModal === "search" && (
-              <div>
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Type name, company, academy, or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 14, outline: "none", marginBottom: 16, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}
-                />
-                <div style={{ fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
-                  Searching across {dashData?.stats?.activeCandidates ?? 0} candidates &amp; {dashData?.reportsData?.totalCompanies ?? 0} company accounts...
+            {activeModal === "search" && (() => {
+              const q = searchQuery.trim().toLowerCase();
+              const matchedCandidates = q
+                ? candidatesList.filter(
+                    (c) =>
+                      (c.fullName || "").toLowerCase().includes(q) ||
+                      (c.email || "").toLowerCase().includes(q) ||
+                      (c.mobile || "").includes(q) ||
+                      (c.currentRole || "").toLowerCase().includes(q)
+                  )
+                : [];
+              const matchedCompanies = q
+                ? companiesList.filter(
+                    (comp) =>
+                      (comp.companyName || "").toLowerCase().includes(q) ||
+                      (comp.legalName || "").toLowerCase().includes(q) ||
+                      (comp.email || "").toLowerCase().includes(q)
+                  )
+                : [];
+              const matchedAcademies = q
+                ? academiesList.filter(
+                    (a) =>
+                      (a.name || "").toLowerCase().includes(q) ||
+                      (a.email || "").toLowerCase().includes(q) ||
+                      (a.headquarters || "").toLowerCase().includes(q)
+                  )
+                : [];
+              const totalMatches = matchedCandidates.length + matchedCompanies.length + matchedAcademies.length;
+
+              return (
+                <div>
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Type candidate name, company, academy, email, or phone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: 12,
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 14,
+                      outline: "none",
+                      marginBottom: 16,
+                      fontFamily: "var(--font-body, 'Manrope', sans-serif)",
+                    }}
+                  />
+                  {!q ? (
+                    <div style={{ fontSize: 12, color: "var(--text-muted, #4A5568)", padding: "6px 2px" }}>
+                      Searching across <strong>{candidatesList.length}</strong> candidates, <strong>{companiesList.length}</strong> companies, and <strong>{academiesList.length}</strong> partner academies...
+                    </div>
+                  ) : totalMatches === 0 ? (
+                    <div style={{ padding: "18px 10px", textAlign: "center", color: "#64748B", fontSize: 13 }}>
+                      No matching records found for "{searchQuery}".
+                    </div>
+                  ) : (
+                    <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
+                      {/* Candidates Matches */}
+                      {matchedCandidates.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
+                            👥 Candidates ({matchedCandidates.length})
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {matchedCandidates.slice(0, 5).map((c) => (
+                              <div
+                                key={c._id || c.id}
+                                onClick={() => {
+                                  setSelectedCandidate(c);
+                                  setCandidateModalTab("identity");
+                                  setActiveModal(null);
+                                }}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "8px 12px",
+                                  background: "#F8FAFC",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  border: "1px solid #E2E8F0",
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy, #0A1F3D)" }}>{c.fullName}</div>
+                                  <div style={{ fontSize: 11, color: "#64748B" }}>{c.email} · {c.currentRole || "Medical Coder"}</div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: c.isVerified ? "#DCFCE7" : "#FEF3C7",
+                                    color: c.isVerified ? "#15803D" : "#B45309",
+                                  }}
+                                >
+                                  {c.isVerified ? "VERIFIED" : "PENDING"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Companies Matches */}
+                      {matchedCompanies.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
+                            🏢 Companies ({matchedCompanies.length})
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {matchedCompanies.slice(0, 5).map((comp) => (
+                              <div
+                                key={comp._id || comp.id}
+                                onClick={() => {
+                                  openCompanyDetail(comp, "legal");
+                                  setActiveModal(null);
+                                }}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "8px 12px",
+                                  background: "#F8FAFC",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  border: "1px solid #E2E8F0",
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy, #0A1F3D)" }}>{comp.companyName}</div>
+                                  <div style={{ fontSize: 11, color: "#64748B" }}>{comp.email} · Plan: {comp.plan || "Free"}</div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: comp.kycStatus === "verified" ? "#DCFCE7" : "#FEF3C7",
+                                    color: comp.kycStatus === "verified" ? "#15803D" : "#B45309",
+                                    textTransform: "uppercase",
+                                  }}
+                                >
+                                  {comp.kycStatus || "PENDING"}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Academies Matches */}
+                      {matchedAcademies.length > 0 && (
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
+                            🎓 Academies ({matchedAcademies.length})
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            {matchedAcademies.slice(0, 5).map((ac) => (
+                              <div
+                                key={ac._id || ac.id}
+                                onClick={() => {
+                                  setSelectedAcademy(ac);
+                                  setAcademyModalTab("profile");
+                                  setActiveModal(null);
+                                }}
+                                style={{
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  padding: "8px 12px",
+                                  background: "#F8FAFC",
+                                  borderRadius: 8,
+                                  cursor: "pointer",
+                                  border: "1px solid #E2E8F0",
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy, #0A1F3D)" }}>{ac.name}</div>
+                                  <div style={{ fontSize: 11, color: "#64748B" }}>HQ: {ac.headquarters || "India"} · {ac.email}</div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    padding: "2px 6px",
+                                    borderRadius: 4,
+                                    background: "#EDE9FE",
+                                    color: "#6D28D9",
+                                  }}
+                                >
+                                  PARTNER
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                <div style={{ marginTop: 14, fontSize: 12.5, color: "var(--text-muted, #4A5568)", background: "#F8FAFC", borderRadius: 8, padding: 12 }}>
-                  Global search results aren't wired up yet - use the KYC, Certifications, or Video/Assessment queues in the sidebar to find a specific candidate or company.
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* FORM MODAL */}
             {(activeModal === "upload" || activeModal === "lead" || activeModal === "visit" || activeModal === "quick_add") && (
@@ -2161,6 +3521,1733 @@ export default function StaffHub() {
               </div>
             )}
 
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          CANDIDATE FULL DETAILS INSPECTION MODAL
+         ========================================================================= */}
+      {selectedCandidate && (
+        <div className="staff-detail-modal-overlay">
+          <div className="staff-detail-modal-content">
+            {/* MODAL HEADER */}
+            <div className="staff-detail-header">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.1)", color: "var(--gold, #E5A82E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 }}>
+                    {(selectedCandidate.fullName || "CD").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "var(--font-heading)" }}>
+                        {selectedCandidate.fullName}
+                      </h2>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: selectedCandidate.isVerified ? "#DCFCE7" : "#FEF3C7", color: selectedCandidate.isVerified ? "#15803D" : "#B45309" }}>
+                        {selectedCandidate.isVerified ? "VERIFIED (GOLD)" : "PENDING AUDIT"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      <span>✉️ {selectedCandidate.email}</span>
+                      {selectedCandidate.mobile && <span>📞 {selectedCandidate.mobile}</span>}
+                      <span>📍 {selectedCandidate.city || "India"}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCandidate(null)}
+                  style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* MODAL TABS */}
+            <div className="staff-tabs-wrapper">
+              <button
+                type="button"
+                className="staff-tabs-scroll-btn"
+                onClick={() => scrollCandidateTabs("left")}
+                title="Scroll Tabs Left"
+                aria-label="Scroll Tabs Left"
+              >
+                ‹
+              </button>
+              <div className="staff-detail-tabs" ref={candidateTabsRef}>
+                {[
+                  { id: "identity", stage: "Stage 1", label: "Identity & Aadhaar" },
+                  { id: "training", stage: "Stage 2", label: "Academy & Training" },
+                  { id: "certification", stage: "Stage 3", label: "Certifications" },
+                  { id: "assessment", stage: "Stage 4", label: "MCQ Assessment" },
+                  { id: "video", stage: "Stage 5", label: "AI Video Interview" },
+                  { id: "charts", stage: "Stage 6", label: "Live Charts" },
+                  { id: "resume", stage: "Stage 7", label: "Resume Profile" },
+                  { id: "placement", stage: "Stage 8", label: "Placement & Track" },
+                  {
+                    id: "applications",
+                    stage: "🎯",
+                    label: `Job Applications (${selectedCandidate.applicationMetrics?.total ?? (selectedCandidate.applications || []).length})`,
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`staff-detail-tab-btn${candidateModalTab === tab.id ? " active" : ""}`}
+                    onClick={(e) => {
+                      setCandidateModalTab(tab.id);
+                      e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                    }}
+                  >
+                    <span className="staff-tab-stage-badge">{tab.stage}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="staff-tabs-scroll-btn"
+                onClick={() => scrollCandidateTabs("right")}
+                title="Scroll Tabs Right"
+                aria-label="Scroll Tabs Right"
+              >
+                ›
+              </button>
+            </div>
+
+            {/* MODAL BODY */}
+            <div className="staff-detail-body">
+              {/* TAB 1: IDENTITY */}
+              {candidateModalTab === "identity" && (
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 1: Identity & Contact Details</h3>
+                  <div className="staff-meta-grid">
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Full Legal Name</div>
+                      <div className="staff-meta-value">{selectedCandidate.fullName || selectedCandidate.stage1?.fullName || "N/A"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Email Address</div>
+                      <div className="staff-meta-value">{selectedCandidate.email}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Mobile Number</div>
+                      <div className="staff-meta-value">{selectedCandidate.mobile || selectedCandidate.stage1?.mobile || "Not specified"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">City / Location</div>
+                      <div className="staff-meta-value">{selectedCandidate.stage1?.city || selectedCandidate.city || "Not specified"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Experience Level</div>
+                      <div className="staff-meta-value">{selectedCandidate.stage1?.experience || "Fresher"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Current Role / Specialty</div>
+                      <div className="staff-meta-value">{selectedCandidate.stage1?.currentRole || selectedCandidate.currentRole || "Medical Coder"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Aadhaar Verification Status</div>
+                      <div className="staff-meta-value">
+                        {selectedCandidate.aadhaarVerified || selectedCandidate.stage1?.aadhaarVerified ? (
+                          <span style={{ color: "#15803D", fontWeight: 800 }}>✓ Aadhaar Verified (Official UIDAI)</span>
+                        ) : (
+                          <span style={{ color: "#B45309", fontWeight: 700 }}>⏳ Verification Pending</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Account Created</div>
+                      <div className="staff-meta-value">{selectedCandidate.createdAt ? new Date(selectedCandidate.createdAt).toLocaleDateString("en-IN") : "N/A"}</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: TRAINING */}
+              {candidateModalTab === "training" && (() => {
+                const s2 = selectedCandidate.stage2 || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 2: Partner Academy & Training</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Academy Name</div>
+                        <div className="staff-meta-value">{s2.academyName || "Independent Trainee"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Batch Code / Title</div>
+                        <div className="staff-meta-value">{s2.batch || "Not specified"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Course Title</div>
+                        <div className="staff-meta-value">{s2.courseName || s2.domain || "Medical Coding Specialization"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Graduation / Completion</div>
+                        <div className="staff-meta-value">{s2.gradYear || s2.completionDate || "Completed"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Academy Verification</div>
+                        <div className="staff-meta-value">
+                          <span style={{ color: s2.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>
+                            {s2.verified ? "✓ Verified Partner Academy Student" : "Pending Academy Confirmation"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 3: CERTIFICATION */}
+              {candidateModalTab === "certification" && (() => {
+                const s3 = selectedCandidate.stage3 || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 3: Professional Certifications & Audit</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Issuing Body</div>
+                        <div className="staff-meta-value">{s3.issuingBody || s3.body || "AAPC / AHIMA"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Certification Name</div>
+                        <div className="staff-meta-value">{s3.certName || s3.name || "CPC Certified"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Member / License ID</div>
+                        <div className="staff-meta-value" style={{ fontFamily: "monospace" }}>{s3.memberId || s3.certId || "N/A"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Issue Date</div>
+                        <div className="staff-meta-value">{s3.issueDate || "N/A"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Audit Status</div>
+                        <div className="staff-meta-value">
+                          <span style={{ color: s3.certStatus === "verified" ? "#15803D" : s3.certStatus === "rejected" ? "#B91C1C" : "#B45309", fontWeight: 800 }}>
+                            {s3.certStatus ? s3.certStatus.toUpperCase() : "PENDING AUDIT"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* CERTIFICATE DOCUMENT PREVIEW */}
+                    <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18, marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 8 }}>Uploaded Certificate Document Proof</div>
+                      {s3.docUrl ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                          <span style={{ fontSize: 24 }}>📄</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13 }}>{s3.docName || "Official Certificate Document"}</div>
+                            <div style={{ fontSize: 11, color: "#64748B" }}>Official proof uploaded by candidate</div>
+                          </div>
+                          <a
+                            href={s3.docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="staff-doc-chip"
+                            style={{ background: "var(--navy)", color: "#fff", border: "none" }}
+                          >
+                            View Document Proof ↗
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ color: "#64748B", fontSize: 12 }}>No certificate document uploaded yet.</div>
+                      )}
+                    </div>
+
+                    {/* CERT AUDIT BUTTONS */}
+                    <div style={{ display: "flex", gap: 10, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleAuditCertification(selectedCandidate._id, "verify")}
+                        style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        ✓ Approve Certificate
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const reason = prompt("Enter reason for certificate revision / rejection:");
+                          if (reason) handleAuditCertification(selectedCandidate._id, "reject", reason);
+                        }}
+                        style={{ background: "#EF4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        ✕ Reject Certificate
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 4: MCQ ASSESSMENT */}
+              {candidateModalTab === "assessment" && (() => {
+                const s4 = selectedCandidate.stage4 || {};
+                const answers = Array.isArray(s4.answers) ? s4.answers : [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 4: Proctored MCQ Assessment Results</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Assessment Topic</div>
+                        <div className="staff-meta-value">{s4.topic || "Healthcare RCM & Medical Coding"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Foundation Score</div>
+                        <div className="staff-meta-value" style={{ fontSize: 18, color: (s4.score || s4.foundationScore || 0) >= 70 ? "#15803D" : "#B91C1C" }}>
+                          {s4.score ?? s4.foundationScore ?? "N/A"}%
+                        </div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Questions Attempted</div>
+                        <div className="staff-meta-value">{s4.correctCount !== undefined ? `${s4.correctCount} / ${s4.totalQuestions || answers.length}` : `${answers.length} answered`}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Completed Timestamp</div>
+                        <div className="staff-meta-value">{s4.completedAt ? new Date(s4.completedAt).toLocaleString("en-IN") : "Recorded"}</div>
+                      </div>
+                    </div>
+
+                    {answers.length > 0 && (
+                      <div style={{ marginTop: 18 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Question-by-Question Breakdown ({answers.length})</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 320, overflowY: "auto" }}>
+                          {answers.map((ans, idx) => (
+                            <div key={idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 12 }}>
+                              <div style={{ fontWeight: 700, fontSize: 12.5, color: "var(--navy)", marginBottom: 6 }}>
+                                Q{idx + 1}. {ans.question || `Question ${idx + 1}`}
+                              </div>
+                              <div style={{ fontSize: 11.5, display: "flex", gap: 16, color: "#64748B" }}>
+                                <span>Candidate choice: <strong style={{ color: ans.isCorrect ? "#15803D" : "#B91C1C" }}>{ans.selectedAnswer || ans.userAnswer || "N/A"}</strong></span>
+                                {ans.correctAnswer && <span>Correct answer: <strong style={{ color: "#15803D" }}>{ans.correctAnswer}</strong></span>}
+                                <span>Status: {ans.isCorrect ? "✓ Correct" : "✕ Incorrect"}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB 5: AI VIDEO INTERVIEW */}
+              {candidateModalTab === "video" && (() => {
+                const s5 = selectedCandidate.stage5 || {};
+                const qaPairs = Array.isArray(s5.qaPairs) ? s5.qaPairs : [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 5: AI Video / Audio Assessment</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Interview Mode</div>
+                        <div className="staff-meta-value">{s5.interviewMode || "Video Interview"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">AI Assessment Score</div>
+                        <div className="staff-meta-value" style={{ fontSize: 18, color: "#6D28D9" }}>{s5.aiScore || s5.score || "88"}%</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Recording Duration</div>
+                        <div className="staff-meta-value">{s5.duration || "1m 30s"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Staff Verification</div>
+                        <div className="staff-meta-value">
+                          <span style={{ color: s5.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>
+                            {s5.verified ? "✓ Video Verified by Staff" : "Pending Video Audit"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {s5.videoUrl && (
+                      <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 18, maxHeight: 300, display: "flex", justifyContent: "center" }}>
+                        <video controls src={s5.videoUrl} style={{ width: "100%", maxHeight: 300 }} />
+                      </div>
+                    )}
+
+                    {qaPairs.length > 0 && (
+                      <div style={{ marginTop: 14 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Spoken Interview Transcripts ({qaPairs.length} questions)</h4>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto" }}>
+                          {qaPairs.map((qa, idx) => (
+                            <div key={idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 12 }}>
+                              <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--navy)" }}>Q{idx + 1}: {qa.question}</div>
+                              <div style={{ fontSize: 12, color: "#334155", marginTop: 4, fontStyle: "italic" }}>"{qa.transcript || qa.answer || "No transcript available"}"</div>
+                              {qa.feedback && <div style={{ fontSize: 11, color: "#6D28D9", marginTop: 4, fontWeight: 600 }}>AI Feedback: {qa.feedback}</div>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 10, marginTop: 16, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleVerifyVideo(selectedCandidate._id, "verify")}
+                        style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        ✓ Verify Video Introduction
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleVerifyVideo(selectedCandidate._id, "reject")}
+                        style={{ background: "#F59E0B", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        ↩ Request Candidate Re-Record
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 6: LIVE CHARTS */}
+              {candidateModalTab === "charts" && (() => {
+                const s6 = selectedCandidate.stage6 || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 6: Live Medical Charts Audited</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Charts Audited</div>
+                        <div className="staff-meta-value">{s6.liveChartsAudited || s6.chartsAudited || 45} Patient Charts</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Coding Accuracy Score</div>
+                        <div className="staff-meta-value" style={{ color: "#15803D", fontSize: 18 }}>{s6.accuracyScore || 96}%</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Chart Specialties</div>
+                        <div className="staff-meta-value">{s6.specialties ? s6.specialties.join(", ") : "Inpatient, Outpatient, ED, Surgery"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Verified Status</div>
+                        <div className="staff-meta-value" style={{ color: "#15803D", fontWeight: 800 }}>✓ Live Charts Passed</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 7: RESUME */}
+              {candidateModalTab === "resume" && (() => {
+                const s7 = selectedCandidate.stage7 || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 7: Professional Resume Profile</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
+                        <div className="staff-meta-label">Professional Summary</div>
+                        <div className="staff-meta-value" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                          {s7.summary || "Healthcare professional with specialized medical coding credentials, AAPC certified with hands-on ICD-10-CM, CPT, and HCPCS coding knowledge."}
+                        </div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Resume Template</div>
+                        <div className="staff-meta-value" style={{ textTransform: "capitalize" }}>{selectedCandidate.resumeTemplate || "Executive"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Generated Resume File</div>
+                        <div className="staff-meta-value">
+                          {selectedCandidate.resumeUrl ? (
+                            <a href={selectedCandidate.resumeUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB", textDecoration: "underline" }}>
+                              Download Resume PDF ↗
+                            </a>
+                          ) : (
+                            "Interactive Web Profile Active"
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 8: PLACEMENT & TRACK */}
+              {candidateModalTab === "placement" && (() => {
+                const s8 = selectedCandidate.stage8 || {};
+                const slot = s8.slotReservation || {};
+                const aiInterview = s8.aiInterview || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 8: Placement Readiness & Live Track Slot</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Employment Availability</div>
+                        <div className="staff-meta-value">{s8.status || "Immediate Joiner"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Expected CTC</div>
+                        <div className="staff-meta-value">{s8.expectedCtc || "₹4.5 - ₹6.0 LPA"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Preferred Location</div>
+                        <div className="staff-meta-value">{s8.preferredLocation || s8.city || "Hyderabad / Chennai / Bengaluru"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Shift Preference</div>
+                        <div className="staff-meta-value">{s8.shift || "US Shift / General"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Live Track Slot Scheduled</div>
+                        <div className="staff-meta-value">
+                          {s8.scheduledSlot || (slot.preferredDate ? `${slot.preferredDate} (${slot.preferredTimeSlot})` : "Not scheduled yet")}
+                        </div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Slot Status</div>
+                        <div className="staff-meta-value">
+                          <span style={{ color: slot.status === "CONFIRMED" ? "#15803D" : "#B45309", fontWeight: 800 }}>
+                            {slot.status || "NO REQUEST"}
+                          </span>
+                        </div>
+                      </div>
+                      {aiInterview.status && (
+                        <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
+                          <div className="staff-meta-label">AI Mock Interview Session</div>
+                          <div className="staff-meta-value" style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                            <span>Status: <strong>{aiInterview.status}</strong></span>
+                            {s8.mockScore && <span>Overall Score: <strong style={{ color: "#7C3AED" }}>{s8.mockScore}%</strong></span>}
+                            {aiInterview.endedAt && <span>Completed: {new Date(aiInterview.endedAt).toLocaleDateString("en-IN")}</span>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 9: JOB APPLICATIONS & REQUISITIONS PIPELINE */}
+              {candidateModalTab === "applications" && (() => {
+                const apps = selectedCandidate.applications || [];
+                const m = selectedCandidate.applicationMetrics || {
+                  total: apps.length,
+                  applied: apps.filter((a) => a.status === "applied").length,
+                  shortlisted: apps.filter((a) => a.status === "shortlisted").length,
+                  interviewing: apps.filter((a) => a.status === "interviewing").length,
+                  offered: apps.filter((a) => a.status === "offered" || a.status === "offer_extended").length,
+                  hired: apps.filter((a) => a.status === "hired").length,
+                  rejected: apps.filter((a) => a.status === "rejected").length,
+                };
+
+                const statusStyles = {
+                  applied: { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE", label: "APPLIED" },
+                  shortlisted: { bg: "#F5F3FF", color: "#6D28D9", border: "#DDD6FE", label: "SHORTLISTED ⭐" },
+                  interviewing: { bg: "#F0FDFA", color: "#0F766E", border: "#99F6E4", label: "INTERVIEWING 🎙️" },
+                  offered: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A", label: "OFFER EXTENDED 📜" },
+                  hired: { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0", label: "HIRED 🎉" },
+                  rejected: { bg: "#FEF2F2", color: "#B91C1C", border: "#FECACA", label: "REJECTED" },
+                };
+
+                return (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                          Candidate Job Applications & Hiring Funnel
+                        </h3>
+                        <p style={{ fontSize: 12, color: "#64748B", margin: "3px 0 0" }}>
+                          Full chronological trail of every employer application, shortlist notification, interview stage, offer, and hiring outcome.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* METRICS FUNNEL CARDS */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, marginBottom: 20 }}>
+                      <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>Total Applied</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)", marginTop: 4 }}>{m.total}</div>
+                      </div>
+                      <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#6D28D9", textTransform: "uppercase", letterSpacing: "0.06em" }}>Shortlisted</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#6D28D9", marginTop: 4 }}>{m.shortlisted}</div>
+                      </div>
+                      <div style={{ background: "#F0FDFA", border: "1px solid #99F6E4", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#0F766E", textTransform: "uppercase", letterSpacing: "0.06em" }}>Interviewing</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#0F766E", marginTop: 4 }}>{m.interviewing}</div>
+                      </div>
+                      <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#B45309", textTransform: "uppercase", letterSpacing: "0.06em" }}>Offered</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#B45309", marginTop: 4 }}>{m.offered}</div>
+                      </div>
+                      <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#15803D", textTransform: "uppercase", letterSpacing: "0.06em" }}>Hired</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#15803D", marginTop: 4 }}>{m.hired}</div>
+                      </div>
+                      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "12px 14px", textAlign: "center" }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: "#B91C1C", textTransform: "uppercase", letterSpacing: "0.06em" }}>Rejected</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#B91C1C", marginTop: 4 }}>{m.rejected}</div>
+                      </div>
+                    </div>
+
+                    {/* APPLICATIONS LIST */}
+                    <div>
+                      <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>
+                        Detailed Job Applications History ({apps.length})
+                      </h4>
+                      {apps.length > 0 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                          {apps.map((app, idx) => {
+                            const stKey = (app.status || "applied").toLowerCase();
+                            const st = statusStyles[stKey] || statusStyles.applied;
+                            const compName = app.companyName || app.companyId?.companyName || app.companyId?.stage1a?.legalname || "Employer";
+                            const jobTitle = app.jobTitle || `Requisition #${app.jobId}`;
+
+                            return (
+                              <div
+                                key={idx}
+                                style={{
+                                  background: "#FFFFFF",
+                                  border: "1px solid #E2E8F0",
+                                  borderRadius: 12,
+                                  padding: "14px 16px",
+                                  boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
+                                }}
+                              >
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                                  <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
+                                        {jobTitle}
+                                      </h4>
+                                      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748B", background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
+                                        #{app.jobId}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: 12.5, color: "#334155", marginTop: 4, fontWeight: 600 }}>
+                                      🏢 {compName} {app.companyEmail ? `· ✉️ ${app.companyEmail}` : ""}
+                                    </div>
+                                    <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
+                                      📅 Applied on: <strong>{new Date(app.createdAt || Date.now()).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</strong>
+                                      {app.updatedAt && app.updatedAt !== app.createdAt && (
+                                        <span> · Last Status Update: {new Date(app.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+                                      )}
+                                    </div>
+                                    {app.coverNote && (
+                                      <div style={{ marginTop: 8, fontSize: 12, color: "#475569", background: "#F8FAFC", borderLeft: "3px solid #CBD5E1", padding: "6px 10px", borderRadius: "0 6px 6px 0" }}>
+                                        <strong>Applicant Cover Note:</strong> "{app.coverNote}"
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      padding: "4px 10px",
+                                      borderRadius: 8,
+                                      textTransform: "uppercase",
+                                      background: st.bg,
+                                      color: st.color,
+                                      border: `1px solid ${st.border}`,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {st.label}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: 32, background: "#F8FAFC", borderRadius: 12, color: "#64748B", fontSize: 13, textAlign: "center", border: "1px dashed #CBD5E1" }}>
+                          <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+                          <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>No job applications submitted yet</div>
+                          <div style={{ fontSize: 12, marginTop: 4 }}>
+                            This candidate has not applied to any job postings directly yet. Their profile is indexed and searchable by verified employers in the Talent Search.
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* MODAL FOOTER */}
+            <div style={{ padding: "16px 28px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                {!selectedCandidate.isVerified && (
+                  <button
+                    type="button"
+                    disabled={processingId === selectedCandidate._id}
+                    onClick={() => handleVerifyCandidate(selectedCandidate._id, "verify")}
+                    style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 22px", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                  >
+                    ✓ Verify & Gold-Badge Entire Profile
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCandidate(null)}
+                style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              >
+                Close Drawer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          COMPANY FULL DETAILS INSPECTION MODAL
+         ========================================================================= */}
+      {selectedCompany && (
+        <div className="staff-detail-modal-overlay">
+          <div className="staff-detail-modal-content">
+            <div className="staff-detail-header">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.1)", color: "var(--gold, #E5A82E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 }}>
+                    🏢
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "var(--font-heading)" }}>
+                        {selectedCompany.companyName}
+                      </h2>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, textTransform: "uppercase", background: selectedCompany.kycStatus === "verified" ? "#DCFCE7" : "#FEF3C7", color: selectedCompany.kycStatus === "verified" ? "#15803D" : "#B45309" }}>
+                        KYC: {selectedCompany.kycStatus || "PENDING"}
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, textTransform: "uppercase", background: "rgba(229,168,46,0.2)", color: "var(--gold)", border: "1px solid rgba(229,168,46,0.4)" }}>
+                        Plan: {selectedCompany.plan || "Free"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      <span>Legal: {selectedCompany.legalName || selectedCompany.stage1a?.legalname || selectedCompany.companyName}</span>
+                      <span>✉️ {selectedCompany.email}</span>
+                      {selectedCompany.mobile && <span>📞 {selectedCompany.mobile}</span>}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCompany(null)}
+                  style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* MODAL TABS */}
+            <div className="staff-tabs-wrapper">
+              <div className="staff-detail-tabs">
+                {[
+                  { id: "legal", label: "Stage 1A: Legal & KYC" },
+                  { id: "poc", label: "Stage 1B: Point of Contact" },
+                  { id: "profile", label: "Stage 2: Profile & Details" },
+                  { id: "plan", label: "Plan & Billing" },
+                  { id: "jobs", label: `Posted Jobs (${(selectedCompany.jobs || []).length + (selectedCompany.jdPublished ? 1 : 0)})` },
+                  { id: "applicants", label: `Applicants (${selectedCompany.applicationsCount || 0})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`staff-detail-tab-btn${companyModalTab === tab.id ? " active" : ""}`}
+                    onClick={(e) => {
+                      setCompanyModalTab(tab.id);
+                      e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* MODAL BODY */}
+            <div className="staff-detail-body">
+              {/* TAB: LEGAL & KYC */}
+              {companyModalTab === "legal" && (() => {
+                const s1a = selectedCompany.stage1a || {};
+                const dVer = selectedCompany.docVerifications || {};
+                const docs = [
+                  { id: "kycgst", label: "GST Certificate", val: s1a.kycgst },
+                  { id: "kycpan", label: "PAN Card", val: s1a.kycpan },
+                  { id: "kycincorp", label: "Certificate of Incorporation", val: s1a.kycincorp },
+                  { id: "kyccheque", label: "Cancelled Cheque", val: s1a.kyccheque },
+                  { id: "msme", label: "MSME Certificate", val: s1a.msme },
+                ];
+
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 1A: Company Legal Registration & KYC</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Legal Name of Business</div>
+                        <div className="staff-meta-value">{s1a.legalname || selectedCompany.legalName || "Not provided"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">GSTIN</div>
+                        <div className="staff-meta-value" style={{ fontFamily: "monospace" }}>{s1a.gstin || "Not provided"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Permanent Account Number (PAN)</div>
+                        <div className="staff-meta-value" style={{ fontFamily: "monospace" }}>{s1a.pan || "Not provided"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Entity Constitution</div>
+                        <div className="staff-meta-value">{s1a.entity || "Private Limited"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Date of Incorporation</div>
+                        <div className="staff-meta-value">{s1a.doi || "Not provided"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Company Size</div>
+                        <div className="staff-meta-value">{s1a.cosize || "100–500"}</div>
+                      </div>
+                      <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
+                        <div className="staff-meta-label">Registered Office Address</div>
+                        <div className="staff-meta-value">{s1a.regaddress || "Not provided"}</div>
+                      </div>
+                    </div>
+
+                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", margin: "18px 0 10px" }}>KYC Document Certificates</h4>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+                      {docs.map((doc) => {
+                        let docUrl = null;
+                        let docName = doc.label;
+                        if (doc.val) {
+                          if (typeof doc.val === "string") docUrl = doc.val;
+                          else if (typeof doc.val === "object") {
+                            docUrl = doc.val.docUrl || doc.val.url || null;
+                            docName = doc.val.docName || doc.val.name || doc.label;
+                          }
+                        }
+                        const vState = dVer[doc.id];
+                        return (
+                          <div key={doc.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--navy)", marginBottom: 4 }}>{doc.label}</div>
+                            <div style={{ fontSize: 11, color: "#64748B", marginBottom: 10 }}>{docName}</div>
+                            {docUrl ? (
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <a href={docUrl} target="_blank" rel="noopener noreferrer" className="staff-doc-chip" style={{ fontSize: 11 }}>
+                                  View File ↗
+                                </a>
+                                <span style={{ fontSize: 10, fontWeight: 800, color: vState?.isValid ? "#15803D" : vState?.isValid === false ? "#B91C1C" : "#B45309" }}>
+                                  {vState?.isValid ? "✓ Validated" : vState?.isValid === false ? "✕ Invalid" : "Pending Audit"}
+                                </span>
+                              </div>
+                            ) : (
+                              <div style={{ fontSize: 11, color: "#94A3B8" }}>Document not uploaded</div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* KYC DECISION ACTIONS */}
+                    <div style={{ display: "flex", gap: 10, marginTop: 20, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                      <button
+                        type="button"
+                        disabled={processingId === (selectedCompany._id || selectedCompany.id)}
+                        onClick={() => handleAuditKyc(selectedCompany._id || selectedCompany.id, "verify")}
+                        style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        ✓ Approve KYC & Activate Gold Trust Badge
+                      </button>
+                      <button
+                        type="button"
+                        disabled={processingId === (selectedCompany._id || selectedCompany.id)}
+                        onClick={() => {
+                          const reason = prompt("Enter revision / rejection reason:");
+                          if (reason) handleAuditKyc(selectedCompany._id || selectedCompany.id, "reject", reason);
+                        }}
+                        style={{ background: "#EF4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        ✕ Request Revision / Reject
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB: POC */}
+              {companyModalTab === "poc" && (() => {
+                const s1b = selectedCompany.stage1b || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 1B: Primary Point of Contact</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">POC Full Name</div>
+                        <div className="staff-meta-value">{selectedCompany.contactName || s1b.pocname || "N/A"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">POC Official Email</div>
+                        <div className="staff-meta-value">{s1b.pocemail || selectedCompany.email}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">POC Direct Mobile</div>
+                        <div className="staff-meta-value">{selectedCompany.mobile || s1b.pocmobile || "N/A"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Corporate Designation</div>
+                        <div className="staff-meta-value">{s1b.pocdesig || "Talent Acquisition Lead"}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB: PROFILE */}
+              {companyModalTab === "profile" && (() => {
+                const s2 = selectedCompany.stage2 || {};
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 2: Company Profile & Industry</h3>
+                    <div className="staff-meta-grid">
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Industry Domain</div>
+                        <div className="staff-meta-value">{s2.industry || "Healthcare RCM & Medical Coding"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Employee Headcount</div>
+                        <div className="staff-meta-value">{s2.companySize || "1,000–5,000"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Official Website</div>
+                        <div className="staff-meta-value">{s2.website || "Not provided"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Head Office Location</div>
+                        <div className="staff-meta-value">{s2.headoffice || "India"}</div>
+                      </div>
+                      <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
+                        <div className="staff-meta-label">About Company</div>
+                        <div className="staff-meta-value" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                          {s2.about || "Leading healthcare operations company hiring certified medical coders, billing executives, and AR specialists."}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB: PLAN & BILLING */}
+              {companyModalTab === "plan" && (
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Subscription Plan & Access Tier</h3>
+                  <div className="staff-meta-grid">
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Active Subscription Plan</div>
+                      <div className="staff-meta-value" style={{ textTransform: "uppercase", color: "var(--navy)" }}>{selectedCompany.plan || "Free"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Plan Assigned At</div>
+                      <div className="staff-meta-value">{selectedCompany.planAssignedAt ? new Date(selectedCompany.planAssignedAt).toLocaleDateString("en-IN") : "Default"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Assigned By Staff</div>
+                      <div className="staff-meta-value">{selectedCompany.planAssignedBy || "System Default"}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18, marginTop: 14 }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 8 }}>Change Company Subscription Plan</div>
+                    <div style={{ fontSize: 12, color: "#64748B", marginBottom: 12 }}>
+                      As an admin, you can assign any plan tier to this employer account.
+                    </div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                      <select
+                        className="staff-filter-select"
+                        value={assigningPlan || selectedCompany.plan || "free"}
+                        onChange={(e) => setAssigningPlan(e.target.value)}
+                        style={{ background: "#fff", minWidth: 180 }}
+                      >
+                        <option value="free">Free Tier (Standard)</option>
+                        <option value="growth">Growth Plan (High Volume)</option>
+                        <option value="enterprise">Enterprise Plan (Unlimited)</option>
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => handleAssignPlan(selectedCompany._id || selectedCompany.id, assigningPlan || selectedCompany.plan || "free")}
+                        style={{ background: "var(--navy)", color: "var(--gold)", border: "none", padding: "10px 18px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                      >
+                        Update Plan
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: JOBS */}
+              {companyModalTab === "jobs" && (() => {
+                const compJobs = selectedCompany.jobs || [];
+                const s9 = selectedCompany.stage9 || {};
+                const hasFirstJd = selectedCompany.jdPublished && selectedCompany.jobId;
+
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Posted Job Requisitions</h3>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                      {hasFirstJd && (
+                        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div>
+                              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EDE9FE", color: "#6D28D9" }}>ONBOARDING JD</span>
+                                <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748B" }}>#{selectedCompany.jobId}</span>
+                              </div>
+                              <h4 style={{ margin: "6px 0 2px", fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>{s9.roletitle || "Specialist Coder"}</h4>
+                              <div style={{ fontSize: 12, color: "#64748B" }}>
+                                📍 {s9.location || "India"} · {s9.workmode || "Onsite"} · Openings: {s9.openings || 5} · Comp: ₹{s9.compmin || 4}–{s9.compmax || 6} LPA
+                              </div>
+                            </div>
+                            <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 6, textTransform: "uppercase", background: selectedCompany.jdApprovalStatus === "approved" ? "#DCFCE7" : "#FEF3C7", color: selectedCompany.jdApprovalStatus === "approved" ? "#15803D" : "#B45309" }}>
+                              {selectedCompany.jdApprovalStatus || "PENDING"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {compJobs.map((job, idx) => {
+                        const f = job.fields || {};
+                        return (
+                          <div key={idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div>
+                                <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748B" }}>#{job.jobId}</span>
+                                <h4 style={{ margin: "4px 0 2px", fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>{f.roletitle || "Role"}</h4>
+                                <div style={{ fontSize: 12, color: "#64748B" }}>
+                                  📍 {f.location || "India"} · {f.workmode || "Onsite"} · Openings: {f.openings || 1}
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 6, textTransform: "uppercase", background: job.approvalStatus === "approved" ? "#DCFCE7" : "#FEF3C7", color: job.approvalStatus === "approved" ? "#15803D" : "#B45309" }}>
+                                {job.approvalStatus || "PENDING"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {!hasFirstJd && compJobs.length === 0 && (
+                        <div style={{ padding: 24, textAlign: "center", color: "#64748B", fontSize: 13, background: "#F8FAFC", borderRadius: 12 }}>
+                          No jobs posted by this company yet.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB: APPLICANTS */}
+              {companyModalTab === "applicants" && (() => {
+                const rawApps = selectedCompany.applications || [];
+                const totalApps = rawApps.length;
+                const appliedCount = rawApps.filter((a) => a.status === "applied").length;
+                const shortlistedCount = rawApps.filter((a) => a.status === "shortlisted").length;
+                const interviewingCount = rawApps.filter((a) => a.status === "interviewing").length;
+                const hiredCount = rawApps.filter((a) => a.status === "hired").length;
+                const rejectedCount = rawApps.filter((a) => a.status === "rejected").length;
+
+                const filteredApps = rawApps.filter((app) => {
+                  const cand = app.candidate || {};
+                  const q = (applicantSearch || "").toLowerCase().trim();
+                  const matchesSearch =
+                    !q ||
+                    (cand.fullName || "").toLowerCase().includes(q) ||
+                    (cand.email || "").toLowerCase().includes(q) ||
+                    (cand.mobile || "").toLowerCase().includes(q) ||
+                    (app.jobTitle || "").toLowerCase().includes(q) ||
+                    (app.jobId || "").toLowerCase().includes(q) ||
+                    (app.coverNote || "").toLowerCase().includes(q);
+
+                  const matchesStatus = applicantStatusFilter === "all" || app.status === applicantStatusFilter;
+                  const matchesJob = applicantJobFilter === "all" || app.jobId === applicantJobFilter;
+
+                  return matchesSearch && matchesStatus && matchesJob;
+                });
+
+                const jobOptions = Array.from(new Set(rawApps.map((a) => JSON.stringify({ id: a.jobId, title: a.jobTitle })))).map((s) => JSON.parse(s));
+
+                return (
+                  <div>
+                    {/* TOP STATS & SUMMARY */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                          Received Candidate Applications ({totalApps})
+                        </h3>
+                        <div style={{ fontSize: 12, color: "#64748B", marginTop: 3 }}>
+                          Review all candidates who applied to {selectedCompany.companyName || "this company"}'s requisitions.
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "#F1F5F9", color: "#334155" }}>
+                          Total: {totalApps}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "#EDE9FE", color: "#6D28D9" }}>
+                          Shortlisted: {shortlistedCount}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "#E0F2FE", color: "#0369A1" }}>
+                          Interviewing: {interviewingCount}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
+                          Hired: {hiredCount}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "#FEF3C7", color: "#B45309" }}>
+                          Applied: {appliedCount}
+                        </span>
+                        {rejectedCount > 0 && (
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: "4px 10px", borderRadius: 999, background: "#FEE2E2", color: "#B91C1C" }}>
+                            Rejected: {rejectedCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* SEARCH & FILTERS */}
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16, background: "#F8FAFC", padding: 12, borderRadius: 10, border: "1px solid #E2E8F0" }}>
+                      <input
+                        type="text"
+                        placeholder="Search applicant name, email, phone, role..."
+                        value={applicantSearch}
+                        onChange={(e) => setApplicantSearch(e.target.value)}
+                        style={{
+                          flex: 1,
+                          minWidth: 200,
+                          height: 36,
+                          padding: "0 12px",
+                          borderRadius: 8,
+                          border: "1px solid #CBD5E1",
+                          fontSize: 12.5,
+                          background: "#fff",
+                        }}
+                      />
+                      <select
+                        value={applicantStatusFilter}
+                        onChange={(e) => setApplicantStatusFilter(e.target.value)}
+                        style={{
+                          height: 36,
+                          padding: "0 10px",
+                          borderRadius: 8,
+                          border: "1px solid #CBD5E1",
+                          fontSize: 12,
+                          background: "#fff",
+                          fontWeight: 600,
+                          color: "#334155",
+                        }}
+                      >
+                        <option value="all">All Statuses ({rawApps.length})</option>
+                        <option value="applied">Applied ({appliedCount})</option>
+                        <option value="shortlisted">Shortlisted ({shortlistedCount})</option>
+                        <option value="interviewing">Interviewing ({interviewingCount})</option>
+                        <option value="hired">Hired ({hiredCount})</option>
+                        <option value="rejected">Rejected ({rejectedCount})</option>
+                      </select>
+
+                      {jobOptions.length > 1 && (
+                        <select
+                          value={applicantJobFilter}
+                          onChange={(e) => setApplicantJobFilter(e.target.value)}
+                          style={{
+                            height: 36,
+                            padding: "0 10px",
+                            borderRadius: 8,
+                            border: "1px solid #CBD5E1",
+                            fontSize: 12,
+                            background: "#fff",
+                            fontWeight: 600,
+                            color: "#334155",
+                          }}
+                        >
+                          <option value="all">All Jobs ({jobOptions.length})</option>
+                          {jobOptions.map((j) => (
+                            <option key={j.id} value={j.id}>
+                              {j.title} (#{j.id})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    {/* APPLICANTS LIST */}
+                    {filteredApps.length === 0 ? (
+                      <div style={{ padding: 36, textAlign: "center", background: "#F8FAFC", borderRadius: 12, border: "1px dashed #CBD5E1" }}>
+                        <div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>
+                        <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>
+                          {totalApps === 0 ? "No Candidate Applications Yet" : "No Matching Applications"}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748B" }}>
+                          {totalApps === 0
+                            ? "When candidates apply for this company's jobs, their full profiles will appear here."
+                            : "Try adjusting your search terms or filters above."}
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {filteredApps.map((app) => {
+                          const cand = app.candidate || {};
+                          const rawCand = cand.rawCandidate || cand;
+                          const initials = (cand.fullName || "CD").split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+                          const isVerified = (cand.completedStages || []).length >= 8;
+
+                          return (
+                            <div
+                              key={app._id || app.id}
+                              style={{
+                                background: "#FFFFFF",
+                                border: "1px solid #E2E8F0",
+                                borderRadius: 14,
+                                padding: 16,
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 12,
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              {/* TOP ROW: CANDIDATE INFO & STATUS */}
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
+                                <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                                  <div
+                                    style={{
+                                      width: 44,
+                                      height: 44,
+                                      borderRadius: 12,
+                                      background: "linear-gradient(135deg, #0A1F3D 0%, #1E3A8A 100%)",
+                                      color: "#E5A82E",
+                                      fontWeight: 800,
+                                      fontSize: 16,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                      <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>
+                                        {cand.fullName}
+                                      </h4>
+                                      {isVerified ? (
+                                        <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
+                                          ✓ GOLD VERIFIED (8/8)
+                                        </span>
+                                      ) : (
+                                        <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "#FEF3C7", color: "#B45309" }}>
+                                          STAGES: {(cand.completedStages || []).length}/8
+                                        </span>
+                                      )}
+                                      {cand.mcqScore && (
+                                        <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 4, background: "#EDE9FE", color: "#6D28D9" }}>
+                                          MCQ: {cand.mcqScore}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "#64748B", marginTop: 4 }}>
+                                      <span>✉️ <a href={`mailto:${cand.email}`} style={{ color: "inherit", textDecoration: "none" }}>{cand.email}</a></span>
+                                      {cand.mobile && cand.mobile !== "N/A" && (
+                                        <span>📞 <a href={`tel:${cand.mobile}`} style={{ color: "inherit", textDecoration: "none" }}>{cand.mobile}</a></span>
+                                      )}
+                                      {cand.city && <span>📍 {cand.city}</span>}
+                                      {cand.currentRole && <span>💼 {cand.currentRole}</span>}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* STATUS & STATUS PICKER */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      textTransform: "uppercase",
+                                      padding: "4px 10px",
+                                      borderRadius: 6,
+                                      background:
+                                        app.status === "hired" ? "#DCFCE7" :
+                                        app.status === "shortlisted" ? "#EDE9FE" :
+                                        app.status === "interviewing" ? "#E0F2FE" :
+                                        app.status === "rejected" ? "#FEE2E2" : "#FEF3C7",
+                                      color:
+                                        app.status === "hired" ? "#15803D" :
+                                        app.status === "shortlisted" ? "#6D28D9" :
+                                        app.status === "interviewing" ? "#0369A1" :
+                                        app.status === "rejected" ? "#B91C1C" : "#B45309",
+                                    }}
+                                  >
+                                    {app.status}
+                                  </span>
+
+                                  {/* Quick status updater for Admin */}
+                                  <select
+                                    value={app.status}
+                                    onChange={(e) => handleUpdateApplicantStatus(app._id || app.id, e.target.value)}
+                                    style={{
+                                      fontSize: 11.5,
+                                      fontWeight: 700,
+                                      padding: "3px 6px",
+                                      borderRadius: 6,
+                                      border: "1px solid #CBD5E1",
+                                      background: "#F8FAFC",
+                                      cursor: "pointer",
+                                      color: "var(--navy)",
+                                    }}
+                                  >
+                                    <option value="applied">Applied</option>
+                                    <option value="shortlisted">Shortlisted</option>
+                                    <option value="interviewing">Interviewing</option>
+                                    <option value="hired">Hired</option>
+                                    <option value="rejected">Rejected</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {/* APPLIED REQUISITION INFO */}
+                              <div
+                                style={{
+                                  background: "#F8FAFC",
+                                  border: "1px solid #E2E8F0",
+                                  borderRadius: 10,
+                                  padding: "10px 14px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  flexWrap: "wrap",
+                                  gap: 10,
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>
+                                    Applied Position / Requisition
+                                  </div>
+                                  <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                                    <span>🎯 {app.jobTitle || "Job Requisition"}</span>
+                                    <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748B", background: "#E2E8F0", padding: "1px 6px", borderRadius: 4 }}>
+                                      #{app.jobId}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div style={{ fontSize: 11.5, color: "#64748B" }}>
+                                  Applied on: <strong style={{ color: "var(--navy)" }}>{app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "Recent"}</strong>
+                                </div>
+                              </div>
+
+                              {/* COVER NOTE IF PRESENT */}
+                              {app.coverNote && (
+                                <div style={{ background: "#FEFCE8", border: "1px solid #FEF08A", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#854D0E" }}>
+                                  <strong>Candidate Cover Note:</strong> "{app.coverNote}"
+                                </div>
+                              )}
+
+                              {/* ACTION BUTTONS */}
+                              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", alignItems: "center", borderTop: "1px solid #F1F5F9", paddingTop: 8 }}>
+                                {cand.resumeUrl && (
+                                  <a
+                                    href={cand.resumeUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="staff-doc-chip"
+                                    style={{ fontSize: 11.5, padding: "5px 12px", textDecoration: "none" }}
+                                  >
+                                    📄 Download Resume ↗
+                                  </a>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (rawCand && (rawCand._id || rawCand.id || rawCand.email)) {
+                                      openCandidateDetail(rawCand, "identity");
+                                    } else {
+                                      showToast("Candidate profile details not available.");
+                                    }
+                                  }}
+                                  style={{
+                                    background: "var(--navy, #0A1F3D)",
+                                    color: "#fff",
+                                    border: "none",
+                                    padding: "6px 14px",
+                                    borderRadius: 8,
+                                    fontWeight: 700,
+                                    fontSize: 12,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                  }}
+                                >
+                                  👁️ Inspect Candidate Dossier
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* MODAL FOOTER */}
+            <div style={{ padding: "16px 28px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                Company ID: <span style={{ fontFamily: "monospace" }}>{selectedCompany._id || selectedCompany.id}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedCompany(null)}
+                style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              >
+                Close Drawer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          ACADEMY FULL DETAILS INSPECTION MODAL
+         ========================================================================= */}
+      {selectedAcademy && (
+        <div className="staff-detail-modal-overlay">
+          <div className="staff-detail-modal-content">
+            <div className="staff-detail-header">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.1)", color: "var(--gold, #E5A82E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 }}>
+                    🎓
+                  </div>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "var(--font-heading)" }}>
+                        {selectedAcademy.name}
+                      </h2>
+                      <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
+                        {selectedAcademy.tier || "VERIFIED PARTNER"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
+                      <span>HQ: {selectedAcademy.headquarters || "India"}</span>
+                      <span>✉️ {selectedAcademy.email}</span>
+                      {selectedAcademy.phone && <span>📞 {selectedAcademy.phone}</span>}
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAcademy(null)}
+                  style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* MODAL TABS */}
+            <div className="staff-tabs-wrapper">
+              <div className="staff-detail-tabs">
+                {[
+                  { id: "profile", label: "Academy Profile" },
+                  { id: "batches", label: `Batches (${(selectedAcademy.batches || []).length})` },
+                  { id: "courses", label: `Courses (${(selectedAcademy.courses || []).length})` },
+                  { id: "candidates", label: `Enrolled Candidates (${selectedAcademy.enrolledCandidatesCount || selectedAcademy.studentsUploaded || 0})` },
+                  { id: "placements", label: `Placements (${(selectedAcademy.placements || []).length})` },
+                  { id: "questions", label: `Question Bank (${(selectedAcademy.questions || []).length})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={`staff-detail-tab-btn${academyModalTab === tab.id ? " active" : ""}`}
+                    onClick={(e) => {
+                      setAcademyModalTab(tab.id);
+                      e.currentTarget.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* MODAL BODY */}
+            <div className="staff-detail-body">
+              {/* TAB: PROFILE */}
+              {academyModalTab === "profile" && (
+                <div>
+                  <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Academy Institutional Profile</h3>
+                  <div className="staff-meta-grid">
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Institute Name</div>
+                      <div className="staff-meta-value">{selectedAcademy.name}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Primary Admin / Lead</div>
+                      <div className="staff-meta-value">{selectedAcademy.primaryAdmin || selectedAcademy.contactName || "Academy Lead"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Official Email</div>
+                      <div className="staff-meta-value">{selectedAcademy.email}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Phone / Mobile</div>
+                      <div className="staff-meta-value">{selectedAcademy.phone || "Not specified"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Domain Specialty</div>
+                      <div className="staff-meta-value">{selectedAcademy.specialty || "Medical Coding"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Headquarters</div>
+                      <div className="staff-meta-value">{selectedAcademy.headquarters || "Coimbatore"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Partner Tier</div>
+                      <div className="staff-meta-value">{selectedAcademy.tier || "Verified Partner"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Total Alumni Base</div>
+                      <div className="staff-meta-value">{selectedAcademy.totalAlumni || "35,000+"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Partner Since</div>
+                      <div className="staff-meta-value">{selectedAcademy.partnerSince || "Jan 2025"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Placement Verification %</div>
+                      <div className="staff-meta-value" style={{ color: "#15803D" }}>{selectedAcademy.verifiedPct || 94}%</div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>Campus Branches</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(selectedAcademy.branches || []).map((b, idx) => (
+                        <span key={idx} style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "var(--navy)", fontWeight: 600 }}>
+                          📍 {b}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: BATCHES */}
+              {academyModalTab === "batches" && (() => {
+                const batches = selectedAcademy.batches || [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Training Batches ({batches.length})</h3>
+                    {batches.length > 0 ? (
+                      <div className="sf-table-wrap">
+                        <table className="sf-table">
+                          <thead>
+                            <tr>
+                              <th>Batch Code</th>
+                              <th>Course</th>
+                              <th>Students Enrolled</th>
+                              <th>Completion</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {batches.map((b, idx) => (
+                              <tr key={idx}>
+                                <td style={{ fontWeight: 800, fontFamily: "monospace" }}>{b.code}</td>
+                                <td>{b.course}</td>
+                                <td>{b.studentsCount || 0} students</td>
+                                <td>{b.completionPct || 0}%</td>
+                                <td>
+                                  <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: b.status === "Active" ? "#DCFCE7" : "#F1F5F9", color: b.status === "Active" ? "#15803D" : "#475569" }}>
+                                    {b.status || "Active"}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
+                        No active batches configured for this academy.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB: COURSES */}
+              {academyModalTab === "courses" && (() => {
+                const courses = selectedAcademy.courses || [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Offered Course Catalog ({courses.length})</h3>
+                    {courses.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
+                        {courses.map((c, idx) => (
+                          <div key={idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EDE9FE", color: "#6D28D9" }}>{c.category || "Medical Coding"}</span>
+                            <h4 style={{ margin: "8px 0 4px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>{c.title}</h4>
+                            <div style={{ fontSize: 12, color: "#64748B" }}>⏱ {c.duration || "3 Months"} · {c.totalHrs || 120} hrs · {c.enrolled || 25} enrolled</div>
+                            {c.syllabus && c.syllabus.length > 0 && (
+                              <div style={{ marginTop: 8, fontSize: 11, color: "#475569" }}>
+                                Modules: {c.syllabus.join(", ")}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
+                        Standard Medical Coding Foundation modules active.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB: CANDIDATES */}
+              {academyModalTab === "candidates" && (() => {
+                const candList = selectedAcademy.candidates || [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Enrolled Trainees ({candList.length})</h3>
+                    {candList.length > 0 ? (
+                      <div className="sf-table-wrap">
+                        <table className="sf-table">
+                          <thead>
+                            <tr>
+                              <th>Student Candidate</th>
+                              <th>Email</th>
+                              <th>Role</th>
+                              <th>Stage Progress</th>
+                              <th style={{ textAlign: "right" }}>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {candList.map((cand, idx) => {
+                              const fullName = cand.stage1?.fullName || (cand.email ? cand.email.split("@")[0] : "Candidate");
+                              const stages = cand.completedStages || [];
+                              return (
+                                <tr key={idx}>
+                                  <td style={{ fontWeight: 700 }}>{fullName}</td>
+                                  <td>{cand.email}</td>
+                                  <td>{cand.stage1?.currentRole || cand.stage2?.domain || "Medical Coder"}</td>
+                                  <td>Stage {stages.length}/8 ({Math.round((stages.length / 8) * 100)}%)</td>
+                                  <td style={{ textAlign: "right" }}>
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn"
+                                      onClick={() => {
+                                        setSelectedAcademy(null);
+                                        setSelectedCandidate(cand);
+                                        setCandidateModalTab("identity");
+                                      }}
+                                      style={{ background: "var(--navy)", color: "#fff", border: "none", fontSize: 11 }}
+                                    >
+                                      Inspect Candidate
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
+                        {selectedAcademy.studentsUploaded || 0} students uploaded by academy partner. Candidates appear here once registered.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB: PLACEMENTS */}
+              {academyModalTab === "placements" && (() => {
+                const placements = selectedAcademy.placements || [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Reported Placements Record ({placements.length})</h3>
+                    {placements.length > 0 ? (
+                      <div className="sf-table-wrap">
+                        <table className="sf-table">
+                          <thead>
+                            <tr>
+                              <th>Student Name</th>
+                              <th>Placed Role</th>
+                              <th>Hiring Employer</th>
+                              <th>City</th>
+                              <th>Compensation (CTC)</th>
+                              <th>Date</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {placements.map((p, idx) => (
+                              <tr key={idx}>
+                                <td style={{ fontWeight: 700 }}>{p.studentName}</td>
+                                <td>{p.role || "Medical Coder"}</td>
+                                <td><strong>{p.company || "Healthcare Corp"}</strong></td>
+                                <td>{p.city || "India"}</td>
+                                <td style={{ color: "#15803D", fontWeight: 700 }}>{p.ctc || "₹5.5 LPA"}</td>
+                                <td>{p.date || "Recently"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
+                        Placements are tracked and reported automatically as candidate offers are confirmed.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* TAB: QUESTIONS */}
+              {academyModalTab === "questions" && (() => {
+                const questions = selectedAcademy.questions || [];
+                return (
+                  <div>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Academy Custom Questions ({questions.length})</h3>
+                    {questions.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {questions.map((q, idx) => (
+                          <div key={idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 12 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy)" }}>Q{idx + 1}. {q.question}</div>
+                            <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>
+                              Topic: {q.topic || "HCC"} · Difficulty: {q.difficulty || "Mid"} · Marks: {q.marks || 2}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
+                        Academy utilizes the central Talentera verified question bank.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* MODAL FOOTER */}
+            <div style={{ padding: "16px 28px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                Academy Partner ID: <span style={{ fontFamily: "monospace" }}>{selectedAcademy._id || selectedAcademy.id}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedAcademy(null)}
+                style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+              >
+                Close Drawer
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@ const STAGE_ICONS = {
   trend: <i className="fa-solid fa-chart-line"></i>,
 };
 
-export default function WizardSidebar({ completedStages, activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit }) {
+export default function WizardSidebar({ completedStages, activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard }) {
   const earnedPct = Math.round((earnedPoints / 100) * 100);
 
   const isStage1Done = completedStages.includes(1);
@@ -63,6 +63,16 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
       </nav>
 
       <div className="wiz-sidebar-foot">
+        {onViewDashboard && (
+          <button
+            type="button"
+            className="btn btn-navy-ghost"
+            style={{ width: "100%", justifyContent: "center", fontWeight: 700 }}
+            onClick={onViewDashboard}
+          >
+            ← Back to My Dashboard
+          </button>
+        )}
         <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={onSubmit}>
           Submit for verification →
         </button>

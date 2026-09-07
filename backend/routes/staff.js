@@ -1,6 +1,9 @@
 const express = require("express");
 const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
+const Academy = require("../models/Academy");
+const AcademyBatch = require("../models/AcademyBatch");
+const Application = require("../models/Application");
 const Job = require("../models/Job");
 const Staff = require("../models/Staff");
 const Notification = require("../models/Notification");
@@ -182,6 +185,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const DASHBOARD_FETCH_CAP = 1000;
     const candidates = await Candidate.find().limit(DASHBOARD_FETCH_CAP).lean();
     const companies = await Company.find().limit(DASHBOARD_FETCH_CAP).lean();
+    const academies = await Academy.find().limit(DASHBOARD_FETCH_CAP).lean();
     const totalCandidates = candidates.length;
 
     // Filter candidate pending vs fully verified
@@ -501,6 +505,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const reportsData = {
       totalCandidates,
       totalCompanies: companies.length,
+      totalAcademies: academies.length,
       verifiedCompanies: companies.filter((c) => c.kycStatus === "verified").length,
       pendingCompanies: companies.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
       verifiedCandidates: fullyVerified.length,
@@ -539,6 +544,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         pendingVerifications: incomingBucket.length + companyKycQueue.filter((c) => c.kycStatus === "under_review").length,
         verifiedToday: verifiedTodayCount,
         activeCandidates: totalCandidates,
+        totalAcademies: academies.length,
         placedThisMonth: placedThisMonthCount,
         pendingCompanyKycs: companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
         verifiedCompanies: companyKycQueue.filter((c) => c.kycStatus === "verified").length,
@@ -1269,6 +1275,613 @@ router.post("/companies/:id/assign-plan", requireStaffAuth, async (req, res) => 
   } catch (err) {
     logger.error(`Assign plan error: ${err.message}`);
     res.status(500).json({ message: "Failed to assign plan." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Master Data Directories: Candidates, Companies, and Academies (Full Data)
+// ---------------------------------------------------------------------------
+
+// GET /api/staff/candidates - Full Candidate Directory with filter & search
+router.get("/candidates", requireStaffAuth, async (req, res) => {
+  try {
+    const { search, status, academy, limit = 500, page = 1 } = req.query;
+    const query = {};
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      const regex = new RegExp(q, "i");
+      query.$or = [
+        { email: regex },
+        { mobile: regex },
+        { "stage1.fullName": regex },
+        { "stage1.mobile": regex },
+        { "stage1.city": regex },
+        { "stage1.currentRole": regex },
+        { "stage2.academyName": regex },
+        { "stage2.batch": regex },
+        { "stage3.certName": regex },
+        { "stage3.name": regex },
+      ];
+    }
+
+    if (academy && academy.trim()) {
+      query["stage2.academyName"] = new RegExp(academy.trim(), "i");
+    }
+
+    if (status === "verified") {
+      query.completedStages = { $all: [1, 2, 3, 4, 5, 6, 7, 8] };
+    } else if (status === "pending") {
+      query.$or = [
+        { completedStages: { $size: 0 } },
+        { completedStages: { $not: { $all: [1, 2, 3, 4, 5, 6, 7, 8] } } },
+      ];
+    } else if (status === "assessment") {
+      query.completedStages = { $in: [4] };
+    }
+
+    const maxLimit = Math.min(1000, Math.max(1, Number(limit) || 100));
+    const skip = (Math.max(1, Number(page)) - 1) * maxLimit;
+
+    const [rawCandidates, total, applications] = await Promise.all([
+      Candidate.find(query)
+        .select("-passwordHash")
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(maxLimit)
+        .lean(),
+      Candidate.countDocuments(query),
+      Application.find().select("candidateId jobId status createdAt").lean(),
+    ]);
+
+    const appsByCand = new Map();
+    for (const app of applications) {
+      const cid = String(app.candidateId);
+      if (!appsByCand.has(cid)) appsByCand.set(cid, []);
+      appsByCand.get(cid).push(app);
+    }
+
+    const candidates = rawCandidates.map((c) => {
+      const cid = String(c._id);
+      const candApps = appsByCand.get(cid) || [];
+      const s1 = c.stage1 || {};
+      const s2 = c.stage2 || {};
+      const s3 = c.stage3 || {};
+      const s4 = c.stage4 || {};
+      const s5 = c.stage5 || {};
+      const s6 = c.stage6 || {};
+      const s7 = c.stage7 || {};
+      const s8 = c.stage8 || {};
+      const stages = c.completedStages || [];
+      const fullName = toStr(s1.fullName || (c.email ? c.email.split("@")[0] : "Candidate"), "Candidate");
+
+      const applicationMetrics = {
+        total: candApps.length,
+        applied: candApps.filter((a) => a.status === "applied").length,
+        shortlisted: candApps.filter((a) => a.status === "shortlisted").length,
+        interviewing: candApps.filter((a) => a.status === "interviewing").length,
+        offered: candApps.filter((a) => a.status === "offered" || a.status === "offer_extended").length,
+        hired: candApps.filter((a) => a.status === "hired").length,
+        rejected: candApps.filter((a) => a.status === "rejected").length,
+      };
+
+      return {
+        _id: c._id,
+        id: c._id,
+        email: c.email,
+        mobile: c.mobile || s1.mobile || "",
+        fullName,
+        city: s1.city || "",
+        experience: s1.experience || "",
+        currentRole: s1.currentRole || s2.domain || "Medical Coder",
+        aadhaarVerified: Boolean(s1.aadhaarVerified),
+        completedStages: stages,
+        isVerified: stages.length >= 8,
+        stageProgressPct: Math.round((stages.length / 8) * 100),
+        stage1: s1,
+        stage2: s2,
+        stage3: s3,
+        stage4: s4,
+        stage5: s5,
+        stage6: s6,
+        stage7: s7,
+        stage8: s8,
+        manualResume: c.manualResume || null,
+        resumeUrl: c.resumeUrl || null,
+        resumeFileName: c.resumeFileName || null,
+        resumeTemplate: c.resumeTemplate || "executive",
+        applicationsCount: candApps.length,
+        applicationMetrics,
+        applications: candApps,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+      };
+    });
+
+    res.json({
+      candidates,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / maxLimit),
+      verifiedCount: candidates.filter((c) => c.isVerified).length,
+      pendingCount: candidates.filter((c) => !c.isVerified).length,
+    });
+  } catch (err) {
+    logger.error(`List candidates error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch candidate directory." });
+  }
+});
+
+// GET /api/staff/candidates/:id - Get single candidate full top-to-bottom detail & application history
+router.get("/candidates/:id", requireStaffAuth, async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id).select("-passwordHash").lean();
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const rawApplications = await Application.find({ candidateId: candidate._id })
+      .populate("companyId", "companyName email mobile stage1a.legalname stage9 jobId")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Resolve job titles from Job collection or company stage9
+    const jobIds = [...new Set(rawApplications.map((a) => a.jobId).filter(Boolean))];
+    const postedJobs = jobIds.length > 0 ? await Job.find({ jobId: { $in: jobIds } }).lean() : [];
+    const jobTitleMap = new Map();
+    for (const pj of postedJobs) {
+      jobTitleMap.set(pj.jobId, pj.fields?.roletitle || pj.fields?.roleTitle || pj.fields?.specialty || "Specialist Role");
+    }
+
+    const applications = rawApplications.map((app) => {
+      const comp = app.companyId || {};
+      const resolvedTitle =
+        jobTitleMap.get(app.jobId) ||
+        (comp.jobId === app.jobId ? comp.stage9?.roletitle : null) ||
+        `Role #${app.jobId}`;
+
+      return {
+        ...app,
+        companyName: comp.companyName || comp.stage1a?.legalname || "Employer",
+        companyEmail: comp.email || "",
+        companyMobile: comp.mobile || "",
+        jobTitle: resolvedTitle,
+      };
+    });
+
+    const metrics = {
+      total: applications.length,
+      applied: applications.filter((a) => a.status === "applied").length,
+      shortlisted: applications.filter((a) => a.status === "shortlisted").length,
+      interviewing: applications.filter((a) => a.status === "interviewing").length,
+      offered: applications.filter((a) => a.status === "offered" || a.status === "offer_extended").length,
+      hired: applications.filter((a) => a.status === "hired").length,
+      rejected: applications.filter((a) => a.status === "rejected").length,
+    };
+
+    res.json({
+      candidate: {
+        ...candidate,
+        fullName: candidate.stage1?.fullName || candidate.fullName || (candidate.email ? candidate.email.split("@")[0] : "Candidate"),
+        applicationMetrics: metrics,
+        applicationsCount: applications.length,
+      },
+      applications,
+      applicationMetrics: metrics,
+    });
+  } catch (err) {
+    logger.error(`Get candidate detail error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch candidate details." });
+  }
+});
+
+// GET /api/staff/companies - Full Company Directory with plan, KYC & job post details
+router.get("/companies", requireStaffAuth, async (req, res) => {
+  try {
+    const { search, kycStatus, plan, limit = 500, page = 1 } = req.query;
+    const query = {};
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      const regex = new RegExp(q, "i");
+      query.$or = [
+        { companyName: regex },
+        { email: regex },
+        { contactName: regex },
+        { mobile: regex },
+        { "stage1a.legalname": regex },
+        { "stage1a.gstin": regex },
+        { "stage1a.pan": regex },
+        { "stage1a.regaddress": regex },
+        { "stage1b.pocname": regex },
+        { "stage1b.pocemail": regex },
+      ];
+    }
+
+    if (kycStatus && kycStatus.trim()) {
+      query.kycStatus = kycStatus.trim();
+    }
+
+    if (plan && plan.trim()) {
+      query.plan = plan.trim();
+    }
+
+    const maxLimit = Math.min(1000, Math.max(1, Number(limit) || 100));
+    const skip = (Math.max(1, Number(page)) - 1) * maxLimit;
+
+    const [rawCompanies, total, jobs, applications] = await Promise.all([
+      Company.find(query)
+        .select("-passwordHash")
+        .sort({ updatedAt: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(maxLimit)
+        .lean(),
+      Company.countDocuments(query),
+      Job.find().lean(),
+      Application.find()
+        .populate("candidateId", "email mobile stage1 stage4 stage7 resumeUrl resumeFileName completedStages manualResume")
+        .sort({ createdAt: -1 })
+        .lean(),
+    ]);
+
+    const jobsByComp = new Map();
+    for (const job of jobs) {
+      const cid = String(job.companyId);
+      if (!jobsByComp.has(cid)) jobsByComp.set(cid, []);
+      jobsByComp.get(cid).push(job);
+    }
+
+    const appsByComp = new Map();
+    for (const app of applications) {
+      const cid = String(app.companyId);
+      if (!appsByComp.has(cid)) appsByComp.set(cid, []);
+      appsByComp.get(cid).push(app);
+    }
+
+    const companies = rawCompanies.map((comp) => {
+      const cid = String(comp._id);
+      const compJobs = jobsByComp.get(cid) || [];
+      const compApps = appsByComp.get(cid) || [];
+      const s1a = comp.stage1a || {};
+      const s1b = comp.stage1b || {};
+      const s2 = comp.stage2 || {};
+      const s9 = comp.stage9 || {};
+
+      const jobTitleByJobId = {};
+      if (comp.jdPublished && comp.jobId) {
+        jobTitleByJobId[comp.jobId] = s9.roletitle || "Onboarding Job Requisition";
+      }
+      for (const j of compJobs) {
+        jobTitleByJobId[j.jobId] = (j.fields || {}).roletitle || (j.fields || {}).jobTitle || "Job Requisition";
+      }
+
+      const formattedApps = compApps.map((app) => {
+        const cand = app.candidateId || null;
+        const s1 = cand?.stage1 || {};
+        const s4 = cand?.stage4 || {};
+        const s7 = cand?.stage7 || {};
+        const mr = cand?.manualResume || {};
+        const fullName = s1.fullName || mr.fullName || (cand ? `Candidate #${String(cand._id || cand.id).slice(-4)}` : `Applicant #${String(app._id || app.id).slice(-4)}`);
+        const email = cand?.email || "N/A";
+        const mobile = s1.mobile || mr.mobile || cand?.mobile || "N/A";
+        const city = s1.city || mr.location || "India";
+        const experience = s1.experience || mr.experience || "N/A";
+        const currentRole = s1.currentRole || mr.currentRole || "Medical Coding";
+        const jobTitle = jobTitleByJobId[app.jobId] || s9.roletitle || `Role #${app.jobId}`;
+        const mcqScore = s4.score !== undefined ? `${s4.score}%` : null;
+        const resumeUrl = cand?.resumeUrl || s7.resumeUrl || null;
+
+        return {
+          _id: app._id,
+          id: app._id,
+          jobId: app.jobId,
+          jobTitle,
+          status: app.status || "applied",
+          coverNote: app.coverNote || "",
+          createdAt: app.createdAt,
+          updatedAt: app.updatedAt,
+          candidate: {
+            _id: cand?._id || app.candidateId,
+            id: cand?._id || app.candidateId,
+            email,
+            fullName,
+            mobile,
+            city,
+            experience,
+            currentRole,
+            completedStages: cand?.completedStages || [],
+            mcqScore,
+            resumeUrl,
+            rawCandidate: cand,
+          },
+        };
+      });
+
+      return {
+        _id: comp._id,
+        id: comp._id,
+        companyName: comp.companyName || s1a.legalname || "Unnamed Company",
+        legalName: s1a.legalname || "Not provided",
+        contactName: comp.contactName || s1b.pocname || "N/A",
+        email: comp.email,
+        mobile: comp.mobile || s1b.pocmobile || "N/A",
+        plan: comp.plan || "free",
+        planAssignedAt: comp.planAssignedAt || null,
+        planAssignedBy: comp.planAssignedBy || "",
+        kycStatus: comp.kycStatus || "pending",
+        kycSubmittedAt: comp.kycSubmittedAt || null,
+        kycVerifiedAt: comp.kycVerifiedAt || null,
+        kycNotes: comp.kycNotes || "",
+        kycRejectionReason: comp.kycRejectionReason || "",
+        docVerifications: comp.docVerifications || {},
+        rejectedKycFields: comp.rejectedKycFields || [],
+        completedStages: comp.completedStages || [],
+        stage1a: s1a,
+        stage1b: s1b,
+        stage2: s2,
+        stage3: comp.stage3 || {},
+        stage4: comp.stage4 || {},
+        stage5: comp.stage5 || {},
+        stage6: comp.stage6 || {},
+        stage7: comp.stage7 || {},
+        stage8: comp.stage8 || {},
+        stage9: s9,
+        intakeNotes: comp.intakeNotes || null,
+        jdPublished: Boolean(comp.jdPublished),
+        jobId: comp.jobId || null,
+        jdPublishedAt: comp.jdPublishedAt || null,
+        jdApprovalStatus: comp.jdApprovalStatus || "pending",
+        jdApprovedAt: comp.jdApprovedAt || null,
+        jdApprovedBy: comp.jdApprovedBy || "",
+        jdRejectionReason: comp.jdRejectionReason || "",
+        jobs: compJobs,
+        jobsCount: compJobs.length + (comp.jdPublished ? 1 : 0),
+        applications: formattedApps,
+        applicationsCount: formattedApps.length,
+        createdAt: comp.createdAt,
+        updatedAt: comp.updatedAt,
+      };
+    });
+
+    res.json({
+      companies,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / maxLimit),
+      verifiedCount: companies.filter((c) => c.kycStatus === "verified").length,
+      pendingKycCount: companies.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
+    });
+  } catch (err) {
+    logger.error(`List companies error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch company directory." });
+  }
+});
+
+// GET /api/staff/companies/:id - Get single company full detail with all posted jobs and applicants
+router.get("/companies/:id", requireStaffAuth, async (req, res) => {
+  try {
+    const company = await Company.findById(req.params.id).select("-passwordHash").lean();
+    if (!company) return res.status(404).json({ message: "Company not found." });
+
+    const [jobs, applications] = await Promise.all([
+      Job.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
+      Application.find({ companyId: company._id })
+        .populate("candidateId", "email mobile stage1 stage2 stage3 stage4 stage5 stage6 stage7 stage8 resumeUrl resumeFileName completedStages manualResume")
+        .sort({ createdAt: -1 })
+        .lean(),
+    ]);
+
+    const jobTitleByJobId = {};
+    if (company && company.jdPublished && company.jobId) {
+      jobTitleByJobId[company.jobId] = (company.stage9 || {}).roletitle || "Onboarding Job Requisition";
+    }
+    for (const job of jobs) {
+      jobTitleByJobId[job.jobId] = (job.fields || {}).roletitle || (job.fields || {}).jobTitle || "Job Requisition";
+    }
+
+    const formattedApplications = applications.map((app) => {
+      const candidate = app.candidateId || null;
+      const s1 = candidate?.stage1 || {};
+      const s4 = candidate?.stage4 || {};
+      const s7 = candidate?.stage7 || {};
+      const mr = candidate?.manualResume || {};
+      const fullName = s1.fullName || mr.fullName || (candidate ? `Candidate #${String(candidate._id || candidate.id).slice(-4)}` : `Applicant #${String(app._id || app.id).slice(-4)}`);
+      const email = candidate?.email || "N/A";
+      const mobile = s1.mobile || mr.mobile || candidate?.mobile || "N/A";
+      const city = s1.city || mr.location || "India";
+      const experience = s1.experience || mr.experience || "N/A";
+      const currentRole = s1.currentRole || mr.currentRole || "Medical Coding";
+      const jobTitle = jobTitleByJobId[app.jobId] || (company.stage9 || {}).roletitle || `Role #${app.jobId}`;
+      const mcqScore = s4.score !== undefined ? `${s4.score}%` : null;
+      const resumeUrl = candidate?.resumeUrl || s7.resumeUrl || null;
+
+      return {
+        _id: app._id,
+        id: app._id,
+        jobId: app.jobId,
+        jobTitle,
+        status: app.status || "applied",
+        coverNote: app.coverNote || "",
+        createdAt: app.createdAt,
+        updatedAt: app.updatedAt,
+        candidate: {
+          _id: candidate?._id || app.candidateId,
+          id: candidate?._id || app.candidateId,
+          email,
+          fullName,
+          mobile,
+          city,
+          experience,
+          currentRole,
+          completedStages: candidate?.completedStages || [],
+          mcqScore,
+          resumeUrl,
+          rawCandidate: candidate,
+        },
+      };
+    });
+
+    res.json({
+      company,
+      jobs,
+      applications: formattedApplications,
+      applicationsCount: formattedApplications.length,
+    });
+  } catch (err) {
+    logger.error(`Get company detail error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch company details." });
+  }
+});
+
+// PUT /api/staff/applications/:id/status - Staff update candidate application status
+router.put("/applications/:id/status", requireStaffAuth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const validStatuses = ["applied", "shortlisted", "interviewing", "hired", "rejected"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: "Invalid application status." });
+    }
+    const app = await Application.findById(req.params.id);
+    if (!app) return res.status(404).json({ message: "Application not found." });
+    app.status = status;
+    await app.save();
+    res.json({ message: `Application status updated to ${status}.`, application: app });
+  } catch (err) {
+    logger.error(`Update application status error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update application status." });
+  }
+});
+
+// GET /api/staff/academies - Full Academy Directory with courses, batches, and candidate enrollments
+router.get("/academies", requireStaffAuth, async (req, res) => {
+  try {
+    const { search, limit = 500, page = 1 } = req.query;
+    const query = {};
+
+    if (search && search.trim()) {
+      const q = search.trim();
+      const regex = new RegExp(q, "i");
+      query.$or = [
+        { name: regex },
+        { email: regex },
+        { contactName: regex },
+        { primaryAdmin: regex },
+        { phone: regex },
+        { specialty: regex },
+        { headquarters: regex },
+        { branches: regex },
+      ];
+    }
+
+    const maxLimit = Math.min(1000, Math.max(1, Number(limit) || 100));
+    const skip = (Math.max(1, Number(page)) - 1) * maxLimit;
+
+    const [rawAcademies, total, batches, candidates] = await Promise.all([
+      Academy.find(query).sort({ updatedAt: -1, createdAt: -1 }).skip(skip).limit(maxLimit).lean(),
+      Academy.countDocuments(query),
+      AcademyBatch.find().sort({ createdAt: -1 }).lean(),
+      Candidate.find({ "stage2.academyName": { $exists: true } })
+        .select("_id email stage1 stage2 completedStages createdAt")
+        .lean(),
+    ]);
+
+    const batchesByAcademy = new Map();
+    for (const b of batches) {
+      const aid = String(b.academyId);
+      if (!batchesByAcademy.has(aid)) batchesByAcademy.set(aid, []);
+      batchesByAcademy.get(aid).push(b);
+    }
+
+    const studentsByAcademy = new Map();
+    for (const cand of candidates) {
+      const s2 = cand.stage2 || {};
+      const aid = s2.academyId ? String(s2.academyId) : null;
+      const aname = s2.academyName ? String(s2.academyName).trim().toLowerCase() : null;
+
+      if (aid) {
+        if (!studentsByAcademy.has(aid)) studentsByAcademy.set(aid, []);
+        studentsByAcademy.get(aid).push(cand);
+      }
+      if (aname) {
+        if (!studentsByAcademy.has(aname)) studentsByAcademy.set(aname, []);
+        studentsByAcademy.get(aname).push(cand);
+      }
+    }
+
+    const academies = rawAcademies.map((ac) => {
+      const aid = String(ac._id);
+      const acBatches = batchesByAcademy.get(aid) || [];
+      const acCandidates = studentsByAcademy.get(aid) || studentsByAcademy.get(ac.name.trim().toLowerCase()) || [];
+
+      return {
+        _id: ac._id,
+        id: ac._id,
+        name: ac.name,
+        email: ac.email,
+        contactName: ac.contactName || "Academy Partner",
+        primaryAdmin: ac.primaryAdmin || "N/A",
+        phone: ac.phone || "+91 9765435676",
+        specialty: ac.specialty || "Medical Coding",
+        headquarters: ac.headquarters || "Coimbatore",
+        branches: ac.branches || [],
+        tier: ac.tier || "Verified Partner",
+        totalAlumni: ac.totalAlumni || "35,000+",
+        partnerSince: ac.partnerSince || "Jan 2025",
+        studentsUploaded: ac.studentsUploaded || acCandidates.length,
+        verifiedPct: ac.verifiedPct || 94,
+        courses: ac.courses || [],
+        coursesCount: (ac.courses || []).length,
+        questions: ac.questions || [],
+        questionsCount: (ac.questions || []).length,
+        placements: ac.placements || [],
+        placementsCount: (ac.placements || []).length,
+        batches: acBatches,
+        batchesCount: acBatches.length,
+        enrolledCandidatesCount: acCandidates.length,
+        candidates: acCandidates,
+        createdAt: ac.createdAt,
+        updatedAt: ac.updatedAt,
+      };
+    });
+
+    res.json({
+      academies,
+      total,
+      page: Number(page),
+      totalPages: Math.ceil(total / maxLimit),
+      totalBatches: batches.length,
+    });
+  } catch (err) {
+    logger.error(`List academies error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch academy directory." });
+  }
+});
+
+// GET /api/staff/academies/:id - Get single academy full detail with all batches and registered candidates
+router.get("/academies/:id", requireStaffAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.params.id).lean();
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const [batches, students] = await Promise.all([
+      AcademyBatch.find({ academyId: academy._id }).sort({ createdAt: -1 }).lean(),
+      Candidate.find({
+        $or: [
+          { "stage2.academyId": String(academy._id) },
+          { "stage2.academyName": academy.name },
+        ],
+      })
+        .select("-passwordHash")
+        .sort({ createdAt: -1 })
+        .lean(),
+    ]);
+
+    res.json({
+      academy,
+      batches,
+      students,
+    });
+  } catch (err) {
+    logger.error(`Get academy detail error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch academy details." });
   }
 });
 

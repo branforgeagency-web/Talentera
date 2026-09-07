@@ -86,6 +86,15 @@ const CandidateSchema = new mongoose.Schema(
       ],
       default: "executive",
     },
+
+    isSubmitted: {
+      type: Boolean,
+      default: false,
+    },
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true } // gives createdAt / updatedAt automatically
 );

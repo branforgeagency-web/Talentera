@@ -23,6 +23,7 @@ import ResumeBuilder from "./pages/ResumeBuilder.jsx";
 import AssessmentRunner from "./pages/AssessmentRunner.jsx";
 import VerifyCandidate from "./pages/VerifyCandidate.jsx";
 import TypographyShowcase from "./pages/TypographyShowcase.jsx";
+import Learn from "./pages/Learn.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 
@@ -124,6 +125,14 @@ export default function App() {
         element={
           <RequireAuth>
             <AssessmentRunner />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/learn"
+        element={
+          <RequireAuth>
+            <Learn />
           </RequireAuth>
         }
       />
