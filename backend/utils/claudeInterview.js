@@ -37,8 +37,8 @@ function authHeaders(key) {
   };
 }
 
-const MESSI_SYSTEM_PROMPT = `You are Messi, a friendly, warm, encouraging, and human-like AI interviewer conducting a 1-on-1 mock interview for a student/fresher candidate at Talentera.
-You ask 5 simple, conversational questions, one at a time, covering: Introduction, Education, Skills, Projects, and Career Goals.
+const MESSI_SYSTEM_PROMPT = `You are Messi, a friendly, warm, encouraging, and human-like AI interviewer conducting a 1-on-1 mock interview for a medical coding candidate at Talentera.
+You ask 5 medical coding questions, one at a time, covering: ICD-10-CM Diagnosis Coding, CPT Procedure Codes, Evaluation & Management (E/M) Coding, Medical Billing & Claims, and HIPAA & Compliance.
 After the candidate answers, you briefly and warmly acknowledge their response (in 1-2 conversational sentences) before transitioning to the next question.
 You never sound robotic, blunt, or overly formal. You interact like a supportive senior mentor or real human interviewer.
 IMPORTANT GUIDELINES:
@@ -49,50 +49,52 @@ IMPORTANT GUIDELINES:
 Always return the exact JSON shape requested, and nothing else - no markdown fences, no commentary outside the JSON.`;
 
 // ---------------------------------------------------------------------------
-// 5 Core Student/Fresher Interview Questions
-// Designed specifically for freshers and students across 5 foundational topics:
-// 1. Introduction, 2. Education, 3. Skills, 4. Projects, 5. Career Goals
+// 5 Core Medical Coding Interview Questions
+// Designed specifically for medical coders covering:
+// 1. ICD-10-CM Diagnosis Coding, 2. CPT Procedure Codes, 3. E/M Coding,
+// 4. Medical Billing & Claims, 5. HIPAA & Compliance
 // ---------------------------------------------------------------------------
 const FALLBACK_QUESTION_BANK = [
   {
-    topic: "Introduction",
-    topicLabel: "Introduction & Background",
-    question: "To start off, could you please introduce yourself and tell me a bit about your background and what inspired you to pursue this career path?",
-    expectedConcepts: ["introduction", "background", "education", "passion", "interests", "motivation"],
+    topic: "ICD-10-CM Diagnosis Coding",
+    topicLabel: "ICD-10-CM Diagnosis Coding",
+    question: "Can you explain what ICD-10-CM codes are, how they are structured, and give an example of how you would select the correct diagnosis code for a patient encounter?",
+    expectedConcepts: ["ICD-10-CM", "diagnosis code", "code structure", "specificity", "principal diagnosis", "code selection"],
   },
   {
-    topic: "Education",
-    topicLabel: "Education & Coursework",
-    question: "Could you tell me about your educational background, and any specific subjects, coursework, or certifications you found most engaging?",
-    expectedConcepts: ["degree", "college", "coursework", "academic", "learning", "subjects", "training"],
+    topic: "CPT Procedure Codes",
+    topicLabel: "CPT Procedure Codes",
+    question: "What are CPT codes, and how do modifiers such as modifier 25 or modifier 59 affect the billing of a procedure? Can you walk me through an example?",
+    expectedConcepts: ["CPT codes", "modifier 25", "modifier 59", "procedure billing", "unbundling", "same-day service"],
   },
   {
-    topic: "Skills",
-    topicLabel: "Key Skills & Strengths",
-    question: "What key skills—both technical and soft skills—have you developed, and which one are you most confident in using?",
-    expectedConcepts: ["technical skills", "soft skills", "communication", "problem solving", "tools", "strengths"],
+    topic: "Evaluation & Management (E/M) Coding",
+    topicLabel: "Evaluation & Management (E/M) Coding",
+    question: "How do you determine the correct Evaluation and Management code for an office visit? What key components or documentation elements do you look for?",
+    expectedConcepts: ["E/M code", "medical decision making", "MDM", "history", "examination", "time-based", "complexity"],
   },
   {
-    topic: "Projects",
-    topicLabel: "Projects & Practical Work",
-    question: "Can you tell me about a project, academic assignment, or practical case study you worked on, along with your role and what you learned from it?",
-    expectedConcepts: ["project", "assignment", "role", "challenges", "implementation", "outcome", "teamwork"],
+    topic: "Medical Billing & Claims",
+    topicLabel: "Medical Billing & Claims",
+    question: "Can you describe the medical billing cycle from patient registration to claim submission, and what steps you take when a claim is denied or rejected?",
+    expectedConcepts: ["claim submission", "denial management", "EOB", "remittance advice", "appeal", "payer", "clean claim"],
   },
   {
-    topic: "Career Goals",
-    topicLabel: "Career Aspirations & Goals",
-    question: "Looking ahead, what are your short-term and long-term career goals, and what kind of work environment excites you most?",
-    expectedConcepts: ["career goals", "short term", "long term", "growth", "learning", "contribution", "future plans"],
+    topic: "HIPAA & Compliance",
+    topicLabel: "HIPAA & Compliance",
+    question: "What is HIPAA, and how does it impact your day-to-day work as a medical coder? Can you describe a situation where you would need to ensure PHI is protected?",
+    expectedConcepts: ["HIPAA", "PHI", "protected health information", "privacy rule", "security rule", "compliance", "data protection"],
   },
 ];
 
+
 function withIndices(list) {
   const defaultTopics = [
-    { topic: "Introduction", topicLabel: "Introduction & Background" },
-    { topic: "Education", topicLabel: "Education & Coursework" },
-    { topic: "Skills", topicLabel: "Key Skills & Strengths" },
-    { topic: "Projects", topicLabel: "Projects & Practical Work" },
-    { topic: "Career Goals", topicLabel: "Career Aspirations & Goals" },
+    { topic: "ICD-10-CM Diagnosis Coding", topicLabel: "ICD-10-CM Diagnosis Coding" },
+    { topic: "CPT Procedure Codes", topicLabel: "CPT Procedure Codes" },
+    { topic: "Evaluation & Management (E/M) Coding", topicLabel: "Evaluation & Management (E/M) Coding" },
+    { topic: "Medical Billing & Claims", topicLabel: "Medical Billing & Claims" },
+    { topic: "HIPAA & Compliance", topicLabel: "HIPAA & Compliance" },
   ];
 
   return list.slice(0, 5).map((q, idx) => ({
@@ -105,26 +107,26 @@ function withIndices(list) {
 }
 
 /**
- * Generate exactly 5 simple interview questions for a student/fresher,
- * covering Introduction, Education, Skills, Projects, and Career Goals.
+ * Generate exactly 5 medical coding interview questions covering
+ * ICD-10-CM, CPT codes, E/M coding, Medical Billing & Claims, and HIPAA & Compliance.
  */
 async function generateInterviewQuestions({ candidateName = "", role = "", experienceYears } = {}) {
   const key = apiKey();
-  const roleLabel = role || "Entry-Level Candidate";
+  const roleLabel = role || "Medical Coder";
 
   if (key) {
     try {
-      const prompt = `Generate exactly 5 simple interview questions for a student / fresher candidate.
-Candidate: ${candidateName || "the candidate"}, applying for / pursuing: "${roleLabel}".
+      const prompt = `Generate exactly 5 medical coding interview questions for a candidate applying for a medical coding role.
+Candidate: ${candidateName || "the candidate"}, applying for: "${roleLabel}".
 
 The 5 questions MUST follow this exact sequential order and topics:
-1. Introduction: Ask the candidate to introduce themselves, their background, and what inspired them.
-2. Education: Ask about their educational background, college/degree, or favorite subjects/coursework.
-3. Skills: Ask about their key technical and soft skills, and which they feel most confident in.
-4. Projects: Ask about an academic project, assignment, or practical case study they worked on and their role.
-5. Career Goals: Ask about their short-term and long-term career aspirations and growth plans.
+1. ICD-10-CM Diagnosis Coding: Ask about ICD-10-CM code structure, how to select a diagnosis code, or coding guidelines.
+2. CPT Procedure Codes: Ask about CPT codes, modifiers (e.g., modifier 25 or 59), or how they affect billing.
+3. Evaluation & Management (E/M) Coding: Ask about how to determine the correct E/M code, MDM, or documentation requirements.
+4. Medical Billing & Claims: Ask about the billing cycle, claim submission, denial management, or EOB interpretation.
+5. HIPAA & Compliance: Ask about HIPAA rules, PHI protection, or compliance practices in medical coding.
 
-Keep questions clear, simple, conversational, and suitable for a student/fresher.
+Keep questions clear, practical, conversational, and suitable for a medical coding professional.
 Return STRICT JSON only: an array of exactly 5 objects, each shaped:
 { "topic": string, "topicLabel": string, "question": string, "expectedConcepts": string[] }
 where expectedConcepts is 3-5 short key terms/concepts a good answer would touch on. No prose outside the JSON array, no markdown fences.`;
@@ -134,7 +136,7 @@ where expectedConcepts is 3-5 short key terms/concepts a good answer would touch
         {
           model: MODEL,
           max_tokens: 1800,
-          system: "You are a friendly, encouraging senior interviewer designing a simple mock interview for students and freshers. Return valid JSON only.",
+          system: "You are an experienced medical coding supervisor designing a mock interview for medical coding candidates. Return valid JSON only.",
           messages: [{ role: "user", content: prompt }],
           temperature: 0.5,
         },
@@ -158,13 +160,14 @@ where expectedConcepts is 3-5 short key terms/concepts a good answer would touch
         }
       }
     } catch (err) {
-      console.warn("Messi generateInterviewQuestions warning, using student fallback bank:", err.message);
+      console.warn("Messi generateInterviewQuestions warning, using medical coding fallback bank:", err.message);
     }
   }
 
-  // Use the standard student/fresher question sequence
+  // Use the medical coding question sequence
   return withIndices(FALLBACK_QUESTION_BANK);
 }
+
 
 // ---------------------------------------------------------------------------
 // Per-turn conversation handling

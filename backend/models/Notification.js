@@ -4,11 +4,11 @@ const NotificationSchema = new mongoose.Schema(
   {
     recipientType: {
       type: String,
-      enum: ["company", "staff"],
+      enum: ["company", "staff", "candidate"],
       required: true,
     },
     recipientId: {
-      type: String, // Company ID for company, or "staff" for staff officers
+      type: String, // Company ID for company, candidate ID for candidate, or "staff" for staff officers
       required: true,
     },
     title: {
@@ -29,6 +29,15 @@ const NotificationSchema = new mongoose.Schema(
         "job_submitted",
         "job_approved",
         "job_rejected",
+        "application_submitted",
+        "application_shortlisted",
+        "interview_scheduled",
+        "offer_received",
+        "application_update",
+        "kyc_verified",
+        "assessment_passed",
+        "ai_interview_done",
+        "resume_ready",
         "system",
       ],
       default: "system",

@@ -50,7 +50,7 @@ export const ONBOARDING_STAGES = [
       { id: "doi", name: "Date of incorporation", tag: "must", input: "date" },
       { id: "cosize", name: "Company size", tag: "must", input: "select", options: ["1–50", "51–200", "201–500", "501–1,000", "1,001–5,000", "5,000+"] },
       { id: "regaddress", name: "Registered address", desc: "Address as on GST certificate", tag: "must", input: "textarea" },
-      { id: "opaddress", name: "Operating address", desc: "Leave blank if same as registered", tag: "opt", input: "textarea" },
+      { id: "opaddress", name: "Operating address", tag: "must", input: "textarea" },
       { id: "website", name: "Company website URL", tag: "opt", input: "url", placeholder: "https://acme.com" },
       { id: "signatory", name: "Authorized signatory", desc: "Person who signs MOU + invoices", tag: "must", input: "name-email" },
       { id: "kycgst", name: "KYC: GST certificate", desc: "PDF/JPG ≤ 2MB", tag: "must", input: "file" },
