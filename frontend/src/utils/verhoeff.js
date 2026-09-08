@@ -39,10 +39,12 @@ const VERHOEFF_P = [
  * DigiLocker / UIDAI verification proves ownership.
  */
 export function verhoeffValidate(num) {
-  const digits = String(num).replace(/\D/g, "");
+  const digits = String(num || "").replace(/\D/g, "");
   if (digits.length !== 12) return false;
   // UIDAI rule: first digit cannot be 0 or 1
   if (digits[0] === "0" || digits[0] === "1") return false;
+  // UIDAI rule: cannot be all identical digits
+  if (/^(\d)\1{11}$/.test(digits)) return false;
 
   let c = 0;
   const reversed = digits.split("").reverse();
@@ -50,6 +52,32 @@ export function verhoeffValidate(num) {
     c = VERHOEFF_D[c][VERHOEFF_P[i % 8][parseInt(reversed[i], 10)]];
   }
   return c === 0;
+}
+
+/**
+ * Validates Aadhaar number and returns detailed reason.
+ */
+export function validateAadhaarNumber(num) {
+  const digits = String(num || "").replace(/\D/g, "");
+  if (!digits) {
+    return { valid: false, error: "Aadhaar number is required.", digits };
+  }
+  if (digits.length < 12) {
+    return { valid: false, error: `${digits.length}/12 Digits entered`, digits };
+  }
+  if (digits.length > 12) {
+    return { valid: false, error: "Aadhaar number cannot exceed 12 digits.", digits };
+  }
+  if (digits[0] === "0" || digits[0] === "1") {
+    return { valid: false, error: "UIDAI Aadhaar numbers cannot start with 0 or 1.", digits };
+  }
+  if (/^(\d)\1{11}$/.test(digits)) {
+    return { valid: false, error: "Invalid Aadhaar: Repeating digits are not permitted.", digits };
+  }
+  if (!verhoeffValidate(digits)) {
+    return { valid: false, error: "Invalid Aadhaar: Failed UIDAI Verhoeff checksum.", digits };
+  }
+  return { valid: true, error: "", digits };
 }
 
 /** Formats a raw digit string as "XXXX XXXX XXXX" while typing. */

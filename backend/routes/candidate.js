@@ -307,6 +307,12 @@ router.put("/stage/:n", async (req, res) => {
       if (!city || String(city).trim() === "") {
         return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
       }
+
+      // Aadhaar Identity Verification Enforcement
+      const isAadhaarVerified = Boolean(candidate.stage1?.aadhaarVerified || req.body.aadhaarVerified);
+      if (!isAadhaarVerified) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Please verify your 12-digit Aadhaar number with UIDAI mobile OTP." });
+      }
     } else if (stageNum === 2) {
       // Training is now mandatory (see SKIPPABLE_STAGES above) — validation
       // no longer has a "&& !req.body.skipped" escape hatch, since that let

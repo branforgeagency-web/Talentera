@@ -4,7 +4,17 @@ import api from "../../api/client";
 const DOMAINS = ["Medical Coding", "Medical Billing", "AR Calling"];
 const SPECIALTIES = ["HCC / Risk Adjustment", "ED Coding", "Surgery Coding", "IP DRG", "OP / E&M", "Cardiology", "Radiology"];
 
-export default function Stage2Training({ stage, existingData, onSaved }) {
+export default function Stage2Training({ stage, existingData, candidate, onSaved }) {
+  const initialExp = (() => {
+    if (existingData?.experienceLevel) return existingData.experienceLevel.toLowerCase();
+    const s1Exp = (candidate?.stage1?.experience || "").toLowerCase();
+    if (s1Exp.includes("fresher")) return "fresher";
+    if (s1Exp.includes("exp") || s1Exp === "1-3" || s1Exp === "3-5" || s1Exp === "5+") return "experienced";
+    if (Array.isArray(candidate?.stage1?.workHistory) && candidate.stage1.workHistory.length > 0) return "experienced";
+    return "fresher";
+  })();
+
+  const [experienceLevel, setExperienceLevel] = useState(initialExp);
   const [domain, setDomain] = useState(existingData?.domain || "Medical Coding");
   const [specialty, setSpecialty] = useState(existingData?.specialty || SPECIALTIES[0]);
   const [academyName, setAcademyName] = useState(existingData?.academyName ?? "Apex Medical Coding Institute");
@@ -12,6 +22,18 @@ export default function Stage2Training({ stage, existingData, onSaved }) {
   const [trainerName, setTrainerName] = useState(existingData?.trainerName ?? "Mr. Karthik");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Sync with candidate stage 1 if stage 2 does not have its own override saved
+  React.useEffect(() => {
+    if (!existingData?.experienceLevel) {
+      const s1Exp = (candidate?.stage1?.experience || "").toLowerCase();
+      if (s1Exp.includes("fresher")) {
+        setExperienceLevel("fresher");
+      } else if (s1Exp.includes("exp") || (Array.isArray(candidate?.stage1?.workHistory) && candidate.stage1.workHistory.length > 0)) {
+        setExperienceLevel("experienced");
+      }
+    }
+  }, [candidate?.stage1?.experience, candidate?.stage1?.workHistory, existingData?.experienceLevel]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -31,10 +53,12 @@ export default function Stage2Training({ stage, existingData, onSaved }) {
 
     setSaving(true);
     try {
+      const isExp = experienceLevel === "experienced";
       const res = await api.put(`/candidate/stage/${stage.num}`, {
         domain,
-        specialty,
-        courseName: `${domain} - ${specialty}`,
+        experienceLevel,
+        specialty: isExp ? specialty : "",
+        courseName: isExp && specialty ? `${domain} - ${specialty}` : domain,
         academyName: academyName.trim(),
         duration: duration.trim(),
         trainerName: trainerName.trim(),
@@ -74,13 +98,35 @@ export default function Stage2Training({ stage, existingData, onSaved }) {
       </div>
 
       <div className="wiz-field">
-        <label>Your specialty</label>
-        <select value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
-          {SPECIALTIES.map((s) => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <label>Candidate experience level</label>
+        <div className="wiz-pill-row">
+          <button
+            type="button"
+            className={`wiz-pill wiz-pill-compact ${experienceLevel === "fresher" ? "active" : ""}`}
+            onClick={() => setExperienceLevel("fresher")}
+          >
+            Fresher (No prior industry experience)
+          </button>
+          <button
+            type="button"
+            className={`wiz-pill wiz-pill-compact ${experienceLevel === "experienced" ? "active" : ""}`}
+            onClick={() => setExperienceLevel("experienced")}
+          >
+            Experienced (1+ yrs experience)
+          </button>
+        </div>
       </div>
+
+      {experienceLevel === "experienced" && (
+        <div className="wiz-field">
+          <label>Your specialty</label>
+          <select value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
+            {SPECIALTIES.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="wiz-field">
         <label>Academy where you trained</label>

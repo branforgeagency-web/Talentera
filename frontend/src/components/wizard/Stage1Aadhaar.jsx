@@ -20,14 +20,14 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
   // 1. Contact Information
   const [fullName, setFullName] = useState(existingData?.fullName || "");
-  const [experience, setExperience] = useState(existingData?.experience || "experienced");
-  const [currentRole, setCurrentRole] = useState(existingData?.currentRole || "Medical Coder II");
+  const [experience, setExperience] = useState(existingData?.experience || (existingData?.workHistory?.length > 0 ? "Experienced" : "Fresher"));
+  const [currentRole, setCurrentRole] = useState(existingData?.currentRole || "");
   const [mobile, setMobile] = useState(existingData?.mobile ? formatMobile(existingData.mobile) : "");
   const [email, setEmail] = useState(existingData?.email || "");
-  const [state, setState] = useState(existingData?.state || "Tamil Nadu");
+  const [state, setState] = useState(existingData?.state || "");
   const [city, setCity] = useState(existingData?.city || "");
   const [country, setCountry] = useState(existingData?.country || "India");
-  const [linkedin, setLinkedin] = useState(existingData?.linkedin || "linkedin.com/in/medical-coder");
+  const [linkedin, setLinkedin] = useState(existingData?.linkedin || "");
 
   // Aadhaar Document & Verification States
   const [aadhaarInput, setAadhaarInput] = useState(existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : ""));
@@ -37,41 +37,29 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
   const [aadhaarUploading, setAadhaarUploading] = useState(false);
 
   // 2. Professional Summary
-  const [summary, setSummary] = useState(
-    existingData?.summary || "Healthcare RCM Specialist & Medical Coder with 3+ years experience in Outpatient, Inpatient, and ED Medical Coding. Proven track record maintaining 98% coding accuracy across 60+ charts daily while ensuring full HIPAA & CMS compliance."
-  );
+  const [summary, setSummary] = useState(existingData?.summary || "");
 
   // 3. Technical & Coding Skill Set
-  const [codeSets, setCodeSets] = useState(existingData?.codeSets || "ICD-10-CM, ICD-10-PCS, CPT, HCPCS Level II, CDT");
-  const [specializedKnowledge, setSpecializedKnowledge] = useState(existingData?.specializedKnowledge || "E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA Compliance, Medical Necessity, DRG Assignment, HCC Risk Adjustment");
-  const [ehrSoftware, setEhrSoftware] = useState(existingData?.ehrSoftware || "Epic Hyperspace, Cerner, Meditech, Athenahealth, 3M CodeRyte / Encoder Pro, Optum Encoder");
-  const [coreCompetencies, setCoreCompetencies] = useState(existingData?.coreCompetencies || "Anatomy & Physiology, Medical Terminology, Clinical Documentation Improvement (CDI), Denial & Audit Appeals Resolution");
+  const [codeSets, setCodeSets] = useState(existingData?.codeSets || "");
+  const [specializedKnowledge, setSpecializedKnowledge] = useState(existingData?.specializedKnowledge || "");
+  const [ehrSoftware, setEhrSoftware] = useState(existingData?.ehrSoftware || "");
+  const [coreCompetencies, setCoreCompetencies] = useState(existingData?.coreCompetencies || "");
 
   // 4. Professional Experience
   const [workHistory, setWorkHistory] = useState(
     existingData?.workHistory && existingData.workHistory.length > 0
       ? existingData.workHistory
-      : [
-          {
-            title: "Senior Medical Coder II",
-            company: "ThoughtFlows Healthcare RCM Ltd",
-            location: "Bengaluru",
-            dates: "2022 – Present",
-            workType: "Outpatient / ED Coding (Remote)",
-            metrics: "Maintained 98.4% accuracy on 65+ outpatient charts daily",
-            description: "Coded complex ED and Surgery charts using ICD-10-CM and CPT modifiers. Queried physicians to resolve clinical documentation ambiguities, identified unbundled codes, and resolved CO-197 pre-authorization denials.",
-          },
-        ]
+      : []
   );
 
   // 5. Education & Academic Details
-  const [degree, setDegree] = useState(existingData?.degree || "B.Sc. Life Sciences / Healthcare Information Management");
-  const [collegeName, setCollegeName] = useState(existingData?.collegeName || "Bangalore University / Life Sciences Institute");
-  const [graduationYear, setGraduationYear] = useState(existingData?.graduationYear || "2021");
+  const [degree, setDegree] = useState(existingData?.degree || "");
+  const [collegeName, setCollegeName] = useState(existingData?.collegeName || "");
+  const [graduationYear, setGraduationYear] = useState(existingData?.graduationYear || "");
 
-  const [schoolName, setSchoolName] = useState(existingData?.schoolName || "St. Joseph's Higher Secondary School");
-  const [schoolBoard, setSchoolBoard] = useState(existingData?.schoolBoard || "CBSE Board");
-  const [schoolYear, setSchoolYear] = useState(existingData?.schoolYear || "2018");
+  const [schoolName, setSchoolName] = useState(existingData?.schoolName || "");
+  const [schoolBoard, setSchoolBoard] = useState(existingData?.schoolBoard || "");
+  const [schoolYear, setSchoolYear] = useState(existingData?.schoolYear || "");
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -81,9 +69,10 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
   // Dynamic Work History Handlers
   function handleAddWorkHistory() {
+    setExperience("Experienced");
     setWorkHistory((prev) => [
       ...prev,
-      { title: "Inpatient Medical Coder", company: "Apex RCM Solutions", location: "Bengaluru", dates: "2021 – 2022", workType: "Inpatient / ASC", metrics: "98% accuracy on 50+ records daily", description: "Processed DRG assignments, physician queries, and claims appeals." },
+      { title: "", company: "", location: "", dates: "", workType: "", metrics: "", description: "" },
     ]);
   }
 
@@ -162,8 +151,9 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       return;
     }
 
-    if (!existingData?.aadhaarVerified && aadhaarState !== "valid" && !aadhaarInput && !aadhaarDocName && !aadhaarDocUrl) {
-      setError("Please verify your 12-digit Aadhaar Number via Mobile OTP.");
+    const isVerified = Boolean(existingData?.aadhaarVerified || aadhaarState === "valid");
+    if (!isVerified) {
+      setError("Please complete Aadhaar number verification and mobile OTP authentication before saving Stage 1.");
       toast("Aadhaar OTP verification is required.", "!");
       setSaving(false);
       return;
@@ -202,7 +192,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         ehrSoftware,
         coreCompetencies,
 
-        workHistory,
+        workHistory: workHistory.filter((w) => w.title?.trim() || w.company?.trim()),
 
         degree,
         collegeName,
@@ -212,10 +202,10 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         schoolYear,
 
         education: [
-          { degree, school: collegeName, year: graduationYear },
-          { degree: `High School (${schoolBoard})`, school: schoolName, year: schoolYear },
+          ...(degree || collegeName ? [{ degree, school: collegeName, year: graduationYear }] : []),
+          ...(schoolName || schoolBoard ? [{ degree: schoolBoard ? `High School (${schoolBoard})` : "High School", school: schoolName, year: schoolYear }] : []),
         ],
-        skills: `${codeSets}, ${specializedKnowledge}, ${ehrSoftware}`,
+        skills: [codeSets, specializedKnowledge, ehrSoftware].filter(Boolean).join(", "),
       };
 
       const res = await api.put(`/candidate/stage/1`, payload);
@@ -248,7 +238,11 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
           onVerificationSuccess={(data) => {
             setAadhaarState("valid");
             setAadhaarInput(data.maskedAadhaar);
-            if (data.name) setFullName(data.name);
+            // data.fullName/city/state come from the real Cashfree Aadhaar OKYC
+            // response (verify-otp's "details"). UIDAI never discloses the
+            // Aadhaar-linked mobile number itself - only the OTP proves it -
+            // so it is intentionally never auto-filled here.
+            if (data.fullName) setFullName(data.fullName);
             if (data.city) setCity(data.city);
             if (data.state) setState(data.state);
             toast("✓ Profile details auto-filled from verified Aadhaar record", "✓");
@@ -275,6 +269,26 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
           <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Ananya Sharma" required />
         </div>
 
+        <div className="wiz-field" style={{ marginBottom: 12 }}>
+          <label>Experience Level *</label>
+          <div className="wiz-pill-row">
+            <button
+              type="button"
+              className={`wiz-pill wiz-pill-compact ${String(experience).toLowerCase() === "fresher" ? "active" : ""}`}
+              onClick={() => setExperience("Fresher")}
+            >
+              Fresher (New to Industry)
+            </button>
+            <button
+              type="button"
+              className={`wiz-pill wiz-pill-compact ${String(experience).toLowerCase() === "experienced" ? "active" : ""}`}
+              onClick={() => setExperience("Experienced")}
+            >
+              Experienced (1+ yrs in Coding/RCM)
+            </button>
+          </div>
+        </div>
+
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
           <div className="wiz-field">
             <label>Professional Email *</label>
@@ -289,7 +303,8 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
           <div className="wiz-field">
             <label>State *</label>
-            <select value={state} onChange={(e) => setState(e.target.value)}>
+            <select value={state} onChange={(e) => setState(e.target.value)} required>
+              <option value="">-- Select State --</option>
               {INDIAN_STATES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
@@ -356,7 +371,6 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
           onChange={(e) => setSummary(e.target.value)}
           placeholder="Core coding specialties, accuracy rate %, and years of experience..."
           style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, lineHeight: 1.5 }}
-          required
         />
       </div>
 
@@ -401,40 +415,44 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
           </button>
         </div>
 
+        {workHistory.length === 0 && (
+          <div style={{ padding: "14px 16px", textAlign: "center", color: "#64748B", fontSize: 12.5, background: "#FFFFFF", borderRadius: 8, border: "1px dashed #CBD5E1" }}>
+            No work experience added yet. Click &quot;+ Add Position&quot; above to add your employment history (optional for freshers).
+          </div>
+        )}
+
         {workHistory.map((item, idx) => (
           <div key={idx} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14, marginBottom: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>Position #{idx + 1}</span>
-              {workHistory.length > 1 && (
-                <button type="button" onClick={() => handleRemoveWorkHistory(idx)} style={{ background: "none", border: "none", color: "#DC2626", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
-                  ✕ Remove Position
-                </button>
-              )}
+              <button type="button" onClick={() => handleRemoveWorkHistory(idx)} style={{ background: "none", border: "none", color: "#DC2626", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
+                ✕ Remove Position
+              </button>
             </div>
 
             <div className="wiz-field-row" style={{ marginBottom: 8 }}>
               <div className="wiz-field">
                 <label>Job Title &amp; Employer *</label>
-                <input type="text" value={item.title} onChange={(e) => handleWorkHistoryChange(idx, "title", e.target.value)} placeholder="Medical Coder II" required />
+                <input type="text" value={item.title || ""} onChange={(e) => handleWorkHistoryChange(idx, "title", e.target.value)} placeholder="e.g. Senior Medical Coder II" required />
               </div>
               <div className="wiz-field">
                 <label>Facility / Employer Name &amp; Location *</label>
-                <input type="text" value={item.company} onChange={(e) => handleWorkHistoryChange(idx, "company", e.target.value)} placeholder="ThoughtFlows RCM, Bengaluru" required />
+                <input type="text" value={item.company || ""} onChange={(e) => handleWorkHistoryChange(idx, "company", e.target.value)} placeholder="e.g. ABC Healthcare RCM, Bengaluru" required />
               </div>
               <div className="wiz-field">
                 <label>Employment Dates *</label>
-                <input type="text" value={item.dates} onChange={(e) => handleWorkHistoryChange(idx, "dates", e.target.value)} placeholder="2022 – Present" required />
+                <input type="text" value={item.dates || ""} onChange={(e) => handleWorkHistoryChange(idx, "dates", e.target.value)} placeholder="e.g. 2022 – Present" required />
               </div>
             </div>
 
             <div className="wiz-field-row" style={{ marginBottom: 8 }}>
               <div className="wiz-field">
                 <label>Work Type (Inpatient, Outpatient, ASC, Remote/On-site)</label>
-                <input type="text" value={item.workType || ""} onChange={(e) => handleWorkHistoryChange(idx, "workType", e.target.value)} placeholder="Outpatient / ED Coding (Remote)" />
+                <input type="text" value={item.workType || ""} onChange={(e) => handleWorkHistoryChange(idx, "workType", e.target.value)} placeholder="e.g. Outpatient / ED Coding (Remote)" />
               </div>
               <div className="wiz-field">
                 <label>Volume &amp; Accuracy Metrics (e.g. 98% accuracy on 60+ charts/day)</label>
-                <input type="text" value={item.metrics || ""} onChange={(e) => handleWorkHistoryChange(idx, "metrics", e.target.value)} placeholder="Maintained 98.4% accuracy on 65+ outpatient charts daily" />
+                <input type="text" value={item.metrics || ""} onChange={(e) => handleWorkHistoryChange(idx, "metrics", e.target.value)} placeholder="e.g. Maintained 98.4% accuracy on 65+ outpatient charts daily" />
               </div>
             </div>
 
@@ -442,7 +460,7 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
               <label>Key Responsibilities (Physician queries, unbundling, appeals, HIPAA &amp; CMS compliance)</label>
               <textarea
                 rows={2}
-                value={item.description}
+                value={item.description || ""}
                 onChange={(e) => handleWorkHistoryChange(idx, "description", e.target.value)}
                 placeholder="Querying physicians, identifying unbundled codes, processing appeals, HIPAA & CMS adherence..."
                 style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
@@ -461,31 +479,31 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
           <div className="wiz-field">
-            <label>Degree Name (B.S./B.Sc. in Life Sciences, HIM, Nursing, etc.) *</label>
-            <input type="text" value={degree} onChange={(e) => setDegree(e.target.value)} placeholder="B.Sc. Life Sciences / Healthcare Administration" required />
+            <label>Degree Name (B.S./B.Sc. in Life Sciences, HIM, Nursing, etc.)</label>
+            <input type="text" value={degree} onChange={(e) => setDegree(e.target.value)} placeholder="e.g. B.Sc. Life Sciences / Healthcare Administration" />
           </div>
           <div className="wiz-field">
-            <label>University / College Name *</label>
-            <input type="text" value={collegeName} onChange={(e) => setCollegeName(e.target.value)} placeholder="Bangalore University" required />
+            <label>University / College Name</label>
+            <input type="text" value={collegeName} onChange={(e) => setCollegeName(e.target.value)} placeholder="e.g. Bangalore University" />
           </div>
           <div className="wiz-field">
-            <label>Graduation Year *</label>
-            <input type="text" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} placeholder="2021" required />
+            <label>Graduation Year</label>
+            <input type="text" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} placeholder="e.g. 2021" />
           </div>
         </div>
 
         <div className="wiz-field-row">
           <div className="wiz-field">
             <label>High School Name</label>
-            <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="St. Joseph's Higher Secondary School" />
+            <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="e.g. St. Joseph's Higher Secondary School" />
           </div>
           <div className="wiz-field">
             <label>Schooling Board</label>
-            <input type="text" value={schoolBoard} onChange={(e) => setSchoolBoard(e.target.value)} placeholder="CBSE Board" />
+            <input type="text" value={schoolBoard} onChange={(e) => setSchoolBoard(e.target.value)} placeholder="e.g. CBSE Board" />
           </div>
           <div className="wiz-field">
             <label>Completion Year</label>
-            <input type="text" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} placeholder="2018" />
+            <input type="text" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} placeholder="e.g. 2018" />
           </div>
         </div>
       </div>
