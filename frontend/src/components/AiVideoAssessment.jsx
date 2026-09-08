@@ -157,6 +157,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   // liveness/camera check, its first actually-new screen.
   const [step, setStep] = useState(isInterviewCompleted ? "report" : "liveness"); // liveness | recording | evaluating | report
   const [stream, setStream] = useState(null);
+  // Always mirrors the current MediaStream so effect cleanup / stopWebcam can
+  // stop the LIVE stream even when a cleanup closure captured a stale `stream`
+  // value. The recording stream is created async (after the [step] effect's
+  // cleanup already captured the old stream), and that gap is exactly why the
+  // camera light stayed on after the interview finished.
+  const streamRef = useRef(null);
   const [cameraError, setCameraError] = useState("");
 
   // Face Detection State (Anti-cheat face guard)
@@ -405,14 +411,14 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }
 
-  // Initialize Camera - camera turns on as soon as the liveness step
-  // mounts (this component's first screen now - see the "setup" removal
-  // note above). During "liveness" verification, ONLY the camera turns on (audio: false).
-  // Microphone (audio: true) is turned on only when proceeding to "recording".
+  // Initialize Camera - the camera stays OFF until the candidate clicks
+  // "Perform Liveness Verification" on the liveness screen (that click calls
+  // handlePerformLivenessCheck -> startWebcam(false), video only). The mic
+  // (audio: true) is added only when proceeding to "recording". On any step
+  // change / unmount the cleanup below stops every track, so the camera turns
+  // off automatically once the interview reaches evaluating/report.
   useEffect(() => {
-    if (step === "liveness") {
-      startWebcam(false);
-    } else if (step === "recording") {
+    if (step === "recording") {
       startWebcam(true);
     }
     return () => {
@@ -520,14 +526,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     try {
       setCameraError("");
       // Clean up previous stream tracks before creating a new stream (e.g. switching from video-only to video+audio)
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
         setStream(null);
       }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720 },
         audio: includeAudio,
       });
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       setIsFacePresent(true);
       if (videoPreviewRef.current) {
@@ -547,18 +555,25 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   }
 
   function stopWebcam() {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
+    setStream(null);
   }
 
   // --- Step 2: Liveness Verification Check ---
   async function handlePerformLivenessCheck() {
     setLivenessChecking(true);
-    let activeStream = stream;
+    let activeStream = streamRef.current || stream;
     if (!activeStream) {
       activeStream = await startWebcam(false);
+    }
+    if (!activeStream) {
+      // Camera could not start - startWebcam already set cameraError. Don't
+      // fake a "verified" state without a live camera.
+      setLivenessChecking(false);
+      return;
     }
     setTimeout(() => {
       setLivenessChecking(false);
@@ -910,9 +925,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             {/* Live Camera Feed Preview */}
             <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", minHeight: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: "100%", height: 280, objectFit: "cover", transform: "scaleX(-1)" }} />
-              <div style={{ position: "absolute", top: 12, left: 12, background: isFacePresent ? "rgba(0,0,0,0.6)" : "#DC2626", color: "#fff", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
-                <i className="fa-solid fa-circle" style={{ color: isFacePresent ? "#22C55E" : "#fff", marginRight: 6 }}></i>
-                {isFacePresent ? "Face Detected · Camera Live" : "No Face Detected"}
+              <div style={{ position: "absolute", top: 12, left: 12, background: !stream ? "rgba(0,0,0,0.6)" : isFacePresent ? "rgba(0,0,0,0.6)" : "#DC2626", color: "#fff", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
+                <i className="fa-solid fa-circle" style={{ color: !stream ? "#94A3B8" : isFacePresent ? "#22C55E" : "#fff", marginRight: 6 }}></i>
+                {!stream ? "Camera Off · Click Verify to Start" : isFacePresent ? "Face Detected · Camera Live" : "No Face Detected"}
               </div>
             </div>
 
@@ -933,7 +948,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                     ✓ Liveness Verified! Face presence confirmed.
                   </div>
                   <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={() => setStep("recording")} disabled={questionsLoading}>
-                    {questionsLoading ? "Loading Questions…" : "Proceed to AI Q&amp;A Assessment →"}
+                    {questionsLoading ? "Loading Questions…" : "Start 90s Self-Introduction Recording →"}
                   </button>
                 </div>
               ) : (

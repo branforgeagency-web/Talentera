@@ -58,31 +58,31 @@ const FALLBACK_QUESTION_BANK = [
   {
     topic: "ICD-10-CM Diagnosis Coding",
     topicLabel: "ICD-10-CM Diagnosis Coding",
-    question: "Can you explain what ICD-10-CM codes are, how they are structured, and give an example of how you would select the correct diagnosis code for a patient encounter?",
+    question: "In simple terms, what is an ICD-10-CM code used for?",
     expectedConcepts: ["ICD-10-CM", "diagnosis code", "code structure", "specificity", "principal diagnosis", "code selection"],
   },
   {
     topic: "CPT Procedure Codes",
     topicLabel: "CPT Procedure Codes",
-    question: "What are CPT codes, and how do modifiers such as modifier 25 or modifier 59 affect the billing of a procedure? Can you walk me through an example?",
+    question: "What is a CPT code used for in medical coding?",
     expectedConcepts: ["CPT codes", "modifier 25", "modifier 59", "procedure billing", "unbundling", "same-day service"],
   },
   {
     topic: "Evaluation & Management (E/M) Coding",
     topicLabel: "Evaluation & Management (E/M) Coding",
-    question: "How do you determine the correct Evaluation and Management code for an office visit? What key components or documentation elements do you look for?",
+    question: "What does an E/M code describe in a patient visit?",
     expectedConcepts: ["E/M code", "medical decision making", "MDM", "history", "examination", "time-based", "complexity"],
   },
   {
     topic: "Medical Billing & Claims",
     topicLabel: "Medical Billing & Claims",
-    question: "Can you describe the medical billing cycle from patient registration to claim submission, and what steps you take when a claim is denied or rejected?",
+    question: "What is a medical claim, and what happens when a claim is denied?",
     expectedConcepts: ["claim submission", "denial management", "EOB", "remittance advice", "appeal", "payer", "clean claim"],
   },
   {
     topic: "HIPAA & Compliance",
     topicLabel: "HIPAA & Compliance",
-    question: "What is HIPAA, and how does it impact your day-to-day work as a medical coder? Can you describe a situation where you would need to ensure PHI is protected?",
+    question: "What is HIPAA, and why is it important in medical coding?",
     expectedConcepts: ["HIPAA", "PHI", "protected health information", "privacy rule", "security rule", "compliance", "data protection"],
   },
 ];
@@ -120,13 +120,13 @@ async function generateInterviewQuestions({ candidateName = "", role = "", exper
 Candidate: ${candidateName || "the candidate"}, applying for: "${roleLabel}".
 
 The 5 questions MUST follow this exact sequential order and topics:
-1. ICD-10-CM Diagnosis Coding: Ask about ICD-10-CM code structure, how to select a diagnosis code, or coding guidelines.
-2. CPT Procedure Codes: Ask about CPT codes, modifiers (e.g., modifier 25 or 59), or how they affect billing.
-3. Evaluation & Management (E/M) Coding: Ask about how to determine the correct E/M code, MDM, or documentation requirements.
-4. Medical Billing & Claims: Ask about the billing cycle, claim submission, denial management, or EOB interpretation.
-5. HIPAA & Compliance: Ask about HIPAA rules, PHI protection, or compliance practices in medical coding.
+1. ICD-10-CM Diagnosis Coding: one simple question about what ICD-10-CM codes are or what they are used for.
+2. CPT Procedure Codes: one simple question about what CPT codes are or what they are used for.
+3. Evaluation & Management (E/M) Coding: one simple question about what an E/M code describes.
+4. Medical Billing & Claims: one simple question about medical claims or claim denials.
+5. HIPAA & Compliance: one simple question about HIPAA or protecting patient information.
 
-Keep questions clear, practical, conversational, and suitable for a medical coding professional.
+Keep every question SHORT and simple: a single clear sentence that a fresher can answer in a few lines. Do NOT ask long, multi-part, or highly detailed questions. No "walk me through an example" or multiple sub-questions.
 Return STRICT JSON only: an array of exactly 5 objects, each shaped:
 { "topic": string, "topicLabel": string, "question": string, "expectedConcepts": string[] }
 where expectedConcepts is 3-5 short key terms/concepts a good answer would touch on. No prose outside the JSON array, no markdown fences.`;
@@ -279,17 +279,17 @@ function computeHeuristicTurn({ utterance, currentQuestion, quickIntent }) {
 
 function cleanMessiReply(text) {
   let cleaned = String(text || "").trim();
-  // Filter out any LLM hallucinations about audio dropouts, mic issues, or inaudibility
-  if (/audio|connection|audible|couldn't hear|can't hear|microphone|cut out|hear you/i.test(cleaned)) {
-    cleaned = cleaned
-      .replace(/i (think|believe|guess|assume) (your|the) (audio|connection|voice) (was|is) (not|wasn't) (audible|clear|working|good)[^.]*\.?/gi, "")
-      .replace(/i couldn't hear (you|your response|anything)[^.]*\.?/gi, "")
-      .replace(/(there seems to be|due to|seems like) an? (audio|connection|microphone) (issue|problem)[^.]*\.?/gi, "")
-      .replace(/your (audio|voice) (was|is) (inaudible|unclear|cut out)[^.]*\.?/gi, "")
-      .trim();
-    if (!cleaned) {
-      cleaned = "Thank you for sharing that! Let's continue to the next question.";
-    }
+  // Messi must NEVER tell the candidate their audio/mic/connection failed or that
+  // it couldn't hear them. The answer arrives via browser speech-to-text and can be
+  // imperfect, but a complaint about it is always wrong and confuses the candidate.
+  // Previously we tried to surgically strip such phrases with narrow regexes, which
+  // left fragments like "...your audio didn't connect correctly" intact and spoken
+  // aloud. Instead: if the reply mentions any audio/mic/connection complaint at all,
+  // drop the WHOLE reply and use a warm, neutral acknowledgment.
+  const AUDIO_COMPLAINT_RE =
+    /audio|microphone|\bmic\b|inaudible|audible|cut(ting)? out|couldn'?t (hear|catch|understand)|can'?t (hear|catch|understand)|didn'?t (hear|catch|come through)|not able to hear|hear you|not connected|didn'?t connect|connect(ed|ing)? (correctly|properly)|connection (issue|problem|error|trouble)|check your (mic|audio|microphone|connection)|background noise|no sound|speak up/i;
+  if (AUDIO_COMPLAINT_RE.test(cleaned)) {
+    return "Thank you for sharing that! Let's continue to the next question.";
   }
   return cleaned;
 }

@@ -11,11 +11,11 @@ const SILENCE_TIMEOUT_AFTER_ANSWER_MS = 4000;
 const STOP_COMMAND_RE = /\b(stop|end|quit|terminate)\b[\s\S]*\binterview\b|^(stop|end)( it| this)?$/i;
 
 const TOPIC_CONFIG = [
-  { key: "Introduction", label: "1. Introduction", icon: "fa-user" },
-  { key: "Education", label: "2. Education", icon: "fa-graduation-cap" },
-  { key: "Skills", label: "3. Skills", icon: "fa-code" },
-  { key: "Projects", label: "4. Projects", icon: "fa-folder-open" },
-  { key: "Career Goals", label: "5. Career Goals", icon: "fa-bullseye" },
+  { key: "ICD-10-CM", label: "1. ICD-10-CM Coding", icon: "fa-notes-medical" },
+  { key: "CPT Codes", label: "2. CPT Procedure Codes", icon: "fa-file-medical" },
+  { key: "E/M Coding", label: "3. E/M Coding", icon: "fa-user-doctor" },
+  { key: "Billing", label: "4. Billing & Claims", icon: "fa-file-invoice-dollar" },
+  { key: "HIPAA", label: "5. HIPAA & Compliance", icon: "fa-shield-halved" },
 ];
 
 const EVAL_LABELS = {
