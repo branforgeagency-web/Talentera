@@ -4,6 +4,8 @@ import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import api from "../api/client";
 import { WIZARD_STAGES, STAGE_POINTS, GOLD_BADGE_THRESHOLD } from "../data/wizardStages.js";
+import CandidateNavbar from "../components/CandidateNavbar.jsx";
+import { LearnContent } from "./Learn.jsx";
 
 const STATUS_CONFIG = {
   rejected: {
@@ -43,6 +45,20 @@ const STATUS_CONFIG = {
   },
 };
 
+// Total expected fields schema per stage
+const STAGE_EXPECTED_FIELDS = {
+  1: 11, // fullName, aadhaar, city, mobile, email, experience, currentRole, gender, dob, address, photo
+  2: 7,  // academyName, domain, specialty, courseName, duration, trainerName, batch
+  3: 7,  // body, certCode, memberId, issueDate, expiryDate, docName, certStatus
+  4: 5,  // foundationScore, passed, correctCount, topic, proctoring
+  5: 6,  // aiScore, clarityScore, fluencyScore, confidenceScore, grammarScore, videoUrl
+  6: 4,  // option, practicodeId, docName, accuracyScore
+  7: 3,  // template, resumeUrl, summary
+  8: 3,  // consent, scheduledSlot, expectedCtc
+};
+
+export const TOTAL_CANDIDATE_FIELDS = Object.values(STAGE_EXPECTED_FIELDS).reduce((a, b) => a + b, 0); // 46
+
 /**
  * Helper to extract ONLY fields that the candidate has ACTUALLY filled in,
  * filtering out any empty strings, undefined, or null values.
@@ -79,7 +95,6 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     if (s2.duration && String(s2.duration).trim()) fields.push({ label: "DURATION", val: String(s2.duration).trim() });
     if (s2.trainerName && String(s2.trainerName).trim()) fields.push({ label: "TRAINER", val: String(s2.trainerName).trim() });
     if (s2.batch && String(s2.batch).trim()) fields.push({ label: "BATCH", val: String(s2.batch).trim() });
-    if (completedStages.includes(2)) fields.push({ label: "STATUS", val: "Verified by Academy ✓" });
   } else if (stageNum === 3) {
     const s3 = candidate?.stage3 || {};
     const body = s3.body || s3.issuingBody;
@@ -91,17 +106,16 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     if (s3.expiryDate && String(s3.expiryDate).trim()) fields.push({ label: "EXPIRY DATE", val: String(s3.expiryDate).trim() });
     if (s3.docName && String(s3.docName).trim()) fields.push({ label: "DOCUMENT", val: String(s3.docName).trim() });
     if (s3.certStatus && String(s3.certStatus).trim()) fields.push({ label: "AUDIT STATUS", val: String(s3.certStatus).trim().toUpperCase() });
-    else if (completedStages.includes(3)) fields.push({ label: "AUDIT STATUS", val: "VERIFIED ✓" });
   } else if (stageNum === 4) {
     const s4 = candidate?.stage4 || {};
     const fScore = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
     if (fScore !== undefined && fScore !== null) fields.push({ label: "ASSESSMENT SCORE", val: `${fScore}%` });
-    if (s4.passed !== undefined && s4.passed !== null) fields.push({ label: "RESULT", val: s4.passed ? "Passed ✓" : "Completed" });
+    if (s4.passed !== undefined && s4.passed !== null) fields.push({ label: "RESULT", val: s4.passed ? "Passed ✓" : "Did not pass" });
     if (s4.correctCount !== undefined && s4.totalQuestions) {
       fields.push({ label: "ACCURACY", val: `${s4.correctCount} / ${s4.totalQuestions} questions correct` });
     }
     if (s4.topic && String(s4.topic).trim()) fields.push({ label: "SPECIALTY TOPIC", val: String(s4.topic).trim() });
-    if (completedStages.includes(4)) fields.push({ label: "PROCTORING", val: "Webcam & Browser Lock Proctored ✓" });
+    if (completedStages.includes(4)) fields.push({ label: "PROCTORING", val: "Proctored Verification Active ✓" });
   } else if (stageNum === 5) {
     const s5 = candidate?.stage5 || {};
     const aiScore = s5.aiScore !== undefined ? s5.aiScore : s5.score;
@@ -111,7 +125,6 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     if (s5.confidenceScore !== undefined && s5.confidenceScore !== null) fields.push({ label: "CONFIDENCE", val: `${s5.confidenceScore}%` });
     if (s5.grammarScore !== undefined && s5.grammarScore !== null) fields.push({ label: "GRAMMAR", val: `${s5.grammarScore}%` });
     if (s5.videoUrl) fields.push({ label: "INTERVIEW VIDEO", val: "Recorded & evaluated ✓" });
-    if (s5.duration && String(s5.duration).trim()) fields.push({ label: "DURATION", val: String(s5.duration).trim() });
   } else if (stageNum === 6) {
     const s6 = candidate?.stage6 || {};
     if (s6.option && String(s6.option).trim()) {
@@ -120,32 +133,21 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     }
     if (s6.practicodeId && String(s6.practicodeId).trim()) fields.push({ label: "PRACTICODE ID", val: String(s6.practicodeId).trim() });
     if (s6.docName && String(s6.docName).trim()) fields.push({ label: "LOG DOCUMENT", val: String(s6.docName).trim() });
-    if (s6.liveChartsAudited) fields.push({ label: "CHARTS AUDITED", val: `${s6.liveChartsAudited} charts` });
     if (s6.accuracyScore) fields.push({ label: "AUDIT ACCURACY", val: `${s6.accuracyScore}%` });
-    if (completedStages.includes(6)) {
-      const pts = s6.option === "upload" ? 7 : s6.option === "declare" ? 3 : 10;
-      fields.push({ label: "POINTS EARNED", val: `${pts} / 10 pts` });
-    }
   } else if (stageNum === 7) {
     const s7 = candidate?.stage7 || {};
     if (candidate?.resumeTemplate && String(candidate.resumeTemplate).trim()) {
       fields.push({ label: "TEMPLATE", val: String(candidate.resumeTemplate).trim().toUpperCase() });
     }
     if (candidate?.resumeUrl) fields.push({ label: "RESUME PDF", val: "PDF Generated & Download Ready ✓" });
-    else if (candidate?.resumeFileName && String(candidate.resumeFileName).trim()) {
-      fields.push({ label: "RESUME FILE", val: String(candidate.resumeFileName).trim() });
-    }
     if (s7.summary && String(s7.summary).trim()) {
       fields.push({ label: "PROFESSIONAL SUMMARY", val: String(s7.summary).trim().slice(0, 70) + (s7.summary.length > 70 ? "..." : "") });
     }
-    if (completedStages.includes(7)) fields.push({ label: "STATUS", val: "Configured from verified stages ✓" });
   } else if (stageNum === 8) {
     const s8 = candidate?.stage8 || {};
     if (s8.consent) fields.push({ label: "TRACKING CONSENT", val: "Active ✓" });
     if (s8.scheduledSlot && String(s8.scheduledSlot).trim()) fields.push({ label: "SCHEDULED SLOT", val: String(s8.scheduledSlot).trim() });
-    if (s8.status && String(s8.status).trim()) fields.push({ label: "STATUS", val: String(s8.status).trim() });
     if (s8.expectedCtc && String(s8.expectedCtc).trim()) fields.push({ label: "EXPECTED CTC", val: String(s8.expectedCtc).trim() });
-    if (completedStages.includes(8) && !s8.consent) fields.push({ label: "STATUS", val: "Verified ✓" });
   }
 
   return fields;
@@ -164,7 +166,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
   const [jobsLoading, setJobsLoading] = useState(true);
   const [applyingJobId, setApplyingJobId] = useState(null);
 
-  // Active tab: 'home' | 'profile' | 'apply' | 'applications' | 'interviews'
+  // Active tab: 'home' | 'profile' | 'apply' | 'applications' | 'interviews' | 'learn'
   const initialTab = searchParams.get("tab") || "home";
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -175,7 +177,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
 
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["home", "profile", "apply", "applications", "interviews"].includes(tabParam)) {
+    if (tabParam && ["home", "profile", "apply", "applications", "interviews", "learn"].includes(tabParam)) {
       setActiveTab(tabParam);
     }
   }, [searchParams]);
@@ -188,17 +190,15 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
 
   // Load real profile data
   useEffect(() => {
-    if (!profile || !profile.candidate) {
-      api
-        .get("/candidate/me")
-        .then((res) => {
-          if (res.data) {
-            setProfile(res.data);
-            if (res.data.applications) setMyApplications(res.data.applications);
-          }
-        })
-        .catch((err) => console.error("Could not fetch candidate profile:", err));
-    }
+    api
+      .get("/candidate/me")
+      .then((res) => {
+        if (res.data) {
+          setProfile(res.data);
+          if (res.data.applications) setMyApplications(res.data.applications);
+        }
+      })
+      .catch((err) => console.error("Could not fetch candidate profile:", err));
   }, []);
 
   // Fetch real published jobs
@@ -228,14 +228,194 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
   const candidate = profile?.candidate || profile || {};
   const completedStages = Array.isArray(candidate?.completedStages) ? candidate.completedStages : [];
 
-  // Verification score calculation
-  const totalScore =
-    typeof profile?.score === "number"
-      ? profile.score
-      : completedStages.reduce((sum, n) => sum + (STAGE_POINTS[n] || 0), 0);
+  // Generate STAGE_ITEMS with ONLY REAL filled fields and accurate verification points
+  const STAGE_ITEMS = useMemo(() => {
+    return [1, 2, 3, 4, 5, 6, 7, 8].map((num) => {
+      const filledFields = getStageFilledFields(candidate, completedStages, num);
+      const totalFields = STAGE_EXPECTED_FIELDS[num] || 5;
+      const maxPts = STAGE_POINTS[num] || 10;
+      const filledCount = filledFields.length;
+      const fieldPct = Math.round((filledCount / totalFields) * 100);
+
+      let actualPts = 0;
+      let status = "NOT STARTED";
+      let isVerified = false;
+
+      // Stage 1: Basic Info
+      if (num === 1) {
+        isVerified = Boolean(candidate?.stage1?.aadhaarVerified);
+        actualPts = isVerified ? 5 : 0;
+        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+      }
+      // Stage 2: Academy
+      else if (num === 2) {
+        isVerified = Boolean(completedStages.includes(2) && (candidate?.stage2?.academyName || candidate?.stage2?.instituteName));
+        actualPts = isVerified ? 15 : 0;
+        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+      }
+      // Stage 3: AAPC/AHIMA Cert - Only awards full 20 pts if audit verified
+      else if (num === 3) {
+        const certStatus = candidate?.stage3?.certStatus;
+        isVerified = Boolean(completedStages.includes(3) && certStatus === "verified");
+        if (isVerified) {
+          actualPts = 20;
+          status = "VERIFIED";
+        } else if (certStatus === "rejected") {
+          actualPts = 0;
+          status = "REJECTED";
+        } else if (completedStages.includes(3) || certStatus === "pending") {
+          actualPts = 0;
+          status = "PENDING AUDIT";
+        } else {
+          actualPts = 0;
+          status = filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+        }
+      }
+      // Stage 4: Proctored Assessment - Only awards 25 pts if passed (>= 70%)
+      else if (num === 4) {
+        const fScore = candidate?.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate?.stage4?.score;
+        const passed = candidate?.stage4?.passed === true || (fScore !== undefined && fScore >= 70);
+        const attempted = fScore !== undefined && fScore !== null;
+        if (passed) {
+          actualPts = 25;
+          status = "VERIFIED";
+          isVerified = true;
+        } else if (attempted && fScore === 0) {
+          actualPts = 0;
+          status = "FAILED (RETRY)";
+        } else if (attempted) {
+          actualPts = Math.round((fScore / 100) * 25);
+          status = fScore >= 50 ? "BORDERLINE" : "FAILED (RETRY)";
+        } else {
+          actualPts = 0;
+          status = "NOT STARTED";
+        }
+      }
+      // Stage 5: Communication Video
+      else if (num === 5) {
+        isVerified = Boolean(completedStages.includes(5) && (candidate?.stage5?.videoUrl || candidate?.stage5?.aiScore));
+        actualPts = isVerified ? 10 : 0;
+        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+      }
+      // Stage 6: Live Charts
+      else if (num === 6) {
+        const opt = candidate?.stage6?.option;
+        if (completedStages.includes(6) && opt) {
+          actualPts = opt === "upload" ? 7 : opt === "declare" ? 3 : 10;
+          isVerified = actualPts >= 7;
+          status = actualPts >= 7 ? "VERIFIED" : "PARTIAL CREDIT";
+        } else {
+          actualPts = 0;
+          status = filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+        }
+      }
+      // Stage 7: Resume
+      else if (num === 7) {
+        isVerified = Boolean(completedStages.includes(7) && (candidate?.stage7 || candidate?.resumeTemplate));
+        actualPts = isVerified ? 10 : 0;
+        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+      }
+      // Stage 8: Interview Track
+      else if (num === 8) {
+        isVerified = Boolean(completedStages.includes(8) && candidate?.stage8?.consent);
+        actualPts = isVerified ? 5 : 0;
+        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+      }
+
+      // Stage name & summary text based strictly on filled fields
+      const names = {
+        1: "Basic Info + Aadhaar OTP",
+        2: "Academy + Training",
+        3: "AAPC / AHIMA Certification",
+        4: "Talentera Assessments",
+        5: "Communication + Video",
+        6: "Live Chart Exposure",
+        7: "Your Verified Resume",
+        8: "Live Interview Track",
+      };
+
+      let desc = "Not completed yet. Click to start.";
+      if (filledFields.length > 0) {
+        if (num === 1) {
+          desc = candidate?.stage1?.city
+            ? `Identity verified via UIDAI. Locality: ${candidate.stage1.city}.`
+            : "Identity verified via UIDAI e-KYC.";
+        } else if (num === 2) {
+          const academy = candidate?.stage2?.academyName || candidate?.stage2?.instituteName;
+          const course = candidate?.stage2?.courseName || candidate?.stage2?.specialty || candidate?.stage2?.domain;
+          desc = `${academy || "Academy verified"}${course ? ` · ${course}` : ""} · Verified ✓`;
+        } else if (num === 3) {
+          const body = candidate?.stage3?.body || candidate?.stage3?.issuingBody || "AAPC";
+          const cert = candidate?.stage3?.certCode || candidate?.stage3?.certName || "CPC";
+          const idStr = candidate?.stage3?.memberId ? ` · ID: ****${String(candidate.stage3.memberId).slice(-4)}` : "";
+          if (status === "VERIFIED") {
+            desc = `${body.toUpperCase()} ${cert}${idStr} · Verified ✓`;
+          } else if (status === "PENDING AUDIT") {
+            desc = `${body.toUpperCase()} ${cert}${idStr} · Audit pending by Talentera staff (+20 pts).`;
+          } else if (status === "REJECTED") {
+            desc = `${body.toUpperCase()} ${cert} · Certificate rejected. Please re-upload.`;
+          } else {
+            desc = `${body.toUpperCase()} ${cert}${idStr}`;
+          }
+        } else if (num === 4) {
+          const fScore = candidate?.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate?.stage4?.score;
+          if (status === "VERIFIED") {
+            desc = `Assessment score: ${fScore ?? 0}% · Passed verified ✓ (+25 pts)`;
+          } else {
+            desc = `Assessment score: ${fScore ?? 0}% · Score below 70% passing threshold. Retake to earn +25 pts.`;
+          }
+        } else if (num === 5) {
+          const aiScore = candidate?.stage5?.aiScore !== undefined ? candidate.stage5.aiScore : candidate?.stage5?.score;
+          desc = `AI communication score: ${aiScore ?? 0}% · Video recorded ✓`;
+        } else if (num === 6) {
+          const opt = candidate?.stage6?.option;
+          const optLabel = opt === "practicode" ? "Practicode account linked" : opt === "upload" ? "Academy chart log uploaded" : "Chart exposure declared";
+          desc = `${optLabel} (${actualPts} / 10 pts earned).`;
+        } else if (num === 7) {
+          const tmpl = candidate?.resumeTemplate ? candidate.resumeTemplate.toUpperCase() : "Executive";
+          desc = `Verified resume active (${tmpl} template).`;
+        } else if (num === 8) {
+          desc = candidate?.stage8?.scheduledSlot
+            ? `Interview slot reserved: ${candidate.stage8.scheduledSlot}.`
+            : "Live interview auto-capture consent active.";
+        }
+      }
+
+      return {
+        num,
+        name: names[num],
+        maxPts,
+        actualPts,
+        status,
+        desc,
+        isVerified,
+        totalFields,
+        filledFields,
+        filledCount,
+        fieldPct,
+      };
+    });
+  }, [candidate, completedStages]);
+
+  // Real Verification Score calculation (sum of genuinely earned actualPts)
+  const totalScore = useMemo(() => {
+    return STAGE_ITEMS.reduce((sum, item) => sum + item.actualPts, 0);
+  }, [STAGE_ITEMS]);
+
+  // Total verified stages count (only stages with status === "VERIFIED")
+  const verifiedStagesCount = useMemo(() => {
+    return STAGE_ITEMS.filter((item) => item.isVerified).length;
+  }, [STAGE_ITEMS]);
+
+  // Total filled fields across the entire candidate profile
+  const totalFilledFieldsCount = useMemo(() => {
+    return STAGE_ITEMS.reduce((sum, item) => sum + item.filledCount, 0);
+  }, [STAGE_ITEMS]);
+
+  // Overall profile completion percentage based on filled fields
+  const profileCompletionPct = Math.round((totalFilledFieldsCount / TOTAL_CANDIDATE_FIELDS) * 100);
 
   const isVerifiedBadge = totalScore >= GOLD_BADGE_THRESHOLD;
-  const remainingStages = WIZARD_STAGES.filter((s) => !completedStages.includes(s.num));
   const pointsToUnlock = 100 - totalScore;
 
   // Real candidate details
@@ -269,7 +449,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
   async function handleApply(jobId, roleTitle, companyName) {
     if (totalScore < GOLD_BADGE_THRESHOLD) {
       toast(
-        `Job applications require a verification score of at least ${GOLD_BADGE_THRESHOLD}%. Your score is ${totalScore}/100. Complete additional stages to unlock applications!`,
+        `Job applications require a verification score of at least ${GOLD_BADGE_THRESHOLD}%. Your current score is ${totalScore}/100. Complete additional stages to unlock applications!`,
         "!"
       );
       return;
@@ -309,121 +489,33 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
     return Math.min(match, 98);
   }
 
-  // Generate STAGE_ITEMS with ONLY REAL filled fields and counts
-  const STAGE_ITEMS = useMemo(() => {
-    return [1, 2, 3, 4, 5, 6, 7, 8].map((num) => {
-      const filledFields = getStageFilledFields(candidate, completedStages, num);
-      const isDone = completedStages.includes(num);
-      const maxPts = STAGE_POINTS[num] || 10;
-      let actualPts = 0;
-      if (isDone) {
-        if (num === 6) {
-          actualPts = candidate?.stage6?.option === "upload" ? 7 : candidate?.stage6?.option === "declare" ? 3 : 10;
-        } else {
-          actualPts = maxPts;
-        }
-      }
-
-      let status = "NOT STARTED";
-      if (isDone) {
-        if (num === 3 && candidate?.stage3?.certStatus === "rejected") status = "REJECTED";
-        else if (num === 3 && candidate?.stage3?.certStatus === "pending") status = "PENDING AUDIT";
-        else status = "VERIFIED";
-      } else if (filledFields.length > 0) {
-        status = "IN PROGRESS";
-      }
-
-      // Stage name & summary text based strictly on filled fields
-      const names = {
-        1: "Basic Info + Aadhaar OTP",
-        2: "Academy + Training",
-        3: "AAPC / AHIMA Certification",
-        4: "Talentera Assessments",
-        5: "Communication + Video",
-        6: "Live Chart Exposure",
-        7: "Your Verified Resume",
-        8: "Live Interview Track",
-      };
-
-      let desc = "Not completed yet. Click to start.";
-      if (filledFields.length > 0) {
-        if (num === 1) {
-          desc = candidate?.stage1?.city
-            ? `Identity verified via UIDAI. Locality: ${candidate.stage1.city}.`
-            : "Identity verified via UIDAI e-KYC.";
-        } else if (num === 2) {
-          const academy = candidate?.stage2?.academyName || candidate?.stage2?.instituteName;
-          const course = candidate?.stage2?.courseName || candidate?.stage2?.specialty || candidate?.stage2?.domain;
-          desc = `${academy || "Academy verified"}${course ? ` · ${course}` : ""}${isDone ? " · Verified ✓" : ""}`;
-        } else if (num === 3) {
-          const body = candidate?.stage3?.body || candidate?.stage3?.issuingBody || "AAPC";
-          const cert = candidate?.stage3?.certCode || candidate?.stage3?.certName || "CPC";
-          const idStr = candidate?.stage3?.memberId ? ` · ID: ****${String(candidate.stage3.memberId).slice(-4)}` : "";
-          desc = `${body.toUpperCase()} ${cert}${idStr}`;
-        } else if (num === 4) {
-          const fScore = candidate?.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate?.stage4?.score;
-          desc = `Assessment score: ${fScore ?? 0}% · ${candidate?.stage4?.passed ? "Passed ✓" : "Attempted"}`;
-        } else if (num === 5) {
-          const aiScore = candidate?.stage5?.aiScore !== undefined ? candidate.stage5.aiScore : candidate?.stage5?.score;
-          desc = `AI communication score: ${aiScore ?? 0}% · Video recorded ✓`;
-        } else if (num === 6) {
-          const opt = candidate?.stage6?.option;
-          const optLabel = opt === "practicode" ? "Practicode account linked" : opt === "upload" ? "Academy chart log uploaded" : "Chart exposure declared";
-          desc = `${optLabel} (${actualPts} pts earned).`;
-        } else if (num === 7) {
-          const tmpl = candidate?.resumeTemplate ? candidate.resumeTemplate.toUpperCase() : "Executive";
-          desc = `Verified resume active (${tmpl} template).`;
-        } else if (num === 8) {
-          desc = candidate?.stage8?.scheduledSlot
-            ? `Interview slot reserved: ${candidate.stage8.scheduledSlot}.`
-            : "Live interview auto-capture consent active.";
-        }
-      }
-
-      return {
-        num,
-        name: names[num],
-        maxPts,
-        actualPts,
-        status,
-        desc,
-        filledFields,
-        filledCount: filledFields.length,
-      };
-    });
-  }, [candidate, completedStages]);
-
-  // Total filled fields across the entire candidate profile
-  const totalFilledFieldsCount = useMemo(() => {
-    return STAGE_ITEMS.reduce((sum, item) => sum + item.filledCount, 0);
-  }, [STAGE_ITEMS]);
-
-  // Real Action Items derived strictly from incomplete stages
+  // Real Action Items derived strictly from unverified stages
   const actionItems = useMemo(() => {
-    return remainingStages.slice(0, 3).map((st) => {
-      let title = `Complete Stage ${st.num} — ${st.short}`;
-      let sub = st.intro || "";
+    return STAGE_ITEMS.filter((st) => !st.isVerified).slice(0, 3).map((st) => {
+      let title = `Complete Stage ${st.num} — ${st.name}`;
+      let sub = `Earn +${st.maxPts - st.actualPts} verification points.`;
       let btnText = "Start now";
+
       if (st.num === 2) {
         title = "Add Academy & Training details";
         sub = "Link your institute, duration, and trainer verification.";
         btnText = "Add now";
       } else if (st.num === 3) {
         title = "Verify AAPC / AHIMA Certification";
-        sub = "Submit member ID and certificate proof.";
-        btnText = "Verify";
+        sub = st.status === "PENDING AUDIT" ? "Certificate uploaded · Awaiting staff audit verification." : "Submit member ID and certificate proof.";
+        btnText = st.status === "PENDING AUDIT" ? "View status" : "Verify";
       } else if (st.num === 4) {
         title = "Take Proctored Assessment";
-        sub = "10 questions · 15 mins · ICD-10 & RCM core skills.";
-        btnText = "Start test";
+        sub = st.status.includes("FAILED") ? "Assessment score below 70%. Retake to earn +25 pts." : "10 questions · 15 mins · ICD-10 & RCM core skills.";
+        btnText = "Retake test";
       } else if (st.num === 5) {
         title = "AI Video & Communication Interview";
         sub = "AI-evaluated verbal and visual communication round.";
         btnText = "Record";
       } else if (st.num === 6) {
-        title = "Add Live Chart Exposure";
-        sub = "Link Practicode ID or upload academy live charts.";
-        btnText = "Add now";
+        title = "Upgrade Live Chart Exposure";
+        sub = st.actualPts > 0 ? "Link Practicode to unlock full +10 points." : "Link Practicode ID or upload academy live charts.";
+        btnText = "Link now";
       } else if (st.num === 7) {
         title = "Build & Select Verified Resume";
         sub = "Choose your resume template and generate verified PDF.";
@@ -435,13 +527,13 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
       }
       return {
         stageNum: st.num,
-        pts: st.pts,
+        pts: st.maxPts - st.actualPts,
         title,
         sub,
         btnText,
       };
     });
-  }, [remainingStages]);
+  }, [STAGE_ITEMS]);
 
   // Filtered jobs in Apply Tab
   const filteredJobs = useMemo(() => {
@@ -548,182 +640,22 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
       }}
     >
       {/* 01. TOP NAVIGATION BAR */}
-      <header
-        style={{
-          background: "rgba(6, 21, 42, 0.95)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-          padding: "12px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
+      <CandidateNavbar
+        activeTab={activeTab}
+        onTabChange={switchTab}
+        candidate={candidate}
+        counts={{
+          filledFields: totalFilledFieldsCount,
+          totalFields: TOTAL_CANDIDATE_FIELDS,
+          jobsCount: jobs.length,
+          applicationsCount: myApplications.length,
+          interviewsCount: interviewRecords.length,
         }}
-      >
-        {/* Left Brand Logo */}
-        <div
-          style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
-          onClick={() => switchTab("home")}
-        >
-          <img src="/logo.png" alt="Talentera" style={{ height: 34, width: "auto", objectFit: "contain" }} />
-        </div>
-
-        {/* Center Nav Links */}
-        <nav style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {[
-            { id: "home", label: "Home" },
-            { id: "profile", label: `Profile (${totalFilledFieldsCount} fields)` },
-            { id: "apply", label: `Apply (${jobs.length})` },
-            { id: "applications", label: `Applications (${myApplications.length})` },
-            { id: "interviews", label: `Interviews (${interviewRecords.length})` },
-          ].map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => switchTab(item.id)}
-                style={{
-                  background: isActive ? "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)" : "transparent",
-                  color: isActive ? "#06152A" : "rgba(255, 255, 255, 0.8)",
-                  padding: isActive ? "6px 18px" : "6px 14px",
-                  borderRadius: 20,
-                  fontWeight: isActive ? 800 : 600,
-                  fontSize: 13,
-                  border: "none",
-                  boxShadow: isActive ? "0 0 16px rgba(245, 184, 46, 0.35)" : "none",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={() => navigate("/learn")}
-            style={{
-              background: "transparent",
-              color: "rgba(255, 255, 255, 0.8)",
-              padding: "6px 14px",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              border: "none",
-            }}
-          >
-            Learn
-          </button>
-        </nav>
-
-        {/* Right Action Icons & User Info */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          {/* Notification Bell */}
-          <div
-            style={{ position: "relative", cursor: "pointer", display: "flex", alignItems: "center" }}
-            onClick={() => switchTab("applications")}
-            title="Applications & Updates"
-          >
-            <span style={{ fontSize: 18, color: "#E5A82E" }}>
-              <i className="fa-solid fa-bell"></i>
-            </span>
-            {myApplications.length > 0 && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: -6,
-                  right: -8,
-                  background: "#E5A82E",
-                  color: "#08162B",
-                  fontSize: 10,
-                  fontWeight: 900,
-                  width: 16,
-                  height: 16,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                {myApplications.length}
-              </span>
-            )}
-          </div>
-
-          {/* Profile Pill & Text */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              padding: "4px 12px 4px 6px",
-              borderRadius: 24,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
-                color: "#FFFFFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 800,
-                fontSize: 13,
-                boxShadow: "0 2px 8px rgba(139, 92, 246, 0.4)",
-              }}
-            >
-              {initial}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", textAlign: "left" }}>
-              <span style={{ color: "#FFFFFF", fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>{fullName}</span>
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, lineHeight: 1.2 }}>
-                {locality}
-              </span>
-            </div>
-          </div>
-
-          {/* Exit / Sign out button */}
-          <button
-            type="button"
-            onClick={handleLogout}
-            style={{
-              background: "rgba(255, 255, 255, 0.06)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              color: "#FFFFFF",
-              padding: "7px 16px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-              whiteSpace: "nowrap",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.18)";
-              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
-              e.currentTarget.style.color = "#FCA5A5";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
-              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
-              e.currentTarget.style.color = "#FFFFFF";
-            }}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
+        onEditStage={handleStageClick}
+      />
 
       {/* ========================================================================= */}
-      {/* TAB 1: HOME (Candidate Main Dashboard - 100% REAL DATA ONLY)              */}
+      {/* TAB 1: HOME (Candidate Main Dashboard - 100% REAL ACCURATE DATA)          */}
       {/* ========================================================================= */}
       {activeTab === "home" && (
         <>
@@ -777,7 +709,10 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                   }}
                 >
                   Your career is{" "}
-                  <span style={{ color: "#F5B41A" }}>{isVerifiedBadge ? "verified" : "in progress"}</span> and ready.
+                  <span style={{ color: isVerifiedBadge ? "#10B981" : "#F5B41A" }}>
+                    {isVerifiedBadge ? "verified" : "in progress"}
+                  </span>
+                  .
                 </h1>
 
                 <p
@@ -789,13 +724,13 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     maxWidth: 620,
                   }}
                 >
-                  You have completed <strong>{completedStages.length} of 8</strong> stages with{" "}
-                  <strong>{totalFilledFieldsCount} verified fields</strong> filled ({totalScore}/100 verification points).
+                  You have verified <strong>{verifiedStagesCount} of 8</strong> stages (
+                  <strong>{totalScore}/100</strong> verification points) with{" "}
+                  <strong>{totalFilledFieldsCount} of {TOTAL_CANDIDATE_FIELDS}</strong> fields filled (
+                  <strong>{profileCompletionPct}%</strong> profile completion).
                   {isVerifiedBadge
-                    ? " Your profile meets the 75% gold badge threshold and is active in employer hiring searches."
-                    : ` Complete the remaining ${remainingStages.length} stage${
-                        remainingStages.length === 1 ? "" : "s"
-                      } to unlock ${pointsToUnlock} points and reach the 75% verified threshold.`}
+                    ? " Your profile meets the 75% gold badge threshold and is active for direct job applications."
+                    : ` Complete remaining stages to unlock ${pointsToUnlock} points and reach the 75% verified threshold.`}
                 </p>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
@@ -843,7 +778,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     }}
                   >
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#60A5FA" }} />
-                    {totalFilledFieldsCount} VERIFIED FIELDS FILLED
+                    {totalFilledFieldsCount} / {TOTAL_CANDIDATE_FIELDS} FIELDS FILLED ({profileCompletionPct}%)
                   </div>
 
                   <div
@@ -889,7 +824,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                       cx="48"
                       cy="48"
                       r={radius}
-                      stroke="#F5A623"
+                      stroke={isVerifiedBadge ? "#10B981" : "#F5A623"}
                       strokeWidth="8"
                       fill="none"
                       strokeDasharray={circumference}
@@ -937,11 +872,11 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     Verification Score
                   </div>
                   <div style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.6)" }}>
-                    {completedStages.length} of 8 stages ({totalFilledFieldsCount} fields filled)
+                    {verifiedStagesCount} of 8 stages verified · {totalFilledFieldsCount}/{TOTAL_CANDIDATE_FIELDS} fields
                   </div>
-                  {remainingStages.length > 0 ? (
+                  {pointsToUnlock > 0 ? (
                     <div
-                      onClick={() => handleStageClick(remainingStages[0].num)}
+                      onClick={() => handleStageClick(actionItems[0]?.stageNum || 1)}
                       style={{
                         fontSize: 12,
                         fontWeight: 700,
@@ -953,7 +888,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                         gap: 4,
                       }}
                     >
-                      +{pointsToUnlock} pts remaining across {remainingStages.length} stages →
+                      +{pointsToUnlock} pts remaining across {8 - verifiedStagesCount} stages →
                     </div>
                   ) : (
                     <div style={{ fontSize: 12, fontWeight: 700, color: "#34D399", marginTop: 2 }}>
@@ -1003,10 +938,10 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     VERIFICATION FUNNEL
                   </div>
                   <h2 style={{ fontSize: 26, fontWeight: 800, color: "#0A1F3D", margin: "0 0 6px 0" }}>
-                    Your 8 verification stages ({completedStages.length}/8 complete · {totalFilledFieldsCount} fields filled)
+                    Your 8 verification stages ({verifiedStagesCount}/8 verified · {totalFilledFieldsCount}/{TOTAL_CANDIDATE_FIELDS} fields filled)
                   </h2>
                   <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>
-                    Each stage reflects your actual verified fields. Click any stage card to view details or complete missing fields.
+                    Stages earn points when verified. Click any stage to complete required fields or check verification status.
                   </p>
                 </div>
 
@@ -1036,7 +971,8 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 36 }}>
                 {STAGE_ITEMS.map((item) => {
                   const isDone = item.status === "VERIFIED";
-                  const isInProgress = item.status === "IN PROGRESS" || item.status === "PENDING AUDIT";
+                  const isPending = item.status === "PENDING AUDIT" || item.status === "IN PROGRESS" || item.status === "PARTIAL CREDIT";
+                  const isFailed = item.status.includes("FAILED") || item.status === "REJECTED";
 
                   return (
                     <div
@@ -1047,7 +983,9 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                         borderRadius: 16,
                         border: isDone
                           ? "1.5px solid #A7F3D0"
-                          : isInProgress
+                          : isFailed
+                          ? "1.5px solid #FECACA"
+                          : isPending
                           ? "1.5px solid #FDE68A"
                           : "1px solid #E2E8F0",
                         padding: "18px 18px",
@@ -1076,7 +1014,13 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                           left: 0,
                           right: 0,
                           height: 3,
-                          background: isDone ? "#10B981" : isInProgress ? "#F59E0B" : "#CBD5E1",
+                          background: isDone
+                            ? "#10B981"
+                            : isFailed
+                            ? "#EF4444"
+                            : isPending
+                            ? "#F59E0B"
+                            : "#CBD5E1",
                         }}
                       />
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1093,7 +1037,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                             borderRadius: 6,
                           }}
                         >
-                          {item.filledCount} filled field{item.filledCount === 1 ? "" : "s"}
+                          {item.filledCount} / {item.totalFields} fields ({item.fieldPct}%)
                         </span>
                       </div>
                       <div
@@ -1127,7 +1071,37 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                             ✓ VERIFIED
                           </span>
                         )}
-                        {isInProgress && (
+                        {item.status === "PENDING AUDIT" && (
+                          <span
+                            style={{
+                              background: "#EFF6FF",
+                              color: "#2563EB",
+                              border: "1px solid #BFDBFE",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "3px 8px",
+                              borderRadius: 10,
+                            }}
+                          >
+                            PENDING AUDIT
+                          </span>
+                        )}
+                        {item.status === "PARTIAL CREDIT" && (
+                          <span
+                            style={{
+                              background: "#FEF3C7",
+                              color: "#B45309",
+                              border: "1px solid #FDE68A",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "3px 8px",
+                              borderRadius: 10,
+                            }}
+                          >
+                            PARTIAL CREDIT
+                          </span>
+                        )}
+                        {item.status === "IN PROGRESS" && (
                           <span
                             style={{
                               background: "#FEF3C7",
@@ -1142,7 +1116,22 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                             IN PROGRESS
                           </span>
                         )}
-                        {!isDone && !isInProgress && (
+                        {isFailed && (
+                          <span
+                            style={{
+                              background: "#FEE2E2",
+                              color: "#DC2626",
+                              border: "1px solid #FECACA",
+                              fontSize: 10,
+                              fontWeight: 800,
+                              padding: "3px 8px",
+                              borderRadius: 10,
+                            }}
+                          >
+                            {item.status}
+                          </span>
+                        )}
+                        {item.status === "NOT STARTED" && (
                           <span
                             style={{
                               background: "#F1F5F9",
@@ -1170,8 +1159,14 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                         <div
                           style={{
                             height: "100%",
-                            width: isDone ? "100%" : isInProgress ? "40%" : "0%",
-                            background: isDone ? "#10B981" : isInProgress ? "#F59E0B" : "transparent",
+                            width: `${item.fieldPct}%`,
+                            background: isDone
+                              ? "#10B981"
+                              : isFailed
+                              ? "#EF4444"
+                              : isPending
+                              ? "#F59E0B"
+                              : "#CBD5E1",
                           }}
                         />
                       </div>
@@ -1631,10 +1626,10 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                       ACTION ITEMS ({actionItems.length} PENDING)
                     </div>
                     <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0A1F3D", margin: "0 0 6px 0" }}>
-                      Unlock more visibility
+                      Unlock more verification points
                     </h3>
                     <p style={{ color: "#64748B", fontSize: 12, margin: "0 0 18px 0" }}>
-                      Companies filter candidates by score — complete remaining stages to rank higher.
+                      Reach the 75-point gold badge threshold to unlock direct employer job applications.
                     </p>
 
                     {actionItems.length === 0 ? (
@@ -1732,7 +1727,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                       {isVerifiedBadge ? "TALENTERA VERIFIED CANDIDATE" : "CAREER VERIFICATION"}
                     </div>
                     <div style={{ fontSize: 16, fontWeight: 800 }}>
-                      {isVerifiedBadge ? "Gold Badge Earned" : `${totalScore} / 100 Points Verified`}
+                      {isVerifiedBadge ? "Gold Badge Earned (75+ pts)" : `${totalScore} / 100 Points Verified`}
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, margin: "0 0 10px 0", lineHeight: 1.45 }}>
                       {isVerifiedBadge
@@ -1832,7 +1827,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                 ● YOUR VERIFIED PROFILE
               </div>
               <h1 style={{ fontSize: 30, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                8-stage verification detail ({totalFilledFieldsCount} filled fields)
+                8-stage verification detail ({totalFilledFieldsCount} of {TOTAL_CANDIDATE_FIELDS} fields filled · {profileCompletionPct}%)
               </h1>
               <p style={{ color: "#64748B", fontSize: 13.5, margin: 0 }}>
                 Displaying only fields that have been filled in and verified. Click any stage to add or update your data.
@@ -1848,7 +1843,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     background: "#FFFFFF",
                     borderRadius: 16,
                     border: "1px solid #E2E8F0",
-                    borderLeft: completedStages.includes(st.num) ? "4px solid #10B981" : "4px solid #F59E0B",
+                    borderLeft: st.isVerified ? "4px solid #10B981" : "4px solid #F59E0B",
                     padding: "24px 28px",
                     cursor: "pointer",
                     boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
@@ -1886,7 +1881,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                           borderRadius: 8,
                         }}
                       >
-                        {st.filledCount} filled field{st.filledCount === 1 ? "" : "s"}
+                        {st.filledCount} / {st.totalFields} fields filled ({st.fieldPct}%)
                       </span>
                     </div>
                     {st.status === "VERIFIED" && (
@@ -1919,6 +1914,21 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                         IN PROGRESS
                       </span>
                     )}
+                    {st.status === "PARTIAL CREDIT" && (
+                      <span
+                        style={{
+                          background: "#FEF3C7",
+                          color: "#B45309",
+                          border: "1px solid #FDE68A",
+                          padding: "3px 10px",
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 800,
+                        }}
+                      >
+                        PARTIAL CREDIT ({st.actualPts} PTS)
+                      </span>
+                    )}
                     {st.status === "REJECTED" && (
                       <span
                         style={{
@@ -1946,7 +1956,22 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                           fontWeight: 800,
                         }}
                       >
-                        AUDIT PENDING
+                        PENDING AUDIT
+                      </span>
+                    )}
+                    {st.status.includes("FAILED") && (
+                      <span
+                        style={{
+                          background: "#FEE2E2",
+                          color: "#DC2626",
+                          border: "1px solid #FECACA",
+                          padding: "3px 10px",
+                          borderRadius: 12,
+                          fontSize: 11,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {st.status}
                       </span>
                     )}
                     {st.status === "NOT STARTED" && (
@@ -2604,6 +2629,13 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
             )}
           </main>
         </section>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 6: LEARN (Clinical Refresher Modules, Certifications & Resume Lab)     */}
+      {/* ========================================================================= */}
+      {activeTab === "learn" && (
+        <LearnContent candidate={candidate} onEditStage={handleStageClick} />
       )}
     </div>
   );

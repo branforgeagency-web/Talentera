@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 
 // 12 Resume templates definition matching Stage7Resume and the screenshot
@@ -117,19 +117,17 @@ const CLINICAL_MODULES = [
   },
 ];
 
-export default function Learn() {
-  const { logout, user } = useAuth();
+export function LearnContent({ candidate: propCandidate, onEditStage }) {
+  const { user } = useAuth();
   const navigate = useNavigate();
+
+  const candidate = propCandidate || user;
+  const rawName = candidate?.stage1?.fullName || candidate?.name || (candidate?.email ? candidate.email.split("@")[0] : "Candidate");
+  const firstName = rawName.split(" ")[0] || "Candidate";
 
   const [resumeFilter, setResumeFilter] = useState("All 12");
   const [clinicalFilter, setClinicalFilter] = useState("All");
   const [activeModal, setActiveModal] = useState(null);
-
-  const rawName = user?.stage1?.fullName || user?.name || "Priya";
-  const firstName = rawName.split(" ")[0] || "Priya";
-  const fullName = rawName.length > 2 ? rawName : "Priya S.";
-  const initial = (firstName[0] || "P").toUpperCase();
-  const email = user?.email || "priya.s@gmail.com";
 
   const filteredTemplates = resumeFilter === "All 12"
     ? RESUME_TEMPLATES
@@ -139,229 +137,8 @@ export default function Learn() {
     ? CLINICAL_MODULES
     : CLINICAL_MODULES.filter((m) => m.category === clinicalFilter);
 
-  function handleLogout() {
-    logout();
-    navigate("/");
-  }
-
   return (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(1200px 800px at 50% -10%, #0d274c 0%, #06152A 60%, #040D1A 100%)", color: "#FFFFFF", fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}>
-      {/* 01. TOP NAVIGATION BAR */}
-      <header
-        style={{
-          background: "rgba(6, 21, 42, 0.95)",
-          backdropFilter: "blur(12px)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
-          padding: "12px 32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-        }}
-      >
-        {/* Brand Logo */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => navigate("/dashboard")}>
-          <img src="/logo.png" alt="Talentera" style={{ height: 34, width: "auto", objectFit: "contain" }} />
-          {/* <div style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ color: "#FFFFFF", fontWeight: 800, fontSize: 18, lineHeight: 1.1, letterSpacing: "-0.02em" }}>
-              Talentera
-            </span>
-            <span style={{ color: "#E5A82E", fontWeight: 800, fontSize: 9, letterSpacing: "1.4px" }}>
-              CANDIDATE DASHBOARD
-            </span>
-          </div> */}
-        </div>
-
-        {/* Center Nav Links */}
-        <nav style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard?tab=home")}
-            style={{
-              background: "transparent",
-              color: "rgba(255, 255, 255, 0.8)",
-              padding: "6px 14px",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              border: "none",
-            }}
-          >
-            Home
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard?tab=profile")}
-            style={{
-              background: "transparent",
-              color: "rgba(255, 255, 255, 0.8)",
-              padding: "6px 14px",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              border: "none",
-            }}
-          >
-            Profile
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard?tab=apply")}
-            style={{
-              background: "transparent",
-              color: "rgba(255, 255, 255, 0.8)",
-              padding: "6px 14px",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              border: "none",
-            }}
-          >
-            Apply
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard?tab=applications")}
-            style={{
-              background: "transparent",
-              color: "rgba(255, 255, 255, 0.8)",
-              padding: "6px 14px",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              border: "none",
-            }}
-          >
-            Applications
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard?tab=interviews")}
-            style={{
-              background: "transparent",
-              color: "rgba(255, 255, 255, 0.8)",
-              padding: "6px 14px",
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: "pointer",
-              border: "none",
-            }}
-          >
-            Interviews
-          </button>
-          <button
-            type="button"
-            style={{
-              background: "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)",
-              color: "#06152A",
-              padding: "6px 18px",
-              borderRadius: 20,
-              fontWeight: 800,
-              fontSize: 13,
-              border: "none",
-              boxShadow: "0 0 16px rgba(245, 184, 46, 0.35)",
-              cursor: "pointer",
-            }}
-          >
-            Learn
-          </button>
-        </nav>
-
-        {/* Right Info & Actions */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ position: "relative", cursor: "pointer", display: "flex", alignItems: "center" }}>
-            <span style={{ fontSize: 18, color: "#E5A82E" }}>
-              <i className="fa-solid fa-bell"></i>
-            </span>
-            <span
-              style={{
-                position: "absolute",
-                top: -6,
-                right: -8,
-                background: "#E5A82E",
-                color: "#08162B",
-                fontSize: 10,
-                fontWeight: 900,
-                width: 16,
-                height: 16,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              3
-            </span>
-          </div>
-
-          {/* Profile Pill & Text */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: "rgba(255, 255, 255, 0.05)",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-              padding: "4px 12px 4px 6px",
-              borderRadius: 24,
-            }}
-          >
-            <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)",
-                color: "#FFFFFF",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 800,
-                fontSize: 13,
-                boxShadow: "0 2px 8px rgba(139, 92, 246, 0.4)",
-              }}
-            >
-              {initial}
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", textAlign: "left" }}>
-              <span style={{ color: "#FFFFFF", fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>{fullName}</span>
-              <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 11, lineHeight: 1.2 }}>{email}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            style={{
-              background: "rgba(255, 255, 255, 0.06)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              color: "#FFFFFF",
-              padding: "7px 16px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-              whiteSpace: "nowrap",
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = "rgba(239, 68, 68, 0.18)";
-              e.currentTarget.style.borderColor = "rgba(239, 68, 68, 0.5)";
-              e.currentTarget.style.color = "#FCA5A5";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = "rgba(255, 255, 255, 0.06)";
-              e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.2)";
-              e.currentTarget.style.color = "#FFFFFF";
-            }}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
+    <>
       {/* 02. HERO BANNER */}
       <section
         style={{
@@ -456,23 +233,23 @@ export default function Learn() {
       <section className="cand-cream-dot-bg" style={{ minHeight: "80vh", borderTop: "1px solid #E5E0D5" }}>
         <main style={{ maxWidth: 1200, margin: "0 auto", padding: "36px 32px 64px", display: "flex", flexDirection: "column", gap: 48 }}>
           
-          {/* 03. 26 CERTIFICATIONS ACROSS 4 LEADING BODIES */}
+          {/* 03. 25/49 CERTIFICATIONS ACROSS 4 ISSUING BODIES */}
           <section>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 20, flexWrap: "wrap", gap: 14 }}>
               <div>
                 <div style={{ color: "#D97706", fontSize: 11, fontWeight: 800, letterSpacing: "0.8px", marginBottom: 6 }}>
-                  ● CERTIFICATIONS · AAPC · AHIMA · HIMAA · SPECIALTY
+                  ● CERTIFICATIONS · AAPC · AHIMA · HFMA · SPECIALTY
                 </div>
                 <h2 style={{ fontSize: 24, fontWeight: 800, color: "#0A1F3D", margin: "0 0 6px 0" }}>
-                  26 certifications across 4 leading bodies
+                  25 certifications across 4 issuing bodies
                 </h2>
-                <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>
-                  Browse requirements, exam patterns, passing marks, and preparation paths. All 26 mapped to our question bank and resume builder.
+                <p style={{ color: "#64748B", fontSize: 13, margin: 0, maxWidth: 750 }}>
+                  Pick an issuing body to see all its certs — exam time, fees in USD + INR, prerequisites, and India-hiring guidance. BCHH-C for home health lives in Specialty.
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => navigate("/dashboard?stage=3")}
+                onClick={() => navigate("/cert-library")}
                 style={{
                   color: "#0A1F3D",
                   fontSize: 13,
@@ -482,152 +259,188 @@ export default function Learn() {
                   cursor: "pointer",
                 }}
               >
-                Open Full Cert Library →
+                Open full Cert Library →
               </button>
             </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-            {/* Card 1: AAPC */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)",
-                borderRadius: 16,
-                padding: "22px 20px",
-                color: "#FFFFFF",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                boxShadow: "0 4px 14px rgba(37, 99, 235, 0.2)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 20, fontWeight: 900 }}>AAPC</span>
-                <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>12 certs</span>
-              </div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", minHeight: 34 }}>
-                American Academy of Professional Coders
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["CPC", "CIC", "COC", "CPMA", "CRC", "+7 more"].map((c) => (
-                  <span key={c} style={{ background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-                    {c}
-                  </span>
-                ))}
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+              {/* Card 1: AAPC */}
               <div
-                onClick={() => navigate("/dashboard?stage=3")}
-                style={{ fontSize: 12, fontWeight: 800, color: "#FDE047", cursor: "pointer", marginTop: 4 }}
+                onClick={() => navigate("/cert-library?body=aapc")}
+                style={{
+                  background: "linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%)",
+                  borderRadius: 18,
+                  padding: "24px 22px",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  boxShadow: "0 6px 18px rgba(37, 99, 235, 0.25)",
+                  cursor: "pointer",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-3px)";
+                  e.currentTarget.style.boxShadow = "0 10px 24px rgba(37, 99, 235, 0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 6px 18px rgba(37, 99, 235, 0.25)";
+                }}
               >
-                Browse all 12 body →
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 24, fontWeight: 900 }}>AAPC</span>
+                  <span style={{ background: "rgba(0,0,0,0.25)", padding: "4px 12px", borderRadius: 14, fontSize: 11, fontWeight: 800 }}>23 certs</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.9)", minHeight: 36, lineHeight: 1.4 }}>
+                  American Academy of Professional Coders
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minHeight: 60 }}>
+                  {["CPC", "CPC-A", "COC", "CIC", "+19 more"].map((c) => (
+                    <span key={c} style={{ background: "rgba(255,255,255,0.18)", padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Browse this body</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#FFFFFF" }}>View all →</span>
+                </div>
               </div>
-            </div>
 
-            {/* Card 2: AHIMA */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #064E3B 0%, #059669 100%)",
-                borderRadius: 16,
-                padding: "22px 20px",
-                color: "#FFFFFF",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                boxShadow: "0 4px 14px rgba(5, 150, 105, 0.2)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 20, fontWeight: 900 }}>AHIMA</span>
-                <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>8 certs</span>
-              </div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", minHeight: 34 }}>
-                American Health Information Management Association
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["CCA", "CCS", "CCS-P", "RHIA", "CDIP", "+3 more"].map((c) => (
-                  <span key={c} style={{ background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-                    {c}
-                  </span>
-                ))}
-              </div>
+              {/* Card 2: AHIMA */}
               <div
-                onClick={() => navigate("/dashboard?stage=3")}
-                style={{ fontSize: 12, fontWeight: 800, color: "#A7F3D0", cursor: "pointer", marginTop: 4 }}
+                onClick={() => navigate("/cert-library?body=ahima")}
+                style={{
+                  background: "linear-gradient(135deg, #065F46 0%, #059669 100%)",
+                  borderRadius: 18,
+                  padding: "24px 22px",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  boxShadow: "0 6px 18px rgba(5, 150, 105, 0.25)",
+                  cursor: "pointer",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-3px)";
+                  e.currentTarget.style.boxShadow = "0 10px 24px rgba(5, 150, 105, 0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 6px 18px rgba(5, 150, 105, 0.25)";
+                }}
               >
-                Browse all 8 body →
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 24, fontWeight: 900 }}>AHIMA</span>
+                  <span style={{ background: "rgba(0,0,0,0.25)", padding: "4px 12px", borderRadius: 14, fontSize: 11, fontWeight: 800 }}>9 certs</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.9)", minHeight: 36, lineHeight: 1.4 }}>
+                  American Health Information Management Association
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minHeight: 60 }}>
+                  {["CCA", "CCS", "CCS-P", "RHIT", "+5 more"].map((c) => (
+                    <span key={c} style={{ background: "rgba(255,255,255,0.18)", padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Browse this body</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#FFFFFF" }}>View all →</span>
+                </div>
               </div>
-            </div>
 
-            {/* Card 3: HIMAA */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #155E75 0%, #0891B2 100%)",
-                borderRadius: 16,
-                padding: "22px 20px",
-                color: "#FFFFFF",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                boxShadow: "0 4px 14px rgba(8, 145, 178, 0.2)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 20, fontWeight: 900 }}>HIMAA</span>
-                <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>3 certs</span>
-              </div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", minHeight: 34 }}>
-                Health Information Management Association of Australia
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["CHIM", "CC", "HIM"].map((c) => (
-                  <span key={c} style={{ background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-                    {c}
-                  </span>
-                ))}
-              </div>
+              {/* Card 3: HIMAA */}
               <div
-                onClick={() => navigate("/dashboard?stage=3")}
-                style={{ fontSize: 12, fontWeight: 800, color: "#BAE6FD", cursor: "pointer", marginTop: 4 }}
+                onClick={() => navigate("/cert-library?body=himaa")}
+                style={{
+                  background: "linear-gradient(135deg, #0E7490 0%, #0891B2 100%)",
+                  borderRadius: 18,
+                  padding: "24px 22px",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  boxShadow: "0 6px 18px rgba(8, 145, 178, 0.25)",
+                  cursor: "pointer",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-3px)";
+                  e.currentTarget.style.boxShadow = "0 10px 24px rgba(8, 145, 178, 0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 6px 18px rgba(8, 145, 178, 0.25)";
+                }}
               >
-                Browse all 3 body →
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 24, fontWeight: 900 }}>HIMAA</span>
+                  <span style={{ background: "rgba(0,0,0,0.25)", padding: "4px 12px", borderRadius: 14, fontSize: 11, fontWeight: 800 }}>6 certs</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.9)", minHeight: 36, lineHeight: 1.4 }}>
+                  Health Information Management Association of Australia
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minHeight: 60 }}>
+                  {["CHIM", "HIMAA-CC", "HIMAA-AC", "HIMAA-IC", "+2 more"].map((c) => (
+                    <span key={c} style={{ background: "rgba(255,255,255,0.18)", padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Browse this body</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#FFFFFF" }}>View all →</span>
+                </div>
               </div>
-            </div>
 
-            {/* Card 4: Specialty */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #9A3412 0%, #EA580C 100%)",
-                borderRadius: 16,
-                padding: "22px 20px",
-                color: "#FFFFFF",
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-                boxShadow: "0 4px 14px rgba(234, 88, 12, 0.2)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 20, fontWeight: 900 }}>Specialty</span>
-                <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>3 certs</span>
-              </div>
-              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", minHeight: 34 }}>
-                Multi-body specialty tracks: HCC, Inpatient, Risk Adjust.
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {["HCC Specialty", "Inpatient DRG", "E/M Expert"].map((c) => (
-                  <span key={c} style={{ background: "rgba(255,255,255,0.15)", padding: "2px 8px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
-                    {c}
-                  </span>
-                ))}
-              </div>
+              {/* Card 4: Specialty */}
               <div
-                onClick={() => navigate("/dashboard?stage=3")}
-                style={{ fontSize: 12, fontWeight: 800, color: "#FED7AA", cursor: "pointer", marginTop: 4 }}
+                onClick={() => navigate("/cert-library?body=specialty")}
+                style={{
+                  background: "linear-gradient(135deg, #C2410C 0%, #EA580C 100%)",
+                  borderRadius: 18,
+                  padding: "24px 22px",
+                  color: "#FFFFFF",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                  boxShadow: "0 6px 18px rgba(234, 88, 12, 0.25)",
+                  cursor: "pointer",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-3px)";
+                  e.currentTarget.style.boxShadow = "0 10px 24px rgba(234, 88, 12, 0.35)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "none";
+                  e.currentTarget.style.boxShadow = "0 6px 18px rgba(234, 88, 12, 0.25)";
+                }}
               >
-                Browse 3 tracks →
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 24, fontWeight: 900 }}>Specialty</span>
+                  <span style={{ background: "rgba(0,0,0,0.25)", padding: "4px 12px", borderRadius: 14, fontSize: 11, fontWeight: 800 }}>11 certs</span>
+                </div>
+                <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.9)", minHeight: 36, lineHeight: 1.4 }}>
+                  BMSC · AMBA · PMI · Niche bodies
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, minHeight: 60 }}>
+                  {["BCHH-C", "HCS-D", "HCS-O", "HCS-H", "+7 more"].map((c) => (
+                    <span key={c} style={{ background: "rgba(255,255,255,0.18)", padding: "3px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700 }}>
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 10, borderTop: "1px solid rgba(255,255,255,0.15)" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)" }}>Browse this body</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#FFFFFF" }}>View all →</span>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
         {/* 04. NEXT 24 HOURS FOR YOU (3 THINGS TO DO BEFORE TOMORROW) */}
         <section>
@@ -1471,6 +1284,11 @@ export default function Learn() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
+
+export default function Learn() {
+  return <Navigate to="/dashboard?tab=learn" replace />;
+}
+

@@ -4,6 +4,7 @@ const Company = require("../models/Company");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const InterviewQuestion = require("../models/InterviewQuestion");
+const Notification = require("../models/Notification");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
@@ -305,6 +306,12 @@ router.put("/stage/:n", async (req, res) => {
       }
       if (!city || String(city).trim() === "") {
         return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
+      }
+
+      // Aadhaar Identity Verification Enforcement
+      const isAadhaarVerified = Boolean(candidate.stage1?.aadhaarVerified || req.body.aadhaarVerified);
+      if (!isAadhaarVerified) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Please verify your 12-digit Aadhaar number with UIDAI mobile OTP." });
       }
     } else if (stageNum === 2) {
       // Training is now mandatory (see SKIPPABLE_STAGES above) — validation
@@ -814,7 +821,7 @@ router.post("/ai-interview/start", async (req, res) => {
     await candidate.save();
 
     const firstQ = session.questions[0];
-    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you 5 simple questions covering your introduction, education, skills, projects, and career goals. Let's begin with our first question:\n\n${firstQ.question}`;
+    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you 5 medical coding questions covering ICD-10-CM diagnosis coding, CPT procedure codes, Evaluation & Management coding, medical billing & claims, and HIPAA compliance. Let's begin with our first question:\n\n${firstQ.question}`;
 
     res.json({ session, messiReply });
   } catch (err) {
@@ -1333,6 +1340,199 @@ router.get("/applications", async (req, res) => {
 
   const applications = await enrichApplications(rawApplications);
   res.json({ applications });
+});
+
+// GET /api/candidate/notifications - retrieve candidate notifications
+router.get("/notifications", async (req, res) => {
+  try {
+    const candidateId = req.candidateId;
+    const dbNotifications = await Notification.find({
+      recipientType: "candidate",
+      recipientId: String(candidateId),
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Auto-generate notifications based on live applications & completed stages
+    const candidate = await Candidate.findById(candidateId).lean();
+    const rawApplications = await Application.find({ candidateId })
+      .populate("companyId", "companyName")
+      .sort({ createdAt: -1 })
+      .lean();
+    const applications = await enrichApplications(rawApplications);
+
+    const generated = [];
+
+    // 1. Application-driven notifications
+    for (const app of applications) {
+      const companyName = app.companyName || app.companyId?.companyName || "Employer";
+      const role = app.jobTitle || app.role || "Medical Coder";
+      const status = app.status || "applied";
+
+      if (status === "shortlisted") {
+        generated.push({
+          _id: `gen_app_${app._id}_shortlisted`,
+          type: "application_shortlisted",
+          category: "application",
+          title: `Shortlisted by ${companyName}! 🎯`,
+          message: `Great news! Your application for "${role}" has been shortlisted. The hiring team will contact you soon.`,
+          actionType: "applications",
+          actionLabel: "View in Applications",
+          createdAt: app.updatedAt || app.createdAt || new Date(),
+          read: false,
+        });
+      } else if (status === "interview") {
+        generated.push({
+          _id: `gen_app_${app._id}_interview`,
+          type: "interview_scheduled",
+          category: "application",
+          title: `Interview Scheduled with ${companyName} 📅`,
+          message: `An interview has been scheduled for your application to "${role}". Check details in your Applications tab.`,
+          actionType: "applications",
+          actionLabel: "View Interview",
+          createdAt: app.updatedAt || app.createdAt || new Date(),
+          read: false,
+        });
+      } else if (status === "offered") {
+        generated.push({
+          _id: `gen_app_${app._id}_offered`,
+          type: "offer_received",
+          category: "application",
+          title: `Job Offer from ${companyName}! 🎉`,
+          message: `Congratulations! You have received a formal offer for "${role}" at ${companyName}.`,
+          actionType: "applications",
+          actionLabel: "View Offer",
+          createdAt: app.updatedAt || app.createdAt || new Date(),
+          read: false,
+        });
+      } else if (status === "rejected") {
+        generated.push({
+          _id: `gen_app_${app._id}_rejected`,
+          type: "application_update",
+          category: "application",
+          title: `Application Status: ${companyName}`,
+          message: `Your application for "${role}" at ${companyName} was not moved forward. Keep applying to other matching opportunities!`,
+          actionType: "applications",
+          actionLabel: "View Applications",
+          createdAt: app.updatedAt || app.createdAt || new Date(),
+          read: false,
+        });
+      } else {
+        generated.push({
+          _id: `gen_app_${app._id}_applied`,
+          type: "application_submitted",
+          category: "application",
+          title: `Application Sent: ${role} 💼`,
+          message: `Your application to ${companyName} for "${role}" was successfully delivered and is under employer review.`,
+          actionType: "applications",
+          actionLabel: "Track Status",
+          createdAt: app.createdAt || new Date(),
+          read: false,
+        });
+      }
+    }
+
+    // 2. Stage & verification milestone notifications
+    if (candidate) {
+      const completed = Array.isArray(candidate.completedStages) ? candidate.completedStages : [];
+
+      if (completed.includes(1) && candidate.stage1?.aadhaarVerified) {
+        generated.push({
+          _id: `gen_stage_1`,
+          type: "kyc_verified",
+          category: "verification",
+          title: "Identity Verified (Stage 1) 🪪",
+          message: "Your Aadhaar / Identity e-KYC has been successfully verified (+5 points earned).",
+          actionType: "stage_1",
+          actionLabel: "View Stage 1",
+          createdAt: candidate.stage1?.verifiedAt || candidate.createdAt || new Date(),
+          read: false,
+        });
+      }
+
+      if (completed.includes(3) && candidate.stage3?.certStatus === "verified") {
+        generated.push({
+          _id: `gen_stage_3`,
+          type: "kyc_verified",
+          category: "verification",
+          title: "AAPC / AHIMA Credential Audited 📜",
+          message: `Your ${candidate.stage3?.body?.toUpperCase() || "AAPC"} certification has been verified by the audit team (+20 points earned).`,
+          actionType: "stage_3",
+          actionLabel: "View Certificate",
+          createdAt: candidate.stage3?.verifiedAt || candidate.updatedAt || new Date(),
+          read: false,
+        });
+      }
+
+      if (completed.includes(4)) {
+        const score = candidate.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate.stage4?.score || 80;
+        generated.push({
+          _id: `gen_stage_4`,
+          type: "assessment_passed",
+          category: "verification",
+          title: "Medical Coding Assessment Score Ready 📝",
+          message: `Your proctored foundation assessment scored ${score}%. Verified test record is active on your profile.`,
+          actionType: "stage_4",
+          actionLabel: "View Scorecard",
+          createdAt: candidate.stage4?.completedAt || candidate.updatedAt || new Date(),
+          read: false,
+        });
+      }
+
+      if (completed.includes(5)) {
+        generated.push({
+          _id: `gen_stage_5`,
+          type: "ai_interview_done",
+          category: "verification",
+          title: "AI Verbal & Communication Interview Evaluated 🎙️",
+          message: "Your AI verbal interview answers have been recorded and graded by the assessment engine.",
+          actionType: "stage_5",
+          actionLabel: "View Interview",
+          createdAt: candidate.stage5?.evaluatedAt || candidate.updatedAt || new Date(),
+          read: false,
+        });
+      }
+
+      if (completed.includes(7) || candidate.resumeUrl) {
+        generated.push({
+          _id: `gen_stage_7`,
+          type: "resume_ready",
+          category: "verification",
+          title: "Verified Resume PDF Generated 📄",
+          message: "Your ATS-ready Talentera Verified Resume is compiled and ready for employer sharing.",
+          actionType: "stage_7",
+          actionLabel: "Download Resume",
+          createdAt: candidate.updatedAt || new Date(),
+          read: false,
+        });
+      }
+    }
+
+    // Merge DB notifications and generated notifications, sort newest first
+    const allNotifications = [...dbNotifications, ...generated].sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+    const unreadCount = allNotifications.filter((n) => !n.read).length;
+
+    res.json({ notifications: allNotifications, unreadCount });
+  } catch (err) {
+    logger.error(`Candidate notifications error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch candidate notifications." });
+  }
+});
+
+// POST /api/candidate/notifications/mark-read - mark all as read
+router.post("/notifications/mark-read", async (req, res) => {
+  try {
+    await Notification.updateMany(
+      { recipientType: "candidate", recipientId: String(req.candidateId), read: false },
+      { $set: { read: true } }
+    );
+    res.json({ success: true, message: "Notifications marked as read." });
+  } catch (err) {
+    logger.error(`Candidate mark read error: ${err.message}`);
+    res.status(500).json({ message: "Failed to mark notifications as read." });
+  }
 });
 
 module.exports = router;

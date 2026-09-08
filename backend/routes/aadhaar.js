@@ -1,13 +1,164 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
 const { body, validationResult } = require("express-validator");
 const Candidate = require("../models/Candidate");
 const { requireAuth } = require("../middleware/auth");
 const { aadhaarService } = require("../utils/aadhaarService");
+const { startLiveVerifySession, captureLiveVerifyResult, closeLiveVerifySession } = require("../utils/aadhaarLiveVerifySession");
+const { isCloudinaryConfigured, uploadBufferToCloudinary } = require("../config/cloudinary");
+const { validateAadhaarNumber } = require("../utils/verhoeffBackend");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const logger = require("../utils/logger");
 
 const router = express.Router();
 router.use(requireAuth); // All Aadhaar verification endpoints require JWT candidate auth
+
+/**
+ * POST /api/aadhaar/live-verify/start
+ *
+ * Opens a REAL, human-operated remote browser session on UIDAI's own
+ * official, free "Verify an Aadhaar Number" tool
+ * (myaadhaar.uidai.gov.in/verifyAadhaar) - the only genuine UIDAI service
+ * that confirms an Aadhaar number exists and returns age band/gender/state
+ * without a full eKYC OTP flow. It's CAPTCHA-protected with no API, so the
+ * candidate drives this session themselves (see utils/aadhaarLiveVerifySession.js
+ * for why, and for why an earlier version of this endpoint that fabricated
+ * these fields from the Aadhaar number's own digits was wrong). This never
+ * sets aadhaarVerified - that only happens after a successful capture below
+ * confirms a real result was shown.
+ *
+ * Request: { aadhaar: "123456789012" }
+ * Response: { success: true, sessionId, liveViewUrl, verifyUrl, maskedAadhaar }
+ */
+router.post(
+  "/live-verify/start",
+  [
+    body("aadhaar")
+      .notEmpty()
+      .withMessage("Aadhaar number is required.")
+      .custom((val) => {
+        const check = validateAadhaarNumber(val);
+        if (!check.valid) {
+          throw new Error(check.error);
+        }
+        return true;
+      }),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg, errors: errors.array() });
+    }
+
+    try {
+      const result = await startLiveVerifySession({
+        candidateId: req.candidateId,
+        aadhaarNumber: req.body.aadhaar,
+      });
+      res.json({ success: true, ...result });
+    } catch (err) {
+      logger.error(`Aadhaar live-verify start error: ${err.message}`);
+      res.status(400).json({ message: err.message || "Could not start live Aadhaar verification." });
+    }
+  }
+);
+
+/**
+ * POST /api/aadhaar/live-verify/:sessionId/capture
+ *
+ * Takes a screenshot + the visible page text from the candidate's
+ * in-progress live UIDAI session (after they've solved the CAPTCHA and
+ * submitted on the real site) and makes a best-effort attempt to read the
+ * Age Band / Gender / State values back out of the result. Only marks
+ * aadhaarVerified when that extraction is confident (see
+ * aadhaarLiveVerifySession.js's `confirmed` logic) - otherwise the real
+ * captured evidence is still returned so the candidate can see exactly
+ * what UIDAI's page showed and retry.
+ *
+ * Response: { success: true, confirmed, maskedAadhaar, ageBand, gender,
+ *   state, currentUrl, pageText, evidenceUrl, candidate?, ...scoring? }
+ */
+router.post("/live-verify/:sessionId/capture", async (req, res) => {
+  try {
+    const { maskedAadhaar, pageText, screenshotBuffer, currentUrl, extracted, confirmed } =
+      await captureLiveVerifyResult(req.params.sessionId);
+
+    let evidenceUrl = null;
+    if (isCloudinaryConfigured()) {
+      const uploaded = await uploadBufferToCloudinary(screenshotBuffer, {
+        folder: `talentera/aadhaar-live-verify-evidence/${req.candidateId}`,
+        resource_type: "image",
+      });
+      evidenceUrl = uploaded.secure_url;
+    } else {
+      const dir = path.join(__dirname, "..", "uploads", "aadhaar-live-verify-evidence", String(req.candidateId));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      const filename = `${Date.now()}.png`;
+      fs.writeFileSync(path.join(dir, filename), screenshotBuffer);
+      evidenceUrl = `/uploads/aadhaar-live-verify-evidence/${req.candidateId}/${filename}`;
+    }
+
+    let candidate = null;
+    let scoring = {};
+    if (confirmed) {
+      candidate = await Candidate.findById(req.candidateId);
+      if (!candidate) {
+        return res.status(404).json({ message: "Candidate profile not found." });
+      }
+
+      candidate.stage1 = {
+        ...(candidate.stage1 || {}),
+        aadhaarVerified: true,
+        aadhaarStatus: "NUMBER_VERIFIED",
+        maskedAadhaar,
+        verificationMethod: "UIDAI Official Verification Portal (myaadhaar.uidai.gov.in) - candidate-confirmed",
+        ageBand: extracted.ageBand || candidate.stage1?.ageBand,
+        gender: extracted.gender || candidate.stage1?.gender,
+        state: extracted.state || candidate.stage1?.state,
+        aadhaarLiveVerificationEvidenceUrl: evidenceUrl,
+        aadhaarLiveVerificationText: pageText,
+        aadhaarLiveVerificationCapturedAt: new Date(),
+        aadhaarLiveVerificationSourceUrl: currentUrl,
+      };
+
+      candidate.markModified("stage1");
+      await candidate.save();
+      scoring = calculateVerificationScore(candidate.completedStages);
+    }
+
+    res.json({
+      success: true,
+      confirmed,
+      maskedAadhaar,
+      ageBand: extracted.ageBand || null,
+      gender: extracted.gender || null,
+      state: extracted.state || null,
+      currentUrl,
+      pageText,
+      evidenceUrl,
+      message: confirmed
+        ? "UIDAI confirmed this Aadhaar number exists."
+        : "Couldn't automatically confirm a result on the page yet - if you've already solved the CAPTCHA and submitted on the official site, wait for its result to render, then try Capture Result again.",
+      ...(candidate ? { candidate } : {}),
+      ...scoring,
+    });
+  } catch (err) {
+    logger.error(`Aadhaar live-verify capture error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Could not capture the verification result." });
+  }
+});
+
+/**
+ * POST /api/aadhaar/live-verify/:sessionId/close
+ * Candidate is done with (or abandoning) a live session; releases the
+ * remote browser. Sessions also self-expire after 10 minutes if this is
+ * never called.
+ */
+router.post("/live-verify/:sessionId/close", async (req, res) => {
+  await closeLiveVerifySession(req.params.sessionId);
+  res.json({ success: true });
+});
 
 /**
  * POST /api/aadhaar/send-otp

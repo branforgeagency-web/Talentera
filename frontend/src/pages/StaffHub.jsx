@@ -902,10 +902,7 @@ export default function StaffHub() {
         <aside className="staff-sidebar">
           <div className="staff-sidebar-brand">
             <img className="staff-sidebar-logo" src="/logo.png" alt="Talentera" />
-            <div>
-              <div className="staff-sidebar-wordmark">TALENT<span className="gold">ERA</span></div>
-              <div className="staff-sidebar-tag">STAFF OPERATIONS</div>
-            </div>
+            {/* <div className="staff-sidebar-tag" style={{ marginTop: 0, fontSize: 10 }}>STAFF OPERATIONS</div> */}
           </div>
 
           <div className="staff-live-pill">

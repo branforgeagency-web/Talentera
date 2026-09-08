@@ -232,7 +232,14 @@ export default function CandidateWizard() {
           />
         )}
 
-        {StageComponent && <StageComponent stage={activeStage} existingData={existingData} onSaved={handleStageSaved} />}
+        {StageComponent && (
+          <StageComponent
+            stage={activeStage}
+            existingData={existingData}
+            candidate={candidateObj}
+            onSaved={handleStageSaved}
+          />
+        )}
       </WizardStagePane>
     </div>
   );

@@ -149,7 +149,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   );
 
   // Setup & Camera States
-  const [step, setStep] = useState(isInterviewCompleted ? "report" : "setup"); // setup | liveness | recording | evaluating | report
+  // "setup" used to be a separate first screen here with its own duplicate
+  // "RECORD NOW"/"START MOCK" cards - identical in content to the hub
+  // screen VideoUploadStage.jsx already shows before ever mounting this
+  // component, so clicking through felt like "RECORD NOW" doing nothing
+  // twice in a row. Removed; this component now opens straight on the
+  // liveness/camera check, its first actually-new screen.
+  const [step, setStep] = useState(isInterviewCompleted ? "report" : "liveness"); // liveness | recording | evaluating | report
   const [stream, setStream] = useState(null);
   const [cameraError, setCameraError] = useState("");
 
@@ -399,9 +405,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }
 
-  // Initialize Camera - deliberately does NOT include "setup": the camera
-  // must stay off until the candidate explicitly clicks past the setup
-  // screen. During "liveness" verification, ONLY the camera turns on (audio: false).
+  // Initialize Camera - camera turns on as soon as the liveness step
+  // mounts (this component's first screen now - see the "setup" removal
+  // note above). During "liveness" verification, ONLY the camera turns on (audio: false).
   // Microphone (audio: true) is turned on only when proceeding to "recording".
   useEffect(() => {
     if (step === "liveness") {
@@ -897,161 +903,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         </div>
       )}
 
-      {/* STEP 0: SETUP - Card matching media_1787810125816.png */}
-      {step === "setup" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Card 1: 90-second self-introduction. This is Question 1 of the
-              single continuous recording below - there is only one video
-              take and one submission, so both cards start the exact same
-              flow; this card just frames the first part of it. */}
-          <div
-            style={{
-              background: "#FAF8F5",
-              border: "1px solid #EAE6DF",
-              borderRadius: 20,
-              padding: "24px 28px",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 20,
-              flexWrap: "wrap"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1, minWidth: 280 }}>
-              {/* Pink Camera Icon Box */}
-              <div
-                style={{
-                  width: 54,
-                  height: 54,
-                  borderRadius: 16,
-                  background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#ffffff",
-                  fontSize: 22,
-                  flexShrink: 0,
-                  boxShadow: "0 8px 20px rgba(236, 72, 153, 0.28)"
-                }}
-              >
-                <i className="fa-solid fa-video" />
-              </div>
-
-              <div>
-                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
-                  90-second self-introduction
-                </h4>
-                <p style={{ fontSize: 13.5, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
-                  Tip: watch the 3 prep videos in your Learn Hub first. Companies watch this exact recording before they ever call you.
-                </p>
-                {cameraError && (
-                  <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginTop: 8 }}>
-                    ⚠️ {cameraError}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* RECORD NOW Pink Button */}
-            <button
-              type="button"
-              onClick={() => setStep("liveness")}
-              disabled={questionsLoading}
-              style={{
-                background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
-                color: "#ffffff",
-                border: "none",
-                padding: "14px 32px",
-                borderRadius: 12,
-                fontWeight: 800,
-                fontSize: 14,
-                letterSpacing: "0.05em",
-                cursor: "pointer",
-                boxShadow: "0 6px 20px rgba(225, 29, 72, 0.35)",
-                transition: "all 0.2s ease",
-                whiteSpace: "nowrap"
-              }}
-            >
-              {questionsLoading ? "LOADING..." : "RECORD NOW"}
-            </button>
-          </div>
-
-          {/* Card 2: AI-reviewed mock interview - questions 2-5 of the same
-              take, scored on communication (clarity/fluency/vocabulary &
-              grammar/confidence). Same underlying flow as Card 1 above. */}
-          <div
-            style={{
-              background: "#fff",
-              border: "1px solid #EAE6DF",
-              borderRadius: 20,
-              padding: "24px 28px",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.03)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 20,
-              flexWrap: "wrap"
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 20, flex: 1, minWidth: 280 }}>
-              <div
-                style={{
-                  width: 54,
-                  height: 54,
-                  borderRadius: 16,
-                  background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#ffffff",
-                  fontSize: 22,
-                  flexShrink: 0,
-                  boxShadow: "0 8px 20px rgba(236, 72, 153, 0.28)"
-                }}
-              >
-                <i className="fa-solid fa-user" />
-              </div>
-
-              <div>
-                <h4 style={{ fontFamily: "var(--font-heading)", fontSize: 18, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
-                  AI-reviewed 5-minute mock interview
-                </h4>
-                <p style={{ fontSize: 13.5, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
-                  Specialty-tuned questions. Talentera AI scores fluency, confidence, and structured answering.
-                </p>
-              </div>
-            </div>
-
-            {/* START MOCK Pink Button - same flow as RECORD NOW above; the
-                self-introduction (Question 1) leads straight into these
-                mock-interview questions within one recording. */}
-            <button
-              type="button"
-              onClick={() => setStep("liveness")}
-              disabled={questionsLoading}
-              style={{
-                background: "linear-gradient(135deg, #EC4899 0%, #E11D48 100%)",
-                color: "#ffffff",
-                border: "none",
-                padding: "14px 32px",
-                borderRadius: 12,
-                fontWeight: 800,
-                fontSize: 14,
-                letterSpacing: "0.05em",
-                cursor: "pointer",
-                boxShadow: "0 6px 20px rgba(225, 29, 72, 0.35)",
-                transition: "all 0.2s ease",
-                whiteSpace: "nowrap"
-              }}
-            >
-              {questionsLoading ? "LOADING..." : "START MOCK"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 1: LIVENESS VERIFICATION - camera turns on only from here */}
+      {/* STEP 1: LIVENESS VERIFICATION - this component's first screen now; camera turns on only from here */}
       {step === "liveness" && (
         <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 24 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "center" }}>
@@ -1264,7 +1116,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               <button
                 type="button"
                 onClick={() => {
-                  setStep("setup");
+                  setStep("liveness");
                   setSessionStarted(false);
                   setIsRecording(false);
                   setRecTimeLeft(90);

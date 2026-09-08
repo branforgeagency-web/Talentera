@@ -1,4 +1,5 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState, useEffect } from "react";
+import { useSearchParams, Link } from "react-router-dom";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { CERT_LIBRARY, CERT_ID_PATTERNS } from "../../data/certLibrary";
@@ -10,9 +11,28 @@ function currentYear() {
 export default function Stage3Certification({ stage, existingData, onSaved }) {
   const toast = useToast();
   const fileRef = useRef(null);
+  const [searchParams] = useSearchParams();
 
-  const [body, setBody] = useState(existingData?.body || "aapc");
-  const [certCode, setCertCode] = useState(existingData?.certCode || CERT_LIBRARY.aapc.certs[0].code);
+  const paramBody = searchParams.get("body");
+  const paramCert = searchParams.get("cert");
+
+  const [body, setBody] = useState(
+    paramBody && CERT_LIBRARY[paramBody] ? paramBody : existingData?.body || "aapc"
+  );
+  const [certCode, setCertCode] = useState(
+    paramCert || existingData?.certCode || (paramBody && CERT_LIBRARY[paramBody] ? CERT_LIBRARY[paramBody].certs[0].code : CERT_LIBRARY.aapc.certs[0].code)
+  );
+
+  useEffect(() => {
+    if (paramBody && CERT_LIBRARY[paramBody]) {
+      setBody(paramBody);
+      if (paramCert) {
+        setCertCode(paramCert);
+      } else {
+        setCertCode(CERT_LIBRARY[paramBody].certs[0].code);
+      }
+    }
+  }, [paramBody, paramCert]);
   const [memberId, setMemberId] = useState(existingData?.memberId || "");
   const [issueDate, setIssueDate] = useState(existingData?.issueDate || "");
   const [docName, setDocName] = useState(existingData?.docName || "");
@@ -129,7 +149,17 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
       </div>
 
       <div className="wiz-field">
-        <label>Step 2 — Pick your certification</label>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <label style={{ margin: 0 }}>Step 2 — Pick your certification</label>
+          <Link
+            to={`/cert-library?body=${body}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: 12, fontWeight: 700, color: "#2563EB", textDecoration: "none" }}
+          >
+            Browse Cert Library (49 certs) ↗
+          </Link>
+        </div>
         <select value={certCode} onChange={(e) => setCertCode(e.target.value)}>
           {bodyData.certs.map((c) => (
             <option key={c.code} value={c.code}>

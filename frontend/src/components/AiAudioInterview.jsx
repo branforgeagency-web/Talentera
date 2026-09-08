@@ -482,10 +482,9 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   // Every question that was never asked/answered is submitted with an empty
   // transcript, which the evaluator grades as 0 marks.
   function handleEndInterviewNow() {
-    if (!window.confirm("End the interview now? Any remaining questions will be recorded as 0 marks.")) {
-      return;
-    }
-    stoppingAnswerRef.current = true; // block any in-flight auto-advance timer
+    // Stop the AI from speaking IMMEDIATELY - before showing the confirm dialog
+    // so there's no gap where the voice keeps going while the modal is open.
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     recognitionShouldRunRef.current = false;
     if (recognitionRef.current) {
       try {
@@ -493,8 +492,14 @@ export default function AiAudioInterview({ existingData, onSaved }) {
       } catch (e) {}
     }
     setIsRecording(false);
+    setIsSpeaking(false);
+
+    if (!window.confirm("End the interview now? Any remaining questions will be recorded as 0 marks.")) {
+      return;
+    }
+    stoppingAnswerRef.current = true; // block any in-flight auto-advance timer
     const currentQ = questions[qIdx];
-    const updatedTranscripts = isRecording ? { ...qaTranscripts, [currentQ.id]: liveTranscript.trim() } : qaTranscripts;
+    const updatedTranscripts = { ...qaTranscripts, [currentQ.id]: liveTranscript.trim() };
     handleFinalSubmission(updatedTranscripts);
   }
 
