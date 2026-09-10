@@ -29,31 +29,28 @@ body {
 }
 
 /* ==========================================================================
-   GLOBAL DARK BLUE TYPOGRAPHY ENFORCEMENT
+   GLOBAL DARK BLUE TYPOGRAPHY ENFORCEMENT (LIGHT SECTIONS)
    ========================================================================== */
 
-h1, h2, h3, h4, h5, h6,
+/* Headings default to dark blue across light pages */
+h1:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title),
+h2:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title),
+h3, h4, h5, h6,
 .hero-main-title,
-.section-title,
 .section-title-light,
-.bento-card-title,
 .job-role-title,
 .adv-title,
 .prog-node-title,
 .hv-faq-question,
 .loch-hub-name,
-.hero-ticker-msg,
-.liquid-btn-text,
-strong,
-b {
-  color: #082553 !important;
+.hero-ticker-msg {
+  color: #082553;
 }
 
-/* Subtitles, labels, and readable body text in Dark Blue */
-p,
+/* Subtitles, labels, and readable body text in light sections */
+p:not(.fc-hero-sub):not(.fa-hero-sub):not(.fco-hero-sub):not(.candidate-parallax-lead):not(.fc-cta-sub):not(.fco-cta-sub):not(.tal-fn-sub):not(.fc-benefit-desc):not(.fc-fasttrack-desc):not(.st-ai-bubble-text),
 .section-lead,
 .hero-partner-desc,
-.bento-card-desc,
 .pipeline-step-desc,
 .adv-desc,
 .prog-node-desc,
@@ -63,7 +60,7 @@ p,
 .job-skill-tag,
 .job-meta-chip,
 .loch-co-tag {
-  color: #1E3A5F !important;
+  color: #1E3A5F;
 }
 
 /* ==========================================================================
@@ -72,19 +69,55 @@ p,
 
 .hero-banner-section {
   position: relative;
-  background: linear-gradient(135deg, #E2EEFB 0%, #D4E7FA 35%, #DCEBFA 65%, #FDEED8 100%);
-  padding: 0 0 44px;
+  background: #FFFFFF;
+  padding: 0;
   overflow: hidden;
-  border-bottom: 1px solid rgba(2, 132, 199, 0.2);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+}
+
+/* Subtle background dot grid & ambient glows */
+.hero-pattern-bg {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(2, 132, 199, 0.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-ambient-glow-left {
+  position: absolute;
+  top: 10%;
+  left: -8%;
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(224, 242, 254, 0.65) 0%, transparent 70%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-ambient-glow-right {
+  position: absolute;
+  top: 15%;
+  right: 4%;
+  width: 560px;
+  height: 560px;
+  background: radial-gradient(circle, rgba(250, 177, 47, 0.09) 0%, transparent 65%);
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Top Live Verification Ticker Bar */
 .hero-top-ticker {
-  background: linear-gradient(90deg, #DAEBF9 0%, #E8F2FC 50%, #FAE9D1 100%);
-  border-bottom: 1px solid rgba(2, 132, 199, 0.16);
+  background: #FFFFFF;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.85);
   padding: 8px 0;
-  font-size: 12.5px;
+  font-size: 12px;
   font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+  position: relative;
+  z-index: 10;
 }
 
 .hero-ticker-inner {
@@ -111,16 +144,16 @@ p,
 }
 
 .hero-ticker-tag {
-  color: #D97706;
+  color: #FAB12F;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  font-size: 11px;
+  letter-spacing: 0.05em;
+  font-size: 11.5px;
   flex-shrink: 0;
 }
 
 .hero-ticker-msg {
-  color: #082553 !important;
-  font-weight: 700;
+  color: #1E293B !important;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -129,7 +162,7 @@ p,
 .hero-ticker-stats {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 24px;
   color: #082553;
   font-size: 12px;
   font-weight: 700;
@@ -143,12 +176,18 @@ p,
 }
 
 /* Hero Content Grid (2 Columns) */
+.hero-banner-container {
+  position: relative;
+  z-index: 5;
+  padding-bottom: 0;
+}
+
 .hero-banner-grid {
   display: grid;
-  grid-template-columns: 1.12fr 1fr;
+  grid-template-columns: 1.15fr 1fr;
   align-items: center;
   gap: 36px;
-  padding: 20px 0 10px;
+  padding: 16px 0 32px;
   position: relative;
 }
 
@@ -157,21 +196,49 @@ p,
   flex-direction: column;
   align-items: flex-start;
   z-index: 2;
+  padding-bottom: 0;
+}
+
+/* Trust Eyebrow Badge */
+.hero-trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 999px;
+  padding: 6px 16px 6px 14px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(8, 37, 83, 0.04);
+}
+
+.hero-trust-badge-icon {
+  color: #FAB12F;
+  font-size: 14px;
+}
+
+.hero-trust-badge-text {
+  color: #334155;
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 
 /* Display Headline */
 .hero-main-title {
   font-family: var(--font-heading, 'Space Grotesk', sans-serif);
-  font-size: clamp(40px, 5.2vw, 68px);
+  font-size: clamp(44px, 5.5vw, 68px);
   font-weight: 800;
   color: #082553 !important;
-  line-height: 1.06;
-  margin-bottom: 18px;
-  letter-spacing: -0.025em;
+  line-height: 1.04;
+  margin-bottom: 16px;
+  letter-spacing: -0.03em;
 }
 
 .hero-highlight-word {
   color: #FAB12F;
+  font-style: italic;
   position: relative;
   display: inline-block;
 }
@@ -179,39 +246,30 @@ p,
 .hero-swoosh-underline {
   position: absolute;
   left: 0;
-  bottom: -10px;
-  width: 100%;
-  height: 18px;
+  bottom: -12px;
+  width: 105%;
+  height: 22px;
   pointer-events: none;
 }
 
 /* Subtitle */
 .hero-partner-subtitle {
   font-family: var(--font-heading, 'Space Grotesk', sans-serif);
-  font-size: clamp(18px, 2vw, 24px);
+  font-size: clamp(19px, 2.1vw, 24px);
   font-weight: 700;
   color: #082553 !important;
-  line-height: 1.35;
+  line-height: 1.34;
   margin-bottom: 14px;
-}
-
-.hero-cand-subtitle {
-  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
-  font-size: clamp(20px, 2.4vw, 28px);
-  font-weight: 800;
-  color: #D97706;
-  line-height: 1.3;
-  margin-bottom: 16px;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
 }
 
 /* Narrative paragraph */
 .hero-partner-desc {
   font-size: 15px;
   line-height: 1.65;
-  color: #1E3A5F !important;
-  max-width: 560px;
-  margin-bottom: 28px;
+  color: #475569 !important;
+  max-width: 550px;
+  margin-bottom: 26px;
   font-weight: 500;
 }
 
@@ -228,13 +286,13 @@ p,
   background: #FAB12F;
   color: #082553 !important;
   font-weight: 700;
-  font-size: 15.5px;
-  padding: 14px 28px;
-  border-radius: 16px;
+  font-size: 15px;
+  padding: 13px 26px;
+  border-radius: 14px;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  box-shadow: 0 6px 20px -4px rgba(250, 177, 47, 0.45);
+  box-shadow: 0 8px 20px -4px rgba(250, 177, 47, 0.45);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   border: none;
   cursor: pointer;
@@ -244,21 +302,21 @@ p,
 .hero-btn-partner:hover {
   background: #E59819;
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px -4px rgba(250, 177, 47, 0.55);
+  box-shadow: 0 12px 24px -4px rgba(250, 177, 47, 0.55);
 }
 
 .hero-btn-academy-login {
   background: #FFFFFF;
   color: #082553 !important;
   font-weight: 700;
-  font-size: 15.5px;
-  padding: 14px 26px;
-  border-radius: 16px;
+  font-size: 15px;
+  padding: 13px 26px;
+  border-radius: 14px;
   display: inline-flex;
   align-items: center;
   gap: 10px;
   border: 1px solid #CBD5E1;
-  box-shadow: 0 2px 8px rgba(8, 37, 83, 0.06);
+  box-shadow: 0 2px 8px rgba(8, 37, 83, 0.05);
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
   text-decoration: none;
@@ -268,56 +326,147 @@ p,
   background: #F8FAFC;
   border-color: #94A3B8;
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(8, 37, 83, 0.1);
+  box-shadow: 0 6px 16px rgba(8, 37, 83, 0.08);
+}
+
+.hero-btn-lead-icon {
+  font-size: 15px;
 }
 
 .hero-btn-arrow-circle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  margin-left: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 13px;
+  margin-left: 2px;
+}
+
+.hero-btn-partner .hero-btn-arrow-circle {
+  background: rgba(8, 37, 83, 0.1);
+  color: #082553;
+}
+
+.hero-btn-academy-login .hero-btn-arrow-circle {
+  background: #F1F5F9;
+  color: #082553;
+}
+
+/* Floating Stats Proof Card */
+.hero-stats-card {
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px -5px rgba(8, 37, 83, 0.06);
+  padding: 14px 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  max-width: 100%;
+}
+
+.hero-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hero-stat-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #EFF6FF;
+  color: #0284C7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.hero-stat-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.hero-stat-value {
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+  font-size: 17px;
+  font-weight: 800;
+  color: #082553;
+  line-height: 1.1;
+}
+
+.hero-stat-label {
+  font-size: 11.5px;
+  color: #64748B;
+  font-weight: 500;
+  line-height: 1.2;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+.hero-stat-divider {
+  width: 1px;
+  height: 32px;
+  background: #E2E8F0;
+  flex-shrink: 0;
 }
 
 /* Hero Right Visual */
 .hero-banner-right {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
   position: relative;
   z-index: 1;
+  height: 100%;
 }
 
 .hero-doctor-visual-shell {
   position: relative;
   width: 100%;
-  max-width: 580px;
+  max-width: 620px;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
 }
 
 .hero-doctor-artwork {
   width: 100%;
   height: auto;
   object-fit: contain;
-  border-radius: 20px;
-  filter: drop-shadow(0 16px 36px rgba(8, 37, 83, 0.12));
-  transition: transform 0.3s ease;
-}
-
-.hero-doctor-artwork:hover {
-  transform: translateY(-2px);
+  display: block;
+  filter: drop-shadow(0 12px 30px rgba(8, 37, 83, 0.08));
 }
 
 /* Responsive adjustments for Banner */
-@media (max-width: 1024px) {
+@media (max-width: 1100px) {
+  .hero-stats-card {
+    gap: 14px;
+    padding: 12px 18px;
+  }
+  .hero-stat-label {
+    white-space: normal;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 990px) {
   .hero-banner-grid {
     grid-template-columns: 1fr;
-    gap: 40px;
+    gap: 32px;
+    padding-top: 10px;
   }
   .hero-banner-left {
     align-items: center;
     text-align: center;
+    padding-bottom: 20px;
+  }
+  .hero-sub-br {
+    display: none;
   }
   .hero-partner-desc {
     margin-left: auto;
@@ -326,9 +475,26 @@ p,
   .hero-cta-group {
     justify-content: center;
   }
+  .hero-stats-card {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero-doctor-visual-shell {
+    max-width: 520px;
+    margin: 0 auto;
+  }
 }
 
 @media (max-width: 640px) {
+  .hero-stats-card {
+    flex-direction: column;
+    align-items: flex-start;
+    width: 100%;
+    gap: 16px;
+  }
+  .hero-stat-divider {
+    display: none;
+  }
   .hero-cta-group {
     flex-direction: column;
     width: 100%;
@@ -349,26 +515,26 @@ p,
 
 /* Section Containers */
 .section-light-theme,
-section.section {
-  background: var(--theme-bg-surface) !important;
-  color: var(--theme-text-body) !important;
-  border-color: var(--theme-border) !important;
+section.section:not(.fc-hero):not(.fa-hero):not(.fco-hero):not(.fc-benefits-section):not(.fc-cta-hero):not(.fco-cta-hero):not(.candidate-features-parallax-section):not(.tal-footer):not(.hv-wrapper) {
+  background: var(--theme-bg-surface);
+  color: var(--theme-text-body);
+  border-color: var(--theme-border);
 }
 
-.section-eyebrow {
+.section-eyebrow:not(.fc-eyebrow):not(.fa-eyebrow):not(.fco-eyebrow):not(.candidate-eyebrow-pill):not(.tal-fn-badge) {
   color: #0284C7 !important;
   background: #EFF6FF !important;
   border: 1px solid #BAE6FD !important;
   font-weight: 800 !important;
 }
 
-.section-title,
+.section-title:not(.fc-section-title-dark):not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title),
 .section-title-light {
-  color: #082553 !important;
+  color: #082553;
   font-weight: 800 !important;
 }
 
-.section-lead {
+.section-lead:not(.fc-hero-sub):not(.fa-hero-sub):not(.fco-hero-sub):not(.candidate-parallax-lead) {
   color: #1E3A5F !important;
 }
 
@@ -1741,3 +1907,449 @@ section.section {
   background: #F8FAFC !important;
   border-color: #94A3B8 !important;
 }
+
+/* ==========================================================================
+   HIGH-CONTRAST DARK THEMES & SECTIONS ENFORCEMENT
+   Ensures crystal-clear visibility and readability across all dark sections:
+   - For Candidates Hero & Dark Sections (.fc-hero, .fc-benefits-section, .fc-fasttrack-box, .fc-mock-card, .fc-cta-hero)
+   - For Academies Hero & Dark Sections (.fa-hero, .fa-stats-grid, .fa-auth-box)
+   - For Companies Hero & Dark Sections (.fco-hero, .fco-cta-hero, .fco-cta-card)
+   - Parallax Candidate Features (.candidate-features-parallax-section, .bento-card)
+   - Talentera Modern Footer (.tal-footer, .tal-footer-newsletter-card)
+   - Auth & Dark Wrappers (.hv-wrapper, [data-theme="dark"])
+   ========================================================================== */
+
+/* Dark outline buttons */
+.fc-hero .btn-outline,
+.fa-hero .btn-outline,
+.fco-hero .btn-outline,
+.fc-cta-hero .btn-outline,
+.fco-cta-hero .btn-outline,
+.candidate-features-parallax-section .btn-outline,
+.tal-footer .btn-outline,
+.hv-wrapper .btn-outline {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #FFFFFF !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.fc-hero .btn-outline:hover,
+.fa-hero .btn-outline:hover,
+.fco-hero .btn-outline:hover,
+.fc-cta-hero .btn-outline:hover,
+.fco-cta-hero .btn-outline:hover,
+.candidate-features-parallax-section .btn-outline:hover,
+.tal-footer .btn-outline:hover,
+.hv-wrapper .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: #FAB12F !important;
+  color: #FFFFFF !important;
+}
+
+/* 1. For Candidates Hero (.fc-hero) */
+.fc-hero {
+  background: radial-gradient(ellipse at 50% -10%, #0D2A50 0%, #071A35 65%, #06152A 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.fc-hero .fc-eyebrow,
+.fc-eyebrow {
+  background: rgba(250, 177, 47, 0.12) !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FAB12F !important;
+}
+
+.fc-hero .fc-hero-title,
+.fc-hero-title {
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+  text-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.fc-hero .fc-text-gold,
+.fc-text-gold {
+  color: #FAB12F !important;
+  background: linear-gradient(135deg, #FFFFFF 0%, #FAB12F 60%, #E59819 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.fc-hero .fc-hero-sub,
+.fc-hero-sub {
+  color: rgba(241, 245, 249, 0.95) !important;
+  font-weight: 400 !important;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.fc-hero .fc-btn-outline,
+.fc-btn-outline {
+  border: 1.5px solid rgba(255, 255, 255, 0.35) !important;
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
+}
+
+.fc-hero .fc-btn-outline:hover,
+.fc-btn-outline:hover {
+  background: rgba(255, 255, 255, 0.18) !important;
+  border-color: #FAB12F !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 6px 20px rgba(250, 177, 47, 0.25) !important;
+}
+
+.fc-hero .fc-btn-gold,
+.fc-btn-gold {
+  background: #FAB12F !important;
+  color: #082553 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 6px 22px rgba(250, 177, 47, 0.45) !important;
+}
+
+.fc-hero .fc-hero-stats {
+  background: rgba(13, 42, 80, 0.6) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 0 16px 40px -12px rgba(0, 0, 0, 0.5) !important;
+}
+
+.fc-hero .fc-stat-num {
+  color: #FAB12F !important;
+  font-weight: 800 !important;
+}
+
+.fc-hero .fc-stat-label {
+  color: rgba(226, 232, 240, 0.85) !important;
+  font-weight: 700 !important;
+}
+
+/* 2. For Candidates Other Dark Sections */
+.fc-fasttrack-box {
+  background: #06152A !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FFFFFF !important;
+}
+
+.fc-fasttrack-box .fc-fasttrack-title {
+  color: #FAB12F !important;
+}
+
+.fc-fasttrack-box .fc-fasttrack-desc {
+  color: #CBD5E1 !important;
+}
+
+.fc-benefits-section {
+  background: #06152A !important;
+  color: #FFFFFF !important;
+}
+
+.fc-benefits-section .fc-section-title-dark {
+  color: #FFFFFF !important;
+}
+
+.fc-benefits-section .fc-section-sub-dark {
+  color: #CBD5E1 !important;
+}
+
+.fc-benefits-section .fc-benefit-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.fc-benefits-section .fc-benefit-title {
+  color: #FFFFFF !important;
+}
+
+.fc-benefits-section .fc-benefit-desc {
+  color: #CBD5E1 !important;
+}
+
+.fc-mock-card {
+  background: #06152A !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FFFFFF !important;
+}
+
+.fc-mock-card .fc-mock-name {
+  color: #FFFFFF !important;
+}
+
+.fc-mock-card .fc-mock-title {
+  color: #CBD5E1 !important;
+}
+
+.fc-mock-card .fc-mock-score-box {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.fc-mock-card .fc-mock-score-val {
+  color: #FAB12F !important;
+}
+
+.fc-mock-card .fc-mock-score-lbl {
+  color: #CBD5E1 !important;
+}
+
+.fc-cta-hero {
+  background: radial-gradient(ellipse at center, #0F2950 0%, #06152A 90%) !important;
+  color: #FFFFFF !important;
+}
+
+.fc-cta-hero .fc-cta-title {
+  color: #FFFFFF !important;
+}
+
+.fc-cta-hero .fc-cta-sub {
+  color: #CBD5E1 !important;
+}
+
+/* 3. For Academies Hero & Dark Sections (.fa-hero) */
+.fa-hero {
+  background: radial-gradient(ellipse at 50% -10%, #0D2A50 0%, #071A35 65%, #06152A 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.fa-hero .fa-eyebrow,
+.fa-eyebrow {
+  background: rgba(250, 177, 47, 0.12) !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FAB12F !important;
+}
+
+.fa-hero .fa-hero-title,
+.fa-hero-title {
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+}
+
+.fa-hero .fa-hero-sub,
+.fa-hero-sub {
+  color: rgba(241, 245, 249, 0.95) !important;
+}
+
+.fa-hero .fa-stats-grid {
+  background: rgba(13, 42, 80, 0.6) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+.fa-hero .fa-stat-num {
+  color: #FAB12F !important;
+}
+
+.fa-hero .fa-stat-lbl {
+  color: rgba(226, 232, 240, 0.85) !important;
+}
+
+.fa-btn-outline {
+  border: 1.5px solid rgba(255, 255, 255, 0.35) !important;
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.fa-btn-gold {
+  background: #FAB12F !important;
+  color: #082553 !important;
+  font-weight: 800 !important;
+}
+
+.fa-auth-box {
+  background: #06152A !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FFFFFF !important;
+}
+
+.fa-auth-box h1,
+.fa-auth-box h2,
+.fa-auth-box h3,
+.fa-auth-box p,
+.fa-auth-box label {
+  color: #FFFFFF !important;
+}
+
+/* 4. For Companies Hero & Dark Sections (.fco-hero, .fco-cta-hero) */
+.fco-hero {
+  background: radial-gradient(ellipse at 50% -10%, #0D2A50 0%, #071A35 65%, #06152A 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.fco-hero .fco-eyebrow,
+.fco-eyebrow {
+  background: rgba(250, 177, 47, 0.12) !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FAB12F !important;
+}
+
+.fco-hero .fco-hero-title,
+.fco-hero-title {
+  color: #FFFFFF !important;
+  font-weight: 800 !important;
+}
+
+.fco-hero .fco-hero-sub,
+.fco-hero-sub {
+  color: rgba(241, 245, 249, 0.95) !important;
+}
+
+.fco-btn-outline {
+  border: 1.5px solid rgba(255, 255, 255, 0.35) !important;
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.fco-btn-gold {
+  background: #FAB12F !important;
+  color: #082553 !important;
+  font-weight: 800 !important;
+}
+
+.fco-cta-hero {
+  background: radial-gradient(ellipse at 50% 20%, #0C274C 0%, #061528 70%, #040E1B 100%) !important;
+  color: #FFFFFF !important;
+}
+
+.fco-cta-hero .fco-cta-title {
+  color: #FFFFFF !important;
+}
+
+.fco-cta-hero .fco-cta-sub {
+  color: #CBD5E1 !important;
+}
+
+.fco-cta-hero .fco-cta-perk {
+  color: #FFFFFF !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 5. Talentera Modern Footer (.tal-footer) */
+.tal-footer {
+  background: linear-gradient(180deg, #07172D 0%, #030A14 100%) !important;
+  color: #FFFFFF !important;
+  border-top: 1px solid rgba(250, 177, 47, 0.25) !important;
+}
+
+.tal-footer .tal-fn-title,
+.tal-footer h1,
+.tal-footer h2,
+.tal-footer h3,
+.tal-footer h4,
+.tal-footer h5,
+.tal-footer h6,
+.tal-footer .tal-fc-head {
+  color: #FFFFFF !important;
+}
+
+.tal-footer p,
+.tal-footer .tal-fn-sub,
+.tal-footer .tal-fb-copy {
+  color: #CBD5E1 !important;
+}
+
+.tal-footer .tal-fc-link {
+  color: #94A3B8 !important;
+}
+
+.tal-footer .tal-fc-link:hover {
+  color: #FAB12F !important;
+}
+
+.tal-footer-newsletter-card {
+  background: linear-gradient(135deg, rgba(16, 37, 66, 0.95) 0%, rgba(10, 25, 46, 0.98) 100%) !important;
+  border: 1px solid rgba(250, 177, 47, 0.3) !important;
+  color: #FFFFFF !important;
+}
+
+.tal-footer .tal-fn-badge {
+  background: rgba(250, 177, 47, 0.15) !important;
+  border: 1px solid rgba(250, 177, 47, 0.35) !important;
+  color: #FAB12F !important;
+}
+
+.tal-footer .tal-fb-brand {
+  color: #FFFFFF !important;
+}
+
+.tal-footer .tal-fb-legal-link {
+  color: #94A3B8 !important;
+}
+
+.tal-footer .tal-fb-legal-link:hover {
+  color: #FAB12F !important;
+}
+
+/* 6. Parallax Candidate Features in Landing (.candidate-features-parallax-section) */
+.candidate-features-parallax-section {
+  color: #FFFFFF !important;
+}
+
+.candidate-features-parallax-section .candidate-parallax-title {
+  color: #FFFFFF !important;
+}
+
+.candidate-features-parallax-section .candidate-parallax-lead {
+  color: rgba(241, 245, 249, 0.95) !important;
+}
+
+.candidate-features-parallax-section .cand-quick-pill {
+  color: #E2E8F0 !important;
+}
+
+.candidate-features-parallax-section .cand-quick-pill.active {
+  color: #06152B !important;
+  background: #FAB12F !important;
+}
+
+/* 7. Staff Login & Academy Login Dark Panels */
+.staff-login-card-shell h1,
+.staff-login-card-shell h1 span:not([style*="color"]),
+.acad-login-left h1,
+.acad-login-left h1 span:not([style*="color"]) {
+  color: #FFFFFF !important;
+}
+
+/* 8. Dark Background Sections & Headers */
+.fc-hero h1, .fc-hero h2, .fc-hero h3,
+.fa-hero h1, .fa-hero h2, .fa-hero h3,
+.fco-hero h1, .fco-hero h2, .fco-hero h3,
+.fco-cta-hero h1, .fco-cta-hero h2, .fco-cta-hero h3,
+.fc-cta-hero h1, .fc-cta-hero h2, .fc-cta-hero h3,
+.fc-benefits-section h1, .fc-benefits-section h2, .fc-benefits-section h3,
+.candidate-features-parallax-section h1,
+.candidate-features-parallax-section h2,
+.candidate-features-parallax-section h3,
+.tal-footer h1, .tal-footer h2, .tal-footer h3,
+.staff-login-card-shell h1,
+.acad-login-left h1,
+.cauth-brand h1,
+.cauth-brand-title,
+.hv-wrapper h1, .hv-wrapper h2, .hv-wrapper h3,
+.hv-hero-title {
+  color: #FFFFFF !important;
+}
+
+.cauth-brand-sub {
+  color: rgba(241, 245, 249, 0.92) !important;
+}
+
+/* 9. Light Background Dot Grid & Cream Surfaces (NEVER WHITE TEXT) */
+.cand-cream-dot-bg {
+  color: #1E3A5F !important;
+}
+
+.cand-cream-dot-bg h1,
+.cand-cream-dot-bg h2,
+.cand-cream-dot-bg h3,
+.cand-cream-dot-bg h4,
+.cand-cream-dot-bg h5,
+.cand-cream-dot-bg h6,
+.cand-cream-dot-bg .section-title {
+  color: #082553 !important;
+}
+
+.cand-cream-dot-bg p {
+  color: #1E3A5F !important;
+}
+
+

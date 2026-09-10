@@ -108,7 +108,7 @@ export default function Footer() {
             {/* Column 1: Brand, Mission & Direct Helpline */}
             <div className="tal-col-brand">
               <Link to="/" className="tal-footer-logo-link" aria-label="Talentera Home">
-                <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" className="tal-footer-logo" />
+                <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" className="tal-footer-logo" />
               </Link>
               <p className="tal-footer-tagline">
                 <strong>India's #1 Verified Skill &amp; Hiring Infrastructure</strong> for US Healthcare Revenue Cycle Management. 

@@ -100,7 +100,7 @@ export default function StaffLogin() {
           <div style={{ position: "relative", zIndex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
               <div>
-                <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
+                <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
                 <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold-light)", marginTop: 4 }}>
                   STAFF OPERATIONS HUB
                 </div>
@@ -116,7 +116,8 @@ export default function StaffLogin() {
                 fontWeight: 800,
                 lineHeight: 1.1,
                 letterSpacing: "-0.02em",
-                marginBottom: 24
+                marginBottom: 24,
+                color: "#ffffff"
               }}
             >
               You don't just <br />

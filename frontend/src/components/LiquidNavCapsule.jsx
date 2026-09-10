@@ -26,13 +26,13 @@ export default function LiquidNavCapsule({
     let animationFrameId;
     let time = 0;
 
-    const particles = Array.from({ length: 14 }, () => ({
-      x: (Math.random() - 0.5) * 24,
-      y: (Math.random() - 0.5) * 24,
-      size: Math.random() * 1.8 + 0.8,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      alpha: Math.random() * 0.7 + 0.3
+    const particles = Array.from({ length: 12 }, () => ({
+      x: (Math.random() - 0.5) * 16,
+      y: (Math.random() - 0.5) * 16,
+      size: Math.random() * 1.4 + 0.6,
+      vx: (Math.random() - 0.5) * 0.3,
+      vy: (Math.random() - 0.5) * 0.3,
+      alpha: Math.random() * 0.6 + 0.3
     }));
 
     const render = () => {
@@ -41,16 +41,16 @@ export default function LiquidNavCapsule({
       const height = canvas.height;
       const centerX = width / 2;
       const centerY = height / 2;
-      const baseRadius = 20;
+      const baseRadius = 19;
 
       ctx.clearRect(0, 0, width, height);
 
-      const hoverScale = isHovered ? 1.08 : 1.0;
+      const hoverScale = isHovered ? 1.06 : 1.0;
       let leanX = 0;
       let leanY = 0;
       if (mousePosRef.current.isOver) {
-        leanX = mousePosRef.current.x * 3;
-        leanY = mousePosRef.current.y * 3;
+        leanX = mousePosRef.current.x * 2;
+        leanY = mousePosRef.current.y * 2;
       }
 
       const orbX = centerX + leanX;
@@ -61,14 +61,14 @@ export default function LiquidNavCapsule({
       }
       const burstFactor = Math.max(0, mousePosRef.current.clickBurst);
 
-      // 1. Soft Blue Aura
-      const auraGrad = ctx.createRadialGradient(orbX, orbY, baseRadius * 0.5, orbX, orbY, baseRadius * 2.2);
-      auraGrad.addColorStop(0, "rgba(14, 165, 233, 0.4)");
-      auraGrad.addColorStop(0.5, "rgba(56, 189, 248, 0.15)");
+      // 1. Soft Blue Aura (fits fully inside canvas without clipping)
+      const auraGrad = ctx.createRadialGradient(orbX, orbY, baseRadius * 0.5, orbX, orbY, baseRadius * 1.6);
+      auraGrad.addColorStop(0, "rgba(14, 165, 233, 0.35)");
+      auraGrad.addColorStop(0.6, "rgba(56, 189, 248, 0.12)");
       auraGrad.addColorStop(1, "rgba(14, 165, 233, 0)");
       ctx.fillStyle = auraGrad;
       ctx.beginPath();
-      ctx.arc(orbX, orbY, baseRadius * 2.2, 0, Math.PI * 2);
+      ctx.arc(orbX, orbY, baseRadius * 1.6, 0, Math.PI * 2);
       ctx.fill();
 
       // 2. Jelly Edge Wobble Path
@@ -198,6 +198,9 @@ export default function LiquidNavCapsule({
       <div className="liquid-capsule-shell">
         {/* Left Side: Orb + Logo */}
         <div className="liquid-nav-left" onClick={() => navigate("/")}>
+          <div className="liquid-orb-wrapper">
+            <canvas ref={canvasRef} width={80} height={80} className="liquid-orb-canvas" />
+          </div>
           <img src="/logo.png" alt="Talentera Logo" className="liquid-nav-logo" />
         </div>
 

@@ -107,7 +107,7 @@ export default function CertLibrary() {
             }}
           >
             <img
-              src="/logo.png"
+              src="/logo-white.png"
               alt="Talentera"
               style={{ height: 32, width: "auto", objectFit: "contain" }}
             />

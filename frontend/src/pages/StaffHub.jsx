@@ -901,7 +901,7 @@ export default function StaffHub() {
         {/* LEFT SIDEBAR (DARK NAVY BRAND THEME - Matching Candidate & Company Dashboards) */}
         <aside className="staff-sidebar">
           <div className="staff-sidebar-brand">
-            <img className="staff-sidebar-logo" src="/logo.png" alt="Talentera" />
+            <img className="staff-sidebar-logo" src="/logo-white.png" alt="Talentera" />
             {/* <div className="staff-sidebar-tag" style={{ marginTop: 0, fontSize: 10 }}>STAFF OPERATIONS</div> */}
           </div>
 

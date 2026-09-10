@@ -228,7 +228,7 @@ export default function CompanyDashboardSetup() {
       <header className="conb-topnav">
         <div className="conb-topnav-brand" onClick={() => navigate("/companies/dashboard")} style={{ cursor: "pointer" }}>
           <div>
-            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
             <div className="conb-topnav-tag">COMPANY DASHBOARD</div>
           </div>
         </div>

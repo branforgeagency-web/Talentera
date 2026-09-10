@@ -168,7 +168,7 @@ export function LearnContent({ candidate: propCandidate, onEditStage }) {
               CLINICAL &amp; SPECIALTY · TOP 15% LEARNING TRACK
             </div>
 
-            <h1 style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, margin: "0 0 14px 0", letterSpacing: "-0.02em" }}>
+            <h1 style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.2, margin: "0 0 14px 0", letterSpacing: "-0.02em", color: "#FFFFFF" }}>
               Pick up where you left off, <span style={{ color: "#F5B82E" }}>{firstName}</span>
             </h1>
 
@@ -475,7 +475,7 @@ export function LearnContent({ candidate: propCandidate, onEditStage }) {
                 <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 10, fontWeight: 800, letterSpacing: "0.5px" }}>
                   CLINICAL KNOWLEDGE
                 </span>
-                <h3 style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 6px 0", lineHeight: 1.3 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 6px 0", lineHeight: 1.3, color: "#FFFFFF" }}>
                   Overcome mock interview weak-spot
                 </h3>
                 <p style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", margin: "0 0 14px 0", lineHeight: 1.45 }}>
@@ -524,7 +524,7 @@ export function LearnContent({ candidate: propCandidate, onEditStage }) {
                 <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 10, fontWeight: 800, letterSpacing: "0.5px" }}>
                   ASSESSMENT BOOST
                 </span>
-                <h3 style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 6px 0", lineHeight: 1.3 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 6px 0", lineHeight: 1.3, color: "#FFFFFF" }}>
                   Move CPT modifier score to 90%
                 </h3>
                 <p style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", margin: "0 0 14px 0", lineHeight: 1.45 }}>
@@ -573,7 +573,7 @@ export function LearnContent({ candidate: propCandidate, onEditStage }) {
                 <span style={{ background: "rgba(255,255,255,0.2)", padding: "3px 10px", borderRadius: 12, fontSize: 10, fontWeight: 800, letterSpacing: "0.5px" }}>
                   RESUME REFRESH
                 </span>
-                <h3 style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 6px 0", lineHeight: 1.3 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 800, margin: "10px 0 6px 0", lineHeight: 1.3, color: "#FFFFFF" }}>
                   Export with HCC Coder / Executive template
                 </h3>
                 <p style={{ fontSize: 12, color: "rgba(255,255,255,0.9)", margin: "0 0 14px 0", lineHeight: 1.45 }}>

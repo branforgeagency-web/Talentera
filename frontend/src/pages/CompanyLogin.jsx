@@ -162,7 +162,7 @@ export default function CompanyLogin() {
         }}
       >
         <div style={{ textAlign: "center", marginBottom: 24, cursor: "pointer" }} onClick={() => navigate("/")}>
-          <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
         </div>
 
         <h2 style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 22, color: "#FAF7F0", textAlign: "center", marginBottom: 6 }}>

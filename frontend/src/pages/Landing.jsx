@@ -36,7 +36,7 @@ function useAnimatedCount(target, isVisible, duration = 1600) {
 export default function Landing() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [pulseText, setPulseText] = useState("5 candidates verified in the last hour");
+  const [pulseText, setPulseText] = useState("Apex Medical Institute uploaded 42 student profiles");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFeatureTab, setActiveFeatureTab] = useState(null);
 
@@ -223,13 +223,18 @@ export default function Landing() {
     candidates: {
       key: "candidates",
       tabLabel: "For Candidates",
-      tabIcon: "fa-solid fa-user-graduate",
+      tabIcon: "fa-solid fa-user",
       activeClass: "active",
-      eyebrow: "STUDENT & CANDIDATE CAREER ENGINE",
-      eyebrowDotColor: "var(--gold)",
-      tagline: "Build Your Profile. Prove Your Skills. Get Discovered.",
-      description: "Talentera connects Healthcare RCM candidates, hiring companies, and academies through a structured verification ecosystem built on proof and trust.",
-      primaryCta: { label: "Build Your Career →", link: "/register", icon: "", cls: "btn-gold" },
+      eyebrow: "FOR MEDICAL CODERS & HEALTHCARE PROFESSIONALS",
+      eyebrowIcon: "fa-solid fa-shield-halved",
+      tagline: (
+        <>
+          Build Your Profile. Prove Your Skills. <br className="hero-sub-br" />
+          Get Discovered by Top Healthcare Companies.
+        </>
+      ),
+      description: "Join India's #1 Healthcare RCM talent platform. Verify your AAPC/AHIMA credentials, prove your skills with hospital chart audits, practice AI mock interviews, and connect with 342+ verified hiring companies.",
+      primaryCta: { label: "Build Your Free Profile", link: "/register", icon: "fa-solid fa-user-check", cls: "btn-gold" },
       secondaryCta: { label: "Explore Healthcare RCM Jobs", link: "/jobs", icon: "fa-solid fa-briefcase", cls: "btn-outline" },
       ticker: "Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities",
       leftCard: {
@@ -254,12 +259,17 @@ export default function Landing() {
     companies: {
       key: "companies",
       tabLabel: "For Companies",
-      tabIcon: "fa-solid fa-building",
+      tabIcon: "fa-solid fa-briefcase",
       activeClass: "active-companies",
-      eyebrow: "ENTERPRISE RCM HIRING PORTAL",
-      eyebrowDotColor: "#38BDF8",
-      tagline: "Hire Verified Healthcare RCM Talent With Greater Confidence.",
-      description: "Discover structured candidate profiles with deeper visibility into skills, verification, and professional readiness — and pay only on successful placement.",
+      eyebrow: "ENTERPRISE HEALTHCARE RCM HIRING",
+      eyebrowIcon: "fa-solid fa-building-shield",
+      tagline: (
+        <>
+          Hire Verified Healthcare RCM Talent <br className="hero-sub-br" />
+          With Greater Confidence.
+        </>
+      ),
+      description: "Discover structured candidate profiles with deeper visibility into clinical skills, AAPC/AHIMA verification, and chart audit performance — pay only on successful placement.",
       primaryCta: { label: "Browse Verified Candidates", link: "/companies/register", icon: "fa-solid fa-users", cls: "btn-gold" },
       secondaryCta: { label: "Post a Requirement", link: "/companies/jobs", icon: "fa-solid fa-file-invoice", cls: "btn-outline" },
       ticker: "Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities",
@@ -287,9 +297,14 @@ export default function Landing() {
       tabLabel: "For Academies",
       tabIcon: "fa-solid fa-landmark",
       activeClass: "active-academies",
-      eyebrow: "MEDICAL CODING INSTITUTE PARTNERSHIP",
-      eyebrowDotColor: "#34D399",
-      tagline: "Your Students. Their Careers. One Powerful Medical Coding Institute Partnership.",
+      eyebrow: "TRUSTED BY INDIA'S MEDICAL INSTITUTES",
+      eyebrowIcon: "fa-solid fa-shield-halved",
+      tagline: (
+        <>
+          Your Students. Their Careers. One Powerful <br className="hero-sub-br" />
+          Medical Coding Institute Partnership.
+        </>
+      ),
       description: "Partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.",
       primaryCta: { label: "Partner With Talentera", link: "/academy", icon: "fa-solid fa-handshake", cls: "btn-gold" },
       secondaryCta: { label: "Academy Portal Login", link: "/academy/login", icon: "fa-solid fa-graduation-cap", cls: "btn-outline" },
@@ -815,9 +830,9 @@ export default function Landing() {
 
 
   const pulseMessages = [
+    "Apex Medical Institute uploaded 42 student profiles",
     "5 candidates verified in the last hour",
     "Priya S. (CPC) shortlisted by Access Healthcare",
-    "Apex Medical Institute uploaded 42 student profiles",
     "Karthik I. (CRC) completed ED chart audit with 98% score",
   ];
 
@@ -993,7 +1008,7 @@ export default function Landing() {
               <span style={{ color: "#F59E0B" }}>⚡</span> 94.2% Placement Rate
             </span>
             <span className="hero-ticker-stat-item">
-              <span style={{ color: "#0284C7" }}>🛡</span> Aadhaar Verified
+              <i className="fa-solid fa-shield-halved" style={{ color: "#082553", fontSize: 13 }} /> Aadhaar Verified
             </span>
           </div>
         </div>
@@ -1001,9 +1016,23 @@ export default function Landing() {
 
       {/* ====== 1. HERO BANNER — EXACT DESIGN MATCHING REFERENCE MOCKUP ====== */}
       <section className="hero-banner-section">
+        {/* Subtle Background Pattern & Ambient Glows */}
+        <div className="hero-pattern-bg" />
+        <div className="hero-ambient-glow-left" />
+        <div className="hero-ambient-glow-right" />
+
         {/* FLOATING PREMIUM LIQUID NAV CAPSULE INSIDE HERO BANNER */}
         <LiquidNavCapsule
-          activeTab={0}
+          activeTab={heroAudience === "candidates" ? 0 : heroAudience === "companies" ? 1 : heroAudience === "academies" ? 2 : 0}
+          onTabChange={(idx) => {
+            if (idx === 0) setHeroAudience("candidates");
+            else if (idx === 1) setHeroAudience("companies");
+            else if (idx === 2) setHeroAudience("academies");
+            else if (idx === 3) {
+              const el = document.getElementById("student-features") || document.getElementById("how-it-works");
+              if (el) el.scrollIntoView({ behavior: "smooth" });
+            }
+          }}
           items={[
             { label: "For Candidates", icon: "fa-solid fa-user", link: "/candidates" },
             { label: "For Companies", icon: "fa-solid fa-briefcase", link: "/companies" },
@@ -1012,10 +1041,16 @@ export default function Landing() {
           ]}
         />
 
-        <div className="container" style={{ position: "relative", zIndex: 5 }}>
+        <div className="container hero-banner-container">
           <div className="hero-banner-grid">
-            {/* LEFT COLUMN: EXACT USER REQUESTED BANNER CONTENT */}
+            {/* LEFT COLUMN: DYNAMIC AUDIENCE BANNER CONTENT (CANDIDATES DEFAULT) */}
             <div className="hero-banner-left">
+              {/* Trust Eyebrow Badge */}
+              <div className="hero-trust-badge">
+                <i className={`${currentAudience.eyebrowIcon || "fa-solid fa-shield-halved"} hero-trust-badge-icon`} />
+                <span className="hero-trust-badge-text">{currentAudience.eyebrow}</span>
+              </div>
+
               {/* Main Headline */}
               <h1 className="hero-main-title">
                 Where Talent <br />
@@ -1037,25 +1072,68 @@ export default function Landing() {
               </h1>
 
               {/* Subheading */}
-              <h2 className="hero-cand-subtitle">
-                Build Your Profile. Prove Your Skills. Get Discovered.
+              <h2 className="hero-partner-subtitle">
+                {currentAudience.tagline}
               </h2>
 
               {/* Narrative description */}
               <p className="hero-partner-desc">
-                Talentera connects Healthcare RCM candidates, hiring companies, and academies through a structured verification ecosystem built on proof and trust.
+                {currentAudience.description}
               </p>
 
               {/* Action Buttons */}
               <div className="hero-cta-group">
-                <Link to="/register" className="hero-btn-partner">
-                  <span>Build Your Career</span>
+                <Link to={currentAudience.primaryCta.link} className="hero-btn-partner">
+                  {currentAudience.primaryCta.icon && (
+                    <i className={`${currentAudience.primaryCta.icon} hero-btn-lead-icon`} />
+                  )}
+                  <span>{currentAudience.primaryCta.label}</span>
                   <span className="hero-btn-arrow-circle">→</span>
                 </Link>
-                <Link to="/jobs" className="hero-btn-academy-login">
-                  <span>Explore Healthcare RCM Jobs</span>
-                  <i className="fa-solid fa-briefcase" style={{ fontSize: 14, marginLeft: 4 }} />
+                <Link to={currentAudience.secondaryCta.link} className="hero-btn-academy-login">
+                  {currentAudience.secondaryCta.icon && (
+                    <i className={`${currentAudience.secondaryCta.icon} hero-btn-lead-icon`} />
+                  )}
+                  <span>{currentAudience.secondaryCta.label}</span>
+                  <span className="hero-btn-arrow-circle">→</span>
                 </Link>
+              </div>
+
+              {/* Bottom Proof Stats Floating Card */}
+              <div className="hero-stats-card">
+                <div className="hero-stat-item">
+                  <div className="hero-stat-icon-wrap">
+                    <i className="fa-solid fa-users" />
+                  </div>
+                  <div className="hero-stat-content">
+                    <span className="hero-stat-value">342+</span>
+                    <span className="hero-stat-label">Verified Hiring Companies</span>
+                  </div>
+                </div>
+
+                <div className="hero-stat-divider" />
+
+                <div className="hero-stat-item">
+                  <div className="hero-stat-icon-wrap">
+                    <i className="fa-solid fa-shield-halved" />
+                  </div>
+                  <div className="hero-stat-content">
+                    <span className="hero-stat-value">100%</span>
+                    <span className="hero-stat-label">Credential Verification</span>
+                  </div>
+                </div>
+
+                <div className="hero-stat-divider" />
+
+                <div className="hero-stat-item">
+                  <div className="hero-stat-icon-wrap">
+                    <i className="fa-solid fa-chart-column" />
+                  </div>
+                  <div className="hero-stat-content">
+                    <span className="hero-stat-value">94.2%</span>
+                    <span className="hero-stat-label">Placement Rate</span>
+                  </div>
+                </div>
               </div>
             </div>
 

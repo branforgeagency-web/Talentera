@@ -187,7 +187,7 @@ export default function CompanyPortal() {
       {/* ====== STICKY NAVBAR ====== */}
       <nav style={{ background: "var(--navy)", padding: "14px 36px", color: "#fff", position: "sticky", top: 0, zIndex: 100, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-dark)" }}>
         <div style={{ display: "flex", alignItems: "center", cursor: "pointer", gap: 16 }} onClick={() => navigate("/companies/directory")}>
-          <img src="/logo.png" alt="Talentera" style={{ height: 38, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera" style={{ height: 38, width: "auto" }} />
           <div>
             <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 10, letterSpacing: "0.14em", color: "var(--gold)" }}>
               COMPANY HIRING PORTAL

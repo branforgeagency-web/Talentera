@@ -113,7 +113,7 @@ export default function VerifyCandidate() {
       <header style={{ background: "#0A1F3D", color: "#fff", padding: "16px 24px", position: "sticky", top: 0, zIndex: 50, boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}>
         <div style={{ maxWidth: 1000, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <Link to="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", color: "#fff" }}>
-            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
             <span style={{ color: "#E5A82E", fontWeight: 700, fontSize: 13, fontFamily: "var(--font-mono)", letterSpacing: "0.12em" }}>VERIFY</span>
           </Link>
 

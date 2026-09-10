@@ -20,7 +20,7 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
   return (
     <aside className="wiz-sidebar">
       <div className="wiz-sidebar-brand">
-        <img src="/logo.png" alt="Talentera" style={{ height: 28, width: "auto" }} />
+        <img src="/logo-white.png" alt="Talentera" style={{ height: 28, width: "auto" }} />
       </div>
 
       <div className="wiz-progress-strip">

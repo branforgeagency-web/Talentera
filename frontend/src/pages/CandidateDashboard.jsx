@@ -706,6 +706,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     lineHeight: 1.2,
                     margin: "0 0 16px 0",
                     letterSpacing: "-0.02em",
+                    color: "#FFFFFF",
                   }}
                 >
                   Your career is{" "}
