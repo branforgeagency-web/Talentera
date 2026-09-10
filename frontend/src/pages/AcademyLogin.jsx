@@ -140,7 +140,7 @@ export default function AcademyLogin() {
       <header className="acad-login-header">
         <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
           <div>
-            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
             <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold-light)", marginTop: 4 }}>
               ACADEMY PARTNER PORTAL
             </div>
@@ -167,7 +167,8 @@ export default function AcademyLogin() {
               fontWeight: 800,
               lineHeight: 1.08,
               letterSpacing: "-0.02em",
-              marginBottom: 20
+              marginBottom: 20,
+              color: "#ffffff"
             }}
           >
             Your Students. <br />

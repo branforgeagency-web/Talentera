@@ -134,15 +134,10 @@ export default function CompanyRegister() {
         <div className="cauth-brand">
           <div className="cauth-brand-inner">
             {/* Logo */}
-            <div className="cauth-brand-logo" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-              <svg width="40" height="40" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M6 8H46V18H32V44H20V18H6V8Z" fill="#E5A82E" />
-                <path d="M6 8L20 18V44L6 34V8Z" fill="#FFFFFF" />
-                <path d="M32 8L46 18H32V8Z" fill="#F5C95B" />
-              </svg>
-              <div>
-                <div className="cauth-brand-name">Talentera</div>
-                <div className="cauth-brand-tagline">COMPANY HIRING PORTAL</div>
+            <div className="cauth-brand-logo" onClick={() => navigate("/")} style={{ cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 4, marginBottom: 36 }}>
+              <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 38, width: "auto" }} />
+              <div className="cauth-brand-tagline" style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold)", marginTop: 2 }}>
+                COMPANY HIRING PORTAL
               </div>
             </div>
 
@@ -153,13 +148,13 @@ export default function CompanyRegister() {
             </div>
 
             {/* Headline */}
-            <h1 className="cauth-brand-title">
+            <h1 className="cauth-brand-title" style={{ color: "#FFFFFF" }}>
               Hire RCM talent that's <br />
-              <em>actually verified.</em>
+              <em style={{ color: "var(--gold)", fontStyle: "italic" }}>actually verified.</em>
             </h1>
 
             {/* Subtext */}
-            <p className="cauth-brand-sub">
+            <p className="cauth-brand-sub" style={{ color: "rgba(241, 245, 249, 0.92)" }}>
               5 hand-curated, specialty-precise verified candidates — in 24 hours. Pay only when you hire.
             </p>
 

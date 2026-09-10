@@ -1831,16 +1831,17 @@ svg {
   letter-spacing: -0.03em;
   line-height: 1.05;
   margin-bottom: 18px;
+  color: #FFFFFF !important;
 }
 .cauth-brand-title em {
-  color: var(--gold);
+  color: var(--gold) !important;
   font-style: italic;
   font-weight: 700;
 }
 .cauth-brand-sub {
   font-size: 16px;
   line-height: 1.55;
-  color: rgba(200, 209, 224, 0.85);
+  color: rgba(241, 245, 249, 0.92) !important;
   margin-bottom: 32px;
 }
 

@@ -112,7 +112,7 @@ export default function CompanyJobs() {
     <div style={{ minHeight: "100vh", background: "#FAF7F2", color: "var(--navy)" }}>
       <header style={{ background: "var(--navy)", padding: "16px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100 }}>
         <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
-          <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
           <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold)", marginTop: 4 }}>
             JOB POSTS
           </div>

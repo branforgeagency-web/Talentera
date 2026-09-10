@@ -11,7 +11,7 @@ export default function CompaniesHire() {
       <header className="nav">
         <div className="nav-container container">
           <div className="nav-logo" onClick={() => navigate("/")} style={{ cursor: "pointer" }}>
-            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" />
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" />
           </div>
 
           <div className="nav-actions">

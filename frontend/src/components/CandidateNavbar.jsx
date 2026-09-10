@@ -193,7 +193,7 @@ export default function CandidateNavbar({
           onClick={() => handleNavClick("home")}
           title="Talentera Candidate Dashboard"
         >
-          <img src="/logo.png" alt="Talentera" style={{ height: 34, width: "auto", objectFit: "contain" }} />
+          <img src="/logo-white.png" alt="Talentera" style={{ height: 34, width: "auto", objectFit: "contain" }} />
         </div>
 
         {/* Center Nav Links */}

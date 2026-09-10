@@ -122,7 +122,7 @@ export default function Register() {
       >
         {/* Brand Logo Header */}
         <div style={{ textAlign: "center", marginBottom: 24, cursor: "pointer" }} onClick={() => navigate("/")}>
-          <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
         </div>
 
         {/* Title & Subtitle */}

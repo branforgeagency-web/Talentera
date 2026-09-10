@@ -44,7 +44,7 @@ export default function Dashboard() {
       <header style={{ background: "var(--navy)", padding: "16px 0" }}>
         <div className="container" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <Link to="/" style={{ textDecoration: "none", display: "flex", alignItems: "center" }}>
-            <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
           </Link>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <Link to="/jobs" className="btn btn-navy-ghost" style={{ textDecoration: "none" }}>

@@ -91,7 +91,7 @@ export default function CompanyApplicants() {
         }}
       >
         <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/dashboard")}>
-          <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
           <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold)", marginTop: 4 }}>
             APPLICANTS
           </div>

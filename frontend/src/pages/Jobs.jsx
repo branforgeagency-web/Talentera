@@ -216,7 +216,7 @@ export default function Jobs() {
         }}
       >
         <div style={{ cursor: "pointer" }} onClick={() => navigate("/")}>
-          <img src="/logo.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
         </div>
         <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
           {candidate && (

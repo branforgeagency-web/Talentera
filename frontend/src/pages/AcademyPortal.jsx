@@ -467,7 +467,7 @@ export default function AcademyPortal() {
       {/* ====== TOP NAVBAR HEADER ====== */}
       <header style={{ background: "#06152A", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => navigate("/")}>
-          <img src="/logo.png" alt="Talentera" style={{ height: 26, width: "auto" }} />
+          <img src="/logo-white.png" alt="Talentera" style={{ height: 26, width: "auto" }} />
           <span style={{ color: "#94A3B8", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em" }}>
             ACADEMY PARTNER PORTAL
           </span>
