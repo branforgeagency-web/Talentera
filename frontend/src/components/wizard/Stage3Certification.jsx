@@ -34,7 +34,26 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
     }
   }, [paramBody, paramCert]);
   const [memberId, setMemberId] = useState(existingData?.memberId || "");
-  const [issueDate, setIssueDate] = useState(existingData?.issueDate || "");
+  const initialIssueDate = existingData?.issueDate || "";
+  const initialMonthMatch = initialIssueDate.match(/^[A-Za-z]+/);
+  const initialYearMatch = initialIssueDate.match(/\d{4}/);
+
+  const [issueMonth, setIssueMonth] = useState(initialMonthMatch ? initialMonthMatch[0] : "");
+  const [issueYear, setIssueYear] = useState(initialYearMatch ? initialYearMatch[0] : "");
+  const [issueDate, setIssueDate] = useState(initialIssueDate);
+
+  function handleMonthYearChange(month, year) {
+    setIssueMonth(month);
+    setIssueYear(year);
+    if (month && year) {
+      setIssueDate(`${month} ${year}`);
+    } else if (year) {
+      setIssueDate(year);
+    } else {
+      setIssueDate("");
+    }
+  }
+
   const [docName, setDocName] = useState(existingData?.docName || "");
   const [docUrl, setDocUrl] = useState(existingData?.docUrl || "");
   const [uploading, setUploading] = useState(false);
@@ -86,14 +105,14 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!memberId || memberId.trim().length < 2) {
-      setError("Please enter your Member / Certification ID.");
-      toast("Member / Certification ID is required.", "!");
+    if (!memberId || memberId.trim().length !== 8) {
+      setError("Please enter a valid 8-character Member / Certification ID.");
+      toast("Member / Certification ID must be exactly 8 characters.", "!");
       return;
     }
-    if (!issueDate || issueDate.trim().length < 2) {
-      setError("Please enter the Issue Date.");
-      toast("Issue Date is required.", "!");
+    if (!issueMonth || !issueYear || !issueDate) {
+      setError("Please select both the Issue Month and Year.");
+      toast("Issue Month and Year are required.", "!");
       return;
     }
     if (!docName) {
@@ -138,7 +157,9 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   return (
     <form className="wiz-form" onSubmit={handleSubmit}>
       <div className="wiz-field">
-        <label>Step 1 — Issuing body</label>
+        <label>
+          Step 1 — Issuing body <span style={{ color: "#EF4444" }}>*</span>
+        </label>
         <div className="wiz-pill-row">
           {Object.values(CERT_LIBRARY).map((b) => (
             <button key={b.key} type="button" className={`wiz-pill wiz-pill-compact ${body === b.key ? "active" : ""}`} onClick={() => handleBodyChange(b.key)}>
@@ -150,7 +171,9 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
 
       <div className="wiz-field">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <label style={{ margin: 0 }}>Step 2 — Pick your certification</label>
+          <label style={{ margin: 0 }}>
+            Step 2 — Pick your certification <span style={{ color: "#EF4444" }}>*</span>
+          </label>
           <Link
             to={`/cert-library?body=${body}`}
             target="_blank"
@@ -160,7 +183,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
             Browse Cert Library (49 certs) ↗
           </Link>
         </div>
-        <select value={certCode} onChange={(e) => setCertCode(e.target.value)}>
+        <select value={certCode} onChange={(e) => setCertCode(e.target.value)} required>
           {bodyData.certs.map((c) => (
             <option key={c.code} value={c.code}>
               {c.flag ? "⭐ " : ""}{c.code} — {c.name}
@@ -189,19 +212,46 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
       </div>
 
       <div className="wiz-field">
-        <label>Step 3 — Member / certification ID</label>
-        <input
-          type="text"
-          value={memberId}
-          onChange={(e) => {
-            setMemberId(e.target.value);
-          }}
-          placeholder={pattern.placeholder}
-        />
+        <label>
+          Step 3 — Member / certification ID (8 characters) <span style={{ color: "#EF4444" }}>*</span>
+        </label>
+        <div style={{ position: "relative" }}>
+          <input
+            type="text"
+            required
+            maxLength={8}
+            value={memberId}
+            onChange={(e) => {
+              // Limit strictly to 8 alphanumeric characters
+              const val = e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 8);
+              setMemberId(val);
+            }}
+            placeholder="e.g. 01234567"
+            style={{
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              borderColor: memberId.length === 8 ? "#22C55E" : memberId.length > 0 ? "#EAB308" : "#CBD5E1",
+            }}
+          />
+          <span
+            style={{
+              position: "absolute",
+              right: 12,
+              top: "50%",
+              transform: "translateY(-50%)",
+              fontSize: 11,
+              fontWeight: 700,
+              color: memberId.length === 8 ? "#16A34A" : "#64748B",
+            }}
+          >
+            {memberId.length}/8
+          </span>
+        </div>
         <span className={`wiz-inline-status wiz-inline-status-${idState}`}>
-          {idState === "idle" && "Enter ID"}
-          {idState === "valid" && "Format matches"}
-          {idState === "invalid" && `Expected: ${pattern.description}`}
+          {idState === "idle" && "Enter 8-digit/char ID"}
+          {idState === "valid" && memberId.length === 8 && "✓ Format & length match"}
+          {idState !== "valid" && memberId.length === 8 && "Check pattern"}
+          {memberId.length > 0 && memberId.length < 8 && `Requires 8 characters (${8 - memberId.length} more)`}
         </span>
       </div>
 
@@ -233,13 +283,48 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
       </div>
 
       <div className="wiz-field-row">
-        <div className="wiz-field">
-          <label>Issue date (month / year)</label>
-          <input type="text" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} placeholder="e.g., Mar 2024" />
+        <div className="wiz-field" style={{ flex: 1 }}>
+          <label>
+            Issue date (Month &amp; Year) <span style={{ color: "#EF4444" }}>*</span>
+          </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 8 }}>
+            <select
+              required
+              value={issueMonth}
+              onChange={(e) => handleMonthYearChange(e.target.value, issueYear)}
+              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, fontWeight: 600 }}
+            >
+              <option value="">Month</option>
+              {[
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+              ].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+
+            <select
+              required
+              value={issueYear}
+              onChange={(e) => handleMonthYearChange(issueMonth, e.target.value)}
+              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, fontWeight: 600 }}
+            >
+              <option value="">Year</option>
+              {Array.from({ length: currentYear() - 2005 + 1 }, (_, i) => currentYear() - i).map((y) => (
+                <option key={y} value={String(y)}>{y}</option>
+              ))}
+            </select>
+          </div>
+          {issueDate && (
+            <span style={{ fontSize: 11, color: "#16A34A", fontWeight: 700, marginTop: 4, display: "block" }}>
+              ✓ Selected: {issueDate}
+            </span>
+          )}
         </div>
+
         <div className="wiz-field" style={{ minWidth: 280, flex: 1 }}>
           <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span>Certificate Document (PDF / Image) <span style={{ color: "#E5A82E" }}>*</span></span>
+            <span>Certificate Document (PDF / Image) <span style={{ color: "#EF4444" }}>*</span></span>
             {docName && (
               <span style={{ fontSize: 10, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 999, textTransform: "uppercase" }}>
                 ✓ Attached
