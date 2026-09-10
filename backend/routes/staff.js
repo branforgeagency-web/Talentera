@@ -580,6 +580,19 @@ router.post("/verify-candidate", requireStaffAuth, async (req, res) => {
         candidate.completedStages = Array.from(new Set([...(candidate.completedStages || []), 1, 2, 3, 4, 5, 6, 7, 8]));
         candidate.stage5 = { ...(candidate.stage5 || {}), verified: true, verifiedAt: new Date() };
         await candidate.save();
+
+        try {
+          await Notification.create({
+            recipientType: "candidate",
+            recipientId: String(candidateId),
+            title: "Profile Verified & Gold Trust Badge Awarded! 🛡️",
+            message: "Talentera Admin has audited and verified your candidate profile. Your Gold Trust Badge is active and visible to employers.",
+            type: "kyc_verified",
+            meta: { source: "admin", action: "verify_candidate", actionType: "profile", actionLabel: "View Profile" },
+          });
+        } catch (notifErr) {
+          logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+        }
       }
     }
 
@@ -785,6 +798,21 @@ router.post("/verify-assessment", requireStaffAuth, async (req, res) => {
     candidate.markModified("stage4");
     await candidate.save();
 
+    try {
+      await Notification.create({
+        recipientType: "candidate",
+        recipientId: String(candidateId),
+        title: "Assessment Audited by Admin ✅",
+        message: note
+          ? `Talentera Admin has reviewed and verified your assessment: ${note}`
+          : "Talentera Admin has reviewed and verified your clinical assessment.",
+        type: "assessment_passed",
+        meta: { source: "admin", action: "verify_assessment", actionType: "stage_4", actionLabel: "View Scorecard" },
+      });
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
+
     await recordAudit(req, {
       action: "verify_assessment",
       targetType: "candidate",
@@ -833,12 +861,30 @@ router.post("/verify-certification", requireStaffAuth, async (req, res) => {
     candidate.markModified("stage3");
     await candidate.save();
 
-    // Best-effort candidate-facing notification. There's no in-app
-    // notification channel for candidates yet (Notification.recipientType
-    // only supports "company"/"staff") and no email service call site for
-    // this event yet either - logged the same way sendKycAuditEmail below
-    // logs company KYC results, ready to wire to a real send once a
-    // candidate notification channel exists.
+    try {
+      if (action === "verify") {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: "Credential Audited & Approved 📜",
+          message: `Your ${candidate.stage3?.body?.toUpperCase() || "AAPC"} certification has been audited and approved by the Talentera Admin team.`,
+          type: "kyc_verified",
+          meta: { source: "admin", action: "verify_certification", actionType: "stage_3", actionLabel: "View Certificate" },
+        });
+      } else {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: "Credential Revision Requested ⚠️",
+          message: `Talentera Admin audit team requested revision for your certification: ${candidate.stage3.certRejectionReason}`,
+          type: "kyc_revision",
+          meta: { source: "admin", action: "reject_certification", actionType: "stage_3", actionLabel: "Update Certificate" },
+        });
+      }
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
+
     logger.info(
       `[CERT AUDIT] ${candidate.email}: Stage 3 certification ${action === "verify" ? "VERIFIED" : "REJECTED"}` +
         (notes ? ` — ${notes}` : "") +
@@ -892,6 +938,32 @@ router.post("/verify-video", requireStaffAuth, async (req, res) => {
     }
     candidate.markModified("stage5");
     await candidate.save();
+
+    try {
+      if (action === "verify") {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: "Video Introduction Approved 🎥",
+          message: "Talentera Admin has audited and approved your Stage 5 video introduction.",
+          type: "kyc_verified",
+          meta: { source: "admin", action: "verify_video", actionType: "stage_5", actionLabel: "View Profile" },
+        });
+      } else {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: "Video Introduction Revision Requested ⚠️",
+          message: notes
+            ? `Talentera Admin requested re-recording of your video: ${notes}`
+            : "Your Stage 5 video introduction was sent back for re-recording by Talentera Admin.",
+          type: "kyc_revision",
+          meta: { source: "admin", action: "reject_video", actionType: "stage_5", actionLabel: "Re-record Video" },
+        });
+      }
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
 
     await recordAudit(req, {
       action: action === "verify" ? "verify_video_intro" : "reject_video_intro",
@@ -1739,10 +1811,50 @@ router.put("/applications/:id/status", requireStaffAuth, async (req, res) => {
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ message: "Invalid application status." });
     }
-    const app = await Application.findById(req.params.id);
+    const app = await Application.findById(req.params.id).populate("companyId", "companyName");
     if (!app) return res.status(404).json({ message: "Application not found." });
     app.status = status;
     await app.save();
+
+    try {
+      const companyName = app.companyId?.companyName || "Employer";
+      const roleTitle = app.jobTitle || "Role";
+      let notifTitle = `Application Status: ${companyName}`;
+      let notifMsg = `Your application for "${roleTitle}" at ${companyName} has been updated to "${status}".`;
+      let notifType = "application_update";
+
+      if (status === "shortlisted") {
+        notifTitle = `Shortlisted by ${companyName}! 🎯`;
+        notifMsg = `Great news! Your application for "${roleTitle}" has been shortlisted.`;
+        notifType = "application_shortlisted";
+      } else if (status === "interviewing") {
+        notifTitle = `Interview Scheduled with ${companyName} 📅`;
+        notifMsg = `An interview has been scheduled with ${companyName} for "${roleTitle}".`;
+        notifType = "interview_scheduled";
+      } else if (status === "hired") {
+        notifTitle = `Job Offer from ${companyName}! 🎉`;
+        notifMsg = `Congratulations! You have received a formal offer from ${companyName} for "${roleTitle}".`;
+        notifType = "offer_received";
+      }
+
+      await Notification.create({
+        recipientType: "candidate",
+        recipientId: String(app.candidateId),
+        title: notifTitle,
+        message: notifMsg,
+        type: notifType,
+        meta: {
+          source: "company",
+          companyName,
+          applicationId: String(app._id),
+          actionType: "applications",
+          actionLabel: "View in Applications",
+        },
+      });
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
+
     res.json({ message: `Application status updated to ${status}.`, application: app });
   } catch (err) {
     logger.error(`Update application status error: ${err.message}`);

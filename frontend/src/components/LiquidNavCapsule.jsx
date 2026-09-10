@@ -198,16 +198,6 @@ export default function LiquidNavCapsule({
       <div className="liquid-capsule-shell">
         {/* Left Side: Orb + Logo */}
         <div className="liquid-nav-left" onClick={() => navigate("/")}>
-          <div
-            className="liquid-orb-wrapper"
-            onMouseMove={handleMouseMove}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={handleMouseLeave}
-            onClick={handleOrbClick}
-            title="Click to trigger liquid energy burst"
-          >
-            <canvas ref={canvasRef} width={64} height={64} className="liquid-orb-canvas" />
-          </div>
           <img src="/logo.png" alt="Talentera Logo" className="liquid-nav-logo" />
         </div>
 

@@ -1,10 +1,10 @@
-/* ====== LIQUID FLOATING NAV CAPSULE STYLES ====== */
+/* ====== LIQUID FLOATING NAV CAPSULE STYLES (LIGHT MEDICAL THEME) ====== */
 
 .sticky-liquid-nav {
   position: relative;
   z-index: 100;
-  padding: 24px 24px 0;
-  margin-bottom: 48px;
+  padding: 16px 24px 0;
+  margin-bottom: 24px;
   background: transparent !important;
 }
 
@@ -16,36 +16,32 @@
   background: transparent !important;
 }
 
-/* Large horizontal floating capsule header */
+/* Large horizontal floating capsule header - Crisp light medical glass */
 .liquid-capsule-shell {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: rgba(7, 26, 51, 0.82);
-  border: 1px solid rgba(168, 183, 200, 0.18);
-  border-top: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(226, 232, 240, 0.85);
   border-radius: 999px;
   padding: 8px 18px 8px 14px;
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   box-shadow:
-    0 20px 48px -10px rgba(0, 0, 0, 0.7),
-    0 0 30px rgba(7, 26, 51, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 10px 25px -5px rgba(15, 23, 42, 0.06),
+    0 4px 12px rgba(15, 23, 42, 0.03);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 1240px;
   width: 100%;
 }
 
 .liquid-capsule-shell:hover {
-  border-color: rgba(230, 200, 117, 0.45);
-  background: rgba(7, 26, 51, 0.92);
+  border-color: rgba(2, 132, 199, 0.3);
   box-shadow:
-    0 24px 56px -12px rgba(0, 0, 0, 0.8),
-    0 0 32px rgba(230, 200, 117, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    0 16px 36px -8px rgba(15, 23, 42, 0.09),
+    0 6px 16px rgba(2, 132, 199, 0.06);
 }
 
 /* Left side: Orb + Logo */
@@ -58,15 +54,17 @@
 }
 
 .liquid-nav-logo {
-  height: 28px;
+  height: 50px;
+  width: auto;
   display: block;
+  object-fit: contain;
 }
 
 /* Glowing Liquid Orb Wrapper */
 .liquid-orb-wrapper {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -75,10 +73,10 @@
 }
 
 .liquid-orb-canvas {
-  width: 52px;
-  height: 52px;
+  width: 50px;
+  height: 50px;
   pointer-events: none;
-  filter: drop-shadow(0 0 12px rgba(230, 200, 117, 0.45));
+  filter: drop-shadow(0 2px 8px rgba(2, 132, 199, 0.35));
   transition: transform 0.25s ease-out;
 }
 
@@ -100,14 +98,14 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
   border-radius: 999px;
   padding: 8px 18px;
-  color: rgba(255, 255, 255, 0.88);
-  font-family: var(--font-heading, sans-serif);
+  color: #082553;
+  font-family: var(--font-heading, "Space Grotesk", sans-serif);
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   overflow: hidden;
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -115,8 +113,8 @@
 }
 
 .liquid-btn-icon {
-  font-size: 13.5px;
-  color: #CBD5E1;
+  font-size: 13px;
+  color: #0284C7;
   transition: all 0.22s;
 }
 
@@ -131,7 +129,7 @@
   left: -100%;
   width: 60%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
   transform: skewX(-20deg);
   transition: left 0.5s ease;
   pointer-events: none;
@@ -139,33 +137,33 @@
 
 /* Hover State */
 .liquid-nav-btn:hover {
-  transform: translateY(-2px);
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(230, 200, 117, 0.6);
-  color: #FFFFFF;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #082553;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
 }
 
 .liquid-nav-btn:hover .liquid-btn-icon {
-  color: var(--gold-light, #F0D896);
-  transform: scale(1.12);
+  color: #0369A1;
+  transform: scale(1.1);
 }
 
 .liquid-nav-btn:hover .liquid-btn-sheen {
   left: 140%;
 }
 
-/* Active Selected Button */
+/* Active Selected Button - Exact Warm Golden Amber from Mockup */
 .liquid-nav-btn.active {
-  background: linear-gradient(180deg, rgba(229, 168, 46, 0.24) 0%, rgba(10, 31, 61, 0.8) 100%);
-  border-color: rgba(229, 168, 46, 0.8);
-  color: #FFFFFF;
-  box-shadow: 0 0 18px rgba(229, 168, 46, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  font-weight: 700;
+  background: #FAB12F !important;
+  border-color: #FAB12F !important;
+  color: #082553 !important;
+  box-shadow: 0 4px 14px rgba(250, 177, 47, 0.35) !important;
+  font-weight: 700 !important;
 }
 
 .liquid-nav-btn.active .liquid-btn-icon {
-  color: var(--gold, #E5A82E);
+  color: #082553 !important;
   transform: scale(1.05);
 }
 
@@ -178,26 +176,45 @@
 }
 
 .liquid-action-link {
-  color: rgba(255, 255, 255, 0.88);
+  color: #082553;
   font-size: 13.5px;
-  font-weight: 600;
-  transition: color 0.2s;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.2s;
 }
 
 .liquid-action-link:hover {
-  color: var(--gold-light, #F5C95B);
+  color: #0284C7;
+  background: #F1F5F9;
 }
 
 .liquid-action-cta {
-  font-size: 13px !important;
+  font-size: 13.5px !important;
   padding: 10px 22px !important;
+  font-weight: 700 !important;
+  background: #FAB12F !important;
+  color: #082553 !important;
+  border: none !important;
+  border-radius: 999px !important;
+  box-shadow: 0 4px 14px rgba(250, 177, 47, 0.35) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.liquid-action-cta:hover {
+  background: #E59819 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 18px rgba(250, 177, 47, 0.45) !important;
 }
 
 /* Mobile Toggle Button */
 .liquid-mobile-toggle {
   display: none;
   font-size: 20px;
-  color: #fff;
+  color: #082553;
   background: none;
   border: none;
   cursor: pointer;
@@ -226,11 +243,11 @@
     top: calc(100% + 12px);
     left: 0;
     right: 0;
-    background: rgba(7, 26, 51, 0.98);
-    border: 1.5px solid rgba(230, 200, 117, 0.35);
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
     border-radius: 20px;
     padding: 20px;
-    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85);
+    box-shadow: 0 20px 48px rgba(8, 37, 83, 0.12);
     backdrop-filter: blur(24px);
   }
   .liquid-nav-buttons.mobile-open .liquid-nav-btn {
@@ -244,11 +261,11 @@
     gap: 10px;
     margin-top: 14px;
     padding-top: 14px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid #E2E8F0;
     width: 100%;
   }
   .liquid-mobile-login {
-    color: var(--gold-light, #F0D896);
+    color: #082553;
     font-weight: 700;
     font-size: 14px;
     text-align: center;

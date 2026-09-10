@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { startOtpWidget } from "../utils/msg91Widget.js";
 
 export default function Register() {
   const { register, login } = useAuth();
@@ -23,9 +24,15 @@ export default function Register() {
         if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
           throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
         }
-        await register(email, password, mobile);
-        setSuccessMsg("Registration successful! Please log in with your email and password to access your candidate portal.");
-        setAuthMode("login");
+
+        const accessToken = await startOtpWidget(email, {
+          email,
+          title: "Student Account Verification",
+          submitLabel: "Verify & Create Account →",
+        });
+
+        await register(email, password, mobile, accessToken);
+        navigate("/dashboard");
       } else {
         await login(email, password);
         navigate("/dashboard");
@@ -364,10 +371,14 @@ export default function Register() {
               cursor: "pointer",
               fontFamily: "inherit",
               marginTop: 4,
-              transition: "all 0.2s"
+              transition: "all 0.2s",
             }}
           >
-            {submitting ? "Processing..." : authMode === "signup" ? "Create account" : "Log In"}
+            {submitting
+              ? "Processing..."
+              : authMode === "signup"
+              ? "Verify Email & Create Account →"
+              : "Log In"}
           </button>
         </form>
 

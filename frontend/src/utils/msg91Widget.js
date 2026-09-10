@@ -6,21 +6,27 @@ import { safeJson } from "./safeJson.js";
  * Triggers Brevo Email OTP verification.
  * Returns a promise that resolves with the access token when user verifies OTP.
  */
-export async function startOtpWidget(identifier = "") {
-  if (!identifier) {
-    throw new Error("Email address is required for OTP verification.");
+export async function startOtpWidget(identifier = "", options = {}) {
+  // Support startOtpWidget({ email, ... }) or string email
+  if (typeof identifier === "object" && identifier !== null) {
+    options = { ...identifier, ...options };
+    identifier = options.identifier || options.email || "";
+  }
+
+  const email = (options.email || identifier || "").trim().toLowerCase();
+
+  if (!email || !email.includes("@")) {
+    throw new Error("A valid email address is required for Email OTP verification.");
   }
 
   let initialCode = "";
-  // Trigger Brevo Email OTP dispatch via backend
   try {
     const sendRes = await fetch("/api/otp/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ identifier })
+      body: JSON.stringify({ email }),
     });
     const sendData = await safeJson(sendRes);
-    console.log("Brevo Email OTP Send status:", sendData);
     if (sendData?.fallback && sendData?.otpCode) {
       initialCode = sendData.otpCode;
     }
@@ -29,11 +35,27 @@ export async function startOtpWidget(identifier = "") {
   }
 
   return new Promise((resolve, reject) => {
-    renderInlineOtpModal(identifier, resolve, reject, initialCode);
+    renderInlineOtpModal({
+      email,
+      title: options.title || "Verify Email OTP",
+      submitLabel: options.submitLabel || "Verify & Continue →",
+      initialCode,
+      resolve,
+      reject,
+    });
   });
 }
 
-function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
+function renderInlineOtpModal(config) {
+  const {
+    email,
+    title,
+    submitLabel,
+    initialCode = "",
+    resolve,
+    reject,
+  } = config;
+
   const existing = document.getElementById("talentera-otp-modal-root");
   if (existing) existing.remove();
 
@@ -94,10 +116,12 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
       </style>
 
       <div style="font-size: 32px; margin-bottom: 8px;">📧</div>
-      <h3 style="font-size: 22px; font-weight: 800; margin: 0 0 6px 0; color: #FAF7F0;">Verify Email OTP</h3>
+      <h3 style="font-size: 22px; font-weight: 800; margin: 0 0 6px 0; color: #FAF7F0;">
+        ${title}
+      </h3>
       <p style="font-size: 13px; color: rgba(255, 255, 255, 0.65); margin: 0 0 20px 0; line-height: 1.5;">
-        A 6-digit verification code was sent via Brevo Email to <br/>
-        <strong style="color: #E5A82E;">${identifier || "your email address"}</strong>
+        A 6-digit verification code was sent via Email to <br/>
+        <strong style="color: #E5A82E;">${email}</strong>
       </p>
 
       <div id="otp-error-banner" style="display: none; background: rgba(248,113,113,0.15); border: 1px solid rgba(248,113,113,0.4); border-radius: 8px; padding: 10px; font-size: 12.5px; color: #F87171; margin-bottom: 16px;"></div>
@@ -113,7 +137,9 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
 
       <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 22px; padding: 0 4px;">
         <span style="color: rgba(255,255,255,0.5);">Didn't receive email?</span>
-        <button id="otp-resend-btn" type="button" style="background: none; border: none; color: #E5A82E; font-weight: 700; cursor: pointer; text-decoration: underline;">Resend Email OTP</button>
+        <button id="otp-resend-btn" type="button" style="background: none; border: none; color: #E5A82E; font-weight: 700; cursor: pointer; text-decoration: underline;">
+          Resend Email OTP
+        </button>
       </div>
 
       <div style="display: flex; gap: 10px;">
@@ -139,7 +165,7 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
           font-weight: 800;
           font-size: 14px;
           cursor: pointer;
-        ">Verify & Sign In →</button>
+        ">${submitLabel}</button>
       </div>
     </div>
   `;
@@ -215,7 +241,10 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
       const verifyRes = await fetch("/api/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, otp: code })
+        body: JSON.stringify({
+          email,
+          otp: code,
+        }),
       });
       const verifyData = await safeJson(verifyRes);
 
@@ -225,12 +254,12 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
       } else {
         showError(verifyData.message || "Invalid OTP verification code.");
         submitBtn.disabled = false;
-        submitBtn.innerText = "Verify & Sign In →";
+        submitBtn.innerText = submitLabel;
       }
     } catch (err) {
       showError(err.message || "Verification request failed.");
       submitBtn.disabled = false;
-      submitBtn.innerText = "Verify & Sign In →";
+      submitBtn.innerText = submitLabel;
     }
   };
 
@@ -239,11 +268,18 @@ function renderInlineOtpModal(identifier, resolve, reject, initialCode = "") {
     resendBtn.disabled = true;
     clearError();
     try {
-      await fetch("/api/otp/send", {
+      const sendRes = await fetch("/api/otp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier })
+        body: JSON.stringify({ email }),
       });
+      const sendData = await safeJson(sendRes);
+      if (sendData?.fallback && sendData?.otpCode) {
+        inputs.forEach((inp) => (inp.value = ""));
+        sendData.otpCode.split("").forEach((c, i) => {
+          if (inputs[i]) inputs[i].value = c;
+        });
+      }
       resendBtn.innerText = "Sent ✓";
       setTimeout(() => {
         resendBtn.innerText = "Resend Email OTP";

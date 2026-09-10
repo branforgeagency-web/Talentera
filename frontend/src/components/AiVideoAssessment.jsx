@@ -163,6 +163,11 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   // cleanup already captured the old stream), and that gap is exactly why the
   // camera light stayed on after the interview finished.
   const streamRef = useRef(null);
+  // Guards the auto-start-on-recording effect so the interview begins exactly
+  // once when the candidate reaches the recording screen (they already clicked
+  // "Start 90s Self-Introduction Recording" on the liveness screen - no need
+  // for a second identical Start button here).
+  const autoStartedRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
 
   // Face Detection State (Anti-cheat face guard)
@@ -443,6 +448,29 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       videoPreviewRef.current.srcObject = stream;
     }
   }, [stream, step]);
+
+  // Auto-start the single-take recording as soon as the recording screen is
+  // ready (camera+mic live and a face detected). The candidate already pressed
+  // the single "Start 90s Self-Introduction Recording" button on the liveness
+  // screen; this removes the redundant second identical button that used to sit
+  // on this screen. Fires once per recording entry; the face-required gate below
+  // still covers the "no face yet" case.
+  useEffect(() => {
+    if (step !== "recording") {
+      autoStartedRef.current = false;
+      return;
+    }
+    if (
+      !sessionStarted &&
+      !autoStartedRef.current &&
+      isFacePresent &&
+      stream &&
+      stream.getAudioTracks().length > 0
+    ) {
+      autoStartedRef.current = true;
+      handleStartSingleTakeInterview();
+    }
+  }, [step, sessionStarted, isFacePresent, stream]);
 
   // Face Presence Monitor Loop
   useEffect(() => {
@@ -1019,16 +1047,22 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
               <div>
                 {!sessionStarted ? (
-                  <button
-                    type="button"
-                    className="btn btn-gold"
-                    style={{ width: "100%", justifyContent: "center", padding: "12px 16px" }}
-                    onClick={handleStartSingleTakeInterview}
-                    disabled={!isFacePresent}
-                  >
-                    <i className="fa-solid fa-video" style={{ marginRight: 6 }}></i>
-                    {isFacePresent ? "Start 90s Self-Introduction Recording →" : "🔒 Face Required in Front of Camera"}
-                  </button>
+                  isFacePresent ? (
+                    <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "12px 16px", textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>
+                      <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 3s linear infinite" }}></i>
+                      Starting your 90-second self-introduction recording…
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-gold"
+                      style={{ width: "100%", justifyContent: "center", padding: "12px 16px" }}
+                      disabled
+                    >
+                      <i className="fa-solid fa-video" style={{ marginRight: 6 }}></i>
+                      🔒 Face Required in Front of Camera
+                    </button>
+                  )
                 ) : (
                   <div>
                     <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--navy)", marginBottom: 10 }}>

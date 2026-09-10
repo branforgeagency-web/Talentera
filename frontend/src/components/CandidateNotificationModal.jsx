@@ -10,7 +10,7 @@ export default function CandidateNotificationModal({
   unreadCount = 0,
   setUnreadCount,
 }) {
-  const [filter, setFilter] = useState("all"); // "all" | "application" | "verification" | "unread"
+  const [filter, setFilter] = useState("all"); // "all" | "company" | "admin" | "unread"
 
   // Close on Escape key
   useEffect(() => {
@@ -34,6 +34,21 @@ export default function CandidateNotificationModal({
     };
   }, [isOpen]);
 
+  // Automatically mark notifications as seen/read on server when modal is opened
+  useEffect(() => {
+    if (isOpen && unreadCount > 0) {
+      api.post("/candidate/notifications/mark-read").catch((err) => {
+        console.warn("Could not mark notifications read on server:", err);
+      });
+      if (setUnreadCount) {
+        setUnreadCount(0);
+      }
+      if (setNotifications) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleMarkAllRead = async () => {
@@ -51,11 +66,14 @@ export default function CandidateNotificationModal({
   };
 
   const handleItemClick = (item) => {
-    // Mark individual as read in local state
-    if (!item.read && setNotifications) {
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === item._id ? { ...n, read: true } : n))
-      );
+    // Mark individual as read on server and in local state
+    if (!item.read) {
+      api.post("/candidate/notifications/mark-read", { id: item._id }).catch(() => {});
+      if (setNotifications) {
+        setNotifications((prev) =>
+          prev.map((n) => (n._id === item._id ? { ...n, read: true } : n))
+        );
+      }
       if (setUnreadCount) {
         setUnreadCount((prev) => Math.max(0, prev - 1));
       }
@@ -67,15 +85,18 @@ export default function CandidateNotificationModal({
     }
   };
 
-  // Filter list
+  // Strictly filter list to show only Company and Admin related notifications
   const filtered = notifications.filter((item) => {
+    const isCompanyOrAdmin = item.category === "company" || item.category === "admin";
+    if (!isCompanyOrAdmin) return false;
+
     if (filter === "unread") return !item.read;
-    if (filter === "application") return item.category === "application";
-    if (filter === "verification") return item.category === "verification" || item.category === "stage";
+    if (filter === "company") return item.category === "company";
+    if (filter === "admin") return item.category === "admin";
     return true;
   });
 
-  const getIconConfig = (type) => {
+  const getIconConfig = (type, category) => {
     switch (type) {
       case "application_shortlisted":
         return { icon: "fa-bullseye", bg: "#FEF3C7", color: "#D97706", label: "Shortlisted" };
@@ -88,15 +109,15 @@ export default function CandidateNotificationModal({
       case "application_update":
         return { icon: "fa-briefcase", bg: "#F3F4F6", color: "#64748B", label: "Update" };
       case "kyc_verified":
-        return { icon: "fa-id-card", bg: "#ECFDF5", color: "#059669", label: "KYC Verified" };
+        return { icon: "fa-shield-check", bg: "#ECFDF5", color: "#059669", label: "Admin Verified" };
+      case "kyc_revision":
+        return { icon: "fa-triangle-exclamation", bg: "#FEF2F2", color: "#DC2626", label: "Admin Revision" };
       case "assessment_passed":
-        return { icon: "fa-chart-simple", bg: "#EEF2FF", color: "#4F46E5", label: "Assessment" };
-      case "ai_interview_done":
-        return { icon: "fa-microphone", bg: "#FEF2F2", color: "#DC2626", label: "AI Interview" };
-      case "resume_ready":
-        return { icon: "fa-file-lines", bg: "#FDF4FF", color: "#9333EA", label: "Resume" };
+        return { icon: "fa-clipboard-check", bg: "#EEF2FF", color: "#4F46E5", label: "Admin Audit" };
       default:
-        return { icon: "fa-bell", bg: "#FEF9C3", color: "#CA8A04", label: "Notification" };
+        return category === "company"
+          ? { icon: "fa-building", bg: "#EFF6FF", color: "#2563EB", label: "Company" }
+          : { icon: "fa-shield-halved", bg: "#FEF9C3", color: "#CA8A04", label: "Admin" };
     }
   };
 
@@ -226,7 +247,7 @@ export default function CandidateNotificationModal({
                 )}
               </div>
               <p style={{ margin: "2px 0 0", fontSize: 12, color: "rgba(255, 255, 255, 0.65)" }}>
-                Live updates on your job applications, interviews &amp; verified stages
+                Official notifications from employers and Talentera Admin
               </p>
             </div>
           </div>
@@ -302,18 +323,24 @@ export default function CandidateNotificationModal({
           }}
         >
           {[
-            { id: "all", label: `All (${notifications.length})` },
             {
-              id: "application",
-              label: `Applications (${notifications.filter((n) => n.category === "application").length})`,
+              id: "all",
+              label: `All (${notifications.filter((n) => n.category === "company" || n.category === "admin").length})`,
             },
             {
-              id: "verification",
-              label: `Verifications (${
-                notifications.filter((n) => n.category === "verification" || n.category === "stage").length
+              id: "company",
+              label: `Company (${notifications.filter((n) => n.category === "company").length})`,
+            },
+            {
+              id: "admin",
+              label: `Admin (${notifications.filter((n) => n.category === "admin").length})`,
+            },
+            {
+              id: "unread",
+              label: `Unread (${
+                notifications.filter((n) => (n.category === "company" || n.category === "admin") && !n.read).length
               })`,
             },
-            { id: "unread", label: `Unread (${unreadCount})` },
           ].map((tab) => {
             const active = filter === tab.id;
             return (
@@ -365,22 +392,41 @@ export default function CandidateNotificationModal({
                   margin: "0 auto 14px",
                 }}
               >
-                <i className="fa-solid fa-bell-slash"></i>
+                <i
+                  className={`fa-solid ${
+                    filter === "company"
+                      ? "fa-building"
+                      : filter === "admin"
+                      ? "fa-shield-halved"
+                      : "fa-bell-slash"
+                  }`}
+                ></i>
               </div>
               <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: "#0A1F3D" }}>
-                {filter === "unread" ? "No unread notifications" : "No notifications yet"}
-              </h4>
-              <p style={{ margin: 0, fontSize: 12.5, color: "#64748B", maxWidth: 360, marginInline: "auto" }}>
                 {filter === "unread"
-                  ? "You are completely up to date. New updates will appear here."
-                  : "Updates regarding your job applications, shortlisted employers, and verified stages will appear here automatically."}
+                  ? "No unread notifications"
+                  : filter === "company"
+                  ? "No company notifications yet"
+                  : filter === "admin"
+                  ? "No admin notifications yet"
+                  : "No notifications yet"}
+              </h4>
+              <p style={{ margin: 0, fontSize: 12.5, color: "#64748B", maxWidth: 380, marginInline: "auto" }}>
+                {filter === "unread"
+                  ? "You are completely up to date. New updates from companies and admin will appear here."
+                  : filter === "company"
+                  ? "Live updates on your job applications, shortlists, interview invites, and offers from employers will appear here."
+                  : filter === "admin"
+                  ? "Official audits, credential verification approvals/revisions, and admin notices will appear here."
+                  : "Only official notifications from hiring companies and Talentera Admin appear in this inbox."}
               </p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {filtered.map((n) => {
-                const conf = getIconConfig(n.type);
+                const conf = getIconConfig(n.type, n.category);
                 const isUnread = !n.read;
+                const isCompany = n.category === "company";
                 return (
                   <div
                     key={n._id}
@@ -428,11 +474,47 @@ export default function CandidateNotificationModal({
 
                     {/* CONTENT */}
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 3 }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 4 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                           <span style={{ fontSize: 13, fontWeight: 800, color: "#0A1F3D" }}>
                             {n.title}
                           </span>
+                          {/* SENDER BADGE */}
+                          {isCompany ? (
+                            <span
+                              style={{
+                                background: "#EFF6FF",
+                                color: "#1D4ED8",
+                                border: "1px solid #BFDBFE",
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: "1px 7px",
+                                borderRadius: 6,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3.5,
+                              }}
+                            >
+                              <i className="fa-solid fa-building" style={{ fontSize: 8.5 }}></i> {n.senderName || "Company"}
+                            </span>
+                          ) : (
+                            <span
+                              style={{
+                                background: "#FEF3C7",
+                                color: "#92400E",
+                                border: "1px solid #FDE68A",
+                                fontSize: 10,
+                                fontWeight: 700,
+                                padding: "1px 7px",
+                                borderRadius: 6,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 3.5,
+                              }}
+                            >
+                              <i className="fa-solid fa-shield-halved" style={{ fontSize: 8.5 }}></i> Admin
+                            </span>
+                          )}
                           {isUnread && (
                             <span
                               style={{
@@ -491,8 +573,8 @@ export default function CandidateNotificationModal({
           }}
         >
           <span style={{ fontSize: 11.5, color: "#64748B" }}>
-            <i className="fa-solid fa-shield-halved" style={{ marginRight: 5, color: "#E5A82E" }}></i>
-            Talentera Verified Candidate Updates
+            <i className="fa-solid fa-building-shield" style={{ marginRight: 5, color: "#E5A82E" }}></i>
+            Talentera &bull; Company &amp; Admin Notifications Only
           </span>
           <button
             type="button"

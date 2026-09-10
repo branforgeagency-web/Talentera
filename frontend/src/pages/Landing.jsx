@@ -922,225 +922,112 @@ export default function Landing() {
   });
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--navy-deep)", color: "#fff", position: "relative" }}>
+    <div style={{ minHeight: "100vh", background: "#F8FAFC", color: "#082553", position: "relative" }}>
       {/* ====== LIVE RECENT ACTIVITY TICKER BAR ====== */}
-      <div
-        className="ticker-bar"
-        style={{
-          background: "#061324",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
-          padding: "8px 0",
-          fontSize: 12,
-          fontFamily: "var(--font-mono)",
-        }}
-      >
-        <div className="container" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, overflow: "hidden" }}>
-            <span
-              style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#22C55E",
-                boxShadow: "0 0 8px #22C55E",
-                flexShrink: 0,
-              }}
-            />
-            <span style={{ color: "var(--gold)", fontWeight: 700, letterSpacing: "0.06em", flexShrink: 0 }}>
+      <div className="hero-top-ticker">
+        <div className="container hero-ticker-inner">
+          <div className="hero-ticker-left">
+            <span className="hero-ticker-dot" />
+            <span className="hero-ticker-tag">
               LIVE VERIFICATION FEED:
             </span>
-            <span style={{ color: "#E2E8F0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <span className="hero-ticker-msg">
               {pulseText}
             </span>
           </div>
-          <div
-            className="ticker-stats-right"
-            style={{ display: "flex", gap: 16, color: "#94A3B8", fontSize: 11, flexShrink: 0 }}
-          >
-            <span>⚡ 94.2% Placement Rate</span>
-            <span>🛡 Aadhaar Verified</span>
+          <div className="hero-ticker-stats">
+            <span className="hero-ticker-stat-item">
+              <span style={{ color: "#F59E0B" }}>⚡</span> 94.2% Placement Rate
+            </span>
+            <span className="hero-ticker-stat-item">
+              <span style={{ color: "#0284C7" }}>🛡</span> Aadhaar Verified
+            </span>
           </div>
         </div>
       </div>
 
-      {/* ====== 1. HERO — STUDENT FIRST (ORIGINAL COLORS & CONTENT + REACTIVE VARIABLE TYPOGRAPHY) ====== */}
-      <section className="hero-clean" style={{ position: "relative", overflow: "hidden", padding: "0 0 120px" }}>
+      {/* ====== 1. HERO BANNER — EXACT DESIGN MATCHING REFERENCE MOCKUP ====== */}
+      <section className="hero-banner-section">
         {/* FLOATING PREMIUM LIQUID NAV CAPSULE INSIDE HERO BANNER */}
         <LiquidNavCapsule
+          activeTab={0}
           items={[
-            { label: "For Candidates", icon: "fa-solid fa-user-graduate", link: "/candidates" },
-            { label: "For Companies", icon: "fa-solid fa-building", link: "/companies" },
+            { label: "For Candidates", icon: "fa-solid fa-user", link: "/candidates" },
+            { label: "For Companies", icon: "fa-solid fa-briefcase", link: "/companies" },
             { label: "For Academies", icon: "fa-solid fa-landmark", link: "/academy" },
             { label: "How it Works", icon: "fa-solid fa-circle-play", link: "#how-it-works" },
           ]}
         />
 
-        <div className="hero-clean-bg-grid" />
-        <div className="hero-clean-glow-1" />
-        <div className="hero-clean-glow-1" />
-        <div className="hero-clean-glow-2" />
-        <div className="hero-clean-glow-3" />
+        <div className="container" style={{ position: "relative", zIndex: 5 }}>
+          <div className="hero-banner-grid">
+            {/* LEFT COLUMN: EXACT USER REQUESTED BANNER CONTENT */}
+            <div className="hero-banner-left">
+              {/* Main Headline */}
+              <h1 className="hero-main-title">
+                Where Talent <br />
+                Becomes{" "}
+                <span className="hero-highlight-word">
+                  Trusted.
+                  <svg
+                    className="hero-swoosh-underline"
+                    viewBox="0 0 240 28"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      d="M4 14C60 22 180 24 236 6C190 22 80 26 4 14Z"
+                      fill="#FAB12F"
+                    />
+                  </svg>
+                </span>
+              </h1>
 
-        <div className="hero-particles">
-          <span className="hero-particle hero-particle-1" />
-          <span className="hero-particle hero-particle-2" />
-          <span className="hero-particle hero-particle-3" />
-          <span className="hero-particle hero-particle-4" />
-          <span className="hero-particle hero-particle-5" />
-          <span className="hero-particle hero-particle-6" />
-        </div>
+              {/* Subheading */}
+              <h2 className="hero-cand-subtitle">
+                Build Your Profile. Prove Your Skills. Get Discovered.
+              </h2>
 
-        {/* FLOATING ECOSYSTEM BADGES (DYNAMIC TO SELECTED AUDIENCE) */}
-        <div className="hero-float hero-float-tl">
-          <div className="hero-cand-card">
-            <div className={`hero-cand-pill ${currentAudience.leftCard.pillCls}`}>
-              <span className="hero-cand-pill-dot" />
-              <span>{currentAudience.leftCard.pill}</span>
-            </div>
-            <div className="hero-cand-row">
-              <div className="hero-cand-avatar" style={{ background: currentAudience.leftCard.avatarBg }}>
-                {currentAudience.leftCard.initials}
-              </div>
-              <div className="hero-cand-info">
-                <div className="hero-cand-name">
-                  {currentAudience.leftCard.name} <span className="hero-cand-verified">✓</span>
-                </div>
-                <div className="hero-cand-spec">{currentAudience.leftCard.spec}</div>
-                <div className="hero-cand-meta">{currentAudience.leftCard.meta}</div>
-              </div>
-            </div>
-          </div>
-        </div>
+              {/* Narrative description */}
+              <p className="hero-partner-desc">
+                Talentera connects Healthcare RCM candidates, hiring companies, and academies through a structured verification ecosystem built on proof and trust.
+              </p>
 
-        <div className="hero-float hero-float-tr">
-          <div className="hero-cand-card">
-            <div className={`hero-cand-pill ${currentAudience.rightCard.pillCls}`}>
-              <span className="hero-cand-pill-dot" />
-              <span>{currentAudience.rightCard.pill}</span>
-            </div>
-            <div className="hero-cand-row">
-              <div className="hero-cand-avatar" style={{ background: currentAudience.rightCard.avatarBg }}>
-                {currentAudience.rightCard.initials}
-              </div>
-              <div className="hero-cand-info">
-                <div className="hero-cand-name">
-                  {currentAudience.rightCard.name} <span className="hero-cand-verified">✓</span>
-                </div>
-                <div className="hero-cand-spec">{currentAudience.rightCard.spec}</div>
-                <div className="hero-cand-meta">{currentAudience.rightCard.meta}</div>
+              {/* Action Buttons */}
+              <div className="hero-cta-group">
+                <Link to="/register" className="hero-btn-partner">
+                  <span>Build Your Career</span>
+                  <span className="hero-btn-arrow-circle">→</span>
+                </Link>
+                <Link to="/jobs" className="hero-btn-academy-login">
+                  <span>Explore Healthcare RCM Jobs</span>
+                  <i className="fa-solid fa-briefcase" style={{ fontSize: 14, marginLeft: 4 }} />
+                </Link>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="container hero-clean-inner" style={{ position: "relative", zIndex: 5, textAlign: "center", paddingTop: 24 }}>
-          {/* CURSOR REACTIVE VARIABLE TYPOGRAPHY HEADLINE */}
-          <ReactiveVariableHeadline
-            lines={[
-              { text: "Where Talent Becomes", isAccent: false },
-              { text: "Trusted.", isAccent: true },
-            ]}
-            minWeight={300}
-            maxWeight={800}
-            radius={300}
-            className="hero-clean-title"
-            style={{ fontSize: "clamp(46px, 7.5vw, 92px)", marginBottom: 20, lineHeight: 1.05 }}
-          />
-
-          <h2
-            style={{
-              fontFamily: "var(--font-heading)",
-              fontSize: "clamp(20px, 3vw, 30px)",
-              color: "var(--gold-light)",
-              fontWeight: 700,
-              marginBottom: 20,
-              transition: "all 0.3s ease",
-            }}
-          >
-            {currentAudience.tagline}
-          </h2>
-
-          <p className="hero-clean-sub" style={{ maxWidth: 840, fontSize: 17, margin: "0 auto 36px", lineHeight: 1.6 }}>
-            {currentAudience.description}
-          </p>
-
-          <div className="hero-clean-ctas">
-            <Link to={currentAudience.primaryCta.link} className={currentAudience.primaryCta.cls} style={{ fontSize: 16, padding: "18px 36px" }}>
-              <span>{currentAudience.primaryCta.label}</span>
-              {currentAudience.primaryCta.icon && <i className={currentAudience.primaryCta.icon} style={{ marginLeft: 8 }} />}
-            </Link>
-            <Link to={currentAudience.secondaryCta.link} className={currentAudience.secondaryCta.cls} style={{ fontSize: 16, padding: "18px 32px" }}>
-              <span>{currentAudience.secondaryCta.label}</span>
-              {currentAudience.secondaryCta.icon && <i className={currentAudience.secondaryCta.icon} style={{ marginLeft: 8 }} />}
-            </Link>
-          </div>
-
-          {/* SIMULTANEOUS 3-PILLAR LAUNCHPAD STRIP (ALWAYS VISIBLE IN BANNER) */}
-          <div className="hero-audience-strip">
-            <div
-              className={`hero-audience-card ${heroAudience === "candidates" ? "active" : ""}`}
-              onClick={() => setHeroAudience("candidates")}
-            >
-              <div className="hero-aud-icon" style={{ background: "rgba(229,168,46,0.15)", color: "var(--gold)" }}>
-                <i className="fa-solid fa-user-graduate" />
+            {/* RIGHT COLUMN: DOCTOR VISUAL ARTWORK */}
+            <div className="hero-banner-right">
+              <div className="hero-doctor-visual-shell">
+                <img
+                  src="/hero-doctor-visual.png"
+                  alt="Talentera Healthcare Medical Coding Verification & Placement"
+                  className="hero-doctor-artwork"
+                />
               </div>
-              <div className="hero-aud-text">
-                <div className="hero-aud-title">For Candidates</div>
-                <div className="hero-aud-desc">Build proof. Get verified. Get discovered.</div>
-              </div>
-              <Link to="/candidates" className="hero-aud-arrow" onClick={(e) => e.stopPropagation()} title="Candidate Hub">
-                <i className="fa-solid fa-arrow-right" />
-              </Link>
             </div>
-
-            <div
-              className={`hero-audience-card ${heroAudience === "companies" ? "active active-companies" : ""}`}
-              onClick={() => setHeroAudience("companies")}
-            >
-              <div className="hero-aud-icon" style={{ background: "rgba(56,189,248,0.15)", color: "#38BDF8" }}>
-                <i className="fa-solid fa-building" />
-              </div>
-              <div className="hero-aud-text">
-                <div className="hero-aud-title">For Companies</div>
-                <div className="hero-aud-desc">Discover verified talent. Hire with confidence.</div>
-              </div>
-              <Link to="/companies" className="hero-aud-arrow" onClick={(e) => e.stopPropagation()} title="Company Portal">
-                <i className="fa-solid fa-arrow-right" />
-              </Link>
-            </div>
-
-            <div
-              className={`hero-audience-card ${heroAudience === "academies" ? "active active-academies" : ""}`}
-              onClick={() => setHeroAudience("academies")}
-            >
-              <div className="hero-aud-icon" style={{ background: "rgba(52,211,153,0.15)", color: "#34D399" }}>
-                <i className="fa-solid fa-landmark" />
-              </div>
-              <div className="hero-aud-text">
-                <div className="hero-aud-title">For Academies</div>
-                <div className="hero-aud-desc">Strengthen outcomes. Build credibility.</div>
-              </div>
-              <Link to="/academy" className="hero-aud-arrow" onClick={(e) => e.stopPropagation()} title="Academy Network">
-                <i className="fa-solid fa-arrow-right" />
-              </Link>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 24, fontSize: 13, color: "rgba(255,255,255,0.6)", fontFamily: "var(--font-mono)" }}>
-            Free for Candidates • Verified Talent Profiles • Healthcare RCM Opportunities
           </div>
         </div>
       </section>
 
       {/* ====== 2. WHAT TALENTERA DOES FOR CANDIDATES (BENTO GRID SHOWCASE) ====== */}
       <section
-        className="section"
+        className="section section-light-theme"
         id="student-features"
         style={{
-          background: "#081B33",
-          borderTop: "1px solid rgba(255,255,255,0.06)",
-          borderBottom: "1px solid rgba(255,255,255,0.06)",
+          background: "#FFFFFF",
+          borderTop: "1px solid #E2E8F0",
+          borderBottom: "1px solid #E2E8F0",
           position: "relative",
         }}
       >
@@ -1148,14 +1035,14 @@ export default function Landing() {
           <div style={{ textAlign: "center", maxWidth: 820, margin: "0 auto 52px" }}>
             <div className="section-eyebrow">WHAT TALENTERA DOES FOR CANDIDATES</div>
             <h2
-              className="section-title section-title-light"
+              className="section-title"
               style={{ fontSize: "clamp(28px, 4.2vw, 46px)", marginBottom: 16 }}
             >
               Everything You Need to Build a Career Beyond Your Resume.
             </h2>
             <p
               className="section-lead"
-              style={{ color: "rgba(255,255,255,0.7)", fontSize: 18, maxWidth: 680, margin: "0 auto" }}
+              style={{ fontSize: 18, maxWidth: 680, margin: "0 auto" }}
             >
               Build your profile, prove your skills, and prepare for relevant Healthcare RCM career opportunities.
             </p>

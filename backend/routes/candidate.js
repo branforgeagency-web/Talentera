@@ -1353,6 +1353,35 @@ router.get("/notifications", async (req, res) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    const formattedDbNotifications = dbNotifications.map((n) => {
+      let category = "admin";
+      let source = n.meta?.source || "admin";
+      if (
+        n.meta?.source === "company" ||
+        n.meta?.companyId ||
+        n.type?.startsWith("application_") ||
+        n.type === "interview_scheduled" ||
+        n.type === "offer_received"
+      ) {
+        category = "company";
+        source = "company";
+      } else {
+        category = "admin";
+        source = "admin";
+      }
+      return {
+        ...n,
+        category,
+        source,
+        senderName:
+          n.meta?.companyName ||
+          n.meta?.senderName ||
+          (category === "company" ? "Employer" : "Talentera Admin"),
+        actionType: n.meta?.actionType || (category === "company" ? "applications" : undefined),
+        actionLabel: n.meta?.actionLabel || (category === "company" ? "View Applications" : undefined),
+      };
+    });
+
     // Auto-generate notifications based on live applications & completed stages
     const candidate = await Candidate.findById(candidateId).lean();
     const rawApplications = await Application.find({ candidateId })
@@ -1363,7 +1392,7 @@ router.get("/notifications", async (req, res) => {
 
     const generated = [];
 
-    // 1. Application-driven notifications
+    // 1. Company-driven notifications (Application lifecycle)
     for (const app of applications) {
       const companyName = app.companyName || app.companyId?.companyName || "Employer";
       const role = app.jobTitle || app.role || "Medical Coder";
@@ -1373,7 +1402,9 @@ router.get("/notifications", async (req, res) => {
         generated.push({
           _id: `gen_app_${app._id}_shortlisted`,
           type: "application_shortlisted",
-          category: "application",
+          category: "company",
+          source: "company",
+          senderName: companyName,
           title: `Shortlisted by ${companyName}! 🎯`,
           message: `Great news! Your application for "${role}" has been shortlisted. The hiring team will contact you soon.`,
           actionType: "applications",
@@ -1381,11 +1412,13 @@ router.get("/notifications", async (req, res) => {
           createdAt: app.updatedAt || app.createdAt || new Date(),
           read: false,
         });
-      } else if (status === "interview") {
+      } else if (status === "interview" || status === "interviewing") {
         generated.push({
           _id: `gen_app_${app._id}_interview`,
           type: "interview_scheduled",
-          category: "application",
+          category: "company",
+          source: "company",
+          senderName: companyName,
           title: `Interview Scheduled with ${companyName} 📅`,
           message: `An interview has been scheduled for your application to "${role}". Check details in your Applications tab.`,
           actionType: "applications",
@@ -1393,11 +1426,13 @@ router.get("/notifications", async (req, res) => {
           createdAt: app.updatedAt || app.createdAt || new Date(),
           read: false,
         });
-      } else if (status === "offered") {
+      } else if (status === "offered" || status === "hired") {
         generated.push({
           _id: `gen_app_${app._id}_offered`,
           type: "offer_received",
-          category: "application",
+          category: "company",
+          source: "company",
+          senderName: companyName,
           title: `Job Offer from ${companyName}! 🎉`,
           message: `Congratulations! You have received a formal offer for "${role}" at ${companyName}.`,
           actionType: "applications",
@@ -1409,7 +1444,9 @@ router.get("/notifications", async (req, res) => {
         generated.push({
           _id: `gen_app_${app._id}_rejected`,
           type: "application_update",
-          category: "application",
+          category: "company",
+          source: "company",
+          senderName: companyName,
           title: `Application Status: ${companyName}`,
           message: `Your application for "${role}" at ${companyName} was not moved forward. Keep applying to other matching opportunities!`,
           actionType: "applications",
@@ -1421,7 +1458,9 @@ router.get("/notifications", async (req, res) => {
         generated.push({
           _id: `gen_app_${app._id}_applied`,
           type: "application_submitted",
-          category: "application",
+          category: "company",
+          source: "company",
+          senderName: companyName,
           title: `Application Sent: ${role} 💼`,
           message: `Your application to ${companyName} for "${role}" was successfully delivered and is under employer review.`,
           actionType: "applications",
@@ -1432,86 +1471,114 @@ router.get("/notifications", async (req, res) => {
       }
     }
 
-    // 2. Stage & verification milestone notifications
+    // 2. Admin-driven audit & verification notifications ONLY
     if (candidate) {
-      const completed = Array.isArray(candidate.completedStages) ? candidate.completedStages : [];
-
-      if (completed.includes(1) && candidate.stage1?.aadhaarVerified) {
+      // Admin verification of AAPC / AHIMA credential
+      if (candidate.stage3?.certStatus === "verified") {
         generated.push({
-          _id: `gen_stage_1`,
+          _id: `gen_stage_3_verified`,
           type: "kyc_verified",
-          category: "verification",
-          title: "Identity Verified (Stage 1) 🪪",
-          message: "Your Aadhaar / Identity e-KYC has been successfully verified (+5 points earned).",
-          actionType: "stage_1",
-          actionLabel: "View Stage 1",
-          createdAt: candidate.stage1?.verifiedAt || candidate.createdAt || new Date(),
-          read: false,
-        });
-      }
-
-      if (completed.includes(3) && candidate.stage3?.certStatus === "verified") {
-        generated.push({
-          _id: `gen_stage_3`,
-          type: "kyc_verified",
-          category: "verification",
-          title: "AAPC / AHIMA Credential Audited 📜",
-          message: `Your ${candidate.stage3?.body?.toUpperCase() || "AAPC"} certification has been verified by the audit team (+20 points earned).`,
+          category: "admin",
+          source: "admin",
+          senderName: "Talentera Admin",
+          title: "Credential Audited & Approved 📜",
+          message: `Your ${candidate.stage3?.body?.toUpperCase() || "AAPC"} certification has been audited and approved by the Talentera Admin team (+20 points earned).`,
           actionType: "stage_3",
           actionLabel: "View Certificate",
-          createdAt: candidate.stage3?.verifiedAt || candidate.updatedAt || new Date(),
+          createdAt: candidate.stage3?.certVerifiedAt || candidate.stage3?.verifiedAt || candidate.updatedAt || new Date(),
+          read: false,
+        });
+      } else if (candidate.stage3?.certStatus === "rejected") {
+        generated.push({
+          _id: `gen_stage_3_rejected`,
+          type: "kyc_revision",
+          category: "admin",
+          source: "admin",
+          senderName: "Talentera Admin",
+          title: "Credential Revision Requested ⚠️",
+          message: `Talentera Admin audit team requested revision: ${candidate.stage3?.certRejectionReason || "Please re-upload a clear credential document."}`,
+          actionType: "stage_3",
+          actionLabel: "Update Certificate",
+          createdAt: candidate.stage3?.updatedAt || candidate.updatedAt || new Date(),
           read: false,
         });
       }
 
-      if (completed.includes(4)) {
-        const score = candidate.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate.stage4?.score || 80;
+      // Admin verification & Gold Badge awarded by Admin
+      const completed = Array.isArray(candidate.completedStages) ? candidate.completedStages : [];
+      if (completed.includes(8) || candidate.stage5?.verified || candidate.stage5?.verifiedBy) {
         generated.push({
-          _id: `gen_stage_4`,
+          _id: `gen_admin_profile_verified`,
+          type: "kyc_verified",
+          category: "admin",
+          source: "admin",
+          senderName: "Talentera Admin",
+          title: "Profile Verified & Gold Trust Badge Awarded! 🛡️",
+          message: "Talentera Admin has audited and verified your candidate profile. Your Gold Trust Badge is active and visible to employers.",
+          actionType: "profile",
+          actionLabel: "View Profile",
+          createdAt: candidate.stage5?.verifiedAt || candidate.updatedAt || new Date(),
+          read: false,
+        });
+      }
+
+      // Admin verification of Stage 4 Assessment
+      if (candidate.stage4?.staffVerified) {
+        generated.push({
+          _id: `gen_stage_4_staff_verified`,
           type: "assessment_passed",
-          category: "verification",
-          title: "Medical Coding Assessment Score Ready 📝",
-          message: `Your proctored foundation assessment scored ${score}%. Verified test record is active on your profile.`,
+          category: "admin",
+          source: "admin",
+          senderName: "Talentera Admin",
+          title: "Assessment Audited by Admin ✅",
+          message: candidate.stage4?.staffVerificationNote
+            ? `Talentera Admin verified your Stage 4 assessment: ${candidate.stage4.staffVerificationNote}`
+            : "Your proctored foundation assessment has been reviewed and verified by Talentera Staff.",
           actionType: "stage_4",
           actionLabel: "View Scorecard",
-          createdAt: candidate.stage4?.completedAt || candidate.updatedAt || new Date(),
-          read: false,
-        });
-      }
-
-      if (completed.includes(5)) {
-        generated.push({
-          _id: `gen_stage_5`,
-          type: "ai_interview_done",
-          category: "verification",
-          title: "AI Verbal & Communication Interview Evaluated 🎙️",
-          message: "Your AI verbal interview answers have been recorded and graded by the assessment engine.",
-          actionType: "stage_5",
-          actionLabel: "View Interview",
-          createdAt: candidate.stage5?.evaluatedAt || candidate.updatedAt || new Date(),
-          read: false,
-        });
-      }
-
-      if (completed.includes(7) || candidate.resumeUrl) {
-        generated.push({
-          _id: `gen_stage_7`,
-          type: "resume_ready",
-          category: "verification",
-          title: "Verified Resume PDF Generated 📄",
-          message: "Your ATS-ready Talentera Verified Resume is compiled and ready for employer sharing.",
-          actionType: "stage_7",
-          actionLabel: "Download Resume",
-          createdAt: candidate.updatedAt || new Date(),
+          createdAt: candidate.stage4?.staffVerifiedAt || candidate.updatedAt || new Date(),
           read: false,
         });
       }
     }
 
-    // Merge DB notifications and generated notifications, sort newest first
-    const allNotifications = [...dbNotifications, ...generated].sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    // Merge DB notifications and generated notifications
+    const combined = [...formattedDbNotifications, ...generated];
+
+    // Strictly enforce: ONLY company and admin categories are returned
+    const companyAndAdminNotifications = combined.filter(
+      (n) => n.category === "company" || n.category === "admin"
     );
+
+    // Deduplicate by key if both DB and generated exist for same application status
+    const seen = new Set();
+    const allNotifications = [];
+    for (const n of companyAndAdminNotifications) {
+      const dedupKey = n.meta?.applicationId
+        ? `app_${n.meta.applicationId}_${n.type}`
+        : n._id;
+      if (!seen.has(dedupKey)) {
+        seen.add(dedupKey);
+        allNotifications.push(n);
+      }
+    }
+
+    // Apply candidate's persistent read tracking
+    const lastReadAt = candidate?.notificationsLastReadAt
+      ? new Date(candidate.notificationsLastReadAt)
+      : null;
+    const readIds = new Set((candidate?.readNotificationIds || []).map(String));
+
+    allNotifications.forEach((n) => {
+      if (
+        readIds.has(String(n._id)) ||
+        (lastReadAt && new Date(n.createdAt) <= lastReadAt)
+      ) {
+        n.read = true;
+      }
+    });
+
+    allNotifications.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const unreadCount = allNotifications.filter((n) => !n.read).length;
 
     res.json({ notifications: allNotifications, unreadCount });
@@ -1521,13 +1588,30 @@ router.get("/notifications", async (req, res) => {
   }
 });
 
-// POST /api/candidate/notifications/mark-read - mark all as read
+// POST /api/candidate/notifications/mark-read - mark all or single notification as read
 router.post("/notifications/mark-read", async (req, res) => {
   try {
-    await Notification.updateMany(
-      { recipientType: "candidate", recipientId: String(req.candidateId), read: false },
-      { $set: { read: true } }
-    );
+    const { id } = req.body || {};
+    const now = new Date();
+
+    if (id) {
+      await Notification.updateOne(
+        { _id: id, recipientType: "candidate", recipientId: String(req.candidateId) },
+        { $set: { read: true } }
+      );
+      await Candidate.findByIdAndUpdate(req.candidateId, {
+        $addToSet: { readNotificationIds: String(id) },
+      });
+    } else {
+      await Notification.updateMany(
+        { recipientType: "candidate", recipientId: String(req.candidateId), read: false },
+        { $set: { read: true } }
+      );
+      await Candidate.findByIdAndUpdate(req.candidateId, {
+        $set: { notificationsLastReadAt: now },
+      });
+    }
+
     res.json({ success: true, message: "Notifications marked as read." });
   } catch (err) {
     logger.error(`Candidate mark read error: ${err.message}`);
