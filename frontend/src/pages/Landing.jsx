@@ -1556,24 +1556,37 @@ export default function Landing() {
 
       {/* ====== 7. STUDENT CAREER JOURNEY (7 STEPS) ====== */}
       <section className="pipeline-section-root" id="how-it-works">
-        <div className="container">
+        {/* Parallax Background Layers */}
+        <div className="pipeline-parallax-bg-layer" />
+        <div className="pipeline-parallax-overlay-mesh" />
+        <div className="pipeline-parallax-glow-1" />
+        <div className="pipeline-parallax-glow-2" />
+
+        <div className="container" style={{ position: "relative", zIndex: 10 }}>
           <div style={{ textAlign: "center", maxWidth: 840, margin: "0 auto 54px" }}>
-            <div className="section-eyebrow" style={{ color: "var(--gold)" }}>
+            <div className="section-eyebrow pipeline-parallax-eyebrow" style={{ color: "#FBBF24" }}>
               <span
                 className="live-dot"
-                style={{ background: "var(--gold)", boxShadow: "0 0 8px var(--gold)", marginRight: 6 }}
+                style={{ background: "#FBBF24", boxShadow: "0 0 8px #FBBF24", marginRight: 6 }}
               />
               7-STEP CAREER PIPELINE
             </div>
             <h2
-              className="section-title section-title-light"
+              className="section-title pipeline-parallax-title"
               style={{ fontSize: "clamp(28px, 4.2vw, 44px)", marginBottom: 16 }}
             >
               From First Code to Verified Job Offer in 7 Steps.
             </h2>
             <p
-              className="section-lead"
-              style={{ color: "rgba(255,255,255,0.7)", fontSize: 16, maxWidth: 660, margin: "0 auto" }}
+              className="pipeline-parallax-lead"
+              style={{
+                color: "#FFFFFF",
+                fontSize: 16.5,
+                maxWidth: 680,
+                margin: "0 auto",
+                opacity: 1,
+                textShadow: "0 2px 14px rgba(0, 0, 0, 0.9)",
+              }}
             >
               A structured career journey designed to help Healthcare RCM candidates build skills, demonstrate readiness, and get discovered by hiring companies.
             </p>
@@ -1584,19 +1597,20 @@ export default function Landing() {
             {/* Step 1 */}
             <div
               className="pipeline-step-card"
-              style={{ "--step-color": "#06B6D4", "--step-glow": "rgba(6, 182, 212, 0.35)" }}
+              style={{
+                "--step-color": "#0284C7",
+                "--step-rgb": "2, 132, 199",
+                "--step-glow": "rgba(2, 132, 199, 0.35)",
+              }}
             >
               <div className="pipe-step-top">
                 <span className="pipe-step-num">STEP 01</span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "rgba(6, 182, 212, 0.12)",
-                    borderColor: "rgba(6, 182, 212, 0.3)",
-                    color: "#06B6D4",
-                  }}
-                >
-                  <i className="fa-solid fa-user-pen" />
+                <div className="pipe-step-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                    <path d="M16 11l2 2 4-4" stroke="#0284C7" strokeWidth="2.5" />
+                  </svg>
                 </div>
               </div>
               <h3 className="pipe-step-title">Create Profile</h3>
@@ -1609,19 +1623,21 @@ export default function Landing() {
             {/* Step 2 */}
             <div
               className="pipeline-step-card"
-              style={{ "--step-color": "#8B5CF6", "--step-glow": "rgba(139, 92, 246, 0.35)" }}
+              style={{
+                "--step-color": "#7C3AED",
+                "--step-rgb": "124, 58, 237",
+                "--step-glow": "rgba(124, 58, 237, 0.35)",
+              }}
             >
               <div className="pipe-step-top">
                 <span className="pipe-step-num">STEP 02</span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "rgba(139, 92, 246, 0.12)",
-                    borderColor: "rgba(139, 92, 246, 0.3)",
-                    color: "#A78BFA",
-                  }}
-                >
-                  <i className="fa-solid fa-chart-simple" />
+                <div className="pipe-step-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                    <path d="M3 10l6-6 4 4 8-8" stroke="#7C3AED" strokeWidth="2" />
+                  </svg>
                 </div>
               </div>
               <h3 className="pipe-step-title">Benchmark Audit</h3>
@@ -1634,19 +1650,20 @@ export default function Landing() {
             {/* Step 3 */}
             <div
               className="pipeline-step-card"
-              style={{ "--step-color": "#F59E0B", "--step-glow": "rgba(245, 158, 11, 0.35)" }}
+              style={{
+                "--step-color": "#D97706",
+                "--step-rgb": "217, 119, 6",
+                "--step-glow": "rgba(217, 119, 6, 0.35)",
+              }}
             >
               <div className="pipe-step-top">
                 <span className="pipe-step-num">STEP 03</span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "rgba(245, 158, 11, 0.12)",
-                    borderColor: "rgba(245, 158, 11, 0.3)",
-                    color: "#FBBF24",
-                  }}
-                >
-                  <i className="fa-solid fa-headset" />
+                <div className="pipe-step-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+                    <path d="M10 11v2m4-3v4" stroke="#D97706" strokeWidth="2.5" />
+                  </svg>
                 </div>
               </div>
               <h3 className="pipe-step-title">AI Mock Voice</h3>
@@ -1659,19 +1676,19 @@ export default function Landing() {
             {/* Step 4 */}
             <div
               className="pipeline-step-card"
-              style={{ "--step-color": "#10B981", "--step-glow": "rgba(16, 185, 129, 0.35)" }}
+              style={{
+                "--step-color": "#059669",
+                "--step-rgb": "5, 150, 105",
+                "--step-glow": "rgba(5, 150, 105, 0.35)",
+              }}
             >
               <div className="pipe-step-top">
                 <span className="pipe-step-num">STEP 04</span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "rgba(16, 185, 129, 0.12)",
-                    borderColor: "rgba(16, 185, 129, 0.3)",
-                    color: "#34D399",
-                  }}
-                >
-                  <i className="fa-solid fa-shield-halved" />
+                <div className="pipe-step-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="rgba(5, 150, 105, 0.12)" />
+                    <path d="M9 12l2 2 4-4" stroke="#059669" strokeWidth="2.5" />
+                  </svg>
                 </div>
               </div>
               <h3 className="pipe-step-title">Verify Skills</h3>
@@ -1684,19 +1701,24 @@ export default function Landing() {
             {/* Step 5 */}
             <div
               className="pipeline-step-card"
-              style={{ "--step-color": "#38BDF8", "--step-glow": "rgba(56, 189, 248, 0.35)" }}
+              style={{
+                "--step-color": "#0284C7",
+                "--step-rgb": "2, 132, 199",
+                "--step-glow": "rgba(2, 132, 199, 0.35)",
+              }}
             >
               <div className="pipe-step-top">
                 <span className="pipe-step-num">STEP 05</span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "rgba(56, 189, 248, 0.12)",
-                    borderColor: "rgba(56, 189, 248, 0.3)",
-                    color: "#38BDF8",
-                  }}
-                >
-                  <i className="fa-solid fa-bullseye" />
+                <div className="pipe-step-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="6" />
+                    <circle cx="12" cy="12" r="2" fill="#0284C7" />
+                    <line x1="12" y1="2" x2="12" y2="6" />
+                    <line x1="12" y1="18" x2="12" y2="22" />
+                    <line x1="2" y1="12" x2="6" y2="12" />
+                    <line x1="18" y1="12" x2="22" y2="12" />
+                  </svg>
                 </div>
               </div>
               <h3 className="pipe-step-title">AI Job Match</h3>
@@ -1709,19 +1731,20 @@ export default function Landing() {
             {/* Step 6 */}
             <div
               className="pipeline-step-card"
-              style={{ "--step-color": "#EC4899", "--step-glow": "rgba(236, 72, 153, 0.35)" }}
+              style={{
+                "--step-color": "#DB2777",
+                "--step-rgb": "219, 39, 119",
+                "--step-glow": "rgba(219, 39, 119, 0.35)",
+              }}
             >
               <div className="pipe-step-top">
                 <span className="pipe-step-num">STEP 06</span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "rgba(236, 72, 153, 0.12)",
-                    borderColor: "rgba(236, 72, 153, 0.3)",
-                    color: "#F472B6",
-                  }}
-                >
-                  <i className="fa-solid fa-video" />
+                <div className="pipe-step-icon">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="23 7 16 12 23 17 23 7" fill="rgba(219, 39, 119, 0.2)" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                    <circle cx="8.5" cy="12" r="2.5" fill="#DB2777" />
+                  </svg>
                 </div>
               </div>
               <h3 className="pipe-step-title">Fast Interview</h3>
@@ -1733,40 +1756,41 @@ export default function Landing() {
 
             {/* Step 7 */}
             <div
-              className="pipeline-step-card"
+              className="pipeline-step-card pipeline-step-card-final"
               style={{
-                "--step-color": "#22C55E",
-                "--step-glow": "rgba(34, 197, 94, 0.45)",
-                background: "linear-gradient(180deg, rgba(34, 197, 94, 0.14) 0%, rgba(10, 27, 51, 0.88) 100%)",
-                borderColor: "rgba(34, 197, 94, 0.45)",
+                "--step-color": "#16A34A",
+                "--step-rgb": "22, 163, 74",
+                "--step-glow": "rgba(22, 163, 74, 0.4)",
               }}
             >
               <div className="pipe-step-top">
-                <span className="pipe-step-num" style={{ color: "#4ADE80" }}>
+                <span className="pipe-step-num" style={{ color: "#16A34A" }}>
                   STEP 07
                 </span>
-                <div
-                  className="pipe-step-icon"
-                  style={{
-                    background: "linear-gradient(135deg, #22C55E, #16A34A)",
-                    borderColor: "#22C55E",
-                    color: "#052e16",
-                  }}
-                >
-                  <i className="fa-solid fa-trophy" />
+                <div className="pipe-step-icon">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+                    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+                    <path d="M4 22h16" strokeWidth="2.5" />
+                    <path d="M10 14.66V17c0 .55-.45 1-1 1H8v4h8v-4h-1c-.55 0-1-.45-1-1v-2.34" />
+                    <path d="M18 2H6v7a6 6 0 0 0 12 0V2z" fill="rgba(34, 197, 94, 0.25)" />
+                  </svg>
                 </div>
               </div>
-              <h3 className="pipe-step-title" style={{ color: "#86EFAC" }}>
+              <h3 className="pipe-step-title" style={{ color: "#15803D" }}>
                 Get Hired
               </h3>
-              <p className="pipe-step-desc">Take the next step towards your Healthcare RCM career opportunity.</p>
+              <p className="pipe-step-desc" style={{ color: "#166534" }}>
+                Take the next step towards your Healthcare RCM career opportunity.
+              </p>
               <div>
                 <span
                   className="pipe-step-tag"
                   style={{
-                    background: "rgba(34, 197, 94, 0.2)",
-                    borderColor: "rgba(34, 197, 94, 0.4)",
-                    color: "#4ADE80",
+                    background: "#22C55E",
+                    borderColor: "#16A34A",
+                    color: "#FFFFFF",
+                    fontWeight: "800",
                   }}
                 >
                   OFFER SECURED ✓
@@ -1803,15 +1827,11 @@ export default function Landing() {
               style={{ "--adv-color": "#E5A82E", "--adv-glow": "rgba(229, 168, 46, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(229, 168, 46, 0.14)",
-                    borderColor: "rgba(229, 168, 46, 0.35)",
-                    color: "#E5A82E",
-                  }}
-                >
-                  <i className="fa-solid fa-gift" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="rgba(229, 168, 46, 0.2)" />
+                    <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2.2" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">100% FREE</span>
               </div>
@@ -1827,15 +1847,11 @@ export default function Landing() {
               style={{ "--adv-color": "#10B981", "--adv-glow": "rgba(16, 185, 129, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(16, 185, 129, 0.14)",
-                    borderColor: "rgba(16, 185, 129, 0.35)",
-                    color: "#34D399",
-                  }}
-                >
-                  <i className="fa-solid fa-shield-halved" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="rgba(16, 185, 129, 0.15)" />
+                    <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2.5" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">KYC VERIFIED</span>
               </div>
@@ -1851,15 +1867,15 @@ export default function Landing() {
               style={{ "--adv-color": "#F59E0B", "--adv-glow": "rgba(245, 158, 11, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(245, 158, 11, 0.14)",
-                    borderColor: "rgba(245, 158, 11, 0.35)",
-                    color: "#FBBF24",
-                  }}
-                >
-                  <i className="fa-solid fa-robot" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="10" rx="2" fill="rgba(245, 158, 11, 0.15)" />
+                    <circle cx="12" cy="5" r="2" />
+                    <path d="M12 7v4" />
+                    <line x1="8" y1="16" x2="8" y2="16.01" strokeWidth="3" />
+                    <line x1="16" y1="16" x2="16" y2="16.01" strokeWidth="3" />
+                    <path d="M9 19c1 .6 2 .6 3 0" stroke="currentColor" strokeWidth="2" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">AI EVALUATOR</span>
               </div>
@@ -1875,15 +1891,12 @@ export default function Landing() {
               style={{ "--adv-color": "#06B6D4", "--adv-glow": "rgba(6, 182, 212, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(6, 182, 212, 0.14)",
-                    borderColor: "rgba(6, 182, 212, 0.35)",
-                    color: "#06B6D4",
-                  }}
-                >
-                  <i className="fa-solid fa-bullseye" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v12M6 12h12" stroke="currentColor" strokeWidth="2" />
+                    <circle cx="12" cy="12" r="4" fill="rgba(6, 182, 212, 0.25)" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">SKILL MATCH</span>
               </div>
@@ -1899,15 +1912,13 @@ export default function Landing() {
               style={{ "--adv-color": "#8B5CF6", "--adv-glow": "rgba(139, 92, 246, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(139, 92, 246, 0.14)",
-                    borderColor: "rgba(139, 92, 246, 0.35)",
-                    color: "#A78BFA",
-                  }}
-                >
-                  <i className="fa-solid fa-eye" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="9" />
+                    <circle cx="12" cy="12" r="5" fill="rgba(139, 92, 246, 0.2)" />
+                    <path d="M12 12l5-5" stroke="currentColor" strokeWidth="2.5" />
+                    <circle cx="17" cy="7" r="2" fill="currentColor" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">3.8X RADAR</span>
               </div>
@@ -1923,15 +1934,11 @@ export default function Landing() {
               style={{ "--adv-color": "#EC4899", "--adv-glow": "rgba(236, 72, 153, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(236, 72, 153, 0.14)",
-                    borderColor: "rgba(236, 72, 153, 0.35)",
-                    color: "#F472B6",
-                  }}
-                >
-                  <i className="fa-solid fa-bolt-lightning" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="rgba(236, 72, 153, 0.2)" />
+                    <path d="M17 6l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">FAST TRACK</span>
               </div>
@@ -1944,18 +1951,15 @@ export default function Landing() {
             {/* Card 7 */}
             <div
               className="adv-bento-card"
-              style={{ "--adv-color": "#38BDF8", "--adv-glow": "rgba(56, 189, 248, 0.35)" }}
+              style={{ "--adv-color": "#0284C7", "--adv-glow": "rgba(2, 132, 199, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(56, 189, 248, 0.14)",
-                    borderColor: "rgba(56, 189, 248, 0.35)",
-                    color: "#38BDF8",
-                  }}
-                >
-                  <i className="fa-solid fa-chart-line" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3v18h18" />
+                    <path d="M18.5 8.5l-5 5-4-4L3 16" stroke="currentColor" strokeWidth="2.5" />
+                    <circle cx="18.5" cy="8.5" r="2.5" fill="currentColor" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">PERCENTILE</span>
               </div>
@@ -1968,18 +1972,15 @@ export default function Landing() {
             {/* Card 8 */}
             <div
               className="adv-bento-card"
-              style={{ "--adv-color": "#22C55E", "--adv-glow": "rgba(34, 197, 94, 0.35)" }}
+              style={{ "--adv-color": "#16A34A", "--adv-glow": "rgba(22, 163, 74, 0.35)" }}
             >
               <div className="adv-card-header">
-                <div
-                  className="adv-icon-wrap"
-                  style={{
-                    background: "rgba(34, 197, 94, 0.14)",
-                    borderColor: "rgba(34, 197, 94, 0.35)",
-                    color: "#4ADE80",
-                  }}
-                >
-                  <i className="fa-solid fa-award" />
+                <div className="adv-icon-wrap">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="8" r="6" fill="rgba(34, 197, 94, 0.2)" />
+                    <path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" stroke="currentColor" strokeWidth="2" />
+                    <path d="M9 8l2 2 4-4" stroke="currentColor" strokeWidth="2.2" />
+                  </svg>
                 </div>
                 <span className="adv-badge-chip">DIRECT HIRES</span>
               </div>
@@ -1994,11 +1995,25 @@ export default function Landing() {
 
       {/* ====== 9. ANIMATED CAREER PROGRESSION & LIVE STATS HUB ====== */}
       <section className="progression-section-root" id="progression">
-        <div className="progression-ambient-glow" />
+        {/* Parallax Background Layers */}
+        <div className="progression-parallax-bg-layer" />
+        <div className="progression-parallax-overlay-mesh" />
+        <div className="progression-parallax-glow-1" />
+        <div className="progression-parallax-glow-2" />
+
+        {/* Central Glowing Full Talentera Logo Backdrop */}
+        <div className="progression-center-logo-aura">
+          <div className="progression-logo-rings" />
+          <img
+            src="/logo.png"
+            alt="Talentera - The Era of Talent Begins Here"
+            className="progression-center-logo-img"
+          />
+        </div>
 
         <div className="container" style={{ position: "relative", zIndex: 5 }}>
           <div style={{ textAlign: "center", maxWidth: 820, margin: "0 auto 56px" }}>
-            <div className="section-eyebrow" style={{ color: "var(--gold-light)" }}>
+            <div className="section-eyebrow progression-parallax-eyebrow" style={{ color: "#38BDF8" }}>
               <span
                 className="live-dot"
                 style={{ background: "#06B6D4", boxShadow: "0 0 8px #06B6D4", marginRight: 6 }}
@@ -2006,14 +2021,21 @@ export default function Landing() {
               PROVEN CAREER PROGRESSION PIPELINE
             </div>
             <h2
-              className="section-title section-title-light"
+              className="section-title progression-parallax-title"
               style={{ fontSize: "clamp(28px, 4.2vw, 46px)", marginBottom: 16 }}
             >
               From Verified Candidate to Hired Professional.
             </h2>
             <p
-              className="section-lead"
-              style={{ color: "rgba(255,255,255,0.7)", fontSize: 17, maxWidth: 660, margin: "0 auto" }}
+              className="progression-parallax-lead"
+              style={{
+                color: "#FFFFFF",
+                fontSize: 17,
+                maxWidth: 660,
+                margin: "0 auto",
+                opacity: 1,
+                textShadow: "0 2px 14px rgba(0, 0, 0, 0.9)",
+              }}
             >
               A structured journey that helps Healthcare RCM candidates build credibility, demonstrate readiness, and become visible to hiring companies.
             </p>
@@ -2291,24 +2313,20 @@ export default function Landing() {
       </section>
 
       {/* ====== 11. COMPANY CONTENT (FOR HIRING COMPANIES) ====== */}
-      <section className="partner-showcase-section" id="companies-hiring">
-        <div className="container">
+      <section className="partner-showcase-section partner-section-employer" id="companies-hiring">
+        <div className="partner-showcase-glow partner-glow-employer" />
+        <div className="partner-showcase-grid-bg" />
+        <div className="container" style={{ position: "relative", zIndex: 5 }}>
           <div className="partner-card-split partner-card-company">
             <div>
-              <div className="section-eyebrow" style={{ color: "#38BDF8" }}>
-                <span
-                  className="live-dot"
-                  style={{ background: "#38BDF8", boxShadow: "0 0 8px #38BDF8", marginRight: 6 }}
-                />
-                FOR HEALTHCARE & RCM EMPLOYERS
+              <div className="partner-badge-pill badge-pill-cyan">
+                <span className="live-dot" style={{ background: "#38BDF8", boxShadow: "0 0 10px #38BDF8" }} />
+                <span>FOR HEALTHCARE & RCM EMPLOYERS</span>
               </div>
-              <h2
-                className="section-title section-title-light"
-                style={{ fontSize: "clamp(26px, 3.8vw, 42px)", marginBottom: 16 }}
-              >
-                Hire Pre-Verified, Benchmarked Talent in Record Time.
+              <h2 className="partner-headline">
+                Hire Pre-Verified, Benchmarked Talent <span className="partner-headline-gradient-cyan">in Record Time.</span>
               </h2>
-              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, marginBottom: 0 }}>
+              <p className="partner-lead">
                 Stop filtering unverified resumes. Access clinical chart audit scores, AI interview voice evaluations,
                 and Aadhaar-verified credentials before your first meeting.
               </p>
@@ -2316,28 +2334,36 @@ export default function Landing() {
               {/* 4 Feature Chips */}
               <div className="partner-feature-grid">
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-user-shield partner-feat-icon" style={{ color: "#38BDF8" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-cyan">
+                    <i className="fa-solid fa-user-shield" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>100% Verified Profiles</strong>
                     <span>Aadhaar KYC & credentials verified</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-bullseye partner-feat-icon" style={{ color: "#38BDF8" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-cyan">
+                    <i className="fa-solid fa-bullseye" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>Skill-Based Matching</strong>
                     <span>Algorithmic match against job specs</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-chart-pie partner-feat-icon" style={{ color: "#38BDF8" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-cyan">
+                    <i className="fa-solid fa-chart-pie" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>Proctored Audit Scores</strong>
                     <span>Hospital benchmark chart testing</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-robot partner-feat-icon" style={{ color: "#38BDF8" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-cyan">
+                    <i className="fa-solid fa-robot" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>AI Voice Readiness</strong>
                     <span>Instant audio interview evaluation</span>
@@ -2345,19 +2371,20 @@ export default function Landing() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-                <Link to="/companies/register" className="btn-cyan" style={{ background: "linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%)", color: "var(--navy)", border: "none", fontWeight: 700 }}>
-                  <i className="fa-solid fa-users" style={{ marginRight: 6 }} />
+              <div className="partner-actions-row">
+                <Link to="/companies/register" className="partner-btn-gold">
+                  <i className="fa-solid fa-users" style={{ marginRight: 8 }} />
                   <span>Browse Candidates</span>
-                  <i className="fa-solid fa-arrow-right" style={{ marginLeft: 6 }} />
+                  <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8 }} />
                 </Link>
-                <Link to="/companies" className="btn-outline-white">
+                <Link to="/companies" className="partner-btn-outline-cyan">
                   <span>Hire Verified Talent</span>
-                  <i className="fa-solid fa-arrow-right" style={{ marginLeft: 6 }} />
+                  <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8 }} />
                 </Link>
-                <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-mono)" }}>
-                  ⚡ Over 140+ active enterprise employers
-                </span>
+                <div className="partner-ticker-pill ticker-pill-cyan">
+                  <i className="fa-solid fa-bolt" style={{ color: "#38BDF8", marginRight: 6 }} />
+                  <span>Over 140+ active enterprise employers</span>
+                </div>
               </div>
             </div>
 
@@ -2369,8 +2396,8 @@ export default function Landing() {
                   <span>TALENTERA RECRUITER RADAR</span>
                 </div>
                 <div className="co-radar-inbound-badge">
-                  <i className="fa-solid fa-bolt" style={{ color: "#38BDF8", marginRight: 4 }} />
-                  34 NEW TODAY
+                  <i className="fa-solid fa-bolt" style={{ color: "#38BDF8", marginRight: 5 }} />
+                  <span>34 NEW TODAY</span>
                 </div>
               </div>
 
@@ -2388,14 +2415,12 @@ export default function Landing() {
                       <div className="co-cand-role">Senior ED Chart Auditor · Chennai</div>
                     </div>
                   </div>
-                  <div className="co-cand-match-pill">96% Match</div>
+                  <div className="co-cand-match-pill match-pill-emerald">96% Match</div>
                 </div>
                 <div className="co-cand-tags">
-                  <span className="co-cand-tag">CPC Certified</span>
-                  <span className="co-cand-tag">Chart Audit: 94%</span>
-                  <span className="co-cand-tag" style={{ color: "#38BDF8" }}>
-                    Immediate Joiner
-                  </span>
+                  <span className="co-cand-tag tag-neutral">CPC Certified</span>
+                  <span className="co-cand-tag tag-cyan">Chart Audit: 94%</span>
+                  <span className="co-cand-tag tag-emerald">Immediate Joiner</span>
                 </div>
               </div>
 
@@ -2413,40 +2438,19 @@ export default function Landing() {
                       <div className="co-cand-role">Risk Adjustment Specialist · Hyd</div>
                     </div>
                   </div>
-                  <div
-                    className="co-cand-match-pill"
-                    style={{
-                      color: "#A78BFA",
-                      background: "rgba(139, 92, 246, 0.15)",
-                      borderColor: "rgba(139, 92, 246, 0.35)",
-                    }}
-                  >
-                    92% Match
-                  </div>
+                  <div className="co-cand-match-pill match-pill-purple">92% Match</div>
                 </div>
                 <div className="co-cand-tags">
-                  <span className="co-cand-tag">HCC & Risk</span>
-                  <span className="co-cand-tag">AI Interview: 91%</span>
-                  <span className="co-cand-tag">Aadhaar Verified</span>
+                  <span className="co-cand-tag tag-neutral">HCC & Risk</span>
+                  <span className="co-cand-tag tag-cyan">AI Interview: 91%</span>
+                  <span className="co-cand-tag tag-purple">Aadhaar Verified</span>
                 </div>
               </div>
 
               {/* Recruiter Guarantee Footer */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: 14,
-                  paddingTop: 12,
-                  borderTop: "1px solid rgba(255,255,255,0.06)",
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                  color: "rgba(255,255,255,0.6)",
-                }}
-              >
-                <span>🛡 Zero Unverified Profiles</span>
-                <span style={{ color: "#38BDF8" }}>⚡ 70% Faster Pipeline</span>
+              <div className="co-radar-footer">
+                <span><i className="fa-solid fa-shield-halved" style={{ color: "#38BDF8", marginRight: 5 }} /> Zero Unverified Profiles</span>
+                <span className="co-radar-metric"><i className="fa-solid fa-bolt" style={{ marginRight: 4 }} /> 70% Faster Pipeline</span>
               </div>
             </div>
           </div>
@@ -2454,52 +2458,56 @@ export default function Landing() {
       </section>
 
       {/* ====== 12. ACADEMY CONTENT (FOR TRAINING ACADEMIES) ====== */}
-      <section className="partner-showcase-section" style={{ background: "#040D1C" }}>
-        <div className="container">
+      <section className="partner-showcase-section partner-section-academy" id="academy-partnership">
+        <div className="partner-showcase-glow partner-glow-academy" />
+        <div className="partner-showcase-grid-bg" />
+        <div className="container" style={{ position: "relative", zIndex: 5 }}>
           <div className="partner-card-split partner-card-academy">
             <div>
-              <div className="section-eyebrow" style={{ color: "#34D399" }}>
-                <span
-                  className="live-dot"
-                  style={{ background: "#34D399", boxShadow: "0 0 8px #34D399", marginRight: 6 }}
-                />
-                WHY MEDICAL CODING INSTITUTES CHOOSE TALENTERA
+              <div className="partner-badge-pill badge-pill-emerald">
+                <span className="live-dot" style={{ background: "#34D399", boxShadow: "0 0 10px #34D399" }} />
+                <span>INSTITUTE PARTNERSHIP ECOSYSTEM</span>
               </div>
-              <h2
-                className="section-title section-title-light"
-                style={{ fontSize: "clamp(26px, 3.8vw, 42px)", marginBottom: 16 }}
-              >
-                A Medical Coding Institute Partnership Built for Student Placement and Career Growth.
+              <h2 className="partner-headline">
+                A Medical Coding Institute Partnership Built for <span className="partner-headline-gradient-emerald">Student Placement and Career Growth.</span>
               </h2>
-              <p style={{ fontSize: 16, color: "rgba(255,255,255,0.75)", lineHeight: 1.6, marginBottom: 0 }}>
+              <p className="partner-lead">
                 From classroom to career — partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.
               </p>
 
               {/* 4 Feature Chips */}
               <div className="partner-feature-grid">
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-upload partner-feat-icon" style={{ color: "#34D399" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-emerald">
+                    <i className="fa-solid fa-upload" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>1-Click Batch Upload</strong>
                     <span>50+ student profiles in seconds</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-shield-halved partner-feat-icon" style={{ color: "#34D399" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-emerald">
+                    <i className="fa-solid fa-shield-halved" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>AAPC & AHIMA Verification</strong>
                     <span>Automated credential verification</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-building-user partner-feat-icon" style={{ color: "#34D399" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-emerald">
+                    <i className="fa-solid fa-building-user" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>Direct Recruiter Access</strong>
                     <span>Connect with 342+ hiring employers</span>
                   </div>
                 </div>
                 <div className="partner-feat-chip">
-                  <i className="fa-solid fa-sack-dollar partner-feat-icon" style={{ color: "#34D399" }} />
+                  <div className="partner-feat-icon-wrap feat-icon-emerald">
+                    <i className="fa-solid fa-sack-dollar" />
+                  </div>
                   <div className="partner-feat-text">
                     <strong>₹2,500 Placement Reward</strong>
                     <span>Earn for every eligible candidate hired</span>
@@ -2507,14 +2515,15 @@ export default function Landing() {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
-                <Link to="/academy" className="btn-emerald">
+              <div className="partner-actions-row">
+                <Link to="/academy" className="partner-btn-emerald">
                   <span>Partner With Talentera</span>
-                  <i className="fa-solid fa-arrow-right" />
+                  <i className="fa-solid fa-arrow-right" style={{ marginLeft: 8 }} />
                 </Link>
-                <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.5)", fontFamily: "var(--font-mono)" }}>
-                  🎓 68 Partner Institutes Across India
-                </span>
+                <div className="partner-ticker-pill ticker-pill-emerald">
+                  <i className="fa-solid fa-graduation-cap" style={{ color: "#34D399", marginRight: 6 }} />
+                  <span>68 Partner Institutes Across India</span>
+                </div>
               </div>
             </div>
 
@@ -2526,8 +2535,8 @@ export default function Landing() {
                   <span>ACADEMY COHORT COCKPIT</span>
                 </div>
                 <div className="ac-cohort-badge">
-                  <i className="fa-solid fa-graduation-cap" style={{ marginRight: 4 }} />
-                  BATCH #24 (48 STUDENTS)
+                  <i className="fa-solid fa-graduation-cap" style={{ marginRight: 5 }} />
+                  <span>BATCH #24 (48 STUDENTS)</span>
                 </div>
               </div>
 
@@ -2576,7 +2585,7 @@ export default function Landing() {
               {/* Guarantee Box */}
               <div className="ac-partner-guarantee">
                 <div className="ac-partner-lbl">
-                  <i className="fa-solid fa-shield-halved" />
+                  <i className="fa-solid fa-shield-halved" style={{ color: "#34D399" }} />
                   <span>Institutional Credential Network</span>
                 </div>
                 <div className="ac-partner-hire-rate">85.4% Placement</div>
