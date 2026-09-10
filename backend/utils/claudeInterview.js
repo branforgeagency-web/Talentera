@@ -245,7 +245,14 @@ function pick(arr) {
 
 function computeHeuristicTurn({ utterance, currentQuestion, quickIntent }) {
   const intent = quickIntent || detectQuickIntent(utterance);
-  const concepts = currentQuestion.expectedConcepts || [];
+  let concepts = currentQuestion.expectedConcepts || [];
+  if ((!concepts || !concepts.length) && currentQuestion.correctAnswer) {
+    concepts = currentQuestion.correctAnswer
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 3);
+  }
 
   if (intent === "stop") {
     return { intent: "stop", evaluation: "no_answer", score: 0, missingConcepts: [], messiReply: "Sure—I'll end our interview here. Your responses have been recorded for your final evaluation.", askFollowUp: false };
@@ -342,11 +349,15 @@ async function getMessiTurn({ session, candidateUtterance }) {
 
   if (key) {
     try {
+      const modelAnswerPart = currentQuestion.correctAnswer
+        ? `\nExpected / Model Answer: "${currentQuestion.correctAnswer}"`
+        : "";
+
       const prompt = `Current question (#${session.currentQuestionIndex + 1} of ${session.questions.length}, Topic: "${currentQuestion.topic || "General"}"):
-"${currentQuestion.question}"
+"${currentQuestion.question}"${modelAnswerPart}
 Candidate's response: "${utterance}"
 
-Classify intent, evaluate the response, and generate Messi's brief acknowledgment. Return STRICT JSON only:
+Classify intent, evaluate the response against the question and expected answer, and generate Messi's brief acknowledgment. Return STRICT JSON only:
 {"intent": "answer|repeat|skip|hint|clarify|stop|unclear", "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "missingConcepts": string[], "messiReply": string, "askFollowUp": false}
 
 Guidelines:
@@ -354,7 +365,7 @@ Guidelines:
 - If the candidate gave an answer (intent = "answer"), messiReply MUST be a brief, natural acknowledgment in 1-2 warm sentences acknowledging what they shared (e.g., "Thank you for that introduction! It's inspiring to hear what drives you.", or "That sounds like a great practical project—tackling those challenges shows solid initiative!").
 - Do NOT repeat the next question in messiReply; the UI and speaker flow will introduce the next question.
 - Do NOT sound robotic or formal. Never say blunt phrases like "Your answer is correct" or "Wrong".
-- askFollowUp must ALWAYS be false. We ask 5 questions, one at a time, moving sequentially.
+- askFollowUp must ALWAYS be false. We ask questions one at a time, moving sequentially.
 - If intent is "repeat", naturally re-ask the current question.
 - If intent is "skip" or no answer (inactivity), messiReply should be a friendly reassurance like "No problem at all, let's move right along to the next question."`;
 
@@ -435,7 +446,7 @@ function computeHeuristicFinalReport({ candidateName, role, questionRecords }) {
       technicalReadiness: clampPercent(overallScore + 2),
     },
     questionAnalysis,
-    finalFeedback: `${candidateName || "Candidate"} completed the 5-question mock interview, answering ${answeredCount} of 5 questions with good conversational flow. Demonstrates promising foundational knowledge and a positive, coachable attitude suitable for entry-level opportunities.`,
+    finalFeedback: `${candidateName || "Candidate"} completed the ${questionRecords.length}-question mock interview, answering ${answeredCount} of ${questionRecords.length} questions with good conversational flow. Demonstrates promising foundational knowledge and a positive, coachable attitude suitable for entry-level opportunities.`,
     strengths: [
       "Clear, conversational tone and polite demeanor during the interview",
       "Good foundational awareness of personal skills and academic background",

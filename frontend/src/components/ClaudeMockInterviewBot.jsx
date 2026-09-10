@@ -716,14 +716,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 Ready for Your 1-on-1 AI Mock Interview?
               </h3>
               <p style={{ fontSize: 13.5, color: "#475569", maxWidth: 560, margin: "0 auto 24px", lineHeight: 1.6 }}>
-                The AI interviewer will ask you <strong>5 simple interview questions</strong> one by one, covering:
+                The AI interviewer will ask you <strong>{totalQuestions} interview questions</strong> from our official question bank, one by one.
               </p>
 
-              {/* 5 Topic preview chips */}
+              {/* Topic preview chips */}
               <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10, maxWidth: 640, margin: "0 auto 28px" }}>
-                {TOPIC_CONFIG.map((t, idx) => (
+                {(session?.questions && session.questions.length > 0 ? session.questions : TOPIC_CONFIG).slice(0, 6).map((t, idx) => (
                   <span
-                    key={t.key}
+                    key={t.id || t.key || idx}
                     style={{
                       background: "#FFFFFF",
                       border: "1.5px solid #CBD5E1",
@@ -738,8 +738,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                       boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
                     }}
                   >
-                    <i className={`fa-solid ${t.icon}`} style={{ color: "#F5B41A" }}></i>
-                    {t.label}
+                    <i className="fa-solid fa-circle-question" style={{ color: "#F5B41A" }}></i>
+                    {t.topicLabel || t.label || `Question ${idx + 1}`}
                   </span>
                 ))}
               </div>
@@ -814,15 +814,17 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               )}
             </div>
 
-            {/* Step Breadcrumbs (1. Intro, 2. Education, 3. Skills, 4. Projects, 5. Career Goals) */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginTop: 4 }}>
-              {TOPIC_CONFIG.map((topic, idx) => {
+            {/* Step Breadcrumbs */}
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(totalQuestions, 8)}, 1fr)`, gap: 8, marginTop: 4 }}>
+              {(session?.questions && session.questions.length > 0 ? session.questions : TOPIC_CONFIG).map((topic, idx) => {
                 const isPassed = idx < currentQIndex;
                 const isCurrent = idx === currentQIndex;
+                const label = topic.topicLabel || topic.label || `Q${idx + 1}`;
+                const key = topic.topic || topic.key || `Q${idx + 1}`;
 
                 return (
                   <div
-                    key={topic.key}
+                    key={topic.id || topic.key || idx}
                     style={{
                       padding: "6px 8px",
                       borderRadius: 8,
@@ -841,14 +843,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                       textOverflow: "ellipsis",
                       transition: "all 0.2s ease",
                     }}
-                    title={topic.label}
+                    title={label}
                   >
                     {isPassed ? (
                       <i className="fa-solid fa-check" style={{ fontSize: 10 }}></i>
                     ) : (
                       <span style={{ fontSize: 9.5 }}>{idx + 1}.</span>
                     )}
-                    <span>{topic.key}</span>
+                    <span>{key}</span>
                   </div>
                 );
               })}

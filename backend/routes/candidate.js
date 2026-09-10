@@ -76,6 +76,7 @@ async function enrichQaPairsWithAnswerKey(qaPairs = []) {
     return {
       questionId: pair.questionId,
       question: finalQuestion?.text || pair.question || "",
+      correctAnswer: finalQuestion?.correctAnswer || "",
       transcript: pair.transcript || "",
     };
   });
@@ -753,7 +754,30 @@ async function buildFreshAiInterviewSession(candidate) {
   const role = candidate.stage1?.currentRole || "Medical Coder";
   const experienceYears = candidate.stage1?.experience ?? null;
 
-  const questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
+  // Retrieve staff-configured active interview questions bank
+  const activeBankQuestions = await InterviewQuestion.find({ active: true })
+    .sort({ order: 1, createdAt: 1 })
+    .lean();
+
+  let questions;
+  if (activeBankQuestions && activeBankQuestions.length > 0) {
+    questions = activeBankQuestions.map((q, idx) => ({
+      index: idx,
+      id: String(q._id),
+      topic: q.mode === "both" ? "Core Assessment" : (q.mode === "video" ? "Video Technical" : "Audio Interview"),
+      topicLabel: `Question ${idx + 1}`,
+      question: q.text,
+      correctAnswer: q.correctAnswer || "",
+      expectedConcepts: q.correctAnswer
+        ? q.correctAnswer
+            .replace(/[^\w\s]/g, " ")
+            .split(/\s+/)
+            .filter((w) => w.length > 3)
+        : [],
+    }));
+  } else {
+    questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
+  }
 
   return {
     status: "IN_PROGRESS",
@@ -844,7 +868,8 @@ router.post("/ai-interview/start", async (req, res) => {
     await candidate.save();
 
     const firstQ = session.questions[0];
-    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you 5 medical coding questions covering ICD-10-CM diagnosis coding, CPT procedure codes, Evaluation & Management coding, medical billing & claims, and HIPAA compliance. Let's begin with our first question:\n\n${firstQ.question}`;
+    const totalCount = session.questions.length;
+    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} from our interview bank. Let's begin with our first question:\n\n${firstQ?.question || ""}`;
 
     res.json({ session, messiReply });
   } catch (err) {

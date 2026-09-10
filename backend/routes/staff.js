@@ -186,6 +186,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const candidates = await Candidate.find().limit(DASHBOARD_FETCH_CAP).lean();
     const companies = await Company.find().limit(DASHBOARD_FETCH_CAP).lean();
     const academies = await Academy.find().limit(DASHBOARD_FETCH_CAP).lean();
+    const totalStaff = await Staff.countDocuments();
     const totalCandidates = candidates.length;
 
     // Filter candidate pending vs fully verified
@@ -506,6 +507,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       totalCandidates,
       totalCompanies: companies.length,
       totalAcademies: academies.length,
+      totalEmployees: totalStaff,
       verifiedCompanies: companies.filter((c) => c.kycStatus === "verified").length,
       pendingCompanies: companies.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
       verifiedCandidates: fullyVerified.length,
@@ -545,6 +547,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         verifiedToday: verifiedTodayCount,
         activeCandidates: totalCandidates,
         totalAcademies: academies.length,
+        totalEmployees: totalStaff,
         placedThisMonth: placedThisMonthCount,
         pendingCompanyKycs: companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
         verifiedCompanies: companyKycQueue.filter((c) => c.kycStatus === "verified").length,
@@ -1994,6 +1997,201 @@ router.get("/academies/:id", requireStaffAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Get academy detail error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch academy details." });
+  }
+});
+
+// GET /api/staff/employees - List all staff/employees (Protected)
+router.get("/employees", requireStaffAuth, async (req, res) => {
+  try {
+    const { q, status } = req.query;
+    const filter = {};
+
+    if (status === "active") {
+      filter.active = true;
+    } else if (status === "inactive") {
+      filter.active = false;
+    }
+
+    if (q && q.trim()) {
+      const regex = new RegExp(q.trim(), "i");
+      filter.$or = [
+        { name: regex },
+        { username: regex },
+        { email: regex },
+        { role: regex },
+        { badge: regex },
+      ];
+    }
+
+    const employees = await Staff.find(filter)
+      .select("-passwordHash")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const totalEmployees = await Staff.countDocuments();
+    const activeCount = await Staff.countDocuments({ active: true });
+
+    res.json({
+      employees,
+      stats: {
+        total: totalEmployees,
+        active: activeCount,
+        inactive: totalEmployees - activeCount,
+      },
+    });
+  } catch (err) {
+    logger.error(`List employees error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch employees list." });
+  }
+});
+
+// POST /api/staff/employees - Create new employee credentials (Protected)
+router.post("/employees", requireStaffAuth, async (req, res) => {
+  try {
+    const { username, password, email, name, role, badge } = req.body;
+
+    if (!username || !username.trim()) {
+      return res.status(400).json({ message: "Employee username is required." });
+    }
+    if (!password || password.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
+    }
+    if (!email || !email.trim()) {
+      return res.status(400).json({ message: "Email is required." });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ message: "Please provide a valid email address." });
+    }
+
+    const cleanUsername = username.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
+
+    const usernameRegex = /^[a-z0-9._-]+$/;
+    if (!usernameRegex.test(cleanUsername)) {
+      return res.status(400).json({
+        message: "Username can only contain lowercase letters, numbers, dots, hyphens, and underscores.",
+      });
+    }
+
+    // Check if employee with same username or email already exists
+    const existing = await Staff.findOne({
+      $or: [{ username: cleanUsername }, { email: cleanEmail }],
+    });
+
+    if (existing) {
+      if (existing.username === cleanUsername) {
+        return res.status(409).json({ message: `Username "${cleanUsername}" is already taken.` });
+      }
+      return res.status(409).json({ message: `Email "${cleanEmail}" is already registered to an employee.` });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const newStaff = await Staff.create({
+      username: cleanUsername,
+      email: cleanEmail,
+      passwordHash,
+      name: name && name.trim() ? name.trim() : "Staff Auditor",
+      role: role && role.trim() ? role.trim() : "Senior Operations Auditor",
+      badge: badge && badge.trim() ? badge.trim() : "Gold Certified Lead",
+      active: true,
+    });
+
+    await recordAudit(req, {
+      action: "create_employee_account",
+      targetType: "staff",
+      targetId: newStaff._id,
+      summary: `Created employee account "${newStaff.username}" (${newStaff.name}, ${newStaff.role}).`,
+      meta: {
+        username: newStaff.username,
+        email: newStaff.email,
+        role: newStaff.role,
+        badge: newStaff.badge,
+      },
+    });
+
+    const staffObj = newStaff.toObject();
+    delete staffObj.passwordHash;
+
+    res.status(201).json({
+      message: `Employee account for "${newStaff.name}" created successfully.`,
+      employee: staffObj,
+    });
+  } catch (err) {
+    logger.error(`Create employee error: ${err.message}`);
+    res.status(500).json({ message: "Failed to create employee account." });
+  }
+});
+
+// PUT /api/staff/employees/:id/status - Toggle employee active/inactive status (Protected)
+router.put("/employees/:id/status", requireStaffAuth, async (req, res) => {
+  try {
+    const { active } = req.body;
+    const targetId = req.params.id;
+
+    if (String(req.staffId) === String(targetId) && active === false) {
+      return res.status(400).json({ message: "You cannot deactivate your own active employee account." });
+    }
+
+    const staff = await Staff.findById(targetId);
+    if (!staff) {
+      return res.status(404).json({ message: "Employee not found." });
+    }
+
+    staff.active = Boolean(active);
+    await staff.save();
+
+    await recordAudit(req, {
+      action: active ? "activate_employee_account" : "deactivate_employee_account",
+      targetType: "staff",
+      targetId: staff._id,
+      summary: `Employee account "${staff.username}" (${staff.name}) was ${active ? "activated" : "deactivated"}.`,
+    });
+
+    const staffObj = staff.toObject();
+    delete staffObj.passwordHash;
+
+    res.json({
+      message: `Employee account successfully ${active ? "activated" : "deactivated"}.`,
+      employee: staffObj,
+    });
+  } catch (err) {
+    logger.error(`Update employee status error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update employee status." });
+  }
+});
+
+// PUT /api/staff/employees/:id/reset-password - Reset an employee's password (Protected)
+router.put("/employees/:id/reset-password", requireStaffAuth, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+
+    const staff = await Staff.findById(req.params.id);
+    if (!staff) {
+      return res.status(404).json({ message: "Employee not found." });
+    }
+
+    staff.passwordHash = await bcrypt.hash(newPassword, 10);
+    await staff.save();
+
+    await recordAudit(req, {
+      action: "reset_employee_password",
+      targetType: "staff",
+      targetId: staff._id,
+      summary: `Password was reset for employee account "${staff.username}" (${staff.name}).`,
+    });
+
+    res.json({
+      message: `Password for "${staff.name}" (${staff.username}) reset successfully.`,
+    });
+  } catch (err) {
+    logger.error(`Reset employee password error: ${err.message}`);
+    res.status(500).json({ message: "Failed to reset employee password." });
   }
 });
 
