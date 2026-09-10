@@ -56,12 +56,13 @@ router.post(
     const { name, companyName, mobile, email, password, accessToken, intake, prefillStages } = req.body;
 
     try {
-      if (accessToken) {
-        await verifyWidgetAccessToken(accessToken);
+      if (!accessToken) {
+        return res.status(400).json({ message: "OTP verification is required before registering your company." });
       }
+      await verifyWidgetAccessToken(accessToken);
 
       const existing = await Company.findOne({ email });
-      if (existing) {
+      if (existing && existing.isVerified) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
 
@@ -70,18 +71,31 @@ router.post(
       const defaultStage1a = { legalname: companyName || "" };
       const defaultStage1b = { pocname: name || "", pocemail: email || "", pocmobile: mobile || "" };
 
-      const company = await Company.create({
-        email,
-        passwordHash,
-        contactName: name,
-        companyName,
-        mobile,
-        completedStages: ["1a", "1b"],
-        intakeNotes: intake && typeof intake === "object" ? intake : null,
-        stage1a: { ...defaultStage1a, ...(stagePrefill.stage1a || {}) },
-        stage1b: { ...defaultStage1b, ...(stagePrefill.stage1b || {}) },
-        ...stagePrefill,
-      });
+      let company;
+      if (existing && !existing.isVerified) {
+        existing.passwordHash = passwordHash;
+        existing.contactName = name;
+        existing.companyName = companyName;
+        existing.mobile = mobile;
+        existing.isVerified = true;
+        existing.verifiedAt = new Date();
+        company = await existing.save();
+      } else {
+        company = await Company.create({
+          email,
+          passwordHash,
+          contactName: name,
+          companyName,
+          mobile,
+          isVerified: true,
+          verifiedAt: new Date(),
+          completedStages: ["1a", "1b"],
+          intakeNotes: intake && typeof intake === "object" ? intake : null,
+          stage1a: { ...defaultStage1a, ...(stagePrefill.stage1a || {}) },
+          stage1b: { ...defaultStage1b, ...(stagePrefill.stage1b || {}) },
+          ...stagePrefill,
+        });
+      }
 
       const token = signToken(company._id, "company");
       res.status(201).json({ token, company });
@@ -252,11 +266,17 @@ router.post("/demo-login", async (req, res) => {
         companyName: "Access RCM Solutions (Demo)",
         mobile: "+91 98765 00000",
         completedStages: ["1a", "1b", "2", "3", "4", "5", "6", "7", "8", "9"],
+        isVerified: true,
+        verifiedAt: new Date(),
         kycStatus: "verified",
         kycVerifiedAt: new Date(),
         stage1a: { legalname: "Access RCM Solutions Pvt Ltd", gstin: "29AAAAA0000A1Z5", kycStatus: "verified" },
         stage1b: { pocname: "Rohan Varma", pocemail: demoEmail, pocmobile: "+91 98765 00000" },
       });
+    } else if (!company.isVerified) {
+      company.isVerified = true;
+      company.verifiedAt = new Date();
+      await company.save();
     }
 
     const token = signToken(company._id, "company");

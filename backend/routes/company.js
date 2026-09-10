@@ -641,10 +641,58 @@ router.put("/applications/:id/status", async (req, res) => {
   // status-update request itself.
   if (previousStatus !== status && APPLICATION_STATUS_LABELS[status]) {
     const candidate = application.candidateId;
+    const candidateId = candidate?._id || candidate;
     const candidateEmail = candidate?.email;
+    const company = await Company.findById(req.companyId).select("companyName").lean();
+    const companyName = company?.companyName || "Employer";
+    const roleTitle = application.jobTitle || "Role";
+
+    // In-app Candidate Notification from Company
+    try {
+      if (candidateId) {
+        let notifTitle = `Application Status: ${companyName}`;
+        let notifMsg = `Your application for "${roleTitle}" at ${companyName} has been updated to "${status}".`;
+        let notifType = "application_update";
+
+        if (status === "shortlisted") {
+          notifTitle = `Shortlisted by ${companyName}! 🎯`;
+          notifMsg = `Great news! Your application for "${roleTitle}" has been shortlisted by ${companyName}.`;
+          notifType = "application_shortlisted";
+        } else if (status === "interviewing") {
+          notifTitle = `Interview Scheduled with ${companyName} 📅`;
+          notifMsg = `An interview has been scheduled with ${companyName} for "${roleTitle}". Check your Applications tab for details.`;
+          notifType = "interview_scheduled";
+        } else if (status === "hired") {
+          notifTitle = `Job Offer from ${companyName}! 🎉`;
+          notifMsg = `Congratulations! You have received a formal offer from ${companyName} for "${roleTitle}".`;
+          notifType = "offer_received";
+        } else if (status === "rejected") {
+          notifTitle = `Application Status: ${companyName}`;
+          notifMsg = `Your application for "${roleTitle}" at ${companyName} was not moved forward.`;
+          notifType = "application_update";
+        }
+
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: notifTitle,
+          message: notifMsg,
+          type: notifType,
+          meta: {
+            source: "company",
+            companyId: String(req.companyId),
+            companyName,
+            applicationId: String(application._id),
+            actionType: "applications",
+            actionLabel: "View in Applications",
+          },
+        });
+      }
+    } catch (notifErr) {
+      logger.warn(`Failed to create candidate in-app notification: ${notifErr.message}`);
+    }
+
     if (candidateEmail) {
-      const company = await Company.findById(req.companyId).select("companyName").lean();
-      const companyName = company?.companyName || "the employer";
       const candidateName = candidate?.stage1?.fullName || "there";
       sendTransactionalEmail({
         to: candidateEmail,

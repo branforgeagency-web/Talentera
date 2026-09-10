@@ -6,6 +6,7 @@ const { signToken, requireAuth } = require("../middleware/auth");
 const { authLimiter, otpLimiter } = require("../middleware/rateLimit");
 const { generateResetOtp, verifyAndConsumeResetOtp } = require("../utils/passwordReset");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -29,26 +30,46 @@ router.post(
       return res.status(400).json({ message: errors.array()[0].msg, errors: errors.array() });
     }
 
-    const { email, password, mobile } = req.body;
+    const { email, password, mobile, accessToken } = req.body;
     const cleanEmail = (email || "").toLowerCase().trim();
 
     try {
+      if (!accessToken) {
+        return res.status(400).json({ message: "OTP verification is required before creating your student account." });
+      }
+
+      await verifyWidgetAccessToken(accessToken);
+
       const existing = await Candidate.findOne({ email: cleanEmail });
-      if (existing) {
+      if (existing && existing.isVerified) {
         return res.status(409).json({ message: "An account with this email already exists." });
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
-      const candidate = await Candidate.create({
-        email: cleanEmail,
-        passwordHash,
-        mobile: mobile || "",
-        completedStages: [],
-      });
+      let candidate;
+      if (existing && !existing.isVerified) {
+        existing.passwordHash = passwordHash;
+        existing.mobile = mobile || existing.mobile || "";
+        existing.isVerified = true;
+        existing.verifiedAt = new Date();
+        candidate = await existing.save();
+      } else {
+        candidate = await Candidate.create({
+          email: cleanEmail,
+          passwordHash,
+          mobile: mobile || "",
+          isVerified: true,
+          verifiedAt: new Date(),
+          completedStages: [],
+        });
+      }
 
       const token = signToken(candidate._id, "candidate");
       res.status(201).json({ token, candidate });
     } catch (err) {
+      if (["OTP_TOKEN_MISSING", "OTP_VERIFY_FAILED"].includes(err.code)) {
+        return res.status(400).json({ message: err.message });
+      }
       logger.error(`Register error: ${err.message}`);
       res.status(500).json({ message: err.message || "Server error during registration." });
     }
@@ -75,7 +96,13 @@ router.post(
     try {
       const candidate = await Candidate.findOne({ email: cleanEmail });
       if (!candidate) {
-        return res.status(401).json({ message: "Invalid email or password." });
+        return res.status(401).json({ message: "No account found with this email. Please sign up and verify your OTP first." });
+      }
+
+      if (!candidate.isVerified) {
+        return res.status(403).json({
+          message: "This account has not completed OTP verification. Please sign up and verify your OTP first.",
+        });
       }
 
       if (!candidate.passwordHash) {
@@ -109,9 +136,15 @@ router.post("/demo-login", async (req, res) => {
         passwordHash,
         fullName: "Ananya Sharma",
         mobile: "+91 9876543210",
+        isVerified: true,
+        verifiedAt: new Date(),
         completedStages: [1, 2, 3, 4, 5],
         stage1: { fullName: "Ananya Sharma", mobile: "+91 9876543210" },
       });
+    } else if (!candidate.isVerified) {
+      candidate.isVerified = true;
+      candidate.verifiedAt = new Date();
+      await candidate.save();
     }
 
     const token = signToken(candidate._id, "candidate");

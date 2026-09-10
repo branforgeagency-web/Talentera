@@ -1,0 +1,807 @@
+/* ==========================================================================
+   TALENTERA MODERN LIGHT THEME (DARK BLUE LOGO THEME)
+   All black/charcoal text replaced with rich dark blue (#082553 / #1E3A5F)
+   ========================================================================== */
+
+:root {
+  --theme-bg-page: #F8FAFC;
+  --theme-bg-surface: #FFFFFF;
+  --theme-bg-subtle: #F0F8FE;
+  --theme-text-heading: #082553; /* Logo Dark Blue */
+  --theme-text-sub: #0C346B;     /* Secondary Dark Blue */
+  --theme-text-body: #1E3A5F;    /* Rich Dark Blue Body */
+  --theme-text-muted: #3B5B84;   /* Muted Dark Blue */
+  --theme-gold: #FAB12F;
+  --theme-gold-hover: #E59819;
+  --theme-gold-subtle: #FFFBEB;
+  --theme-gold-border: #FDE68A;
+  --theme-blue: #0284C7;
+  --theme-blue-subtle: #EFF6FF;
+  --theme-border: #E2E8F0;
+  --theme-border-subtle: rgba(226, 232, 240, 0.8);
+  --theme-navy-banner: #071952;
+}
+
+/* Base Body & Container Adjustments */
+body {
+  background-color: var(--theme-bg-page) !important;
+  color: var(--theme-text-body) !important;
+}
+
+/* ==========================================================================
+   GLOBAL DARK BLUE TYPOGRAPHY ENFORCEMENT
+   ========================================================================== */
+
+h1, h2, h3, h4, h5, h6,
+.hero-main-title,
+.section-title,
+.section-title-light,
+.bento-card-title,
+.job-role-title,
+.adv-title,
+.prog-node-title,
+.hv-faq-question,
+.loch-hub-name,
+.hero-ticker-msg,
+.liquid-btn-text,
+strong,
+b {
+  color: #082553 !important;
+}
+
+/* Subtitles, labels, and readable body text in Dark Blue */
+p,
+.section-lead,
+.hero-partner-desc,
+.bento-card-desc,
+.pipeline-step-desc,
+.adv-desc,
+.prog-node-desc,
+.hv-faq-answer,
+.partner-card-split p,
+.job-reasons-list li,
+.job-skill-tag,
+.job-meta-chip,
+.loch-co-tag {
+  color: #1E3A5F !important;
+}
+
+/* ==========================================================================
+   1. HERO BANNER SECTION (EXACT REFERENCE MOCKUP IN DARK BLUE)
+   ========================================================================== */
+
+.hero-banner-section {
+  position: relative;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F0F7FE 60%, #F8FAFC 100%);
+  padding: 0 0 40px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--theme-border);
+}
+
+/* Top Live Verification Ticker Bar */
+.hero-top-ticker {
+  background: #EFF8FE;
+  border-bottom: 1px solid #E2E8F0;
+  padding: 8px 0;
+  font-size: 12.5px;
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+}
+
+.hero-ticker-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hero-ticker-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.hero-ticker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16A34A;
+  box-shadow: 0 0 8px rgba(22, 163, 74, 0.6);
+  flex-shrink: 0;
+}
+
+.hero-ticker-tag {
+  color: #D97706;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.hero-ticker-msg {
+  color: #082553 !important;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hero-ticker-stats {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  color: #082553;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.hero-ticker-stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Hero Content Grid (2 Columns) */
+.hero-banner-grid {
+  display: grid;
+  grid-template-columns: 1.12fr 1fr;
+  align-items: center;
+  gap: 36px;
+  padding: 20px 0 10px;
+  position: relative;
+}
+
+.hero-banner-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  z-index: 2;
+}
+
+/* Display Headline */
+.hero-main-title {
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+  font-size: clamp(40px, 5.2vw, 68px);
+  font-weight: 800;
+  color: #082553 !important;
+  line-height: 1.06;
+  margin-bottom: 18px;
+  letter-spacing: -0.025em;
+}
+
+.hero-highlight-word {
+  color: #FAB12F;
+  position: relative;
+  display: inline-block;
+}
+
+.hero-swoosh-underline {
+  position: absolute;
+  left: 0;
+  bottom: -10px;
+  width: 100%;
+  height: 18px;
+  pointer-events: none;
+}
+
+/* Subtitle */
+.hero-partner-subtitle {
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 700;
+  color: #082553 !important;
+  line-height: 1.35;
+  margin-bottom: 14px;
+}
+
+.hero-cand-subtitle {
+  font-family: var(--font-heading, 'Space Grotesk', sans-serif);
+  font-size: clamp(20px, 2.4vw, 28px);
+  font-weight: 800;
+  color: #D97706;
+  line-height: 1.3;
+  margin-bottom: 16px;
+  letter-spacing: -0.01em;
+}
+
+/* Narrative paragraph */
+.hero-partner-desc {
+  font-size: 15px;
+  line-height: 1.65;
+  color: #1E3A5F !important;
+  max-width: 560px;
+  margin-bottom: 28px;
+  font-weight: 500;
+}
+
+/* CTA Action Buttons */
+.hero-cta-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 34px;
+}
+
+.hero-btn-partner {
+  background: #FAB12F;
+  color: #082553 !important;
+  font-weight: 700;
+  font-size: 15.5px;
+  padding: 14px 28px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 6px 20px -4px rgba(250, 177, 47, 0.45);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.hero-btn-partner:hover {
+  background: #E59819;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -4px rgba(250, 177, 47, 0.55);
+}
+
+.hero-btn-academy-login {
+  background: #FFFFFF;
+  color: #082553 !important;
+  font-weight: 700;
+  font-size: 15.5px;
+  padding: 14px 26px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #CBD5E1;
+  box-shadow: 0 2px 8px rgba(8, 37, 83, 0.06);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.hero-btn-academy-login:hover {
+  background: #F8FAFC;
+  border-color: #94A3B8;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(8, 37, 83, 0.1);
+}
+
+.hero-btn-arrow-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  margin-left: 4px;
+}
+
+/* Hero Right Visual */
+.hero-banner-right {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-doctor-visual-shell {
+  position: relative;
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.hero-doctor-artwork {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  border-radius: 20px;
+  filter: drop-shadow(0 16px 36px rgba(8, 37, 83, 0.12));
+  transition: transform 0.3s ease;
+}
+
+.hero-doctor-artwork:hover {
+  transform: translateY(-2px);
+}
+
+/* Responsive adjustments for Banner */
+@media (max-width: 1024px) {
+  .hero-banner-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .hero-banner-left {
+    align-items: center;
+    text-align: center;
+  }
+  .hero-partner-desc {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero-cta-group {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-cta-group {
+    flex-direction: column;
+    width: 100%;
+  }
+  .hero-btn-partner,
+  .hero-btn-academy-login {
+    width: 100%;
+    justify-content: center;
+  }
+  .hero-ticker-stats {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   2. ENTIRE WEBSITE THEME CONVERSIONS (DARK BLUE LOGO COLOR PALETTE)
+   ========================================================================== */
+
+/* Section Containers */
+.section-light-theme,
+section.section {
+  background: var(--theme-bg-surface) !important;
+  color: var(--theme-text-body) !important;
+  border-color: var(--theme-border) !important;
+}
+
+.section-eyebrow {
+  color: #0284C7 !important;
+  background: #EFF6FF !important;
+  border: 1px solid #BAE6FD !important;
+  font-weight: 800 !important;
+}
+
+.section-title,
+.section-title-light {
+  color: #082553 !important;
+  font-weight: 800 !important;
+}
+
+.section-lead {
+  color: #1E3A5F !important;
+}
+
+/* 2.1 Bento Feature Cards (What Talentera Does For Candidates) */
+.bento-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 16px rgba(8, 37, 83, 0.05) !important;
+  color: var(--theme-text-body) !important;
+}
+
+.bento-card:hover {
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 12px 28px rgba(8, 37, 83, 0.09) !important;
+  transform: translateY(-2px);
+}
+
+.bento-card-title {
+  color: #082553 !important;
+}
+
+.bento-card-desc {
+  color: #1E3A5F !important;
+}
+
+.bento-card-icon {
+  background: #EFF6FF !important;
+  border: 1px solid #BAE6FD !important;
+  color: #082553 !important;
+}
+
+.bento-card-num {
+  color: #4B6B94 !important;
+}
+
+.bento-card-tag {
+  background: #EFF6FF !important;
+  color: #0284C7 !important;
+}
+
+.bento-card-expand {
+  background: #F1F5F9 !important;
+  border-color: #E2E8F0 !important;
+  color: #082553 !important;
+}
+
+.bento-card.active .bento-card-icon,
+.bento-card.active .bento-card-expand {
+  background: #FAB12F !important;
+  border-color: #FAB12F !important;
+  color: #082553 !important;
+}
+
+.bento-card.expanded {
+  background: #FFFFFF !important;
+  border: 2px solid #FAB12F !important;
+  box-shadow: 0 20px 48px rgba(8, 37, 83, 0.12) !important;
+}
+
+.bento-expanded-container {
+  border-top-color: #E2E8F0 !important;
+}
+
+.bento-expanded-points-title {
+  color: #082553 !important;
+}
+
+.bento-point-item {
+  color: #1E3A5F !important;
+}
+
+.st-mock-profile-card,
+.st-mock-assessment-card,
+.st-mock-interview-card,
+.st-mock-verify-card,
+.st-mock-matching-card,
+.st-mock-discovered-card {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #082553 !important;
+  box-shadow: 0 4px 12px rgba(8, 37, 83, 0.05) !important;
+}
+
+.st-mock-name,
+.st-mock-test-title {
+  color: #082553 !important;
+}
+
+.st-mock-sub,
+.st-mock-test-meta {
+  color: #3B5B84 !important;
+}
+
+.st-skill-chip {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #082553 !important;
+}
+
+/* 2.2 Job Opportunity Showcase & Category Filter Bar */
+.job-match-section-root {
+  background: linear-gradient(180deg, #F8FAFC 0%, #F0F7FE 100%) !important;
+  border-top: 1px solid #E2E8F0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.job-match-bg-grid,
+.job-match-ambient-glow-1,
+.job-match-ambient-glow-2 {
+  opacity: 0.25 !important;
+}
+
+.job-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 36px;
+}
+
+.job-filter-pill {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #082553 !important;
+  box-shadow: 0 2px 6px rgba(8, 37, 83, 0.04) !important;
+  font-weight: 700 !important;
+}
+
+.job-filter-pill:hover {
+  background: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+  color: #082553 !important;
+}
+
+.job-filter-pill.active {
+  background: #FAB12F !important;
+  border-color: #FAB12F !important;
+  color: #082553 !important;
+  box-shadow: 0 4px 14px rgba(250, 177, 47, 0.35) !important;
+}
+
+.job-filter-count {
+  background: rgba(8, 37, 83, 0.08) !important;
+  color: inherit !important;
+}
+
+.job-match-card-v2 {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 16px rgba(8, 37, 83, 0.05) !important;
+  color: #1E3A5F !important;
+}
+
+.job-match-card-v2:hover {
+  border-color: #BAE6FD !important;
+  box-shadow: 0 14px 32px rgba(2, 132, 199, 0.1) !important;
+  transform: translateY(-3px);
+}
+
+.job-employer-name {
+  color: #3B5B84 !important;
+}
+
+.job-role-title {
+  color: #082553 !important;
+}
+
+.job-meta-chip {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #082553 !important;
+}
+
+.job-meta-salary {
+  background: #EFF6FF !important;
+  border-color: #BAE6FD !important;
+  color: #0284C7 !important;
+  font-weight: 700 !important;
+}
+
+.job-match-reasons-box {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+}
+
+.job-reasons-title {
+  color: #082553 !important;
+}
+
+.job-reasons-list li {
+  color: #1E3A5F !important;
+}
+
+.job-skill-tag {
+  background: #F1F5F9 !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #082553 !important;
+}
+
+/* 2.3 Verification Pipeline / How It Works */
+.pipeline-section-root {
+  background: #FFFFFF !important;
+  border-top: 1px solid #E2E8F0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.pipeline-step-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 16px rgba(8, 37, 83, 0.05) !important;
+  color: #1E3A5F !important;
+}
+
+.pipeline-step-card:hover {
+  border-color: #BAE6FD !important;
+  box-shadow: 0 12px 28px rgba(2, 132, 199, 0.08) !important;
+  transform: translateY(-2px);
+}
+
+.pipeline-step-title {
+  color: #082553 !important;
+}
+
+.pipeline-step-desc {
+  color: #1E3A5F !important;
+}
+
+.pipeline-step-num {
+  background: #EFF6FF !important;
+  color: #0284C7 !important;
+  border: 1px solid #BAE6FD !important;
+}
+
+/* 2.4 Advantage Bento Grid */
+.advantage-section-root {
+  background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%) !important;
+  border-top: 1px solid #E2E8F0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.adv-card,
+.advantage-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 16px rgba(8, 37, 83, 0.04) !important;
+  color: #1E3A5F !important;
+}
+
+.adv-card:hover,
+.advantage-card:hover {
+  border-color: #FDE68A !important;
+  box-shadow: 0 12px 30px rgba(250, 177, 47, 0.1) !important;
+  transform: translateY(-2px);
+}
+
+.adv-title,
+.advantage-card h3 {
+  color: #082553 !important;
+}
+
+.adv-desc,
+.advantage-card p {
+  color: #1E3A5F !important;
+}
+
+.adv-icon-wrap {
+  background: #FFFBEB !important;
+  border: 1px solid #FDE68A !important;
+  color: #D97706 !important;
+}
+
+/* 2.5 Candidate Progression Section */
+.progression-section-root {
+  background: #F0F7FE !important;
+  border-top: 1px solid #E2E8F0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.progression-card-node {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 16px rgba(8, 37, 83, 0.05) !important;
+  color: #1E3A5F !important;
+}
+
+.progression-card-node:hover {
+  border-color: #BAE6FD !important;
+  box-shadow: 0 12px 28px rgba(2, 132, 199, 0.08) !important;
+}
+
+.prog-node-title {
+  color: #082553 !important;
+}
+
+.prog-node-desc {
+  color: #1E3A5F !important;
+}
+
+/* 2.6 Partner Split Showcase (Company & Academy) */
+.partner-showcase-section {
+  background: #FFFFFF !important;
+  border-top: 1px solid #E2E8F0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.partner-card-split {
+  background: #F8FAFC !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 6px 24px rgba(8, 37, 83, 0.05) !important;
+}
+
+.partner-card-company {
+  border-left: 4px solid #0284C7 !important;
+}
+
+.partner-card-academy {
+  border-left: 4px solid #10B981 !important;
+}
+
+.partner-card-split h3 {
+  color: #082553 !important;
+}
+
+.partner-card-split p {
+  color: #1E3A5F !important;
+}
+
+.partner-feat-item {
+  color: #1E3A5F !important;
+}
+
+/* 2.7 Location Hiring Hubs */
+.loch-section {
+  background: linear-gradient(180deg, #FFFFFF 0%, #F0F7FE 100%) !important;
+  border-top: 1px solid #E2E8F0 !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.loch-bg,
+.loch-glow {
+  opacity: 0.2 !important;
+}
+
+.loch-hub-card {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 14px rgba(8, 37, 83, 0.04) !important;
+}
+
+.loch-hub-card:hover {
+  border-color: #BAE6FD !important;
+  box-shadow: 0 12px 28px rgba(8, 37, 83, 0.08) !important;
+}
+
+.loch-hub-card.active {
+  background: #EFF8FE !important;
+  border-color: #0284C7 !important;
+}
+
+.loch-hub-name {
+  color: #082553 !important;
+}
+
+.loch-hub-state {
+  color: #3B5B84 !important;
+}
+
+.loch-co-tag {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #082553 !important;
+}
+
+.loch-co-tag:hover {
+  background: #EFF6FF !important;
+  border-color: #BAE6FD !important;
+}
+
+/* 2.8 FAQ Accordion Section */
+#faq {
+  background: #FFFFFF !important;
+  border-top: 1px solid #E2E8F0 !important;
+}
+
+.hv-faq-item {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 2px 8px rgba(8, 37, 83, 0.03) !important;
+}
+
+.hv-faq-item:hover {
+  border-color: #CBD5E1 !important;
+}
+
+.hv-faq-item.open {
+  border-color: #FAB12F !important;
+  box-shadow: 0 6px 20px rgba(250, 177, 47, 0.12) !important;
+}
+
+.hv-faq-question {
+  color: #082553 !important;
+  font-weight: 700 !important;
+}
+
+.hv-faq-answer {
+  color: #1E3A5F !important;
+  border-top-color: #F1F5F9 !important;
+}
+
+/* Primary Button Enhancements */
+.btn-gold {
+  background: #FAB12F !important;
+  color: #082553 !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(250, 177, 47, 0.35) !important;
+}
+
+.btn-gold:hover {
+  background: #E59819 !important;
+  color: #082553 !important;
+  box-shadow: 0 6px 20px rgba(250, 177, 47, 0.5) !important;
+}
+
+.btn-outline {
+  background: #FFFFFF !important;
+  color: #082553 !important;
+  border: 1px solid #CBD5E1 !important;
+  box-shadow: 0 2px 6px rgba(8, 37, 83, 0.04) !important;
+}
+
+.btn-outline:hover {
+  background: #F8FAFC !important;
+  border-color: #94A3B8 !important;
+}

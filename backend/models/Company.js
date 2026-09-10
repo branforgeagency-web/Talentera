@@ -26,6 +26,15 @@ const CompanySchema = new mongoose.Schema(
     companyName: { type: String, default: "" },
     mobile: { type: String, default: "" },
 
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+
     // Ids of onboarding stages with at least one saved field, e.g. ["1A","1B","2"]
     completedStages: {
       type: [String],

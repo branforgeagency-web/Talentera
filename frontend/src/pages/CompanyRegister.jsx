@@ -61,11 +61,15 @@ export default function CompanyRegister() {
 
     setSubmitting(true);
     try {
-      const accessToken = await startOtpWidget(regEmail);
+      const accessToken = await startOtpWidget(regEmail, {
+        email: regEmail,
+        title: "Company Account Verification",
+        submitLabel: "Verify & Continue →",
+      });
       setOtpToken(accessToken);
       setStep(2);
     } catch (err) {
-      setError(err.message || "Email OTP verification failed. Please try again.");
+      setError(err.message || "OTP verification failed. Please try again.");
     } finally {
       setSubmitting(false);
     }

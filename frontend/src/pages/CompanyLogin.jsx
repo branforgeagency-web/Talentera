@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
-import { startOtpWidget } from "../utils/msg91Widget.js";
 import { isFullyOnboarded } from "../data/companyOnboardingStages";
 import { safeJson } from "../utils/safeJson.js";
 
 export default function CompanyLogin() {
-  const { loginStart, verifyLoginOtp, company } = useCompanyAuth();
+  const { login, company } = useCompanyAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState(location.state?.email || "");
@@ -34,9 +33,7 @@ export default function CompanyLogin() {
     setError("");
     setSubmitting(true);
     try {
-      const { company: pendingCompany } = await loginStart(email, password);
-      const accessToken = await startOtpWidget(email);
-      const loggedInCompany = await verifyLoginOtp(pendingCompany._id, accessToken);
+      const loggedInCompany = await login(email, password);
       navigate(isFullyOnboarded(loggedInCompany) ? "/companies/jobs" : "/companies/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Login failed. Please try again.");
@@ -224,7 +221,7 @@ export default function CompanyLogin() {
             disabled={submitting}
             style={{ width: "100%", padding: 14, background: "#E5A82E", color: "#0A1F3D", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}
           >
-            {submitting ? "Verifying OTP…" : "Log In →"}
+            {submitting ? "Logging in..." : "Log In →"}
           </button>
         </form>
 

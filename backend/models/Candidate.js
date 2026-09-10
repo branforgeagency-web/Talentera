@@ -38,6 +38,15 @@ const CandidateSchema = new mongoose.Schema(
       trim: true,
     },
 
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verifiedAt: {
+      type: Date,
+      default: null,
+    },
+
     completedStages: {
       type: [Number],
       default: [],
@@ -94,6 +103,14 @@ const CandidateSchema = new mongoose.Schema(
     submittedAt: {
       type: Date,
       default: null,
+    },
+    notificationsLastReadAt: {
+      type: Date,
+      default: null,
+    },
+    readNotificationIds: {
+      type: [String],
+      default: [],
     },
   },
   { timestamps: true } // gives createdAt / updatedAt automatically

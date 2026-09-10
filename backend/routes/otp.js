@@ -13,11 +13,7 @@ function cleanEmail(identifier) {
   return identifier.trim().toLowerCase();
 }
 
-// Only ever log a real OTP code outside production. Previously this logged
-// unconditionally, meaning anyone with access to production logs (hosting
-// dashboard, log aggregator, a misconfigured public endpoint) could read
-// live login OTP codes and take over any account mid-login. See
-// IMPROVEMENT_ROADMAP.md "OTP codes are written to server logs."
+// Only ever log a real OTP code outside production.
 function logOtpForDev(label, email, otp) {
   if (process.env.NODE_ENV === "production") return;
   logger.info(`[DEV ONLY - ${label}] Email: ${email} | OTP: ${otp}`);
@@ -29,7 +25,7 @@ router.post("/send", otpLimiter, async (req, res) => {
   const email = cleanEmail(reqEmail || identifier);
 
   if (!email || !email.includes("@")) {
-    return res.status(400).json({ message: "A valid email address is required for OTP verification." });
+    return res.status(400).json({ message: "A valid email address is required for Email OTP verification." });
   }
 
   const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -74,7 +70,7 @@ router.post("/send", otpLimiter, async (req, res) => {
 
       return res.json({
         success: true,
-        message: `OTP sent successfully to ${email} via Brevo Email.`,
+        message: `OTP sent successfully to ${email} via Email.`,
       });
     } catch (err) {
       const errorData = err.response?.data || err.message;
@@ -83,10 +79,6 @@ router.post("/send", otpLimiter, async (req, res) => {
 
       logOtpForDev("BREVO OTP FALLBACK", email, generatedOtp);
 
-      // In production, never hand the raw OTP back in the response either -
-      // if Brevo failed to actually deliver it, the candidate has no way to
-      // receive the code, but leaking it into the JSON response/network tab
-      // would be exactly the same exposure as logging it.
       if (process.env.NODE_ENV === "production") {
         return res.status(502).json({
           success: false,
@@ -107,9 +99,6 @@ router.post("/send", otpLimiter, async (req, res) => {
   logOtpForDev("BREVO DEV OTP", email, generatedOtp);
 
   if (process.env.NODE_ENV === "production") {
-    // A production deploy with no Brevo key configured is a config error,
-    // not something to silently paper over by handing out the OTP in the
-    // response body.
     return res.status(503).json({
       success: false,
       message: "Email verification is temporarily unavailable. Please try again later.",
@@ -124,7 +113,7 @@ router.post("/send", otpLimiter, async (req, res) => {
   });
 });
 
-// POST /api/otp/verify - Verifies Brevo Email OTP
+// POST /api/otp/verify - Verifies Email OTP
 router.post("/verify", otpLimiter, async (req, res) => {
   const { identifier, email: reqEmail, otp } = req.body;
   const email = cleanEmail(reqEmail || identifier);
@@ -146,8 +135,12 @@ router.post("/verify", otpLimiter, async (req, res) => {
 
   if (record.otp.trim() === otp.trim()) {
     localOtpStore.delete(email);
-    const token = `brevo_token_${Date.now()}_${otp.trim()}`;
-    return res.json({ success: true, accessToken: token, message: "Email OTP verified successfully." });
+    const token = `otp_token_${Date.now()}_${otp.trim()}`;
+    return res.json({
+      success: true,
+      accessToken: token,
+      message: "Email OTP verified successfully.",
+    });
   }
 
   return res.status(400).json({ message: "Invalid OTP verification code. Please check and try again." });

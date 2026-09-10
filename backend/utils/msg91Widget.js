@@ -14,12 +14,15 @@ async function verifyWidgetAccessToken(accessToken) {
     throw err;
   }
 
-  // If token is a verified Brevo or MSG91 token, return success
+  // If token is a verified Brevo, MSG91, or OTP token, return success
   if (
     typeof accessToken === "string" &&
-    (accessToken.startsWith("demo_") || accessToken.startsWith("brevo_token_") || accessToken.startsWith("msg91_token_"))
+    (accessToken.startsWith("demo_") ||
+      accessToken.startsWith("brevo_token_") ||
+      accessToken.startsWith("msg91_token_") ||
+      accessToken.startsWith("otp_token_"))
   ) {
-    console.log("Verified Brevo/MSG91 access token.");
+    console.log("Verified OTP access token.");
     return { success: true, message: "OTP access token verified." };
   }
 
