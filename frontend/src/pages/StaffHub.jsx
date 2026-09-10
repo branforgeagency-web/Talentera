@@ -66,6 +66,11 @@ const ICON_PATHS = {
   trendingUp: '<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
   logOut: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
   kebab: '<circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>',
+  palette: '<circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>',
+  columns: '<path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7m0-18H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7m0-18v18"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  externalLink: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>',
 };
 
 function Icon({ name, size = 18, sw = 2, style, className }) {
@@ -182,6 +187,15 @@ function getDeptLiveData(deptId, dashData) {
   }
 }
 
+// 5 Curated Luxury Themes for the Employee Dashboard
+const STAFF_THEMES = [
+  { id: "navy", name: "Executive Navy & Gold", color: "#0A1F3D", accent: "#FAB12F", desc: "Signature brand luxury" },
+  { id: "obsidian", name: "Obsidian Onyx", color: "#090D16", accent: "#38BDF8", desc: "High-tech OLED dark glass" },
+  { id: "emerald", name: "Emerald Sovereign", color: "#064E3B", accent: "#10B981", desc: "Medical & Fintech prestige" },
+  { id: "royal", name: "Royal Amethyst", color: "#2D1B4E", accent: "#F472B6", desc: "Plum & champagne rose gold" },
+  { id: "nordic", name: "Nordic Crisp Light", color: "#FFFFFF", accent: "#0284C7", desc: "Porcelain minimalist slate" },
+];
+
 export default function StaffHub() {
   const navigate = useNavigate();
   const [activeNav, setActiveNav] = useState("overview"); 
@@ -190,6 +204,111 @@ export default function StaffHub() {
   const [processingId, setProcessingId] = useState(null);
   const [previewDoc, setPreviewDoc] = useState(null);
   const [previewVideo, setPreviewVideo] = useState(null);
+
+  // --- MULTI-THEME STATE ---
+  const [staffTheme, setStaffTheme] = useState(() => {
+    try {
+      return localStorage.getItem("talentera_staff_theme") || "navy";
+    } catch {
+      return "navy";
+    }
+  });
+  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const themeRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (themeRef.current && !themeRef.current.contains(e.target)) {
+        setThemeDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const changeStaffTheme = (themeId) => {
+    setStaffTheme(themeId);
+    try {
+      localStorage.setItem("talentera_staff_theme", themeId);
+    } catch {}
+    setThemeDropdownOpen(false);
+  };
+
+  // --- CANDIDATE ACQUISITION ENHANCEMENTS ---
+  const [candidateView, setCandidateView] = useState("table"); // "table" | "pipeline" | "grid"
+  const [candidateQuickFilter, setCandidateQuickFilter] = useState("all");
+
+  // --- COMPANY RELATIONS ENHANCEMENTS ---
+  const [companyView, setCompanyView] = useState("table"); // "table" | "pipeline" | "grid"
+  const [companyQuickFilter, setCompanyQuickFilter] = useState("all");
+
+  // --- CLIPBOARD & CSV EXPORT HELPERS ---
+  const copyToClipboard = (text, label) => {
+    if (!text) return;
+    navigator.clipboard?.writeText(text);
+    showToast(`Copied ${label || text} to clipboard! 📋`);
+  };
+
+  const exportCandidatesCSV = (list) => {
+    if (!list || list.length === 0) {
+      showToast("No candidates to export.");
+      return;
+    }
+    const headers = ["Name", "Email", "Mobile", "City", "Role", "Academy", "Aadhaar Verified", "Stage Progress", "MCQ Score", "Verified Status", "Jobs Applied", "Hired"];
+    const rows = list.map((c) => [
+      `"${(c.fullName || "").replace(/"/g, '""')}"`,
+      `"${(c.email || "").replace(/"/g, '""')}"`,
+      `"${c.mobile || ""}"`,
+      `"${(c.city || "").replace(/"/g, '""')}"`,
+      `"${(c.currentRole || "").replace(/"/g, '""')}"`,
+      `"${(c.stage2?.academyName || "").replace(/"/g, '""')}"`,
+      c.aadhaarVerified || c.stage1?.aadhaarVerified ? "Yes" : "No",
+      `${(c.completedStages || []).length}/8 (${c.stageProgressPct || 0}%)`,
+      c.stage4?.score || c.stage4?.foundationScore || "N/A",
+      c.isVerified ? "Verified (Gold)" : "Pending",
+      c.applicationsCount || c.applicationMetrics?.total || 0,
+      c.applicationMetrics?.hired || 0,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `talentera_candidates_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Candidate roster exported successfully! 📥");
+  };
+
+  const exportCompaniesCSV = (list) => {
+    if (!list || list.length === 0) {
+      showToast("No companies to export.");
+      return;
+    }
+    const headers = ["Company Name", "Legal Name", "Email", "POC Name", "POC Mobile", "GSTIN", "PAN", "Plan", "KYC Status", "Jobs Count", "Applicants Count"];
+    const rows = list.map((c) => [
+      `"${(c.companyName || "").replace(/"/g, '""')}"`,
+      `"${(c.legalName || "").replace(/"/g, '""')}"`,
+      `"${(c.email || "").replace(/"/g, '""')}"`,
+      `"${(c.contactName || c.stage1b?.pocname || "").replace(/"/g, '""')}"`,
+      `"${c.mobile || c.stage1b?.pocmobile || ""}"`,
+      `"${c.stage1a?.gstin || ""}"`,
+      `"${c.stage1a?.pan || ""}"`,
+      `"${c.plan || "Free"}"`,
+      `"${c.kycStatus || "pending"}"`,
+      c.jobsCount || 0,
+      c.applicationsCount || 0,
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `talentera_companies_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Company directory exported successfully! 📥");
+  };
 
   const [selectedKycId, setSelectedKycId] = useState(null);
   const [selectedCertId, setSelectedCertId] = useState(null);
@@ -211,6 +330,21 @@ export default function StaffHub() {
 
   const [interviewQuestions, setInterviewQuestions] = useState([]);
   const [questionsLoading, setQuestionsLoading] = useState(true);
+  const [questionSearch, setQuestionSearch] = useState("");
+  const [questionModeFilter, setQuestionModeFilter] = useState("all");
+  const [questionStatusFilter, setQuestionStatusFilter] = useState("all");
+  const [questionModalOpen, setQuestionModalOpen] = useState(false);
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [questionForm, setQuestionForm] = useState({
+    text: "",
+    correctAnswer: "",
+    mode: "both",
+    order: 0,
+    active: true,
+  });
+  const [questionSubmitting, setQuestionSubmitting] = useState(false);
+  const [questionError, setQuestionError] = useState("");
+  const [questionDeleteConfirmId, setQuestionDeleteConfirmId] = useState(null);
 
   // --- EMPLOYEE DASHBOARD INTERACTIVE STATE (CANDIDATE & COMPANY THEME UNIFIED) ---
   // These start empty rather than seeded with fictional names/academies -
@@ -265,6 +399,39 @@ export default function StaffHub() {
   const [selectedAcademy, setSelectedAcademy] = useState(null);
   const [academyModalTab, setAcademyModalTab] = useState("profile");
 
+  // CRM + Data Department state
+  const [crmSearch, setCrmSearch] = useState("");
+  const [crmActionFilter, setCrmActionFilter] = useState("all");
+
+  // Success + Revenue Department state
+  const [revTab, setRevTab] = useState("placed"); // "placed" | "subscriptions"
+  const [placedSearch, setPlacedSearch] = useState("");
+  const [placedStatusFilter, setPlacedStatusFilter] = useState("all");
+  const [revPlanFilter, setRevPlanFilter] = useState("all");
+  const [revCompanySearch, setRevCompanySearch] = useState("");
+
+  // Employee Directory & Account Creation states
+  const [employeesList, setEmployeesList] = useState([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState("all");
+  const [employeeStats, setEmployeeStats] = useState({ total: 0, active: 0, inactive: 0 });
+  const [createEmployeeForm, setCreateEmployeeForm] = useState({
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+    role: "Senior Operations Auditor",
+    badge: "Gold Certified Lead",
+  });
+  const [createEmployeeSubmitting, setCreateEmployeeSubmitting] = useState(false);
+  const [createEmployeeError, setCreateEmployeeError] = useState("");
+  const [showEmployeePassword, setShowEmployeePassword] = useState(false);
+  const [resetPasswordEmployee, setResetPasswordEmployee] = useState(null);
+  const [newPasswordForReset, setNewPasswordForReset] = useState("");
+  const [resetPasswordSubmitting, setResetPasswordSubmitting] = useState(false);
+  const [resetPasswordError, setResetPasswordError] = useState("");
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3200);
@@ -294,20 +461,33 @@ export default function StaffHub() {
     fetchCandidates();
     fetchCompanies();
     fetchAcademies();
+    fetchEmployees();
   }, []);
 
   useEffect(() => {
     if (activeNav === "activity" && !activityLoaded) {
       fetchActivityLog(1);
     }
-    if (activeNav === "candidates") {
+    if (activeNav === "dept_crm_data") {
+      fetchActivityLog(1);
+      if (!candidatesList.length) fetchCandidates(candidateSearch, candidateStatusFilter);
+      if (!companiesList.length) fetchCompanies(companySearch, companyKycFilter);
+    }
+    if (activeNav === "dept_success_revenue") {
+      if (!candidatesList.length) fetchCandidates(candidateSearch, candidateStatusFilter);
+      if (!companiesList.length) fetchCompanies(companySearch, companyKycFilter);
+    }
+    if (activeNav === "candidates" || activeNav === "dept_candidate_acquisition") {
       fetchCandidates(candidateSearch, candidateStatusFilter);
     }
-    if (activeNav === "companies") {
+    if (activeNav === "companies" || activeNav === "dept_company_relations") {
       fetchCompanies(companySearch, companyKycFilter);
     }
     if (activeNav === "academies") {
       fetchAcademies(academySearch);
+    }
+    if (activeNav === "employees") {
+      fetchEmployees(employeeSearch, employeeStatusFilter);
     }
   }, [activeNav]);
 
@@ -403,6 +583,117 @@ export default function StaffHub() {
     }
   };
 
+  const handleOpenAddQuestion = () => {
+    setEditingQuestion(null);
+    setQuestionForm({
+      text: "",
+      correctAnswer: "",
+      mode: "both",
+      order: interviewQuestions.length + 1,
+      active: true,
+    });
+    setQuestionError("");
+    setQuestionModalOpen(true);
+  };
+
+  const handleOpenEditQuestion = (q) => {
+    setEditingQuestion(q);
+    setQuestionForm({
+      text: q.text || "",
+      correctAnswer: q.correctAnswer || "",
+      mode: q.mode || "both",
+      order: q.order ?? 0,
+      active: q.active !== false,
+    });
+    setQuestionError("");
+    setQuestionModalOpen(true);
+  };
+
+  const handleSaveQuestion = async (e) => {
+    if (e) e.preventDefault();
+    if (!questionForm.text.trim()) {
+      setQuestionError("Question text is required.");
+      return;
+    }
+    if (!questionForm.correctAnswer.trim()) {
+      setQuestionError("Expected model answer is required so the AI can evaluate responses.");
+      return;
+    }
+    setQuestionSubmitting(true);
+    setQuestionError("");
+
+    try {
+      const isEdit = Boolean(editingQuestion && (editingQuestion._id || editingQuestion.id));
+      const qId = editingQuestion?._id || editingQuestion?.id;
+      const url = isEdit ? `/api/staff/interview-questions/${qId}` : "/api/staff/interview-questions";
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          text: questionForm.text.trim(),
+          correctAnswer: questionForm.correctAnswer.trim(),
+          mode: questionForm.mode,
+          order: Number(questionForm.order) || 0,
+          active: Boolean(questionForm.active),
+        }),
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to save interview question.");
+      }
+
+      showToast(isEdit ? "Interview question updated successfully! ✓" : "New interview question added to bank! ✓");
+      setQuestionModalOpen(false);
+      fetchInterviewQuestions();
+    } catch (err) {
+      setQuestionError(err.message || "An unexpected error occurred.");
+    } finally {
+      setQuestionSubmitting(false);
+    }
+  };
+
+  const handleToggleQuestionActive = async (q) => {
+    const qId = q._id || q.id;
+    try {
+      const res = await fetch(`/api/staff/interview-questions/${qId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({ active: !q.active }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle question status.");
+      showToast(`Question status updated to ${!q.active ? "Active" : "Inactive"}.`);
+      setInterviewQuestions((prev) =>
+        prev.map((item) => ((item._id || item.id) === qId ? { ...item, active: !item.active } : item))
+      );
+    } catch (err) {
+      showToast("Error updating question status: " + err.message);
+    }
+  };
+
+  const handleDeleteQuestion = async (qId) => {
+    try {
+      const res = await fetch(`/api/staff/interview-questions/${qId}`, {
+        method: "DELETE",
+        headers: { ...getAuthHeader() },
+      });
+      if (!res.ok) throw new Error("Failed to delete interview question.");
+      showToast("Interview question removed from bank. 🗑️");
+      setQuestionDeleteConfirmId(null);
+      setInterviewQuestions((prev) => prev.filter((item) => (item._id || item.id) !== qId));
+    } catch (err) {
+      showToast("Error deleting question: " + err.message);
+    }
+  };
+
   const fetchCandidates = async (search = "", status = "") => {
     setCandidatesLoading(true);
     try {
@@ -459,6 +750,132 @@ export default function StaffHub() {
       console.error(err);
     } finally {
       setAcademiesLoading(false);
+    }
+  };
+
+  const fetchEmployees = async (search = "", status = "all") => {
+    setEmployeesLoading(true);
+    try {
+      let url = "/api/staff/employees";
+      const params = new URLSearchParams();
+      if (search && search.trim()) params.append("q", search.trim());
+      if (status && status !== "all") params.append("status", status);
+      const queryStr = params.toString();
+      if (queryStr) url += `?${queryStr}`;
+
+      const res = await fetch(url, { headers: { ...getAuthHeader() } });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      if (res.ok) {
+        setEmployeesList(data.employees || []);
+        if (data.stats) {
+          setEmployeeStats(data.stats);
+        }
+      }
+    } catch (err) {
+      console.error("fetchEmployees error:", err);
+    } finally {
+      setEmployeesLoading(false);
+    }
+  };
+
+  const generateRandomPassword = () => {
+    const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$";
+    let pass = "";
+    for (let i = 0; i < 10; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setCreateEmployeeForm((prev) => ({ ...prev, password: pass }));
+    setShowEmployeePassword(true);
+  };
+
+  const handleCreateEmployee = async (e) => {
+    e.preventDefault();
+    setCreateEmployeeError("");
+    setCreateEmployeeSubmitting(true);
+
+    try {
+      const res = await fetch("/api/staff/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify(createEmployeeForm),
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setCreateEmployeeError(data.message || "Failed to create employee account.");
+        return;
+      }
+
+      showToast(`Employee "${data.employee?.name || createEmployeeForm.name}" created successfully! 🎉`);
+      setActiveModal(null);
+      setCreateEmployeeForm({
+        name: "",
+        username: "",
+        email: "",
+        password: "",
+        role: "Senior Operations Auditor",
+        badge: "Gold Certified Lead",
+      });
+      fetchEmployees(employeeSearch, employeeStatusFilter);
+      fetchDashboard();
+    } catch (err) {
+      setCreateEmployeeError("Network error: Failed to create employee account.");
+    } finally {
+      setCreateEmployeeSubmitting(false);
+    }
+  };
+
+  const handleToggleEmployeeStatus = async (emp) => {
+    try {
+      const targetActive = !emp.active;
+      const res = await fetch(`/api/staff/employees/${emp._id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ active: targetActive }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        showToast(data.message || "Failed to update employee status.");
+        return;
+      }
+      showToast(`Employee "${emp.name}" is now ${targetActive ? "Active ✓" : "Deactivated"}.`);
+      fetchEmployees(employeeSearch, employeeStatusFilter);
+    } catch (err) {
+      showToast("Error updating employee status.");
+    }
+  };
+
+  const handleResetEmployeePassword = async (e) => {
+    e.preventDefault();
+    if (!newPasswordForReset || newPasswordForReset.length < 6) {
+      setResetPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    setResetPasswordError("");
+    setResetPasswordSubmitting(true);
+    try {
+      const res = await fetch(`/api/staff/employees/${resetPasswordEmployee._id}/reset-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ newPassword: newPasswordForReset }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setResetPasswordError(data.message || "Failed to reset password.");
+        return;
+      }
+      showToast(`Password reset successfully for ${resetPasswordEmployee.name}! 🔑`);
+      setActiveModal(null);
+      setResetPasswordEmployee(null);
+      setNewPasswordForReset("");
+    } catch (err) {
+      setResetPasswordError("Network error resetting password.");
+    } finally {
+      setResetPasswordSubmitting(false);
     }
   };
 
@@ -887,7 +1304,16 @@ export default function StaffHub() {
   }
 
   return (
-    <div className="staff-dashboard" style={{ minHeight: "100vh", background: "var(--cream, #FAF7F2)", fontFamily: "'Manrope', sans-serif", color: "var(--navy, #0A1F3D)" }}>
+    <div
+      className="staff-dashboard"
+      data-staff-theme={staffTheme}
+      style={{
+        minHeight: "100vh",
+        background: "var(--st-bg-shell, #06152B)",
+        fontFamily: "'Manrope', sans-serif",
+        color: "var(--st-text-body, #0A1F3D)",
+      }}
+    >
       {/* Toast Notification */}
       {toastMsg && (
         <div style={{ position: "fixed", top: 20, right: 20, background: "var(--navy-deep, #06152A)", color: "var(--gold, #E5A82E)", border: "1px solid rgba(229,168,46,0.3)", padding: "12px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700, boxShadow: "0 10px 25px rgba(0,0,0,0.3)", zIndex: 10000, display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}>
@@ -896,7 +1322,7 @@ export default function StaffHub() {
       )}
 
       {/* Main Layout Shell */}
-      <div className="staff-shell">
+      <div className="staff-shell" data-staff-theme={staffTheme}>
 
         {/* LEFT SIDEBAR (DARK NAVY BRAND THEME - Matching Candidate & Company Dashboards) */}
         <aside className="staff-sidebar">
@@ -937,27 +1363,15 @@ export default function StaffHub() {
             <nav className="staff-nav">
               <button
                 type="button"
-                className={`staff-nav-item${activeNav === "candidates" ? " active" : ""}`}
+                className={`staff-nav-item${activeNav === "employees" ? " active" : ""}`}
                 onClick={() => {
-                  setActiveNav("candidates");
-                  fetchCandidates(candidateSearch, candidateStatusFilter);
+                  setActiveNav("employees");
+                  fetchEmployees(employeeSearch, employeeStatusFilter);
                 }}
               >
-                <Icon name="user" size={18} style={{ color: "inherit" }} />
-                <span style={{ flex: 1 }}>All Candidates</span>
-                <span className="staff-nav-badge">{dashData?.reportsData?.totalCandidates || candidatesList.length || 0}</span>
-              </button>
-              <button
-                type="button"
-                className={`staff-nav-item${activeNav === "companies" ? " active" : ""}`}
-                onClick={() => {
-                  setActiveNav("companies");
-                  fetchCompanies(companySearch, companyKycFilter);
-                }}
-              >
-                <Icon name="buildingGrid" size={18} style={{ color: "inherit" }} />
-                <span style={{ flex: 1 }}>All Companies</span>
-                <span className="staff-nav-badge">{dashData?.reportsData?.totalCompanies || companiesList.length || 0}</span>
+                <Icon name="userPlus" size={18} style={{ color: "inherit" }} />
+                <span style={{ flex: 1 }}>All Employees</span>
+                <span className="staff-nav-badge">{employeeStats.total || employeesList.length || dashData?.stats?.totalEmployees || 0}</span>
               </button>
               <button
                 type="button"
@@ -977,14 +1391,52 @@ export default function StaffHub() {
             <div className="staff-nav-section">6 Departments</div>
             <nav className="staff-nav">
               {[
-                { id: "dept_candidate_acquisition", icon: "userPlus", label: "Candidate Acquisition", badge: "YOU" },
-                { id: "dept_company_relations", icon: "buildingGrid", label: "Company Relations" },
+                {
+                  id: "dept_candidate_acquisition",
+                  icon: "user",
+                  label: "Candidate Acquisition",
+                  badge: String(dashData?.reportsData?.totalCandidates || candidatesList.length || 0),
+                },
+                {
+                  id: "dept_company_relations",
+                  icon: "buildingGrid",
+                  label: "Company Relations",
+                  badge: String(dashData?.reportsData?.totalCompanies || companiesList.length || 0),
+                },
                 { id: "dept_mapping_engine", icon: "settingsGear", label: "Mapping Engine" },
                 { id: "dept_assessment_video", icon: "video", label: "Assessment + Video", badge: videoCounts.pending > 0 ? String(videoCounts.pending) : null, muted: true },
-                { id: "dept_crm_data", icon: "database", label: "CRM + Data" },
-                { id: "dept_success_revenue", icon: "trendingUp", label: "Success + Revenue" },
+                {
+                  id: "dept_crm_data",
+                  icon: "database",
+                  label: "CRM + Data",
+                  badge: String((dashData?.reportsData?.totalCandidates || candidatesList.length || 0) + (dashData?.reportsData?.totalCompanies || companiesList.length || 0)),
+                },
+                {
+                  id: "dept_success_revenue",
+                  icon: "trendingUp",
+                  label: "Success + Revenue",
+                  badge: dashData?.reportsData?.placementRate || (dashData?.stats?.placedThisMonth ? `${dashData.stats.placedThisMonth} mo` : null),
+                },
               ].map((d) => (
-                <button key={d.id} type="button" className={`staff-nav-item dept${activeNav === d.id ? " active" : ""}`} onClick={() => setActiveNav(d.id)}>
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`staff-nav-item dept${activeNav === d.id ? " active" : ""}`}
+                  onClick={() => {
+                    setActiveNav(d.id);
+                    if (d.id === "dept_candidate_acquisition") fetchCandidates(candidateSearch, candidateStatusFilter);
+                    if (d.id === "dept_company_relations") fetchCompanies(companySearch, companyKycFilter);
+                    if (d.id === "dept_crm_data") {
+                      fetchActivityLog(1);
+                      fetchCandidates(candidateSearch, candidateStatusFilter);
+                      fetchCompanies(companySearch, companyKycFilter);
+                    }
+                    if (d.id === "dept_success_revenue") {
+                      fetchCandidates(candidateSearch, candidateStatusFilter);
+                      fetchCompanies(companySearch, companyKycFilter);
+                    }
+                  }}
+                >
                   <Icon name={d.icon} size={16} style={{ color: "inherit" }} />
                   <span style={{ flex: 1 }}>{d.label}</span>
                   {d.badge && <span className={`staff-nav-badge${d.muted ? " muted" : ""}`}>{d.badge}</span>}
@@ -1024,8 +1476,8 @@ export default function StaffHub() {
                   .toUpperCase() || "?"}
               </div>
               <div className="staff-user-info">
-                <div className="staff-user-name">{dashData?.staffProfile?.name || "Staff Member"}</div>
-                <div className="staff-user-role">{(dashData?.staffProfile?.role || "STAFF").toUpperCase()}</div>
+                <div className="staff-user-name">{dashData?.staffProfile?.name || "Staff Auditor"}</div>
+                <div className="staff-user-role">{dashData?.staffProfile?.role || "Operations Team"}</div>
               </div>
               <span className="staff-user-action"><Icon name="kebab" size={16} /></span>
             </div>
@@ -1052,6 +1504,60 @@ export default function StaffHub() {
               <span className="staff-search-shortcut">⌘ K</span>
             </div>
             <div className="staff-topbar-actions">
+              {/* THEME SWITCHER */}
+              <div className="sf-theme-switcher-wrapper" ref={themeRef}>
+                <button
+                  type="button"
+                  className="sf-theme-btn"
+                  onClick={() => setThemeDropdownOpen(!themeDropdownOpen)}
+                  title="Switch Dashboard Theme"
+                >
+                  <span
+                    className="sf-theme-dot"
+                    style={{
+                      background: STAFF_THEMES.find((t) => t.id === staffTheme)?.accent || "#FAB12F",
+                      color: STAFF_THEMES.find((t) => t.id === staffTheme)?.accent || "#FAB12F",
+                    }}
+                  />
+                  <span>Theme: {STAFF_THEMES.find((t) => t.id === staffTheme)?.name.split(" ")[0] || "Theme"}</span>
+                  <span style={{ fontSize: 9, opacity: 0.7 }}>▼</span>
+                </button>
+
+                {themeDropdownOpen && (
+                  <div className="sf-theme-dropdown">
+                    <div className="sf-theme-menu-title">Select Executive Theme</div>
+                    {STAFF_THEMES.map((theme) => {
+                      const isActive = staffTheme === theme.id;
+                      return (
+                        <button
+                          key={theme.id}
+                          type="button"
+                          className={`sf-theme-option ${isActive ? "active" : ""}`}
+                          onClick={() => changeStaffTheme(theme.id)}
+                        >
+                          <div className="sf-theme-option-left">
+                            <div
+                              className="sf-theme-swatch-box"
+                              style={{
+                                background: theme.color,
+                                borderColor: theme.accent,
+                              }}
+                            >
+                              <div style={{ width: 7, height: 7, borderRadius: "50%", background: theme.accent }} />
+                            </div>
+                            <div>
+                              <div className="sf-theme-option-name">{theme.name}</div>
+                              <div className="sf-theme-option-desc">{theme.desc}</div>
+                            </div>
+                          </div>
+                          {isActive && <span style={{ color: theme.accent, fontWeight: 800 }}>✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
               <button type="button" className="staff-icon-btn" title="Notifications" onClick={() => setActiveNav("notifications")}>
                 <Icon name="bell" size={18} />
                 <span className="badge-dot" />
@@ -1059,13 +1565,33 @@ export default function StaffHub() {
               <button type="button" className="staff-icon-btn" title="Messages" onClick={() => showToast("Chat window initialized.")}>
                 <Icon name="message" size={18} />
               </button>
+              <button
+                type="button"
+                className="staff-create-emp-topbar-btn"
+                title="Create New Employee"
+                onClick={() => {
+                  setCreateEmployeeError("");
+                  setCreateEmployeeForm({
+                    name: "",
+                    username: "",
+                    email: "",
+                    password: "",
+                    role: "Senior Operations Auditor",
+                    badge: "Gold Certified Lead",
+                  });
+                  setShowEmployeePassword(false);
+                  setActiveModal("create_employee");
+                }}
+              >
+                <Icon name="userPlus" size={14} sw={2.4} /> + Create Employee
+              </button>
               <button type="button" className="staff-quick-btn" onClick={() => setActiveModal("quick_add")}>
                 <Icon name="plus" size={14} sw={2.4} /> Quick Add
               </button>
             </div>
           </header>
 
-          <main style={{ background: "var(--cream, #FAF7F2)", minWidth: 0, flex: 1 }}>
+          <main style={{ background: "var(--st-bg-main, #FAF7F2)", minWidth: 0, flex: 1, transition: "background 0.3s ease" }}>
 
           {/* OVERVIEW TAB CONTENT */}
           {activeNav === "overview" && (
@@ -1159,7 +1685,7 @@ export default function StaffHub() {
                       position: "relative",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
                     }}
-                    onClick={() => { setActiveNav("candidates"); fetchCandidates(candidateSearch, candidateStatusFilter); }}
+                    onClick={() => { setActiveNav("dept_candidate_acquisition"); fetchCandidates(candidateSearch, candidateStatusFilter); }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
@@ -1172,12 +1698,12 @@ export default function StaffHub() {
                     <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
                       {dashData?.reportsData?.totalCandidates || candidatesList.length || 0}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>All Candidates Directory</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>Candidate Acquisition</div>
                     <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
                       Full details across Stages 1–8, Aadhaar, AAPC certs, MCQ test, AI video, and placement track.
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                      Browse All Candidates →
+                      Open Candidate Acquisition →
                     </div>
                   </div>
 
@@ -1193,7 +1719,7 @@ export default function StaffHub() {
                       position: "relative",
                       boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
                     }}
-                    onClick={() => { setActiveNav("companies"); fetchCompanies(companySearch, companyKycFilter); }}
+                    onClick={() => { setActiveNav("dept_company_relations"); fetchCompanies(companySearch, companyKycFilter); }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
@@ -1206,12 +1732,12 @@ export default function StaffHub() {
                     <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
                       {dashData?.reportsData?.totalCompanies || companiesList.length || 0}
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>All Companies Directory</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>Company Relations</div>
                     <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
                       Legal entity details, GSTIN, PAN, KYC docs, plans, posted jobs, and applicant pipelines.
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                      Browse All Companies →
+                      Open Company Relations →
                     </div>
                   </div>
 
@@ -1411,11 +1937,12 @@ export default function StaffHub() {
           )}
 
           {/* =========================================================================
-              TAB MODULE: MASTER DIRECTORY - ALL CANDIDATES
+              TAB MODULE: CANDIDATE ACQUISITION (ALL CANDIDATE DETAILS & PIPELINE)
              ========================================================================= */}
-          {activeNav === "candidates" && (() => {
+          {(activeNav === "candidates" || activeNav === "dept_candidate_acquisition") && (() => {
             const filteredCandidates = candidatesList.filter((c) => {
               const m = c.applicationMetrics || {};
+              // Standard dropdown status filter
               if (candidateStatusFilter === "verified" && !c.isVerified) return false;
               if (candidateStatusFilter === "pending" && c.isVerified) return false;
               if (candidateStatusFilter === "assessment" && (!c.completedStages || !c.completedStages.includes(4))) return false;
@@ -1424,6 +1951,18 @@ export default function StaffHub() {
               if (candidateStatusFilter === "interviewing" && (m.interviewing || 0) === 0) return false;
               if (candidateStatusFilter === "hired" && (m.hired || 0) === 0) return false;
 
+              // Quick chip filter
+              if (candidateQuickFilter === "verified" && !c.isVerified) return false;
+              if (candidateQuickFilter === "assessment" && (!c.completedStages?.includes(4) && !c.stage4?.score)) return false;
+              if (candidateQuickFilter === "aadhaar" && !(c.aadhaarVerified || c.stage1?.aadhaarVerified)) return false;
+              if (candidateQuickFilter === "pending_audit" && c.isVerified) return false;
+              if (candidateQuickFilter === "hired" && (m.hired || 0) === 0) return false;
+              if (candidateQuickFilter === "high_score") {
+                const sc = Number(c.stage4?.score || c.stage4?.foundationScore || 0);
+                if (sc < 75) return false;
+              }
+
+              // Text search across all fields
               if (candidateSearch && candidateSearch.trim()) {
                 const q = candidateSearch.trim().toLowerCase();
                 const nameMatch = (c.fullName || "").toLowerCase().includes(q);
@@ -1431,561 +1970,1513 @@ export default function StaffHub() {
                 const mobileMatch = (c.mobile || "").toLowerCase().includes(q);
                 const academyMatch = (c.stage2?.academyName || "").toLowerCase().includes(q);
                 const roleMatch = (c.currentRole || "").toLowerCase().includes(q);
-                if (!nameMatch && !emailMatch && !mobileMatch && !academyMatch && !roleMatch) return false;
+                const cityMatch = (c.city || c.stage1?.city || "").toLowerCase().includes(q);
+                if (!nameMatch && !emailMatch && !mobileMatch && !academyMatch && !roleMatch && !cityMatch) return false;
               }
               return true;
             });
 
             const verifiedTotal = candidatesList.filter((c) => c.isVerified).length;
-            const inAssessmentTotal = candidatesList.filter((c) => c.completedStages?.includes(4) && !c.isVerified).length;
+            const aadhaarTotal = candidatesList.filter((c) => c.aadhaarVerified || c.stage1?.aadhaarVerified).length;
+            const inAssessmentTotal = candidatesList.filter((c) => (c.completedStages?.includes(4) || c.stage4?.score) && !c.isVerified).length;
             const pendingTotal = candidatesList.filter((c) => !c.isVerified).length;
+            const pendingAuditTotal = candidatesList.filter((c) => (c.completedStages?.length >= 6 || c.aadhaarVerified) && !c.isVerified).length;
             const totalAppsSum = candidatesList.reduce((sum, c) => sum + (c.applicationsCount || c.applicationMetrics?.total || 0), 0);
             const totalShortlistedSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.shortlisted || 0), 0);
+            const totalInterviewingSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.interviewing || 0), 0);
             const totalHiredSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.hired || 0), 0);
 
             return (
               <div className="tt-content">
-                <QueuePageHeader
-                  icon="👥"
-                  accent="var(--navy, #0A1F3D)"
-                  title="Candidates Master Directory"
-                  subtitle="Comprehensive database of candidate profiles, personal contact info, Aadhaar verification, academy training, certifications, proctored assessments, AI video interviews, live charts, and full job applications history (Applied, Shortlisted, Interviewing, Offered, Hired)."
-                  pills={
-                    <>
-                      <StatPill count={candidatesList.length} label="TOTAL CANDIDATES" tone="pending" />
-                      <StatPill count={verifiedTotal} label="VERIFIED (GOLD)" tone="good" />
-                      <StatPill count={totalAppsSum} label="JOBS APPLIED" tone="good" />
-                      <StatPill count={totalShortlistedSum} label="SHORTLISTED" tone="pending" />
-                      <StatPill count={totalHiredSum} label="HIRED" tone="good" />
-                    </>
-                  }
-                />
+                {/* EXECUTIVE HERO BANNER */}
+                <div className="sf-premium-hero">
+                  <div className="sf-hero-top-row">
+                    <div>
+                      <div className="sf-hero-badge-capsule">
+                        <span className="sf-hero-pulse" />
+                        <span>Candidate Acquisition &amp; Verification Pipeline</span>
+                      </div>
+                      <h1 className="sf-hero-title" style={{ color: "#ffffff" }}>Candidate Acquisition HQ</h1>
+                      <p className="sf-hero-desc" style={{ color: "rgba(255, 255, 255, 0.92)" }}>
+                        Sources talent from partner academies, colleges, and referrals. Audits and orchestrates candidate profiles across all 8 verification stages: Aadhaar KYC, AAPC certifications, proctored MCQ &amp; AI video assessments, and corporate placement matching.
+                      </p>
+                    </div>
+                    <div className="sf-hero-actions">
+                      <button
+                        type="button"
+                        className="sf-hero-btn glass"
+                        onClick={() => exportCandidatesCSV(filteredCandidates)}
+                        title="Export current candidate roster to CSV"
+                      >
+                        <Icon name="download" size={14} /> Export CSV ({filteredCandidates.length})
+                      </button>
+                      <button
+                        type="button"
+                        className="sf-hero-btn primary"
+                        onClick={() => fetchCandidates(candidateSearch, candidateStatusFilter)}
+                        disabled={candidatesLoading}
+                      >
+                        {candidatesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                      </button>
+                    </div>
+                  </div>
 
-                {/* SEARCH AND FILTER CONTROLS */}
-                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
-                  <input
-                    type="text"
-                    className="staff-filter-input"
-                    placeholder="Search candidate by name, email, phone, academy, role..."
-                    value={candidateSearch}
-                    onChange={(e) => setCandidateSearch(e.target.value)}
-                  />
-                  <select
-                    className="staff-filter-select"
-                    value={candidateStatusFilter}
-                    onChange={(e) => setCandidateStatusFilter(e.target.value)}
-                  >
-                    <option value="all">All Statuses ({candidatesList.length})</option>
-                    <option value="verified">Fully Verified ({verifiedTotal})</option>
-                    <option value="assessment">In Assessment ({inAssessmentTotal})</option>
-                    <option value="pending">Pending Verification ({pendingTotal})</option>
-                    <option value="has_applications">Has Applied Jobs</option>
-                    <option value="shortlisted">Has Shortlisted</option>
-                    <option value="interviewing">Interviewing</option>
-                    <option value="hired">Hired Candidates</option>
-                  </select>
-                  <button
-                    type="button"
-                    className="sf-action-btn"
-                    onClick={() => fetchCandidates(candidateSearch, candidateStatusFilter)}
-                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
-                  >
-                    {candidatesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
-                  </button>
+                  {/* HERO STATS PILL ROW */}
+                  <div className="sf-hero-stats-row">
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{candidatesList.length}</span>
+                      <span className="sf-hero-pill-lbl">Total Candidates</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{verifiedTotal}</span>
+                      <span className="sf-hero-pill-lbl">Gold Verified</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{aadhaarTotal}</span>
+                      <span className="sf-hero-pill-lbl">Aadhaar KYC Cleared</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{dashData?.stats?.pendingVerifications ?? pendingAuditTotal}</span>
+                      <span className="sf-hero-pill-lbl">Awaiting Audit</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{totalAppsSum}</span>
+                      <span className="sf-hero-pill-lbl">Job Applications</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val" style={{ color: "#22C55E" }}>🎉 {totalHiredSum}</span>
+                      <span className="sf-hero-pill-lbl">Hired &amp; Placed</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* CANDIDATES DATA TABLE */}
-                <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
-                  <div className="sf-table-wrap">
-                    <table className="sf-table">
-                      <thead>
-                        <tr>
-                          <th>Candidate</th>
-                          <th>Identity &amp; Aadhaar</th>
-                          <th>Academy &amp; Batch</th>
-                          <th>Specialty / Role</th>
-                          <th>Stage Progress</th>
-                          <th>Assessment</th>
-                          <th>Job Pipeline</th>
-                          <th>Status</th>
-                          <th style={{ textAlign: "right" }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredCandidates.map((c) => {
-                          const initials = (c.fullName || "CD")
-                            .split(" ")
-                            .map((w) => w[0])
-                            .slice(0, 2)
-                            .join("")
-                            .toUpperCase();
-                          const stages = c.completedStages || [];
-                          const score = c.stage4?.score || c.stage4?.foundationScore || null;
-                          const m = c.applicationMetrics || {
-                            total: c.applicationsCount || 0,
-                            applied: 0,
-                            shortlisted: 0,
-                            interviewing: 0,
-                            offered: 0,
-                            hired: 0,
-                            rejected: 0,
-                          };
+                {/* BENTO KPI METRICS FUNNEL (5 INTERACTIVE TILES) */}
+                <div className="sf-funnel-grid">
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon"><Icon name="user" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "rgba(10,31,61,0.08)", color: "var(--st-text-heading, #0A1F3D)" }}>TOTAL SOURCED</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{candidatesList.length}</div>
+                      <div className="sf-bento-kpi-label">Talent Pool</div>
+                      <div className="sf-bento-kpi-sub">Across all partner academies &amp; colleges</div>
+                    </div>
+                  </div>
 
-                          return (
-                            <tr key={c._id || c.id}>
-                              <td>
-                                <div className="sf-name-cell">
-                                  <div
-                                    className="sf-mini-avatar"
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(34,197,94,0.12)", color: "#15803D" }}><Icon name="shieldCheck" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#DCFCE7", color: "#15803D" }}>STAGE 1 GOV KYC</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{aadhaarTotal}</div>
+                      <div className="sf-bento-kpi-label">Aadhaar Identity KYC</div>
+                      <div className="sf-bento-kpi-sub">{candidatesList.length > 0 ? Math.round((aadhaarTotal / candidatesList.length) * 100) : 0}% profiles identity cleared</div>
+                    </div>
+                  </div>
+
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(59,130,246,0.12)", color: "#2563EB" }}><Icon name="chartBar" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#EFF6FF", color: "#2563EB" }}>STAGES 4 &amp; 5</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{inAssessmentTotal}</div>
+                      <div className="sf-bento-kpi-label">Assessment Passed</div>
+                      <div className="sf-bento-kpi-sub">MCQ tested &amp; AI video evaluated</div>
+                    </div>
+                  </div>
+
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(250,177,47,0.15)", color: "#B45309" }}><Icon name="award" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#FEF3C7", color: "#B45309" }}>STAGE 8 AUDIT</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{verifiedTotal}</div>
+                      <div className="sf-bento-kpi-label">Gold Verified Talent</div>
+                      <div className="sf-bento-kpi-sub">Complete 8-stage verified profiles</div>
+                    </div>
+                  </div>
+
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(168,85,247,0.12)", color: "#7C3AED" }}><Icon name="trendingUp" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#FAF5FF", color: "#7C3AED" }}>PLACEMENTS</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{totalHiredSum}</div>
+                      <div className="sf-bento-kpi-label">Placed This Season</div>
+                      <div className="sf-bento-kpi-sub">{totalInterviewingSum} currently in final interviews</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* UNIFIED CONTROL TOOLBAR: SEARCH + STATUS + VIEW TOGGLE + QUICK CHIPS */}
+                <div className="sf-control-toolbar">
+                  <div className="sf-toolbar-row-main">
+                    <div className="sf-search-input-wrap">
+                      <Icon name="search" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search candidate by name, email, mobile, academy, role, city..."
+                        value={candidateSearch}
+                        onChange={(e) => setCandidateSearch(e.target.value)}
+                      />
+                      {candidateSearch && (
+                        <button
+                          type="button"
+                          className="sf-clear-btn"
+                          onClick={() => setCandidateSearch("")}
+                          title="Clear search"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      className="staff-filter-select"
+                      value={candidateStatusFilter}
+                      onChange={(e) => setCandidateStatusFilter(e.target.value)}
+                    >
+                      <option value="all">All Statuses ({candidatesList.length})</option>
+                      <option value="verified">Fully Verified ({verifiedTotal})</option>
+                      <option value="assessment">In Assessment ({inAssessmentTotal})</option>
+                      <option value="pending">Pending Verification ({pendingTotal})</option>
+                      <option value="has_applications">Has Applied Jobs ({candidatesList.filter(c => (c.applicationsCount || c.applicationMetrics?.total || 0) > 0).length})</option>
+                      <option value="shortlisted">Shortlisted Candidates ({totalShortlistedSum})</option>
+                      <option value="interviewing">Interviewing ({totalInterviewingSum})</option>
+                      <option value="hired">Hired Candidates ({totalHiredSum})</option>
+                    </select>
+
+                    {/* VIEW TOGGLE */}
+                    <div className="sf-view-toggle">
+                      <button
+                        type="button"
+                        className={`sf-view-btn ${candidateView === "table" ? "active" : ""}`}
+                        onClick={() => setCandidateView("table")}
+                        title="Table View"
+                      >
+                        <Icon name="checklist" size={14} /> Table
+                      </button>
+                      <button
+                        type="button"
+                        className={`sf-view-btn ${candidateView === "pipeline" ? "active" : ""}`}
+                        onClick={() => setCandidateView("pipeline")}
+                        title="Pipeline Funnel (Kanban)"
+                      >
+                        <Icon name="columns" size={14} /> Pipeline
+                      </button>
+                      <button
+                        type="button"
+                        className={`sf-view-btn ${candidateView === "grid" ? "active" : ""}`}
+                        onClick={() => setCandidateView("grid")}
+                        title="Showcase Cards Grid"
+                      >
+                        <Icon name="grid" size={14} /> Cards
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* QUICK FILTER CHIPS */}
+                  <div className="sf-quick-chips-row">
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-text-muted, #64748B)", textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 4 }}>
+                      Quick Filter:
+                    </span>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "all" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("all")}
+                    >
+                      All ({candidatesList.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "verified" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("verified")}
+                    >
+                      ✓ Verified (Gold) ({verifiedTotal})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "assessment" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("assessment")}
+                    >
+                      📊 In Assessment ({inAssessmentTotal})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "aadhaar" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("aadhaar")}
+                    >
+                      🛡️ Aadhaar Verified ({aadhaarTotal})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "pending_audit" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("pending_audit")}
+                    >
+                      ⏳ Awaiting Audit ({pendingAuditTotal})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "hired" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("hired")}
+                    >
+                      🎉 Placed ({totalHiredSum})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${candidateQuickFilter === "high_score" ? "active" : ""}`}
+                      onClick={() => setCandidateQuickFilter("high_score")}
+                    >
+                      ⭐ High Scorers (≥75%)
+                    </button>
+                  </div>
+                </div>
+
+                {/* VIEW 1: EXECUTIVE TABLE VIEW */}
+                {candidateView === "table" && (
+                  <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
+                    <div className="sf-table-wrap">
+                      <table className="sf-table">
+                        <thead>
+                          <tr>
+                            <th>Candidate Profile</th>
+                            <th>Identity &amp; Aadhaar</th>
+                            <th>Partner Academy</th>
+                            <th>Specialty / Role</th>
+                            <th>8-Stage Progress</th>
+                            <th>Proctored Score</th>
+                            <th>Job Pipeline</th>
+                            <th>Status</th>
+                            <th style={{ textAlign: "right" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCandidates.map((c) => {
+                            const initials = (c.fullName || "CD")
+                              .split(" ")
+                              .map((w) => w[0])
+                              .slice(0, 2)
+                              .join("")
+                              .toUpperCase();
+                            const stages = c.completedStages || [];
+                            const score = c.stage4?.score || c.stage4?.foundationScore || null;
+                            const m = c.applicationMetrics || {
+                              total: c.applicationsCount || 0,
+                              applied: 0,
+                              shortlisted: 0,
+                              interviewing: 0,
+                              offered: 0,
+                              hired: 0,
+                              rejected: 0,
+                            };
+                            const isAadhaarDone = Boolean(c.aadhaarVerified || c.stage1?.aadhaarVerified);
+
+                            return (
+                              <tr key={c._id || c.id}>
+                                <td>
+                                  <div className="sf-name-cell">
+                                    <div
+                                      className="sf-mini-avatar"
+                                      style={{
+                                        background: c.isVerified ? "#DCFCE7" : "var(--st-accent-subtle, #F1F5F9)",
+                                        color: c.isVerified ? "#15803D" : "var(--st-text-heading, #0A1F3D)",
+                                        fontWeight: 800,
+                                        border: `1.5px solid ${c.isVerified ? "#86EFAC" : "var(--st-accent-border, #E2E8F0)"}`,
+                                      }}
+                                    >
+                                      {initials}
+                                    </div>
+                                    <div>
+                                      <div
+                                        style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 13, cursor: "pointer" }}
+                                        onClick={() => openCandidateDetail(c, "identity")}
+                                        title="Click to view dossier"
+                                      >
+                                        {c.fullName}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)" }}>{c.email}</div>
+                                      {c.mobile && (
+                                        <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #94A3B8)", display: "flex", alignItems: "center", gap: 4 }}>
+                                          <span>📞 {c.mobile}</span>
+                                          <button
+                                            type="button"
+                                            className="sf-copy-chip"
+                                            onClick={() => copyToClipboard(c.mobile, "Mobile number")}
+                                            title="Copy phone"
+                                          >
+                                            copy
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                        fontSize: 10.5,
+                                        fontWeight: 800,
+                                        color: isAadhaarDone ? "#15803D" : "#B45309",
+                                        background: isAadhaarDone ? "#DCFCE7" : "#FEF3C7",
+                                        padding: "2px 8px",
+                                        borderRadius: 6,
+                                        width: "fit-content",
+                                      }}
+                                    >
+                                      {isAadhaarDone ? "✓ Aadhaar Verified" : "⏳ Aadhaar Pending"}
+                                    </span>
+                                    <span style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)" }}>
+                                      📍 {c.city || c.stage1?.city || "India"} {c.experience || c.stage1?.experience ? `· ${c.experience || c.stage1?.experience} yrs exp` : ""}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 700, color: "var(--st-text-heading, #0A1F3D)", fontSize: 12 }}>
+                                    {c.stage2?.academyName || "Independent Trainee"}
+                                  </div>
+                                  <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #64748B)" }}>
+                                    {c.stage2?.batch || c.stage2?.courseName || "Medical Coding Trainee"}
+                                  </div>
+                                </td>
+                                <td>
+                                  <span
                                     style={{
-                                      background: c.isVerified ? "#DCFCE7" : "#F1F5F9",
-                                      color: c.isVerified ? "#15803D" : "#0A1F3D",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      color: "var(--st-text-heading, #0A1F3D)",
+                                      background: "var(--st-table-header-bg, #F8FAFC)",
+                                      border: "1px solid var(--st-border-card, #E2E8F0)",
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      display: "inline-block",
+                                    }}
+                                  >
+                                    {c.currentRole || c.stage1?.currentRole || "Medical Coder"}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                      <span style={{ fontSize: 11, fontWeight: 800, color: c.isVerified ? "#15803D" : "var(--st-text-heading, #0A1F3D)" }}>
+                                        Stage {stages.length}/8
+                                      </span>
+                                      <span style={{ fontSize: 10, color: "var(--st-text-muted, #64748B)" }}>({c.stageProgressPct || Math.round((stages.length / 8) * 100)}%)</span>
+                                    </div>
+                                    <div className="staff-stages-bar">
+                                      {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => {
+                                        const isDone = stages.includes(s);
+                                        return (
+                                          <div
+                                            key={s}
+                                            className="staff-stage-dot"
+                                            title={`Stage ${s}`}
+                                            style={{
+                                              background: isDone ? "#DCFCE7" : "var(--st-table-header-bg, #F1F5F9)",
+                                              color: isDone ? "#15803D" : "var(--st-text-muted, #94A3B8)",
+                                              border: `1px solid ${isDone ? "#86EFAC" : "var(--st-border-card, #E2E8F0)"}`,
+                                            }}
+                                          >
+                                            {s}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  {score !== null ? (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: 800,
+                                          padding: "3px 8px",
+                                          borderRadius: 6,
+                                          background: Number(score) >= 70 ? "#DCFCE7" : "#FEE2E2",
+                                          color: Number(score) >= 70 ? "#15803D" : "#B91C1C",
+                                        }}
+                                      >
+                                        {score}% MCQ
+                                      </span>
+                                      {c.stage5?.aiScore && (
+                                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "#EDE9FE", color: "#6D28D9" }}>
+                                          {c.stage5.aiScore}% Video
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: "var(--st-text-muted, #94A3B8)" }}>Not tested</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)" }}>
+                                        {m.total} Job{m.total !== 1 ? "s" : ""}
+                                      </span>
+                                      {m.hired > 0 && (
+                                        <span style={{ fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4 }}>
+                                          🎉 {m.hired} Hired
+                                        </span>
+                                      )}
+                                      {m.offered > 0 && (
+                                        <span style={{ fontSize: 10, fontWeight: 800, background: "#FEF3C7", color: "#B45309", padding: "1px 6px", borderRadius: 4 }}>
+                                          📜 {m.offered} Offered
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 4, flexWrap: "wrap", fontSize: 10 }}>
+                                      <span style={{ color: "#2563EB", fontWeight: 700 }}>{m.applied || 0} applied</span>
+                                      <span style={{ color: "var(--st-text-muted, #94A3B8)" }}>·</span>
+                                      <span style={{ color: "#7C3AED", fontWeight: 700 }}>{m.shortlisted || 0} shortlisted</span>
+                                      <span style={{ color: "var(--st-text-muted, #94A3B8)" }}>·</span>
+                                      <span style={{ color: "#0D9488", fontWeight: 700 }}>{m.interviewing || 0} interviewing</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <span
+                                    className="sf-stage-pill"
+                                    style={{
+                                      background: c.isVerified ? "#DCFCE7" : stages.length >= 4 ? "#FEF3C7" : "var(--st-table-header-bg, #F1F5F9)",
+                                      color: c.isVerified ? "#15803D" : stages.length >= 4 ? "#B45309" : "var(--st-text-muted, #475569)",
                                       fontWeight: 800,
                                     }}
                                   >
-                                    {initials}
-                                  </div>
-                                  <div>
-                                    <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 13 }}>
-                                      {c.fullName}
-                                    </div>
-                                    <div style={{ fontSize: 11, color: "#64748B" }}>{c.email}</div>
-                                    {c.mobile && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>📞 {c.mobile}</div>}
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: 4,
-                                      fontSize: 10.5,
-                                      fontWeight: 700,
-                                      color: c.aadhaarVerified ? "#15803D" : "#B45309",
-                                      background: c.aadhaarVerified ? "#DCFCE7" : "#FEF3C7",
-                                      padding: "2px 8px",
-                                      borderRadius: 6,
-                                      width: "fit-content",
-                                    }}
-                                  >
-                                    {c.aadhaarVerified ? "✓ Aadhaar Verified" : "⏳ Aadhaar Pending"}
+                                    {c.isVerified ? "VERIFIED ✓" : stages.length >= 4 ? "IN ASSESSMENT" : "PENDING"}
                                   </span>
-                                  <span style={{ fontSize: 11, color: "#64748B" }}>
-                                    📍 {c.city || "Not provided"} {c.experience ? `· ${c.experience} yrs exp` : ""}
-                                  </span>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
-                                  {c.stage2?.academyName || "Independent"}
-                                </div>
-                                <div style={{ fontSize: 10.5, color: "#64748B" }}>
-                                  {c.stage2?.batch || c.stage2?.courseName || "General Trainee"}
-                                </div>
-                              </td>
-                              <td>
-                                <span
-                                  style={{
-                                    fontSize: 11,
-                                    fontWeight: 700,
-                                    color: "#0A1F3D",
-                                    background: "#F8FAFC",
-                                    border: "1px solid #E2E8F0",
-                                    padding: "3px 8px",
-                                    borderRadius: 6,
-                                  }}
-                                >
-                                  {c.currentRole || "Medical Coder"}
-                                </span>
-                              </td>
-                              <td>
-                                <div>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: c.isVerified ? "#15803D" : "#0A1F3D" }}>
-                                      Stage {stages.length}/8
-                                    </span>
-                                    <span style={{ fontSize: 10, color: "#64748B" }}>({c.stageProgressPct}%)</span>
-                                  </div>
-                                  <div className="staff-stages-bar">
-                                    {[1, 2, 3, 4, 5, 6, 7, 8].map((s) => {
-                                      const isDone = stages.includes(s);
-                                      return (
-                                        <div
-                                          key={s}
-                                          className="staff-stage-dot"
-                                          title={`Stage ${s}`}
-                                          style={{
-                                            background: isDone ? "#DCFCE7" : "#F1F5F9",
-                                            color: isDone ? "#15803D" : "#94A3B8",
-                                            border: `1px solid ${isDone ? "#86EFAC" : "#E2E8F0"}`,
-                                          }}
-                                        >
-                                          {s}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                {score !== null ? (
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                    <span
-                                      style={{
-                                        fontSize: 11,
-                                        fontWeight: 800,
-                                        padding: "3px 8px",
-                                        borderRadius: 6,
-                                        background: Number(score) >= 70 ? "#DCFCE7" : "#FEE2E2",
-                                        color: Number(score) >= 70 ? "#15803D" : "#B91C1C",
-                                      }}
-                                    >
-                                      {score}% MCQ
-                                    </span>
-                                    {c.stage5?.aiScore && (
-                                      <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "#EDE9FE", color: "#6D28D9" }}>
-                                        {c.stage5.aiScore}% Video
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span style={{ fontSize: 11, color: "#94A3B8" }}>Not tested</span>
-                                )}
-                              </td>
-                              <td>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy, #0A1F3D)" }}>
-                                      {m.total} Job{m.total !== 1 ? "s" : ""}
-                                    </span>
-                                    {m.hired > 0 && (
-                                      <span style={{ fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4 }}>
-                                        🎉 {m.hired} Hired
-                                      </span>
-                                    )}
-                                    {m.offered > 0 && (
-                                      <span style={{ fontSize: 10, fontWeight: 800, background: "#FEF3C7", color: "#B45309", padding: "1px 6px", borderRadius: 4 }}>
-                                        📜 {m.offered} Offered
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div style={{ display: "flex", gap: 4, flexWrap: "wrap", fontSize: 10 }}>
-                                    <span style={{ color: "#2563EB", fontWeight: 700 }}>{m.applied} applied</span>
-                                    <span style={{ color: "#94A3B8" }}>·</span>
-                                    <span style={{ color: "#7C3AED", fontWeight: 700 }}>{m.shortlisted} shortlisted</span>
-                                    <span style={{ color: "#94A3B8" }}>·</span>
-                                    <span style={{ color: "#0D9488", fontWeight: 700 }}>{m.interviewing} interviewing</span>
-                                  </div>
-                                </div>
-                              </td>
-                              <td>
-                                <span
-                                  className="sf-stage-pill"
-                                  style={{
-                                    background: c.isVerified ? "#DCFCE7" : stages.length >= 4 ? "#FEF3C7" : "#F1F5F9",
-                                    color: c.isVerified ? "#15803D" : stages.length >= 4 ? "#B45309" : "#475569",
-                                  }}
-                                >
-                                  {c.isVerified ? "VERIFIED ✓" : stages.length >= 4 ? "IN ASSESSMENT" : "PENDING"}
-                                </span>
-                              </td>
-                              <td style={{ textAlign: "right" }}>
-                                <div style={{ display: "inline-flex", gap: 6 }}>
-                                  <button
-                                    type="button"
-                                    className="sf-action-btn"
-                                    onClick={() => openCandidateDetail(c, "identity")}
-                                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none" }}
-                                  >
-                                    View Full Dossier
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="sf-action-btn outline"
-                                    onClick={() => openCandidateDetail(c, "placement")}
-                                    title="View all jobs applied, shortlisted, interviews and hiring"
-                                    style={{ borderColor: "#2563EB", color: "#2563EB" }}
-                                  >
-                                    🎯 Jobs ({m.total})
-                                  </button>
-                                  {!c.isVerified && (
+                                </td>
+                                <td style={{ textAlign: "right" }}>
+                                  <div className="sf-action-btn-group">
                                     <button
                                       type="button"
-                                      className="sf-action-btn outline"
-                                      disabled={processingId === c._id}
-                                      onClick={() => handleVerifyCandidate(c._id, "verify")}
-                                      style={{ borderColor: "#22C55E", color: "#15803D" }}
+                                      className="sf-action-btn gold"
+                                      onClick={() => openCandidateDetail(c, "identity")}
+                                      title="View candidate dossier & identity verification"
                                     >
-                                      ✓ Verify
+                                      Dossier ↗
                                     </button>
-                                  )}
-                                </div>
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn blue"
+                                      onClick={() => openCandidateDetail(c, "placement")}
+                                      title="View all jobs applied, shortlisted, interviews and hiring"
+                                    >
+                                      🎯 Jobs ({m.total})
+                                    </button>
+                                    {c.isVerified ? (
+                                      <button
+                                        type="button"
+                                        className="sf-action-btn green"
+                                        onClick={() => openCandidateDetail(c, "stages")}
+                                        title="Candidate is Gold Verified"
+                                      >
+                                        ✓ Verified
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="sf-action-btn amber"
+                                        disabled={processingId === c._id}
+                                        onClick={() => handleVerifyCandidate(c._id, "verify")}
+                                        title="Verify candidate"
+                                      >
+                                        ✓ Verify
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filteredCandidates.length === 0 && (
+                            <tr>
+                              <td colSpan={9} style={{ textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
+                                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                                <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No candidates found</div>
+                                <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or status filters.</div>
                               </td>
                             </tr>
-                          );
-                        })}
-                        {filteredCandidates.length === 0 && (
-                          <tr>
-                            <td colSpan={9} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
-                              <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
-                              <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No candidates found</div>
-                              <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or status filters.</div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* VIEW 2: KANBAN PIPELINE FUNNEL VIEW */}
+                {candidateView === "pipeline" && (() => {
+                  const pipeColumns = [
+                    {
+                      id: "stg_1_2",
+                      title: "1. Sourced & Aadhaar",
+                      color: "#64748B",
+                      items: filteredCandidates.filter((c) => (c.completedStages || []).length <= 2 && !c.isVerified),
+                    },
+                    {
+                      id: "stg_3",
+                      title: "2. Training & AAPC Cert",
+                      color: "#2563EB",
+                      items: filteredCandidates.filter((c) => (c.completedStages || []).includes(3) && (c.completedStages || []).length < 4 && !c.isVerified),
+                    },
+                    {
+                      id: "stg_4_5",
+                      title: "3. Proctored Assessment",
+                      color: "#7C3AED",
+                      items: filteredCandidates.filter((c) => ((c.completedStages || []).includes(4) || (c.completedStages || []).includes(5)) && (c.completedStages || []).length < 6 && !c.isVerified),
+                    },
+                    {
+                      id: "stg_6_7",
+                      title: "4. Ready for Gold Audit",
+                      color: "#D97706",
+                      items: filteredCandidates.filter((c) => (c.completedStages || []).length >= 6 && !c.isVerified),
+                    },
+                    {
+                      id: "stg_8_placed",
+                      title: "5. Verified & Placed",
+                      color: "#15803D",
+                      items: filteredCandidates.filter((c) => c.isVerified || (c.applicationMetrics?.hired || 0) > 0),
+                    },
+                  ];
+
+                  return (
+                    <div className="sf-pipeline-board">
+                      {pipeColumns.map((col) => (
+                        <div key={col.id} className="sf-pipeline-col">
+                          <div className="sf-pipeline-col-header">
+                            <span className="sf-pipeline-col-title">
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: col.color }} />
+                              {col.title}
+                            </span>
+                            <span className="sf-pipeline-count-badge">{col.items.length}</span>
+                          </div>
+                          <div className="sf-pipeline-cards-list">
+                            {col.items.map((c) => {
+                              const initials = (c.fullName || "CD")
+                                .split(" ")
+                                .map((w) => w[0])
+                                .slice(0, 2)
+                                .join("")
+                                .toUpperCase();
+                              const score = c.stage4?.score || c.stage4?.foundationScore || null;
+
+                              return (
+                                <div
+                                  key={c._id || c.id}
+                                  className="sf-pipeline-card"
+                                  onClick={() => openCandidateDetail(c, "identity")}
+                                >
+                                  <div className="sf-pipeline-card-header">
+                                    <div className="sf-pipeline-avatar">{initials}</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div className="sf-pipeline-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        {c.fullName}
+                                      </div>
+                                      <div className="sf-pipeline-meta" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        {c.currentRole || "Medical Coder"} · {c.city || "India"}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                                    <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: c.aadhaarVerified ? "#DCFCE7" : "#FEF3C7", color: c.aadhaarVerified ? "#15803D" : "#B45309" }}>
+                                      {c.aadhaarVerified ? "✓ Aadhaar" : "⏳ Aadhaar Pending"}
+                                    </span>
+                                    {score && (
+                                      <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EFF6FF", color: "#2563EB" }}>
+                                        {score}% MCQ
+                                      </span>
+                                    )}
+                                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "var(--st-table-header-bg, #F1F5F9)", color: "var(--st-text-muted, #64748B)" }}>
+                                      Stage {(c.completedStages || []).length}/8
+                                    </span>
+                                  </div>
+
+                                  <div className="sf-pipeline-footer">
+                                    <span style={{ fontSize: 10.5, color: "var(--st-text-muted, #64748B)" }}>
+                                      {c.stage2?.academyName || "Academy Partner"}
+                                    </span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-accent, #B45309)" }}>
+                                      Dossier ↗
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {col.items.length === 0 && (
+                              <div style={{ textAlign: "center", padding: "24px 12px", color: "var(--st-text-muted, #94A3B8)", fontSize: 12 }}>
+                                No candidates in this stage.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* VIEW 3: BENTO SHOWCASE CARD GRID */}
+                {candidateView === "grid" && (
+                  <div className="sf-bento-cards-grid">
+                    {filteredCandidates.map((c) => {
+                      const initials = (c.fullName || "CD")
+                        .split(" ")
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase();
+                      const stages = c.completedStages || [];
+                      const score = c.stage4?.score || c.stage4?.foundationScore || null;
+                      const m = c.applicationMetrics || {};
+
+                      return (
+                        <div key={c._id || c.id} className="sf-profile-card">
+                          <div>
+                            <div className="sf-profile-card-top">
+                              <div
+                                className="sf-profile-avatar-lg"
+                                style={{
+                                  background: c.isVerified ? "#DCFCE7" : "var(--st-accent-subtle, #F1F5F9)",
+                                  color: c.isVerified ? "#15803D" : "var(--st-text-heading, #0A1F3D)",
+                                  border: `2px solid ${c.isVerified ? "#86EFAC" : "var(--st-accent-border, #E2E8F0)"}`,
+                                }}
+                              >
+                                {initials}
+                              </div>
+                              <div className="sf-profile-info">
+                                <div className="sf-profile-name">{c.fullName}</div>
+                                <div className="sf-profile-sub">
+                                  {c.currentRole || "Medical Coder"} · {c.city || "India"}
+                                </div>
+                                <div style={{ fontSize: 11, color: "var(--st-text-muted, #94A3B8)", marginTop: 2 }}>
+                                  {c.email}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="sf-profile-badge-row">
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: c.isVerified ? "#DCFCE7" : "#FEF3C7", color: c.isVerified ? "#15803D" : "#B45309" }}>
+                                {c.isVerified ? "VERIFIED GOLD ✓" : "PENDING AUDIT"}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: c.aadhaarVerified ? "#DCFCE7" : "#FEE2E2", color: c.aadhaarVerified ? "#15803D" : "#B91C1C" }}>
+                                {c.aadhaarVerified ? "Aadhaar OK" : "Aadhaar Missing"}
+                              </span>
+                              {score && (
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "#EFF6FF", color: "#2563EB" }}>
+                                  {score}% MCQ Score
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="sf-profile-stats-box">
+                              <div>
+                                <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--st-text-muted, #64748B)", fontWeight: 700 }}>Stage Completion</div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", marginTop: 2 }}>
+                                  {stages.length}/8 Stages ({c.stageProgressPct || Math.round((stages.length / 8) * 100)}%)
+                                </div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--st-text-muted, #64748B)", fontWeight: 700 }}>Applications</div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", marginTop: 2 }}>
+                                  {c.applicationsCount || m.total || 0} Jobs
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="sf-profile-actions">
+                            <button
+                              type="button"
+                              className="sf-action-btn gold"
+                              style={{ flex: 1, textAlign: "center" }}
+                              onClick={() => openCandidateDetail(c, "identity")}
+                            >
+                              View Dossier ↗
+                            </button>
+                            <button
+                              type="button"
+                              className="sf-action-btn blue"
+                              onClick={() => openCandidateDetail(c, "placement")}
+                              title="Jobs and applications"
+                            >
+                              🎯
+                            </button>
+                            {c.isVerified ? (
+                              <button
+                                type="button"
+                                className="sf-action-btn green"
+                                onClick={() => openCandidateDetail(c, "stages")}
+                                title="Gold Verified"
+                              >
+                                ✓
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="sf-action-btn amber"
+                                disabled={processingId === c._id}
+                                onClick={() => handleVerifyCandidate(c._id, "verify")}
+                                title="Verify candidate"
+                              >
+                                ✓ Verify
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredCandidates.length === 0 && (
+                      <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
+                        <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                        <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No candidates found</div>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or status filters.</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}
 
           {/* =========================================================================
-              TAB MODULE: MASTER DIRECTORY - ALL COMPANIES
+              TAB MODULE: COMPANY RELATIONS (ALL COMPANY DETAILS & REQUISITIONS)
              ========================================================================= */}
-          {activeNav === "companies" && (() => {
+          {(activeNav === "companies" || activeNav === "dept_company_relations") && (() => {
             const filteredCompanies = companiesList.filter((comp) => {
+              // Standard dropdown filters
               if (companyKycFilter !== "all" && comp.kycStatus !== companyKycFilter) return false;
               if (companyPlanFilter !== "all" && comp.plan !== companyPlanFilter) return false;
+
+              // Quick chip filter
+              if (companyQuickFilter === "verified" && comp.kycStatus !== "verified") return false;
+              if (companyQuickFilter === "under_review" && comp.kycStatus !== "under_review") return false;
+              if (companyQuickFilter === "pending" && comp.kycStatus !== "pending") return false;
+              if (companyQuickFilter === "enterprise" && comp.plan !== "enterprise") return false;
+              if (companyQuickFilter === "growth" && comp.plan !== "growth") return false;
+              if (companyQuickFilter === "jobs" && (comp.jobsCount || 0) === 0) return false;
+
+              // Text search across all fields
               if (companySearch && companySearch.trim()) {
                 const q = companySearch.trim().toLowerCase();
                 const nameMatch = (comp.companyName || "").toLowerCase().includes(q);
                 const legalMatch = (comp.legalName || "").toLowerCase().includes(q);
                 const emailMatch = (comp.email || "").toLowerCase().includes(q);
                 const gstinMatch = (comp.stage1a?.gstin || "").toLowerCase().includes(q);
+                const panMatch = (comp.stage1a?.pan || "").toLowerCase().includes(q);
                 const pocMatch = (comp.contactName || comp.stage1b?.pocname || "").toLowerCase().includes(q);
-                if (!nameMatch && !legalMatch && !emailMatch && !gstinMatch && !pocMatch) return false;
+                const cityMatch = (comp.city || comp.stage1a?.city || "").toLowerCase().includes(q);
+                if (!nameMatch && !legalMatch && !emailMatch && !gstinMatch && !panMatch && !pocMatch && !cityMatch) return false;
               }
               return true;
             });
 
             const verifiedCount = companiesList.filter((c) => c.kycStatus === "verified").length;
             const reviewCount = companiesList.filter((c) => c.kycStatus === "under_review").length;
-            const pendingCount = companiesList.filter((c) => c.kycStatus === "pending").length;
+            const pendingCount = companiesList.filter((c) => c.kycStatus === "pending" || !c.kycStatus).length;
+            const enterpriseCount = companiesList.filter((c) => c.plan === "enterprise").length;
+            const growthCount = companiesList.filter((c) => c.plan === "growth").length;
             const totalActiveJobs = companiesList.reduce((acc, c) => acc + (c.jobsCount || 0), 0);
+            const totalCompAppsSum = companiesList.reduce((acc, c) => acc + (c.applicationsCount || 0), 0);
 
             return (
               <div className="tt-content">
-                <QueuePageHeader
-                  icon="🏢"
-                  accent="var(--navy, #0A1F3D)"
-                  title="Companies Master Directory"
-                  subtitle="Comprehensive database of hiring companies, corporate legal registration, GSTIN, PAN, KYC documents, active subscription plans, job postings, and incoming candidate requisitions."
-                  pills={
-                    <>
-                      <StatPill count={companiesList.length} label="TOTAL COMPANIES" tone="pending" />
-                      <StatPill count={verifiedCount} label="KYC VERIFIED" tone="good" />
-                      <StatPill count={reviewCount + pendingCount} label="PENDING REVIEW" tone="pending" />
-                      <StatPill count={totalActiveJobs} label="ACTIVE JOB POSTS" tone="good" />
-                    </>
-                  }
-                />
+                {/* EXECUTIVE HERO BANNER */}
+                <div className="sf-premium-hero">
+                  <div className="sf-hero-top-row">
+                    <div>
+                      <div className="sf-hero-badge-capsule">
+                        <span className="sf-hero-pulse" />
+                        <span>Corporate Relations &amp; Employer Onboarding HQ</span>
+                      </div>
+                      <h1 className="sf-hero-title" style={{ color: "#ffffff" }}>Company Relations Command</h1>
+                      <p className="sf-hero-desc" style={{ color: "rgba(255, 255, 255, 0.92)" }}>
+                        Directs hiring-employer partnerships: corporate GSTIN/PAN and cancelled cheque compliance audits, subscription tier assignments, posted job requisitions, and end-to-end applicant tracking.
+                      </p>
+                    </div>
+                    <div className="sf-hero-actions">
+                      <button
+                        type="button"
+                        className="sf-hero-btn glass"
+                        onClick={() => exportCompaniesCSV(filteredCompanies)}
+                        title="Export company directory to CSV"
+                      >
+                        <Icon name="download" size={14} /> Export CSV ({filteredCompanies.length})
+                      </button>
+                      <button
+                        type="button"
+                        className="sf-hero-btn primary"
+                        onClick={() => fetchCompanies(companySearch, companyKycFilter)}
+                        disabled={companiesLoading}
+                      >
+                        {companiesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                      </button>
+                    </div>
+                  </div>
 
-                {/* SEARCH AND FILTER CONTROLS */}
-                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
-                  <input
-                    type="text"
-                    className="staff-filter-input"
-                    placeholder="Search company by name, legal name, GSTIN, email, POC..."
-                    value={companySearch}
-                    onChange={(e) => setCompanySearch(e.target.value)}
-                  />
-                  <select
-                    className="staff-filter-select"
-                    value={companyKycFilter}
-                    onChange={(e) => setCompanyKycFilter(e.target.value)}
-                  >
-                    <option value="all">All KYC Statuses ({companiesList.length})</option>
-                    <option value="verified">Verified ({verifiedCount})</option>
-                    <option value="under_review">Under Review ({reviewCount})</option>
-                    <option value="pending">Pending ({pendingCount})</option>
-                    <option value="rejected">Rejected / Revision</option>
-                  </select>
-                  <select
-                    className="staff-filter-select"
-                    value={companyPlanFilter}
-                    onChange={(e) => setCompanyPlanFilter(e.target.value)}
-                  >
-                    <option value="all">All Plans</option>
-                    <option value="free">Free Tier</option>
-                    <option value="growth">Growth Plan</option>
-                    <option value="enterprise">Enterprise Plan</option>
-                  </select>
-                  <button
-                    type="button"
-                    className="sf-action-btn"
-                    onClick={() => fetchCompanies(companySearch, companyKycFilter)}
-                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
-                  >
-                    {companiesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
-                  </button>
+                  {/* HERO STATS PILL ROW */}
+                  <div className="sf-hero-stats-row">
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{companiesList.length}</span>
+                      <span className="sf-hero-pill-lbl">Partner Companies</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{verifiedCount}</span>
+                      <span className="sf-hero-pill-lbl">Gold KYC Verified</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val" style={{ color: "#F59E0B" }}>{reviewCount + pendingCount}</span>
+                      <span className="sf-hero-pill-lbl">KYC Review Queue</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{enterpriseCount}</span>
+                      <span className="sf-hero-pill-lbl">Enterprise Tier</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{totalActiveJobs}</span>
+                      <span className="sf-hero-pill-lbl">Live Requisitions</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{totalCompAppsSum}</span>
+                      <span className="sf-hero-pill-lbl">Talent Applications</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* COMPANIES DATA TABLE */}
-                <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
-                  <div className="sf-table-wrap">
-                    <table className="sf-table">
-                      <thead>
-                        <tr>
-                          <th>Company</th>
-                          <th>Point of Contact (POC)</th>
-                          <th>Registration &amp; Tax</th>
-                          <th>Plan</th>
-                          <th>KYC Status</th>
-                          <th>Job Posts &amp; Apps</th>
-                          <th style={{ textAlign: "right" }}>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredCompanies.map((comp) => {
-                          const initials = (comp.companyName || "CP")
-                            .split(" ")
-                            .map((w) => w[0])
-                            .slice(0, 2)
-                            .join("")
-                            .toUpperCase();
-                          const s1a = comp.stage1a || {};
-                          const s1b = comp.stage1b || {};
-                          const kycBg =
-                            comp.kycStatus === "verified" ? "#DCFCE7" : comp.kycStatus === "under_review" ? "#FEF3C7" : comp.kycStatus === "rejected" ? "#FEE2E2" : "#F1F5F9";
-                          const kycColor =
-                            comp.kycStatus === "verified" ? "#15803D" : comp.kycStatus === "under_review" ? "#B45309" : comp.kycStatus === "rejected" ? "#B91C1C" : "#475569";
+                {/* CORPORATE BENTO KPI TILES */}
+                <div className="sf-funnel-grid">
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon"><Icon name="buildingGrid" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "rgba(10,31,61,0.08)", color: "var(--st-text-heading, #0A1F3D)" }}>NETWORK</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{companiesList.length}</div>
+                      <div className="sf-bento-kpi-label">Partner Employers</div>
+                      <div className="sf-bento-kpi-sub">Across hospitals, clinics &amp; revenue teams</div>
+                    </div>
+                  </div>
 
-                          return (
-                            <tr key={comp._id || comp.id}>
-                              <td>
-                                <div className="sf-name-cell">
-                                  <div
-                                    className="sf-mini-avatar"
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(34,197,94,0.12)", color: "#15803D" }}><Icon name="shieldCheck" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#DCFCE7", color: "#15803D" }}>GOLD KYC</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{verifiedCount}</div>
+                      <div className="sf-bento-kpi-label">Verified Enterprises</div>
+                      <div className="sf-bento-kpi-sub">Tax ID, GSTIN &amp; Cheque verified</div>
+                    </div>
+                  </div>
+
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(245,158,11,0.14)", color: "#B45309" }}><Icon name="clock" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#FEF3C7", color: "#B45309" }}>URGENT AUDIT</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{reviewCount + pendingCount}</div>
+                      <div className="sf-bento-kpi-label">Pending Compliance</div>
+                      <div className="sf-bento-kpi-sub">{reviewCount} in active review, {pendingCount} awaiting docs</div>
+                    </div>
+                  </div>
+
+                  <div className="sf-bento-kpi">
+                    <div className="sf-bento-kpi-top">
+                      <div className="sf-bento-kpi-icon" style={{ background: "rgba(59,130,246,0.12)", color: "#2563EB" }}><Icon name="briefcase" size={18} /></div>
+                      <span className="sf-bento-kpi-badge" style={{ background: "#EFF6FF", color: "#2563EB" }}>HIRING ROLES</span>
+                    </div>
+                    <div>
+                      <div className="sf-bento-kpi-val">{totalActiveJobs}</div>
+                      <div className="sf-bento-kpi-label">Active Job Posts</div>
+                      <div className="sf-bento-kpi-sub">{totalCompAppsSum} total candidate applications</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* UNIFIED CONTROL TOOLBAR */}
+                <div className="sf-control-toolbar">
+                  <div className="sf-toolbar-row-main">
+                    <div className="sf-search-input-wrap">
+                      <Icon name="search" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Search company by name, legal name, GSTIN, PAN, email, POC..."
+                        value={companySearch}
+                        onChange={(e) => setCompanySearch(e.target.value)}
+                      />
+                      {companySearch && (
+                        <button
+                          type="button"
+                          className="sf-clear-btn"
+                          onClick={() => setCompanySearch("")}
+                          title="Clear search"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      className="staff-filter-select"
+                      value={companyKycFilter}
+                      onChange={(e) => setCompanyKycFilter(e.target.value)}
+                    >
+                      <option value="all">All KYC Statuses ({companiesList.length})</option>
+                      <option value="verified">Verified ({verifiedCount})</option>
+                      <option value="under_review">Under Review ({reviewCount})</option>
+                      <option value="pending">Pending ({pendingCount})</option>
+                      <option value="rejected">Rejected / Revision</option>
+                    </select>
+
+                    <select
+                      className="staff-filter-select"
+                      value={companyPlanFilter}
+                      onChange={(e) => setCompanyPlanFilter(e.target.value)}
+                    >
+                      <option value="all">All Subscription Plans</option>
+                      <option value="free">Free Tier</option>
+                      <option value="growth">Growth Plan ({growthCount})</option>
+                      <option value="enterprise">Enterprise Plan ({enterpriseCount})</option>
+                    </select>
+
+                    {/* VIEW TOGGLE */}
+                    <div className="sf-view-toggle">
+                      <button
+                        type="button"
+                        className={`sf-view-btn ${companyView === "table" ? "active" : ""}`}
+                        onClick={() => setCompanyView("table")}
+                        title="Table View"
+                      >
+                        <Icon name="checklist" size={14} /> Table
+                      </button>
+                      <button
+                        type="button"
+                        className={`sf-view-btn ${companyView === "pipeline" ? "active" : ""}`}
+                        onClick={() => setCompanyView("pipeline")}
+                        title="KYC Compliance Funnel"
+                      >
+                        <Icon name="columns" size={14} /> KYC Pipeline
+                      </button>
+                      <button
+                        type="button"
+                        className={`sf-view-btn ${companyView === "grid" ? "active" : ""}`}
+                        onClick={() => setCompanyView("grid")}
+                        title="Showcase Cards Grid"
+                      >
+                        <Icon name="grid" size={14} /> Accounts
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* QUICK FILTER CHIPS */}
+                  <div className="sf-quick-chips-row">
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-text-muted, #64748B)", textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 4 }}>
+                      Quick Filter:
+                    </span>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "all" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("all")}
+                    >
+                      All ({companiesList.length})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "verified" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("verified")}
+                    >
+                      ✓ KYC Verified ({verifiedCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "under_review" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("under_review")}
+                    >
+                      ⚠️ Under Review ({reviewCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "pending" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("pending")}
+                    >
+                      ⏳ Pending Docs ({pendingCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "enterprise" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("enterprise")}
+                    >
+                      👑 Enterprise ({enterpriseCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "growth" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("growth")}
+                    >
+                      ⚡ Growth ({growthCount})
+                    </button>
+                    <button
+                      type="button"
+                      className={`sf-chip-btn ${companyQuickFilter === "jobs" ? "active" : ""}`}
+                      onClick={() => setCompanyQuickFilter("jobs")}
+                    >
+                      💼 Has Active Jobs
+                    </button>
+                  </div>
+                </div>
+
+                {/* VIEW 1: ENTERPRISE DATA TABLE */}
+                {companyView === "table" && (
+                  <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
+                    <div className="sf-table-wrap">
+                      <table className="sf-table">
+                        <thead>
+                          <tr>
+                            <th>Enterprise Company</th>
+                            <th>Point of Contact (POC)</th>
+                            <th>Tax &amp; Legal Identity</th>
+                            <th>Plan Tier</th>
+                            <th>KYC Status</th>
+                            <th>Requisitions &amp; Apps</th>
+                            <th style={{ textAlign: "right" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCompanies.map((comp) => {
+                            const initials = (comp.companyName || "CP")
+                              .split(" ")
+                              .map((w) => w[0])
+                              .slice(0, 2)
+                              .join("")
+                              .toUpperCase();
+                            const s1a = comp.stage1a || {};
+                            const s1b = comp.stage1b || {};
+                            const kycBg =
+                              comp.kycStatus === "verified" ? "#DCFCE7" : comp.kycStatus === "under_review" ? "#FEF3C7" : comp.kycStatus === "rejected" ? "#FEE2E2" : "var(--st-table-header-bg, #F1F5F9)";
+                            const kycColor =
+                              comp.kycStatus === "verified" ? "#15803D" : comp.kycStatus === "under_review" ? "#B45309" : comp.kycStatus === "rejected" ? "#B91C1C" : "var(--st-text-muted, #475569)";
+
+                            return (
+                              <tr key={comp._id || comp.id}>
+                                <td>
+                                  <div className="sf-name-cell">
+                                    <div
+                                      className="sf-mini-avatar"
+                                      style={{
+                                        background: "var(--st-accent-subtle, rgba(10,31,61,0.08))",
+                                        color: "var(--st-text-heading, #0A1F3D)",
+                                        fontWeight: 800,
+                                        border: "1.5px solid var(--st-accent-border, #E2E8F0)",
+                                      }}
+                                    >
+                                      {initials}
+                                    </div>
+                                    <div>
+                                      <div
+                                        style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 13, cursor: "pointer" }}
+                                        onClick={() => openCompanyDetail(comp, "legal")}
+                                        title="Click to view company details"
+                                      >
+                                        {comp.companyName}
+                                      </div>
+                                      {comp.legalName && comp.legalName !== comp.companyName && (
+                                        <div style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)" }}>Legal: {comp.legalName}</div>
+                                      )}
+                                      <div style={{ fontSize: 11, color: "var(--st-text-muted, #94A3B8)", display: "flex", alignItems: "center", gap: 4 }}>
+                                        <span>{comp.email}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 700, color: "var(--st-text-heading, #0A1F3D)", fontSize: 12 }}>
+                                    {comp.contactName || s1b.pocname || "Not assigned"}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)", display: "flex", alignItems: "center", gap: 4 }}>
+                                    <span>{comp.mobile || s1b.pocmobile || "No phone"}</span>
+                                    {(comp.mobile || s1b.pocmobile) && (
+                                      <button
+                                        type="button"
+                                        className="sf-copy-chip"
+                                        onClick={() => copyToClipboard(comp.mobile || s1b.pocmobile, "POC Phone")}
+                                        title="Copy phone"
+                                      >
+                                        copy
+                                      </button>
+                                    )}
+                                  </div>
+                                  {s1b.pocdesig && <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #94A3B8)" }}>{s1b.pocdesig}</div>}
+                                </td>
+                                <td>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                    <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--st-text-heading, #0A1F3D)", display: "flex", alignItems: "center", gap: 5 }}>
+                                      <span>GSTIN:</span>
+                                      <span style={{ fontFamily: "var(--font-mono, monospace)" }}>{s1a.gstin || "Not provided"}</span>
+                                      {s1a.gstin && (
+                                        <button
+                                          type="button"
+                                          className="sf-copy-chip"
+                                          onClick={() => copyToClipboard(s1a.gstin, "GSTIN")}
+                                          title="Copy GSTIN"
+                                        >
+                                          copy
+                                        </button>
+                                      )}
+                                    </div>
+                                    <div style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)", display: "flex", alignItems: "center", gap: 5 }}>
+                                      <span>PAN:</span>
+                                      <span style={{ fontFamily: "var(--font-mono, monospace)" }}>{s1a.pan || "Not provided"}</span>
+                                      {s1a.pan && (
+                                        <button
+                                          type="button"
+                                          className="sf-copy-chip"
+                                          onClick={() => copyToClipboard(s1a.pan, "PAN")}
+                                          title="Copy PAN"
+                                        >
+                                          copy
+                                        </button>
+                                      )}
+                                    </div>
+                                    {s1a.entity && <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #94A3B8)" }}>{s1a.entity}</div>}
+                                  </div>
+                                </td>
+                                <td>
+                                  <span
                                     style={{
-                                      background: "rgba(10,31,61,0.08)",
-                                      color: "var(--navy, #0A1F3D)",
+                                      display: "inline-block",
+                                      fontSize: 10.5,
+                                      fontWeight: 800,
+                                      padding: "3px 9px",
+                                      borderRadius: 6,
+                                      textTransform: "uppercase",
+                                      background:
+                                        comp.plan === "enterprise"
+                                          ? "linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)"
+                                          : comp.plan === "growth"
+                                          ? "#EDE9FE"
+                                          : "var(--st-table-header-bg, #F1F5F9)",
+                                      color:
+                                        comp.plan === "enterprise"
+                                          ? "var(--gold, #E5A82E)"
+                                          : comp.plan === "growth"
+                                          ? "#6D28D9"
+                                          : "var(--st-text-muted, #475569)",
+                                      border: comp.plan === "enterprise" ? "1px solid rgba(229,168,46,0.3)" : "1px solid var(--st-border-card, #E2E8F0)",
+                                      cursor: "pointer",
+                                    }}
+                                    onClick={() => openCompanyDetail(comp, "plan")}
+                                    title="Click to manage subscription plan"
+                                  >
+                                    {comp.plan || "Free"} ⚙️
+                                  </span>
+                                </td>
+                                <td>
+                                  <span
+                                    className="sf-stage-pill"
+                                    style={{
+                                      background: kycBg,
+                                      color: kycColor,
                                       fontWeight: 800,
                                     }}
                                   >
-                                    {initials}
+                                    {comp.kycStatus === "verified"
+                                      ? "VERIFIED ✓"
+                                      : comp.kycStatus === "under_review"
+                                      ? "UNDER REVIEW"
+                                      : comp.kycStatus === "rejected"
+                                      ? "REVISION REQ"
+                                      : "PENDING"}
+                                  </span>
+                                </td>
+                                <td>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 700, color: "var(--st-text-heading, #0A1F3D)" }}>
+                                      {comp.jobsCount || 0} Job Post{(comp.jobsCount || 0) !== 1 ? "s" : ""}
+                                    </span>
+                                    <span style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)" }}>
+                                      {comp.applicationsCount || 0} applicant{(comp.applicationsCount || 0) !== 1 ? "s" : ""}
+                                    </span>
                                   </div>
-                                  <div>
-                                    <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 13 }}>
-                                      {comp.companyName}
-                                    </div>
-                                    {comp.legalName && comp.legalName !== comp.companyName && (
-                                      <div style={{ fontSize: 11, color: "#64748B" }}>Legal: {comp.legalName}</div>
+                                </td>
+                                <td style={{ textAlign: "right" }}>
+                                  <div className="sf-action-btn-group">
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn gold"
+                                      onClick={() => openCompanyDetail(comp, "legal")}
+                                      title="Manage company dossier & compliance"
+                                    >
+                                      Manage ↗
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn blue"
+                                      onClick={() => openCompanyDetail(comp, "applicants")}
+                                      title="Review company applicants"
+                                    >
+                                      👥 ({comp.applicationsCount || 0})
+                                    </button>
+                                    {comp.kycStatus === "verified" ? (
+                                      <button
+                                        type="button"
+                                        className="sf-action-btn green"
+                                        onClick={() => openCompanyDetail(comp, "legal")}
+                                        title="Company is Gold KYC Verified"
+                                      >
+                                        ✓ Verified
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="sf-action-btn amber"
+                                        onClick={() => openCompanyDetail(comp, "legal")}
+                                        title="Audit KYC documents"
+                                      >
+                                        Audit KYC
+                                      </button>
                                     )}
-                                    <div style={{ fontSize: 11, color: "#94A3B8" }}>{comp.email}</div>
                                   </div>
-                                </div>
-                              </td>
-                              <td>
-                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
-                                  {comp.contactName || s1b.pocname || "Not assigned"}
-                                </div>
-                                <div style={{ fontSize: 11, color: "#64748B" }}>{comp.mobile || s1b.pocmobile || "No phone"}</div>
-                                {s1b.pocdesig && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{s1b.pocdesig}</div>}
-                              </td>
-                              <td>
-                                <div>
-                                  <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
-                                    GSTIN: <span style={{ fontFamily: "var(--font-mono, monospace)" }}>{s1a.gstin || "Not provided"}</span>
-                                  </div>
-                                  <div style={{ fontSize: 11, color: "#64748B" }}>
-                                    PAN: <span style={{ fontFamily: "var(--font-mono, monospace)" }}>{s1a.pan || "Not provided"}</span>
-                                  </div>
-                                  {s1a.entity && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{s1a.entity}</div>}
-                                </div>
-                              </td>
-                              <td>
-                                <span
-                                  style={{
-                                    display: "inline-block",
-                                    fontSize: 10.5,
-                                    fontWeight: 800,
-                                    padding: "3px 9px",
-                                    borderRadius: 6,
-                                    textTransform: "uppercase",
-                                    background:
-                                      comp.plan === "enterprise" ? "linear-gradient(135deg, #1E1B4B 0%, #312E81 100%)" : comp.plan === "growth" ? "#EDE9FE" : "#F1F5F9",
-                                    color: comp.plan === "enterprise" ? "var(--gold, #E5A82E)" : comp.plan === "growth" ? "#6D28D9" : "#475569",
-                                    border: comp.plan === "enterprise" ? "1px solid rgba(229,168,46,0.3)" : "1px solid #E2E8F0",
-                                  }}
-                                >
-                                  {comp.plan || "Free"}
-                                </span>
-                              </td>
-                              <td>
-                                <span
-                                  className="sf-stage-pill"
-                                  style={{
-                                    background: kycBg,
-                                    color: kycColor,
-                                    fontWeight: 800,
-                                  }}
-                                >
-                                  {comp.kycStatus === "verified"
-                                    ? "VERIFIED ✓"
-                                    : comp.kycStatus === "under_review"
-                                    ? "UNDER REVIEW"
-                                    : comp.kycStatus === "rejected"
-                                    ? "REVISION REQ"
-                                    : "PENDING"}
-                                </span>
-                              </td>
-                              <td>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
-                                    {comp.jobsCount || 0} Job Post{(comp.jobsCount || 0) !== 1 ? "s" : ""}
-                                  </span>
-                                  <span style={{ fontSize: 11, color: "#64748B" }}>
-                                    {comp.applicationsCount || 0} applicant{(comp.applicationsCount || 0) !== 1 ? "s" : ""}
-                                  </span>
-                                </div>
-                              </td>
-                              <td style={{ textAlign: "right" }}>
-                                <div style={{ display: "inline-flex", gap: 6 }}>
-                                  <button
-                                    type="button"
-                                    className="sf-action-btn"
-                                    onClick={() => openCompanyDetail(comp, "legal")}
-                                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none" }}
-                                  >
-                                    View Full Details
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="sf-action-btn outline"
-                                    onClick={() => openCompanyDetail(comp, "applicants")}
-                                    style={{ borderColor: "#2563EB", color: "#2563EB" }}
-                                  >
-                                    👥 Applicants ({comp.applicationsCount || 0})
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="sf-action-btn outline"
-                                    onClick={() => openCompanyDetail(comp, "plan")}
-                                  >
-                                    Assign Plan
-                                  </button>
-                                </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filteredCompanies.length === 0 && (
+                            <tr>
+                              <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
+                                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                                <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No companies found</div>
+                                <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or KYC filters.</div>
                               </td>
                             </tr>
-                          );
-                        })}
-                        {filteredCompanies.length === 0 && (
-                          <tr>
-                            <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
-                              <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
-                              <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No companies found</div>
-                              <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or KYC filters.</div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {/* VIEW 2: KYC COMPLIANCE PIPELINE FUNNEL */}
+                {companyView === "pipeline" && (() => {
+                  const kycCols = [
+                    {
+                      id: "kyc_pending",
+                      title: "1. Pending Submission",
+                      color: "#64748B",
+                      items: filteredCompanies.filter((c) => c.kycStatus === "pending" || !c.kycStatus),
+                    },
+                    {
+                      id: "kyc_under_review",
+                      title: "2. Under Staff Audit",
+                      color: "#D97706",
+                      items: filteredCompanies.filter((c) => c.kycStatus === "under_review"),
+                    },
+                    {
+                      id: "kyc_verified",
+                      title: "3. Gold Verified Partners",
+                      color: "#15803D",
+                      items: filteredCompanies.filter((c) => c.kycStatus === "verified"),
+                    },
+                    {
+                      id: "kyc_rejected",
+                      title: "4. Revisions Required",
+                      color: "#B91C1C",
+                      items: filteredCompanies.filter((c) => c.kycStatus === "rejected"),
+                    },
+                  ];
+
+                  return (
+                    <div className="sf-pipeline-board">
+                      {kycCols.map((col) => (
+                        <div key={col.id} className="sf-pipeline-col">
+                          <div className="sf-pipeline-col-header">
+                            <span className="sf-pipeline-col-title">
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: col.color }} />
+                              {col.title}
+                            </span>
+                            <span className="sf-pipeline-count-badge">{col.items.length}</span>
+                          </div>
+                          <div className="sf-pipeline-cards-list">
+                            {col.items.map((comp) => {
+                              const initials = (comp.companyName || "CP")
+                                .split(" ")
+                                .map((w) => w[0])
+                                .slice(0, 2)
+                                .join("")
+                                .toUpperCase();
+                              const s1a = comp.stage1a || {};
+                              const s1b = comp.stage1b || {};
+
+                              return (
+                                <div
+                                  key={comp._id || comp.id}
+                                  className="sf-pipeline-card"
+                                  onClick={() => openCompanyDetail(comp, "legal")}
+                                >
+                                  <div className="sf-pipeline-card-header">
+                                    <div className="sf-pipeline-avatar">{initials}</div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div className="sf-pipeline-name" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        {comp.companyName}
+                                      </div>
+                                      <div className="sf-pipeline-meta" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                        POC: {comp.contactName || s1b.pocname || "N/A"}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
+                                    <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "var(--st-table-header-bg, #F1F5F9)", color: "var(--st-text-heading, #0A1F3D)" }}>
+                                      {comp.plan || "Free"} Plan
+                                    </span>
+                                    {s1a.gstin && (
+                                      <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#EFF6FF", color: "#2563EB", fontFamily: "var(--font-mono, monospace)" }}>
+                                        GSTIN ✓
+                                      </span>
+                                    )}
+                                    <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#FEF3C7", color: "#B45309" }}>
+                                      {comp.jobsCount || 0} Open Jobs
+                                    </span>
+                                  </div>
+
+                                  <div className="sf-pipeline-footer">
+                                    <span style={{ fontSize: 10.5, color: "var(--st-text-muted, #64748B)" }}>
+                                      {comp.email}
+                                    </span>
+                                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-accent, #B45309)" }}>
+                                      Manage ↗
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {col.items.length === 0 && (
+                              <div style={{ textAlign: "center", padding: "24px 12px", color: "var(--st-text-muted, #94A3B8)", fontSize: 12 }}>
+                                No companies in this stage.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* VIEW 3: ACCOUNT SHOWCASE BENTO CARDS */}
+                {companyView === "grid" && (
+                  <div className="sf-bento-cards-grid">
+                    {filteredCompanies.map((comp) => {
+                      const initials = (comp.companyName || "CP")
+                        .split(" ")
+                        .map((w) => w[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase();
+                      const s1a = comp.stage1a || {};
+                      const s1b = comp.stage1b || {};
+
+                      return (
+                        <div key={comp._id || comp.id} className="sf-profile-card">
+                          <div>
+                            <div className="sf-profile-card-top">
+                              <div
+                                className="sf-profile-avatar-lg"
+                                style={{
+                                  background: "var(--st-accent-subtle, rgba(10,31,61,0.08))",
+                                  color: "var(--st-text-heading, #0A1F3D)",
+                                  border: "2px solid var(--st-accent-border, #E2E8F0)",
+                                }}
+                              >
+                                {initials}
+                              </div>
+                              <div className="sf-profile-info">
+                                <div className="sf-profile-name">{comp.companyName}</div>
+                                {comp.legalName && comp.legalName !== comp.companyName && (
+                                  <div className="sf-profile-sub">Legal: {comp.legalName}</div>
+                                )}
+                                <div style={{ fontSize: 11, color: "var(--st-text-muted, #94A3B8)", marginTop: 2 }}>
+                                  {comp.email}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="sf-profile-badge-row">
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: comp.kycStatus === "verified" ? "#DCFCE7" : comp.kycStatus === "under_review" ? "#FEF3C7" : "#F1F5F9", color: comp.kycStatus === "verified" ? "#15803D" : comp.kycStatus === "under_review" ? "#B45309" : "#475569" }}>
+                                KYC: {(comp.kycStatus || "PENDING").toUpperCase()}
+                              </span>
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: comp.plan === "enterprise" ? "#1E1B4B" : comp.plan === "growth" ? "#EDE9FE" : "#F1F5F9", color: comp.plan === "enterprise" ? "#E5A82E" : comp.plan === "growth" ? "#6D28D9" : "#475569" }}>
+                                {comp.plan || "Free"} Tier
+                              </span>
+                            </div>
+
+                            <div className="sf-profile-stats-box">
+                              <div>
+                                <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--st-text-muted, #64748B)", fontWeight: 700 }}>Point of Contact</div>
+                                <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", marginTop: 2 }}>
+                                  {comp.contactName || s1b.pocname || "Not assigned"}
+                                </div>
+                                <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #64748B)" }}>
+                                  {comp.mobile || s1b.pocmobile || "No phone"}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 10, textTransform: "uppercase", color: "var(--st-text-muted, #64748B)", fontWeight: 700 }}>Requisitions</div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", marginTop: 2 }}>
+                                  {comp.jobsCount || 0} Jobs
+                                </div>
+                                <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #64748B)" }}>
+                                  {comp.applicationsCount || 0} apps
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="sf-profile-actions">
+                            <button
+                              type="button"
+                              className="sf-action-btn gold"
+                              style={{ flex: 1, textAlign: "center" }}
+                              onClick={() => openCompanyDetail(comp, "legal")}
+                            >
+                              Manage Account ↗
+                            </button>
+                            <button
+                              type="button"
+                              className="sf-action-btn blue"
+                              onClick={() => openCompanyDetail(comp, "applicants")}
+                              title="Applicants"
+                            >
+                              👥
+                            </button>
+                            <button
+                              type="button"
+                              className="sf-action-btn amber"
+                              onClick={() => openCompanyDetail(comp, "plan")}
+                              title="Assign Subscription Plan"
+                            >
+                              ⚙️ Plan
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {filteredCompanies.length === 0 && (
+                      <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
+                        <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                        <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No companies found</div>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or KYC filters.</div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -2186,6 +3677,271 @@ export default function StaffHub() {
                               <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
                               <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No academies found</div>
                               <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords.</div>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* =========================================================================
+              TAB MODULE: MASTER DIRECTORY - ALL EMPLOYEES & STAFF CREDENTIALS
+             ========================================================================= */}
+          {activeNav === "employees" && (() => {
+            const filteredEmployees = employeesList.filter((emp) => {
+              if (employeeStatusFilter === "active" && !emp.active) return false;
+              if (employeeStatusFilter === "inactive" && emp.active) return false;
+
+              if (employeeSearch && employeeSearch.trim()) {
+                const q = employeeSearch.trim().toLowerCase();
+                const nameMatch = (emp.name || "").toLowerCase().includes(q);
+                const userMatch = (emp.username || "").toLowerCase().includes(q);
+                const emailMatch = (emp.email || "").toLowerCase().includes(q);
+                const roleMatch = (emp.role || "").toLowerCase().includes(q);
+                const badgeMatch = (emp.badge || "").toLowerCase().includes(q);
+                if (!nameMatch && !userMatch && !emailMatch && !roleMatch && !badgeMatch) return false;
+              }
+              return true;
+            });
+
+            const activeTotal = employeesList.filter((e) => e.active).length;
+            const inactiveTotal = employeesList.filter((e) => !e.active).length;
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="🛡️"
+                  accent="var(--navy, #0A1F3D)"
+                  title="Employee Directory & Credentials Management"
+                  subtitle="Create employee username and password credentials, assign operations roles, control access status, and maintain internal staff accounts."
+                  pills={
+                    <>
+                      <StatPill count={employeesList.length} label="TOTAL EMPLOYEES" tone="pending" />
+                      <StatPill count={activeTotal} label="ACTIVE" tone="good" />
+                      {inactiveTotal > 0 && <StatPill count={inactiveTotal} label="INACTIVE" tone="bad" />}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCreateEmployeeError("");
+                          setCreateEmployeeForm({
+                            name: "",
+                            username: "",
+                            email: "",
+                            password: "",
+                            role: "Senior Operations Auditor",
+                            badge: "Gold Certified Lead",
+                          });
+                          setShowEmployeePassword(false);
+                          setActiveModal("create_employee");
+                        }}
+                        style={{
+                          background: "linear-gradient(135deg, var(--navy, #0A1F3D) 0%, #15325B 100%)",
+                          color: "var(--gold, #E5A82E)",
+                          border: "1.5px solid var(--gold, #E5A82E)",
+                          borderRadius: 14,
+                          padding: "10px 18px",
+                          fontWeight: 800,
+                          fontSize: 13,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          cursor: "pointer",
+                          boxShadow: "0 4px 14px rgba(10, 31, 61, 0.2)",
+                        }}
+                      >
+                        <Icon name="userPlus" size={16} sw={2.4} />
+                        <span>+ Create Employee</span>
+                      </button>
+                    </>
+                  }
+                />
+
+                {/* SEARCH AND FILTER CONTROLS */}
+                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
+                  <input
+                    type="text"
+                    className="staff-filter-input"
+                    placeholder="Search employees by name, username, email, role..."
+                    value={employeeSearch}
+                    onChange={(e) => setEmployeeSearch(e.target.value)}
+                  />
+                  <select
+                    className="staff-filter-select"
+                    value={employeeStatusFilter}
+                    onChange={(e) => setEmployeeStatusFilter(e.target.value)}
+                  >
+                    <option value="all">All Statuses ({employeesList.length})</option>
+                    <option value="active">Active Only ({activeTotal})</option>
+                    <option value="inactive">Inactive Only ({inactiveTotal})</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="staff-filter-btn"
+                    onClick={() => fetchEmployees(employeeSearch, employeeStatusFilter)}
+                  >
+                    Refresh
+                  </button>
+                </div>
+
+                {/* EMPLOYEES TABLE */}
+                <div style={{ marginTop: 20, background: "#FFFFFF", borderRadius: 16, border: "1px solid var(--border-light, #E2E8F0)", overflow: "hidden" }}>
+                  <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light, #E2E8F0)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: "var(--navy, #0A1F3D)" }}>
+                      Registered Employees & Auditors ({filteredEmployees.length})
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748B" }}>
+                      Sign-in URL: <code style={{ background: "#F1F5F9", padding: "2px 6px", borderRadius: 4, fontFamily: "var(--font-mono, monospace)" }}>/employee/login</code>
+                    </div>
+                  </div>
+
+                  <div style={{ overflowX: "auto" }}>
+                    <table className="staff-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#F8FAFC", textAlign: "left", fontSize: 11, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                          <th style={{ padding: "12px 20px" }}>Employee</th>
+                          <th style={{ padding: "12px 16px" }}>Username</th>
+                          <th style={{ padding: "12px 16px" }}>Email</th>
+                          <th style={{ padding: "12px 16px" }}>Role & Badge</th>
+                          <th style={{ padding: "12px 16px" }}>Status</th>
+                          <th style={{ padding: "12px 16px" }}>Created</th>
+                          <th style={{ padding: "12px 20px", textAlign: "right" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredEmployees.map((emp) => {
+                          const initials = (emp.name || "Staff")
+                            .split(" ")
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .map((w) => w[0])
+                            .join("")
+                            .toUpperCase();
+
+                          return (
+                            <tr key={emp._id || emp.id} style={{ borderBottom: "1px solid #F1F5F9", fontSize: 13 }}>
+                              <td style={{ padding: "14px 20px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  <div
+                                    style={{
+                                      width: 38,
+                                      height: 38,
+                                      borderRadius: 10,
+                                      background: "linear-gradient(135deg, #0A1F3D 0%, #15325B 100%)",
+                                      color: "var(--gold, #E5A82E)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontWeight: 800,
+                                      fontSize: 13,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {initials}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)" }}>{emp.name}</div>
+                                    <div style={{ fontSize: 11, color: "#94A3B8" }}>ID: {String(emp._id || "").slice(-6)}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: "14px 16px" }}>
+                                <span className="emp-username-chip">
+                                  <span>@</span>{emp.username}
+                                </span>
+                              </td>
+                              <td style={{ padding: "14px 16px", color: "#475569" }}>
+                                {emp.email}
+                              </td>
+                              <td style={{ padding: "14px 16px" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                                  <span className="emp-role-badge">
+                                    <Icon name="award" size={12} /> {emp.role || "Staff Auditor"}
+                                  </span>
+                                  {emp.badge && (
+                                    <span className="emp-badge-tag">
+                                      🛡️ {emp.badge}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: "14px 16px" }}>
+                                <span className={`emp-status-badge ${emp.active ? "active" : "inactive"}`}>
+                                  <span className={`emp-status-dot ${emp.active ? "active" : "inactive"}`} />
+                                  {emp.active ? "Active" : "Deactivated"}
+                                </span>
+                              </td>
+                              <td style={{ padding: "14px 16px", color: "#64748B", fontSize: 12 }}>
+                                {emp.createdAt ? new Date(emp.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "N/A"}
+                              </td>
+                              <td style={{ padding: "14px 20px", textAlign: "right" }}>
+                                <div style={{ display: "inline-flex", gap: 8 }}>
+                                  <button
+                                    type="button"
+                                    className="emp-table-action-btn"
+                                    title="Reset Password"
+                                    onClick={() => {
+                                      setResetPasswordEmployee(emp);
+                                      setNewPasswordForReset("");
+                                      setResetPasswordError("");
+                                      setActiveModal("reset_employee_password");
+                                    }}
+                                  >
+                                    🔑 Reset PW
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className={`emp-table-action-btn ${emp.active ? "danger" : "success"}`}
+                                    onClick={() => handleToggleEmployeeStatus(emp)}
+                                  >
+                                    {emp.active ? "Deactivate" : "Activate"}
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+
+                        {filteredEmployees.length === 0 && (
+                          <tr>
+                            <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
+                              <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+                              <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 16 }}>No employees found</div>
+                              <div style={{ fontSize: 12, marginTop: 4, color: "#64748B" }}>
+                                {employeeSearch ? "No employees match your search criteria." : "Create your first employee account to grant platform access."}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCreateEmployeeError("");
+                                  setCreateEmployeeForm({
+                                    name: "",
+                                    username: "",
+                                    email: "",
+                                    password: "",
+                                    role: "Senior Operations Auditor",
+                                    badge: "Gold Certified Lead",
+                                  });
+                                  setShowEmployeePassword(false);
+                                  setActiveModal("create_employee");
+                                }}
+                                style={{
+                                  marginTop: 16,
+                                  background: "var(--navy, #0A1F3D)",
+                                  color: "var(--gold, #E5A82E)",
+                                  border: "none",
+                                  borderRadius: 10,
+                                  padding: "10px 18px",
+                                  fontSize: 13,
+                                  fontWeight: 800,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                + Create Employee
+                              </button>
                             </td>
                           </tr>
                         )}
@@ -2419,7 +4175,7 @@ export default function StaffHub() {
               (both genuinely computed server-side in staff.js) instead of the
               illustrative DEPARTMENTS config used by the other five
               departments below, which have no real staff-directory API yet. */}
-          {activeNav === "dept_assessment_video" ? (() => {
+          {activeNav === "dept_assessment_video" && (() => {
             const dept = DEPARTMENTS.dept_assessment_video;
             const videoQueue = videoIntrosQueue || [];
             const textQueue = textAssessmentQueue || [];
@@ -2599,7 +4355,899 @@ export default function StaffHub() {
                 </div>
               </div>
             );
-          })() : activeNav.startsWith("dept_") && DEPARTMENTS[activeNav] && (() => {
+          })()}
+
+          {/* TAB MODULE: DEPARTMENT CRM + DATA */}
+          {activeNav === "dept_crm_data" && (() => {
+            // CRM Data aggregates & metrics
+            const totalCands = dashData?.reportsData?.totalCandidates || candidatesList.length || 0;
+            const totalComps = dashData?.reportsData?.totalCompanies || companiesList.length || 0;
+            const totalAcademies = dashData?.reportsData?.totalAcademies || academiesList.length || dashData?.stats?.totalAcademies || 0;
+            const verifiedCands = dashData?.reportsData?.verifiedCandidates || candidatesList.filter((c) => c.isVerified || (c.completedStages || []).length >= 8).length || 0;
+            const verifiedComps = dashData?.reportsData?.verifiedCompanies || companiesList.filter((c) => c.kycStatus === "verified").length || 0;
+            const totalRecords = totalCands + totalComps + totalAcademies;
+
+            // Platform Data Hygiene metrics
+            const candMobilePct = totalCands > 0 ? Math.round((candidatesList.filter((c) => c.mobile).length / Math.max(candidatesList.length, 1)) * 100) : 0;
+            const candAadhaarPct = totalCands > 0 ? Math.round((candidatesList.filter((c) => c.aadhaarVerified).length / Math.max(candidatesList.length, 1)) * 100) : 0;
+            const candResumePct = totalCands > 0 ? Math.round((candidatesList.filter((c) => c.resumeUrl || c.manualResume).length / Math.max(candidatesList.length, 1)) * 100) : 0;
+
+            const compGstinPct = totalComps > 0 ? Math.round((companiesList.filter((c) => c.stage1a?.gstin || c.gstin).length / Math.max(companiesList.length, 1)) * 100) : 0;
+            const compPocPct = totalComps > 0 ? Math.round((companiesList.filter((c) => c.pocName || c.contactName || c.stage1b?.pocname).length / Math.max(companiesList.length, 1)) * 100) : 0;
+            const compJobsPct = totalComps > 0 ? Math.round((companiesList.filter((c) => (c.jobsCount || 0) > 0).length / Math.max(companiesList.length, 1)) * 100) : 0;
+
+            // Pipeline stages
+            const pipelineStages = dashData?.pipeline || [
+              { stage: "Basic Info", count: totalCands },
+              { stage: "Training Claim", count: Math.round(totalCands * 0.85) },
+              { stage: "Certification", count: Math.round(totalCands * 0.7) },
+              { stage: "Assessment", count: Math.round(totalCands * 0.55) },
+              { stage: "Video Intro", count: Math.round(totalCands * 0.45) },
+              { stage: "Live Charts", count: Math.round(totalCands * 0.35) },
+              { stage: "Placed", count: verifiedCands, isPlaced: true },
+            ];
+
+            // Filtered audit activity entries
+            const filteredActivities = activityEntries.filter((act) => {
+              if (crmActionFilter !== "all") {
+                if (crmActionFilter === "candidate" && !act.action?.includes("candidate") && act.targetType !== "Candidate") return false;
+                if (crmActionFilter === "company" && !act.action?.includes("company") && act.targetType !== "Company" && !act.action?.includes("kyc")) return false;
+                if (crmActionFilter === "plan" && !act.action?.includes("plan")) return false;
+                if (crmActionFilter === "video" && !act.action?.includes("video")) return false;
+                if (crmActionFilter === "cert" && !act.action?.includes("cert")) return false;
+              }
+              if (crmSearch.trim()) {
+                const q = crmSearch.trim().toLowerCase();
+                const staffMatch = (act.staffName || "").toLowerCase().includes(q);
+                const summaryMatch = (act.summary || "").toLowerCase().includes(q);
+                const actionMatch = (act.action || "").toLowerCase().includes(q);
+                if (!staffMatch && !summaryMatch && !actionMatch) return false;
+              }
+              return true;
+            });
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="📈"
+                  accent="#0284C7"
+                  title="CRM + Data Operations"
+                  subtitle="Monitors cross-platform master database hygiene, candidate-to-employer pipeline conversion, data completeness ratios, and the live staff verification audit trail."
+                  pills={
+                    <>
+                      <StatPill count={totalRecords} label="TOTAL CRM RECORDS" tone="pending" />
+                      <StatPill count={verifiedCands} label="CANDIDATES VERIFIED" tone="good" />
+                      <StatPill count={verifiedComps} label="COMPANIES VERIFIED" tone="good" />
+                      <StatPill count={activityEntries.length} label="AUDIT EVENTS" tone="pending" />
+                    </>
+                  }
+                />
+
+                {/* KPI TILES GRID */}
+                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginTop: 16 }}>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #0284C7, #0369A1)" }}>
+                      <Icon name="database" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Candidate Profiles</div>
+                    <div className="tt-kpi-value">{totalCands}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      {verifiedCands} fully verified ({totalCands > 0 ? Math.round((verifiedCands / totalCands) * 100) : 0}%)
+                    </div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
+                      <Icon name="buildingGrid" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Registered Employers</div>
+                    <div className="tt-kpi-value">{totalComps}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      {verifiedComps} Gold KYC verified ({totalComps > 0 ? Math.round((verifiedComps / totalComps) * 100) : 0}%)
+                    </div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #F59E0B, #D97706)" }}>
+                      <Icon name="graduation" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Partner Academies</div>
+                    <div className="tt-kpi-value">{totalAcademies}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      Direct candidate sourcing channels
+                    </div>
+                  </div>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #8B5CF6, #6D28D9)" }}>
+                      <Icon name="award" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Platform Placement Index</div>
+                    <div className="tt-kpi-value">{dashData?.reportsData?.placementRate || "0%"}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      {dashData?.stats?.placedThisMonth || 0} placed this calendar month
+                    </div>
+                  </div>
+                </div>
+
+                {/* PIPELINE DATA FUNNEL & DROP-OFF */}
+                <div className="tt-card" style={{ marginTop: 20 }}>
+                  <div className="tt-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-light, #E2E8F0)", paddingBottom: 14, marginBottom: 18 }}>
+                    <div>
+                      <div className="tt-card-title" style={{ fontSize: 16, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>Candidate Verification Pipeline Health</div>
+                      <div className="tt-card-sub" style={{ fontSize: 12, color: "var(--text-muted, #4A5568)" }}>Live distribution of candidate records across the 7 verification and placement gates</div>
+                    </div>
+                    <span style={{ fontSize: 11, background: "#EFF6FF", color: "#1D4ED8", padding: "4px 10px", borderRadius: 999, fontWeight: 700 }}>
+                      {totalCands} Total Pipeline Candidates
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
+                    {pipelineStages.map((stg, i) => {
+                      const pctOfTotal = totalCands > 0 ? Math.round(((stg.count || 0) / totalCands) * 100) : 0;
+                      const isPlaced = stg.isPlaced || i === pipelineStages.length - 1;
+                      return (
+                        <div key={i} style={{ background: isPlaced ? "linear-gradient(135deg, #F0FDF4, #DCFCE7)" : "#F8FAFC", border: isPlaced ? "1px solid #86EFAC" : "1px solid #E2E8F0", borderRadius: 12, padding: "14px 12px", textAlign: "center", position: "relative" }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: isPlaced ? "#15803D" : "#64748B", letterSpacing: "0.05em", marginBottom: 4 }}>
+                            Gate {i + 1}
+                          </div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: isPlaced ? "#166534" : "var(--navy, #0A1F3D)", marginBottom: 8 }}>
+                            {stg.stage}
+                          </div>
+                          <div style={{ fontSize: 22, fontWeight: 800, color: isPlaced ? "#15803D" : "#0284C7", fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                            {stg.count || 0}
+                          </div>
+                          <div style={{ marginTop: 8, background: isPlaced ? "#BBF7D0" : "#E2E8F0", borderRadius: 999, height: 6, overflow: "hidden" }}>
+                            <div style={{ background: isPlaced ? "#16A34A" : "#3B82F6", height: "100%", width: `${Math.min(pctOfTotal, 100)}%`, borderRadius: 999 }} />
+                          </div>
+                          <div style={{ fontSize: 10.5, color: isPlaced ? "#166534" : "#64748B", marginTop: 6, fontWeight: 600 }}>
+                            {pctOfTotal}% conversion
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* DATA HYGIENE & RECORD INTEGRITY CARDS */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 20 }}>
+                  {/* Candidate Profile Completeness */}
+                  <div className="tt-card" style={{ padding: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EFF6FF", color: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Icon name="user" size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>Candidate Data Completeness</div>
+                        <div style={{ fontSize: 11.5, color: "var(--text-muted, #4A5568)" }}>Profile attribute verification & document attachment rates</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                          <span>Mobile Contact Captured</span>
+                          <span>{candMobilePct}% ({candidatesList.filter((c) => c.mobile).length} / {candidatesList.length || 1})</span>
+                        </div>
+                        <div style={{ background: "#E2E8F0", height: 7, borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ background: "#3B82F6", height: "100%", width: `${candMobilePct}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                          <span>Aadhaar Identity Verified (OTP KYC)</span>
+                          <span>{candAadhaarPct}% ({candidatesList.filter((c) => c.aadhaarVerified).length} / {candidatesList.length || 1})</span>
+                        </div>
+                        <div style={{ background: "#E2E8F0", height: 7, borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ background: "#10B981", height: "100%", width: `${candAadhaarPct}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                          <span>Resume Uploaded / Structured CV</span>
+                          <span>{candResumePct}% ({candidatesList.filter((c) => c.resumeUrl || c.manualResume).length} / {candidatesList.length || 1})</span>
+                        </div>
+                        <div style={{ background: "#E2E8F0", height: 7, borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ background: "#F59E0B", height: "100%", width: `${candResumePct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Employer Account Completeness */}
+                  <div className="tt-card" style={{ padding: 20 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F0FDF4", color: "#16A34A", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Icon name="buildingGrid" size={18} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>Employer Data Completeness</div>
+                        <div style={{ fontSize: 11.5, color: "var(--text-muted, #4A5568)" }}>Tax documents, point of contact, and requisition activity</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                          <span>GSTIN & Corporate PAN Captured</span>
+                          <span>{compGstinPct}% ({companiesList.filter((c) => c.stage1a?.gstin || c.gstin).length} / {companiesList.length || 1})</span>
+                        </div>
+                        <div style={{ background: "#E2E8F0", height: 7, borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ background: "#10B981", height: "100%", width: `${compGstinPct}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                          <span>Designated POC Contact Available</span>
+                          <span>{compPocPct}% ({companiesList.filter((c) => c.pocName || c.contactName || c.stage1b?.pocname).length} / {companiesList.length || 1})</span>
+                        </div>
+                        <div style={{ background: "#E2E8F0", height: 7, borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ background: "#3B82F6", height: "100%", width: `${compPocPct}%` }} />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                          <span>Active Job Requisitions Posted</span>
+                          <span>{compJobsPct}% ({companiesList.filter((c) => (c.jobsCount || 0) > 0).length} / {companiesList.length || 1})</span>
+                        </div>
+                        <div style={{ background: "#E2E8F0", height: 7, borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ background: "#8B5CF6", height: "100%", width: `${compJobsPct}%` }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* LIVE AUDIT LOG & CRM ACTIVITY TRAIL */}
+                <div className="tt-card" style={{ marginTop: 20 }}>
+                  <div className="tt-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 14, borderBottom: "1px solid var(--border-light, #E2E8F0)", paddingBottom: 14, marginBottom: 14 }}>
+                    <div>
+                      <div className="tt-card-title" style={{ fontSize: 16, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
+                        Platform Operations Audit Trail
+                      </div>
+                      <div className="tt-card-sub" style={{ fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
+                        Immutable chronological record of staff verifications, plan modifications, and entity status transitions
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="sf-action-btn outline"
+                      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, padding: "6px 12px" }}
+                      onClick={() => fetchActivityLog(1)}
+                      disabled={activityLoading}
+                    >
+                      <span>🔄</span> {activityLoading ? "Refreshing..." : "Refresh Audit Log"}
+                    </button>
+                  </div>
+
+                  {/* Filters bar */}
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+                    <div style={{ flex: 1, minWidth: 220, position: "relative" }}>
+                      <input
+                        type="text"
+                        placeholder="Search audit trail by staff name, action, or summary..."
+                        value={crmSearch}
+                        onChange={(e) => setCrmSearch(e.target.value)}
+                        className="sf-search-input"
+                        style={{ width: "100%", padding: "8px 12px 8px 32px", fontSize: 13, border: "1px solid var(--border-light, #E2E8F0)", borderRadius: 8 }}
+                      />
+                      <span style={{ position: "absolute", left: 10, top: 9, color: "var(--text-muted, #4A5568)" }}>🔍</span>
+                    </div>
+                    <select
+                      value={crmActionFilter}
+                      onChange={(e) => setCrmActionFilter(e.target.value)}
+                      style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-light, #E2E8F0)", fontSize: 13, background: "#fff", color: "var(--navy, #0A1F3D)", fontWeight: 600 }}
+                    >
+                      <option value="all">All Audit Actions</option>
+                      <option value="candidate">Candidate Verifications</option>
+                      <option value="company">Company KYC Audits</option>
+                      <option value="plan">Plan & Billing Changes</option>
+                      <option value="video">Video Reviews</option>
+                      <option value="cert">Certification Audits</option>
+                    </select>
+                  </div>
+
+                  {/* Audit Trail Table */}
+                  <div className="sf-table-wrap" style={{ maxHeight: 460, overflowY: "auto" }}>
+                    <table className="staff-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                      <thead>
+                        <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--border-light, #E2E8F0)" }}>
+                          <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Timestamp</th>
+                          <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Staff Auditor</th>
+                          <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Action Type</th>
+                          <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Target Entity</th>
+                          <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Summary & Details</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activityLoading ? (
+                          <tr><td colSpan={5} style={{ textAlign: "center", padding: 30, color: "var(--text-muted, #4A5568)" }}>Loading audit records...</td></tr>
+                        ) : filteredActivities.length === 0 ? (
+                          <tr><td colSpan={5} style={{ textAlign: "center", padding: 30, color: "var(--text-muted, #4A5568)" }}>No audit activity records matched the filter criteria.</td></tr>
+                        ) : (
+                          filteredActivities.map((act) => {
+                            const actionColor = act.action?.includes("reject")
+                              ? { bg: "#FEE2E2", text: "#991B1B" }
+                              : act.action?.includes("plan")
+                              ? { bg: "#FEF3C7", text: "#92400E" }
+                              : act.action?.includes("company")
+                              ? { bg: "#E0E7FF", text: "#3730A3" }
+                              : { bg: "#DCFCE7", text: "#166534" };
+
+                            return (
+                              <tr key={act._id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                                <td style={{ padding: "10px 14px", fontSize: 12, color: "#64748B", whiteSpace: "nowrap" }}>
+                                  {act.createdAt ? new Date(act.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}
+                                </td>
+                                <td style={{ padding: "10px 14px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                    <span style={{ width: 24, height: 24, borderRadius: "50%", background: "#0A1F3D", color: "#E5A82E", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
+                                      {(act.staffName || "S").slice(0, 2).toUpperCase()}
+                                    </span>
+                                    <div>
+                                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>{act.staffName || "Staff Admin"}</div>
+                                      {act.staffEmail && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{act.staffEmail}</div>}
+                                    </div>
+                                  </div>
+                                </td>
+                                <td style={{ padding: "10px 14px" }}>
+                                  <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", padding: "3px 8px", borderRadius: 6, background: actionColor.bg, color: actionColor.text }}>
+                                    {act.action?.replace(/_/g, " ") || "AUDIT EVENT"}
+                                  </span>
+                                </td>
+                                <td style={{ padding: "10px 14px", fontSize: 12, fontWeight: 600, color: "#334155" }}>
+                                  {act.targetType ? `${act.targetType} #${(act.targetId || "").slice(-6)}` : "System"}
+                                </td>
+                                <td style={{ padding: "10px 14px", fontSize: 12.5, color: "#1E293B", maxWidth: 360 }}>
+                                  {act.summary || "Action logged by staff."}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Pagination bar */}
+                  {activityTotalPages > 1 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, paddingTop: 10, borderTop: "1px solid #F1F5F9" }}>
+                      <span style={{ fontSize: 12, color: "var(--text-muted, #4A5568)" }}>
+                        Page {activityPage} of {activityTotalPages}
+                      </span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          type="button"
+                          className="sf-action-btn outline"
+                          disabled={activityPage <= 1 || activityLoading}
+                          onClick={() => fetchActivityLog(activityPage - 1)}
+                          style={{ padding: "4px 10px", fontSize: 11.5 }}
+                        >
+                          ← Previous
+                        </button>
+                        <button
+                          type="button"
+                          className="sf-action-btn outline"
+                          disabled={activityPage >= activityTotalPages || activityLoading}
+                          onClick={() => fetchActivityLog(activityPage + 1)}
+                          style={{ padding: "4px 10px", fontSize: 11.5 }}
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* TAB MODULE: DEPARTMENT SUCCESS + REVENUE */}
+          {activeNav === "dept_success_revenue" && (() => {
+            // Compute revenue & plan statistics
+            const freeComps = companiesList.filter((c) => !c.plan || c.plan === "free");
+            const growthComps = companiesList.filter((c) => c.plan === "growth");
+            const enterpriseComps = companiesList.filter((c) => c.plan === "enterprise");
+
+            const GROWTH_PRICE = 4999;
+            const ENTERPRISE_PRICE = 19999;
+            const monthlyRevenue = growthComps.length * GROWTH_PRICE + enterpriseComps.length * ENTERPRISE_PRICE;
+            const annualRunRate = monthlyRevenue * 12;
+
+            // Candidates placed or in final hiring stages
+            const placedCandidates = candidatesList.filter((c) => {
+              const isCompleted = (c.completedStages || []).length >= 8;
+              const isHired = (c.applicationMetrics?.hired || 0) > 0;
+              const isOffered = (c.applicationMetrics?.offered || 0) > 0;
+              return isCompleted || isHired || isOffered || c.currentStage >= 8 || c.isVerified;
+            });
+
+            const totalPlacedCount = dashData?.reportsData?.verifiedCandidates || placedCandidates.filter((c) => (c.completedStages || []).length >= 8 || (c.applicationMetrics?.hired || 0) > 0).length || 0;
+            const placedThisMonth = dashData?.stats?.placedThisMonth || 0;
+            const placementRate = dashData?.reportsData?.placementRate || "0%";
+
+            // Filters for Placed candidates tab
+            const filteredPlaced = placedCandidates.filter((c) => {
+              if (placedStatusFilter === "hired") {
+                if ((c.applicationMetrics?.hired || 0) <= 0 && (c.completedStages || []).length < 8) return false;
+              } else if (placedStatusFilter === "offered") {
+                if ((c.applicationMetrics?.offered || 0) <= 0) return false;
+              } else if (placedStatusFilter === "verified") {
+                if (!c.isVerified && (c.completedStages || []).length < 8) return false;
+              }
+
+              if (placedSearch.trim()) {
+                const q = placedSearch.trim().toLowerCase();
+                const nameMatch = (c.fullName || "").toLowerCase().includes(q);
+                const roleMatch = (c.currentRole || "").toLowerCase().includes(q);
+                const emailMatch = (c.email || "").toLowerCase().includes(q);
+                const cityMatch = (c.city || "").toLowerCase().includes(q);
+                if (!nameMatch && !roleMatch && !emailMatch && !cityMatch) return false;
+              }
+              return true;
+            });
+
+            // Filters for Companies subscription tab
+            const filteredCompaniesSub = companiesList.filter((comp) => {
+              if (revPlanFilter !== "all") {
+                const p = comp.plan || "free";
+                if (p !== revPlanFilter) return false;
+              }
+              if (revCompanySearch.trim()) {
+                const q = revCompanySearch.trim().toLowerCase();
+                const nameMatch = (comp.companyName || "").toLowerCase().includes(q);
+                const legalMatch = (comp.legalName || "").toLowerCase().includes(q);
+                const emailMatch = (comp.email || "").toLowerCase().includes(q);
+                if (!nameMatch && !legalMatch && !emailMatch) return false;
+              }
+              return true;
+            });
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="💰"
+                  accent="#059669"
+                  title="Success + Revenue"
+                  subtitle="Tracks candidate placement velocity, hiring outcomes, employer subscriptions, and platform Monthly Recurring Revenue (MRR)."
+                  pills={
+                    <>
+                      <StatPill count={`₹${monthlyRevenue.toLocaleString("en-IN")}`} label="EST. MRR" tone="good" />
+                      <StatPill count={totalPlacedCount} label="TOTAL PLACED" tone="good" />
+                      <StatPill count={placedThisMonth} label="PLACED THIS MONTH" tone="pending" />
+                      <StatPill count={growthComps.length + enterpriseComps.length} label="PAID SUBSCRIBERS" tone="good" />
+                    </>
+                  }
+                />
+
+                {/* REVENUE & PLACEMENT TOP STATS */}
+                <div className="tt-kpi-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)", marginTop: 16 }}>
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #059669, #047857)" }}>
+                      <Icon name="trendingUp" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Estimated MRR</div>
+                    <div className="tt-kpi-value">₹{monthlyRevenue.toLocaleString("en-IN")}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      Annual Run Rate: ₹{(annualRunRate / 100000).toFixed(1)} Lakhs ARR
+                    </div>
+                  </div>
+
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #D97706, #B45309)" }}>
+                      <Icon name="award" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Placement Success Rate</div>
+                    <div className="tt-kpi-value">{placementRate}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      {totalPlacedCount} placed out of {candidatesList.length || dashData?.reportsData?.totalCandidates || 0} candidates
+                    </div>
+                  </div>
+
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #2563EB, #1D4ED8)" }}>
+                      <Icon name="clock" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Placed This Month</div>
+                    <div className="tt-kpi-value">{placedThisMonth}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      Verified immediate joiners placed
+                    </div>
+                  </div>
+
+                  <div className="tt-kpi">
+                    <div className="tt-kpi-icon" style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
+                      <Icon name="shieldCheck" size={18} />
+                    </div>
+                    <div className="tt-kpi-label">Paying Employers</div>
+                    <div className="tt-kpi-value">{growthComps.length + enterpriseComps.length}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #4A5568)", marginTop: 4 }}>
+                      {growthComps.length} Growth, {enterpriseComps.length} Enterprise
+                    </div>
+                  </div>
+                </div>
+
+                {/* PLAN SUBSCRIPTION TIERS CARDS */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 20 }}>
+                  {/* Free Plan */}
+                  <div className="tt-card" style={{ padding: 18, borderTop: "4px solid #94A3B8" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", background: "#F1F5F9", color: "#475569", padding: "3px 8px", borderRadius: 6 }}>
+                          STARTER
+                        </span>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginTop: 6 }}>Free Tier</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: "#64748B" }}>₹0</div>
+                        <div style={{ fontSize: 10, color: "#94A3B8" }}>per month</div>
+                      </div>
+                    </div>
+                    <div style={{ margin: "12px 0", fontSize: 12, color: "#64748B" }}>
+                      Includes 1 active job post, basic candidate matching.
+                    </div>
+                    <div style={{ padding: "8px 12px", background: "#F8FAFC", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: "#475569" }}>Active Accounts</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: "var(--navy, #0A1F3D)" }}>{freeComps.length}</span>
+                    </div>
+                  </div>
+
+                  {/* Growth Plan */}
+                  <div className="tt-card" style={{ padding: 18, borderTop: "4px solid #3B82F6" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", background: "#EFF6FF", color: "#1D4ED8", padding: "3px 8px", borderRadius: 6 }}>
+                          PROFESSIONAL
+                        </span>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginTop: 6 }}>Growth Tier</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: "#2563EB" }}>₹4,999</div>
+                        <div style={{ fontSize: 10, color: "#94A3B8" }}>per month</div>
+                      </div>
+                    </div>
+                    <div style={{ margin: "12px 0", fontSize: 12, color: "#64748B" }}>
+                      Up to 5 active job posts + candidate pool database search.
+                    </div>
+                    <div style={{ padding: "8px 12px", background: "#EFF6FF", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: "#1E40AF" }}>Active Accounts ({growthComps.length})</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: "#1D4ED8" }}>₹{(growthComps.length * GROWTH_PRICE).toLocaleString("en-IN")}/mo</span>
+                    </div>
+                  </div>
+
+                  {/* Enterprise Plan */}
+                  <div className="tt-card" style={{ padding: 18, borderTop: "4px solid #E5A82E" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div>
+                        <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", background: "#FEF3C7", color: "#92400E", padding: "3px 8px", borderRadius: 6 }}>
+                          UNLIMITED
+                        </span>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginTop: 6 }}>Enterprise Tier</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: "#B45309" }}>₹19,999</div>
+                        <div style={{ fontSize: 10, color: "#94A3B8" }}>per month</div>
+                      </div>
+                    </div>
+                    <div style={{ margin: "12px 0", fontSize: 12, color: "#64748B" }}>
+                      Unlimited active job posts + dedicated account manager & priority audit.
+                    </div>
+                    <div style={{ padding: "8px 12px", background: "#FFFBEB", borderRadius: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 11.5, fontWeight: 600, color: "#92400E" }}>Active Accounts ({enterpriseComps.length})</span>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: "#B45309" }}>₹{(enterpriseComps.length * ENTERPRISE_PRICE).toLocaleString("en-IN")}/mo</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* VIEW TABS SELECTOR */}
+                <div style={{ display: "flex", gap: 8, marginTop: 24, borderBottom: "2px solid #E2E8F0", paddingBottom: 1 }}>
+                  <button
+                    type="button"
+                    onClick={() => setRevTab("placed")}
+                    style={{
+                      background: revTab === "placed" ? "#FFFFFF" : "transparent",
+                      border: "none",
+                      borderBottom: revTab === "placed" ? "3px solid #059669" : "3px solid transparent",
+                      padding: "10px 18px",
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      color: revTab === "placed" ? "#059669" : "#64748B",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      borderRadius: "6px 6px 0 0",
+                    }}
+                  >
+                    <span>🎓</span> Placed & Hired Candidates
+                    <span style={{ fontSize: 11, background: revTab === "placed" ? "#DCFCE7" : "#E2E8F0", color: revTab === "placed" ? "#166534" : "#475569", padding: "2px 7px", borderRadius: 999 }}>
+                      {placedCandidates.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRevTab("subscriptions")}
+                    style={{
+                      background: revTab === "subscriptions" ? "#FFFFFF" : "transparent",
+                      border: "none",
+                      borderBottom: revTab === "subscriptions" ? "3px solid #2563EB" : "3px solid transparent",
+                      padding: "10px 18px",
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      color: revTab === "subscriptions" ? "#2563EB" : "#64748B",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      borderRadius: "6px 6px 0 0",
+                    }}
+                  >
+                    <span>🏢</span> Employer Subscriptions & Monetization
+                    <span style={{ fontSize: 11, background: revTab === "subscriptions" ? "#DBEAFE" : "#E2E8F0", color: revTab === "subscriptions" ? "#1E40AF" : "#475569", padding: "2px 7px", borderRadius: 999 }}>
+                      {companiesList.length}
+                    </span>
+                  </button>
+                </div>
+
+                {/* TAB CONTENT: PLACED CANDIDATES */}
+                {revTab === "placed" && (
+                  <div className="tt-card" style={{ marginTop: 14 }}>
+                    {/* Filters */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                      <div style={{ display: "flex", gap: 10, flex: 1, minWidth: 260 }}>
+                        <input
+                          type="text"
+                          placeholder="Search placed candidate by name, role, email, city..."
+                          value={placedSearch}
+                          onChange={(e) => setPlacedSearch(e.target.value)}
+                          className="sf-search-input"
+                          style={{ flex: 1, padding: "8px 12px", fontSize: 13, border: "1px solid var(--border-light, #E2E8F0)", borderRadius: 8 }}
+                        />
+                        <select
+                          value={placedStatusFilter}
+                          onChange={(e) => setPlacedStatusFilter(e.target.value)}
+                          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-light, #E2E8F0)", fontSize: 13, background: "#fff", color: "var(--navy, #0A1F3D)", fontWeight: 600 }}
+                        >
+                          <option value="all">All Placement Stages</option>
+                          <option value="hired">Hired / Placed (Stage 8)</option>
+                          <option value="offered">Offer Extended</option>
+                          <option value="verified">Fully Verified (Gold Badge)</option>
+                        </select>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Showing {filteredPlaced.length} candidates
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="sf-table-wrap">
+                      <table className="staff-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--border-light, #E2E8F0)" }}>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Candidate</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Role & City</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Academy / Source</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Verification Status</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Placement / Hiring Status</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Expected CTC</th>
+                            <th style={{ padding: "10px 14px", textAlign: "right", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredPlaced.length === 0 ? (
+                            <tr>
+                              <td colSpan={7} style={{ textAlign: "center", padding: 36, color: "var(--text-muted, #4A5568)" }}>
+                                No placed candidates matched the filter criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredPlaced.map((cand) => {
+                              const isFullyVerified = cand.isVerified || (cand.completedStages || []).length >= 8;
+                              const hiredCount = cand.applicationMetrics?.hired || 0;
+                              const offeredCount = cand.applicationMetrics?.offered || 0;
+                              const ctc = cand.stage8?.expectedCtc || cand.stage1?.expectedSalary || cand.stage1?.currentSalary || "As per industry";
+
+                              return (
+                                <tr key={cand._id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#0A1F3D", color: "#E5A82E", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 12 }}>
+                                        {(cand.fullName || "C").slice(0, 2).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy, #0A1F3D)" }}>{cand.fullName}</div>
+                                        <div style={{ fontSize: 11, color: "#64748B" }}>{cand.email}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    <div style={{ fontWeight: 600, fontSize: 12.5, color: "#1E293B" }}>{cand.currentRole || "Medical Coding Specialist"}</div>
+                                    <div style={{ fontSize: 11, color: "#64748B" }}>{cand.city || "Pan India"}</div>
+                                  </td>
+                                  <td style={{ padding: "12px 14px", fontSize: 12, color: "#475569" }}>
+                                    {cand.stage2?.academyName || cand.stage2?.institute || "Direct Onboarding"}
+                                  </td>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    {isFullyVerified ? (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#FEF3C7", color: "#92400E", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                        ★ Gold Certified (8/8)
+                                      </span>
+                                    ) : (
+                                      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#EFF6FF", color: "#1E40AF", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                        Stage {(cand.completedStages || []).length}/8 Complete
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    {hiredCount > 0 ? (
+                                      <span style={{ background: "#DCFCE7", color: "#166534", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                        ✓ Hired & Placed
+                                      </span>
+                                    ) : offeredCount > 0 ? (
+                                      <span style={{ background: "#E0E7FF", color: "#3730A3", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                        ★ Offer Extended
+                                      </span>
+                                    ) : (
+                                      <span style={{ background: "#FEF3C7", color: "#92400E", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                        Ready for Immediate Joining
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "12px 14px", fontSize: 12, fontWeight: 600, color: "#0F172A" }}>
+                                    {ctc}
+                                  </td>
+                                  <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn outline"
+                                      style={{ fontSize: 11.5, padding: "5px 10px" }}
+                                      onClick={() => {
+                                        setSelectedCandidate(cand);
+                                        setCandidateModalTab("identity");
+                                      }}
+                                    >
+                                      Inspect Profile →
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB CONTENT: EMPLOYER SUBSCRIPTIONS & MONETIZATION */}
+                {revTab === "subscriptions" && (
+                  <div className="tt-card" style={{ marginTop: 14 }}>
+                    {/* Filters */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+                      <div style={{ display: "flex", gap: 10, flex: 1, minWidth: 260 }}>
+                        <input
+                          type="text"
+                          placeholder="Search company by name, legal name, email..."
+                          value={revCompanySearch}
+                          onChange={(e) => setRevCompanySearch(e.target.value)}
+                          className="sf-search-input"
+                          style={{ flex: 1, padding: "8px 12px", fontSize: 13, border: "1px solid var(--border-light, #E2E8F0)", borderRadius: 8 }}
+                        />
+                        <select
+                          value={revPlanFilter}
+                          onChange={(e) => setRevPlanFilter(e.target.value)}
+                          style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-light, #E2E8F0)", fontSize: 13, background: "#fff", color: "var(--navy, #0A1F3D)", fontWeight: 600 }}
+                        >
+                          <option value="all">All Subscription Plans</option>
+                          <option value="enterprise">Enterprise Tier (₹19,999/mo)</option>
+                          <option value="growth">Growth Tier (₹4,999/mo)</option>
+                          <option value="free">Free Starter Tier (₹0)</option>
+                        </select>
+                      </div>
+                      <div style={{ fontSize: 12, color: "#64748B" }}>
+                        Showing {filteredCompaniesSub.length} employer accounts
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="sf-table-wrap">
+                      <table className="staff-table" style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                          <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--border-light, #E2E8F0)" }}>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Company Name</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Current Plan</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Monthly Value</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>KYC Status</th>
+                            <th style={{ padding: "10px 14px", textAlign: "left", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Active Job Posts</th>
+                            <th style={{ padding: "10px 14px", textAlign: "right", fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase" }}>Assign / Change Plan</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredCompaniesSub.length === 0 ? (
+                            <tr>
+                              <td colSpan={6} style={{ textAlign: "center", padding: 36, color: "var(--text-muted, #4A5568)" }}>
+                                No employer accounts matched the subscription criteria.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredCompaniesSub.map((comp) => {
+                              const planId = comp.plan || "free";
+                              const isGrowth = planId === "growth";
+                              const isEnt = planId === "enterprise";
+                              const planPrice = isEnt ? ENTERPRISE_PRICE : isGrowth ? GROWTH_PRICE : 0;
+                              const planBadgeStyle = isEnt
+                                ? { bg: "#FEF3C7", text: "#92400E", border: "#FCD34D", label: "Enterprise" }
+                                : isGrowth
+                                ? { bg: "#EFF6FF", text: "#1E40AF", border: "#93C5FD", label: "Growth" }
+                                : { bg: "#F1F5F9", text: "#475569", border: "#CBD5E1", label: "Free" };
+
+                              return (
+                                <tr key={comp._id || comp.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                      <div style={{ width: 34, height: 34, borderRadius: 8, background: "#0A1F3D", color: "#E5A82E", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>
+                                        {(comp.companyName || comp.legalName || "C").slice(0, 2).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div style={{ fontWeight: 700, fontSize: 13, color: "var(--navy, #0A1F3D)" }}>{comp.companyName || comp.legalName || "Unnamed Company"}</div>
+                                        <div style={{ fontSize: 11, color: "#64748B" }}>{comp.email}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    <span style={{ display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800, background: planBadgeStyle.bg, color: planBadgeStyle.text, border: `1px solid ${planBadgeStyle.border}` }}>
+                                      {planBadgeStyle.label}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 700, color: planPrice > 0 ? "#059669" : "#64748B" }}>
+                                    ₹{planPrice.toLocaleString("en-IN")}/mo
+                                  </td>
+                                  <td style={{ padding: "12px 14px" }}>
+                                    {comp.kycStatus === "verified" ? (
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "3px 8px", borderRadius: 6 }}>
+                                        ✓ KYC Verified
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "3px 8px", borderRadius: 6 }}>
+                                        KYC {comp.kycStatus || "Pending"}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td style={{ padding: "12px 14px", fontSize: 12.5, fontWeight: 600, color: "#334155" }}>
+                                    {comp.jobsCount || 0} {isEnt ? "(Unlimited slot)" : isGrowth ? "/ 5 slots" : "/ 1 slot"}
+                                  </td>
+                                  <td style={{ padding: "12px 14px", textAlign: "right" }}>
+                                    <select
+                                      value={planId}
+                                      onChange={(e) => handleAssignPlan(comp._id || comp.id, e.target.value)}
+                                      style={{
+                                        padding: "5px 10px",
+                                        borderRadius: 6,
+                                        border: "1px solid var(--border-light, #E2E8F0)",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        background: "#FFFFFF",
+                                        color: "var(--navy, #0A1F3D)",
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      <option value="free">Switch to Free</option>
+                                      <option value="growth">Switch to Growth (₹4,999)</option>
+                                      <option value="enterprise">Switch to Enterprise (₹19,999)</option>
+                                    </select>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* TAB MODULE: OTHER DEPARTMENTS FALLBACK */}
+          {activeNav.startsWith("dept_") &&
+            !["dept_candidate_acquisition", "dept_company_relations", "dept_assessment_video", "dept_crm_data", "dept_success_revenue"].includes(activeNav) &&
+            DEPARTMENTS[activeNav] && (() => {
             const dept = DEPARTMENTS[activeNav];
             const live = getDeptLiveData(activeNav, dashData);
             return (
@@ -3075,19 +5723,527 @@ export default function StaffHub() {
 
 
           {/* TAB MODULE 5: INTERVIEW QUESTIONS */}
-          {activeNav === "questions" && (
-            <div className="tt-content">
-              <QueuePageHeader
-                icon="🎤"
-                accent="#059669"
-                title="AI Interview Questions Bank"
-                subtitle="Manage AI video & audio interview assessment question items."
-              />
-              <div style={{ background: "#fff", padding: 24, borderRadius: 16, border: "1px solid var(--border-light, #E2E8F0)" }}>
-                <p style={{ color: "var(--text-muted, #4A5568)" }}>{interviewQuestions.length} Interview questions active in system bank.</p>
+          {activeNav === "questions" && (() => {
+            const activeCount = interviewQuestions.filter((q) => q.active).length;
+            const videoCount = interviewQuestions.filter((q) => q.mode === "both" || q.mode === "video").length;
+            const audioCount = interviewQuestions.filter((q) => q.mode === "both" || q.mode === "audio").length;
+
+            const filteredQuestions = interviewQuestions.filter((q) => {
+              if (questionModeFilter !== "all" && q.mode !== questionModeFilter) return false;
+              if (questionStatusFilter === "active" && !q.active) return false;
+              if (questionStatusFilter === "inactive" && q.active) return false;
+              if (questionSearch.trim()) {
+                const term = questionSearch.toLowerCase();
+                const inText = (q.text || "").toLowerCase().includes(term);
+                const inAns = (q.correctAnswer || "").toLowerCase().includes(term);
+                if (!inText && !inAns) return false;
+              }
+              return true;
+            });
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="🎤"
+                  accent="#059669"
+                  title="AI Interview Questions Bank"
+                  subtitle="Manage AI video & audio interview assessment question items and expected answers."
+                  pills={
+                    <>
+                      <StatPill count={interviewQuestions.length} label="TOTAL QUESTIONS" tone="good" />
+                      <StatPill count={activeCount} label="ACTIVE" tone="good" />
+                      <StatPill count={videoCount} label="VIDEO" tone="pending" />
+                      <StatPill count={audioCount} label="AUDIO" tone="pending" />
+                    </>
+                  }
+                />
+
+                {/* BANNER & ADD BUTTON */}
+                <div
+                  style={{
+                    background: "linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)",
+                    border: "1.5px solid #A7F3D0",
+                    borderRadius: 16,
+                    padding: "16px 22px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    flexWrap: "wrap",
+                    marginBottom: 20,
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 260, flex: 1 }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 12,
+                        background: "#059669",
+                        color: "#FFFFFF",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 20,
+                        flexShrink: 0,
+                        boxShadow: "0 4px 10px rgba(5,150,105,0.25)",
+                      }}
+                    >
+                      🎤
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 14.5, color: "#065F46" }}>
+                        Official Assessment & AI Mock Interview Bank
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "#047857", marginTop: 2, lineHeight: 1.45 }}>
+                        All active questions and model answers configured here are asked directly to candidates in Stage 5 (Video & Audio Assessments) and Stage 8 (Live AI Technical Mock Interview). The AI grading engine uses the model answers below to score responses.
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddQuestion}
+                    style={{
+                      background: "#059669",
+                      color: "#FFFFFF",
+                      border: "none",
+                      padding: "11px 22px",
+                      borderRadius: 10,
+                      fontWeight: 800,
+                      fontSize: 13.5,
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      boxShadow: "0 4px 14px rgba(5,150,105,0.3)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <span>+ Add New Question</span>
+                  </button>
+                </div>
+
+                {/* SEARCH & FILTERS BAR */}
+                <div
+                  style={{
+                    background: "#FFFFFF",
+                    borderRadius: 14,
+                    border: "1px solid var(--border-light, #E2E8F0)",
+                    padding: "14px 18px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    flexWrap: "wrap",
+                    marginBottom: 20,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 240, position: "relative" }}>
+                    <input
+                      type="text"
+                      placeholder="Search question text or model answer keywords…"
+                      value={questionSearch}
+                      onChange={(e) => setQuestionSearch(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "9px 14px 9px 34px",
+                        borderRadius: 9,
+                        border: "1px solid #CBD5E1",
+                        fontSize: 13,
+                        outline: "none",
+                        color: "#0F172A",
+                        background: "#F8FAFC",
+                      }}
+                    />
+                    <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 13 }}>
+                      🔍
+                    </span>
+                    {questionSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setQuestionSearch("")}
+                        style={{
+                          position: "absolute",
+                          right: 10,
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          background: "none",
+                          border: "none",
+                          color: "#94A3B8",
+                          cursor: "pointer",
+                          fontSize: 12,
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <select
+                      value={questionModeFilter}
+                      onChange={(e) => setQuestionModeFilter(e.target.value)}
+                      style={{
+                        padding: "9px 12px",
+                        borderRadius: 9,
+                        border: "1px solid #CBD5E1",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: "#334155",
+                        background: "#FFFFFF",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      <option value="all">All Modes ({interviewQuestions.length})</option>
+                      <option value="both">Both Video & Audio ({interviewQuestions.filter((q) => q.mode === "both").length})</option>
+                      <option value="video">Video Only ({interviewQuestions.filter((q) => q.mode === "video").length})</option>
+                      <option value="audio">Audio Only ({interviewQuestions.filter((q) => q.mode === "audio").length})</option>
+                    </select>
+
+                    <select
+                      value={questionStatusFilter}
+                      onChange={(e) => setQuestionStatusFilter(e.target.value)}
+                      style={{
+                        padding: "9px 12px",
+                        borderRadius: 9,
+                        border: "1px solid #CBD5E1",
+                        fontSize: 12.5,
+                        fontWeight: 600,
+                        color: "#334155",
+                        background: "#FFFFFF",
+                        cursor: "pointer",
+                        outline: "none",
+                      }}
+                    >
+                      <option value="all">All Statuses ({interviewQuestions.length})</option>
+                      <option value="active">Active Only ({activeCount})</option>
+                      <option value="inactive">Inactive Only ({interviewQuestions.length - activeCount})</option>
+                    </select>
+
+                    {(questionSearch || questionModeFilter !== "all" || questionStatusFilter !== "all") && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuestionSearch("");
+                          setQuestionModeFilter("all");
+                          setQuestionStatusFilter("all");
+                        }}
+                        style={{
+                          background: "#F1F5F9",
+                          border: "1px solid #E2E8F0",
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          color: "#64748B",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* QUESTIONS LIST */}
+                {questionsLoading ? (
+                  <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
+                    <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+                    <div style={{ fontWeight: 700, color: "#334155" }}>Loading questions bank…</div>
+                  </div>
+                ) : filteredQuestions.length === 0 ? (
+                  <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
+                    <div style={{ fontSize: 32, marginBottom: 12 }}>🎤</div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
+                      {interviewQuestions.length === 0 ? "No interview questions in bank" : "No matching questions found"}
+                    </h3>
+                    <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 18px", maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
+                      {interviewQuestions.length === 0
+                        ? "Add questions and their model answers so the AI can present them to candidates during Stage 5 and Stage 8 assessments."
+                        : "Try adjusting your search terms or filter selection to view more questions."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={interviewQuestions.length === 0 ? handleOpenAddQuestion : () => { setQuestionSearch(""); setQuestionModeFilter("all"); setQuestionStatusFilter("all"); }}
+                      style={{
+                        background: "#059669",
+                        color: "#FFFFFF",
+                        border: "none",
+                        padding: "10px 20px",
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        fontSize: 13,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {interviewQuestions.length === 0 ? "+ Add Your First Question" : "Clear Filters"}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {filteredQuestions.map((q, idx) => {
+                      const qId = q._id || q.id;
+                      const isConfirmingDelete = questionDeleteConfirmId === qId;
+
+                      return (
+                        <div
+                          key={qId}
+                          style={{
+                            background: "#FFFFFF",
+                            borderRadius: 16,
+                            border: q.active ? "1px solid #E2E8F0" : "1px dashed #CBD5E1",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                            padding: "20px 22px",
+                            opacity: q.active ? 1 : 0.82,
+                            transition: "all 0.2s ease",
+                          }}
+                        >
+                          {/* TOP CARD HEADER */}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 12,
+                              flexWrap: "wrap",
+                              borderBottom: "1px solid #F1F5F9",
+                              paddingBottom: 12,
+                              marginBottom: 14,
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span
+                                style={{
+                                  background: "var(--navy, #0A1F3D)",
+                                  color: "#FFFFFF",
+                                  padding: "3px 10px",
+                                  borderRadius: 7,
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  letterSpacing: "0.02em",
+                                }}
+                              >
+                                #{q.order ?? (idx + 1)}
+                              </span>
+
+                              {q.mode === "both" && (
+                                <span style={{ background: "#EEF2FF", color: "#4F46E5", border: "1px solid #C7D2FE", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
+                                  🎥 Video & 🎙️ Audio
+                                </span>
+                              )}
+                              {q.mode === "video" && (
+                                <span style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
+                                  🎥 Video Assessment Only
+                                </span>
+                              )}
+                              {q.mode === "audio" && (
+                                <span style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
+                                  🎙️ Audio Interview Only
+                                </span>
+                              )}
+
+                              {q.active ? (
+                                <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 5 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#15803D" }}></span> Active
+                                </span>
+                              ) : (
+                                <span style={{ background: "#F1F5F9", color: "#64748B", border: "1px solid #CBD5E1", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
+                                  ○ Inactive (Paused)
+                                </span>
+                              )}
+                            </div>
+
+                            {/* ACTIONS */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleQuestionActive(q)}
+                                title={q.active ? "Pause this question" : "Activate this question"}
+                                style={{
+                                  background: q.active ? "#FEF3C7" : "#DCFCE7",
+                                  color: q.active ? "#92400E" : "#15803D",
+                                  border: `1px solid ${q.active ? "#FDE68A" : "#86EFAC"}`,
+                                  borderRadius: 8,
+                                  padding: "6px 12px",
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {q.active ? "Pause" : "Activate"}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditQuestion(q)}
+                                style={{
+                                  background: "#F8FAFC",
+                                  color: "#0F172A",
+                                  border: "1px solid #CBD5E1",
+                                  borderRadius: 8,
+                                  padding: "6px 12px",
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 5,
+                                }}
+                              >
+                                ✏️ Edit
+                              </button>
+
+                              {isConfirmingDelete ? (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#FEE2E2", padding: "4px 8px", borderRadius: 8, border: "1px solid #FCA5A5" }}>
+                                  <span style={{ fontSize: 11, color: "#B91C1C", fontWeight: 700 }}>Delete?</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteQuestion(qId)}
+                                    style={{
+                                      background: "#DC2626",
+                                      color: "#FFFFFF",
+                                      border: "none",
+                                      borderRadius: 6,
+                                      padding: "3px 8px",
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuestionDeleteConfirmId(null)}
+                                    style={{
+                                      background: "#FFFFFF",
+                                      color: "#475569",
+                                      border: "1px solid #CBD5E1",
+                                      borderRadius: 6,
+                                      padding: "3px 8px",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setQuestionDeleteConfirmId(qId)}
+                                  title="Delete question"
+                                  style={{
+                                    background: "#FFF1F2",
+                                    color: "#E11D48",
+                                    border: "1px solid #FECDD3",
+                                    borderRadius: 8,
+                                    padding: "6px 12px",
+                                    fontSize: 11.5,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  🗑️ Delete
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* QUESTION TEXT */}
+                          <div style={{ marginBottom: 14 }}>
+                            <div style={{ fontSize: 11, color: "#64748B", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                              Question Prompt
+                            </div>
+                            <div style={{ fontSize: 15.5, fontWeight: 700, color: "#0F172A", lineHeight: 1.5 }}>
+                              {q.text}
+                            </div>
+                          </div>
+
+                          {/* MODEL / EXPECTED ANSWER BOX */}
+                          <div
+                            style={{
+                              background: "#F8FAFC",
+                              border: "1.5px solid #E2E8F0",
+                              borderRadius: 12,
+                              padding: "14px 18px",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+                              <span
+                                style={{
+                                  fontSize: 11.5,
+                                  fontWeight: 800,
+                                  color: "#059669",
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.04em",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                }}
+                              >
+                                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#059669" }}></span>
+                                Expected / Model Answer (For AI Evaluation)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => copyToClipboard(q.correctAnswer, "Expected Answer")}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: "#64748B",
+                                  fontSize: 11.5,
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 4,
+                                  padding: 0,
+                                  fontWeight: 600,
+                                }}
+                              >
+                                📋 Copy
+                              </button>
+                            </div>
+                            <div style={{ fontSize: 13.5, color: "#1E293B", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                              {q.correctAnswer || (
+                                <span style={{ color: "#94A3B8", fontStyle: "italic" }}>
+                                  No expected model answer recorded yet. Click &ldquo;Edit&rdquo; above to provide the grading key.
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* FOOTER METADATA */}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              marginTop: 12,
+                              paddingTop: 10,
+                              fontSize: 11.5,
+                              color: "#94A3B8",
+                              flexWrap: "wrap",
+                              gap: 8,
+                            }}
+                          >
+                            <div>
+                              Mode: <strong>{q.mode}</strong> · Order Priority: <strong>{q.order ?? 0}</strong>
+                            </div>
+                            {q.createdAt && (
+                              <div>Added on {new Date(q.createdAt).toLocaleDateString()}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* TAB MODULE 6: REPORTS */}
           {activeNav === "reports" && (() => {
@@ -3191,6 +6347,280 @@ export default function StaffHub() {
         </div>
       </div>
 
+      {/* ADD / EDIT INTERVIEW QUESTION MODAL — rendered at top level so position:fixed
+          is not clipped by the sticky topbar's backdrop-filter stacking context */}
+      {questionModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+            padding: 20,
+            fontFamily: "var(--font-body, 'Manrope', sans-serif)",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 18,
+              width: "100%",
+              maxWidth: 620,
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 45px rgba(0,0,0,0.2)",
+              border: "1px solid #E2E8F0",
+            }}
+          >
+            {/* MODAL HEADER */}
+            <div
+              style={{
+                padding: "18px 24px",
+                borderBottom: "1px solid #E2E8F0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#F8FAFC",
+                borderTopLeftRadius: 18,
+                borderTopRightRadius: 18,
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", margin: "0 0 3px" }}>
+                  {editingQuestion ? "Edit Interview Question & Answer" : "Add New Interview Question"}
+                </h3>
+                <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
+                  This question will be presented in Stage 5 Assessments and Stage 8 AI Mock Interviews.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuestionModalOpen(false)}
+                style={{
+                  background: "#E2E8F0",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: 32,
+                  height: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  color: "#475569",
+                  fontSize: 16,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* MODAL BODY */}
+            <form onSubmit={handleSaveQuestion} style={{ padding: "20px 24px" }}>
+              {questionError && (
+                <div
+                  style={{
+                    background: "#FEF2F2",
+                    border: "1px solid #FECACA",
+                    borderRadius: 10,
+                    padding: "10px 14px",
+                    color: "#B91C1C",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    marginBottom: 16,
+                  }}
+                >
+                  ⚠️ {questionError}
+                </div>
+              )}
+
+              {/* QUESTION TEXT */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                  Question Prompt <span style={{ color: "#EF4444" }}>*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. What is the difference between ICD-10-CM diagnosis codes and CPT procedure codes?"
+                  value={questionForm.text}
+                  onChange={(e) => setQuestionForm({ ...questionForm, text: e.target.value })}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: "1px solid #CBD5E1",
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                    color: "#0F172A",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+                <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
+                  Keep questions clear and focused on conversational technical/industry knowledge.
+                </div>
+              </div>
+
+              {/* EXPECTED MODEL ANSWER */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                  Expected / Model Answer (Grading Reference) <span style={{ color: "#EF4444" }}>*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="e.g. ICD-10-CM codes describe why the patient received care (diagnosis), while CPT codes describe what service, test, or procedure was performed..."
+                  value={questionForm.correctAnswer}
+                  onChange={(e) => setQuestionForm({ ...questionForm, correctAnswer: e.target.value })}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: "1px solid #CBD5E1",
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                    color: "#0F172A",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+                <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
+                  The AI will evaluate candidates' spoken and transcribed answers against this model answer.
+                </div>
+              </div>
+
+              {/* ROW: MODE & ORDER */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                    Target Interview Mode
+                  </label>
+                  <select
+                    value={questionForm.mode}
+                    onChange={(e) => setQuestionForm({ ...questionForm, mode: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#0F172A",
+                      outline: "none",
+                      background: "#FFFFFF",
+                    }}
+                  >
+                    <option value="both">Both (Video & Audio)</option>
+                    <option value="video">Video Assessment Only</option>
+                    <option value="audio">Audio Interview Only</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                    Sequence Order (Priority)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={questionForm.order}
+                    onChange={(e) => setQuestionForm({ ...questionForm, order: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 13,
+                      color: "#0F172A",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>Lower numbers are asked first.</div>
+                </div>
+              </div>
+
+              {/* ACTIVE CHECKBOX */}
+              <div
+                style={{
+                  background: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 22,
+                  cursor: "pointer",
+                }}
+                onClick={() => setQuestionForm({ ...questionForm, active: !questionForm.active })}
+              >
+                <input
+                  type="checkbox"
+                  checked={questionForm.active}
+                  onChange={(e) => setQuestionForm({ ...questionForm, active: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: "pointer" }}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                    Active in Assessment &amp; AI Mock Interviews
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#64748B" }}>
+                    When enabled, candidates will receive this question during their live sessions.
+                  </div>
+                </div>
+              </div>
+
+              {/* MODAL ACTIONS */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setQuestionModalOpen(false)}
+                  style={{
+                    background: "#F1F5F9",
+                    color: "#475569",
+                    border: "none",
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={questionSubmitting}
+                  style={{
+                    background: "#059669",
+                    color: "#FFFFFF",
+                    border: "none",
+                    padding: "10px 22px",
+                    borderRadius: 10,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(5,150,105,0.25)",
+                    opacity: questionSubmitting ? 0.7 : 1,
+                  }}
+                >
+                  {questionSubmitting ? "Saving…" : editingQuestion ? "Update Question" : "Save to Bank"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* QUICK ACTION MODALS */}
       {activeModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(6,21,42,0.7)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}>
@@ -3204,6 +6634,8 @@ export default function StaffHub() {
                 {activeModal === "visit" && "📍 Log Site Visit"}
                 {activeModal === "quick_add" && "➕ Quick Add Candidate / Lead"}
                 {activeModal === "kanban" && "📋 Core Verification Pipeline Kanban"}
+                {activeModal === "create_employee" && "🛡️ Create New Employee Account"}
+                {activeModal === "reset_employee_password" && "🔑 Reset Employee Password"}
               </h2>
               <button
                 type="button"
@@ -3516,6 +6948,292 @@ export default function StaffHub() {
                   ))}
                 </div>
               </div>
+            )}
+
+            {/* CREATE EMPLOYEE MODAL */}
+            {activeModal === "create_employee" && (
+              <form onSubmit={handleCreateEmployee} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <p style={{ margin: "0 0 6px", fontSize: 13, color: "#64748B", lineHeight: 1.4 }}>
+                  Create employee credentials to grant operational access to the Employee Dashboard (<code style={{ fontSize: 11, background: "#F1F5F9", padding: "2px 5px", borderRadius: 4, fontFamily: "var(--font-mono, monospace)" }}>/employee/login</code>).
+                </p>
+
+                {createEmployeeError && (
+                  <div className="emp-modal-alert">
+                    <span>⚠️</span>
+                    <span>{createEmployeeError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, monospace)" }}>
+                    FULL NAME *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Vikram Rao"
+                    value={createEmployeeForm.name}
+                    onChange={(e) => setCreateEmployeeForm({ ...createEmployeeForm, name: e.target.value })}
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, monospace)" }}>
+                      USERNAME / EMP ID *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. vikram.rao"
+                      value={createEmployeeForm.username}
+                      onChange={(e) => setCreateEmployeeForm({ ...createEmployeeForm, username: e.target.value.toLowerCase().trim() })}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", fontFamily: "var(--font-mono, monospace)", boxSizing: "border-box" }}
+                    />
+                    <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 3 }}>Lowercase, numbers, dots or underscores</div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, monospace)" }}>
+                      OFFICIAL EMAIL *
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="vikram.rao@talentera.in"
+                      value={createEmployeeForm.email}
+                      onChange={(e) => setCreateEmployeeForm({ ...createEmployeeForm, email: e.target.value.trim() })}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", fontFamily: "var(--font-mono, monospace)" }}>
+                      PASSWORD *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={generateRandomPassword}
+                      style={{
+                        background: "#F1F5F9",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: "var(--navy, #0A1F3D)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🎲 Auto-Generate
+                    </button>
+                  </div>
+                  <div className="emp-pw-input-wrapper">
+                    <input
+                      type={showEmployeePassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                      value={createEmployeeForm.password}
+                      onChange={(e) => setCreateEmployeeForm({ ...createEmployeeForm, password: e.target.value })}
+                      style={{ width: "100%", padding: "10px 38px 10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", fontFamily: showEmployeePassword ? "var(--font-mono, monospace)" : "inherit", boxSizing: "border-box" }}
+                    />
+                    <button
+                      type="button"
+                      className="emp-pw-toggle-btn"
+                      onClick={() => setShowEmployeePassword(!showEmployeePassword)}
+                      title={showEmployeePassword ? "Hide password" : "Show password"}
+                    >
+                      {showEmployeePassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 3 }}>
+                    The employee can sign in with this username (or email) and password.
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, monospace)" }}>
+                      DESIGNATION / ROLE
+                    </label>
+                    <select
+                      value={createEmployeeForm.role}
+                      onChange={(e) => setCreateEmployeeForm({ ...createEmployeeForm, role: e.target.value })}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", background: "#fff", boxSizing: "border-box" }}
+                    >
+                      <option value="Senior Operations Auditor">Senior Operations Auditor</option>
+                      <option value="Candidate Verification Specialist">Candidate Verification Specialist</option>
+                      <option value="Company KYC Auditor">Company KYC Auditor</option>
+                      <option value="Assessment & Interview Specialist">Assessment & Interview Specialist</option>
+                      <option value="Mapping Engine Specialist">Mapping Engine Specialist</option>
+                      <option value="Placement & Success Lead">Placement & Success Lead</option>
+                      <option value="Platform Administrator">Platform Administrator</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, monospace)" }}>
+                      TRUST BADGE
+                    </label>
+                    <select
+                      value={createEmployeeForm.badge}
+                      onChange={(e) => setCreateEmployeeForm({ ...createEmployeeForm, badge: e.target.value })}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", background: "#fff", boxSizing: "border-box" }}
+                    >
+                      <option value="Gold Certified Lead">Gold Certified Lead</option>
+                      <option value="Silver Verifier">Silver Verifier</option>
+                      <option value="Operations Auditor">Operations Auditor</option>
+                      <option value="Staff Specialist">Staff Specialist</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveModal(null)}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      background: "#fff",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createEmployeeSubmitting}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "linear-gradient(135deg, var(--navy, #0A1F3D) 0%, #15325B 100%)",
+                      color: "var(--gold, #E5A82E)",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: createEmployeeSubmitting ? "not-allowed" : "pointer",
+                      opacity: createEmployeeSubmitting ? 0.7 : 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {createEmployeeSubmitting ? "Creating Employee..." : "Create Employee Account"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* RESET EMPLOYEE PASSWORD MODAL */}
+            {activeModal === "reset_employee_password" && resetPasswordEmployee && (
+              <form onSubmit={handleResetEmployeePassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <p style={{ margin: "0 0 10px", fontSize: 13, color: "#64748B" }}>
+                  Set a new password for <strong>{resetPasswordEmployee.name}</strong> (@{resetPasswordEmployee.username}).
+                </p>
+
+                {resetPasswordError && (
+                  <div className="emp-modal-alert">
+                    <span>⚠️</span>
+                    <span>{resetPasswordError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", fontFamily: "var(--font-mono, monospace)" }}>
+                      NEW PASSWORD *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$";
+                        let pass = "";
+                        for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setNewPasswordForReset(pass);
+                        setShowEmployeePassword(true);
+                      }}
+                      style={{
+                        background: "#F1F5F9",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: "var(--navy, #0A1F3D)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🎲 Auto-Generate
+                    </button>
+                  </div>
+                  <div className="emp-pw-input-wrapper">
+                    <input
+                      type={showEmployeePassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                      value={newPasswordForReset}
+                      onChange={(e) => setNewPasswordForReset(e.target.value)}
+                      style={{ width: "100%", padding: "10px 38px 10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", fontFamily: showEmployeePassword ? "var(--font-mono, monospace)" : "inherit", boxSizing: "border-box" }}
+                    />
+                    <button
+                      type="button"
+                      className="emp-pw-toggle-btn"
+                      onClick={() => setShowEmployeePassword(!showEmployeePassword)}
+                      title={showEmployeePassword ? "Hide password" : "Show password"}
+                    >
+                      {showEmployeePassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveModal(null);
+                      setResetPasswordEmployee(null);
+                    }}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      background: "#fff",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetPasswordSubmitting}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "linear-gradient(135deg, var(--navy, #0A1F3D) 0%, #15325B 100%)",
+                      color: "var(--gold, #E5A82E)",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: resetPasswordSubmitting ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {resetPasswordSubmitting ? "Updating..." : "Update Password"}
+                  </button>
+                </div>
+              </form>
             )}
 
           </div>

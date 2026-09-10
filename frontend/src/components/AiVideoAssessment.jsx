@@ -256,9 +256,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
           timeLimit: 60,
         }));
         if (rawList.length) {
-          const pickedCount = Math.min(5, rawList.length);
-          const shuffledStaffList = shuffleAndPickQuestions(rawList, pickedCount);
-          setFetchedQuestions(shuffledStaffList);
+          // Use the staff-configured interview question bank in its configured order
+          setFetchedQuestions(rawList);
         } else {
           setFetchedQuestions(null);
         }
