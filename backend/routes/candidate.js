@@ -13,6 +13,7 @@ const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
 const { generateInterviewQuestions, getMessiTurn, generateFinalReport } = require("../utils/claudeInterview");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+const { verhoeffValidate } = require("../utils/verhoeffBackend");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -308,10 +309,32 @@ router.put("/stage/:n", async (req, res) => {
         return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
       }
 
-      // Aadhaar Identity Verification Enforcement
-      const isAadhaarVerified = Boolean(candidate.stage1?.aadhaarVerified || req.body.aadhaarVerified);
-      if (!isAadhaarVerified) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Please verify your 12-digit Aadhaar number with UIDAI mobile OTP." });
+      // Aadhaar Identity Verification Checksum Validation
+      const aadhaarNum = req.body.aadhaarNumber || req.body.maskedAadhaar || candidate.stage1?.aadhaarNumber;
+      const cleanAadhaar = String(aadhaarNum || "").replace(/\D/g, "");
+      if (!cleanAadhaar || cleanAadhaar.length !== 12 || !verhoeffValidate(cleanAadhaar)) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Please enter a valid 12-digit Aadhaar number with correct UIDAI checksum." });
+      }
+
+      // Mandatory Education & Academic Qualifications Enforcement
+      const { degree, collegeName, graduationYear, schoolName, schoolBoard, schoolYear } = req.body;
+      if (!degree || String(degree).trim().length < 2) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Degree Name is required." });
+      }
+      if (!collegeName || String(collegeName).trim().length < 2) {
+        return res.status(400).json({ message: "Stage 1 incomplete: University / College Name is required." });
+      }
+      if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit Graduation Year is required." });
+      }
+      if (!schoolName || String(schoolName).trim().length < 2) {
+        return res.status(400).json({ message: "Stage 1 incomplete: High School Name is required." });
+      }
+      if (!schoolBoard || String(schoolBoard).trim().length < 2) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Schooling Board is required." });
+      }
+      if (!schoolYear || !/^\d{4}$/.test(String(schoolYear).trim())) {
+        return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit High School Completion Year is required." });
       }
     } else if (stageNum === 2) {
       // Training is now mandatory (see SKIPPABLE_STAGES above) — validation

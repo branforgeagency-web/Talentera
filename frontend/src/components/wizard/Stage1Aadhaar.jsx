@@ -31,7 +31,8 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
   // Aadhaar Document & Verification States
   const [aadhaarInput, setAadhaarInput] = useState(existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : ""));
-  const [aadhaarState, setAadhaarState] = useState(existingData?.aadhaarVerified ? "valid" : "idle");
+  const cleanAadhaarDigits = aadhaarInput.replace(/\D/g, "");
+  const isAadhaarChecksumValid = verhoeffValidate(cleanAadhaarDigits);
   const [aadhaarDocName, setAadhaarDocName] = useState(existingData?.docName || existingData?.aadhaarDocName || "");
   const [aadhaarDocUrl, setAadhaarDocUrl] = useState(existingData?.docUrl || existingData?.aadhaarDocUrl || "");
   const [aadhaarUploading, setAadhaarUploading] = useState(false);
@@ -151,10 +152,9 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       return;
     }
 
-    const isVerified = Boolean(existingData?.aadhaarVerified || aadhaarState === "valid");
-    if (!isVerified) {
-      setError("Please complete Aadhaar number verification and mobile OTP authentication before saving Stage 1.");
-      toast("Aadhaar OTP verification is required.", "!");
+    if (!isAadhaarChecksumValid) {
+      setError("Please enter a valid 12-digit Aadhaar number with correct UIDAI checksum.");
+      toast("Valid 12-digit Aadhaar number is required.", "!");
       setSaving(false);
       return;
     }
@@ -162,6 +162,49 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
     if (!city || city.trim().length < 2) {
       setError("Please enter your City / Locality as on Aadhaar.");
       toast("City / Locality is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    // 5. Education & Academic Qualifications Mandatory Validation
+    if (!degree || degree.trim().length < 2) {
+      setError("Please enter your Degree Name (e.g. B.Sc. Life Sciences / B.Com / B.Tech).");
+      toast("Degree Name is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!collegeName || collegeName.trim().length < 2) {
+      setError("Please enter your University / College Name.");
+      toast("University / College Name is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
+      setError("Please enter a valid 4-digit Graduation Year (e.g. 2022).");
+      toast("Valid 4-digit Graduation Year is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!schoolName || schoolName.trim().length < 2) {
+      setError("Please enter your High School Name.");
+      toast("High School Name is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!schoolBoard || schoolBoard.trim().length < 2) {
+      setError("Please enter your Schooling Board (e.g. CBSE / ICSE / State Board).");
+      toast("Schooling Board is required.", "!");
+      setSaving(false);
+      return;
+    }
+
+    if (!schoolYear || !/^\d{4}$/.test(String(schoolYear).trim())) {
+      setError("Please enter a valid 4-digit High School Completion Year (e.g. 2018).");
+      toast("Valid 4-digit School Completion Year is required.", "!");
       setSaving(false);
       return;
     }
@@ -177,13 +220,13 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         city: city || "Bengaluru",
         country,
         linkedin,
-        aadhaarNumber: aadhaarInput,
+        aadhaarNumber: cleanAadhaarDigits,
         maskedAadhaar: aadhaarInput,
         aadhaarDocName,
         aadhaarDocUrl,
         docName: aadhaarDocName,
         docUrl: aadhaarDocUrl,
-        aadhaarVerified: aadhaarState === "valid" || existingData?.aadhaarVerified,
+        aadhaarVerified: isAadhaarChecksumValid,
 
         summary,
 
@@ -228,49 +271,113 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
         </div>
       )}
 
-      {/* 1. INSTANT AADHAAR OTP VERIFICATION CARD (PRIMARY) */}
-      <div style={{ marginBottom: 24 }}>
-        <AadhaarOtpVerificationCard
-          existingMaskedAadhaar={existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : "")}
-          candidateMobile={mobile}
-          docUploaded={true}
-          initialStatus={existingData?.aadhaarVerified || aadhaarState === "valid" ? "VERIFIED" : "NOT_STARTED"}
-          onVerificationSuccess={(data) => {
-            setAadhaarState("valid");
-            setAadhaarInput(data.maskedAadhaar);
-            // data.fullName/city/state come from the real Cashfree Aadhaar OKYC
-            // response (verify-otp's "details"). UIDAI never discloses the
-            // Aadhaar-linked mobile number itself - only the OTP proves it -
-            // so it is intentionally never auto-filled here.
-            if (data.fullName) setFullName(data.fullName);
-            if (data.city) setCity(data.city);
-            if (data.state) setState(data.state);
-            toast("✓ Profile details auto-filled from verified Aadhaar record", "✓");
-          }}
-        />
-      </div>
-
-      {/* 2. CONTACT INFORMATION */}
+      {/* 1. CONTACT INFORMATION & AADHAAR NUMBER */}
       <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
             <i className="fa-solid fa-address-card" style={{ color: "var(--gold)", marginRight: 8 }}></i>
             1. Contact &amp; Identity Details
           </h4>
-          {aadhaarState === "valid" && (
-            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-              ✓ UIDAI VERIFIED IDENTITY
+          {isAadhaarChecksumValid && (
+            <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6 }}>
+              <i className="fa-solid fa-circle-check"></i> AADHAAR VERIFIED
             </span>
           )}
         </div>
 
+        {/* Real-time validating Aadhaar Number Input */}
+        <div className="wiz-field" style={{ marginBottom: 14 }}>
+          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>
+              12-Digit Aadhaar Number <span style={{ color: "#EF4444" }}>*</span>
+            </span>
+            {cleanAadhaarDigits.length > 0 && (
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  color: isAadhaarChecksumValid ? "#16A34A" : cleanAadhaarDigits.length === 12 ? "#DC2626" : "#64748B",
+                }}
+              >
+                {isAadhaarChecksumValid
+                  ? "✓ Valid Aadhaar Number"
+                  : cleanAadhaarDigits.length === 12
+                  ? "✕ Invalid Aadhaar Checksum"
+                  : `${cleanAadhaarDigits.length}/12 Digits`}
+              </span>
+            )}
+          </label>
+          <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              required
+              maxLength={14}
+              value={aadhaarInput}
+              onChange={(e) => setAadhaarInput(formatAadhaar(e.target.value))}
+              placeholder="XXXX XXXX XXXX"
+              style={{
+                width: "100%",
+                paddingRight: 40,
+                borderColor: isAadhaarChecksumValid
+                  ? "#22C55E"
+                  : cleanAadhaarDigits.length === 12
+                  ? "#EF4444"
+                  : "#CBD5E1",
+                background: isAadhaarChecksumValid
+                  ? "#F0FDF4"
+                  : cleanAadhaarDigits.length === 12
+                  ? "#FEF2F2"
+                  : "#FFFFFF",
+                boxShadow: isAadhaarChecksumValid
+                  ? "0 0 0 3px rgba(34, 197, 94, 0.2)"
+                  : cleanAadhaarDigits.length === 12
+                  ? "0 0 0 3px rgba(239, 68, 68, 0.15)"
+                  : "none",
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                color: isAadhaarChecksumValid ? "#15803D" : "#082553",
+                transition: "all 0.2s ease",
+              }}
+            />
+            {isAadhaarChecksumValid ? (
+              <i
+                className="fa-solid fa-circle-check"
+                style={{
+                  position: "absolute",
+                  right: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#16A34A",
+                  fontSize: 18,
+                }}
+              />
+            ) : cleanAadhaarDigits.length === 12 ? (
+              <i
+                className="fa-solid fa-circle-xmark"
+                style={{
+                  position: "absolute",
+                  right: 14,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: "#DC2626",
+                  fontSize: 18,
+                }}
+              />
+            ) : null}
+          </div>
+        </div>
+
         <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>Full legal name (as on Aadhaar card) *</label>
+          <label>
+            Full legal name (as on Aadhaar card) <span style={{ color: "#EF4444" }}>*</span>
+          </label>
           <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Ananya Sharma" required />
         </div>
 
         <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>Experience Level *</label>
+          <label>
+            Experience Level <span style={{ color: "#EF4444" }}>*</span>
+          </label>
           <div className="wiz-pill-row">
             <button
               type="button"
@@ -291,18 +398,24 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
           <div className="wiz-field">
-            <label>Professional Email *</label>
+            <label>
+              Professional Email <span style={{ color: "#EF4444" }}>*</span>
+            </label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" required />
           </div>
           <div className="wiz-field">
-            <label>Mobile Number (10 digits) *</label>
+            <label>
+              Mobile Number (10 digits) <span style={{ color: "#EF4444" }}>*</span>
+            </label>
             <input type="tel" value={mobile} onChange={(e) => setMobile(formatMobile(e.target.value))} placeholder="98765 43210" maxLength={11} required />
           </div>
         </div>
 
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
           <div className="wiz-field">
-            <label>State *</label>
+            <label>
+              State <span style={{ color: "#EF4444" }}>*</span>
+            </label>
             <select value={state} onChange={(e) => setState(e.target.value)} required>
               <option value="">-- Select State --</option>
               {INDIAN_STATES.map((s) => (
@@ -311,7 +424,9 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
             </select>
           </div>
           <div className="wiz-field">
-            <label>City / Locality *</label>
+            <label>
+              City / Locality <span style={{ color: "#EF4444" }}>*</span>
+            </label>
             <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Bengaluru, Koramangala" required />
           </div>
           <div className="wiz-field">
@@ -432,15 +547,21 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
 
             <div className="wiz-field-row" style={{ marginBottom: 8 }}>
               <div className="wiz-field">
-                <label>Job Title &amp; Employer *</label>
+                <label>
+                  Job Title &amp; Employer <span style={{ color: "#EF4444" }}>*</span>
+                </label>
                 <input type="text" value={item.title || ""} onChange={(e) => handleWorkHistoryChange(idx, "title", e.target.value)} placeholder="e.g. Senior Medical Coder II" required />
               </div>
               <div className="wiz-field">
-                <label>Facility / Employer Name &amp; Location *</label>
+                <label>
+                  Facility / Employer Name &amp; Location <span style={{ color: "#EF4444" }}>*</span>
+                </label>
                 <input type="text" value={item.company || ""} onChange={(e) => handleWorkHistoryChange(idx, "company", e.target.value)} placeholder="e.g. ABC Healthcare RCM, Bengaluru" required />
               </div>
               <div className="wiz-field">
-                <label>Employment Dates *</label>
+                <label>
+                  Employment Dates <span style={{ color: "#EF4444" }}>*</span>
+                </label>
                 <input type="text" value={item.dates || ""} onChange={(e) => handleWorkHistoryChange(idx, "dates", e.target.value)} placeholder="e.g. 2022 – Present" required />
               </div>
             </div>
@@ -474,36 +595,86 @@ export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
       <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
         <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
           <i className="fa-solid fa-graduation-cap" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          5. Education &amp; Academic Qualifications
+          5. Education &amp; Academic Qualifications <span style={{ color: "#EF4444", fontSize: 12 }}>* (All fields mandatory)</span>
         </h4>
 
         <div className="wiz-field-row" style={{ marginBottom: 12 }}>
           <div className="wiz-field">
-            <label>Degree Name (B.S./B.Sc. in Life Sciences, HIM, Nursing, etc.)</label>
-            <input type="text" value={degree} onChange={(e) => setDegree(e.target.value)} placeholder="e.g. B.Sc. Life Sciences / Healthcare Administration" />
+            <label>
+              Degree Name (B.S./B.Sc. in Life Sciences, HIM, Nursing, etc.) <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={degree}
+              onChange={(e) => setDegree(e.target.value)}
+              placeholder="e.g. B.Sc. Life Sciences / Healthcare Administration"
+            />
           </div>
           <div className="wiz-field">
-            <label>University / College Name</label>
-            <input type="text" value={collegeName} onChange={(e) => setCollegeName(e.target.value)} placeholder="e.g. Bangalore University" />
+            <label>
+              University / College Name <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={collegeName}
+              onChange={(e) => setCollegeName(e.target.value)}
+              placeholder="e.g. Bangalore University"
+            />
           </div>
           <div className="wiz-field">
-            <label>Graduation Year</label>
-            <input type="text" value={graduationYear} onChange={(e) => setGraduationYear(e.target.value)} placeholder="e.g. 2021" />
+            <label>
+              Graduation Year <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={4}
+              value={graduationYear}
+              onChange={(e) => setGraduationYear(e.target.value.replace(/\D/g, ""))}
+              placeholder="e.g. 2021"
+            />
           </div>
         </div>
 
         <div className="wiz-field-row">
           <div className="wiz-field">
-            <label>High School Name</label>
-            <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="e.g. St. Joseph's Higher Secondary School" />
+            <label>
+              High School Name <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={schoolName}
+              onChange={(e) => setSchoolName(e.target.value)}
+              placeholder="e.g. St. Joseph's Higher Secondary School"
+            />
           </div>
           <div className="wiz-field">
-            <label>Schooling Board</label>
-            <input type="text" value={schoolBoard} onChange={(e) => setSchoolBoard(e.target.value)} placeholder="e.g. CBSE Board" />
+            <label>
+              Schooling Board <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={schoolBoard}
+              onChange={(e) => setSchoolBoard(e.target.value)}
+              placeholder="e.g. CBSE Board / State Board"
+            />
           </div>
           <div className="wiz-field">
-            <label>Completion Year</label>
-            <input type="text" value={schoolYear} onChange={(e) => setSchoolYear(e.target.value)} placeholder="e.g. 2018" />
+            <label>
+              Completion Year <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <input
+              type="text"
+              required
+              maxLength={4}
+              value={schoolYear}
+              onChange={(e) => setSchoolYear(e.target.value.replace(/\D/g, ""))}
+              placeholder="e.g. 2018"
+            />
           </div>
         </div>
       </div>
