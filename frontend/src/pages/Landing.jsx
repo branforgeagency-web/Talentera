@@ -1,8 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import LiquidNavCapsule from "../components/LiquidNavCapsule";
 import ReactiveVariableHeadline from "../components/ReactiveVariableHeadline";
 import Footer from "../components/Footer.jsx";
+
+// Smooth count-up easing hook
+function useAnimatedCount(target, isVisible, duration = 1600) {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    let startTimestamp = null;
+    let frameId;
+
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      setCount(Math.floor(easeProgress * target));
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(step);
+      } else {
+        setCount(target);
+      }
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [target, isVisible, duration]);
+
+  return count;
+}
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -10,6 +39,30 @@ export default function Landing() {
   const [pulseText, setPulseText] = useState("5 candidates verified in the last hour");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFeatureTab, setActiveFeatureTab] = useState(null);
+
+  // Job Stats Counter Observer & Animated Counts
+  const jobStatsBarRef = useRef(null);
+  const [jobStatsVisible, setJobStatsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = jobStatsBarRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setJobStatsVisible(true);
+        }
+      },
+      { threshold: 0.2 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const countPositions = useAnimatedCount(420, jobStatsVisible, 1800);
+  const countScreened = useAnimatedCount(100, jobStatsVisible, 1500);
+  const countHours = useAnimatedCount(24, jobStatsVisible, 1400);
+  const countHubs = useAnimatedCount(14, jobStatsVisible, 1600);
 
   // Location hiring hubs state
   const [activeCity, setActiveCity] = useState("Mumbai");
@@ -1020,32 +1073,47 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ====== 2. WHAT TALENTERA DOES FOR CANDIDATES (BENTO GRID SHOWCASE) ====== */}
+      {/* ====== 2. WHAT TALENTERA DOES FOR CANDIDATES (CREATIVE PARALLAX SHOWCASE) ====== */}
       <section
-        className="section section-light-theme"
+        className="section candidate-features-parallax-section"
         id="student-features"
-        style={{
-          background: "#FFFFFF",
-          borderTop: "1px solid #E2E8F0",
-          borderBottom: "1px solid #E2E8F0",
-          position: "relative",
-        }}
       >
-        <div className="container">
-          <div style={{ textAlign: "center", maxWidth: 820, margin: "0 auto 52px" }}>
-            <div className="section-eyebrow">WHAT TALENTERA DOES FOR CANDIDATES</div>
-            <h2
-              className="section-title"
-              style={{ fontSize: "clamp(28px, 4.2vw, 46px)", marginBottom: 16 }}
-            >
-              Everything You Need to Build a Career Beyond Your Resume.
+        {/* Parallax Background Layers */}
+        <div className="candidate-parallax-bg-layer" />
+        <div className="candidate-parallax-overlay-mesh" />
+        <div className="candidate-parallax-glow-1" />
+        <div className="candidate-parallax-glow-2" />
+
+        <div className="container" style={{ position: "relative", zIndex: 5 }}>
+          {/* Creative Section Header */}
+          <div className="candidate-parallax-header">
+            <div className="candidate-eyebrow-pill">
+              <span className="candidate-eyebrow-pulse" />
+              <i className="fa-solid fa-sparkles" style={{ color: "#FAB12F", marginRight: 8 }} />
+              WHAT TALENTERA DOES FOR CANDIDATES
+            </div>
+            <h2 className="candidate-parallax-title">
+              Everything You Need to Build a <br />
+              <span className="candidate-title-gradient">Career Beyond Your Resume.</span>
             </h2>
-            <p
-              className="section-lead"
-              style={{ fontSize: 18, maxWidth: 680, margin: "0 auto" }}
-            >
-              Build your profile, prove your skills, and prepare for relevant Healthcare RCM career opportunities.
+            <p className="candidate-parallax-lead">
+              Build your verified profile, prove your skills with real hospital benchmarks, practice AI mock interviews, and get discovered by 340+ healthcare hiring companies.
             </p>
+
+            {/* Quick Interactive Highlight Pills */}
+            <div className="candidate-feature-quick-pills">
+              {studentFeatures.map((f, i) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className={`cand-quick-pill ${activeFeatureTab === i ? "active" : ""}`}
+                  onClick={() => setActiveFeatureTab(activeFeatureTab === i ? null : i)}
+                >
+                  <i className={f.icon} style={{ color: activeFeatureTab === i ? "#06152B" : f.badgeColor }} />
+                  <span>{f.title}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="bento-grid-wrap">
@@ -1179,32 +1247,73 @@ export default function Landing() {
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 8,
-                background: "rgba(229,168,46,0.12)",
-                border: "1px solid rgba(229,168,46,0.3)",
-                color: "var(--gold-light)",
-                padding: "7px 18px",
+                background: "rgba(250, 177, 47, 0.12)",
+                border: "1px solid rgba(250, 177, 47, 0.35)",
+                color: "#D97706",
+                padding: "8px 22px",
                 borderRadius: 999,
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: 800,
-                letterSpacing: "0.14em",
-                marginBottom: 20,
+                letterSpacing: "0.08em",
+                marginBottom: 18,
               }}
             >
               <span
-                className="live-dot"
-                style={{ background: "var(--gold)", boxShadow: "0 0 10px var(--gold)" }}
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "#22C55E",
+                  boxShadow: "0 0 8px #22C55E",
+                  display: "inline-block",
+                }}
               />
               SKILL-BASED OPPORTUNITIES · SMARTER MATCHING
             </div>
             <h2
-              className="section-title section-title-light"
-              style={{ fontSize: "clamp(30px, 4.4vw, 48px)", lineHeight: 1.15, marginBottom: 16 }}
+              className="section-title"
+              style={{
+                fontSize: "clamp(30px, 4.4vw, 48px)",
+                lineHeight: 1.15,
+                marginBottom: 16,
+                color: "#082553",
+              }}
             >
-              Find Healthcare RCM Jobs That Match Your Skills.
+              Find Healthcare RCM Jobs <br className="hidden-mobile" />
+              <span style={{ color: "#D97706" }}>That Match Your Skills.</span>
             </h2>
-            <p style={{ color: "rgba(200, 209, 224, 0.8)", fontSize: 16, lineHeight: 1.6, maxWidth: 680, margin: "0 auto" }}>
-              Explore relevant Healthcare RCM and medical coding opportunities based on your skills, profile, and professional readiness.
+            <p style={{ color: "#1E3A5F", fontSize: 16.5, lineHeight: 1.6, maxWidth: 680, margin: "0 auto 24px" }}>
+              Explore relevant Healthcare RCM, Medical Coding, and Billing opportunities based on your verified credentials and professional readiness.
             </p>
+
+            {/* Live Match Metrics Bar (Light Theme) */}
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "clamp(12px, 3vw, 24px)",
+                background: "#FFFFFF",
+                border: "1px solid #E2E8F0",
+                borderRadius: 999,
+                padding: "9px 24px",
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: "#082553",
+                boxShadow: "0 4px 14px rgba(8, 37, 83, 0.05)",
+                flexWrap: "wrap",
+              }}
+            >
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "#D97706" }}>⚡</span> 140+ Active Openings
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "#16A34A" }}>🎯</span> 96% Match Accuracy
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: "#0284C7" }}>🛡</span> Verified Employer Network
+              </span>
+            </div>
           </div>
 
           {/* Interactive Category Filter Pills */}
@@ -1325,34 +1434,42 @@ export default function Landing() {
               })}
           </div>
 
-          {/* Bottom Live Metrics & Explore All Bar */}
-          <div className="job-match-bottom-bar">
+          {/* Bottom Live Metrics & Explore All Bar with Animated Countdown */}
+          <div ref={jobStatsBarRef} className="job-match-bottom-bar">
             <div className="job-bottom-stats">
               <div className="job-bottom-stat-item">
-                <i className="fa-solid fa-briefcase" />
+                <div className="job-stat-icon-wrap stat-amber">
+                  <i className="fa-solid fa-briefcase" />
+                </div>
                 <div className="job-bottom-stat-info">
-                  <strong>420+ Open Positions</strong>
-                  <span>Across 14 Tier-1 RCM Hubs</span>
+                  <strong>{countPositions}+ Open Positions</strong>
+                  <span>Across {countHubs} Tier-1 RCM Hubs</span>
                 </div>
               </div>
+
               <div className="job-bottom-stat-item">
-                <i className="fa-solid fa-shield-halved" />
+                <div className="job-stat-icon-wrap stat-emerald">
+                  <i className="fa-solid fa-shield-halved" />
+                </div>
                 <div className="job-bottom-stat-info">
-                  <strong>100% Pre-Screened</strong>
+                  <strong>{countScreened}% Pre-Screened</strong>
                   <span>Verified Employers Only</span>
                 </div>
               </div>
+
               <div className="job-bottom-stat-item">
-                <i className="fa-solid fa-bolt" />
+                <div className="job-stat-icon-wrap stat-cyan">
+                  <i className="fa-solid fa-bolt" />
+                </div>
                 <div className="job-bottom-stat-info">
-                  <strong>24-Hour Shortlist</strong>
+                  <strong>{countHours}-Hour Shortlist</strong>
                   <span>Direct Recruiter Interview</span>
                 </div>
               </div>
             </div>
 
             <Link to="/jobs" className="job-bottom-cta-btn">
-              <span>Explore All 420+ Live Openings</span>
+              <span>Explore All {countPositions}+ Live Openings</span>
               <i className="fa-solid fa-arrow-right" />
             </Link>
           </div>
@@ -1583,33 +1700,18 @@ export default function Landing() {
       </section>
 
       {/* ====== 8. WHY STUDENTS SHOULD JOIN (STUDENT ADVANTAGE BENTO) ====== */}
-      <section className="advantage-section-root">
+      <section className="advantage-section-root" id="student-advantage">
         <div className="container">
           <div style={{ textAlign: "center", maxWidth: 840, margin: "0 auto 52px" }}>
-            <div className="section-eyebrow" style={{ color: "var(--gold)" }}>
+            <div className="adv-section-eyebrow">
+              <span className="adv-eyebrow-dot" />
               THE TALENTERA STUDENT ADVANTAGE
             </div>
-            <h2
-              className="section-title section-title-light"
-              style={{ fontSize: "clamp(28px, 4.2vw, 44px)", marginBottom: 18 }}
-            >
-              Why 12,480+ Candidates Build Their Careers on Talentera.
+            <h2 className="adv-main-heading">
+              Why 12,480+ Candidates Build Their <br />
+              <span className="adv-title-accent">Careers on Talentera.</span>
             </h2>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                background: "rgba(229, 168, 46, 0.12)",
-                border: "1.5px solid var(--gold)",
-                padding: "8px 22px",
-                borderRadius: 999,
-                color: "var(--gold-light)",
-                fontFamily: "var(--font-heading)",
-                fontSize: 14.5,
-                fontWeight: 700,
-              }}
-            >
+            <div className="adv-hero-pill">
               <i className="fa-solid fa-bolt" />
               <span>100% Free to Register • Build Proof Beyond Your Resume</span>
             </div>
@@ -2414,18 +2516,18 @@ export default function Landing() {
         <div className="container" style={{ position: "relative", zIndex: 5 }}>
           {/* Section Header */}
           <div style={{ textAlign: "center", maxWidth: 880, margin: "0 auto 48px" }}>
-            <div className="section-eyebrow">
-              <span className="hero-clean-eyebrow-dot" />
+            <div className="section-eyebrow" style={{ color: "#D97706", background: "rgba(250, 177, 47, 0.12)", border: "1px solid rgba(250, 177, 47, 0.35)", padding: "7px 20px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 800 }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#D97706", display: "inline-block" }} />
               HIRING COMPANIES BY LOCATION
             </div>
             <h2
               className="section-title"
-              style={{ color: "#fff", fontSize: "clamp(34px, 5vw, 56px)", lineHeight: 1.15 }}
+              style={{ color: "#082553", fontSize: "clamp(34px, 5vw, 56px)", lineHeight: 1.15, marginTop: 16 }}
             >
-              342 RCM Companies. <span style={{ color: "var(--gold)", fontStyle: "italic" }}>14 States.</span> <br />
+              342 RCM Companies. <span style={{ color: "#D97706", fontStyle: "italic" }}>14 States.</span> <br />
               Hiring through Talentera.
             </h2>
-            <p style={{ color: "rgba(255, 255, 255, 0.7)", fontSize: 16, marginTop: 14 }}>
+            <p style={{ color: "#1E3A5F", fontSize: 16.5, marginTop: 14, maxWidth: 680, margin: "14px auto 0" }}>
               Explore verified healthcare & RCM corporate employers by city, state, and hiring volume across India.
             </p>
           </div>
