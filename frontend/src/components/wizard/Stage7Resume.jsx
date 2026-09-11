@@ -14,10 +14,12 @@ import {
   BoldTemplate,
   PortfolioTemplate,
   AtsProTemplate,
+  MonochromeTemplate,
 } from "../ResumeTemplates.jsx";
 
 const TEMPLATES = [
-  { id: "executive", name: "Executive Gold", category: "Executive", icon: "fa-award", desc: "Signature verified executive styling with score card", Component: ExecutiveTemplate },
+  { id: "monochrome", name: "Black & White Noir", category: "Corporate", icon: "fa-circle-half-stroke", desc: "High-contrast editorial monochrome with clean borders and ATS optimization", Component: MonochromeTemplate },
+  { id: "executive", name: "Executive Gold", category: "Executive", icon: "fa-award", desc: "Signature verified executive styling with authenticated credential badge", Component: ExecutiveTemplate },
   { id: "modern", name: "Modern Sidebar", category: "Modern", icon: "fa-id-card", desc: "Two-tone split with left contact & skills sidebar", Component: ModernTemplate },
   { id: "classic", name: "Classic Corporate", category: "Corporate", icon: "fa-file-lines", desc: "Traditional serif editorial with formal rules", Component: ClassicTemplate },
   { id: "minimal", name: "Minimal Compact", category: "Minimal", icon: "fa-table-cells", desc: "Ultra-clean high-density single-page layout", Component: MinimalTemplate },
@@ -31,7 +33,7 @@ const TEMPLATES = [
   { id: "atspro", name: "Compact ATS Pro", category: "Corporate", icon: "fa-check-double", desc: "Standard single-column optimized for ATS parsers", Component: AtsProTemplate },
 ];
 
-const CATEGORIES = ["All (12)", "Executive", "Modern", "Corporate", "Minimal", "Creative", "Tech"];
+const CATEGORIES = ["All (13)", "Executive", "Modern", "Corporate", "Minimal", "Creative", "Tech"];
 
 const ACCENT_COLORS = [
   { id: "navy", color: "#0A1F3D", label: "Navy Royal" },
@@ -56,8 +58,8 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
   const [profileData, setProfileData] = useState(null);
 
   // View state
-  const [selectedTemplate, setSelectedTemplate] = useState("executive");
-  const [selectedCategory, setSelectedCategory] = useState("All (12)");
+  const [selectedTemplate, setSelectedTemplate] = useState("monochrome");
+  const [selectedCategory, setSelectedCategory] = useState("All (13)");
   const [selectedColor, setSelectedColor] = useState("#0A1F3D");
   const [activeTab, setActiveTab] = useState("preview"); // "preview" | "edit"
   const [activeEditorSection, setActiveEditorSection] = useState("personal");
@@ -83,6 +85,8 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
     specializedKnowledge: "",
     ehrSoftware: "",
     coreCompetencies: "",
+    softSkills: "",
+    codingPlatforms: "",
     certName: "",
     issuingBody: "",
     memberId: "",
@@ -94,9 +98,22 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
     degree: "",
     collegeName: "",
     graduationYear: "",
+    cgpa: "",
+    percentage: "",
     schoolName: "",
     schoolBoard: "",
     schoolYear: "",
+    twelfthSchool: "",
+    twelfthBoard: "",
+    twelfthYear: "",
+    twelfthPercentage: "",
+    tenthSchool: "",
+    tenthBoard: "",
+    tenthYear: "",
+    tenthPercentage: "",
+    declarationText: "",
+    declarationPlace: "",
+    declarationDate: "",
     workHistory: [],
   });
 
@@ -117,11 +134,13 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
     const t = d.training || {};
     const c = d.certification || {};
 
+    const loc = manual.location || `${b.city || "Bengaluru"}, ${b.state || "Karnataka"}${b.country ? `, ${b.country}` : ""}`;
+
     setEditForm({
       fullName: manual.fullName || b.fullName || "Candidate Name",
       currentRole: manual.currentRole || b.currentRole || "Medical Coding Professional",
       experience: manual.experience || b.experience || "Experienced",
-      location: manual.location || `${b.city || "Bengaluru"}, ${b.state || "Karnataka"}${b.country ? `, ${b.country}` : ""}`,
+      location: loc,
       email: manual.email || b.email || d.email || "candidate@talentera.com",
       mobile: manual.mobile || b.mobile || "+91 98765 43210",
       linkedin: manual.linkedin || b.linkedin || "linkedin.com/in/medical-coder",
@@ -130,6 +149,8 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
       specializedKnowledge: manual.specializedKnowledge || b.specializedKnowledge || "E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA Compliance, Medical Necessity, DRG Assignment, HCC Risk Adjustment",
       ehrSoftware: manual.ehrSoftware || b.ehrSoftware || "Epic Hyperspace, Cerner, Meditech, Athenahealth, 3M CodeRyte / Encoder Pro, Optum Encoder",
       coreCompetencies: manual.coreCompetencies || b.coreCompetencies || "Anatomy & Physiology, Medical Terminology, Clinical Documentation Improvement (CDI), Denial & Audit Appeals Resolution",
+      softSkills: manual.softSkills || b.softSkills || "Attention to Detail, Analytical & Critical Thinking, Accuracy & Quality Focus, Communication Skills, Time Management",
+      codingPlatforms: manual.codingPlatforms || b.codingPlatforms || manual.ehrSoftware || b.ehrSoftware || "Codivia, 3M 360 Encompass, Optum EncoderPro",
       certName: manual.certName || c.certName || c.certificationName || c.certCode || "CPC (Certified Professional Coder)",
       issuingBody: manual.issuingBody || c.issuingBody || c.bodyName || "AAPC",
       memberId: manual.memberId || c.memberId || c.certId || "AAPC-987654",
@@ -141,9 +162,22 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
       degree: manual.degree || b.degree || "B.Sc. Life Sciences / Healthcare Information Management",
       collegeName: manual.collegeName || b.collegeName || "Bangalore University / Life Sciences Institute",
       graduationYear: manual.graduationYear || b.graduationYear || "2021",
+      cgpa: manual.cgpa || b.cgpa || manual.percentage || b.percentage || "8.4 CGPA",
+      percentage: manual.percentage || b.percentage || manual.cgpa || b.cgpa || "8.4 CGPA",
       schoolName: manual.schoolName || b.schoolName || "St. Joseph's Higher Secondary School",
       schoolBoard: manual.schoolBoard || b.schoolBoard || "CBSE Board",
       schoolYear: manual.schoolYear || b.schoolYear || "2018",
+      twelfthSchool: manual.twelfthSchool || b.twelfthSchool || manual.schoolName || b.schoolName || "St. Joseph's Higher Secondary School",
+      twelfthBoard: manual.twelfthBoard || b.twelfthBoard || manual.schoolBoard || b.schoolBoard || "CBSE Board",
+      twelfthYear: manual.twelfthYear || b.twelfthYear || manual.schoolYear || b.schoolYear || "2018",
+      twelfthPercentage: manual.twelfthPercentage || b.twelfthPercentage || "86%",
+      tenthSchool: manual.tenthSchool || b.tenthSchool || "St. Mary's High School",
+      tenthBoard: manual.tenthBoard || b.tenthBoard || "State Board",
+      tenthYear: manual.tenthYear || b.tenthYear || "2016",
+      tenthPercentage: manual.tenthPercentage || b.tenthPercentage || "90%",
+      declarationText: manual.declarationText || "I hereby declare that all the statements and information provided in this resume are true, complete, and correct to the best of my knowledge and belief.",
+      declarationPlace: manual.declarationPlace || b.city || "Bengaluru",
+      declarationDate: manual.declarationDate || new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
       workHistory: manual.workHistory && Array.isArray(manual.workHistory) && manual.workHistory.length > 0
         ? manual.workHistory
         : (b.workHistory && b.workHistory.length > 0
@@ -313,7 +347,7 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
     return <div style={{ padding: 40, textAlign: "center" }}>Loading auto-generated verified resume...</div>;
   }
 
-  const filteredTemplates = selectedCategory === "All (12)"
+  const filteredTemplates = selectedCategory.startsWith("All")
     ? TEMPLATES
     : TEMPLATES.filter((t) => t.category === selectedCategory);
 
@@ -431,30 +465,6 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
                 </button>
               ))}
             </div>
-
-            {/* Accent Color Palette Selector */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>Color Accent:</span>
-              <div style={{ display: "flex", gap: 6 }}>
-                {ACCENT_COLORS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelectedColor(c.color)}
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: "50%",
-                      background: c.color,
-                      border: selectedColor === c.color ? "2.5px solid var(--gold)" : "1.5px solid #FFFFFF",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                      cursor: "pointer",
-                    }}
-                    title={c.label}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
 
           {/* 12 Templates Grid Slider */}
@@ -552,7 +562,9 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
                   }}
                 >
                   <i className={`fa-solid ${sec.icon}`}></i>
-                  {sec.label}
+                  {sec.id === "summary" && String(editForm.experience || profileData?.stage1?.experience || "").toLowerCase() === "fresher"
+                    ? "Career Objective"
+                    : sec.label}
                 </button>
               ))}
             </div>
@@ -625,18 +637,24 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
               </div>
             )}
 
-            {/* SECTION 2: PROFESSIONAL SUMMARY */}
+            {/* SECTION 2: PROFESSIONAL SUMMARY / CAREER OBJECTIVE */}
             {activeEditorSection === "summary" && (
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 4 }}>
-                  Executive Summary / Professional Bio
+                  {String(editForm.experience || profileData?.stage1?.experience || "").toLowerCase() === "fresher"
+                    ? "Career Objective (For Freshers)"
+                    : "Executive Summary / Professional Bio"}
                 </label>
                 <textarea
                   rows={5}
                   value={editForm.summary}
                   onChange={(e) => handleFieldChange("summary", e.target.value)}
                   style={{ width: "100%", padding: "10px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 12.5, lineHeight: 1.5, resize: "vertical" }}
-                  placeholder="Write a concise overview highlighting your core strengths, accuracy rates, and domain experience..."
+                  placeholder={
+                    String(editForm.experience || profileData?.stage1?.experience || "").toLowerCase() === "fresher"
+                      ? "Eg : To obtain a Medical Coder position where I can apply my knowledge of medical terminology, ICD-10-CM, CPT, and HCPCS to ensure accurate coding while growing my skills in the healthcare industry."
+                      : "Eg : Experienced Medical Coder skilled in accurate ICD-10-CM, CPT, and HCPCS coding with strong attention to detail, compliance, and documentation accuracy."
+                  }
                 />
                 <span style={{ fontSize: 11, color: "#64748B", marginTop: 4, display: "block" }}>
                   {editForm.summary.length} characters · Updates live in the preview below.
@@ -742,52 +760,55 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <div>
                   <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
-                    Code Sets &amp; Standards
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.codeSets}
-                    onChange={(e) => handleFieldChange("codeSets", e.target.value)}
-                    placeholder="ICD-10-CM, CPT, HCPCS Level II, etc."
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
-                    Specialized Knowledge
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.specializedKnowledge}
-                    onChange={(e) => handleFieldChange("specializedKnowledge", e.target.value)}
-                    placeholder="E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA..."
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
-                    EHR &amp; Billing Systems
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.ehrSoftware}
-                    onChange={(e) => handleFieldChange("ehrSoftware", e.target.value)}
-                    placeholder="Epic, Cerner, 3M CodeRyte, Athenahealth..."
-                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
-                    Core Clinical Competencies
+                    Core Competencies
                   </label>
                   <input
                     type="text"
                     value={editForm.coreCompetencies}
                     onChange={(e) => handleFieldChange("coreCompetencies", e.target.value)}
-                    placeholder="Anatomy & Physiology, Medical Terminology, CDI..."
+                    placeholder="Anatomy & Physiology, Medical Terminology, CDI, Denial Resolution"
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
+                    Code Sets
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.codeSets}
+                    onChange={(e) => handleFieldChange("codeSets", e.target.value)}
+                    placeholder="ICD-10-CM, CPT, HCPCS Level II, Coding Guidelines & Conventions"
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
+                    Soft Skills
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.softSkills || ""}
+                    onChange={(e) => handleFieldChange("softSkills", e.target.value)}
+                    placeholder="Attention to Detail, Analytical & Critical Thinking, Accuracy & Quality Focus, Communication Skills, Time Management"
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 3 }}>
+                    Live Coding Platforms (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.codingPlatforms || editForm.ehrSoftware || ""}
+                    onChange={(e) => {
+                      handleFieldChange("codingPlatforms", e.target.value);
+                      handleFieldChange("ehrSoftware", e.target.value);
+                    }}
+                    placeholder="Codivia, 3M 360 Encompass, Optum EncoderPro, and other live coding platforms"
                     style={{ width: "100%", padding: "7px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5 }}
                   />
                 </div>
@@ -882,18 +903,49 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
 
             {/* SECTION 6: EDUCATION */}
             {activeEditorSection === "education" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 12 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--navy)", display: "block", marginBottom: 8 }}>
-                    College &amp; Higher Education
-                  </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Degree / College */}
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <i className="fa-solid fa-graduation-cap" style={{ color: "var(--navy)", fontSize: 13 }}></i>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>
+                      1. Degree &amp; University Education
+                    </span>
+                  </div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                     <div>
-                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Degree</label>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Degree / Course Name</label>
                       <input
                         type="text"
                         value={editForm.degree}
                         onChange={(e) => handleFieldChange("degree", e.target.value)}
+                        placeholder="e.g. B.Sc. Life Sciences / B.Tech / B.Com"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>CGPA / Percentage</label>
+                      <input
+                        type="text"
+                        value={editForm.cgpa || editForm.percentage || ""}
+                        onChange={(e) => {
+                          handleFieldChange("cgpa", e.target.value);
+                          handleFieldChange("percentage", e.target.value);
+                        }}
+                        placeholder="e.g. 8.4 CGPA or 84%"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>College / University Name</label>
+                      <input
+                        type="text"
+                        value={editForm.collegeName}
+                        onChange={(e) => handleFieldChange("collegeName", e.target.value)}
+                        placeholder="e.g. Bangalore University / Life Sciences Institute"
                         style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
                       />
                     </div>
@@ -903,41 +955,176 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
                         type="text"
                         value={editForm.graduationYear}
                         onChange={(e) => handleFieldChange("graduationYear", e.target.value)}
+                        placeholder="e.g. 2021"
                         style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
                       />
                     </div>
                   </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>College / University Name</label>
-                    <input
-                      type="text"
-                      value={editForm.collegeName}
-                      onChange={(e) => handleFieldChange("collegeName", e.target.value)}
-                      style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
-                    />
+                </div>
+
+                {/* Class 12th / Intermediate */}
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <i className="fa-solid fa-school" style={{ color: "var(--navy)", fontSize: 13 }}></i>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>
+                      2. Class 12th / Intermediate / Higher Secondary (HSC)
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>School / Junior College Name</label>
+                      <input
+                        type="text"
+                        value={editForm.twelfthSchool || editForm.schoolName || ""}
+                        onChange={(e) => {
+                          handleFieldChange("twelfthSchool", e.target.value);
+                          handleFieldChange("schoolName", e.target.value);
+                        }}
+                        placeholder="e.g. St. Joseph's Higher Secondary School"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Board / Council</label>
+                      <input
+                        type="text"
+                        value={editForm.twelfthBoard || editForm.schoolBoard || ""}
+                        onChange={(e) => {
+                          handleFieldChange("twelfthBoard", e.target.value);
+                          handleFieldChange("schoolBoard", e.target.value);
+                        }}
+                        placeholder="e.g. CBSE / State Board / ISC"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Passing Year</label>
+                      <input
+                        type="text"
+                        value={editForm.twelfthYear || editForm.schoolYear || ""}
+                        onChange={(e) => {
+                          handleFieldChange("twelfthYear", e.target.value);
+                          handleFieldChange("schoolYear", e.target.value);
+                        }}
+                        placeholder="e.g. 2018"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Percentage / Grade</label>
+                      <input
+                        type="text"
+                        value={editForm.twelfthPercentage || ""}
+                        onChange={(e) => handleFieldChange("twelfthPercentage", e.target.value)}
+                        placeholder="e.g. 86% or Distinction"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 12 }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--navy)", display: "block", marginBottom: 8 }}>
-                    High Schooling
-                  </span>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                {/* Class 10th / SSLC */}
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <i className="fa-solid fa-book-open-reader" style={{ color: "var(--navy)", fontSize: 13 }}></i>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>
+                      3. Class 10th / Secondary School Leaving Certificate (SSLC)
+                    </span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                     <div>
                       <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>School Name</label>
                       <input
                         type="text"
-                        value={editForm.schoolName}
-                        onChange={(e) => handleFieldChange("schoolName", e.target.value)}
+                        value={editForm.tenthSchool || ""}
+                        onChange={(e) => handleFieldChange("tenthSchool", e.target.value)}
+                        placeholder="e.g. St. Mary's High School"
                         style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
                       />
                     </div>
                     <div>
-                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Board &amp; Year</label>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Board</label>
                       <input
                         type="text"
-                        value={editForm.schoolBoard}
-                        onChange={(e) => handleFieldChange("schoolBoard", e.target.value)}
+                        value={editForm.tenthBoard || ""}
+                        onChange={(e) => handleFieldChange("tenthBoard", e.target.value)}
+                        placeholder="e.g. State Board / CBSE / ICSE"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Passing Year</label>
+                      <input
+                        type="text"
+                        value={editForm.tenthYear || ""}
+                        onChange={(e) => handleFieldChange("tenthYear", e.target.value)}
+                        placeholder="e.g. 2016"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Percentage / Grade</label>
+                      <input
+                        type="text"
+                        value={editForm.tenthPercentage || ""}
+                        onChange={(e) => handleFieldChange("tenthPercentage", e.target.value)}
+                        placeholder="e.g. 90% or A+ Grade"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECTION 7: DECLARATION */}
+            {activeEditorSection === "declaration" && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                    <i className="fa-solid fa-signature" style={{ color: "var(--navy)", fontSize: 13 }}></i>
+                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>
+                      Resume Declaration Statement
+                    </span>
+                  </div>
+
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 4 }}>
+                      Declaration Text
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={editForm.declarationText}
+                      onChange={(e) => handleFieldChange("declarationText", e.target.value)}
+                      placeholder="I hereby declare that all the statements and information provided in this resume are true, complete, and correct to the best of my knowledge and belief."
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5, lineHeight: 1.5 }}
+                    />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Place</label>
+                      <input
+                        type="text"
+                        value={editForm.declarationPlace}
+                        onChange={(e) => handleFieldChange("declarationPlace", e.target.value)}
+                        placeholder="e.g. Bengaluru"
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: "#64748B", marginBottom: 2 }}>Date</label>
+                      <input
+                        type="text"
+                        value={editForm.declarationDate}
+                        onChange={(e) => handleFieldChange("declarationDate", e.target.value)}
+                        placeholder="e.g. 11 Sep 2026"
                         style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
                       />
                     </div>

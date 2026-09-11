@@ -1,31 +1,177 @@
 import React from "react";
 
-export function VerifiedBadge({ text = "Verified" }) {
+export function TalenteraVerifiedBadge({ variant = 'card', isMonochrome = false }) {
+  if (variant === 'compact') {
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          fontSize: '11px',
+          background: isMonochrome ? '#FFFFFF' : '#F8FAFC',
+          border: isMonochrome ? '1.5px solid #000000' : '1.5px solid #0A1F3D',
+          color: isMonochrome ? '#000000' : '#0A1F3D',
+          padding: '3px 10px',
+          borderRadius: 6,
+          fontWeight: 800,
+          letterSpacing: '0.02em',
+          verticalAlign: 'middle',
+        }}
+      >
+        <i className="fa-solid fa-circle-check" style={{ color: isMonochrome ? '#000000' : '#0A1F3D' }}></i>
+        <span>Talentera Verified Candidate</span>
+      </span>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: isMonochrome ? '#FFFFFF' : '#F8FAFC',
+        border: isMonochrome ? '2px solid #000000' : '2px solid #0A1F3D',
+        borderRadius: 10,
+        padding: '8px 14px',
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: isMonochrome ? '#000000' : '#0A1F3D', fontWeight: 900, fontSize: 11.5, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+        <i className="fa-solid fa-shield-halved" style={{ color: isMonochrome ? '#000000' : '#0A1F3D', fontSize: 13 }}></i>
+        <span>TALENTERA VERIFIED</span>
+      </div>
+      <div style={{ fontSize: 10, fontWeight: 700, color: isMonochrome ? '#374151' : '#64748B', marginTop: 2 }}>
+        Official Credential Profile
+      </div>
+    </div>
+  );
+}
+
+export function VerifiedBadge({ text = 'Verified' }) {
   return (
     <span
       style={{
-        display: "inline-flex",
-        alignItems: "center",
+        display: 'inline-flex',
+        alignItems: 'center',
         gap: 4,
-        fontSize: "0.7rem",
-        background: "#FEF3C7",
-        border: "1px solid #F59E0B",
-        color: "#B45309",
-        padding: "2px 8px",
+        fontSize: '0.7rem',
+        background: '#F8FAFC',
+        border: '1px solid #0A1F3D',
+        color: '#0A1F3D',
+        padding: '2px 8px',
         borderRadius: 999,
         fontWeight: 700,
         marginLeft: 6,
-        verticalAlign: "middle",
+        verticalAlign: 'middle',
       }}
     >
-      <i className="fa-solid fa-circle-check" style={{ color: "#D97706" }}></i> {text}
+      <i className="fa-solid fa-circle-check" style={{ color: '#0A1F3D' }}></i> {text}
     </span>
   );
 }
 
 // ---------------------------------------------------------------------------
+// Shared Declaration Component (Appears at the very bottom of resumes)
+// ---------------------------------------------------------------------------
+export function DeclarationSection({ d, accentColor = "#0A1F3D", isMonochrome = false }) {
+  const textColor = isMonochrome ? "#000000" : accentColor;
+  const bodyColor = isMonochrome ? "#374151" : "#334155";
+  const borderColor = isMonochrome ? "#000000" : "#E2E8F0";
+
+  return (
+    <div style={{ marginTop: 24, paddingTop: 14, borderTop: "1.5px solid " + borderColor }}>
+      <h3 style={{ fontSize: 12.5, fontWeight: 800, color: textColor, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 6 }}>
+        Declaration
+      </h3>
+      <p style={{ fontSize: 11.5, lineHeight: 1.6, color: bodyColor, margin: "0 0 12px", fontStyle: "italic" }}>
+        "{d.declarationText}"
+      </p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 12, fontSize: 11.5 }}>
+        <div style={{ color: bodyColor }}>
+          <div><strong>Place:</strong> {d.declarationPlace}</div>
+          <div style={{ marginTop: 2 }}><strong>Date:</strong> {d.declarationDate}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontWeight: 800, color: isMonochrome ? "#000000" : "#0A1F3D", fontSize: 12 }}>
+            {d.fullName}
+          </div>
+          <div style={{ fontSize: 10, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Candidate Signature
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Shared Education Section Component (College / Degree, Class 12th, Class 10th)
+// ---------------------------------------------------------------------------
+export function EducationSection({ d, accentColor = "#0A1F3D", isMonochrome = false }) {
+  const textColor = isMonochrome ? "#000000" : accentColor;
+  const borderColor = isMonochrome ? "#000000" : "#E2E8F0";
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <h3 style={{ fontSize: 13, fontWeight: 800, color: textColor, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid " + borderColor, paddingBottom: 6, marginBottom: 10 }}>
+        Education &amp; Academic Background
+      </h3>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12 }}>
+        {/* Graduation / College */}
+        {d.degree && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", background: isMonochrome ? "#FFFFFF" : "#F8FAFC", border: "1px solid " + (isMonochrome ? "#D1D5DB" : "#E2E8F0"), borderRadius: 6, padding: "8px 12px" }}>
+            <div>
+              <strong style={{ fontSize: 12.5, color: isMonochrome ? "#000000" : "#0F172A" }}>{d.degree}</strong>
+              <div style={{ color: isMonochrome ? "#374151" : "#64748B", marginTop: 1 }}>{d.collegeName}</div>
+            </div>
+            <div style={{ textAlign: "right", color: isMonochrome ? "#374151" : "#475569" }}>
+              <span style={{ fontWeight: 700 }}>{d.graduationYear}</span>
+              {d.cgpa ? <div style={{ fontSize: 11, fontWeight: 600 }}>CGPA: {d.cgpa}</div> : null}
+            </div>
+          </div>
+        )}
+
+        {/* Class 12th / Intermediate */}
+        {(d.twelfthSchool || d.twelfthBoard || d.twelfthYear) && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", background: isMonochrome ? "#FFFFFF" : "#F8FAFC", border: "1px solid " + (isMonochrome ? "#D1D5DB" : "#E2E8F0"), borderRadius: 6, padding: "8px 12px" }}>
+            <div>
+              <strong style={{ fontSize: 12, color: isMonochrome ? "#000000" : "#0F172A" }}>Class XII (Higher Secondary / Intermediate)</strong>
+              <div style={{ color: isMonochrome ? "#374151" : "#64748B", marginTop: 1 }}>
+                {d.twelfthSchool}{d.twelfthBoard ? " • " + d.twelfthBoard : ""}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", color: isMonochrome ? "#374151" : "#475569" }}>
+              {d.twelfthYear ? <span style={{ fontWeight: 700 }}>{d.twelfthYear}</span> : null}
+              {d.twelfthPercentage ? <div style={{ fontSize: 11, fontWeight: 600 }}>Score: {d.twelfthPercentage}</div> : null}
+            </div>
+          </div>
+        )}
+
+        {/* Class 10th / Secondary School */}
+        {(d.tenthSchool || d.tenthBoard || d.tenthYear) && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", background: isMonochrome ? "#FFFFFF" : "#F8FAFC", border: "1px solid " + (isMonochrome ? "#D1D5DB" : "#E2E8F0"), borderRadius: 6, padding: "8px 12px" }}>
+            <div>
+              <strong style={{ fontSize: 12, color: isMonochrome ? "#000000" : "#0F172A" }}>Class X (Secondary School / SSLC)</strong>
+              <div style={{ color: isMonochrome ? "#374151" : "#64748B", marginTop: 1 }}>
+                {d.tenthSchool}{d.tenthBoard ? " • " + d.tenthBoard : ""}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", color: isMonochrome ? "#374151" : "#475569" }}>
+              {d.tenthYear ? <span style={{ fontWeight: 700 }}>{d.tenthYear}</span> : null}
+              {d.tenthPercentage ? <div style={{ fontSize: 11, fontWeight: 600 }}>Score: {d.tenthPercentage}</div> : null}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Shared Data Extractor
-// Extracts, normalizes, and provides safe fallbacks for candidate profile data
 // ---------------------------------------------------------------------------
 export function extractResumeData(data = {}) {
   const manual = data.manualResume || {};
@@ -49,6 +195,8 @@ export function extractResumeData(data = {}) {
   const maskedAadhaar = manual.maskedAadhaar || basicInfo.maskedAadhaar || "";
   const currentRole = manual.currentRole || basicInfo.currentRole || "Medical Coding Professional";
   const experience = manual.experience || basicInfo.experience || "Experienced";
+  const isFresher = String(experience).toLowerCase() === "fresher" || String(experience).toLowerCase().includes("fresher");
+  const summaryTitle = isFresher ? "Career Objective" : "Professional Summary";
 
   const certName = manual.certName || certification.certName || certification.certificationName || certification.certCode || "CPC (Certified Professional Coder)";
   const issuingBody = manual.issuingBody || certification.issuingBody || certification.bodyName || "AAPC";
@@ -61,14 +209,20 @@ export function extractResumeData(data = {}) {
   const trainingDuration = manual.trainingDuration || training.duration || "6 months";
   const trainerName = manual.trainerName || training.trainerName || "";
 
+  const defaultSummary = isFresher
+    ? "To obtain a Medical Coder position where I can apply my knowledge of medical terminology, ICD-10-CM, CPT, and HCPCS to ensure accurate coding while growing my skills in the healthcare industry."
+    : "Experienced Medical Coder skilled in accurate ICD-10-CM, CPT, and HCPCS coding with strong attention to detail, compliance, and documentation accuracy.";
+
   const summary = manual.summary !== undefined && manual.summary !== ""
     ? manual.summary
-    : (basicInfo.summary || "Healthcare RCM Specialist & Medical Coder with extensive experience in Outpatient, Inpatient, and ED Medical Coding. Proven track record maintaining 98% coding accuracy across daily charts while ensuring full HIPAA & CMS compliance.");
+    : (basicInfo.summary || defaultSummary);
 
-  const codeSets = manual.codeSets || basicInfo.codeSets || "ICD-10-CM, ICD-10-PCS, CPT, HCPCS Level II, CDT";
-  const specializedKnowledge = manual.specializedKnowledge || basicInfo.specializedKnowledge || "E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA Compliance, Medical Necessity, DRG Assignment, HCC Risk Adjustment";
-  const ehrSoftware = manual.ehrSoftware || basicInfo.ehrSoftware || "Epic Hyperspace, Cerner, Meditech, Athenahealth, 3M CodeRyte / Encoder Pro, Optum Encoder";
   const coreCompetencies = manual.coreCompetencies || basicInfo.coreCompetencies || "Anatomy & Physiology, Medical Terminology, Clinical Documentation Improvement (CDI), Denial & Audit Appeals Resolution";
+  const codeSets = manual.codeSets || basicInfo.codeSets || "ICD-10-CM, CPT, HCPCS Level II, Coding Guidelines & Conventions";
+  const softSkills = manual.softSkills || basicInfo.softSkills || "Attention to Detail, Analytical & Critical Thinking, Accuracy & Quality Focus, Communication Skills, Time Management";
+  const codingPlatforms = manual.codingPlatforms || basicInfo.codingPlatforms || manual.ehrSoftware || basicInfo.ehrSoftware || "Codivia, 3M 360 Encompass, Optum EncoderPro";
+  const specializedKnowledge = manual.specializedKnowledge || basicInfo.specializedKnowledge || "E/M MDM Leveling, CPT Modifiers, NCCI Edits, HIPAA Compliance, Medical Necessity, DRG Assignment, HCC Risk Adjustment";
+  const ehrSoftware = codingPlatforms;
 
   const workHistoryList = (manual.workHistory && Array.isArray(manual.workHistory) && manual.workHistory.length > 0)
     ? manual.workHistory
@@ -89,10 +243,25 @@ export function extractResumeData(data = {}) {
   const collegeName = manual.collegeName || basicInfo.collegeName || "Bangalore University / Life Sciences Institute";
   const degree = manual.degree || basicInfo.degree || "B.Sc. Life Sciences / Healthcare Information Management";
   const graduationYear = manual.graduationYear || basicInfo.graduationYear || "2021";
+  const cgpa = manual.cgpa || basicInfo.cgpa || manual.percentage || basicInfo.percentage || "8.4 CGPA";
 
   const schoolName = manual.schoolName || basicInfo.schoolName || "St. Joseph's Higher Secondary School";
   const schoolBoard = manual.schoolBoard || basicInfo.schoolBoard || "CBSE Board";
   const schoolYear = manual.schoolYear || basicInfo.schoolYear || "2018";
+
+  const twelfthSchool = manual.twelfthSchool || basicInfo.twelfthSchool || schoolName || "St. Joseph's Higher Secondary School";
+  const twelfthBoard = manual.twelfthBoard || basicInfo.twelfthBoard || schoolBoard || "CBSE Board";
+  const twelfthYear = manual.twelfthYear || basicInfo.twelfthYear || schoolYear || "2018";
+  const twelfthPercentage = manual.twelfthPercentage || basicInfo.twelfthPercentage || "86%";
+
+  const tenthSchool = manual.tenthSchool || basicInfo.tenthSchool || "St. Mary's High School";
+  const tenthBoard = manual.tenthBoard || basicInfo.tenthBoard || "State Board";
+  const tenthYear = manual.tenthYear || basicInfo.tenthYear || "2016";
+  const tenthPercentage = manual.tenthPercentage || basicInfo.tenthPercentage || "90%";
+
+  const declarationText = manual.declarationText || "I hereby declare that all the statements and information provided in this resume are true, complete, and correct to the best of my knowledge and belief.";
+  const declarationPlace = manual.declarationPlace || basicInfo.city || "Bengaluru";
+  const declarationDate = manual.declarationDate || new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   return {
     fullName,
@@ -103,6 +272,8 @@ export function extractResumeData(data = {}) {
     maskedAadhaar,
     currentRole,
     experience,
+    isFresher,
+    summaryTitle,
     certName,
     issuingBody,
     memberId,
@@ -113,17 +284,31 @@ export function extractResumeData(data = {}) {
     trainingDuration,
     trainerName,
     summary,
+    coreCompetencies,
     codeSets,
+    softSkills,
+    codingPlatforms,
     specializedKnowledge,
     ehrSoftware,
-    coreCompetencies,
     workHistoryList,
     collegeName,
     degree,
     graduationYear,
+    cgpa,
     schoolName,
     schoolBoard,
     schoolYear,
+    twelfthSchool,
+    twelfthBoard,
+    twelfthYear,
+    twelfthPercentage,
+    tenthSchool,
+    tenthBoard,
+    tenthYear,
+    tenthPercentage,
+    declarationText,
+    declarationPlace,
+    declarationDate,
     score,
     badgeTier,
     publicUrl,
@@ -132,7 +317,6 @@ export function extractResumeData(data = {}) {
 
 // ---------------------------------------------------------------------------
 // 1. EXECUTIVE GOLD TEMPLATE
-// Classic corporate header with prominent Talentera verified score badge
 // ---------------------------------------------------------------------------
 export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
   const d = extractResumeData(data);
@@ -142,64 +326,57 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
       {/* Header */}
       <div style={{ borderBottom: `3px solid ${accentColor}`, paddingBottom: 20, marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 28, fontWeight: 800, color: accentColor, margin: 0 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 900, color: accentColor, margin: 0, letterSpacing: "-0.02em" }}>
             {d.fullName}
           </h1>
-          <p style={{ margin: "6px 0 0", color: "#475569", fontWeight: 600, fontSize: 15 }}>
+          <p style={{ margin: "4px 0 0", color: "#64748B", fontWeight: 700, fontSize: 14 }}>
             {d.currentRole} • {d.experience} • {d.location}
           </p>
-          <div style={{ fontSize: 12, color: "#64748B", marginTop: 6, display: "flex", flexWrap: "wrap", gap: 12 }}>
-            <span><i className="fa-solid fa-phone" style={{ marginRight: 4, color: accentColor }}></i> {d.mobile}</span>
-            <span><i className="fa-solid fa-envelope" style={{ marginRight: 4, color: accentColor }}></i> {d.email}</span>
-            <span><i className="fa-brands fa-linkedin" style={{ marginRight: 4, color: accentColor }}></i> {d.linkedin}</span>
+          <div style={{ fontSize: 11.5, color: "#475569", marginTop: 6, display: "flex", flexWrap: "wrap", gap: 12 }}>
+            <span>📞 {d.mobile}</span>
+            <span>✉️ {d.email}</span>
+            <span>🔗 {d.linkedin}</span>
           </div>
         </div>
 
-        <div style={{ background: "#FAF7F0", border: "2px solid rgba(229,168,46,0.4)", borderRadius: 12, padding: "12px 18px", textAlign: "center", minWidth: 150 }}>
-          <div style={{ fontSize: 10, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em" }}>TALENTERA SCORE</div>
-          <div style={{ fontSize: 28, fontWeight: 800, color: accentColor }}>{d.score}<span style={{ fontSize: 14, color: "#94A3B8" }}>/100</span></div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#B45309" }}><i className="fa-solid fa-award"></i> {d.badgeTier}</div>
-        </div>
+        <TalenteraVerifiedBadge />
       </div>
 
       {/* Summary */}
-      <div style={{ marginBottom: 24 }}>
+      <div style={{ marginBottom: 22 }}>
         <h3 style={{ fontSize: 13.5, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, marginBottom: 8 }}>
-          Professional Summary
+          {d.summaryTitle}
         </h3>
-        <p style={{ fontSize: 13, lineHeight: 1.6, color: "#334155", margin: 0 }}>{d.summary}</p>
+        <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#334155", margin: 0 }}>
+          {d.summary}
+        </p>
       </div>
 
-      {/* Certifications */}
-      <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 16, marginBottom: 20 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 10px" }}>
-          Core Certifications &amp; Credentials
-        </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 12.5 }}>
-          <div>
-            <strong style={{ color: "#0F172A", fontSize: 13.5 }}>{d.certName}</strong>
-            <div style={{ color: "#475569", marginTop: 2 }}>Issuing Body: <strong>{d.issuingBody}</strong> • ID: <strong>{d.memberId}</strong></div>
+      {/* Verified Credentials */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 22 }}>
+        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14 }}>
+          <h3 style={{ fontSize: 12.5, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px" }}>
+            AAPC / AHIMA Certification
+          </h3>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{d.certName}</div>
+          <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
+            Issuing Body: <strong>{d.issuingBody}</strong> • Member ID: <strong>{d.memberId}</strong>
           </div>
-          <div style={{ color: "#475569" }}>
-            <div>Status: <strong style={{ color: "#15803D" }}>Active Verified</strong></div>
-            <div>Issue Date: <strong>{d.issueDate}</strong></div>
+          <div style={{ fontSize: 11, color: "#15803D", fontWeight: 700, marginTop: 4 }}>
+            ✓ Verified Active Credential ({d.issueDate})
           </div>
         </div>
-      </div>
 
-      {/* Training */}
-      <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 16, marginBottom: 22 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 10px" }}>
-          Academy &amp; Formal Training
-        </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, fontSize: 12.5 }}>
-          <div>
-            <strong style={{ color: "#0F172A", fontSize: 13.5 }}>{d.academyName}</strong>
-            <div style={{ color: "#475569", marginTop: 2 }}>Course: <strong>{d.courseName}</strong></div>
+        <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14 }}>
+          <h3 style={{ fontSize: 12.5, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 6px" }}>
+            Specialty Academy Training
+          </h3>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{d.academyName}</div>
+          <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
+            Course: <strong>{d.courseName}</strong>
           </div>
-          <div style={{ color: "#475569" }}>
-            <div>Duration: <strong>{d.trainingDuration}</strong></div>
-            {d.trainerName && <div>Trainer: <strong>{d.trainerName}</strong></div>}
+          <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>
+            Duration: {d.trainingDuration} {d.trainerName ? `• Lead: ${d.trainerName}` : ""}
           </div>
         </div>
       </div>
@@ -207,23 +384,23 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
       {/* Skills */}
       <div style={{ marginBottom: 22 }}>
         <h3 style={{ fontSize: 13.5, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, marginBottom: 10 }}>
-          Technical &amp; Coding Skill Sets
+          Skills &amp; Technical Competencies
         </h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 12 }}>
-          <div style={{ background: "#F1F5F9", padding: 10, borderRadius: 8 }}>
-            <strong style={{ color: accentColor, display: "block", marginBottom: 3 }}>CODE SETS</strong>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
+          <div style={{ background: "#F8FAFC", padding: 10, borderRadius: 6, border: "1px solid #E2E8F0" }}>
+            <strong style={{ color: accentColor, display: "block", marginBottom: 2, fontSize: 11 }}>CODE SETS &amp; CLASSIFICATION</strong>
             <span style={{ color: "#334155" }}>{d.codeSets}</span>
           </div>
-          <div style={{ background: "#F1F5F9", padding: 10, borderRadius: 8 }}>
-            <strong style={{ color: accentColor, display: "block", marginBottom: 3 }}>SPECIALIZED KNOWLEDGE</strong>
+          <div style={{ background: "#F8FAFC", padding: 10, borderRadius: 6, border: "1px solid #E2E8F0" }}>
+            <strong style={{ color: accentColor, display: "block", marginBottom: 2, fontSize: 11 }}>SPECIALIZED CLINICAL KNOWLEDGE</strong>
             <span style={{ color: "#334155" }}>{d.specializedKnowledge}</span>
           </div>
-          <div style={{ background: "#F1F5F9", padding: 10, borderRadius: 8 }}>
-            <strong style={{ color: accentColor, display: "block", marginBottom: 3 }}>EHR &amp; SOFTWARE</strong>
+          <div style={{ background: "#F8FAFC", padding: 10, borderRadius: 6, border: "1px solid #E2E8F0" }}>
+            <strong style={{ color: accentColor, display: "block", marginBottom: 2, fontSize: 11 }}>EHR &amp; CODING PLATFORMS</strong>
             <span style={{ color: "#334155" }}>{d.ehrSoftware}</span>
           </div>
-          <div style={{ background: "#F1F5F9", padding: 10, borderRadius: 8 }}>
-            <strong style={{ color: accentColor, display: "block", marginBottom: 3 }}>CORE COMPETENCIES</strong>
+          <div style={{ background: "#F8FAFC", padding: 10, borderRadius: 6, border: "1px solid #E2E8F0" }}>
+            <strong style={{ color: accentColor, display: "block", marginBottom: 2, fontSize: 11 }}>CORE COMPETENCIES</strong>
             <span style={{ color: "#334155" }}>{d.coreCompetencies}</span>
           </div>
         </div>
@@ -254,29 +431,13 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
       </div>
 
       {/* Education */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
-        <div>
-          <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, marginBottom: 8 }}>
-            College Education
-          </h3>
-          <div style={{ fontSize: 12 }}>
-            <strong style={{ color: "#0F172A" }}>{d.degree}</strong>
-            <div style={{ color: "#64748B" }}>{d.collegeName} ({d.graduationYear})</div>
-          </div>
-        </div>
-        <div>
-          <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, letterSpacing: "0.06em", textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, marginBottom: 8 }}>
-            Schooling
-          </h3>
-          <div style={{ fontSize: 12 }}>
-            <strong style={{ color: "#0F172A" }}>High School ({d.schoolBoard})</strong>
-            <div style={{ color: "#64748B" }}>{d.schoolName} ({d.schoolYear})</div>
-          </div>
-        </div>
-      </div>
+      <EducationSection d={d} accentColor={accentColor} />
+
+      {/* Declaration */}
+      <DeclarationSection d={d} accentColor={accentColor} />
 
       {/* Audit Stamp */}
-      <div style={{ background: "#F8FAFC", border: "1px dashed #CBD5E1", borderRadius: 8, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ marginTop: 20, background: "#F8FAFC", border: "1px dashed #CBD5E1", borderRadius: 8, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 800, color: accentColor }}>TALENTERA VERIFIED CREDENTIAL RESUME</div>
           <div style={{ fontSize: 10.5, color: "#64748B" }}>Audit trail: {d.publicUrl}</div>
@@ -291,7 +452,6 @@ export function ExecutiveTemplate({ data, accentColor = "#0A1F3D" }) {
 
 // ---------------------------------------------------------------------------
 // 2. MODERN SIDEBAR TEMPLATE
-// Distinct 30/70 split layout with dark/accent sidebar on left
 // ---------------------------------------------------------------------------
 export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
   const d = extractResumeData(data);
@@ -304,45 +464,42 @@ export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
           {d.fullName.charAt(0)}
         </div>
 
-        <h2 style={{ fontSize: 18, fontWeight: 800, color: "#FFFFFF", margin: "0 0 4px" }}>{d.fullName}</h2>
-        <div style={{ fontSize: 12, color: "#F5B41A", fontWeight: 700, marginBottom: 16 }}>{d.currentRole}</div>
-
-        <div style={{ fontSize: 11.5, color: "#CBD5E1", display: "flex", flexDirection: "column", gap: 8, borderBottom: "1px solid rgba(255,255,255,0.15)", paddingBottom: 16, marginBottom: 18 }}>
-          <div><i className="fa-solid fa-location-dot" style={{ width: 16 }}></i> {d.location}</div>
-          <div><i className="fa-solid fa-phone" style={{ width: 16 }}></i> {d.mobile}</div>
-          <div><i className="fa-solid fa-envelope" style={{ width: 16 }}></i> {d.email}</div>
-          <div><i className="fa-brands fa-linkedin" style={{ width: 16 }}></i> {d.linkedin}</div>
+        <h2 style={{ fontSize: 20, fontWeight: 900, margin: 0, color: "#FFFFFF", letterSpacing: "-0.01em" }}>
+          {d.fullName}
+        </h2>
+        <div style={{ fontSize: 12, color: "#FDE68A", fontWeight: 700, marginTop: 4 }}>
+          {d.currentRole}
         </div>
 
-        {/* Talentera Score */}
-        <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 10, padding: 12, textAlign: "center", marginBottom: 20 }}>
-          <div style={{ fontSize: 9.5, fontWeight: 800, color: "#F5B41A", letterSpacing: "0.08em" }}>TALENTERA SCORE</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: "#FFFFFF" }}>{d.score}/100</div>
-          <div style={{ fontSize: 10, color: "#E2E8F0" }}>{d.badgeTier}</div>
+        <div style={{ marginTop: 16 }}>
+          <TalenteraVerifiedBadge variant="compact" />
         </div>
 
-        {/* Core Skills List */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: "#F5B41A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-            Core Code Sets
-          </div>
-          <div style={{ fontSize: 11, color: "#E2E8F0", lineHeight: 1.6 }}>{d.codeSets}</div>
+        <div style={{ marginTop: 24, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 16, fontSize: 11.5 }}>
+          <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10.5, letterSpacing: "0.08em", color: "#F5B41A", marginBottom: 8 }}>Contact</div>
+          <div style={{ color: "#E2E8F0", marginBottom: 4 }}>📞 {d.mobile}</div>
+          <div style={{ color: "#E2E8F0", marginBottom: 4, wordBreak: "break-word" }}>✉️ {d.email}</div>
+          <div style={{ color: "#E2E8F0", marginBottom: 4 }}>📍 {d.location}</div>
+          <div style={{ color: "#E2E8F0", wordBreak: "break-word" }}>🔗 {d.linkedin}</div>
         </div>
 
-        <div>
-          <div style={{ fontSize: 11.5, fontWeight: 800, color: "#F5B41A", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
-            EHR &amp; Software
-          </div>
-          <div style={{ fontSize: 11, color: "#E2E8F0", lineHeight: 1.6 }}>{d.ehrSoftware}</div>
+        <div style={{ marginTop: 20, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 16 }}>
+          <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10.5, letterSpacing: "0.08em", color: "#F5B41A", marginBottom: 8 }}>Code Sets</div>
+          <p style={{ fontSize: 11, color: "#E2E8F0", lineHeight: 1.45, margin: 0 }}>{d.codeSets}</p>
+        </div>
+
+        <div style={{ marginTop: 20, borderTop: "1px solid rgba(255,255,255,0.15)", paddingTop: 16 }}>
+          <div style={{ fontWeight: 800, textTransform: "uppercase", fontSize: 10.5, letterSpacing: "0.08em", color: "#F5B41A", marginBottom: 8 }}>Health IT &amp; EHR</div>
+          <p style={{ fontSize: 11, color: "#E2E8F0", lineHeight: 1.45, margin: 0 }}>{d.ehrSoftware}</p>
         </div>
       </div>
 
-      {/* Right Content */}
-      <div style={{ padding: "32px 28px", color: "#1E293B" }}>
+      {/* Main Column */}
+      <div style={{ padding: "32px 36px" }}>
         {/* Summary */}
-        <div style={{ marginBottom: 22 }}>
+        <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${accentColor}`, paddingBottom: 4, marginBottom: 8 }}>
-            Professional Summary
+            {d.summaryTitle}
           </h3>
           <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#334155", margin: 0 }}>{d.summary}</p>
         </div>
@@ -350,19 +507,12 @@ export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
         {/* Certifications */}
         <div style={{ marginBottom: 20 }}>
           <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${accentColor}`, paddingBottom: 4, marginBottom: 8 }}>
-            Verified Certifications
+            Verified Credentials &amp; Training
           </h3>
-          <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}>
+          <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #E2E8F0", marginBottom: 8, fontSize: 12 }}>
             <strong style={{ color: "#0F172A" }}>{d.certName}</strong>
-            <div style={{ color: "#475569", marginTop: 2 }}>{d.issuingBody} • Member ID: {d.memberId} • Issued: {d.issueDate}</div>
+            <div style={{ color: "#475569", marginTop: 2 }}>{d.issuingBody} • Member: {d.memberId} ({d.issueDate})</div>
           </div>
-        </div>
-
-        {/* Academy Training */}
-        <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${accentColor}`, paddingBottom: 4, marginBottom: 8 }}>
-            Academy Training
-          </h3>
           <div style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}>
             <strong style={{ color: "#0F172A" }}>{d.academyName}</strong>
             <div style={{ color: "#475569", marginTop: 2 }}>{d.courseName} • Duration: {d.trainingDuration}</div>
@@ -387,15 +537,10 @@ export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
         </div>
 
         {/* Education */}
-        <div>
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: `2px solid ${accentColor}`, paddingBottom: 4, marginBottom: 8 }}>
-            Education
-          </h3>
-          <div style={{ fontSize: 12 }}>
-            <strong>{d.degree}</strong>
-            <div style={{ color: "#64748B" }}>{d.collegeName} ({d.graduationYear})</div>
-          </div>
-        </div>
+        <EducationSection d={d} accentColor={accentColor} />
+
+        {/* Declaration */}
+        <DeclarationSection d={d} accentColor={accentColor} />
       </div>
     </div>
   );
@@ -403,7 +548,6 @@ export function ModernTemplate({ data, accentColor = "#0A1F3D" }) {
 
 // ---------------------------------------------------------------------------
 // 3. CLASSIC CORPORATE TEMPLATE
-// Traditional centered serif layout, refined formal horizontal borders
 // ---------------------------------------------------------------------------
 export function ClassicTemplate({ data, accentColor = "#1E293B" }) {
   const d = extractResumeData(data);
@@ -418,21 +562,21 @@ export function ClassicTemplate({ data, accentColor = "#1E293B" }) {
         <div style={{ fontSize: 13, color: "#475569", margin: "6px 0", fontStyle: "italic" }}>
           {d.currentRole} • {d.location}
         </div>
-        <div style={{ fontSize: 11.5, color: "#64748B", display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 11.5, color: "#64748B", display: "flex", justifyContent: "center", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
           <span>{d.mobile}</span>
           <span>•</span>
           <span>{d.email}</span>
           <span>•</span>
           <span>{d.linkedin}</span>
           <span>•</span>
-          <span style={{ color: "#B45309", fontWeight: "bold" }}>Score: {d.score}/100</span>
+          <TalenteraVerifiedBadge variant="compact" />
         </div>
       </div>
 
       {/* Summary */}
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ fontSize: 13, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: accentColor, borderBottom: "1px solid #CBD5E1", paddingBottom: 4, marginBottom: 8 }}>
-          Professional Overview
+          {d.summaryTitle}
         </h3>
         <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#334155", margin: 0, textAlign: "justify" }}>{d.summary}</p>
       </div>
@@ -488,21 +632,16 @@ export function ClassicTemplate({ data, accentColor = "#1E293B" }) {
       </div>
 
       {/* Education */}
-      <div>
-        <h3 style={{ fontSize: 13, fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", color: accentColor, borderBottom: "1px solid #CBD5E1", paddingBottom: 4, marginBottom: 8 }}>
-          Education
-        </h3>
-        <div style={{ fontSize: 12 }}>
-          <strong>{d.degree}</strong> — {d.collegeName} ({d.graduationYear})
-        </div>
-      </div>
+      <EducationSection d={d} accentColor={accentColor} />
+
+      {/* Declaration */}
+      <DeclarationSection d={d} accentColor={accentColor} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // 4. MINIMAL COMPACT TEMPLATE
-// Ultra-clean, single-page density, high space efficiency
 // ---------------------------------------------------------------------------
 export function MinimalTemplate({ data, accentColor = "#0F172A" }) {
   const d = extractResumeData(data);
@@ -521,7 +660,7 @@ export function MinimalTemplate({ data, accentColor = "#0F172A" }) {
         <div style={{ textAlign: "right", fontSize: 11.5, color: "#64748B", lineHeight: 1.5 }}>
           <div>{d.email}</div>
           <div>{d.mobile}</div>
-          <div style={{ color: "#B45309", fontWeight: 700 }}>Talentera Score: {d.score}/100</div>
+          <div style={{ marginTop: 4 }}><TalenteraVerifiedBadge variant="compact" /></div>
         </div>
       </div>
 
@@ -569,7 +708,7 @@ export function MinimalTemplate({ data, accentColor = "#0F172A" }) {
         <div>
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-              Summary
+              {d.summaryTitle}
             </div>
             <p style={{ fontSize: 12, lineHeight: 1.55, margin: 0, color: "#475569" }}>{d.summary}</p>
           </div>
@@ -589,24 +728,17 @@ export function MinimalTemplate({ data, accentColor = "#0F172A" }) {
             ))}
           </div>
 
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-              Education
-            </div>
-            <div style={{ fontSize: 12 }}>
-              <strong>{d.degree}</strong>
-              <div style={{ color: "#64748B" }}>{d.collegeName} ({d.graduationYear})</div>
-            </div>
-          </div>
+          <EducationSection d={d} accentColor={accentColor} />
         </div>
       </div>
+
+      <DeclarationSection d={d} accentColor={accentColor} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // 5. CREATIVE SPLIT TEMPLATE
-// Vibrant gradient header bar with timeline-style indicators
 // ---------------------------------------------------------------------------
 export function CreativeTemplate({ data, accentColor = "#6366F1" }) {
   const d = extractResumeData(data);
@@ -623,9 +755,8 @@ export function CreativeTemplate({ data, accentColor = "#6366F1" }) {
             <h1 style={{ fontSize: 28, fontWeight: 900, margin: "8px 0 4px", color: "#FFFFFF" }}>{d.fullName}</h1>
             <div style={{ fontSize: 14, color: "#FDE68A", fontWeight: 700 }}>{d.currentRole}</div>
           </div>
-          <div style={{ background: "#FFFFFF", color: "#0A1F3D", padding: "12px 18px", borderRadius: 12, textAlign: "center" }}>
-            <div style={{ fontSize: 9.5, fontWeight: 800, color: "#64748B" }}>VERIFICATION SCORE</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: accentColor }}>{d.score}/100</div>
+          <div>
+            <TalenteraVerifiedBadge />
           </div>
         </div>
       </div>
@@ -663,16 +794,14 @@ export function CreativeTemplate({ data, accentColor = "#6366F1" }) {
         </div>
 
         {/* Education & Skills */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <div>
-            <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, textTransform: "uppercase", marginBottom: 8 }}>Education</h3>
-            <div style={{ fontSize: 12 }}><strong>{d.degree}</strong> ({d.collegeName})</div>
-          </div>
-          <div>
-            <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, textTransform: "uppercase", marginBottom: 8 }}>Code Sets</h3>
-            <div style={{ fontSize: 12, color: "#475569" }}>{d.codeSets}</div>
-          </div>
+        <EducationSection d={d} accentColor={accentColor} />
+
+        <div style={{ marginTop: 16 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 800, color: accentColor, textTransform: "uppercase", marginBottom: 8 }}>Code Sets</h3>
+          <div style={{ fontSize: 12, color: "#475569" }}>{d.codeSets}</div>
         </div>
+
+        <DeclarationSection d={d} accentColor={accentColor} />
       </div>
     </div>
   );
@@ -680,7 +809,6 @@ export function CreativeTemplate({ data, accentColor = "#6366F1" }) {
 
 // ---------------------------------------------------------------------------
 // 6. NORDIC CLEAN TEMPLATE
-// Scandinavian minimalist design with soft rounded pill cards and gentle pastels
 // ---------------------------------------------------------------------------
 export function NordicTemplate({ data, accentColor = "#0284C7" }) {
   const d = extractResumeData(data);
@@ -693,44 +821,54 @@ export function NordicTemplate({ data, accentColor = "#0284C7" }) {
             <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, color: "#0F172A" }}>{d.fullName}</h1>
             <div style={{ fontSize: 13, color: accentColor, fontWeight: 700, marginTop: 4 }}>{d.currentRole}</div>
           </div>
-          <span style={{ background: "#E0F2FE", color: "#0369A1", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
-            Score: {d.score}/100
-          </span>
+          <TalenteraVerifiedBadge />
         </div>
-        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 12, display: "flex", gap: 14 }}>
-          <span>{d.email}</span> • <span>{d.mobile}</span> • <span>{d.location}</span>
+        <div style={{ display: "flex", gap: 14, marginTop: 14, fontSize: 11.5, color: "#64748B", flexWrap: "wrap" }}>
+          <span>📍 {d.location}</span>
+          <span>✉️ {d.email}</span>
+          <span>📞 {d.mobile}</span>
         </div>
       </div>
 
-      <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: 20 }}>
-        <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 8px" }}>Summary</h4>
+      <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: 20 }}>
+        <h3 style={{ fontSize: 12.5, fontWeight: 800, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 8px" }}>
+          {d.summaryTitle}
+        </h3>
         <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#334155", margin: 0 }}>{d.summary}</p>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
-        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Certification</h4>
-          <strong style={{ fontSize: 13 }}>{d.certName}</strong>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>{d.issuingBody} • {d.memberId}</div>
+        <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: accentColor, textTransform: "uppercase" }}>Certification</div>
+          <strong style={{ fontSize: 13, color: "#0F172A", display: "block", marginTop: 4 }}>{d.certName}</strong>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>{d.issuingBody} ({d.issueDate})</div>
         </div>
-        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Academy Training</h4>
-          <strong style={{ fontSize: 13 }}>{d.academyName}</strong>
-          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>{d.courseName} • {d.trainingDuration}</div>
+        <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+          <div style={{ fontSize: 11.5, fontWeight: 800, color: accentColor, textTransform: "uppercase" }}>Academy Training</div>
+          <strong style={{ fontSize: 13, color: "#0F172A", display: "block", marginTop: 4 }}>{d.academyName}</strong>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>{d.courseName}</div>
         </div>
       </div>
 
-      <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
-        <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", textTransform: "uppercase", margin: "0 0 10px" }}>Experience</h4>
+      <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: 20 }}>
+        <h3 style={{ fontSize: 12.5, fontWeight: 800, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 14px" }}>
+          Experience
+        </h3>
         {d.workHistoryList.map((w, idx) => (
-          <div key={idx} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
-              <span>{w.title} — {w.company}</span>
-              <span style={{ fontSize: 11, color: "#94A3B8" }}>{w.dates}</span>
+          <div key={idx} style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700 }}>
+              <span>{w.title}</span>
+              <span style={{ fontSize: 11.5, color: "#64748B" }}>{w.dates}</span>
             </div>
+            <div style={{ fontSize: 11.5, color: accentColor, fontWeight: 600 }}>{w.company}</div>
             <p style={{ fontSize: 11.5, color: "#475569", margin: "2px 0 0" }}>{w.description}</p>
           </div>
         ))}
+      </div>
+
+      <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 14, boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+        <EducationSection d={d} accentColor={accentColor} />
+        <DeclarationSection d={d} accentColor={accentColor} />
       </div>
     </div>
   );
@@ -738,258 +876,264 @@ export function NordicTemplate({ data, accentColor = "#0284C7" }) {
 
 // ---------------------------------------------------------------------------
 // 7. TWO-COLUMN PRO TEMPLATE
-// Balanced 40/60 dual-column structured layout
 // ---------------------------------------------------------------------------
 export function TwoColumnTemplate({ data, accentColor = "#0F766E" }) {
   const d = extractResumeData(data);
 
   return (
-    <div style={{ fontFamily: "'Manrope', sans-serif", padding: 32, background: "#FFFFFF", borderRadius: 12 }}>
-      <div style={{ borderBottom: `2px solid ${accentColor}`, paddingBottom: 16, marginBottom: 20 }}>
-        <h1 style={{ fontSize: 26, fontWeight: 900, color: accentColor, margin: 0 }}>{d.fullName}</h1>
-        <div style={{ fontSize: 13, color: "#64748B", fontWeight: 700, marginTop: 4 }}>{d.currentRole} • {d.location}</div>
+    <div style={{ fontFamily: "'Inter', sans-serif", padding: 32, background: "#FFFFFF", color: "#1E293B", borderRadius: 12 }}>
+      {/* Header */}
+      <div style={{ borderBottom: `2px solid ${accentColor}`, paddingBottom: 16, marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: accentColor, margin: 0 }}>{d.fullName}</h1>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#64748B", marginTop: 2 }}>{d.currentRole} • {d.location}</div>
+        </div>
+        <TalenteraVerifiedBadge />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "38% 62%", gap: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 24 }}>
         {/* Left Col */}
         <div>
-          <div style={{ background: "#F0FDFA", border: "1px solid #CCFBF1", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, textTransform: "uppercase" }}>Talentera Verified</div>
-            <div style={{ fontSize: 24, fontWeight: 900, color: accentColor }}>{d.score}/100</div>
-            <div style={{ fontSize: 11, color: "#0D9488" }}>{d.badgeTier}</div>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Certification</h4>
-            <div style={{ fontSize: 12, marginTop: 6 }}>
-              <strong>{d.certName}</strong>
-              <div style={{ color: "#64748B" }}>{d.issuingBody} • {d.memberId}</div>
+          <div style={{ marginBottom: 18 }}>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Contact</h4>
+            <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.6, marginTop: 6 }}>
+              <div>📞 {d.mobile}</div>
+              <div>✉️ {d.email}</div>
+              <div>🔗 {d.linkedin}</div>
             </div>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Training</h4>
-            <div style={{ fontSize: 12, marginTop: 6 }}>
-              <strong>{d.academyName}</strong>
+          <div style={{ marginBottom: 18 }}>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Credentials</h4>
+            <div style={{ fontSize: 11.5, marginTop: 6 }}>
+              <strong style={{ color: "#0F172A" }}>{d.certName}</strong>
+              <div style={{ color: "#64748B" }}>{d.issuingBody} ({d.issueDate})</div>
+            </div>
+            <div style={{ fontSize: 11.5, marginTop: 8 }}>
+              <strong style={{ color: "#0F172A" }}>{d.academyName}</strong>
               <div style={{ color: "#64748B" }}>{d.courseName}</div>
             </div>
           </div>
 
+          <div style={{ marginBottom: 18 }}>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Code Sets</h4>
+            <p style={{ fontSize: 11.5, color: "#475569", margin: "6px 0 0" }}>{d.codeSets}</p>
+          </div>
+
           <div>
-            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Skills</h4>
-            <div style={{ fontSize: 11.5, color: "#475569", marginTop: 6, lineHeight: 1.5 }}>{d.codeSets}</div>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Software</h4>
+            <p style={{ fontSize: 11.5, color: "#475569", margin: "6px 0 0" }}>{d.ehrSoftware}</p>
           </div>
         </div>
 
         {/* Right Col */}
         <div>
           <div style={{ marginBottom: 18 }}>
-            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Summary</h4>
-            <p style={{ fontSize: 12.5, color: "#334155", lineHeight: 1.6, margin: "6px 0 0" }}>{d.summary}</p>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>{d.summaryTitle}</h4>
+            <p style={{ fontSize: 12, lineHeight: 1.55, color: "#334155", margin: "6px 0 0" }}>{d.summary}</p>
           </div>
 
           <div style={{ marginBottom: 18 }}>
-            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Work Experience</h4>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Experience</h4>
             {d.workHistoryList.map((w, idx) => (
-              <div key={idx} style={{ marginTop: 8, borderLeft: `2px solid ${accentColor}`, paddingLeft: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
-                  <span>{w.title}</span>
-                  <span style={{ fontSize: 11, color: "#64748B" }}>{w.dates}</span>
-                </div>
-                <div style={{ fontSize: 11.5, color: accentColor, fontWeight: 600 }}>{w.company}</div>
-                <p style={{ fontSize: 11.5, color: "#475569", margin: "2px 0 0", lineHeight: 1.5 }}>{w.description}</p>
+              <div key={idx} style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{w.title} — {w.company}</div>
+                <div style={{ fontSize: 11, color: "#94A3B8" }}>{w.dates}</div>
+                <p style={{ fontSize: 11.5, color: "#475569", margin: "2px 0 0" }}>{w.description}</p>
               </div>
             ))}
           </div>
 
-          <div>
-            <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", borderBottom: "1px solid #E2E8F0", paddingBottom: 4 }}>Education</h4>
-            <div style={{ fontSize: 12, marginTop: 6 }}>
-              <strong>{d.degree}</strong>
-              <div style={{ color: "#64748B" }}>{d.collegeName} ({d.graduationYear})</div>
-            </div>
-          </div>
+          <EducationSection d={d} accentColor={accentColor} />
         </div>
       </div>
+
+      <DeclarationSection d={d} accentColor={accentColor} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // 8. TECH MONOSPACE TEMPLATE
-// Developer & engineer styling with terminal code badges
 // ---------------------------------------------------------------------------
 export function TechTemplate({ data, accentColor = "#1E293B" }) {
   const d = extractResumeData(data);
 
   return (
-    <div style={{ fontFamily: "'Space Mono', monospace, sans-serif", padding: 32, background: "#0F172A", color: "#E2E8F0", borderRadius: 12 }}>
-      {/* Dark Terminal Header */}
-      <div style={{ borderBottom: "1px dashed #334155", paddingBottom: 16, marginBottom: 20 }}>
-        <div style={{ fontSize: 11, color: "#22C55E" }}>// TALENTERA_VERIFIED_CANDIDATE: [READY]</div>
-        <h1 style={{ fontSize: 24, fontWeight: 900, color: "#F8FAFC", margin: "4px 0" }}>{d.fullName}</h1>
-        <div style={{ fontSize: 12, color: "#94A3B8" }}>{d.currentRole} | {d.location}</div>
-        <div style={{ fontSize: 11, color: "#F5B41A", marginTop: 4 }}>Score: {d.score}/100 ({d.badgeTier})</div>
+    <div style={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", padding: 32, background: "#0F172A", color: "#E2E8F0", borderRadius: 12 }}>
+      <div style={{ borderBottom: "1px solid #334155", paddingBottom: 16, marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ fontSize: 11, color: "#38BDF8" }}>// TALENTERA VERIFIED PROFILE</div>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: "#F8FAFC", margin: "4px 0" }}>{d.fullName}</h1>
+          <div style={{ fontSize: 12, color: "#94A3B8" }}>role: "{d.currentRole}" | exp: "{d.experience}"</div>
+        </div>
+        <TalenteraVerifiedBadge />
       </div>
 
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: "bold" }}>$ cat overview.txt</div>
-        <p style={{ fontSize: 11.5, lineHeight: 1.6, color: "#CBD5E1", margin: "4px 0 0" }}>{d.summary}</p>
+        <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: "bold" }}>$ cat summary.txt</div>
+        <p style={{ fontSize: 11.5, lineHeight: 1.6, color: "#CBD5E1", margin: "6px 0 0" }}>{d.summary}</p>
       </div>
 
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: "bold" }}>$ npm run inspect-credentials</div>
-        <div style={{ background: "#1E293B", padding: 12, borderRadius: 6, marginTop: 6, fontSize: 11 }}>
-          <div>[CERT]: {d.certName} - {d.issuingBody} (ID: {d.memberId})</div>
-          <div>[ACADEMY]: {d.academyName} - {d.courseName}</div>
-          <div>[STACK]: {d.codeSets}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 }}>
+        <div style={{ background: "#1E293B", padding: 12, borderRadius: 6, border: "1px solid #334155" }}>
+          <div style={{ fontSize: 10.5, color: "#38BDF8" }}>$ check-cert</div>
+          <div style={{ fontSize: 12, color: "#F8FAFC", fontWeight: "bold", marginTop: 2 }}>{d.certName}</div>
+          <div style={{ fontSize: 11, color: "#94A3B8" }}>{d.issuingBody} ({d.issueDate})</div>
+        </div>
+        <div style={{ background: "#1E293B", padding: 12, borderRadius: 6, border: "1px solid #334155" }}>
+          <div style={{ fontSize: 10.5, color: "#38BDF8" }}>$ check-academy</div>
+          <div style={{ fontSize: 12, color: "#F8FAFC", fontWeight: "bold", marginTop: 2 }}>{d.academyName}</div>
+          <div style={{ fontSize: 11, color: "#94A3B8" }}>{d.courseName}</div>
         </div>
       </div>
 
       <div style={{ marginBottom: 18 }}>
-        <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: "bold" }}>$ git log --oneline experience</div>
+        <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: "bold" }}>$ git log --experience</div>
         {d.workHistoryList.map((w, idx) => (
-          <div key={idx} style={{ marginTop: 6, fontSize: 11.5 }}>
-            <span style={{ color: "#F5B41A" }}>commit-{idx + 1}</span> {w.title} @ {w.company} ({w.dates})
-            <div style={{ color: "#94A3B8", fontSize: 11, marginLeft: 12 }}>{w.description}</div>
+          <div key={idx} style={{ marginTop: 8, paddingLeft: 10, borderLeft: "2px solid #38BDF8" }}>
+            <div style={{ fontSize: 12, color: "#F8FAFC", fontWeight: "bold" }}>{w.title} @ {w.company}</div>
+            <div style={{ fontSize: 10.5, color: "#94A3B8" }}>[{w.dates}]</div>
+            <p style={{ fontSize: 11, color: "#CBD5E1", margin: "2px 0 0" }}>{w.description}</p>
           </div>
         ))}
       </div>
 
-      <div>
-        <div style={{ fontSize: 11, color: "#38BDF8", fontWeight: "bold" }}>$ echo $EDUCATION</div>
-        <div style={{ fontSize: 11.5, color: "#CBD5E1", marginTop: 4 }}>{d.degree} — {d.collegeName}</div>
-      </div>
+      <EducationSection d={d} accentColor="#38BDF8" />
+      <DeclarationSection d={d} accentColor="#38BDF8" />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // 9. ELEGANT SERIF TEMPLATE
-// Luxury serif headings, fine gold/accent hairline rules, timeless elegance
 // ---------------------------------------------------------------------------
 export function ElegantTemplate({ data, accentColor = "#854D0E" }) {
   const d = extractResumeData(data);
 
   return (
-    <div style={{ fontFamily: "'Playfair Display', 'Georgia', serif", padding: 40, background: "#FFFEFA", border: "1px solid #FEF08A", borderRadius: 12, color: "#292524" }}>
+    <div style={{ fontFamily: "'Cinzel', 'Playfair Display', serif", padding: 40, background: "#FFFDF9", color: "#1C1917", borderRadius: 12, border: "1px solid #E7E5E4" }}>
       <div style={{ textAlign: "center", borderBottom: `1px solid ${accentColor}`, paddingBottom: 20, marginBottom: 24 }}>
-        <h1 style={{ fontSize: 30, fontWeight: 700, color: accentColor, margin: 0, letterSpacing: "0.04em" }}>{d.fullName}</h1>
-        <div style={{ fontSize: 13, color: "#78716C", fontStyle: "italic", marginTop: 6 }}>{d.currentRole} • {d.location}</div>
-        <div style={{ fontSize: 11.5, color: "#A8A29E", marginTop: 6 }}>{d.email} • {d.mobile} • Score: {d.score}/100</div>
+        <h1 style={{ fontSize: 26, letterSpacing: "0.1em", textTransform: "uppercase", color: accentColor, margin: 0 }}>
+          {d.fullName}
+        </h1>
+        <div style={{ fontSize: 12, letterSpacing: "0.05em", color: "#78716C", marginTop: 6, fontStyle: "italic" }}>
+          {d.currentRole} • {d.location}
+        </div>
+        <div style={{ fontSize: 11, color: "#A8A29E", marginTop: 8 }}>
+          {d.email} • {d.mobile} • {d.linkedin}
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <TalenteraVerifiedBadge variant="compact" />
+        </div>
       </div>
 
       <div style={{ marginBottom: 22 }}>
-        <h4 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: accentColor, textAlign: "center", marginBottom: 10 }}>
-          Executive Synopsis
+        <h4 style={{ fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase", color: accentColor, textAlign: "center", marginBottom: 8 }}>
+          {d.summaryTitle}
         </h4>
-        <p style={{ fontSize: 12.5, lineHeight: 1.7, color: "#44403C", margin: 0, textAlign: "justify" }}>{d.summary}</p>
+        <p style={{ fontFamily: "serif", fontSize: 12.5, lineHeight: 1.7, color: "#44403C", textAlign: "justify", margin: 0 }}>
+          {d.summary}
+        </p>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 22 }}>
-        <div style={{ border: "1px solid #E7E5E4", padding: 14, borderRadius: 6 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: accentColor, textTransform: "uppercase" }}>Verified Certification</div>
-          <strong style={{ fontSize: 13 }}>{d.certName}</strong>
-          <div style={{ fontSize: 11, color: "#78716C" }}>{d.issuingBody} ({d.memberId})</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 22 }}>
+        <div style={{ border: "1px solid #E7E5E4", padding: 14, borderRadius: 6, background: "#FFFFFF" }}>
+          <div style={{ fontSize: 10.5, letterSpacing: "0.08em", color: accentColor, textTransform: "uppercase" }}>Certification</div>
+          <strong style={{ fontSize: 12.5, color: "#1C1917", display: "block", marginTop: 4 }}>{d.certName}</strong>
+          <div style={{ fontSize: 11, color: "#78716C" }}>{d.issuingBody} ({d.issueDate})</div>
         </div>
-        <div style={{ border: "1px solid #E7E5E4", padding: 14, borderRadius: 6 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: accentColor, textTransform: "uppercase" }}>Academy Training</div>
-          <strong style={{ fontSize: 13 }}>{d.academyName}</strong>
+        <div style={{ border: "1px solid #E7E5E4", padding: 14, borderRadius: 6, background: "#FFFFFF" }}>
+          <div style={{ fontSize: 10.5, letterSpacing: "0.08em", color: accentColor, textTransform: "uppercase" }}>Academy Training</div>
+          <strong style={{ fontSize: 12.5, color: "#1C1917", display: "block", marginTop: 4 }}>{d.academyName}</strong>
           <div style={{ fontSize: 11, color: "#78716C" }}>{d.courseName}</div>
         </div>
       </div>
 
       <div style={{ marginBottom: 22 }}>
-        <h4 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: accentColor, borderBottom: "1px solid #E7E5E4", paddingBottom: 4, marginBottom: 12 }}>
-          Professional Experience
+        <h4 style={{ fontSize: 11.5, letterSpacing: "0.1em", textTransform: "uppercase", color: accentColor, textAlign: "center", marginBottom: 12 }}>
+          Experience
         </h4>
         {d.workHistoryList.map((w, idx) => (
           <div key={idx} style={{ marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-              <strong>{w.title} — {w.company}</strong>
-              <span style={{ fontSize: 11.5, color: "#78716C" }}>{w.dates}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: "bold" }}>
+              <span>{w.title} — {w.company}</span>
+              <span style={{ fontSize: 11, color: "#78716C" }}>{w.dates}</span>
             </div>
-            <p style={{ fontSize: 12, color: "#57534E", margin: "4px 0 0", lineHeight: 1.55 }}>{w.description}</p>
+            <p style={{ fontSize: 11.5, color: "#57534E", margin: "3px 0 0", lineHeight: 1.5 }}>{w.description}</p>
           </div>
         ))}
       </div>
 
-      <div>
-        <h4 style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: accentColor, borderBottom: "1px solid #E7E5E4", paddingBottom: 4, marginBottom: 8 }}>
-          Academic Qualifications
-        </h4>
-        <div style={{ fontSize: 12 }}>{d.degree} — {d.collegeName} ({d.graduationYear})</div>
-      </div>
+      <EducationSection d={d} accentColor={accentColor} />
+      <DeclarationSection d={d} accentColor={accentColor} />
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
 // 10. BOLD HEADLINE TEMPLATE
-// High-impact full-width colored header block with high contrast cards
 // ---------------------------------------------------------------------------
 export function BoldTemplate({ data, accentColor = "#BE123C" }) {
   const d = extractResumeData(data);
 
   return (
-    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", borderRadius: 14, overflow: "hidden", background: "#FFFFFF", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
-      {/* Full Header Block */}
-      <div style={{ background: accentColor, color: "#FFFFFF", padding: "28px 36px" }}>
-        <h1 style={{ fontSize: 32, fontWeight: 900, textTransform: "uppercase", margin: 0, letterSpacing: "-0.02em" }}>
-          {d.fullName}
-        </h1>
-        <div style={{ fontSize: 14, fontWeight: 700, marginTop: 4, color: "#FFE4E6" }}>
-          {d.currentRole} • {d.location}
+    <div style={{ fontFamily: "'Montserrat', sans-serif", borderRadius: 12, overflow: "hidden", background: "#FFFFFF", boxShadow: "0 4px 20px rgba(0,0,0,0.06)" }}>
+      <div style={{ background: accentColor, color: "#FFFFFF", padding: "28px 32px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h1 style={{ fontSize: 26, fontWeight: 900, textTransform: "uppercase", margin: 0, letterSpacing: "0.02em" }}>{d.fullName}</h1>
+            <div style={{ fontSize: 13, fontWeight: 700, opacity: 0.9, marginTop: 4 }}>{d.currentRole} • {d.location}</div>
+          </div>
+          <TalenteraVerifiedBadge />
         </div>
-        <div style={{ fontSize: 12, marginTop: 10, display: "flex", gap: 16 }}>
-          <span>{d.email}</span> • <span>{d.mobile}</span> • <span>Score: {d.score}/100</span>
+        <div style={{ display: "flex", gap: 16, marginTop: 12, fontSize: 11.5, opacity: 0.85 }}>
+          <span>{d.email}</span>
+          <span>•</span>
+          <span>{d.mobile}</span>
+          <span>•</span>
+          <span>{d.linkedin}</span>
         </div>
       </div>
 
-      <div style={{ padding: "28px 36px" }}>
+      <div style={{ padding: "28px 32px" }}>
         <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 900, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-            // PROFILE SUMMARY
+          <h3 style={{ fontSize: 12, fontWeight: 900, color: accentColor, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 6px" }}>
+            // {d.summaryTitle}
           </h3>
-          <p style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, margin: 0 }}>{d.summary}</p>
+          <p style={{ fontSize: 12.5, lineHeight: 1.6, color: "#334155", margin: 0 }}>{d.summary}</p>
         </div>
 
-        {/* Credentials Grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 22 }}>
-          <div style={{ background: "#FFF1F2", padding: 14, borderRadius: 10 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor }}>CERTIFICATION</div>
-            <strong style={{ fontSize: 13.5, color: "#881337" }}>{d.certName}</strong>
-            <div style={{ fontSize: 11.5, color: "#9F1239" }}>{d.issuingBody} ({d.memberId})</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+          <div style={{ border: `1.5px solid ${accentColor}`, padding: 12, borderRadius: 8 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 900, color: accentColor, textTransform: "uppercase" }}>Certification</div>
+            <strong style={{ fontSize: 12.5, color: "#0F172A" }}>{d.certName}</strong>
+            <div style={{ fontSize: 11, color: "#64748B" }}>{d.issuingBody} ({d.issueDate})</div>
           </div>
-          <div style={{ background: "#FFF1F2", padding: 14, borderRadius: 10 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 800, color: accentColor }}>ACADEMY TRAINING</div>
-            <strong style={{ fontSize: 13.5, color: "#881337" }}>{d.academyName}</strong>
-            <div style={{ fontSize: 11.5, color: "#9F1239" }}>{d.courseName}</div>
+          <div style={{ border: `1.5px solid ${accentColor}`, padding: 12, borderRadius: 8 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 900, color: accentColor, textTransform: "uppercase" }}>Academy</div>
+            <strong style={{ fontSize: 12.5, color: "#0F172A" }}>{d.academyName}</strong>
+            <div style={{ fontSize: 11, color: "#64748B" }}>{d.courseName}</div>
           </div>
         </div>
 
-        {/* Experience */}
         <div style={{ marginBottom: 20 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 900, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
-            // WORK EXPERIENCE
+          <h3 style={{ fontSize: 12, fontWeight: 900, color: accentColor, textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 10px" }}>
+            // EXPERIENCE
           </h3>
           {d.workHistoryList.map((w, idx) => (
             <div key={idx} style={{ marginBottom: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, fontWeight: 800 }}>
-                <span>{w.title} @ {w.company}</span>
-                <span style={{ color: "#881337", fontSize: 11.5 }}>{w.dates}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 800 }}>
+                <span>{w.title} — {w.company}</span>
+                <span style={{ fontSize: 11, color: "#64748B" }}>{w.dates}</span>
               </div>
-              <p style={{ fontSize: 12, color: "#475569", margin: "2px 0 0" }}>{w.description}</p>
+              <p style={{ fontSize: 12, color: "#475569", margin: "3px 0 0" }}>{w.description}</p>
             </div>
           ))}
         </div>
 
-        <div>
-          <h3 style={{ fontSize: 15, fontWeight: 900, color: accentColor, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
-            // EDUCATION
-          </h3>
-          <div style={{ fontSize: 12 }}><strong>{d.degree}</strong> ({d.collegeName})</div>
-        </div>
+        <EducationSection d={d} accentColor={accentColor} />
+        <DeclarationSection d={d} accentColor={accentColor} />
       </div>
     </div>
   );
@@ -997,57 +1141,58 @@ export function BoldTemplate({ data, accentColor = "#BE123C" }) {
 
 // ---------------------------------------------------------------------------
 // 11. GRID PORTFOLIO TEMPLATE
-// Modular cards layout showcasing verified stages in clean boxes
 // ---------------------------------------------------------------------------
 export function PortfolioTemplate({ data, accentColor = "#4338CA" }) {
   const d = extractResumeData(data);
 
   return (
-    <div style={{ fontFamily: "'Space Grotesk', sans-serif", padding: 32, background: "#F1F5F9", borderRadius: 14 }}>
+    <div style={{ fontFamily: "'Inter', sans-serif", padding: 32, background: "#F1F5F9", borderRadius: 12 }}>
       {/* Top Banner Card */}
-      <div style={{ background: "#FFFFFF", padding: 22, borderRadius: 12, border: "1px solid #E2E8F0", marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: accentColor, margin: 0 }}>{d.fullName}</h1>
-            <div style={{ fontSize: 13, color: "#64748B", marginTop: 2 }}>{d.currentRole} • {d.location}</div>
+      <div style={{ background: "#FFFFFF", padding: 24, borderRadius: 10, marginBottom: 16, border: "1px solid #CBD5E1", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 900, color: accentColor, margin: 0 }}>{d.fullName}</h1>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#475569", marginTop: 2 }}>{d.currentRole} • {d.location}</div>
+          <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>{d.email} • {d.mobile} • {d.linkedin}</div>
+        </div>
+        <TalenteraVerifiedBadge />
+      </div>
+
+      {/* Grid of Modular Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 10, border: "1px solid #CBD5E1" }}>
+          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>{d.summaryTitle}</h4>
+          <p style={{ fontSize: 12, lineHeight: 1.55, color: "#334155", margin: 0 }}>{d.summary}</p>
+        </div>
+
+        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 10, border: "1px solid #CBD5E1" }}>
+          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Verified Credentials</h4>
+          <div style={{ fontSize: 12, marginBottom: 6 }}>
+            <strong style={{ color: "#0F172A" }}>{d.certName}</strong>
+            <div style={{ color: "#64748B" }}>{d.issuingBody} ({d.issueDate})</div>
           </div>
-          <div style={{ background: "#EEF2FF", border: "1px solid #C7D2FE", padding: "6px 14px", borderRadius: 10, textAlign: "center" }}>
-            <div style={{ fontSize: 9, fontWeight: 800, color: accentColor }}>TALENTERA SCORE</div>
-            <div style={{ fontSize: 20, fontWeight: 900, color: accentColor }}>{d.score}/100</div>
+          <div style={{ fontSize: 12 }}>
+            <strong style={{ color: "#0F172A" }}>{d.academyName}</strong>
+            <div style={{ color: "#64748B" }}>{d.courseName}</div>
           </div>
         </div>
       </div>
 
-      {/* 2-Column Grid of Modular Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 12, border: "1px solid #E2E8F0" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Summary</h4>
-          <p style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.5, margin: 0 }}>{d.summary}</p>
-        </div>
-
-        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 12, border: "1px solid #E2E8F0" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Certification</h4>
-          <strong style={{ fontSize: 12.5 }}>{d.certName}</strong>
-          <div style={{ fontSize: 11, color: "#64748B" }}>{d.issuingBody} • {d.memberId}</div>
-        </div>
-
-        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 12, border: "1px solid #E2E8F0" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Experience</h4>
-          {d.workHistoryList.slice(0, 1).map((w, idx) => (
-            <div key={idx} style={{ fontSize: 11.5 }}>
-              <strong>{w.title}</strong> — {w.company}
-              <div style={{ color: "#64748B", fontSize: 10.5 }}>{w.dates}</div>
+      <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 10, border: "1px solid #CBD5E1", marginBottom: 16 }}>
+        <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 10px" }}>Work Experience</h4>
+        {d.workHistoryList.map((w, idx) => (
+          <div key={idx} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700 }}>
+              <span>{w.title} — {w.company}</span>
+              <span style={{ fontSize: 11, color: "#64748B" }}>{w.dates}</span>
             </div>
-          ))}
-        </div>
-
-        <div style={{ background: "#FFFFFF", padding: 18, borderRadius: 12, border: "1px solid #E2E8F0" }}>
-          <h4 style={{ fontSize: 12, fontWeight: 800, color: accentColor, textTransform: "uppercase", margin: "0 0 6px" }}>Education &amp; Training</h4>
-          <div style={{ fontSize: 11.5 }}>
-            <strong>{d.degree}</strong>
-            <div style={{ color: "#64748B" }}>{d.academyName}</div>
+            <p style={{ fontSize: 11.5, color: "#475569", margin: "2px 0 0" }}>{w.description}</p>
           </div>
-        </div>
+        ))}
+      </div>
+
+      <div style={{ background: "#FFFFFF", padding: 20, borderRadius: 10, border: "1px solid #CBD5E1" }}>
+        <EducationSection d={d} accentColor={accentColor} />
+        <DeclarationSection d={d} accentColor={accentColor} />
       </div>
     </div>
   );
@@ -1055,68 +1200,54 @@ export function PortfolioTemplate({ data, accentColor = "#4338CA" }) {
 
 // ---------------------------------------------------------------------------
 // 12. COMPACT ATS PRO TEMPLATE
-// Standard single-column format optimized for applicant tracking systems
 // ---------------------------------------------------------------------------
 export function AtsProTemplate({ data, accentColor = "#000000" }) {
   const d = extractResumeData(data);
 
   return (
-    <div style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: "36px 40px", background: "#FFFFFF", color: "#111827", borderRadius: 8 }}>
-      {/* Header */}
-      <div style={{ textAlign: "center", marginBottom: 18 }}>
-        <h1 style={{ fontSize: 24, fontWeight: "bold", textTransform: "uppercase", margin: 0 }}>{d.fullName}</h1>
-        <div style={{ fontSize: 12, color: "#374151", marginTop: 4 }}>
-          {d.location} | {d.phone || d.mobile} | {d.email} | {d.linkedin}
+    <div style={{ fontFamily: "Arial, Helvetica, sans-serif", padding: 32, background: "#FFFFFF", color: "#000000", borderRadius: 8, lineHeight: 1.4 }}>
+      {/* Plain text ATS standard header */}
+      <div style={{ textAlign: "center", borderBottom: "1px solid #000000", paddingBottom: 10, marginBottom: 14 }}>
+        <h1 style={{ fontSize: 20, fontWeight: "bold", textTransform: "uppercase", margin: 0 }}>{d.fullName}</h1>
+        <div style={{ fontSize: 11.5, marginTop: 4 }}>
+          {d.location} | {d.mobile} | {d.email} | {d.linkedin}
         </div>
-        <div style={{ fontSize: 11, fontWeight: "bold", color: "#4B5563", marginTop: 2 }}>
-          Talentera Certified Candidate (ID: {d.memberId || "VERIFIED"}) • Score: {d.score}/100
-        </div>
-      </div>
-
-      <div style={{ height: 1, background: "#9CA3AF", marginBottom: 14 }}></div>
-
-      {/* Professional Summary */}
-      <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>PROFESSIONAL SUMMARY</h3>
-        <p style={{ fontSize: 11.5, lineHeight: 1.5, margin: 0, color: "#1F2937" }}>{d.summary}</p>
-      </div>
-
-      {/* Certifications */}
-      <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>CREDENTIALS &amp; CERTIFICATIONS</h3>
-        <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>
-          • <strong>{d.certName}</strong> — Issued by {d.issuingBody}, Member ID: {d.memberId}, Active Credential
+        <div style={{ fontSize: 10.5, fontWeight: "bold", marginTop: 4 }}>
+          Talentera Verified Healthcare Candidate
         </div>
       </div>
 
-      {/* Training */}
+      {/* Summary */}
       <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>FORMAL TRAINING</h3>
-        <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>
-          • <strong>{d.academyName}</strong> — Course: {d.courseName} ({d.trainingDuration})
+        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>{d.summaryTitle.toUpperCase()}</h3>
+        <p style={{ fontSize: 11.5, margin: 0 }}>{d.summary}</p>
+      </div>
+
+      {/* Credentials */}
+      <div style={{ marginBottom: 14 }}>
+        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>CERTIFICATIONS &amp; CREDENTIALS</h3>
+        <div style={{ fontSize: 11.5 }}>
+          • <strong>{d.certName}</strong> — {d.issuingBody} (Member ID: {d.memberId}, Issued: {d.issueDate})
+        </div>
+        <div style={{ fontSize: 11.5, marginTop: 2 }}>
+          • <strong>{d.academyName}</strong> — {d.courseName} (Duration: {d.trainingDuration})
         </div>
       </div>
 
       {/* Skills */}
       <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>SKILLS &amp; PROFICIENCIES</h3>
-        <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>
-          • <strong>Code Sets:</strong> {d.codeSets}
-        </div>
-        <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>
-          • <strong>Specialized:</strong> {d.specializedKnowledge}
-        </div>
-        <div style={{ fontSize: 11.5, lineHeight: 1.5 }}>
-          • <strong>Systems:</strong> {d.ehrSoftware}
-        </div>
+        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>TECHNICAL SKILLS</h3>
+        <div style={{ fontSize: 11.5 }}>• <strong>Code Sets:</strong> {d.codeSets}</div>
+        <div style={{ fontSize: 11.5 }}>• <strong>Specialized Knowledge:</strong> {d.specializedKnowledge}</div>
+        <div style={{ fontSize: 11.5 }}>• <strong>Software &amp; Tools:</strong> {d.ehrSoftware}</div>
       </div>
 
       {/* Experience */}
       <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 6px" }}>WORK EXPERIENCE</h3>
+        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>PROFESSIONAL EXPERIENCE</h3>
         {d.workHistoryList.map((w, idx) => (
           <div key={idx} style={{ marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: "bold" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: "bold" }}>
               <span>{w.title} — {w.company}</span>
               <span>{w.dates}</span>
             </div>
@@ -1126,12 +1257,138 @@ export function AtsProTemplate({ data, accentColor = "#000000" }) {
       </div>
 
       {/* Education */}
-      <div>
-        <h3 style={{ fontSize: 12.5, fontWeight: "bold", textTransform: "uppercase", margin: "0 0 4px" }}>EDUCATION</h3>
-        <div style={{ fontSize: 11.5 }}>
-          • <strong>{d.degree}</strong>, {d.collegeName} ({d.graduationYear})
+      <EducationSection d={d} isMonochrome={true} />
+
+      {/* Declaration */}
+      <DeclarationSection d={d} isMonochrome={true} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 13. BLACK & WHITE / MONOCHROME NOIR TEMPLATE
+// ---------------------------------------------------------------------------
+export function MonochromeTemplate({ data }) {
+  const d = extractResumeData(data);
+
+  return (
+    <div style={{ fontFamily: "'Space Grotesk', 'Inter', -apple-system, sans-serif", padding: 40, background: "#FFFFFF", color: "#000000", borderRadius: 8, border: "1.5px solid #000000", position: "relative" }}>
+      {/* Header */}
+      <div style={{ borderBottom: "2.5px solid #000000", paddingBottom: 18, marginBottom: 24, display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+        <div>
+          <h1 style={{ fontSize: 30, fontWeight: 900, color: "#000000", margin: 0, letterSpacing: "-0.02em", textTransform: "uppercase" }}>
+            {d.fullName}
+          </h1>
+          <p style={{ margin: "6px 0 0", color: "#374151", fontWeight: 700, fontSize: 15, letterSpacing: "0.02em" }}>
+            {d.currentRole} • {d.experience} • {d.location}
+          </p>
+          <div style={{ fontSize: 12, color: "#4B5563", marginTop: 6, display: "flex", flexWrap: "wrap", gap: 14 }}>
+            <span>📞 {d.mobile}</span>
+            <span>✉️ {d.email}</span>
+            <span>🔗 {d.linkedin}</span>
+          </div>
+        </div>
+
+        <TalenteraVerifiedBadge isMonochrome={true} />
+      </div>
+
+      {/* Summary */}
+      <div style={{ marginBottom: 24 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 900, color: "#000000", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "1px solid #000000", paddingBottom: 4, marginBottom: 8 }}>
+          {d.summaryTitle}
+        </h3>
+        <p style={{ fontSize: 12.5, lineHeight: 1.65, color: "#1F2937", margin: 0 }}>
+          {d.summary}
+        </p>
+      </div>
+
+      {/* Certifications & Formal Training */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 22 }}>
+        <div style={{ border: "1.5px solid #000000", borderRadius: 6, padding: 14 }}>
+          <h3 style={{ fontSize: 12, fontWeight: 900, color: "#000000", letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 8px", borderBottom: "1px dashed #000000", paddingBottom: 4 }}>
+            Core Certifications
+          </h3>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: "#000000" }}>{d.certName}</div>
+          <div style={{ fontSize: 11.5, color: "#374151", marginTop: 3 }}>
+            Issuing Body: <strong>{d.issuingBody}</strong> • Member ID: <strong>{d.memberId}</strong>
+          </div>
+          <div style={{ fontSize: 11, color: "#000000", fontWeight: 700, marginTop: 4 }}>
+            Status: Active Verified ({d.issueDate})
+          </div>
+        </div>
+
+        <div style={{ border: "1.5px solid #000000", borderRadius: 6, padding: 14 }}>
+          <h3 style={{ fontSize: 12, fontWeight: 900, color: "#000000", letterSpacing: "0.06em", textTransform: "uppercase", margin: "0 0 8px", borderBottom: "1px dashed #000000", paddingBottom: 4 }}>
+            Formal Academy Training
+          </h3>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: "#000000" }}>{d.academyName}</div>
+          <div style={{ fontSize: 11.5, color: "#374151", marginTop: 3 }}>
+            Course: <strong>{d.courseName}</strong>
+          </div>
+          <div style={{ fontSize: 11, color: "#4B5563", marginTop: 4 }}>
+            Duration: {d.trainingDuration} {d.trainerName ? "• Trainer: " + d.trainerName : ""}
+          </div>
         </div>
       </div>
+
+      {/* Skills Grid */}
+      <div style={{ marginBottom: 22 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 900, color: "#000000", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "1px solid #000000", paddingBottom: 4, marginBottom: 10 }}>
+          Technical &amp; Coding Competencies
+        </h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 12 }}>
+          <div style={{ border: "1px solid #D1D5DB", padding: 10, borderRadius: 4 }}>
+            <strong style={{ color: "#000000", display: "block", marginBottom: 3, fontSize: 11 }}>CODE SETS</strong>
+            <span style={{ color: "#374151" }}>{d.codeSets}</span>
+          </div>
+          <div style={{ border: "1px solid #D1D5DB", padding: 10, borderRadius: 4 }}>
+            <strong style={{ color: "#000000", display: "block", marginBottom: 3, fontSize: 11 }}>SPECIALIZED KNOWLEDGE</strong>
+            <span style={{ color: "#374151" }}>{d.specializedKnowledge}</span>
+          </div>
+          <div style={{ border: "1px solid #D1D5DB", padding: 10, borderRadius: 4 }}>
+            <strong style={{ color: "#000000", display: "block", marginBottom: 3, fontSize: 11 }}>EHR &amp; CODING PLATFORMS</strong>
+            <span style={{ color: "#374151" }}>{d.ehrSoftware}</span>
+          </div>
+          <div style={{ border: "1px solid #D1D5DB", padding: 10, borderRadius: 4 }}>
+            <strong style={{ color: "#000000", display: "block", marginBottom: 3, fontSize: 11 }}>CORE COMPETENCIES</strong>
+            <span style={{ color: "#374151" }}>{d.coreCompetencies}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Work History */}
+      <div style={{ marginBottom: 22 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 900, color: "#000000", letterSpacing: "0.08em", textTransform: "uppercase", borderBottom: "1px solid #000000", paddingBottom: 4, marginBottom: 12 }}>
+          Professional Experience
+        </h3>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {d.workHistoryList.map((job, idx) => (
+            <div key={idx} style={{ borderLeft: "3px solid #000000", paddingLeft: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap" }}>
+                <strong style={{ fontSize: 13.5, color: "#000000" }}>{job.title}</strong>
+                <span style={{ fontSize: 12, color: "#4B5563", fontWeight: 700 }}>{job.dates}</span>
+              </div>
+              <div style={{ fontSize: 12, color: "#374151", fontWeight: 600, marginTop: 1 }}>
+                {job.company} • {job.location}
+              </div>
+              {job.metrics && (
+                <div style={{ fontSize: 11.5, color: "#000000", fontWeight: 700, marginTop: 3 }}>
+                  • Key Metric: {job.metrics}
+                </div>
+              )}
+              <p style={{ fontSize: 12, color: "#374151", margin: "4px 0 0", lineHeight: 1.55 }}>
+                {job.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Education */}
+      <EducationSection d={d} isMonochrome={true} />
+
+      {/* Declaration */}
+      <DeclarationSection d={d} isMonochrome={true} />
     </div>
   );
 }

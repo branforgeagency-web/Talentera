@@ -16,6 +16,9 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   const paramBody = searchParams.get("body");
   const paramCert = searchParams.get("cert");
 
+  const initialCertType = existingData?.isCertified === false || existingData?.nonCertified === true || existingData?.certType === "non-certified" ? "non-certified" : "certified";
+  const [certType, setCertType] = useState(initialCertType);
+
   const [body, setBody] = useState(
     paramBody && CERT_LIBRARY[paramBody] ? paramBody : existingData?.body || "aapc"
   );
@@ -61,8 +64,8 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   const [error, setError] = useState("");
 
   const bodyData = CERT_LIBRARY[body];
-  const selectedCert = useMemo(() => bodyData.certs.find((c) => c.code === certCode) || bodyData.certs[0], [bodyData, certCode]);
-  const pattern = CERT_ID_PATTERNS[body];
+  const selectedCert = useMemo(() => bodyData?.certs?.find((c) => c.code === certCode) || bodyData?.certs?.[0] || {}, [bodyData, certCode]);
+  const pattern = CERT_ID_PATTERNS[body] || { regex: /^[A-Za-z0-9]{8}$/ };
 
   const idState = memberId.length === 0 ? "idle" : pattern.regex.test(memberId) ? "valid" : "invalid";
   const yearMatch = issueDate.match(/\d{4}/);
@@ -105,39 +108,68 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (!memberId || memberId.trim().length !== 8) {
-      setError("Please enter a valid 8-character Member / Certification ID.");
-      toast("Member / Certification ID must be exactly 8 characters.", "!");
-      return;
-    }
-    if (!issueMonth || !issueYear || !issueDate) {
-      setError("Please select both the Issue Month and Year.");
-      toast("Issue Month and Year are required.", "!");
-      return;
-    }
-    if (!docName) {
-      setError("Please verify online or upload your certificate document — this is what confirms it's genuine.");
-      toast("Certificate document is required.", "!");
-      return;
-    }
 
-    setSaving(true);
-    try {
-      const res = await api.put(`/candidate/stage/${stage.num}`, {
-        body,
-        certCode,
-        certName: selectedCert.name,
-        issuingBody: bodyData.name,
-        memberId: memberId.trim(),
-        issueDate: issueDate.trim(),
-        docName,
-        docUrl,
-      });
-      onSaved(res.data);
-    } catch (err) {
-      setError(err.response?.data?.message || "Could not save this stage.");
-    } finally {
-      setSaving(false);
+    if (certType === "certified") {
+      if (!memberId || memberId.trim().length !== 8) {
+        setError("Please enter a valid 8-character Member / Certification ID.");
+        toast("Member / Certification ID must be exactly 8 characters.", "!");
+        return;
+      }
+      if (!issueMonth || !issueYear || !issueDate) {
+        setError("Please select both the Issue Month and Year.");
+        toast("Issue Month and Year are required.", "!");
+        return;
+      }
+      if (!docName) {
+        setError("Please verify online or upload your certificate document — this is what confirms it's genuine.");
+        toast("Certificate document is required.", "!");
+        return;
+      }
+
+      setSaving(true);
+      try {
+        const res = await api.put(`/candidate/stage/${stage.num}`, {
+          isCertified: true,
+          certType: "certified",
+          body,
+          certCode,
+          certName: selectedCert.name,
+          issuingBody: bodyData.name,
+          memberId: memberId.trim(),
+          issueDate: issueDate.trim(),
+          docName,
+          docUrl,
+        });
+        onSaved(res.data);
+      } catch (err) {
+        setError(err.response?.data?.message || "Could not save this stage.");
+      } finally {
+        setSaving(false);
+      }
+    } else {
+      // Non-Certified Candidate submission
+      setSaving(true);
+      try {
+        const res = await api.put(`/candidate/stage/${stage.num}`, {
+          isCertified: false,
+          nonCertified: true,
+          certType: "non-certified",
+          body: "none",
+          certCode: "NON-CERT",
+          certName: "Non-Certified / Trainee Coder",
+          issuingBody: "None",
+          memberId: "",
+          issueDate: "",
+          docName: "",
+          docUrl: "",
+        });
+        toast("Saved as Non-Certified Candidate.", "✓");
+        onSaved(res.data);
+      } catch (err) {
+        setError(err.response?.data?.message || "Could not save this stage.");
+      } finally {
+        setSaving(false);
+      }
     }
   }
 
@@ -156,18 +188,135 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
 
   return (
     <form className="wiz-form" onSubmit={handleSubmit}>
-      <div className="wiz-field">
-        <label>
-          Step 1 — Issuing body <span style={{ color: "#EF4444" }}>*</span>
+      {/* 1. PRIMARY SELECTION: CERTIFIED VS NON-CERTIFIED */}
+      <div className="wiz-field" style={{ marginBottom: 20 }}>
+        <label style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 8, display: "block" }}>
+          Certification Status <span style={{ color: "#EF4444" }}>*</span>
         </label>
-        <div className="wiz-pill-row">
-          {Object.values(CERT_LIBRARY).map((b) => (
-            <button key={b.key} type="button" className={`wiz-pill wiz-pill-compact ${body === b.key ? "active" : ""}`} onClick={() => handleBodyChange(b.key)}>
-              {b.name} <span className="wiz-pill-count">{b.certs.length}</span>
-            </button>
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <button
+            type="button"
+            className={`wiz-pill ${certType === "certified" ? "active" : ""}`}
+            onClick={() => setCertType("certified")}
+            style={{
+              padding: "14px 18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              fontSize: 13.5,
+              fontWeight: 800,
+              borderRadius: 10,
+              border: certType === "certified" ? "2px solid var(--navy)" : "1.5px solid #CBD5E1",
+              background: certType === "certified" ? "var(--navy)" : "#FFFFFF",
+              color: certType === "certified" ? "#FFFFFF" : "#334155",
+              boxShadow: certType === "certified" ? "0 4px 12px rgba(10, 31, 61, 0.15)" : "none",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <i className="fa-solid fa-award" style={{ color: certType === "certified" ? "var(--gold)" : "#64748B", fontSize: 16 }}></i>
+            <span>Certified (AAPC / AHIMA)</span>
+          </button>
+
+          <button
+            type="button"
+            className={`wiz-pill ${certType === "non-certified" ? "active" : ""}`}
+            onClick={() => setCertType("non-certified")}
+            style={{
+              padding: "14px 18px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              fontSize: 13.5,
+              fontWeight: 800,
+              borderRadius: 10,
+              border: certType === "non-certified" ? "2px solid var(--navy)" : "1.5px solid #CBD5E1",
+              background: certType === "non-certified" ? "var(--navy)" : "#FFFFFF",
+              color: certType === "non-certified" ? "#FFFFFF" : "#334155",
+              boxShadow: certType === "non-certified" ? "0 4px 12px rgba(10, 31, 61, 0.15)" : "none",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <i className="fa-solid fa-user-graduate" style={{ color: certType === "non-certified" ? "var(--gold)" : "#64748B", fontSize: 16 }}></i>
+            <span>Non-Certified Candidate</span>
+          </button>
         </div>
       </div>
+
+      {/* NON-CERTIFIED CANDIDATE VIEW */}
+      {certType === "non-certified" && (
+        <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 20, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: "#EFF6FF",
+                color: "#2563EB",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 20,
+                flexShrink: 0,
+              }}
+            >
+              <i className="fa-solid fa-graduation-cap"></i>
+            </div>
+            <div>
+              <h4 style={{ margin: "0 0 6px", fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>
+                Applying as a Non-Certified Candidate
+              </h4>
+              <p style={{ margin: "0 0 14px", fontSize: 13, color: "#475569", lineHeight: 1.5 }}>
+                You are registering without an AAPC / AHIMA credential. This option is tailored for <strong>Freshers, Life Science graduates, and Academy-trained coders</strong> looking for entry-level Medical Coding, Billing, and AR roles.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10, marginBottom: 14 }}>
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fa-solid fa-circle-check" style={{ color: "#16A34A", fontSize: 14 }}></i>
+                  <span style={{ fontSize: 12, color: "#1E293B", fontWeight: 600 }}>No Certificate or Member ID required</span>
+                </div>
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fa-solid fa-circle-check" style={{ color: "#16A34A", fontSize: 14 }}></i>
+                  <span style={{ fontSize: 12, color: "#1E293B", fontWeight: 600 }}>Full access to Skill Tests &amp; AI Interviews</span>
+                </div>
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fa-solid fa-circle-check" style={{ color: "#16A34A", fontSize: 14 }}></i>
+                  <span style={{ fontSize: 12, color: "#1E293B", fontWeight: 600 }}>Eligible for Non-Certified Coding Jobs</span>
+                </div>
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fa-solid fa-circle-check" style={{ color: "#16A34A", fontSize: 14 }}></i>
+                  <span style={{ fontSize: 12, color: "#1E293B", fontWeight: 600 }}>Add certifications anytime later</span>
+                </div>
+              </div>
+
+              <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", borderRadius: 8, padding: "8px 12px", fontSize: 11.5, color: "#92400E", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-lightbulb" style={{ color: "#D97706" }}></i>
+                <span>You can click "Save &amp; continue →" below to advance directly to the Stage 4 Skills Assessment!</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CERTIFIED CANDIDATE VIEW */}
+      {certType === "certified" && (
+        <>
+          <div className="wiz-field">
+            <label>
+              Step 1 — Issuing body <span style={{ color: "#EF4444" }}>*</span>
+            </label>
+            <div className="wiz-pill-row">
+              {Object.values(CERT_LIBRARY).map((b) => (
+                <button key={b.key} type="button" className={`wiz-pill wiz-pill-compact ${body === b.key ? "active" : ""}`} onClick={() => handleBodyChange(b.key)}>
+                  {b.name} <span className="wiz-pill-count">{b.certs.length}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
       <div className="wiz-field">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -423,16 +572,15 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
           Reviewed by Talentera staff before it counts as verified <span className="cert-validation-tag" style={{ background: "#E2E8F0", color: "#475569" }}>MANUAL REVIEW</span>
         </div>
       </div>
-
-      <p style={{ fontSize: 12.5, color: "#64748B", marginTop: -4, marginBottom: 4 }}>
-        Upload your real certificate document above — a Talentera staff member reviews it (and checks your Member ID
-        against the official {bodyData.name} registry) within 1–2 business days before it's marked verified.
-      </p>
+    </>
+  )}
 
       {error && <div className="error-text">{error}</div>}
 
       <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-        <button type="submit" className="btn btn-gold" disabled={saving}>{saving ? "Saving…" : "Save & continue →"}</button>
+        <button type="submit" className="btn btn-gold" disabled={saving}>
+          {saving ? "Saving…" : certType === "non-certified" ? "Continue as Non-Certified →" : "Save & continue →"}
+        </button>
         {stage.skippable && (
           <button type="button" className="btn btn-ghost" onClick={handleSkip} disabled={saving}>Skip this stage</button>
         )}

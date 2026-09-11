@@ -9,6 +9,8 @@ const Staff = require("../models/Staff");
 const Notification = require("../models/Notification");
 const InterviewQuestion = require("../models/InterviewQuestion");
 const AuditLog = require("../models/AuditLog");
+const RetakeRequest = require("../models/RetakeRequest");
+const { sendRetakeApprovedEmail, sendRetakeRejectedEmail } = require("../utils/emailService");
 const bcrypt = require("bcryptjs");
 const { requireStaffAuth, signToken } = require("../middleware/auth");
 const { authLimiter } = require("../middleware/rateLimit");
@@ -2192,6 +2194,177 @@ router.put("/employees/:id/reset-password", requireStaffAuth, async (req, res) =
   } catch (err) {
     logger.error(`Reset employee password error: ${err.message}`);
     res.status(500).json({ message: "Failed to reset employee password." });
+  }
+});
+
+// =========================================================================
+// CANDIDATE ASSESSMENT RETAKE REQUESTS (Employee Dashboard Review & Actions)
+// =========================================================================
+
+// GET /api/staff/retake-requests - List all candidate assessment retake requests
+router.get("/retake-requests", requireStaffAuth, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = {};
+    if (status && status !== "all") {
+      filter.status = status.toUpperCase();
+    }
+
+    const requests = await RetakeRequest.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const pendingCount = await RetakeRequest.countDocuments({ status: "PENDING" });
+    const approvedCount = await RetakeRequest.countDocuments({ status: "APPROVED" });
+    const rejectedCount = await RetakeRequest.countDocuments({ status: "REJECTED" });
+
+    res.json({
+      requests,
+      counts: {
+        total: requests.length,
+        pending: pendingCount,
+        approved: approvedCount,
+        rejected: rejectedCount,
+      },
+    });
+  } catch (err) {
+    logger.error(`Fetch retake requests error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch assessment retake requests." });
+  }
+});
+
+// PUT /api/staff/retake-requests/:id/approve - Employee accepts retake request, resets stage 4 test, and sends approval email
+router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) => {
+  try {
+    const { notes } = req.body || {};
+    const retakeReq = await RetakeRequest.findById(req.params.id);
+    if (!retakeReq) {
+      return res.status(404).json({ message: "Retake request not found." });
+    }
+
+    const candidate = await Candidate.findById(retakeReq.candidateId);
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate profile not found." });
+    }
+
+    // 1. Update RetakeRequest status
+    retakeReq.status = "APPROVED";
+    retakeReq.reviewedBy = req.staffName || req.staffEmail || "Staff Auditor";
+    retakeReq.reviewedAt = new Date();
+    retakeReq.reviewNotes = notes || "Approved for assessment retake.";
+    await retakeReq.save();
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    let assessmentTitle = "Talentera AAPC / RCM Assessment (Stage 4)";
+    let retakeRedirectPath = "/wizard/stage/4";
+
+    // 2. Unlock & reset Assessment on Candidate document
+    if (Number(retakeReq.stage) === 5) {
+      assessmentTitle = "Talentera AI Mock Interview (Stage 5)";
+      retakeRedirectPath = "/wizard/stage/5?mode=start_mock";
+
+      if (candidate.stage5) {
+        candidate.stage5.mockInterviewCompleted = false;
+        candidate.stage5.mockScore = null;
+        candidate.stage5.terminatedDueToTabSwitch = false;
+        candidate.stage5.proctorLogs = null;
+        candidate.stage5.proctoredInterviewVideoUrl = null;
+      }
+      if (candidate.stage8) {
+        candidate.stage8.aiInterview = null;
+      }
+      candidate.completedStages = (candidate.completedStages || []).filter((s) => s !== 5);
+      candidate.markModified("stage5");
+      candidate.markModified("stage8");
+      candidate.markModified("completedStages");
+      await candidate.save();
+    } else {
+      candidate.stage4 = null;
+      candidate.completedStages = (candidate.completedStages || []).filter((s) => s !== 4);
+      candidate.markModified("stage4");
+      candidate.markModified("completedStages");
+      await candidate.save();
+    }
+
+    // 3. Generate direct login & retake redirect URL
+    const retakeUrl = `${frontendUrl}/login?redirect=${encodeURIComponent(retakeRedirectPath)}&email=${encodeURIComponent(candidate.email)}`;
+
+    // 4. Send Approval Email to candidate's logged-in email
+    try {
+      await sendRetakeApprovedEmail({
+        toEmail: candidate.email,
+        candidateName: candidate.stage1?.fullName || "Candidate",
+        retakeUrl,
+        employeeNotes: notes || "",
+        assessmentType: assessmentTitle,
+      });
+      logger.info(`Retake approval email sent to candidate: ${candidate.email} for ${assessmentTitle}`);
+    } catch (emailErr) {
+      logger.warn(`Failed to send retake approval email: ${emailErr.message}`);
+    }
+
+    // 5. Audit Log
+    await recordAudit(req, {
+      action: "approve_assessment_retake",
+      targetType: "candidate",
+      targetId: candidate._id,
+      summary: `Approved assessment retake request for candidate ${candidate.email} (${candidate.stage1?.fullName || "Candidate"}). ${assessmentTitle} unlocked & email dispatched.`,
+      meta: { retakeRequestId: retakeReq._id, stage: retakeReq.stage, notes },
+    });
+
+    res.json({
+      success: true,
+      message: `Retake request approved! ${assessmentTitle} unlocked and notification email dispatched to ${candidate.email}.`,
+      request: retakeReq,
+    });
+  } catch (err) {
+    logger.error(`Approve retake request error: ${err.message}`);
+    res.status(500).json({ message: "Failed to approve assessment retake request." });
+  }
+});
+
+// PUT /api/staff/retake-requests/:id/reject - Employee rejects retake request with reason
+router.put("/retake-requests/:id/reject", requireStaffAuth, async (req, res) => {
+  try {
+    const { notes } = req.body || {};
+    const retakeReq = await RetakeRequest.findById(req.params.id);
+    if (!retakeReq) {
+      return res.status(404).json({ message: "Retake request not found." });
+    }
+
+    retakeReq.status = "REJECTED";
+    retakeReq.reviewedBy = req.staffName || req.staffEmail || "Staff Auditor";
+    retakeReq.reviewedAt = new Date();
+    retakeReq.reviewNotes = notes || "Retake request declined.";
+    await retakeReq.save();
+
+    // Send rejection notice email
+    try {
+      await sendRetakeRejectedEmail({
+        toEmail: retakeReq.candidateEmail,
+        candidateName: retakeReq.candidateName,
+        employeeNotes: notes || "",
+      });
+    } catch (emailErr) {
+      logger.warn(`Failed to send retake rejection email: ${emailErr.message}`);
+    }
+
+    await recordAudit(req, {
+      action: "reject_assessment_retake",
+      targetType: "candidate",
+      targetId: retakeReq.candidateId,
+      summary: `Rejected assessment retake request for candidate ${retakeReq.candidateEmail}. Reason/Notes: ${notes || "None"}`,
+      meta: { retakeRequestId: retakeReq._id, notes },
+    });
+
+    res.json({
+      success: true,
+      message: `Retake request declined and update email sent to ${retakeReq.candidateEmail}.`,
+      request: retakeReq,
+    });
+  } catch (err) {
+    logger.error(`Reject retake request error: ${err.message}`);
+    res.status(500).json({ message: "Failed to reject assessment retake request." });
   }
 });
 

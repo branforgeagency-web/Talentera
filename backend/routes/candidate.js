@@ -5,13 +5,14 @@ const Application = require("../models/Application");
 const Job = require("../models/Job");
 const InterviewQuestion = require("../models/InterviewQuestion");
 const Notification = require("../models/Notification");
+const RetakeRequest = require("../models/RetakeRequest");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
-const { generateInterviewQuestions, getMessiTurn, generateFinalReport } = require("../utils/claudeInterview");
+const { generateInterviewQuestions, getMessiTurn, generateFinalReport, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { verhoeffValidate } = require("../utils/verhoeffBackend");
 const logger = require("../utils/logger");
@@ -318,7 +319,7 @@ router.put("/stage/:n", async (req, res) => {
       }
 
       // Mandatory Education & Academic Qualifications Enforcement
-      const { degree, collegeName, graduationYear, schoolName, schoolBoard, schoolYear } = req.body;
+      const { degree, collegeName, graduationYear, cgpa, percentage } = req.body;
       if (!degree || String(degree).trim().length < 2) {
         return res.status(400).json({ message: "Stage 1 incomplete: Degree Name is required." });
       }
@@ -328,14 +329,21 @@ router.put("/stage/:n", async (req, res) => {
       if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
         return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit Graduation Year is required." });
       }
-      if (!schoolName || String(schoolName).trim().length < 2) {
-        return res.status(400).json({ message: "Stage 1 incomplete: High School Name is required." });
+      const finalCgpa = cgpa || percentage;
+      if (!finalCgpa || String(finalCgpa).trim().length === 0) {
+        return res.status(400).json({ message: "Stage 1 incomplete: CGPA or Percentage is required." });
       }
-      if (!schoolBoard || String(schoolBoard).trim().length < 2) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Schooling Board is required." });
+
+      // Mandatory 12th and UG Certificate Upload Validation
+      const vault = req.body.documentVault || req.body.documents || candidate.stage1?.documentVault || candidate.stage1?.documents || [];
+      const has12th = vault.some((d) => (d.id === "doc_12th" || String(d.category || "").includes("12th")) && Boolean(d.docUrl));
+      const hasUg = vault.some((d) => (d.id === "doc_ug" || String(d.category || "").includes("UG")) && Boolean(d.docUrl));
+
+      if (!has12th) {
+        return res.status(400).json({ message: "Stage 1 incomplete: 12th / Intermediate Certificate upload is mandatory." });
       }
-      if (!schoolYear || !/^\d{4}$/.test(String(schoolYear).trim())) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit High School Completion Year is required." });
+      if (!hasUg) {
+        return res.status(400).json({ message: "Stage 1 incomplete: UG Course Degree / Provisional Certificate upload is mandatory." });
       }
     } else if (stageNum === 2) {
       // Training is now mandatory (see SKIPPABLE_STAGES above) — validation
@@ -349,20 +357,16 @@ router.put("/stage/:n", async (req, res) => {
         return res.status(400).json({ message: "Stage 2 incomplete: Academy / Institute name and Specialty / Domain are required." });
       }
     } else if (stageNum === 3) {
-      // Certification is now mandatory — same reasoning as Stage 2 above.
-      // Also now requires the certificate document itself (docName, set by
-      // POST /upload/doc/3 before this save) — a self-typed member ID with
-      // nothing to show a human reviewer isn't verifiable at all, and this
-      // is what staff actually review in the new Certification Documents
-      // queue (see certStatus handling below and routes/staff.js
-      // /verify-certification).
-      const { certName, certificationName, certCode, memberId, docName } = req.body;
-      const cName = certName || certificationName || certCode;
-      if (!cName || !memberId) {
-        return res.status(400).json({ message: "Stage 3 incomplete: Certification name and Member / Cert ID are required." });
-      }
-      if (!docName && !candidate.stage3?.docName) {
-        return res.status(400).json({ message: "Stage 3 incomplete: Please upload your certificate document — this is what our staff review to confirm it's genuine." });
+      const isNonCertified = req.body.isCertified === false || req.body.nonCertified === true || req.body.certType === "non-certified";
+      if (!isNonCertified) {
+        const { certName, certificationName, certCode, memberId, docName } = req.body;
+        const cName = certName || certificationName || certCode;
+        if (!cName || !memberId) {
+          return res.status(400).json({ message: "Stage 3 incomplete: Certification name and Member / Cert ID are required." });
+        }
+        if (!docName && !candidate.stage3?.docName) {
+          return res.status(400).json({ message: "Stage 3 incomplete: Please upload your certificate document — this is what our staff review to confirm it's genuine." });
+        }
       }
     } else if (stageNum === 4) {
       // Single-attempt policy: once a foundationScore has been recorded,
@@ -402,7 +406,8 @@ router.put("/stage/:n", async (req, res) => {
     // which is what re-queues it for staff review. See
     // routes/staff.js certificationQueue / POST /verify-certification.
     if (stageNum === 3) {
-      candidate.stage3.certStatus = "pending";
+      const isNonCertified = req.body.isCertified === false || req.body.nonCertified === true || req.body.certType === "non-certified";
+      candidate.stage3.certStatus = isNonCertified ? "non-certified" : "pending";
       candidate.stage3.certVerifiedAt = null;
       candidate.stage3.certVerifiedBy = null;
       candidate.stage3.certRejectionReason = "";
@@ -596,6 +601,18 @@ router.post(
       const fileUrl = req.file?.fileUrl || candidate.stage5?.videoUrl;
       if (!fileUrl) {
         return res.status(400).json({ message: "No video was received. Please re-record and submit again." });
+      }
+
+      if (req.file && req.file.size > 20 * 1024 * 1024) {
+        return res.status(400).json({
+          message: `Video file size must be under 20 MB. Your file is ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`,
+        });
+      }
+
+      if (proctorLogs?.mode === "pre_recorded_upload" && typeof proctorLogs.durationSeconds === "number" && proctorLogs.durationSeconds < 60) {
+        return res.status(400).json({
+          message: `Video must be 60 seconds in duration. Your video is only ${proctorLogs.durationSeconds} seconds.`,
+        });
       }
 
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
@@ -929,6 +946,7 @@ router.post("/ai-interview/turn", async (req, res) => {
         index: currentIndex,
         topic: currentQuestion.topic || ["Introduction", "Education", "Skills", "Projects", "Career Goals"][currentIndex] || `Topic ${currentIndex + 1}`,
         question: currentQuestion.question,
+        correctAnswer: currentQuestion.correctAnswer || "",
         expectedConcepts: currentQuestion.expectedConcepts,
         candidateAnswer: utterance,
         evaluation: turnResult.evaluation,
@@ -997,6 +1015,145 @@ router.post("/ai-interview/end", async (req, res) => {
   }
 });
 
+// POST /api/candidate/ai-interview/proctored-submit - Submits proctored mock interview video & telemetry (used on finish or tab-switch auto-submit)
+router.post(
+  "/ai-interview/proctored-submit",
+  upload.single("video"),
+  handleUpload({ resourceType: "video" }),
+  async (req, res) => {
+    try {
+      const candidate = await Candidate.findById(req.candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+      const fileUrl = req.file?.fileUrl || req.body?.videoUrl || null;
+      let proctorLogs = {};
+      try {
+        if (typeof req.body?.proctorLogs === "string") {
+          proctorLogs = JSON.parse(req.body.proctorLogs);
+        } else if (typeof req.body?.proctorLogs === "object") {
+          proctorLogs = req.body.proctorLogs;
+        }
+      } catch {}
+
+      const status = req.body?.status || (proctorLogs.tabSwitches > 0 ? "TERMINATED_TAB_SWITCH" : "COMPLETED");
+      const isTabSwitch = status === "TERMINATED_TAB_SWITCH" || Boolean(proctorLogs.tabSwitches > 0);
+
+      // Evaluate score directly against database correct answers
+      let evaluatedScore = 0;
+      let breakdown = [];
+
+      if (!isTabSwitch) {
+        // 1. Check if an evaluated score is in the active session
+        const sessionScore = candidate.stage8?.aiInterview?.result?.overallScore;
+        const requestedScore = Number(req.body?.score);
+
+        if (typeof sessionScore === "number" && !isNaN(sessionScore) && sessionScore > 0) {
+          evaluatedScore = sessionScore;
+        } else if (req.body?.qaPairs) {
+          // If candidate answers were submitted as qaPairs, evaluate against database answers
+          let qaPairs = [];
+          try {
+            qaPairs = typeof req.body.qaPairs === "string" ? JSON.parse(req.body.qaPairs) : req.body.qaPairs;
+          } catch {}
+          if (Array.isArray(qaPairs) && qaPairs.length > 0) {
+            const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
+            let totalPoints = 0;
+            const maxPoints = enrichedPairs.length * 10;
+            breakdown = enrichedPairs.map((p, idx) => {
+              const evalRes = computeHeuristicAnswerEvaluation(p.transcript || "", p.correctAnswer || "", []);
+              totalPoints += evalRes.score;
+              return {
+                index: idx,
+                question: p.question,
+                correctAnswer: p.correctAnswer,
+                candidateAnswer: p.transcript,
+                score: evalRes.score,
+                evaluation: evalRes.evaluation,
+                feedback: evalRes.feedback,
+              };
+            });
+            evaluatedScore = maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 75;
+          }
+        } else if (!isNaN(requestedScore) && requestedScore >= 0) {
+          evaluatedScore = requestedScore;
+        } else {
+          evaluatedScore = 75;
+        }
+      }
+
+      const finalScore = isTabSwitch ? 0 : evaluatedScore;
+      const integrityScore = Number(req.body?.integrityScore) || (isTabSwitch ? 0 : 95);
+
+      // 1. Update Candidate Stage 5 record
+      candidate.stage5 = {
+        ...(candidate.stage5 || {}),
+        mockInterviewCompleted: status === "COMPLETED",
+        mockScore: finalScore,
+        integrityScore: integrityScore,
+        proctorLogs: {
+          ...proctorLogs,
+          tabSwitches: proctorLogs.tabSwitches || (isTabSwitch ? 1 : 0),
+          terminatedDueToTabSwitch: isTabSwitch,
+        },
+        terminatedDueToTabSwitch: isTabSwitch,
+        proctoredInterviewVideoUrl: fileUrl || candidate.stage5?.proctoredInterviewVideoUrl || null,
+        videoUrl: fileUrl || candidate.stage5?.videoUrl || null,
+        updatedAt: new Date(),
+      };
+
+      // 2. Sync to Stage 8 / AI Interview session history for staff audit
+      candidate.stage8 = {
+        ...(candidate.stage8 || {}),
+        aiInterview: {
+          status: isTabSwitch ? "TERMINATED_TAB_SWITCH" : "COMPLETED",
+          completedAt: new Date(),
+          videoUrl: fileUrl || candidate.stage5?.videoUrl || null,
+          proctorLogs: {
+            ...proctorLogs,
+            tabSwitches: proctorLogs.tabSwitches || (isTabSwitch ? 1 : 0),
+            terminatedDueToTabSwitch: isTabSwitch,
+          },
+          result: {
+            overallScore: finalScore,
+            integrityScore: integrityScore,
+            questionBreakdown: breakdown.length ? breakdown : candidate.stage8?.aiInterview?.result?.questionBreakdown,
+            summary: isTabSwitch
+              ? "Interview auto-terminated due to candidate browser tab switch violation."
+              : "Candidate completed full AI proctored mock interview.",
+          },
+        },
+        mockScore: finalScore,
+        mockInterviewCompleted: status === "COMPLETED",
+      };
+
+      if (status === "COMPLETED" && candidate.stage5.selfIntroCompleted) {
+        if (!candidate.completedStages.includes(5)) candidate.completedStages.push(5);
+      } else if (isTabSwitch) {
+        candidate.completedStages = (candidate.completedStages || []).filter((s) => s !== 5);
+      }
+
+      candidate.markModified("stage5");
+      candidate.markModified("stage8");
+      candidate.markModified("completedStages");
+      await candidate.save();
+
+      logger.info(`Candidate ${candidate.email} proctored interview saved. Status: ${status}, Video: ${fileUrl ? "Uploaded" : "None"}`);
+
+      res.json({
+        success: true,
+        status,
+        score,
+        integrityScore,
+        videoUrl: fileUrl,
+        candidate,
+      });
+    } catch (err) {
+      logger.error(`AI Interview proctored-submit error: ${err.message}`);
+      res.status(500).json({ message: "Failed to submit proctored mock interview." });
+    }
+  }
+);
+
 // POST /api/candidate/upload/video - Stage 5 video introduction (Cloudinary / Local disk)
 router.post(
   "/upload/video",
@@ -1017,6 +1174,29 @@ router.post(
     await candidate.save();
 
     res.json({ videoUrl: fileUrl, candidate });
+  }
+);
+
+// POST /api/candidate/upload/vault-doc - generic candidate academic/cert document vault upload
+router.post(
+  "/upload/vault-doc",
+  upload.single("doc"),
+  handleUpload({ resourceType: "auto" }),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+      const fileUrl = req.file.fileUrl;
+      res.json({
+        success: true,
+        docUrl: fileUrl,
+        docName: req.file.originalname,
+        fileSize: req.file.size,
+        mimetype: req.file.mimetype,
+      });
+    } catch (err) {
+      logger.error(`Document vault upload error: ${err.message}`);
+      res.status(500).json({ message: "Failed to upload document." });
+    }
   }
 );
 
@@ -1110,6 +1290,8 @@ router.put("/resume-template", async (req, res) => {
     "bold",
     "portfolio",
     "atspro",
+    "monochrome",
+    "blackandwhite",
   ];
   if (!allowed.includes(template)) {
     return res.status(400).json({ message: "Invalid template." });
@@ -1664,6 +1846,99 @@ router.post("/notifications/mark-read", async (req, res) => {
   } catch (err) {
     logger.error(`Candidate mark read error: ${err.message}`);
     res.status(500).json({ message: "Failed to mark notifications as read." });
+  }
+});
+
+// POST /api/candidate/retake-request - Candidate submits an assessment retake request with reason
+router.post("/retake-request", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate profile not found." });
+    }
+
+    const { reason, stage = 4, assessmentType } = req.body || {};
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({ message: "Please provide a reason for requesting a test retake." });
+    }
+
+    // Check if there is already an active PENDING request for this candidate
+    const existingPending = await RetakeRequest.findOne({
+      candidateId: candidate._id,
+      stage,
+      status: "PENDING",
+    });
+
+    if (existingPending) {
+      return res.status(400).json({
+        message: "You already have a pending retake request awaiting employee review.",
+        request: existingPending,
+      });
+    }
+
+    const candidateName = candidate.stage1?.fullName || "Candidate";
+    const candidateMobile = candidate.mobile || candidate.stage1?.mobile || "";
+    
+    let currentScore = null;
+    let videoUrl = null;
+    let proctorLogs = null;
+    let integrityScore = null;
+
+    if (Number(stage) === 5) {
+      currentScore = candidate.stage5?.mockScore ?? candidate.stage8?.aiInterview?.result?.overallScore ?? null;
+      videoUrl = candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.videoUrl || candidate.stage8?.aiInterview?.videoUrl || null;
+      proctorLogs = candidate.stage5?.proctorLogs || candidate.stage8?.aiInterview?.proctorLogs || null;
+      integrityScore = candidate.stage5?.integrityScore ?? null;
+    } else {
+      currentScore = candidate.stage4?.foundationScore ?? null;
+    }
+
+    const defaultAssessmentTitle = Number(stage) === 5
+      ? "Talentera AI Mock Interview (Stage 5)"
+      : "Talentera AAPC / RCM Assessment (Stage 4)";
+
+    const newRequest = await RetakeRequest.create({
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      candidateName,
+      candidateMobile,
+      stage: Number(stage),
+      assessmentType: assessmentType || defaultAssessmentTitle,
+      currentScore,
+      videoUrl,
+      proctorLogs,
+      integrityScore,
+      reason: reason.trim(),
+      status: "PENDING",
+    });
+
+    // Notify staff via audit/log
+    logger.info(`Candidate ${candidate.email} submitted a retake request (Stage ${stage}, ID: ${newRequest._id})`);
+
+    res.status(201).json({
+      success: true,
+      message: "Retake request submitted successfully! An employee will review your request.",
+      request: newRequest,
+    });
+  } catch (err) {
+    logger.error(`Submit retake request error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit assessment retake request." });
+  }
+});
+
+// GET /api/candidate/retake-request - Get the latest retake request for the candidate
+router.get("/retake-request", async (req, res) => {
+  try {
+    const { stage = 4 } = req.query;
+    const latestRequest = await RetakeRequest.findOne({
+      candidateId: req.candidateId,
+      stage: Number(stage),
+    }).sort({ createdAt: -1 });
+
+    res.json({ request: latestRequest || null });
+  } catch (err) {
+    logger.error(`Get retake request error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch retake request status." });
   }
 });
 

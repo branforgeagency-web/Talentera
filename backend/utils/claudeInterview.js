@@ -1,27 +1,5 @@
 const axios = require("axios");
 
-/**
- * "Messi" - the Live AI Technical Mock Interviewer engine (Stage 8 Track,
- * optional practice tool - see frontend/src/components/ClaudeMockInterviewBot.jsx
- * and backend/routes/candidate.js's /ai-interview/* routes).
- *
- * This file used to hold a much simpler pair of helpers
- * (getClaudeMockInterviewResponse / evaluateAndCompareAnswerWithClaude) that
- * powered a shuffle-and-compare bot against a manually-typed reference
- * answer. It's been rebuilt around three calls that drive a full live
- * interview: generating a tailored 5-question set, judging + replying to
- * each candidate utterance in natural language, and producing a final
- * scored report. Every call degrades to a heuristic fallback when
- * CLAUDE_API_KEY/ANTHROPIC_API_KEY is missing or the API call fails, so the
- * practice tool never hard-breaks - it just gets a little less rich.
- *
- * Model id: keep this in sync with the other Claude call sites in this
- * codebase (backend/utils/aiAssessment.js) - "claude-haiku-4-5-20251001" is
- * the verified-live id as of Aug 2026. Don't leave a dated snapshot id
- * hardcoded indefinitely; that's exactly how a previous bug here happened
- * (see project memory on the Aug 2026 model-retirement fix).
- */
-
 const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-haiku-4-5-20251001";
 
@@ -37,78 +15,98 @@ function authHeaders(key) {
   };
 }
 
-const MESSI_SYSTEM_PROMPT = `You are Messi, a friendly, warm, encouraging, and human-like AI interviewer conducting a 1-on-1 mock interview for a medical coding candidate at Talentera.
-You ask 5 medical coding questions, one at a time, covering: ICD-10-CM Diagnosis Coding, CPT Procedure Codes, Evaluation & Management (E/M) Coding, Medical Billing & Claims, and HIPAA & Compliance.
-After the candidate answers, you briefly and warmly acknowledge their response (in 1-2 conversational sentences) before transitioning to the next question.
-You never sound robotic, blunt, or overly formal. You interact like a supportive senior mentor or real human interviewer.
-IMPORTANT GUIDELINES:
-- The candidate's response is captured via live browser speech-to-text transcription. It may contain slight transcription artifacts, colloquial speech, or missing punctuation. Always treat the transcribed text as the candidate's actual spoken answer.
-- CRITICAL: NEVER claim or complain that the audio was inaudible, that there was a connection or microphone issue, or that you could not hear the candidate. Always evaluate the substance and concepts of whatever transcribed words were provided.
-- You are never robotic or scripted, and you never bluntly say "Correct!" or "Wrong!" - you respond the way a real, warm interviewer would, briefly acknowledging what was said.
-- You understand natural conversational commands (repeat the question, I don't know, skip this, give me a hint, what do you mean, stop the interview) and respond to them naturally.
-Always return the exact JSON shape requested, and nothing else - no markdown fences, no commentary outside the JSON.`;
+const MESSI_SYSTEM_PROMPT = `You are Messi, an expert medical coding and healthcare RCM technical interviewer conducting a mock interview for Talentera candidates.
+You evaluate the candidate's spoken response by directly comparing it against the Reference Correct Answer stored in the question database.
+Guidelines:
+- Evaluate technical accuracy, concept coverage, and understanding relative to the Reference Correct Answer.
+- The candidate's response is transcribed via speech-to-text and may have slight transcription artifacts; evaluate the substance of what was communicated.
+- NEVER complain about microphone/audio issues.
+- Return strictly valid JSON with no markdown formatting.`;
 
 // ---------------------------------------------------------------------------
-// 5 Core Medical Coding Interview Questions
-// Designed specifically for medical coders covering:
-// 1. ICD-10-CM Diagnosis Coding, 2. CPT Procedure Codes, 3. E/M Coding,
-// 4. Medical Billing & Claims, 5. HIPAA & Compliance
+// 5 Core Medical Coding Interview Questions with Authoritative Correct Answers
 // ---------------------------------------------------------------------------
 const FALLBACK_QUESTION_BANK = [
   {
     topic: "ICD-10-CM Diagnosis Coding",
-    topicLabel: "ICD-10-CM Diagnosis Coding",
-    question: "In simple terms, what is an ICD-10-CM code used for?",
-    expectedConcepts: ["ICD-10-CM", "diagnosis code", "code structure", "specificity", "principal diagnosis", "code selection"],
+    topicLabel: "1. ICD-10-CM Coding",
+    question: "In simple terms, what is an ICD-10-CM code used for in medical coding?",
+    correctAnswer: "An ICD-10-CM code is a standardized diagnostic classification code used by healthcare providers to classify and report patient diagnoses, diseases, symptoms, injuries, and reasons for encounter on medical claims for billing and reimbursement.",
+    expectedConcepts: ["icd-10-cm", "diagnosis", "disease", "symptom", "condition", "patient encounter", "reimbursement", "billing", "classification"],
   },
   {
     topic: "CPT Procedure Codes",
-    topicLabel: "CPT Procedure Codes",
-    question: "What is a CPT code used for in medical coding?",
-    expectedConcepts: ["CPT codes", "modifier 25", "modifier 59", "procedure billing", "unbundling", "same-day service"],
+    topicLabel: "2. CPT Procedure Codes",
+    question: "What is a CPT code used for, and how does it differ from an ICD-10 code?",
+    correctAnswer: "A CPT (Current Procedural Terminology) code is used to report medical, surgical, and diagnostic procedures and healthcare services performed by physicians, whereas ICD-10-CM codes explain the diagnosis or medical reason why the service was necessary.",
+    expectedConcepts: ["cpt", "procedure", "surgical", "service", "treatment", "physician service", "diagnostic", "icd-10", "diagnosis", "medical necessity"],
   },
   {
     topic: "Evaluation & Management (E/M) Coding",
-    topicLabel: "Evaluation & Management (E/M) Coding",
-    question: "What does an E/M code describe in a patient visit?",
-    expectedConcepts: ["E/M code", "medical decision making", "MDM", "history", "examination", "time-based", "complexity"],
+    topicLabel: "3. E/M Coding",
+    question: "What does an Evaluation and Management (E/M) code describe, and how is its level determined?",
+    correctAnswer: "An E/M code represents the provider-patient clinical encounter (office visits, consultations, hospital visits), with the code level determined primarily by the complexity of Medical Decision Making (MDM) or total time spent by the physician on the date of encounter.",
+    expectedConcepts: ["e/m", "evaluation and management", "patient visit", "office visit", "medical decision making", "mdm", "time", "complexity", "encounter"],
   },
   {
     topic: "Medical Billing & Claims",
-    topicLabel: "Medical Billing & Claims",
-    question: "What is a medical claim, and what happens when a claim is denied?",
-    expectedConcepts: ["claim submission", "denial management", "EOB", "remittance advice", "appeal", "payer", "clean claim"],
+    topicLabel: "4. Billing & Claims",
+    question: "What is a medical claim, and how should a medical coder or biller handle a claim denial?",
+    correctAnswer: "A medical claim is an itemized bill submitted to an insurance payer for healthcare services. When a denial occurs, the coder reviews the denial reason code on the EOB/ERA, checks for coding or documentation errors, corrects the claim, and submits an appeal or corrected claim.",
+    expectedConcepts: ["medical claim", "insurance claim", "denial", "claim denial", "eob", "era", "appeal", "corrected claim", "remittance", "investigate", "documentation"],
   },
   {
     topic: "HIPAA & Compliance",
-    topicLabel: "HIPAA & Compliance",
-    question: "What is HIPAA, and why is it important in medical coding?",
-    expectedConcepts: ["HIPAA", "PHI", "protected health information", "privacy rule", "security rule", "compliance", "data protection"],
+    topicLabel: "5. HIPAA & Compliance",
+    question: "What is HIPAA, and why is protecting patient health information crucial in medical coding?",
+    correctAnswer: "HIPAA (Health Insurance Portability and Accountability Act) is a federal law that safeguards Protected Health Information (PHI) through privacy and security rules, ensuring patient confidentiality, data protection, and regulatory compliance across all medical records and billing workflows.",
+    expectedConcepts: ["hipaa", "phi", "protected health information", "privacy rule", "security rule", "confidentiality", "compliance", "patient data", "security"],
   },
 ];
 
+const STOPWORDS = new Set([
+  "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't",
+  "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by",
+  "can", "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing",
+  "don't", "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't",
+  "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers",
+  "herself", "him", "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in",
+  "into", "is", "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't", "my",
+  "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our",
+  "ours", "ourselves", "out", "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's",
+  "should", "shouldn't", "so", "some", "such", "than", "that", "that's", "the", "their", "theirs",
+  "them", "themselves", "then", "there", "there's", "these", "they", "they'd", "they'll", "they're",
+  "they've", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasn't",
+  "we", "we'd", "we'll", "we're", "we've", "were", "weren't", "what", "what's", "when", "when's",
+  "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's", "with", "won't",
+  "would", "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself",
+  "yourselves"
+]);
+
+function extractKeywords(text = "") {
+  return String(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
 
 function withIndices(list) {
-  const defaultTopics = [
-    { topic: "ICD-10-CM Diagnosis Coding", topicLabel: "ICD-10-CM Diagnosis Coding" },
-    { topic: "CPT Procedure Codes", topicLabel: "CPT Procedure Codes" },
-    { topic: "Evaluation & Management (E/M) Coding", topicLabel: "Evaluation & Management (E/M) Coding" },
-    { topic: "Medical Billing & Claims", topicLabel: "Medical Billing & Claims" },
-    { topic: "HIPAA & Compliance", topicLabel: "HIPAA & Compliance" },
-  ];
-
   return list.slice(0, 5).map((q, idx) => ({
     index: idx,
-    topic: q.topic || defaultTopics[idx]?.topic || `Topic ${idx + 1}`,
-    topicLabel: q.topicLabel || defaultTopics[idx]?.topicLabel || `Question ${idx + 1}`,
-    question: q.question,
-    expectedConcepts: Array.isArray(q.expectedConcepts) ? q.expectedConcepts.filter(Boolean).map(String) : [],
+    id: q.id || q._id || `q-${idx + 1}`,
+    topic: q.topic || FALLBACK_QUESTION_BANK[idx]?.topic || `Topic ${idx + 1}`,
+    topicLabel: q.topicLabel || FALLBACK_QUESTION_BANK[idx]?.topicLabel || `Question ${idx + 1}`,
+    question: q.question || q.text,
+    correctAnswer: q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer || "",
+    expectedConcepts: Array.isArray(q.expectedConcepts) && q.expectedConcepts.length > 0
+      ? q.expectedConcepts.map(String)
+      : extractKeywords(q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer || ""),
   }));
 }
 
 /**
- * Generate exactly 5 medical coding interview questions covering
- * ICD-10-CM, CPT codes, E/M coding, Medical Billing & Claims, and HIPAA & Compliance.
+ * Generate or fetch structured medical coding interview questions
  */
 async function generateInterviewQuestions({ candidateName = "", role = "", experienceYears } = {}) {
   const key = apiKey();
@@ -116,29 +114,33 @@ async function generateInterviewQuestions({ candidateName = "", role = "", exper
 
   if (key) {
     try {
-      const prompt = `Generate exactly 5 medical coding interview questions for a candidate applying for a medical coding role.
-Candidate: ${candidateName || "the candidate"}, applying for: "${roleLabel}".
+      const prompt = `Generate exactly 5 medical coding interview questions with model answers for a candidate applying for: "${roleLabel}".
+Topics:
+1. ICD-10-CM Diagnosis Coding
+2. CPT Procedure Codes
+3. Evaluation & Management (E/M) Coding
+4. Medical Billing & Claims
+5. HIPAA & Compliance
 
-The 5 questions MUST follow this exact sequential order and topics:
-1. ICD-10-CM Diagnosis Coding: one simple question about what ICD-10-CM codes are or what they are used for.
-2. CPT Procedure Codes: one simple question about what CPT codes are or what they are used for.
-3. Evaluation & Management (E/M) Coding: one simple question about what an E/M code describes.
-4. Medical Billing & Claims: one simple question about medical claims or claim denials.
-5. HIPAA & Compliance: one simple question about HIPAA or protecting patient information.
-
-Keep every question SHORT and simple: a single clear sentence that a fresher can answer in a few lines. Do NOT ask long, multi-part, or highly detailed questions. No "walk me through an example" or multiple sub-questions.
-Return STRICT JSON only: an array of exactly 5 objects, each shaped:
-{ "topic": string, "topicLabel": string, "question": string, "expectedConcepts": string[] }
-where expectedConcepts is 3-5 short key terms/concepts a good answer would touch on. No prose outside the JSON array, no markdown fences.`;
+Return STRICT JSON only as an array of 5 objects:
+[
+  {
+    "topic": string,
+    "topicLabel": string,
+    "question": string (concise single question),
+    "correctAnswer": string (authoritative, clear correct answer),
+    "expectedConcepts": string[] (5-8 key technical terms that must be in a good answer)
+  }
+]`;
 
       const response = await axios.post(
         ANTHROPIC_URL,
         {
           model: MODEL,
           max_tokens: 1800,
-          system: "You are an experienced medical coding supervisor designing a mock interview for medical coding candidates. Return valid JSON only.",
+          system: "You are an experienced medical coding supervisor and technical interviewer. Return valid JSON only.",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.5,
+          temperature: 0.4,
         },
         { headers: authHeaders(key), timeout: 25000 }
       );
@@ -148,11 +150,12 @@ where expectedConcepts is 3-5 short key terms/concepts a good answer would touch
       if (match) {
         const parsed = JSON.parse(match[0]);
         const cleaned = parsed
-          .filter((q) => q && typeof q.question === "string" && q.question.trim())
+          .filter((q) => q && typeof (q.question || q.text) === "string")
           .map((q, idx) => ({
             topic: q.topic || FALLBACK_QUESTION_BANK[idx]?.topic,
             topicLabel: q.topicLabel || FALLBACK_QUESTION_BANK[idx]?.topicLabel,
-            question: q.question.trim(),
+            question: (q.question || q.text).trim(),
+            correctAnswer: q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer,
             expectedConcepts: q.expectedConcepts || FALLBACK_QUESTION_BANK[idx]?.expectedConcepts,
           }));
         if (cleaned.length >= 5) {
@@ -160,27 +163,19 @@ where expectedConcepts is 3-5 short key terms/concepts a good answer would touch
         }
       }
     } catch (err) {
-      console.warn("Messi generateInterviewQuestions warning, using medical coding fallback bank:", err.message);
+      console.warn("generateInterviewQuestions LLM notice, using fallback question bank:", err.message);
     }
   }
 
-  // Use the medical coding question sequence
   return withIndices(FALLBACK_QUESTION_BANK);
 }
 
-
 // ---------------------------------------------------------------------------
-// Per-turn conversation handling
+// Intent Detection & Heuristic Answer Comparison
 // ---------------------------------------------------------------------------
-
 const VALID_INTENTS = ["answer", "repeat", "skip", "hint", "clarify", "stop", "unclear"];
 const VALID_EVALUATIONS = ["correct", "partial", "incorrect", "no_answer"];
 
-// A fast local classifier that runs BEFORE (and as a safety net around) any
-// LLM call. Two jobs: (1) let "stop the interview" always work even with no
-// API key / a slow or failed API call - this is safety-critical per the
-// product spec, so it must never depend on a network round-trip succeeding;
-// (2) power the fully-offline heuristic fallback path.
 function detectQuickIntent(utterance) {
   const t = String(utterance || "").trim().toLowerCase();
   if (!t) return "unclear";
@@ -192,50 +187,116 @@ function detectQuickIntent(utterance) {
   return "answer";
 }
 
-function computeHeuristicAnswerEvaluation(utterance, expectedConcepts) {
+/**
+ * Compare candidate answer directly against the database's correctAnswer and expectedConcepts
+ */
+function computeHeuristicAnswerEvaluation(utterance, questionOrAnswer = {}, maybeConcepts = []) {
   const text = String(utterance || "").trim();
   const words = text.split(/\s+/).filter(Boolean);
-  const concepts = (expectedConcepts || []).map((c) => String(c).toLowerCase());
+  const lowerCandidate = text.toLowerCase();
+
+  const modelAnswer = typeof questionOrAnswer === "string" ? questionOrAnswer : (questionOrAnswer?.correctAnswer || "");
+  let concepts = Array.isArray(maybeConcepts) && maybeConcepts.length > 0
+    ? maybeConcepts
+    : (Array.isArray(questionOrAnswer?.expectedConcepts) && questionOrAnswer.expectedConcepts.length > 0
+        ? questionOrAnswer.expectedConcepts
+        : extractKeywords(modelAnswer));
 
   if (words.length < 3) {
-    return { evaluation: "no_answer", score: 0, missingConcepts: concepts };
+    return {
+      evaluation: "no_answer",
+      score: 0,
+      missingConcepts: concepts,
+      matchedConcepts: [],
+      feedback: "No substantial answer recorded.",
+    };
   }
 
-  const lower = text.toLowerCase();
-  const matched = concepts.filter((c) => lower.includes(c));
-  const missingConcepts = concepts.filter((c) => !matched.includes(c));
+  // 1. Keyword & concept matching
+  const candidateKeywords = new Set(extractKeywords(text));
+  const matched = [];
+  const missing = [];
 
-  if (!concepts.length) {
-    // No concept list to compare against (shouldn't normally happen) - fall
-    // back to a weak length-based proxy so the interview still progresses.
-    return words.length >= 15 ? { evaluation: "partial", score: 6, missingConcepts: [] } : { evaluation: "incorrect", score: 3, missingConcepts: [] };
+  concepts.forEach((concept) => {
+    const cLower = concept.toLowerCase().trim();
+    if (!cLower) return;
+    // Check exact substring or keyword presence
+    if (lowerCandidate.includes(cLower)) {
+      matched.push(concept);
+    } else {
+      // Check partial/stemmed word match
+      const cWords = cLower.split(/\s+/);
+      const isMatched = cWords.some((w) => candidateKeywords.has(w) || (w.length > 4 && lowerCandidate.includes(w.slice(0, -1))));
+      if (isMatched) {
+        matched.push(concept);
+      } else {
+        missing.push(concept);
+      }
+    }
+  });
+
+  // 2. Compute similarity ratio with correct answer
+  const modelKeywords = extractKeywords(modelAnswer);
+  let modelWordsMatched = 0;
+  modelKeywords.forEach((w) => {
+    if (candidateKeywords.has(w) || lowerCandidate.includes(w)) {
+      modelWordsMatched++;
+    }
+  });
+
+  const conceptCoverage = concepts.length > 0 ? matched.length / concepts.length : 0;
+  const modelCoverage = modelKeywords.length > 0 ? modelWordsMatched / modelKeywords.length : 0;
+  const blendedCoverage = Math.max(conceptCoverage, modelCoverage * 0.85 + conceptCoverage * 0.15);
+
+  let score = 0;
+  let evaluation = "incorrect";
+
+  if (blendedCoverage >= 0.65 || (matched.length >= 4 && words.length >= 10)) {
+    evaluation = "correct";
+    score = Math.min(10, Math.max(8, Math.round(blendedCoverage * 10)));
+  } else if (blendedCoverage >= 0.35 || (matched.length >= 2 && words.length >= 6)) {
+    evaluation = "partial";
+    score = Math.min(7, Math.max(5, Math.round(blendedCoverage * 10)));
+  } else if (matched.length >= 1 || words.length >= 5) {
+    evaluation = "incorrect";
+    score = Math.min(4, Math.max(2, Math.round(blendedCoverage * 10) || 3));
+  } else {
+    evaluation = "incorrect";
+    score = 1;
   }
 
-  const ratio = matched.length / concepts.length;
-  if (ratio >= 0.6) return { evaluation: "correct", score: 9, missingConcepts };
-  if (matched.length >= Math.min(2, concepts.length)) return { evaluation: "partial", score: 6, missingConcepts };
-  if (matched.length >= 1) return { evaluation: "partial", score: 4, missingConcepts };
-  return { evaluation: "incorrect", score: 2, missingConcepts };
+  return {
+    evaluation,
+    score,
+    missingConcepts: missing,
+    matchedConcepts: matched,
+    feedback:
+      evaluation === "correct"
+        ? `Accurately matched key concepts: ${matched.slice(0, 3).join(", ")}.`
+        : evaluation === "partial"
+        ? `Covered ${matched.join(", ")}; missed: ${missing.slice(0, 2).join(", ")}.`
+        : `Answer missed core reference concepts (${missing.slice(0, 3).join(", ")}).`,
+  };
 }
 
 const HEURISTIC_REPLIES = {
   correct: [
-    "Thank you for sharing that! That was very clear and gives great insight into your experience.",
-    "That's fantastic—you explained that well and highlighted some great points.",
-    "Excellent! I really appreciate the detail and enthusiasm you brought to that answer.",
+    "Excellent! That was accurate and directly addressed the core concepts.",
+    "Very well explained! You captured the key technical points effectively.",
+    "Great answer! That demonstrates clear knowledge of the workflow.",
   ],
   partial: [
-    "Thank you for sharing! That gives a helpful overview of your background.",
-    "Thanks for that response—it's great to hear your thoughts on this.",
-    "I appreciate you sharing that; having that foundation is a wonderful starting point.",
+    "Thank you. You covered some solid foundational points.",
+    "Good start. Bringing in additional specific details makes it even stronger.",
+    "Thanks for that response—you touched on relevant concepts.",
   ],
   incorrect: [
-    "Thank you for sharing your thoughts on that with me.",
-    "Thanks for that response! Every experience is a great learning milestone.",
+    "Thank you for sharing your thoughts on that question.",
+    "Thanks for your response. Let's keep progressing through the interview.",
   ],
   no_answer: [
     "No worries at all, let's keep moving forward!",
-    "That's completely fine—let's move right along to the next question.",
+    "That's completely fine—moving along to the next question.",
   ],
 };
 
@@ -245,54 +306,74 @@ function pick(arr) {
 
 function computeHeuristicTurn({ utterance, currentQuestion, quickIntent }) {
   const intent = quickIntent || detectQuickIntent(utterance);
-  let concepts = currentQuestion.expectedConcepts || [];
-  if ((!concepts || !concepts.length) && currentQuestion.correctAnswer) {
-    concepts = currentQuestion.correctAnswer
-      .toLowerCase()
-      .replace(/[^\w\s]/g, " ")
-      .split(/\s+/)
-      .filter((w) => w.length > 3);
-  }
 
   if (intent === "stop") {
-    return { intent: "stop", evaluation: "no_answer", score: 0, missingConcepts: [], messiReply: "Sure—I'll end our interview here. Your responses have been recorded for your final evaluation.", askFollowUp: false };
+    return {
+      intent: "stop",
+      evaluation: "no_answer",
+      score: 0,
+      missingConcepts: [],
+      messiReply: "Understood—concluding our interview here. Your responses are being finalized.",
+      askFollowUp: false,
+    };
   }
   if (intent === "repeat") {
-    return { intent: "repeat", evaluation: "no_answer", score: 0, missingConcepts: [], messiReply: `Of course! My question was: ${currentQuestion.question}`, askFollowUp: false };
+    return {
+      intent: "repeat",
+      evaluation: "no_answer",
+      score: 0,
+      missingConcepts: [],
+      messiReply: `Certainly! My question was: ${currentQuestion.question}`,
+      askFollowUp: false,
+    };
   }
   if (intent === "skip") {
-    return { intent: "skip", evaluation: "no_answer", score: 0, missingConcepts: [], messiReply: "No problem at all, let's move right along to the next question.", askFollowUp: false };
+    return {
+      intent: "skip",
+      evaluation: "no_answer",
+      score: 0,
+      missingConcepts: currentQuestion.expectedConcepts || [],
+      messiReply: "No problem at all, let's proceed to the next question.",
+      askFollowUp: false,
+    };
   }
   if (intent === "hint") {
-    const hintTerm = concepts[0];
+    const hintTerm = (currentQuestion.expectedConcepts || [])[0] || "the core definition";
     return {
       intent: "hint",
       evaluation: "no_answer",
       score: 0,
       missingConcepts: [],
-      messiReply: hintTerm ? `Here's a quick thought—think about ${hintTerm} and how you approached it.` : "Think about your personal experience and what you learned from it.",
+      messiReply: `Here's a clue: think about how ${hintTerm} relates to medical coding and healthcare billing.`,
       askFollowUp: false,
     };
   }
   if (intent === "clarify") {
-    return { intent: "clarify", evaluation: "no_answer", score: 0, missingConcepts: [], messiReply: `Sure, let me rephrase that: ${currentQuestion.question}`, askFollowUp: false };
+    return {
+      intent: "clarify",
+      evaluation: "no_answer",
+      score: 0,
+      missingConcepts: [],
+      messiReply: `To clarify: ${currentQuestion.question}`,
+      askFollowUp: false,
+    };
   }
 
-  const { evaluation, score, missingConcepts } = computeHeuristicAnswerEvaluation(utterance, concepts);
-  const messiReply = pick(HEURISTIC_REPLIES[evaluation] || HEURISTIC_REPLIES.partial);
-  // Never ask follow-ups on the same question; maintain sequential 1-at-a-time 5 questions
-  return { intent: "answer", evaluation, score, missingConcepts, messiReply, askFollowUp: false };
+  const evalResult = computeHeuristicAnswerEvaluation(utterance, currentQuestion);
+  const messiReply = pick(HEURISTIC_REPLIES[evalResult.evaluation] || HEURISTIC_REPLIES.partial);
+  return {
+    intent: "answer",
+    evaluation: evalResult.evaluation,
+    score: evalResult.score,
+    missingConcepts: evalResult.missingConcepts,
+    matchedConcepts: evalResult.matchedConcepts,
+    messiReply,
+    askFollowUp: false,
+  };
 }
 
 function cleanMessiReply(text) {
   let cleaned = String(text || "").trim();
-  // Messi must NEVER tell the candidate their audio/mic/connection failed or that
-  // it couldn't hear them. The answer arrives via browser speech-to-text and can be
-  // imperfect, but a complaint about it is always wrong and confuses the candidate.
-  // Previously we tried to surgically strip such phrases with narrow regexes, which
-  // left fragments like "...your audio didn't connect correctly" intact and spoken
-  // aloud. Instead: if the reply mentions any audio/mic/connection complaint at all,
-  // drop the WHOLE reply and use a warm, neutral acknowledgment.
   const AUDIO_COMPLAINT_RE =
     /audio|microphone|\bmic\b|inaudible|audible|cut(ting)? out|couldn'?t (hear|catch|understand)|can'?t (hear|catch|understand)|didn'?t (hear|catch|come through)|not able to hear|hear you|not connected|didn'?t connect|connect(ed|ing)? (correctly|properly)|connection (issue|problem|error|trouble)|check your (mic|audio|microphone|connection)|background noise|no sound|speak up/i;
   if (AUDIO_COMPLAINT_RE.test(cleaned)) {
@@ -311,13 +392,15 @@ function normalizeTurnResult(parsed, quickIntent, utterance, currentQuestion) {
   }
 
   let evaluation = VALID_EVALUATIONS.includes(parsed.evaluation) ? parsed.evaluation : "no_answer";
-  let score = Number.isFinite(Number(parsed.score)) ? Math.max(0, Math.min(10, Number(parsed.score))) : 0;
+  let score = Number.isFinite(Number(parsed.score)) ? Math.max(0, Math.min(10, Math.round(Number(parsed.score)))) : 0;
   let missingConcepts = Array.isArray(parsed.missingConcepts) ? parsed.missingConcepts.filter(Boolean).map(String) : [];
-  let messiReply = typeof parsed.messiReply === "string" && parsed.messiReply.trim() ? cleanMessiReply(parsed.messiReply.trim()) : "Thank you for sharing that—let's move on.";
-  let askFollowUp = false; // Always false to ensure clean progression across 5 questions
+  let messiReply = typeof parsed.messiReply === "string" && parsed.messiReply.trim()
+    ? cleanMessiReply(parsed.messiReply.trim())
+    : "Thank you for sharing that response.";
 
+  // Safety fallback if LLM returned 0 for a non-trivial answer
   if (intent === "answer" && (evaluation === "no_answer" || score === 0) && wordCount >= 3) {
-    const heuristic = computeHeuristicAnswerEvaluation(utterance, currentQuestion?.expectedConcepts || []);
+    const heuristic = computeHeuristicAnswerEvaluation(utterance, currentQuestion);
     if (heuristic.score > score) {
       score = heuristic.score;
       evaluation = heuristic.evaluation;
@@ -325,49 +408,47 @@ function normalizeTurnResult(parsed, quickIntent, utterance, currentQuestion) {
     }
   }
 
-  if (quickIntent === "unclear") {
-    intent = "skip";
-    evaluation = "no_answer";
-    score = 0;
-    missingConcepts = [];
-    askFollowUp = false;
-    messiReply = "No worries at all, let's move right along to the next question.";
-  }
-
-  return { intent, evaluation, score, missingConcepts, messiReply, askFollowUp };
+  return { intent, evaluation, score, missingConcepts, messiReply, askFollowUp: false };
 }
 
 /**
- * Handle one candidate utterance in the live interview: classify intent,
- * evaluate the student answer, and produce Messi's brief natural-language acknowledgment.
+ * Handle one candidate utterance: compare against database correctAnswer and return score & response
  */
 async function getMessiTurn({ session, candidateUtterance }) {
   const utterance = String(candidateUtterance || "").trim();
-  const currentQuestion = session.questions[session.currentQuestionIndex];
+  const currentQuestion = session.questions[session.currentQuestionIndex] || {};
   const quickIntent = detectQuickIntent(utterance);
   const key = apiKey();
 
   if (key) {
     try {
       const modelAnswerPart = currentQuestion.correctAnswer
-        ? `\nExpected / Model Answer: "${currentQuestion.correctAnswer}"`
+        ? `\nReference / Correct Answer: "${currentQuestion.correctAnswer}"`
         : "";
 
-      const prompt = `Current question (#${session.currentQuestionIndex + 1} of ${session.questions.length}, Topic: "${currentQuestion.topic || "General"}"):
-"${currentQuestion.question}"${modelAnswerPart}
-Candidate's response: "${utterance}"
+      const expectedConceptsList = currentQuestion.expectedConcepts && currentQuestion.expectedConcepts.length > 0
+        ? `\nExpected Key Concepts: ${JSON.stringify(currentQuestion.expectedConcepts)}`
+        : "";
 
-Classify intent, evaluate the response against the question and expected answer, and generate Messi's brief acknowledgment. Return STRICT JSON only:
-{"intent": "answer|repeat|skip|hint|clarify|stop|unclear", "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "missingConcepts": string[], "messiReply": string, "askFollowUp": false}
+      const prompt = `You are evaluating a candidate's answer against the official Question & Reference Answer from the database.
+Question (#${session.currentQuestionIndex + 1} of ${session.questions.length}, Topic: "${currentQuestion.topic || "Medical Coding"}"):
+"${currentQuestion.question}"${modelAnswerPart}${expectedConceptsList}
 
-Guidelines:
-- You are a warm, encouraging, human-like interviewer speaking with a student/fresher.
-- If the candidate gave an answer (intent = "answer"), messiReply MUST be a brief, natural acknowledgment in 1-2 warm sentences acknowledging what they shared (e.g., "Thank you for that introduction! It's inspiring to hear what drives you.", or "That sounds like a great practical project—tackling those challenges shows solid initiative!").
-- Do NOT repeat the next question in messiReply; the UI and speaker flow will introduce the next question.
-- Do NOT sound robotic or formal. Never say blunt phrases like "Your answer is correct" or "Wrong".
-- askFollowUp must ALWAYS be false. We ask questions one at a time, moving sequentially.
-- If intent is "repeat", naturally re-ask the current question.
-- If intent is "skip" or no answer (inactivity), messiReply should be a friendly reassurance like "No problem at all, let's move right along to the next question."`;
+Candidate's Answer: "${utterance}"
+
+Instructions:
+1. Compare the Candidate's Answer against the Reference Correct Answer.
+2. Rate "score" on a strict 0 to 10 scale:
+   - 8 to 10: Accurate and comprehensive, covers main concepts of the reference answer.
+   - 5 to 7: Partial answer, covers basic ideas but misses specific details or terminology.
+   - 1 to 4: Inaccurate, very weak, or mostly off-topic compared to the reference answer.
+   - 0: No response, blank, or completely irrelevant.
+3. Set "evaluation" to "correct" (8-10), "partial" (5-7), "incorrect" (1-4), or "no_answer" (0).
+4. Identify any "missingConcepts" from the reference answer.
+5. Provide a warm, brief 1-2 sentence conversational acknowledgment ("messiReply").
+
+Return STRICT JSON only:
+{"intent": "answer|repeat|skip|hint|clarify|stop|unclear", "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "missingConcepts": string[], "messiReply": string, "askFollowUp": false}`;
 
       const response = await axios.post(
         ANTHROPIC_URL,
@@ -376,7 +457,7 @@ Guidelines:
           max_tokens: 450,
           system: MESSI_SYSTEM_PROMPT,
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.55,
+          temperature: 0.35,
         },
         { headers: authHeaders(key), timeout: 20000 }
       );
@@ -388,7 +469,7 @@ Guidelines:
         return normalizeTurnResult(parsed, quickIntent, utterance, currentQuestion);
       }
     } catch (err) {
-      console.warn("Messi getMessiTurn warning, using heuristic evaluator:", err.message);
+      console.warn("getMessiTurn LLM notice, using database answer comparison heuristic:", err.message);
     }
   }
 
@@ -396,78 +477,80 @@ Guidelines:
 }
 
 // ---------------------------------------------------------------------------
-// Final report
+// Final Report Generation from Evaluated Question Records
 // ---------------------------------------------------------------------------
-
 function clampPercent(n, fallback = 70) {
   const v = Number(n);
   return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : fallback;
 }
 
-function computeHeuristicFinalReport({ candidateName, role, questionRecords }) {
-  const scored = questionRecords.map((r) => {
-    const best = r.followUp ? Math.max(r.score, r.followUp.score) : r.score;
-    return { ...r, effectiveScore: best };
-  });
-  const totalPossible = Math.max(1, scored.length * 10);
-  const totalScore = scored.reduce((sum, r) => sum + (r.effectiveScore || 0), 0);
-  const overallScore = Math.max(50, Math.min(95, Math.round((totalScore / totalPossible) * 100) || 72));
+function computeHeuristicFinalReport({ candidateName, role, questionRecords = [] }) {
+  const totalQuestions = Math.max(1, questionRecords.length);
+  const totalPossiblePoints = totalQuestions * 10;
+  const totalPoints = questionRecords.reduce((sum, r) => sum + (Number(r.score) || 0), 0);
 
-  const answeredCount = scored.filter((r) => r.evaluation !== "no_answer").length;
-  const correctCount = scored.filter((r) => r.evaluation === "correct").length;
-  const communication = clampPercent(65 + (answeredCount / Math.max(1, scored.length)) * 25);
-  const clarity = clampPercent(60 + (correctCount / Math.max(1, scored.length)) * 30);
-  const confidence = clampPercent(overallScore >= 70 ? overallScore + 5 : overallScore);
+  // Exact score calculation by comparing answers with correct answers
+  const overallScore = Math.min(100, Math.max(0, Math.round((totalPoints / totalPossiblePoints) * 100)));
 
-  const questionAnalysis = scored.map((r, idx) => ({
+  const correctCount = questionRecords.filter((r) => r.evaluation === "correct").length;
+  const partialCount = questionRecords.filter((r) => r.evaluation === "partial").length;
+  const answeredCount = questionRecords.filter((r) => r.evaluation !== "no_answer").length;
+
+  const technicalReadiness = overallScore;
+  const clarity = clampPercent(50 + (correctCount / totalQuestions) * 40 + (partialCount / totalQuestions) * 10);
+  const communication = clampPercent(50 + (answeredCount / totalQuestions) * 45);
+  const confidence = clampPercent(Math.round((clarity + technicalReadiness) / 2));
+
+  const questionAnalysis = questionRecords.map((r, idx) => ({
     questionNumber: idx + 1,
-    topic: r.topic || ["Introduction", "Education", "Skills", "Projects", "Career Goals"][idx] || `Topic ${idx + 1}`,
+    topic: r.topic || `Question ${idx + 1}`,
     question: r.question,
+    correctAnswer: r.correctAnswer || "",
     candidateAnswer: r.candidateAnswer || "(no answer)",
-    evaluation: r.evaluation,
-    score: r.effectiveScore || (r.candidateAnswer && r.candidateAnswer !== "(no answer)" ? 6 : 0),
+    evaluation: r.evaluation || "no_answer",
+    score: Number(r.score) || 0,
     feedback:
       r.evaluation === "correct"
-        ? "Articulated clearly with relevant details and strong enthusiasm."
+        ? "Accurate answer covering the core reference concepts."
         : r.evaluation === "partial"
-        ? "Provided a good foundation; adding specific examples or metrics will make it even stronger."
+        ? `Partially correct; missed key reference concepts (${(r.missingConcepts || []).slice(0, 2).join(", ") || "details"}).`
         : r.evaluation === "no_answer"
-        ? "No answer was recorded within the response window."
-        : "Good attempt; could be structured more clearly with concrete details.",
+        ? "No response was recorded for this question."
+        : "Answer was inaccurate or did not align with the standard coding definition.",
   }));
 
   return {
     overallScore,
     breakdown: {
+      technicalReadiness,
       communication,
       clarity,
       confidence,
-      structuredThinking: clampPercent(overallScore - 3),
-      technicalReadiness: clampPercent(overallScore + 2),
+      structuredThinking: clampPercent(Math.round((technicalReadiness + communication) / 2)),
     },
     questionAnalysis,
-    finalFeedback: `${candidateName || "Candidate"} completed the ${questionRecords.length}-question mock interview, answering ${answeredCount} of ${questionRecords.length} questions with good conversational flow. Demonstrates promising foundational knowledge and a positive, coachable attitude suitable for entry-level opportunities.`,
+    finalFeedback: `${candidateName || "Candidate"} scored ${overallScore}% across ${totalQuestions} technical mock interview questions (${correctCount} strong, ${partialCount} partial). Demonstrates ${overallScore >= 75 ? "strong technical proficiency and ready for client placement" : "foundational awareness with room to reinforce standard coding guidelines"}.`,
     strengths: [
-      "Clear, conversational tone and polite demeanor during the interview",
-      "Good foundational awareness of personal skills and academic background",
-      "Demonstrated enthusiasm and positive attitude toward career development",
+      correctCount >= 2 ? "Demonstrated clear understanding of core diagnostic and procedural coding definitions" : "Good communication cadence during the assessment",
+      "Maintained professional composure throughout the interview session",
+      answeredCount >= 4 ? "Attempted all assigned questions with active participation" : "Exhibited positive attitude towards technical evaluation",
     ],
     areasToImprove: [
-      "Use the STAR method (Situation, Task, Action, Result) when describing practical projects",
-      "Highlight specific tools, software, or technologies used during coursework",
-      "Elaborate with concrete examples to showcase depth of practical skills",
+      "Reinforce specific ICD-10-CM and CPT coding conventions and official guidelines",
+      "Practice articulating E/M Medical Decision Making (MDM) criteria concisely",
+      "Review denial management workflows (EOB/ERA resolution) and HIPAA compliance protocols",
     ],
     recommendedTopics: [
-      "STAR Interview Technique",
-      "Effective Project Presentation",
-      "Resume & Portfolio Highlights",
-      "Professional Spoken Communication",
+      "ICD-10-CM Coding Conventions & Guidelines",
+      "CPT Modifiers & Procedure Sequencing",
+      "E/M MDM Leveling Criteria",
+      "Denial Management & Claim Appeals",
     ],
   };
 }
 
 /**
- * Produce the final scored report from the recorded per-question results of a completed session.
+ * Generate final scored report from question records evaluated against the database key
  */
 async function generateFinalReport({ candidateName = "", role = "", questionRecords = [] } = {}) {
   const key = apiKey();
@@ -480,24 +563,42 @@ async function generateFinalReport({ candidateName = "", role = "", questionReco
       const transcript = questionRecords
         .map(
           (r, idx) =>
-            `Q${idx + 1} (${r.topic || "General"}): ${r.question}\nCandidate Answer: ${r.candidateAnswer || "(no answer)"}\nEvaluation: ${r.evaluation}`
+            `Q${idx + 1} (${r.topic || "General"}): "${r.question}"\nReference Answer: "${r.correctAnswer || "N/A"}"\nCandidate Answer: "${r.candidateAnswer || "(no answer)"}"\nScore: ${r.score}/10 (Evaluation: ${r.evaluation})`
         )
         .join("\n\n");
 
-      const prompt = `You just finished conducting a live 5-question mock interview with ${candidateName || "a student"} for a fresher/entry-level position in "${role || "Professional Track"}".
-Here is the transcript of the 5 questions (Introduction, Education, Skills, Projects, Career Goals):
+      const prompt = `Here is the full transcript of a 5-question technical medical coding mock interview for ${candidateName || "the candidate"}:
 
 ${transcript}
 
-Produce a constructive, student-friendly interview summary report. Return STRICT JSON only:
+Produce the final comprehensive evaluation report.
+Calculate overallScore (0-100) strictly from the question scores: overallScore = round((sum of scores / (number of questions * 10)) * 100).
+Return STRICT JSON only:
 {
-  "overallScore": 0-100,
-  "breakdown": {"communication": 0-100, "clarity": 0-100, "confidence": 0-100, "structuredThinking": 0-100, "technicalReadiness": 0-100},
-  "questionAnalysis": [{"questionNumber": number, "topic": string, "question": string, "candidateAnswer": string, "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "feedback": string}],
-  "finalFeedback": string (2-3 encouraging, constructive sentences summarizing performance for a student/fresher),
-  "strengths": string[] (3-4 clear bullet points),
-  "areasToImprove": string[] (3-4 constructive, actionable advice points for a fresher),
-  "recommendedTopics": string[] (3-4 topics to practice)
+  "overallScore": number (0-100),
+  "breakdown": {
+    "technicalReadiness": number (0-100),
+    "communication": number (0-100),
+    "clarity": number (0-100),
+    "confidence": number (0-100),
+    "structuredThinking": number (0-100)
+  },
+  "questionAnalysis": [
+    {
+      "questionNumber": number,
+      "topic": string,
+      "question": string,
+      "correctAnswer": string,
+      "candidateAnswer": string,
+      "evaluation": "correct|partial|incorrect|no_answer",
+      "score": number (0-10),
+      "feedback": string
+    }
+  ],
+  "finalFeedback": string,
+  "strengths": string[],
+  "areasToImprove": string[],
+  "recommendedTopics": string[]
 }`;
 
       const response = await axios.post(
@@ -505,9 +606,9 @@ Produce a constructive, student-friendly interview summary report. Return STRICT
         {
           model: MODEL,
           max_tokens: 2200,
-          system: "You are Messi, an encouraging senior mentor providing a helpful, constructive interview evaluation report for a student/fresher. Return valid JSON only.",
+          system: "You are a senior healthcare RCM & Medical Coding director providing a rigorous, fair interview evaluation report. Return valid JSON only.",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.35,
+          temperature: 0.3,
         },
         { headers: authHeaders(key), timeout: 25000 }
       );
@@ -520,11 +621,11 @@ Produce a constructive, student-friendly interview summary report. Return STRICT
           return {
             overallScore: clampPercent(parsed.overallScore),
             breakdown: {
+              technicalReadiness: clampPercent(parsed.breakdown?.technicalReadiness),
               communication: clampPercent(parsed.breakdown?.communication),
               clarity: clampPercent(parsed.breakdown?.clarity),
               confidence: clampPercent(parsed.breakdown?.confidence),
               structuredThinking: clampPercent(parsed.breakdown?.structuredThinking),
-              technicalReadiness: clampPercent(parsed.breakdown?.technicalReadiness),
             },
             questionAnalysis: parsed.questionAnalysis,
             finalFeedback: parsed.finalFeedback || "",
@@ -535,7 +636,7 @@ Produce a constructive, student-friendly interview summary report. Return STRICT
         }
       }
     } catch (err) {
-      console.warn("Messi generateFinalReport warning, using heuristic report:", err.message);
+      console.warn("generateFinalReport LLM notice, using database key calculator:", err.message);
     }
   }
 
@@ -547,4 +648,5 @@ module.exports = {
   getMessiTurn,
   generateFinalReport,
   detectQuickIntent,
+  computeHeuristicAnswerEvaluation,
 };

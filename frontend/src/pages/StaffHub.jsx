@@ -432,6 +432,16 @@ export default function StaffHub() {
   const [resetPasswordSubmitting, setResetPasswordSubmitting] = useState(false);
   const [resetPasswordError, setResetPasswordError] = useState("");
 
+  // --- ASSESSMENT RETAKES STATE ---
+  const [retakeRequestsList, setRetakeRequestsList] = useState([]);
+  const [retakeRequestsLoading, setRetakeRequestsLoading] = useState(false);
+  const [retakeStatusFilter, setRetakeStatusFilter] = useState("ALL");
+  const [retakeSearch, setRetakeSearch] = useState("");
+  const [retakeCounts, setRetakeCounts] = useState({ pending: 0, approved: 0, rejected: 0, total: 0 });
+  const [selectedRetakeModal, setSelectedRetakeModal] = useState(null);
+  const [retakeReviewNotes, setRetakeReviewNotes] = useState("");
+  const [retakeActionSubmitting, setRetakeActionSubmitting] = useState(false);
+
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 3200);
@@ -453,6 +463,75 @@ export default function StaffHub() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
+  const fetchRetakeRequests = async (status = "ALL") => {
+    setRetakeRequestsLoading(true);
+    try {
+      const url = status && status !== "ALL" ? `/api/staff/retake-requests?status=${status}` : "/api/staff/retake-requests";
+      const res = await fetch(url, { headers: { ...getAuthHeader() } });
+      if (res.ok) {
+        const data = await safeJson(res);
+        setRetakeRequestsList(data.requests || []);
+        if (data.counts) {
+          setRetakeCounts(data.counts);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching retake requests:", err);
+    } finally {
+      setRetakeRequestsLoading(false);
+    }
+  };
+
+  const handleApproveRetake = async (requestId, notes) => {
+    setRetakeActionSubmitting(true);
+    try {
+      const res = await fetch(`/api/staff/retake-requests/${requestId}/approve`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ notes }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        showToast(data.message || "Failed to approve retake request");
+      } else {
+        showToast("Retake approved! Notification email sent to candidate. ✉️");
+        setSelectedRetakeModal(null);
+        setRetakeReviewNotes("");
+        fetchRetakeRequests(retakeStatusFilter);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("An error occurred while approving the request");
+    } finally {
+      setRetakeActionSubmitting(false);
+    }
+  };
+
+  const handleRejectRetake = async (requestId, notes) => {
+    setRetakeActionSubmitting(true);
+    try {
+      const res = await fetch(`/api/staff/retake-requests/${requestId}/reject`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ notes }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        showToast(data.message || "Failed to reject retake request");
+      } else {
+        showToast("Retake request rejected. Candidate notified.");
+        setSelectedRetakeModal(null);
+        setRetakeReviewNotes("");
+        fetchRetakeRequests(retakeStatusFilter);
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("An error occurred while rejecting the request");
+    } finally {
+      setRetakeActionSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     fetchDashboard();
     fetchStaffNotifications();
@@ -462,11 +541,15 @@ export default function StaffHub() {
     fetchCompanies();
     fetchAcademies();
     fetchEmployees();
+    fetchRetakeRequests();
   }, []);
 
   useEffect(() => {
     if (activeNav === "activity" && !activityLoaded) {
       fetchActivityLog(1);
+    }
+    if (activeNav === "retakes") {
+      fetchRetakeRequests(retakeStatusFilter);
     }
     if (activeNav === "dept_crm_data") {
       fetchActivityLog(1);
@@ -1450,6 +1533,7 @@ export default function StaffHub() {
               {[
                 { id: "kyc", icon: "eye", label: "KYC Verification", count: kycCounts.pending },
                 { id: "certifications", icon: "graduation", label: "Certifications", count: certCounts.pending },
+                { id: "retakes", icon: "zap", label: "Assessment Retakes", count: retakeCounts.pending },
                 { id: "questions", icon: "mic", label: "Interview Questions" },
                 { id: "reports", icon: "chartBar", label: "Reports & Metrics" },
                 { id: "activity", icon: "clock", label: "Activity Log" },
@@ -2393,23 +2477,50 @@ export default function StaffHub() {
                                   </div>
                                 </td>
                                 <td>
-                                  {score !== null ? (
-                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                      <span
-                                        style={{
-                                          fontSize: 11,
-                                          fontWeight: 800,
-                                          padding: "3px 8px",
-                                          borderRadius: 6,
-                                          background: Number(score) >= 70 ? "#DCFCE7" : "#FEE2E2",
-                                          color: Number(score) >= 70 ? "#15803D" : "#B91C1C",
-                                        }}
-                                      >
-                                        {score}% MCQ
-                                      </span>
+                                  {score !== null || c.stage5?.mockScore !== undefined || c.stage5?.integrityScore !== undefined ? (
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                      {score !== null && (
+                                        <span
+                                          style={{
+                                            fontSize: 11,
+                                            fontWeight: 800,
+                                            padding: "3px 8px",
+                                            borderRadius: 6,
+                                            background: Number(score) >= 70 ? "#DCFCE7" : "#FEE2E2",
+                                            color: Number(score) >= 70 ? "#15803D" : "#B91C1C",
+                                          }}
+                                        >
+                                          {score}% MCQ
+                                        </span>
+                                      )}
                                       {c.stage5?.aiScore && (
                                         <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "#EDE9FE", color: "#6D28D9" }}>
                                           {c.stage5.aiScore}% Video
+                                        </span>
+                                      )}
+                                      {c.stage5?.mockScore !== undefined && c.stage5?.mockScore !== null && (
+                                        <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: "#E0F2FE", color: "#0369A1" }}>
+                                          {c.stage5.mockScore}% Mock
+                                        </span>
+                                      )}
+                                      {c.stage5?.integrityScore !== undefined && c.stage5?.integrityScore !== null && (
+                                        <span
+                                          style={{
+                                            fontSize: 10.5,
+                                            fontWeight: 800,
+                                            padding: "2px 7px",
+                                            borderRadius: 6,
+                                            background: c.stage5.integrityScore >= 80 ? "rgba(16, 185, 129, 0.15)" : c.stage5.integrityScore >= 50 ? "rgba(245, 158, 11, 0.15)" : "rgba(239, 68, 68, 0.15)",
+                                            color: c.stage5.integrityScore >= 80 ? "#059669" : c.stage5.integrityScore >= 50 ? "#D97706" : "#DC2626",
+                                            border: `1px solid ${c.stage5.integrityScore >= 80 ? "rgba(16, 185, 129, 0.3)" : c.stage5.integrityScore >= 50 ? "rgba(245, 158, 11, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                                            display: "inline-flex",
+                                            alignItems: "center",
+                                            gap: 3,
+                                          }}
+                                          title="AI Proctoring Integrity Score"
+                                        >
+                                          <Icon name="shield" size={10} />
+                                          {c.stage5.integrityScore}% Integrity
                                         </span>
                                       )}
                                     </div>
@@ -5722,6 +5833,497 @@ export default function StaffHub() {
 
 
 
+          {/* TAB MODULE: ASSESSMENT RETAKE REQUESTS */}
+          {activeNav === "retakes" && (() => {
+            const filteredRequests = retakeRequestsList.filter((req) => {
+              if (retakeStatusFilter !== "ALL" && req.status !== retakeStatusFilter) return false;
+              if (retakeSearch.trim()) {
+                const s = retakeSearch.toLowerCase();
+                const name = (req.candidateName || "").toLowerCase();
+                const email = (req.candidateEmail || "").toLowerCase();
+                const reason = (req.reason || "").toLowerCase();
+                return name.includes(s) || email.includes(s) || reason.includes(s);
+              }
+              return true;
+            });
+
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon="⚡"
+                  accent="#F59E0B"
+                  title="Assessment Retake Requests"
+                  subtitle="Review and process candidate requests to retake the Talentera Stage 4 Assessment. Approving will automatically send an email with a direct login & retake link to the candidate's logged-in email."
+                  pills={
+                    <>
+                      <StatPill count={retakeCounts.pending || 0} label="PENDING" tone="pending" />
+                      <StatPill count={retakeCounts.approved || 0} label="APPROVED" tone="good" />
+                      <StatPill count={retakeCounts.rejected || 0} label="REJECTED" tone="bad" />
+                    </>
+                  }
+                />
+
+                {/* Filter and Search Bar */}
+                <div style={{
+                  background: "#fff",
+                  borderRadius: 14,
+                  border: "1px solid var(--border-light, #E2E8F0)",
+                  padding: "12px 18px",
+                  marginBottom: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 12
+                }}>
+                  {/* Status Tabs */}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {[
+                      { id: "ALL", label: "All Requests", count: retakeCounts.total || retakeRequestsList.length },
+                      { id: "PENDING", label: "Pending", count: retakeCounts.pending || 0 },
+                      { id: "APPROVED", label: "Approved", count: retakeCounts.approved || 0 },
+                      { id: "REJECTED", label: "Rejected", count: retakeCounts.rejected || 0 },
+                    ].map((tab) => (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => {
+                          setRetakeStatusFilter(tab.id);
+                          fetchRetakeRequests(tab.id);
+                        }}
+                        style={{
+                          padding: "6px 14px",
+                          borderRadius: 20,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          border: retakeStatusFilter === tab.id ? "1.5px solid #0A1F3D" : "1px solid #E2E8F0",
+                          background: retakeStatusFilter === tab.id ? "#0A1F3D" : "#F8FAFC",
+                          color: retakeStatusFilter === tab.id ? "#fff" : "#475569",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          transition: "all 0.15s ease"
+                        }}
+                      >
+                        <span>{tab.label}</span>
+                        <span style={{
+                          background: retakeStatusFilter === tab.id ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.06)",
+                          padding: "1px 6px",
+                          borderRadius: 10,
+                          fontSize: 10.5
+                        }}>
+                          {tab.count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search and Refresh */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ position: "relative", minWidth: 240 }}>
+                      <input
+                        type="text"
+                        placeholder="Search candidate, email, or reason…"
+                        value={retakeSearch}
+                        onChange={(e) => setRetakeSearch(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "7px 12px 7px 32px",
+                          fontSize: 12.5,
+                          borderRadius: 8,
+                          border: "1px solid #CBD5E1",
+                          outline: "none"
+                        }}
+                      />
+                      <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94A3B8" }}>
+                        <Icon name="search" size={14} />
+                      </span>
+                      {retakeSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setRetakeSearch("")}
+                          style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94A3B8", fontSize: 13 }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => fetchRetakeRequests(retakeStatusFilter)}
+                      disabled={retakeRequestsLoading}
+                      style={{
+                        padding: "7px 12px",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        borderRadius: 8,
+                        border: "1px solid #CBD5E1",
+                        background: "#fff",
+                        color: "#334155",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4
+                      }}
+                      title="Refresh requests"
+                    >
+                      <Icon name="clock" size={13} />
+                      {retakeRequestsLoading ? "Refreshing..." : "Refresh"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table / List Content */}
+                <div style={{ background: "#fff", borderRadius: 16, border: "1px solid var(--border-light, #E2E8F0)", overflow: "hidden" }}>
+                  {retakeRequestsLoading ? (
+                    <div style={{ padding: "60px 20px", textAlign: "center", color: "#64748B" }}>
+                      <div style={{ fontSize: 28, marginBottom: 10 }}>⏳</div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>Loading retake requests...</div>
+                    </div>
+                  ) : filteredRequests.length === 0 ? (
+                    <div style={{ padding: "60px 20px", textAlign: "center", color: "#64748B" }}>
+                      <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
+                      <div style={{ fontWeight: 700, fontSize: 15, color: "#1E293B", marginBottom: 4 }}>No retake requests found</div>
+                      <div style={{ fontSize: 13 }}>
+                        {retakeStatusFilter !== "ALL"
+                          ? `There are currently no ${retakeStatusFilter.toLowerCase()} retake requests.`
+                          : "No candidate has requested an assessment retake yet."}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", color: "#475569", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", fontWeight: 800 }}>
+                            <th style={{ padding: "14px 18px" }}>Candidate & Logged-in Email</th>
+                            <th style={{ padding: "14px 18px" }}>Assessment / Stage</th>
+                            <th style={{ padding: "14px 18px" }}>Current Score</th>
+                            <th style={{ padding: "14px 18px", minWidth: 260 }}>Reason for Retake</th>
+                            <th style={{ padding: "14px 18px" }}>Submitted</th>
+                            <th style={{ padding: "14px 18px" }}>Status</th>
+                            <th style={{ padding: "14px 18px", textAlign: "right" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRequests.map((req) => {
+                            const isPending = req.status === "PENDING";
+                            const isApproved = req.status === "APPROVED";
+                            const isRejected = req.status === "REJECTED";
+                            const initials = (req.candidateName || req.candidateEmail || "C")
+                              .split(" ")
+                              .map((n) => n[0])
+                              .slice(0, 2)
+                              .join("")
+                              .toUpperCase();
+
+                            return (
+                              <tr
+                                key={req._id}
+                                style={{
+                                  borderBottom: "1px solid #F1F5F9",
+                                  transition: "background 0.15s ease",
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                              >
+                                {/* Candidate Details */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                    <div style={{
+                                      width: 36,
+                                      height: 36,
+                                      borderRadius: "50%",
+                                      background: "linear-gradient(135deg, #0A1F3D 0%, #1E3A8A 100%)",
+                                      color: "#E5A82E",
+                                      fontWeight: 800,
+                                      fontSize: 12,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      flexShrink: 0
+                                    }}>
+                                      {initials}
+                                    </div>
+                                    <div>
+                                      <div style={{ fontWeight: 700, color: "#0F172A", fontSize: 13.5 }}>
+                                        {req.candidateName || "Candidate"}
+                                      </div>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                                        <span style={{ color: "#0284C7", fontSize: 12, fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)" }}>
+                                          {req.candidateEmail}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={() => copyToClipboard(req.candidateEmail, "Candidate Email")}
+                                          style={{ border: "none", background: "none", cursor: "pointer", color: "#94A3B8", padding: 2, display: "flex", alignItems: "center" }}
+                                          title="Copy candidate email"
+                                        >
+                                          <Icon name="copy" size={11} />
+                                        </button>
+                                      </div>
+                                      {req.candidateMobile && (
+                                        <div style={{ fontSize: 11, color: "#64748B", marginTop: 1 }}>
+                                          📞 {req.candidateMobile}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* Assessment & Stage */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle" }}>
+                                  <div style={{ fontWeight: 600, color: "#1E293B", fontSize: 12.5 }}>
+                                    {req.assessmentType || (req.stage === 5 ? "Talentera AI Mock Interview (Stage 5)" : "Talentera Assessment")}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 2, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                    <span>Stage {req.stage || 4} • Medical Coding</span>
+                                    {req.proctorLogs?.tabSwitches > 0 && (
+                                      <span style={{ background: "#FEE2E2", color: "#B91C1C", padding: "1px 6px", borderRadius: 4, fontWeight: 700, fontSize: 10 }}>
+                                        ⚠️ Tab Switch ({req.proctorLogs.tabSwitches})
+                                      </span>
+                                    )}
+                                  </div>
+                                  {req.videoUrl && (
+                                    <div style={{ marginTop: 6 }}>
+                                      <a
+                                        href={req.videoUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 4,
+                                          fontSize: 11,
+                                          fontWeight: 700,
+                                          color: "#2563EB",
+                                          textDecoration: "none",
+                                          background: "#EFF6FF",
+                                          padding: "3px 8px",
+                                          borderRadius: 6,
+                                          border: "1px solid #BFDBFE",
+                                        }}
+                                      >
+                                        <Icon name="video" size={11} />
+                                        <span>Watch Proctor Video</span>
+                                      </a>
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Score */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle" }}>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <span style={{
+                                      display: "inline-block",
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      background: req.currentScore !== undefined && req.currentScore !== null ? (req.currentScore >= 70 ? "#DCFCE7" : "#FEF3C7") : "#F1F5F9",
+                                      color: req.currentScore !== undefined && req.currentScore !== null ? (req.currentScore >= 70 ? "#166534" : "#92400E") : "#64748B",
+                                      fontFamily: "var(--font-mono, monospace)"
+                                    }}>
+                                      {req.currentScore !== undefined && req.currentScore !== null ? `${req.currentScore}% Score` : "0% (Terminated)"}
+                                    </span>
+                                    {req.integrityScore !== undefined && req.integrityScore !== null && (
+                                      <span style={{
+                                        fontSize: 10.5,
+                                        fontWeight: 800,
+                                        padding: "2px 6px",
+                                        borderRadius: 4,
+                                        background: req.integrityScore >= 80 ? "#DCFCE7" : req.integrityScore >= 50 ? "#FEF3C7" : "#FEE2E2",
+                                        color: req.integrityScore >= 80 ? "#15803D" : req.integrityScore >= 50 ? "#B45309" : "#B91C1C",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                        fontFamily: "var(--font-mono, monospace)"
+                                      }}>
+                                        <Icon name="shield" size={10} />
+                                        {req.integrityScore}% Integrity
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+
+                                {/* Reason */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle" }}>
+                                  <div style={{
+                                    background: "#F8FAFC",
+                                    border: "1px solid #E2E8F0",
+                                    borderRadius: 8,
+                                    padding: "8px 12px",
+                                    fontSize: 12,
+                                    color: "#334155",
+                                    lineHeight: 1.45,
+                                    maxHeight: 90,
+                                    overflowY: "auto"
+                                  }}>
+                                    <span style={{ fontWeight: 700, color: "#0A1F3D", marginRight: 4 }}>"</span>
+                                    {req.reason}
+                                    <span style={{ fontWeight: 700, color: "#0A1F3D", marginLeft: 4 }}>"</span>
+                                  </div>
+                                  {req.reviewNotes && (
+                                    <div style={{ fontSize: 11, color: "#64748B", marginTop: 4, fontStyle: "italic" }}>
+                                      Staff Note: {req.reviewNotes} ({req.reviewedBy || "Staff"})
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* Submitted Date */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                                  <div style={{ color: "#334155", fontSize: 12, fontWeight: 500 }}>
+                                    {new Date(req.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                  </div>
+                                  <div style={{ color: "#94A3B8", fontSize: 11 }}>
+                                    {new Date(req.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                  </div>
+                                </td>
+
+                                {/* Status */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle" }}>
+                                  {isPending && (
+                                    <span style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      background: "#FFFBEB",
+                                      color: "#B45309",
+                                      border: "1px solid #FCD34D",
+                                      padding: "4px 10px",
+                                      borderRadius: 12,
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      letterSpacing: "0.04em"
+                                    }}>
+                                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F59E0B" }} />
+                                      PENDING
+                                    </span>
+                                  )}
+                                  {isApproved && (
+                                    <span style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      background: "#F0FDF4",
+                                      color: "#15803D",
+                                      border: "1px solid #86EFAC",
+                                      padding: "4px 10px",
+                                      borderRadius: 12,
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      letterSpacing: "0.04em"
+                                    }}>
+                                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E" }} />
+                                      APPROVED
+                                    </span>
+                                  )}
+                                  {isRejected && (
+                                    <span style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      background: "#FEF2F2",
+                                      color: "#B91C1C",
+                                      border: "1px solid #FCA5A5",
+                                      padding: "4px 10px",
+                                      borderRadius: 12,
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      letterSpacing: "0.04em"
+                                    }}>
+                                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#EF4444" }} />
+                                      REJECTED
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* Action Buttons */}
+                                <td style={{ padding: "14px 18px", verticalAlign: "middle", textAlign: "right", whiteSpace: "nowrap" }}>
+                                  {isPending ? (
+                                    <div style={{ display: "inline-flex", gap: 6, justifyContent: "flex-end" }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRetakeModal({ ...req, actionType: "APPROVE" });
+                                          setRetakeReviewNotes("");
+                                        }}
+                                        style={{
+                                          background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                                          color: "#fff",
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "7px 12px",
+                                          fontSize: 12,
+                                          fontWeight: 700,
+                                          cursor: "pointer",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 5,
+                                          boxShadow: "0 2px 4px rgba(16,185,129,0.2)"
+                                        }}
+                                        title="Approve retake & send mail with retake link"
+                                      >
+                                        <Icon name="check" size={13} />
+                                        Accept & Send Mail
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRetakeModal({ ...req, actionType: "REJECT" });
+                                          setRetakeReviewNotes("");
+                                        }}
+                                        style={{
+                                          background: "#FFF",
+                                          color: "#DC2626",
+                                          border: "1px solid #FCA5A5",
+                                          borderRadius: 8,
+                                          padding: "7px 11px",
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          cursor: "pointer",
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 4
+                                        }}
+                                        title="Reject retake request"
+                                      >
+                                        Reject
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedRetakeModal({ ...req, actionType: "VIEW" });
+                                      }}
+                                      style={{
+                                        background: "#F1F5F9",
+                                        color: "#475569",
+                                        border: "1px solid #CBD5E1",
+                                        borderRadius: 8,
+                                        padding: "6px 12px",
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        cursor: "pointer"
+                                      }}
+                                    >
+                                      View Details
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* TAB MODULE 5: INTERVIEW QUESTIONS */}
           {activeNav === "questions" && (() => {
             const activeCount = interviewQuestions.filter((q) => q.active).length;
@@ -7559,22 +8161,42 @@ export default function StaffHub() {
                     <div className="staff-meta-grid">
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Interview Mode</div>
-                        <div className="staff-meta-value">{s5.interviewMode || "Video Interview"}</div>
+                        <div className="staff-meta-value">{s5.interviewMode || "AI Proctored Interview"}</div>
                       </div>
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">AI Assessment Score</div>
-                        <div className="staff-meta-value" style={{ fontSize: 18, color: "#6D28D9" }}>{s5.aiScore || s5.score || "88"}%</div>
+                        <div className="staff-meta-label">Mock Interview Score</div>
+                        <div className="staff-meta-value" style={{ fontSize: 18, color: "#6D28D9" }}>{s5.mockScore !== undefined && s5.mockScore !== null ? `${s5.mockScore}%` : (s5.aiScore || s5.score || "88") + "%"}</div>
                       </div>
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">Recording Duration</div>
-                        <div className="staff-meta-value">{s5.duration || "1m 30s"}</div>
+                        <div className="staff-meta-label">Proctoring Integrity Score</div>
+                        <div className="staff-meta-value" style={{
+                          fontSize: 18,
+                          fontWeight: 800,
+                          color: (s5.integrityScore ?? 100) >= 80 ? "#15803D" : (s5.integrityScore ?? 100) >= 50 ? "#B45309" : "#B91C1C",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6
+                        }}>
+                          <Icon name="shield" size={16} />
+                          {s5.integrityScore !== undefined && s5.integrityScore !== null ? `${s5.integrityScore}%` : "100% (Clean)"}
+                        </div>
                       </div>
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">Staff Verification</div>
+                        <div className="staff-meta-label">Anti-Cheat Audit</div>
                         <div className="staff-meta-value">
-                          <span style={{ color: s5.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>
-                            {s5.verified ? "✓ Video Verified by Staff" : "Pending Video Audit"}
-                          </span>
+                          {s5.terminatedDueToTabSwitch ? (
+                            <span style={{ color: "#DC2626", fontWeight: 800 }}>
+                              🚨 Tab Switch Auto-Terminated ({s5.proctorLogs?.tabSwitches || 1})
+                            </span>
+                          ) : s5.mockInterviewCompleted ? (
+                            <span style={{ color: "#15803D", fontWeight: 800 }}>
+                              ✓ Passed Anti-Cheat Checks
+                            </span>
+                          ) : (
+                            <span style={{ color: "#64748B", fontWeight: 600 }}>
+                              Standard Monitoring
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -9036,6 +9658,377 @@ export default function StaffHub() {
                   </div>
                 )}
               </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: RETAKE REQUEST REVIEW & DECISION */}
+      {selectedRetakeModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(6,21,42,0.7)",
+          backdropFilter: "blur(4px)",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20,
+          fontFamily: "var(--font-body, 'Manrope', sans-serif)"
+        }}>
+          <div style={{
+            background: "#FFFFFF",
+            borderRadius: 18,
+            width: "100%",
+            maxWidth: 580,
+            padding: 26,
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)",
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            maxHeight: "90vh",
+            overflowY: "auto"
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #F1F5F9", paddingBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 22 }}>⚡</span>
+                <div>
+                  <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0 }}>
+                    {selectedRetakeModal.actionType === "APPROVE" && "Approve Assessment Retake"}
+                    {selectedRetakeModal.actionType === "REJECT" && "Reject Assessment Retake"}
+                    {selectedRetakeModal.actionType === "VIEW" && "Assessment Retake Details"}
+                  </h2>
+                  <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
+                    Stage {selectedRetakeModal.stage || 4} • Talentera Medical Coding Assessment
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedRetakeModal(null)}
+                style={{ background: "transparent", border: "none", fontSize: 20, color: "#94A3B8", cursor: "pointer", padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Candidate & Request Information Card */}
+            <div style={{
+              background: "#F8FAFC",
+              border: "1px solid #E2E8F0",
+              borderRadius: 12,
+              padding: 16,
+              marginBottom: 16,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0F172A" }}>
+                    {selectedRetakeModal.candidateName || "Candidate"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#0284C7", fontFamily: "var(--font-mono, monospace)", marginTop: 2 }}>
+                    {selectedRetakeModal.candidateEmail}
+                  </div>
+                  {selectedRetakeModal.candidateMobile && (
+                    <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
+                      📞 {selectedRetakeModal.candidateMobile}
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                  <div>
+                    <div style={{ fontSize: 10, textTransform: "uppercase", color: "#64748B", fontWeight: 700 }}>Current Score</div>
+                    <div style={{
+                      fontSize: 18,
+                      fontWeight: 800,
+                      color: selectedRetakeModal.currentScore >= 70 ? "#15803D" : "#B45309",
+                      fontFamily: "var(--font-mono, monospace)"
+                    }}>
+                      {selectedRetakeModal.currentScore !== undefined && selectedRetakeModal.currentScore !== null ? `${selectedRetakeModal.currentScore}%` : "N/A"}
+                    </div>
+                  </div>
+                  {selectedRetakeModal.integrityScore !== undefined && selectedRetakeModal.integrityScore !== null && (
+                    <div style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: 6,
+                      background: selectedRetakeModal.integrityScore >= 80 ? "#DCFCE7" : selectedRetakeModal.integrityScore >= 50 ? "#FEF3C7" : "#FEE2E2",
+                      color: selectedRetakeModal.integrityScore >= 80 ? "#15803D" : selectedRetakeModal.integrityScore >= 50 ? "#B45309" : "#B91C1C",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      fontFamily: "var(--font-mono, monospace)"
+                    }}>
+                      <Icon name="shield" size={11} />
+                      Integrity Score: {selectedRetakeModal.integrityScore}%
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Proctoring Violation Telemetry */}
+              {selectedRetakeModal.proctorLogs?.tabSwitches > 0 && (
+                <div style={{
+                  background: "#FEF2F2",
+                  border: "1px solid #FCA5A5",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                  fontSize: 12,
+                  color: "#991B1B",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8
+                }}>
+                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <div>
+                    <strong>Tab Switch Violation Detected:</strong> Candidate switched browser tabs {selectedRetakeModal.proctorLogs.tabSwitches} time(s) during active assessment.
+                  </div>
+                </div>
+              )}
+
+              {/* Proctored Session Video Playback / Link */}
+              {selectedRetakeModal.videoUrl && (
+                <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 10, marginTop: 4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
+                    Recorded Proctor Session Video:
+                  </div>
+                  <div style={{ background: "#000", borderRadius: 8, overflow: "hidden", maxHeight: 220, display: "flex", justifyContent: "center" }}>
+                    <video controls src={selectedRetakeModal.videoUrl} style={{ width: "100%", maxHeight: 220 }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Stated Reason */}
+              <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 10, marginTop: 4 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                  Reason for Retake Request:
+                </div>
+                <div style={{
+                  background: "#FFF",
+                  border: "1px solid #CBD5E1",
+                  borderRadius: 8,
+                  padding: "10px 12px",
+                  fontSize: 12.5,
+                  color: "#1E293B",
+                  lineHeight: 1.5,
+                  fontStyle: "italic"
+                }}>
+                  "{selectedRetakeModal.reason}"
+                </div>
+              </div>
+
+              {selectedRetakeModal.reviewedBy && (
+                <div style={{ fontSize: 11.5, color: "#475569", marginTop: 2 }}>
+                  <strong>Reviewed by:</strong> {selectedRetakeModal.reviewedBy} on {new Date(selectedRetakeModal.reviewedAt).toLocaleString("en-IN")}
+                </div>
+              )}
+            </div>
+
+            {/* Action-Specific Section */}
+            {selectedRetakeModal.actionType === "APPROVE" && (
+              <div>
+                <div style={{
+                  background: "#ECFDF5",
+                  border: "1px solid #A7F3D0",
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  fontSize: 12.5,
+                  color: "#065F46",
+                  lineHeight: 1.45,
+                  marginBottom: 16
+                }}>
+                  <strong>⚡ Automated Action on Approval:</strong>
+                  <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+                    <li>Resets Stage 4 Assessment so candidate can take it fresh.</li>
+                    <li>Dispatches approval email to <strong>{selectedRetakeModal.candidateEmail}</strong>.</li>
+                    <li>Email contains direct link to login and immediately opens the assessment.</li>
+                  </ul>
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                    Optional Staff Note / Encouragement to Candidate:
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="e.g., Request approved. Please ensure you have an uninterrupted 60 minutes before beginning your retake."
+                    value={retakeReviewNotes}
+                    onChange={(e) => setRetakeReviewNotes(e.target.value)}
+                    style={{
+                      width: "100%",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      padding: "10px 12px",
+                      fontSize: 12.5,
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                      outline: "none"
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRetakeModal(null)}
+                    style={{
+                      background: "#F1F5F9",
+                      color: "#475569",
+                      border: "none",
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={retakeActionSubmitting}
+                    onClick={() => handleApproveRetake(selectedRetakeModal._id, retakeReviewNotes)}
+                    style={{
+                      background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+                      color: "#FFFFFF",
+                      border: "none",
+                      padding: "10px 20px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      boxShadow: "0 2px 6px rgba(16,185,129,0.3)"
+                    }}
+                  >
+                    <Icon name="check" size={14} />
+                    {retakeActionSubmitting ? "Approving & Sending Email..." : "Confirm & Send Retake Link"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selectedRetakeModal.actionType === "REJECT" && (
+              <div>
+                <div style={{
+                  background: "#FEF2F2",
+                  border: "1px solid #FECACA",
+                  borderRadius: 10,
+                  padding: "12px 14px",
+                  fontSize: 12.5,
+                  color: "#991B1B",
+                  lineHeight: 1.45,
+                  marginBottom: 16
+                }}>
+                  <strong>⚠️ Rejecting Retake Request:</strong>
+                  <div style={{ marginTop: 4 }}>
+                    The candidate will receive an email notification informing them that their retake request could not be granted at this time.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                    Reason for Rejection / Explanation to Candidate:
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="e.g., Your initial score already qualifies for placement considerations / Only 1 retake permitted per 30 days."
+                    value={retakeReviewNotes}
+                    onChange={(e) => setRetakeReviewNotes(e.target.value)}
+                    style={{
+                      width: "100%",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      padding: "10px 12px",
+                      fontSize: 12.5,
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                      outline: "none"
+                    }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRetakeModal(null)}
+                    style={{
+                      background: "#F1F5F9",
+                      color: "#475569",
+                      border: "none",
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={retakeActionSubmitting}
+                    onClick={() => handleRejectRetake(selectedRetakeModal._id, retakeReviewNotes)}
+                    style={{
+                      background: "#DC2626",
+                      color: "#FFFFFF",
+                      border: "none",
+                      padding: "10px 20px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6
+                    }}
+                  >
+                    {retakeActionSubmitting ? "Rejecting..." : "Confirm Rejection"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selectedRetakeModal.actionType === "VIEW" && (
+              <div>
+                {selectedRetakeModal.reviewNotes && (
+                  <div style={{
+                    background: "#F8FAFC",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: 10,
+                    padding: "12px 14px",
+                    marginBottom: 16
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase", marginBottom: 4 }}>Staff Review Notes:</div>
+                    <div style={{ fontSize: 13, color: "#1E293B" }}>{selectedRetakeModal.reviewNotes}</div>
+                  </div>
+                )}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRetakeModal(null)}
+                    style={{
+                      background: "var(--navy, #0A1F3D)",
+                      color: "#FFF",
+                      border: "none",
+                      padding: "10px 20px",
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer"
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         </div>

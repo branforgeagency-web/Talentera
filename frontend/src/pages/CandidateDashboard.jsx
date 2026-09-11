@@ -80,9 +80,13 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     if (s1.currentRole && String(s1.currentRole).trim()) fields.push({ label: "CURRENT ROLE", val: String(s1.currentRole).trim() });
     if (s1.gender && String(s1.gender).trim()) fields.push({ label: "GENDER", val: String(s1.gender).trim() });
     if (s1.dob && String(s1.dob).trim()) fields.push({ label: "DOB", val: String(s1.dob).trim() });
-    if (s1.address && String(s1.address).trim()) fields.push({ label: "LOCALITY ADDRESS", val: String(s1.address).trim() });
     if (s1.photoBase64) fields.push({ label: "PHOTO", val: "Aadhaar photo captured ✓" });
     else if (s1.aadhaarVerified) fields.push({ label: "PHOTO", val: "Aadhaar photo matched ✓" });
+    const vaultDocs = s1.documentVault || s1.documents || [];
+    const uploadedVaultCount = vaultDocs.filter((d) => Boolean(d.docUrl)).length;
+    if (uploadedVaultCount > 0) {
+      fields.push({ label: "DOCUMENT VAULT", val: `${uploadedVaultCount} File(s) Uploaded ✓` });
+    }
   } else if (stageNum === 2) {
     const s2 = candidate?.stage2 || {};
     const academy = s2.academyName || s2.instituteName;
@@ -141,7 +145,8 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     }
     if (candidate?.resumeUrl) fields.push({ label: "RESUME PDF", val: "PDF Generated & Download Ready ✓" });
     if (s7.summary && String(s7.summary).trim()) {
-      fields.push({ label: "PROFESSIONAL SUMMARY", val: String(s7.summary).trim().slice(0, 70) + (s7.summary.length > 70 ? "..." : "") });
+      const isFresher = String(candidate?.stage1?.experience || candidate?.experience || "").toLowerCase() === "fresher";
+      fields.push({ label: isFresher ? "CAREER OBJECTIVE" : "PROFESSIONAL SUMMARY", val: String(s7.summary).trim().slice(0, 70) + (s7.summary.length > 70 ? "..." : "") });
     }
   } else if (stageNum === 8) {
     const s8 = candidate?.stage8 || {};
