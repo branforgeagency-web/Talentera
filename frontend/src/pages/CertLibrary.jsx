@@ -50,6 +50,7 @@ export default function CertLibrary() {
 
   // Filter certs for Specialty tab if subFilter selected
   const displayedCerts = useMemo(() => {
+    if (!activeBody?.certs) return [];
     if (activeBodyKey === "specialty" && specialtyFilter !== "All") {
       return activeBody.certs.filter((c) => c.subBody === specialtyFilter);
     }
@@ -316,7 +317,7 @@ export default function CertLibrary() {
                       borderRadius: 12,
                     }}
                   >
-                    {body.certs.length}
+                    {body?.certs?.length || 0}
                   </span>
                 </div>
                 <span

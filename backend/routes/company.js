@@ -50,7 +50,7 @@ function isEmptyValue(v) {
 // GET /api/company/me - full onboarding profile
 router.get("/me", async (req, res) => {
   const company = await Company.findById(req.companyId);
-  if (!company) return res.status(404).json({ message: "Not found." });
+  if (!company) return res.status(401).json({ message: "Company session expired or account not found." });
 
   let modified = false;
   const stage1a = company.stage1a || {};

@@ -19,20 +19,33 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   const initialCertType = existingData?.isCertified === false || existingData?.nonCertified === true || existingData?.certType === "non-certified" ? "non-certified" : "certified";
   const [certType, setCertType] = useState(initialCertType);
 
-  const [body, setBody] = useState(
-    paramBody && CERT_LIBRARY[paramBody] ? paramBody : existingData?.body || "aapc"
-  );
-  const [certCode, setCertCode] = useState(
-    paramCert || existingData?.certCode || (paramBody && CERT_LIBRARY[paramBody] ? CERT_LIBRARY[paramBody].certs[0].code : CERT_LIBRARY.aapc.certs[0].code)
-  );
+  const resolveValidBody = (b) => {
+    if (!b) return "aapc";
+    const lower = String(b).toLowerCase().trim();
+    if (CERT_LIBRARY[lower]) return lower;
+    if (CERT_LIBRARY[b]) return b;
+    return "aapc";
+  };
+
+  const initialBody = resolveValidBody(paramBody || existingData?.body);
+  const [body, setBody] = useState(initialBody);
+
+  const [certCode, setCertCode] = useState(() => {
+    if (paramCert) return paramCert;
+    if (existingData?.certCode) return existingData.certCode;
+    const bData = CERT_LIBRARY[initialBody] || CERT_LIBRARY.aapc;
+    return bData?.certs?.[0]?.code || "CPC";
+  });
 
   useEffect(() => {
-    if (paramBody && CERT_LIBRARY[paramBody]) {
-      setBody(paramBody);
+    if (paramBody) {
+      const valid = resolveValidBody(paramBody);
+      setBody(valid);
       if (paramCert) {
         setCertCode(paramCert);
       } else {
-        setCertCode(CERT_LIBRARY[paramBody].certs[0].code);
+        const bData = CERT_LIBRARY[valid] || CERT_LIBRARY.aapc;
+        setCertCode(bData?.certs?.[0]?.code || "CPC");
       }
     }
   }, [paramBody, paramCert]);
@@ -63,9 +76,9 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const bodyData = CERT_LIBRARY[body];
+  const bodyData = CERT_LIBRARY[body] || CERT_LIBRARY.aapc || { certs: [], color: "#2563EB", name: "AAPC", fullName: "American Academy of Professional Coders" };
   const selectedCert = useMemo(() => bodyData?.certs?.find((c) => c.code === certCode) || bodyData?.certs?.[0] || {}, [bodyData, certCode]);
-  const pattern = CERT_ID_PATTERNS[body] || { regex: /^[A-Za-z0-9]{8}$/ };
+  const pattern = CERT_ID_PATTERNS[body] || CERT_ID_PATTERNS.aapc || { regex: /^[A-Za-z0-9]{8}$/ };
 
   const idState = memberId.length === 0 ? "idle" : pattern.regex.test(memberId) ? "valid" : "invalid";
   const yearMatch = issueDate.match(/\d{4}/);
@@ -73,8 +86,10 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
   const dateState = !issueDate ? "idle" : year && year >= 2010 && year <= currentYear() ? "valid" : "invalid";
 
   function handleBodyChange(key) {
-    setBody(key);
-    setCertCode(CERT_LIBRARY[key].certs[0].code);
+    const validKey = resolveValidBody(key);
+    setBody(validKey);
+    const targetData = CERT_LIBRARY[validKey] || CERT_LIBRARY.aapc;
+    setCertCode(targetData?.certs?.[0]?.code || "CPC");
     setMemberId("");
   }
 
@@ -312,7 +327,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
             <div className="wiz-pill-row">
               {Object.values(CERT_LIBRARY).map((b) => (
                 <button key={b.key} type="button" className={`wiz-pill wiz-pill-compact ${body === b.key ? "active" : ""}`} onClick={() => handleBodyChange(b.key)}>
-                  {b.name} <span className="wiz-pill-count">{b.certs.length}</span>
+                  {b.name} <span className="wiz-pill-count">{b?.certs?.length || 0}</span>
                 </button>
               ))}
             </div>
@@ -333,7 +348,7 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
           </Link>
         </div>
         <select value={certCode} onChange={(e) => setCertCode(e.target.value)} required>
-          {bodyData.certs.map((c) => (
+          {(bodyData?.certs || []).map((c) => (
             <option key={c.code} value={c.code}>
               {c.flag ? "⭐ " : ""}{c.code} — {c.name}
             </option>
@@ -341,13 +356,13 @@ export default function Stage3Certification({ stage, existingData, onSaved }) {
         </select>
       </div>
 
-      <div className="wiz-cert-detail" style={{ "--cert-accent": bodyData.color }}>
+      <div className="wiz-cert-detail" style={{ "--cert-accent": bodyData?.color || "#2563EB" }}>
         <div className="wiz-cert-detail-head">
-          <span className="wiz-cert-code">{selectedCert.code}</span>
-          {selectedCert.flag && <span className="wiz-cert-flag">{selectedCert.flagText}</span>}
+          <span className="wiz-cert-code">{selectedCert?.code || "CERT"}</span>
+          {selectedCert?.flag && <span className="wiz-cert-flag">{selectedCert.flagText}</span>}
         </div>
-        <div className="wiz-cert-name">{selectedCert.name}</div>
-        <div className="wiz-cert-target">{selectedCert.target} · {bodyData.fullName}</div>
+        <div className="wiz-cert-name">{selectedCert?.name || "Certification"}</div>
+        <div className="wiz-cert-target">{selectedCert?.target || "Medical Coding"} · {bodyData?.fullName || bodyData?.name}</div>
         <div className="wiz-cert-stats">
           <div><strong>{selectedCert.time}</strong><span>Exam time</span></div>
           <div><strong>{selectedCert.qs} Qs</strong><span>Questions</span></div>

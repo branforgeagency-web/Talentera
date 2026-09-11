@@ -295,7 +295,7 @@ router.post("/demo-login", async (req, res) => {
 router.get("/me", requireCompanyAuth, async (req, res) => {
   try {
     const company = await Company.findById(req.companyId);
-    if (!company) return res.status(404).json({ message: "Company not found." });
+    if (!company) return res.status(401).json({ message: "Company session expired or account not found." });
     res.json({ company });
   } catch (err) {
     res.status(500).json({ message: "Server error." });

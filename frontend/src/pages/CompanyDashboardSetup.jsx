@@ -209,18 +209,40 @@ export default function CompanyDashboardSetup() {
     }
   }
 
-  const contactName = (authCompany?.contactName || company.contactName || "there").split(" ")[0];
-  const companyName = authCompany?.companyName || company.companyName || "your company";
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--navy)" }}>Loading company workspace...</div>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#FAF7F2", gap: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>Please sign in to access your company dashboard</div>
+        <button
+          onClick={() => navigate("/companies")}
+          style={{ padding: "10px 20px", background: "var(--navy, #0f172a)", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}
+        >
+          Go to Company Sign In
+        </button>
+      </div>
+    );
+  }
+
+  const contactName = (authCompany?.contactName || company?.contactName || "there").split(" ")[0];
+  const companyName = authCompany?.companyName || company?.companyName || "your company";
 
   // A submitted JD (company.jdPublished) still needs a Talentera staff
   // sign-off (company.jdApprovalStatus) before candidates can actually see
   // it - see routes/staff.js POST /verify-job and routes/public.js GET
   // /jobs. "Live" is reserved for the approved state so this dashboard
   // doesn't tell a company their JD is visible before it actually is.
-  const jdApprovalStatus = company.jdApprovalStatus || "pending";
-  const jdIsLive = company.jdPublished && jdApprovalStatus === "approved";
-  const jdIsPendingApproval = company.jdPublished && jdApprovalStatus === "pending";
-  const jdIsRejected = company.jdPublished && jdApprovalStatus === "rejected";
+  const jdApprovalStatus = company?.jdApprovalStatus || "pending";
+  const jdIsLive = Boolean(company?.jdPublished && jdApprovalStatus === "approved");
+  const jdIsPendingApproval = Boolean(company?.jdPublished && jdApprovalStatus === "pending");
+  const jdIsRejected = Boolean(company?.jdPublished && jdApprovalStatus === "rejected");
 
   return (
     <div style={{ minHeight: "100vh", background: "#FAF7F2", color: "var(--navy)", fontFamily: "var(--font-body)" }}>

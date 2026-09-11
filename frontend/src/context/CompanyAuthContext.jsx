@@ -16,16 +16,22 @@ export function CompanyAuthProvider({ children }) {
     companyApi
       .get("/company/auth/me")
       .then((res) => setCompany(res.data.company))
-      .catch(() => {
+      .catch((err) => {
+        if (err.response?.status === 401 || err.response?.status === 404) {
+          localStorage.removeItem("talentera_company_token");
+          localStorage.removeItem("talentera_company_info");
+          setCompany(null);
+          return;
+        }
         const storedInfo = localStorage.getItem("talentera_company_info");
         if (storedInfo) {
           try {
             setCompany(JSON.parse(storedInfo));
           } catch (e) {
-            setCompany({ companyName: "Optum Healthcare", contactName: "HR Manager", email: "hr@optum.com", completedStages: [1, 2, 3, 4] });
+            setCompany(null);
           }
         } else {
-          setCompany({ companyName: "Optum Healthcare", contactName: "HR Manager", email: "hr@optum.com", completedStages: [1, 2, 3, 4] });
+          setCompany(null);
         }
       })
       .finally(() => setLoading(false));

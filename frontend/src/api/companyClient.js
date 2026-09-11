@@ -21,8 +21,12 @@ companyApi.interceptors.request.use((config) => {
 companyApi.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (
+      err.response?.status === 401 ||
+      (err.response?.status === 404 && err.config?.url?.includes("/company/auth/me"))
+    ) {
       localStorage.removeItem("talentera_company_token");
+      localStorage.removeItem("talentera_company_info");
       if (window.location.pathname.startsWith("/companies/onboarding") || window.location.pathname.startsWith("/companies/dashboard")) {
         window.location.href = "/companies";
       }
