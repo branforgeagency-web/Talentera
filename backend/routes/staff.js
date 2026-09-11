@@ -295,11 +295,11 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       };
     });
 
-    // Video Introductions Queue - strictly candidates who provided a genuine self-introduction video
+    // Video Introductions Queue - candidate self-introductions and AI proctored mock interview recordings
     const videoIntrosQueue = candidates
       .filter((c) => {
         const s5 = c.stage5 || {};
-        const videoUrl = s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || "";
+        const videoUrl = s5.proctoredInterviewVideoUrl || s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || "";
         if (!videoUrl || s5.skipped) return false;
         if (c.email && c.email.includes("test.candidate.")) return false;
         if (videoUrl.includes("/samples/") || videoUrl.includes("sample.mp4")) return false;
@@ -308,7 +308,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       .map((c) => {
         const s1 = c.stage1 || {};
         const s5 = c.stage5 || {};
-        const videoPath = s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || "";
+        const videoPath = s5.proctoredInterviewVideoUrl || s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || "";
 
         const noteQuestions = Array.isArray(s5.answerNotes) ? s5.answerNotes : [];
         const legacyScoredQuestions = Array.isArray(s5.questionScores) ? s5.questionScores : [];
@@ -932,8 +932,9 @@ router.post("/verify-video", requireStaffAuth, async (req, res) => {
     const candidate = await Candidate.findById(candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
     const s5 = candidate.stage5 || {};
-    if (!s5.videoUrl && !s5.url && !s5.fileUrl && !s5.videoFileName) {
-      return res.status(400).json({ message: "This candidate has no video introduction to review." });
+    const hasVideo = s5.proctoredInterviewVideoUrl || s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl;
+    if (!hasVideo) {
+      return res.status(400).json({ message: "This candidate has no video recording to review." });
     }
 
     if (action === "verify") {

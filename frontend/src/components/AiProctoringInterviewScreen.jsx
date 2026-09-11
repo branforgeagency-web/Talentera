@@ -351,6 +351,7 @@ export default function AiProctoringInterviewScreen({
   const [pitchRatio, setPitchRatio] = useState(1.0);
   const [faceDetected, setFaceDetected] = useState(true);
   const [rawWarning, setRawWarning] = useState(null);
+  const missedFaceCountRef = useRef(0);
 
   // Debounced Warning Overlay & Infraction Count
   const [activeWarning, setActiveWarning] = useState(null);
@@ -621,9 +622,18 @@ export default function AiProctoringInterviewScreen({
       // Initialize MediaRecorder for continuous session recording
       recordedChunksRef.current = [];
       try {
-        let mimeType = "video/webm;codecs=vp8,opus";
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          mimeType = MediaRecorder.isTypeSupported("video/webm") ? "video/webm" : "";
+        let mimeType = "";
+        const preferredTypes = [
+          "video/webm;codecs=vp8,opus",
+          "video/webm;codecs=vp9,opus",
+          "video/webm",
+          "video/mp4",
+        ];
+        for (const t of preferredTypes) {
+          if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) {
+            mimeType = t;
+            break;
+          }
         }
         const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
         recorder.ondataavailable = (e) => {
@@ -658,9 +668,14 @@ export default function AiProctoringInterviewScreen({
       const results = landmarker.detectForVideo(video, startTimeMs);
 
       if (!results.faceLandmarks || results.faceLandmarks.length === 0) {
-        setFaceDetected(false);
-        setRawWarning("⚠️ Face not detected! Please stay centered in frame");
+        missedFaceCountRef.current += 1;
+        // Require 15 consecutive missing frames (~500-800ms) before flagging "Face not detected"
+        if (missedFaceCountRef.current > 15) {
+          setFaceDetected(false);
+          setRawWarning("⚠️ Face not detected! Please stay centered in frame");
+        }
       } else {
+        missedFaceCountRef.current = 0;
         setFaceDetected(true);
         const landmarks = results.faceLandmarks[0];
 
@@ -670,27 +685,27 @@ export default function AiProctoringInterviewScreen({
         const forehead = landmarks[10];     // Top boundary
         const chin = landmarks[152];        // Bottom boundary
 
-        // 1. Yaw Ratio (Horizontal turn left / right)
+        // 1. Yaw Ratio (Horizontal turn left / right) - relaxed for natural speaking/movement
         const dLeft = Math.abs(nose.x - leftCheek.x);
         const dRight = Math.abs(nose.x - rightCheek.x);
         const computedYawRatio = Number((dLeft / (dRight || 0.0001)).toFixed(3));
         setYawRatio(computedYawRatio);
 
-        // 2. Pitch Ratio (Vertical look up / down)
+        // 2. Pitch Ratio (Vertical look up / down) - relaxed for reading and natural head tilt
         const dTop = Math.abs(nose.y - forehead.y);
         const dBottom = Math.abs(nose.y - chin.y);
         const computedPitchRatio = Number((dTop / (dBottom || 0.0001)).toFixed(3));
         setPitchRatio(computedPitchRatio);
 
-        // Evaluate Ultra-Sensitive Infraction Conditions
+        // Evaluate Head Pose with balanced, generous tolerance for natural movement
         let currentWarning = null;
-        if (computedYawRatio < 0.80) {
+        if (computedYawRatio < 0.55) {
           currentWarning = "⚠️ Head turned right — Please face the screen directly";
-        } else if (computedYawRatio > 1.25) {
+        } else if (computedYawRatio > 1.80) {
           currentWarning = "⚠️ Head turned left — Please face the screen directly";
-        } else if (computedPitchRatio < 0.78) {
+        } else if (computedPitchRatio < 0.50) {
           currentWarning = "⚠️ Head tilted up — Please look directly at the screen";
-        } else if (computedPitchRatio > 1.28) {
+        } else if (computedPitchRatio > 1.95) {
           currentWarning = "⚠️ Head tilted down — Please look directly at the screen";
         }
 
@@ -708,11 +723,11 @@ export default function AiProctoringInterviewScreen({
         warningTimerRef.current = setTimeout(() => {
           setActiveWarning(rawWarning);
           const now = Date.now();
-          if (now - lastWarningLoggedAtRef.current > 2500) {
+          if (now - lastWarningLoggedAtRef.current > 4500) {
             setAttentionWarningsCount((prev) => prev + 1);
             lastWarningLoggedAtRef.current = now;
           }
-        }, 200);
+        }, 800);
       }
     } else {
       if (warningTimerRef.current) {
@@ -735,24 +750,34 @@ export default function AiProctoringInterviewScreen({
       setIsSubmittingProctored(true);
       try {
         if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-          try {
-            mediaRecorderRef.current.stop();
-          } catch {}
+          await new Promise((resolve) => {
+            const rec = mediaRecorderRef.current;
+            const onStop = () => resolve();
+            rec.addEventListener("stop", onStop, { once: true });
+            try {
+              rec.stop();
+            } catch {
+              resolve();
+            }
+            setTimeout(resolve, 800);
+          });
         }
 
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 250));
 
+        const mime = mediaRecorderRef.current?.mimeType || "video/webm";
         const videoBlob =
           recordedChunksRef.current.length > 0
-            ? new Blob(recordedChunksRef.current, { type: "video/webm" })
+            ? new Blob(recordedChunksRef.current, { type: mime })
             : null;
 
         const calculatedIntegrity = Math.max(0, 100 - attentionWarningsCount * 4 - (isTabSwitch ? 50 : 0));
         const finalScore = isTabSwitch ? 0 : (typeof evaluatedScore === "number" ? evaluatedScore : 80);
 
         const formData = new FormData();
-        if (videoBlob) {
-          formData.append("video", videoBlob, "proctored_mock_interview.webm");
+        if (videoBlob && videoBlob.size > 0) {
+          const extension = mime.includes("mp4") ? "mp4" : "webm";
+          formData.append("video", videoBlob, `proctored_mock_interview.${extension}`);
         }
         formData.append("status", finalStatus);
         formData.append("score", String(finalScore));
@@ -900,6 +925,29 @@ export default function AiProctoringInterviewScreen({
   // --- 17. INTERVIEW FLOW HANDLERS ---
   const handleStartInterview = async () => {
     setInterviewStarted(true);
+    recordedChunksRef.current = [];
+
+    // Ensure recorder is initialized and recording
+    if (!mediaRecorderRef.current && streamRef.current) {
+      try {
+        let mimeType = "";
+        const preferredTypes = ["video/webm;codecs=vp8,opus", "video/webm;codecs=vp9,opus", "video/webm", "video/mp4"];
+        for (const t of preferredTypes) {
+          if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) {
+            mimeType = t;
+            break;
+          }
+        }
+        const recorder = mimeType ? new MediaRecorder(streamRef.current, { mimeType }) : new MediaRecorder(streamRef.current);
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+        };
+        mediaRecorderRef.current = recorder;
+      } catch (e) {
+        console.warn("Init recorder in start:", e);
+      }
+    }
+
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "inactive") {
       try {
         mediaRecorderRef.current.start(1000);

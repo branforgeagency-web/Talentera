@@ -5,16 +5,20 @@ const DOMAINS = ["Medical Coding", "Medical Billing", "AR Calling"];
 const SPECIALTIES = ["HCC / Risk Adjustment", "ED Coding", "Surgery Coding", "IP DRG", "OP / E&M", "Cardiology", "Radiology"];
 
 export default function Stage2Training({ stage, existingData, candidate, onSaved }) {
-  const initialExp = (() => {
-    if (existingData?.experienceLevel) return existingData.experienceLevel.toLowerCase();
-    const s1Exp = (candidate?.stage1?.experience || "").toLowerCase();
+  // Automatically choose experience level from Section 1 (Stage 1) Basic Info
+  const determineLevelFromStage1 = () => {
+    const s1Exp = String(candidate?.stage1?.experience || candidate?.stage1?.experienceLevel || candidate?.experience || "").trim().toLowerCase();
     if (s1Exp.includes("fresher")) return "fresher";
     if (s1Exp.includes("exp") || s1Exp === "1-3" || s1Exp === "3-5" || s1Exp === "5+") return "experienced";
     if (Array.isArray(candidate?.stage1?.workHistory) && candidate.stage1.workHistory.length > 0) return "experienced";
+    if (existingData?.experienceLevel) return String(existingData.experienceLevel).toLowerCase();
     return "fresher";
-  })();
+  };
 
-  const [experienceLevel, setExperienceLevel] = useState(initialExp);
+  const s1Exp = String(candidate?.stage1?.experience || candidate?.stage1?.experienceLevel || candidate?.experience || "").trim().toLowerCase();
+  const isStage1Fresher = s1Exp.includes("fresher");
+
+  const [experienceLevel, setExperienceLevel] = useState(determineLevelFromStage1);
   const [domain, setDomain] = useState(existingData?.domain || "Medical Coding");
   const [specialty, setSpecialty] = useState(existingData?.specialty || SPECIALTIES[0]);
   const [academyName, setAcademyName] = useState(existingData?.academyName ?? "Apex Medical Coding Institute");
@@ -22,17 +26,15 @@ export default function Stage2Training({ stage, existingData, candidate, onSaved
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Sync with candidate stage 1 if stage 2 does not have its own override saved
+  // Automatically keep in sync whenever Section 1 Basic Info is loaded or updated
   React.useEffect(() => {
-    if (!existingData?.experienceLevel) {
-      const s1Exp = (candidate?.stage1?.experience || "").toLowerCase();
-      if (s1Exp.includes("fresher")) {
-        setExperienceLevel("fresher");
-      } else if (s1Exp.includes("exp") || (Array.isArray(candidate?.stage1?.workHistory) && candidate.stage1.workHistory.length > 0)) {
-        setExperienceLevel("experienced");
-      }
+    const s1Exp = String(candidate?.stage1?.experience || candidate?.stage1?.experienceLevel || candidate?.experience || "").trim().toLowerCase();
+    if (s1Exp.includes("fresher")) {
+      setExperienceLevel("fresher");
+    } else if (s1Exp.includes("exp") || s1Exp === "1-3" || s1Exp === "3-5" || s1Exp === "5+" || (Array.isArray(candidate?.stage1?.workHistory) && candidate.stage1.workHistory.length > 0)) {
+      setExperienceLevel("experienced");
     }
-  }, [candidate?.stage1?.experience, candidate?.stage1?.workHistory, existingData?.experienceLevel]);
+  }, [candidate?.stage1?.experience, candidate?.stage1?.experienceLevel, candidate?.experience, candidate?.stage1?.workHistory]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -98,13 +100,18 @@ export default function Stage2Training({ stage, existingData, candidate, onSaved
             type="button"
             className={`wiz-pill wiz-pill-compact ${experienceLevel === "fresher" ? "active" : ""}`}
             onClick={() => setExperienceLevel("fresher")}
+            disabled={!isStage1Fresher && Boolean(s1Exp)}
+            style={!isStage1Fresher && Boolean(s1Exp) ? { opacity: 0.5, cursor: "not-allowed" } : {}}
           >
             Fresher (No prior industry experience)
           </button>
           <button
             type="button"
             className={`wiz-pill wiz-pill-compact ${experienceLevel === "experienced" ? "active" : ""}`}
-            onClick={() => setExperienceLevel("experienced")}
+            onClick={() => !isStage1Fresher && setExperienceLevel("experienced")}
+            disabled={isStage1Fresher}
+            style={isStage1Fresher ? { opacity: 0.5, cursor: "not-allowed" } : {}}
+            title={isStage1Fresher ? "Disabled because Fresher was chosen in Section 1 (Basic Info)" : ""}
           >
             Experienced (1+ yrs experience)
           </button>

@@ -8154,7 +8154,10 @@ export default function StaffHub() {
               {/* TAB 5: AI VIDEO INTERVIEW */}
               {candidateModalTab === "video" && (() => {
                 const s5 = selectedCandidate.stage5 || {};
-                const qaPairs = Array.isArray(s5.qaPairs) ? s5.qaPairs : [];
+                const videoUrl = s5.proctoredInterviewVideoUrl || s5.videoUrl || selectedCandidate.stage8?.aiInterview?.videoUrl || selectedCandidate.videoUrl;
+                const qaPairs = Array.isArray(s5.qaPairs) && s5.qaPairs.length > 0
+                  ? s5.qaPairs
+                  : (Array.isArray(selectedCandidate.stage8?.aiInterview?.result?.questionBreakdown) ? selectedCandidate.stage8.aiInterview.result.questionBreakdown : []);
                 return (
                   <div>
                     <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 5: AI Video / Audio Assessment</h3>
@@ -8201,9 +8204,20 @@ export default function StaffHub() {
                       </div>
                     </div>
 
-                    {s5.videoUrl && (
-                      <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 18, maxHeight: 300, display: "flex", justifyContent: "center" }}>
-                        <video controls src={s5.videoUrl} style={{ width: "100%", maxHeight: 300 }} />
+                    {videoUrl ? (
+                      <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 18, maxHeight: 340, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <video controls playsInline src={getAssetUrl(videoUrl)} style={{ width: "100%", maxHeight: 300, display: "block" }} />
+                        <div style={{ padding: "6px 12px", width: "100%", background: "#0F172A", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#94A3B8" }}>
+                          <span>📹 AI Mock Interview Proctored Recording</span>
+                          <a href={getAssetUrl(videoUrl)} target="_blank" rel="noreferrer" style={{ color: "#F5B41A", textDecoration: "none", fontWeight: 700 }}>
+                            Open video in new tab ↗
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ background: "#F1F5F9", border: "1px dashed #CBD5E1", borderRadius: 12, padding: "20px 16px", textAlign: "center", marginBottom: 18, color: "#64748B" }}>
+                        <i className="fa-solid fa-video-slash" style={{ fontSize: 24, marginBottom: 6, display: "block", color: "#94A3B8" }}></i>
+                        <span style={{ fontSize: 12.5, fontWeight: 700 }}>No video recording uploaded for this session yet.</span>
                       </div>
                     )}
 
@@ -9797,8 +9811,13 @@ export default function StaffHub() {
                   <div style={{ fontSize: 11, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 6 }}>
                     Recorded Proctor Session Video:
                   </div>
-                  <div style={{ background: "#000", borderRadius: 8, overflow: "hidden", maxHeight: 220, display: "flex", justifyContent: "center" }}>
-                    <video controls src={selectedRetakeModal.videoUrl} style={{ width: "100%", maxHeight: 220 }} />
+                  <div style={{ background: "#000", borderRadius: 8, overflow: "hidden", maxHeight: 220, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                    <video controls playsInline src={getAssetUrl(selectedRetakeModal.videoUrl)} style={{ width: "100%", maxHeight: 200, display: "block" }} />
+                    <div style={{ padding: "4px 8px", background: "#0F172A", textAlign: "right" }}>
+                      <a href={getAssetUrl(selectedRetakeModal.videoUrl)} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: "#F5B41A", textDecoration: "none", fontWeight: 700 }}>
+                        Open in New Tab ↗
+                      </a>
+                    </div>
                   </div>
                 </div>
               )}
