@@ -1033,7 +1033,9 @@ router.post(
         } else if (typeof req.body?.proctorLogs === "object") {
           proctorLogs = req.body.proctorLogs;
         }
-      } catch {}
+      } catch (_err) {
+        // Fallback to empty object if proctorLogs is malformed
+      }
 
       const status = req.body?.status || (proctorLogs.tabSwitches > 0 ? "TERMINATED_TAB_SWITCH" : "COMPLETED");
       const isTabSwitch = status === "TERMINATED_TAB_SWITCH" || Boolean(proctorLogs.tabSwitches > 0);
@@ -1054,7 +1056,9 @@ router.post(
           let qaPairs = [];
           try {
             qaPairs = typeof req.body.qaPairs === "string" ? JSON.parse(req.body.qaPairs) : req.body.qaPairs;
-          } catch {}
+          } catch (_err) {
+            // Fallback to empty array if qaPairs is malformed
+          }
           if (Array.isArray(qaPairs) && qaPairs.length > 0) {
             const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
             let totalPoints = 0;
@@ -1142,7 +1146,7 @@ router.post(
       res.json({
         success: true,
         status,
-        score,
+        score: finalScore,
         integrityScore,
         videoUrl: fileUrl,
         candidate,
