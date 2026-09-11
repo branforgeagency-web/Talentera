@@ -1190,8 +1190,8 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
               </div>
             </div>
 
-            <div style={{ background: "#525659", padding: 24, borderRadius: "0 0 16px 16px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)" }} className="printable-area">
-              <div id="printable-resume">
+            <div style={{ background: "#F8FAFC", padding: "16px 0", borderRadius: "0 0 16px 16px", display: "flex", justifyContent: "center" }} className="printable-area">
+              <div id="printable-resume" style={{ width: "100%", maxWidth: "850px", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.04)", overflow: "hidden", background: "#FFFFFF" }}>
                 <TemplateComponent data={displayData} accentColor={selectedColor} />
               </div>
             </div>
@@ -1253,8 +1253,8 @@ export default function Stage7Resume({ stage, existingData, onSaved }) {
           )}
 
           {/* LIVE VERIFIED RESUME TEMPLATE DISPLAY */}
-          <div style={{ background: "#525659", padding: 24, borderRadius: 16, boxShadow: "0 10px 30px rgba(0,0,0,0.15)" }} className="printable-area">
-            <div id="printable-resume">
+          <div style={{ background: "#F8FAFC", padding: "16px 0", borderRadius: 16, display: "flex", justifyContent: "center" }} className="printable-area">
+            <div id="printable-resume" style={{ width: "100%", maxWidth: "850px", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.04)", overflow: "hidden", background: "#FFFFFF" }}>
               <TemplateComponent data={displayData} accentColor={selectedColor} />
             </div>
           </div>

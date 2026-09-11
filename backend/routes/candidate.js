@@ -1088,12 +1088,17 @@ router.post(
       const finalScore = isTabSwitch ? 0 : evaluatedScore;
       const integrityScore = Number(req.body?.integrityScore) || (isTabSwitch ? 0 : 95);
 
+      const parsedQaPairs = breakdown.length > 0
+        ? breakdown
+        : (req.body?.qaPairs ? (typeof req.body.qaPairs === "string" ? JSON.parse(req.body.qaPairs) : req.body.qaPairs) : []);
+
       // 1. Update Candidate Stage 5 record
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
         mockInterviewCompleted: status === "COMPLETED",
         mockScore: finalScore,
         integrityScore: integrityScore,
+        qaPairs: parsedQaPairs.length > 0 ? parsedQaPairs : (candidate.stage5?.qaPairs || []),
         proctorLogs: {
           ...proctorLogs,
           tabSwitches: proctorLogs.tabSwitches || (isTabSwitch ? 1 : 0),
@@ -1104,6 +1109,10 @@ router.post(
         videoUrl: fileUrl || candidate.stage5?.videoUrl || null,
         updatedAt: new Date(),
       };
+
+      if (fileUrl) {
+        candidate.videoUrl = fileUrl;
+      }
 
       // 2. Sync to Stage 8 / AI Interview session history for staff audit
       candidate.stage8 = {
