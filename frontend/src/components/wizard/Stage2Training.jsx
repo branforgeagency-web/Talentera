@@ -19,7 +19,6 @@ export default function Stage2Training({ stage, existingData, candidate, onSaved
   const [specialty, setSpecialty] = useState(existingData?.specialty || SPECIALTIES[0]);
   const [academyName, setAcademyName] = useState(existingData?.academyName ?? "Apex Medical Coding Institute");
   const [duration, setDuration] = useState(existingData?.duration ?? "6 months");
-  const [trainerName, setTrainerName] = useState(existingData?.trainerName ?? "Mr. Karthik");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -46,10 +45,6 @@ export default function Stage2Training({ stage, existingData, candidate, onSaved
       setError("Please enter the training duration.");
       return;
     }
-    if (!trainerName || trainerName.trim().length < 2) {
-      setError("Please enter the Trainer / Mentor name.");
-      return;
-    }
 
     setSaving(true);
     try {
@@ -61,7 +56,6 @@ export default function Stage2Training({ stage, existingData, candidate, onSaved
         courseName: isExp && specialty ? `${domain} - ${specialty}` : domain,
         academyName: academyName.trim(),
         duration: duration.trim(),
-        trainerName: trainerName.trim(),
       });
       onSaved(res.data);
     } catch (err) {
@@ -133,22 +127,16 @@ export default function Stage2Training({ stage, existingData, candidate, onSaved
         <input type="text" value={academyName} onChange={(e) => setAcademyName(e.target.value)} />
       </div>
 
-      <div className="wiz-field-row">
-        <div className="wiz-field">
-          <label>Duration</label>
-          <input type="text" value={duration} onChange={(e) => setDuration(e.target.value)} />
-        </div>
-        <div className="wiz-field">
-          <label>Trainer name</label>
-          <input type="text" value={trainerName} onChange={(e) => setTrainerName(e.target.value)} />
-        </div>
+      <div className="wiz-field">
+        <label>Duration</label>
+        <input type="text" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="e.g. 6 months" />
       </div>
 
       <div className="wiz-result-card">
         <span className="wiz-result-check">✓</span>
         <div>
           <div className="wiz-result-title">Academy verified · {academyName.split(" ")[0]} confirmed your enrollment</div>
-          <div className="wiz-result-sub">Trainer {trainerName} confirmed completion. Verified-by-academy badge attached to your profile.</div>
+          <div className="wiz-result-sub">Academy training completion confirmed. Verified-by-academy badge attached to your profile.</div>
         </div>
       </div>
 

@@ -32,20 +32,10 @@ body {
    GLOBAL DARK BLUE TYPOGRAPHY ENFORCEMENT (LIGHT SECTIONS)
    ========================================================================== */
 
-<<<<<<< Updated upstream
 /* Headings default to dark blue across light pages */
 h1:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading),
 h2:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading),
 h3, h4, h5, h6,
-=======
-/* Headings default to dark blue across light pages (excluding StaffHub & executive hero elements) */
-h1:not(.staff-dashboard *):not([class*="sf-"]):not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title),
-h2:not(.staff-dashboard *):not([class*="sf-"]):not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title),
-h3:not(.staff-dashboard *):not([class*="sf-"]),
-h4:not(.staff-dashboard *):not([class*="sf-"]),
-h5:not(.staff-dashboard *):not([class*="sf-"]),
-h6:not(.staff-dashboard *):not([class*="sf-"]),
->>>>>>> Stashed changes
 .hero-main-title,
 .section-title-light,
 .job-role-title,
@@ -57,13 +47,8 @@ h6:not(.staff-dashboard *):not([class*="sf-"]),
   color: #082553;
 }
 
-<<<<<<< Updated upstream
 /* Subtitles, labels, and readable body text in light sections */
 p:not(.fc-hero-sub):not(.fa-hero-sub):not(.fco-hero-sub):not(.candidate-parallax-lead):not(.pipeline-parallax-lead):not(.fc-cta-sub):not(.fco-cta-sub):not(.tal-fn-sub):not(.fc-benefit-desc):not(.fc-fasttrack-desc):not(.st-ai-bubble-text),
-=======
-/* Subtitles, labels, and readable body text in light sections (excluding StaffHub & executive hero elements) */
-p:not(.staff-dashboard *):not([class*="sf-"]):not(.sf-hero-desc):not(.fc-hero-sub):not(.fa-hero-sub):not(.fco-hero-sub):not(.candidate-parallax-lead):not(.fc-cta-sub):not(.fco-cta-sub):not(.tal-fn-sub):not(.fc-benefit-desc):not(.fc-fasttrack-desc):not(.st-ai-bubble-text),
->>>>>>> Stashed changes
 .section-lead,
 .hero-partner-desc,
 .pipeline-step-desc,

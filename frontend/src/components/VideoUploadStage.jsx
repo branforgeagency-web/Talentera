@@ -2,10 +2,13 @@ import React, { useState, useEffect } from "react";
 import api from "../api/client";
 import AiVideoAssessment from "./AiVideoAssessment.jsx";
 import ClaudeMockInterviewBot from "./ClaudeMockInterviewBot.jsx";
+import AiProctoringInterviewScreen from "./AiProctoringInterviewScreen.jsx";
 
 export default function VideoUploadStage({ stage, existingData, onSaved }) {
-  // mode: "overview" | "record_intro" | "start_mock"
-  const [mode, setMode] = useState("overview");
+  // mode: "overview" | "record_intro" | "start_mock" | "proctor_mock"
+  const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const initialMode = searchParams?.get("mode") || "overview";
+  const [mode, setMode] = useState(initialMode);
   const [mockSession, setMockSession] = useState(null);
   const [loadingMockState, setLoadingMockState] = useState(true);
 
@@ -49,6 +52,12 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
   );
 
   const isMockInProgress = Boolean(mockSession?.status === "IN_PROGRESS");
+  const isTerminatedTabSwitch = Boolean(
+    existingData?.stage5?.terminatedDueToTabSwitch ||
+    existingData?.terminatedDueToTabSwitch ||
+    mockSession?.status === "TERMINATED_TAB_SWITCH" ||
+    existingData?.stage8?.aiInterview?.status === "TERMINATED_TAB_SWITCH"
+  );
   const mockScore = mockSession?.result?.overallScore ?? existingData?.stage8?.aiInterview?.result?.overallScore ?? existingData?.mockScore ?? existingData?.stage5?.mockScore ?? null;
 
   // Both must be complete to unlock next stage
@@ -68,15 +77,6 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
   async function handleProceedToStage6() {
     if (!bothCompleted) return;
     try {
-      // Deliberately NOT sending videoUrl/aiScore here: the real self-intro
-      // video + score were already saved by AiVideoAssessment's own call to
-      // /candidate/ai-video/assess (or the mock interview's own save) before
-      // this ever runs. The backend does a raw shallow merge on stage5
-      // (`{...existing, ...req.body}`), so sending a placeholder fallback
-      // value here would silently overwrite the real recording/score with
-      // fake data if `existingData` hasn't been refreshed yet with the
-      // latest candidate doc. This call's only job is to flip the two
-      // completion flags so the wizard can advance.
       const res = await api.put("/candidate/stage/5", {
         completed: true,
         selfIntroCompleted: true,
@@ -120,10 +120,10 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
     );
   }
 
-  if (mode === "start_mock") {
+  if (mode === "proctor_mock" || mode === "start_mock") {
     return (
-      <div className="wiz-stage-container">
-        <div style={{ marginBottom: 16 }}>
+      <div className="wiz-stage-container" style={{ maxWidth: 1400, margin: "0 auto", padding: "0 12px" }}>
+        <div style={{ marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <button
             type="button"
             className="btn btn-ghost"
@@ -132,8 +132,12 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
           >
             <span>← Back to Stage 05 Hub</span>
           </button>
+          <span style={{ fontSize: 12, color: "#64748B", fontWeight: 600 }}>
+            <i className="fa-solid fa-shield-halved" style={{ color: "#2563EB", marginRight: 6 }}></i>
+            Real-Time AI Vision Proctoring Active
+          </span>
         </div>
-        <ClaudeMockInterviewBot candidateData={existingData} onCompleted={handleMockCompleted} />
+        <AiProctoringInterviewScreen candidateData={existingData} onCompleted={handleMockCompleted} />
       </div>
     );
   }
@@ -489,7 +493,7 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
 
       {/* Cards List */}
       <div className="stage5-cards-grid">
-        {/* Card 1: 90-second self-introduction */}
+        {/* Card 1: 60-second self-introduction */}
         <div className={`stage5-card-item ${hasSelfIntro ? "is-completed" : ""}`}>
           <div className="stage5-card-main">
             <div className={`stage5-icon-box ${hasSelfIntro ? "is-completed" : ""}`}>
@@ -504,7 +508,7 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
             </div>
             <div className="stage5-card-info">
               <div className="stage5-card-heading-row">
-                <h3 className="stage5-card-heading">1. 90-Second Self-Introduction</h3>
+                <h3 className="stage5-card-heading">1. 60-Second Self-Introduction</h3>
                 {hasSelfIntro ? (
                   <span className="stage5-tag-completed">
                     <i className="fa-solid fa-circle-check"></i> COMPLETED
@@ -515,8 +519,8 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
               </div>
               <p className="stage5-card-desc">
                 {hasSelfIntro
-                  ? "Self-introduction recorded and waiting for verification."
-                  : "Tip: watch the prep guidelines first. Companies watch this exact recording before shortlisting."}
+                  ? "Self-introduction video submitted and waiting for verification."
+                  : "Record live or upload your pre-recorded 60-second self-introduction video. Employers watch this recording before shortlisting."}
               </p>
             </div>
           </div>
@@ -529,7 +533,7 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
           ) : (
             <button type="button" className="stage5-action-btn" onClick={() => setMode("record_intro")}>
               <i className="fa-solid fa-video"></i>
-              <span>RECORD NOW</span>
+              <span>RECORD / UPLOAD</span>
             </button>
           )}
         </div>
@@ -554,6 +558,10 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
                   <span className="stage5-tag-completed">
                     <i className="fa-solid fa-circle-check"></i> COMPLETED
                   </span>
+                ) : isTerminatedTabSwitch ? (
+                  <span className="stage5-tag-required" style={{ background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5" }}>
+                    <i className="fa-solid fa-triangle-exclamation"></i> TAB SWITCH AUTO-SUBMITTED
+                  </span>
                 ) : isMockInProgress ? (
                   <span className="stage5-tag-required" style={{ background: "#FEF3C7", color: "#B45309" }}>
                     IN PROGRESS
@@ -565,6 +573,8 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
               <p className="stage5-card-desc">
                 {isMockCompleted
                   ? `Mock interview complete${mockScore !== null ? ` · Score: ${mockScore}/100` : ""}. Click View Score to inspect feedback.`
+                  : isTerminatedTabSwitch
+                  ? "Interview auto-submitted due to browser tab switch anti-cheat violation. Request a retake to have Talentera staff review and approve a new attempt."
                   : "Interactive AI mock interview covering 5 student/fresher topics: Introduction, Education, Skills, Projects, and Career Goals."}
               </p>
             </div>
@@ -574,6 +584,16 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
             <button type="button" className="stage5-view-score-btn" onClick={() => setMode("start_mock")}>
               <i className="fa-solid fa-chart-simple"></i>
               <span>VIEW SCORE</span>
+            </button>
+          ) : isTerminatedTabSwitch ? (
+            <button
+              type="button"
+              className="stage5-action-btn"
+              onClick={() => setMode("start_mock")}
+              style={{ background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)", boxShadow: "0 4px 14px rgba(217, 119, 6, 0.35)" }}
+            >
+              <i className="fa-solid fa-rotate-right"></i>
+              <span>REQUEST RETAKE / STATUS</span>
             </button>
           ) : isMockInProgress ? (
             <button type="button" className="stage5-action-btn" onClick={() => setMode("start_mock")}>
@@ -600,7 +620,7 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
           ) : (
             <span style={{ color: "#64748B" }}>
               <i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i>
-              Complete both the 90s Self-Introduction and AI Mock Interview to unlock the next stage.
+              Complete both the 60s Self-Introduction and AI Mock Interview to unlock the next stage.
             </span>
           )}
         </div>

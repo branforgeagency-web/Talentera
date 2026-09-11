@@ -4,7 +4,7 @@ import api from "../api/client";
 const COMPANIES_SEE = [
   "Your assessment scores (Foundation 78, Specialty 82, per-topic breakdown)",
   "Academy, trainer, certification ID (last 4 only)",
-  "Your 90-second video intro + AI mock-interview score",
+  "Your 60-second video intro + AI mock-interview score",
   "Aadhaar locality (city only) + KYC verified badge",
   "Your interview track history (anonymized summary)",
 ];

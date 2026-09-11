@@ -103,9 +103,10 @@ export const COURSE_QUESTION_BANKS = {
 export const SINGLE_SELF_INTRO_QUESTION = [
   {
     id: 1,
-    title: "90-Second Self-Introduction",
-    question: "Please tell me about yourself - your background, education, and your experience in Medical Coding and Healthcare RCM.",
-    timeLimit: 90,
+    title: "60-Second Self-Introduction",
+    question: "Please give your 60-second professional self-introduction — describe your background, education, and career aspirations in Medical Coding / Healthcare RCM.",
+    timeLimit: 60,
+    minDuration: 60,
   }
 ];
 
@@ -115,60 +116,43 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
 
-  const [questionsLoading, setQuestionsLoading] = useState(!(customQuestions || existingData?.customQuestions));
+  const [questionsLoading, setQuestionsLoading] = useState(false);
   const [fetchedQuestions, setFetchedQuestions] = useState(null);
 
-  // Stage 5 is one continuous recording that does two things at once: a
-  // 90-second self-introduction (always Question 1 - the exact clip
-  // companies watch) followed by a short AI-scored mock interview (4 more
-  // conversational questions, scored on communication - clarity, fluency,
-  // vocabulary & grammar, confidence). Staff can configure their own
-  // question bank (fetched below); when they haven't, fall back to a random
-  // draw from the built-in conversational pool. Question 1 is always the
-  // self-intro prompt either way, so the "90-second self-introduction" card
-  // keeps its promise regardless of which bank supplies the remaining 4.
+  // Stage 5 video capture is focused strictly on the 60-second professional
+  // self-introduction (minimum duration: 60 seconds). This single video clip
+  // is evaluated by AI and reviewed by healthcare recruiters.
   const questionsList = useMemo(() => {
-    const intro = { ...SINGLE_SELF_INTRO_QUESTION[0] };
-    const customBank = customQuestions || existingData?.customQuestions;
-    const restSource =
-      customBank && customBank.length
-        ? customBank
-        : fetchedQuestions && fetchedQuestions.length
-        ? fetchedQuestions
-        : shuffleAndPickQuestions(
-            EXPANDED_QUESTION_POOL.filter((q) => q.question !== intro.question),
-            4
-          );
-    const rest = restSource.filter((q) => q.question !== intro.question).slice(0, 4);
-    return [intro, ...rest].map((q, idx) => ({ ...q, id: idx + 1 }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [customQuestions, fetchedQuestions]);
+    return [
+      {
+        id: 1,
+        title: "60-Second Self-Introduction",
+        question: "Please give your 60-second professional self-introduction — describe your background, education, and career aspirations in Medical Coding / Healthcare RCM.",
+        timeLimit: 60,
+        minDuration: 60,
+      }
+    ];
+  }, []);
 
   const isInterviewCompleted = Boolean(
     existingData && (existingData.completedAt || existingData.videoUrl || typeof existingData.aiScore === "number")
   );
 
   // Setup & Camera States
-  // "setup" used to be a separate first screen here with its own duplicate
-  // "RECORD NOW"/"START MOCK" cards - identical in content to the hub
-  // screen VideoUploadStage.jsx already shows before ever mounting this
-  // component, so clicking through felt like "RECORD NOW" doing nothing
-  // twice in a row. Removed; this component now opens straight on the
-  // liveness/camera check, its first actually-new screen.
   const [step, setStep] = useState(isInterviewCompleted ? "report" : "liveness"); // liveness | recording | evaluating | report
+  const [activeTab, setActiveTab] = useState("record"); // "record" | "upload"
   const [stream, setStream] = useState(null);
-  // Always mirrors the current MediaStream so effect cleanup / stopWebcam can
-  // stop the LIVE stream even when a cleanup closure captured a stale `stream`
-  // value. The recording stream is created async (after the [step] effect's
-  // cleanup already captured the old stream), and that gap is exactly why the
-  // camera light stayed on after the interview finished.
   const streamRef = useRef(null);
-  // Guards the auto-start-on-recording effect so the interview begins exactly
-  // once when the candidate reaches the recording screen (they already clicked
-  // "Start 90s Self-Introduction Recording" on the liveness screen - no need
-  // for a second identical Start button here).
   const autoStartedRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
+
+  // Pre-recorded video upload states
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState("");
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [uploadError, setUploadError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
 
   // Face Detection State (Anti-cheat face guard)
   const [isFacePresent, setIsFacePresent] = useState(true);
@@ -183,20 +167,14 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const [sessionStarted, setSessionStarted] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [recTimeLeft, setRecTimeLeft] = useState(questionsList[0]?.timeLimit || 45);
+  const [isPaused, setIsPaused] = useState(false);
+  const [recTimeLeft, setRecTimeLeft] = useState(60);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [silenceTimeLeft, setSilenceTimeLeft] = useState(SILENCE_TIMEOUT_SECONDS);
   const lastSpeechTimeRef = useRef(Date.now());
   const [qaTranscripts, setQaTranscripts] = useState({});
   const [proctorLogs, setProctorLogs] = useState({ tabSwitches: 0, focusLosses: 0 });
   const advancingRef = useRef(false);
-  // True only while an answer window should actively be listening. Browsers
-  // (Chrome especially) can silently stop a "continuous" SpeechRecognition
-  // session on their own - even mid-answer, with the candidate still
-  // talking - with no built-in way to detect/restart it. Without this flag +
-  // the onend handler in startAnswerWindow, that made the AI appear to stop
-  // listening while the candidate was still speaking. Set true right before
-  // starting recognition, false right before any intentional stop() so the
-  // auto-restart doesn't fight a deliberate shutdown.
   const recognitionShouldRunRef = useRef(false);
 
   useEffect(() => {
@@ -488,39 +466,36 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     return () => clearInterval(interval);
   }, [stream, step]);
 
-  // Handle Question Time Limit Timer. Only ticks while isRecording is true
+  // Handle Question Time Limit Timer. Only ticks while isRecording is true and not paused
   useEffect(() => {
-    if (!isRecording) return;
+    if (!isRecording || isPaused) return;
     if (recTimeLeft <= 0) {
       advanceToNextQuestion();
       return;
     }
-    const timer = setTimeout(() => setRecTimeLeft((prev) => prev - 1), 1000);
+    const timer = setTimeout(() => {
+      setRecTimeLeft((prev) => Math.max(0, prev - 1));
+      setRecordingSeconds((prev) => prev + 1);
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [isRecording, recTimeLeft]);
+  }, [isRecording, isPaused, recTimeLeft]);
 
-  // Silence Detection Monitor. Was previously hardcoded to a 3s threshold
-  // here regardless of what startAnswerWindow displayed via setSilenceTimeLeft
-  // (10s) - so answers were actually being cut off after 3s of no new
-  // speech-recognition result, not the 10s shown in the UI. That mismatch is
-  // exactly what made the AI seem to "stop listening" while the candidate
-  // was still mid-answer. Both now read from the same SILENCE_TIMEOUT_SECONDS
-  // constant.
+  // Silence Detection Monitor: after 60s minimum duration is met, auto-advances if prolonged silence is detected
   useEffect(() => {
-    if (!isRecording) return;
+    if (!isRecording || isPaused) return;
     const silenceTimer = setInterval(() => {
       const elapsedSilence = Math.floor((Date.now() - lastSpeechTimeRef.current) / 1000);
       const remainingSilence = Math.max(0, SILENCE_TIMEOUT_SECONDS - elapsedSilence);
       setSilenceTimeLeft(remainingSilence);
 
-      if (elapsedSilence >= SILENCE_TIMEOUT_SECONDS) {
+      if (elapsedSilence >= SILENCE_TIMEOUT_SECONDS && recordingSeconds >= 60) {
         clearInterval(silenceTimer);
-        toast(`No speech detected for ${SILENCE_TIMEOUT_SECONDS} seconds. Auto-advancing...`, "!");
+        toast(`No speech detected for ${SILENCE_TIMEOUT_SECONDS} seconds. Auto-submitting...`, "!");
         advanceToNextQuestion();
       }
     }, 1000);
     return () => clearInterval(silenceTimer);
-  }, [isRecording]);
+  }, [isRecording, isPaused, recordingSeconds]);
 
   // Anti-Cheat Tab Switch & Window Focus Loss Listener during recording: Immediately stops & terminates interview
   useEffect(() => {
@@ -530,14 +505,14 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       if (document.visibilityState === "hidden") {
         setProctorLogs((prev) => ({ ...prev, tabSwitches: prev.tabSwitches + 1 }));
         toast("⚠️ Tab switch detected! Interview terminated immediately for anti-cheat violation.", "!");
-        handleFinishSingleTakeInterview();
+        handleFinishSingleTakeInterview(true);
       }
     }
 
     function handleWindowBlur() {
       setProctorLogs((prev) => ({ ...prev, focusLosses: prev.focusLosses + 1 }));
       toast("⚠️ Window focus loss detected! Interview terminated immediately for anti-cheat violation.", "!");
-      handleFinishSingleTakeInterview();
+      handleFinishSingleTakeInterview(true);
     }
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -612,13 +587,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   // --- Step 3: Single-Take AI Video Interview Recording ---
   async function handleStartSingleTakeInterview() {
-    let activeStream = stream;
+    let activeStream = stream || streamRef.current;
     if (!activeStream || activeStream.getAudioTracks().length === 0) {
       activeStream = await startWebcam(true);
     }
     if (!activeStream) {
       toast("Please allow camera and microphone access to record your self-introduction.", "!");
       return;
+    }
+    if (videoPreviewRef.current && videoPreviewRef.current.srcObject !== activeStream) {
+      videoPreviewRef.current.srcObject = activeStream;
     }
     if (!isFacePresent) {
       toast("Please be in front of the camera and look directly at the screen.", "!");
@@ -628,6 +606,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     recordedChunksRef.current = [];
     setQIdx(0);
     qIdxRef.current = 0;
+    setRecTimeLeft(60);
+    setRecordingSeconds(0);
+    setIsPaused(false);
     setQaTranscripts({});
     setSessionStarted(true);
 
@@ -670,29 +651,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       toast("Recording initialization error: " + err.message, "!");
     }
 
-    // AI speaks Question 1 aloud first; the answer window (timer + silence
-    // detection + speech recognition) only opens once it finishes speaking.
+    // AI speaks the Self-Introduction prompt aloud first; the answer window (timer + speech recognition)
+    // opens once it finishes speaking.
     speakQuestion(questionsList[0].question, () => startAnswerWindow(0));
   }
 
-  // Opens the answer window for question `idx`: starts the countdown, the
-  // 10s silence monitor, and a FRESH speech-recognition instance scoped to
-  // just this question. A brand-new instance per question (instead of one
-  // continuous instance for the whole interview) matters for two reasons:
-  // browsers silently stop long-running continuous recognition after a
-  // while with no way to detect/restart it (this was why answering stopped
-  // working from Question 2 onward), and a shared instance was also mixing
-  // every prior answer into the current question's transcript.
-  function startAnswerWindow(idx) {
-    const q = questionsList[idx];
-    if (!q) return;
-
-    setRecTimeLeft(q.timeLimit);
-    setSilenceTimeLeft(SILENCE_TIMEOUT_SECONDS);
-    lastSpeechTimeRef.current = Date.now();
-    setIsRecording(true);
-    recognitionShouldRunRef.current = true;
-
+  function startSpeechRecognition(qId) {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
@@ -706,10 +670,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return;
 
-    // Wired with onend so that if the browser drops the recognition session
-    // on its own mid-answer, it comes straight back instead of leaving the
-    // candidate talking to a mic that's stopped capturing.
-    function beginRecognition() {
+    function begin() {
       if (!recognitionShouldRunRef.current) return;
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
@@ -722,13 +683,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         if (text.trim()) {
           lastSpeechTimeRef.current = Date.now();
         }
-        setQaTranscripts((prev) => ({ ...prev, [q.id]: text }));
+        setQaTranscripts((prev) => ({ ...prev, [qId]: text }));
       };
-      recognition.onerror = () => {}; // swallow no-speech/network hiccups - the silence timer handles advancing
+      recognition.onerror = () => {};
       recognition.onend = () => {
         if (recognitionShouldRunRef.current) {
           try {
-            beginRecognition();
+            begin();
           } catch (e) {}
         }
       };
@@ -737,13 +698,214 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         recognitionRef.current = recognition;
       } catch (e) {}
     }
-    beginRecognition();
+    begin();
+  }
+
+  // Opens the answer window: starts the 60s countdown, elapsed seconds tracker,
+  // and speech-recognition instance.
+  function startAnswerWindow(idx) {
+    const q = questionsList[idx] || questionsList[0];
+    if (!q) return;
+
+    setRecTimeLeft(q.timeLimit || 60);
+    setRecordingSeconds(0);
+    setIsPaused(false);
+    setSilenceTimeLeft(SILENCE_TIMEOUT_SECONDS);
+    lastSpeechTimeRef.current = Date.now();
+    setIsRecording(true);
+    recognitionShouldRunRef.current = true;
+    startSpeechRecognition(q.id);
+  }
+
+  function handlePauseRecording() {
+    if (!isRecording || isPaused) return;
+    setIsPaused(true);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      try {
+        mediaRecorderRef.current.pause();
+      } catch (e) {
+        console.warn("MediaRecorder pause error:", e);
+      }
+    }
+    recognitionShouldRunRef.current = false;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+    toast("Recording paused. Click Resume when you are ready to continue.", "i");
+  }
+
+  function handleResumeRecording() {
+    if (!isRecording || !isPaused) return;
+    setIsPaused(false);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
+      try {
+        mediaRecorderRef.current.resume();
+      } catch (e) {
+        console.warn("MediaRecorder resume error:", e);
+      }
+    }
+    lastSpeechTimeRef.current = Date.now();
+    recognitionShouldRunRef.current = true;
+    startSpeechRecognition(questionsList[0]?.id || 1);
+    toast("Recording resumed! Speak clearly.", "✓");
+  }
+
+  async function handleResetRecording() {
+    // 1. Cancel any active speech synthesis
+    if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
+    setIsSpeaking(false);
+    setIsPaused(false);
+    setIsRecording(false);
+    setSessionStarted(false);
+    setRecordingSeconds(0);
+    setRecTimeLeft(60);
+    setQaTranscripts({});
+    recordedChunksRef.current = [];
+    autoStartedRef.current = false;
+
+    // 2. Stop media recorder safely
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {}
+      mediaRecorderRef.current = null;
+    }
+
+    // 3. Stop speech recognition safely
+    recognitionShouldRunRef.current = false;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+
+    toast("Recording reset! Starting from 0s...", "i");
+
+    // 4. Ensure webcam stream is active and preview connected
+    let activeStream = stream;
+    if (!activeStream || activeStream.getAudioTracks().length === 0) {
+      activeStream = await startWebcam(true);
+    } else if (videoPreviewRef.current && videoPreviewRef.current.srcObject !== activeStream) {
+      videoPreviewRef.current.srcObject = activeStream;
+    }
+
+    // 5. Restart recording session cleanly from the beginning
+    setTimeout(() => {
+      autoStartedRef.current = true;
+      handleStartSingleTakeInterview();
+    }, 300);
+  }
+
+  function handleVideoFileSelect(file) {
+    if (!file) return;
+    const validExtensions = /\.(mp4|webm|mov|mkv|avi)$/i;
+    if (!file.type.startsWith("video/") && !validExtensions.test(file.name)) {
+      setUploadError("Please upload a valid video file (.mp4, .webm, .mov, .mkv).");
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      setUploadError(`Video file size must be under 20 MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)} MB.`);
+      toast(`Video size must be under 20 MB (Current: ${(file.size / (1024 * 1024)).toFixed(1)} MB).`, "!");
+      return;
+    }
+    setUploadError("");
+    setUploadedFile(file);
+    const url = URL.createObjectURL(file);
+    setUploadPreviewUrl(url);
+
+    const tempVideo = document.createElement("video");
+    tempVideo.preload = "metadata";
+    tempVideo.onloadedmetadata = () => {
+      const duration = Math.round(tempVideo.duration);
+      setVideoDuration(duration);
+      if (duration < 60) {
+        setUploadError(`Video must be 60 seconds in duration. Your video is only ${duration} seconds.`);
+        toast(`Video must be 60 seconds in duration. Current length: ${duration}s.`, "!");
+      } else {
+        setUploadError("");
+        toast(`Video loaded (${duration}s) successfully!`, "✓");
+      }
+    };
+    tempVideo.src = url;
+  }
+
+  async function handlePreRecordedVideoSubmit() {
+    if (!uploadedFile) {
+      toast("Please choose a video file to upload first.", "!");
+      return;
+    }
+    if (uploadedFile.size > 20 * 1024 * 1024) {
+      setUploadError(`Video file size must be under 20 MB. Your file is ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.`);
+      toast("Video file size must be under 20 MB.", "!");
+      return;
+    }
+    if (videoDuration < 60) {
+      setUploadError(`Video must be 60 seconds in duration. Your video is only ${videoDuration} seconds.`);
+      toast("Video must be 60 seconds in duration.", "!");
+      return;
+    }
+    setStep("evaluating");
+    setSubmitting(true);
+
+    const formData = new FormData();
+    formData.append("video", uploadedFile);
+    formData.append(
+      "qaPairs",
+      JSON.stringify([
+        {
+          questionId: 1,
+          question: "60-Second Self-Introduction",
+          transcript: "Pre-recorded self-introduction video uploaded by candidate.",
+        },
+      ])
+    );
+    formData.append(
+      "proctorLogs",
+      JSON.stringify({
+        mode: "pre_recorded_upload",
+        durationSeconds: videoDuration,
+        fileName: uploadedFile.name,
+        livenessVerified: true,
+      })
+    );
+
+    try {
+      const res = await api.post("/candidate/ai-video/assess", formData, {
+        timeout: 180000,
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+
+      if (res.data && res.data.success) {
+        setEvaluation(res.data.evaluation);
+        setStep("report");
+        toast("Pre-recorded self-introduction video submitted & evaluated! Thank you.", "✓");
+        lastSavedDataRef.current = res.data;
+        if (onSaved) onSaved(res.data, { advance: false });
+      }
+    } catch (err) {
+      console.error("Video upload error:", err);
+      toast(err.response?.data?.message || "Failed to upload video. Please try again.", "!");
+      setStep("liveness");
+    } finally {
+      setSubmitting(false);
+      stopWebcam();
+    }
   }
 
   function advanceToNextQuestion() {
-    // Guards against the time-limit timer and the silence timer both firing
-    // for the same question (e.g. both hit their threshold on the same
-    // tick), which previously could double-advance and desync the timer.
     if (advancingRef.current) return;
     advancingRef.current = true;
 
@@ -769,12 +931,16 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         startAnswerWindow(nextIdx);
       });
     } else {
-      toast("Single-take AI video recording complete! Submitting for evaluation...", "✓");
-      handleFinishSingleTakeInterview();
+      toast("60-second self-introduction recording complete! Submitting for evaluation...", "✓");
+      handleFinishSingleTakeInterview(true);
     }
   }
 
-  function handleFinishSingleTakeInterview() {
+  function handleFinishSingleTakeInterview(force = false) {
+    if (!force && recordingSeconds < 60) {
+      toast(`Please record for at least 60 seconds (currently ${recordingSeconds}s / 60s).`, "!");
+      return;
+    }
     advancingRef.current = true;
     recognitionShouldRunRef.current = false;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -918,13 +1084,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   return (
     <div className="card" style={{ padding: 24, borderRadius: 16 }}>
       {/* HEADER BANNER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
         <div>
           <span style={{ background: "var(--gold)", color: "var(--navy)", fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-            STAGE 05 · COMMUNICATION &amp; VIDEO INTERVIEW
+            STAGE 05 · COMMUNICATION &amp; VIDEO ASSESSMENT
           </span>
           <h3 style={{ margin: "4px 0 0", fontSize: 20, fontWeight: 800, color: "var(--navy)" }}>
-            Live AI Communication &amp; Video Interview
+            60-Second Professional Self-Introduction
           </h3>
         </div>
 
@@ -937,16 +1103,331 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         </div>
       </div>
 
-      {/* FACE PRESENCE WARNING BANNER */}
-      {!isFacePresent && (step === "liveness" || step === "recording") && (
+      {/* DUAL MODE TABS: RECORD LIVE vs UPLOAD PRE-RECORDED */}
+      {step !== "evaluating" && step !== "report" && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, borderBottom: "1px solid #E2E8F0", paddingBottom: 14, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("record");
+              setUploadError("");
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 18px",
+              borderRadius: 10,
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              background: activeTab === "record" ? "var(--navy)" : "#F8FAFC",
+              color: activeTab === "record" ? "#FFFFFF" : "#475569",
+              border: activeTab === "record" ? "2px solid var(--navy)" : "1.5px solid #CBD5E1",
+              boxShadow: activeTab === "record" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+            }}
+          >
+            <i className="fa-solid fa-video" style={{ color: activeTab === "record" ? "var(--gold)" : "#64748B" }}></i>
+            <span>Record Live Video (60s)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setActiveTab("upload");
+              stopWebcam();
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 18px",
+              borderRadius: 10,
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              background: activeTab === "upload" ? "var(--navy)" : "#F8FAFC",
+              color: activeTab === "upload" ? "#FFFFFF" : "#475569",
+              border: activeTab === "upload" ? "2px solid var(--navy)" : "1.5px solid #CBD5E1",
+              boxShadow: activeTab === "upload" ? "0 4px 12px rgba(15, 23, 42, 0.15)" : "none",
+            }}
+          >
+            <i className="fa-solid fa-cloud-arrow-up" style={{ color: activeTab === "upload" ? "var(--gold)" : "#64748B" }}></i>
+            <span>Upload Pre-Recorded Video (60s)</span>
+          </button>
+        </div>
+      )}
+
+      {/* FACE PRESENCE WARNING BANNER (Only during live mode) */}
+      {activeTab === "record" && !isFacePresent && (step === "liveness" || step === "recording") && (
         <div style={{ background: "#FEF2F2", border: "2px solid #EF4444", color: "#991B1B", padding: "12px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
           <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 18 }}></i>
           <span><strong>Face Not Detected:</strong> Please be in front of the camera and look directly at the screen to record your answer.</span>
         </div>
       )}
 
-      {/* STEP 1: LIVENESS VERIFICATION - this component's first screen now; camera turns on only from here */}
-      {step === "liveness" && (
+      {/* ========================================================================= */}
+      {/* MODE B: PRE-RECORDED VIDEO UPLOAD SECTION                                  */}
+      {/* ========================================================================= */}
+      {activeTab === "upload" && step !== "evaluating" && step !== "report" && (
+        <div style={{ background: "#FFFFFF", border: "2px solid var(--navy)", borderRadius: 16, padding: 28, boxShadow: "0 8px 24px rgba(0,0,0,0.04)" }}>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+              <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+                OPTION: PRE-RECORDED VIDEO
+              </span>
+              <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
+                MANDATORY DURATION: 60 SECONDS (MIN 60s)
+              </span>
+            </div>
+            <h4 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)", margin: "0 0 6px" }}>
+              Upload Your 60-Second Self-Introduction Video
+            </h4>
+            <p style={{ fontSize: 13, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
+              If you have already recorded your professional self-introduction on your phone or camera, you can upload the video file directly here (.mp4, .webm, .mov, max 20MB). Video length must be at least 60 seconds.
+            </p>
+          </div>
+
+          {/* Hidden File Input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,video/x-matroska,video/*"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                handleVideoFileSelect(e.target.files[0]);
+              }
+            }}
+          />
+
+          {/* Upload Dropzone / Preview */}
+          {!uploadedFile ? (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                  handleVideoFileSelect(e.dataTransfer.files[0]);
+                }
+              }}
+              onClick={() => fileInputRef.current && fileInputRef.current.click()}
+              style={{
+                border: `2px dashed ${isDragging ? "var(--gold)" : "#94A3B8"}`,
+                background: isDragging ? "#FFFBEB" : "#F8FAFC",
+                borderRadius: 14,
+                padding: "48px 24px",
+                textAlign: "center",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#EEF2F6", color: "var(--navy)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, margin: "0 auto 16px" }}>
+                <i className="fa-solid fa-cloud-arrow-up"></i>
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginBottom: 6 }}>
+                Click to browse or drag and drop your video file
+              </div>
+              <div style={{ fontSize: 12, color: "#64748B", marginBottom: 16 }}>
+                Supported formats: MP4, WebM, MOV, MKV (Minimum duration: 60s, Maximum file size: 20 MB)
+              </div>
+              <button
+                type="button"
+                className="btn btn-navy"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current && fileInputRef.current.click();
+                }}
+                style={{ padding: "10px 24px", fontSize: 13, fontWeight: 700 }}
+              >
+                <i className="fa-solid fa-folder-open" style={{ marginRight: 6 }}></i> Choose Video File
+              </button>
+            </div>
+          ) : (
+            <div>
+              {/* Video Preview Player */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "center" }}>
+                <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", maxHeight: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <video
+                    src={uploadPreviewUrl}
+                    controls
+                    playsInline
+                    style={{ width: "100%", maxHeight: 320, objectFit: "contain", background: "#000" }}
+                  />
+                </div>
+
+                {/* Video Info and Submit Card */}
+                <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+                  <div>
+                    <span style={{
+                      background: videoDuration >= 60 && uploadedFile.size <= 20 * 1024 * 1024 ? "#DCFCE7" : "#FEF3C7",
+                      color: videoDuration >= 60 && uploadedFile.size <= 20 * 1024 * 1024 ? "#15803D" : "#B45309",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: "3px 10px",
+                      borderRadius: 999
+                    }}>
+                      {videoDuration >= 60 && uploadedFile.size <= 20 * 1024 * 1024 ? "✓ VIDEO READY" : "⚠️ VALIDATION NEEDED"}
+                    </span>
+                    <h5 style={{ margin: "8px 0 4px", fontSize: 15, fontWeight: 800, color: "var(--navy)", wordBreak: "break-word" }}>
+                      {uploadedFile.name}
+                    </h5>
+                    <div style={{ fontSize: 12, color: uploadedFile.size > 20 * 1024 * 1024 ? "#DC2626" : "#64748B", fontWeight: uploadedFile.size > 20 * 1024 * 1024 ? 700 : 500 }}>
+                      File Size: {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB {uploadedFile.size > 20 * 1024 * 1024 ? "(Must be under 20 MB)" : "(Max 20 MB)"}
+                    </div>
+                  </div>
+
+                  {videoDuration > 0 && (
+                    <div style={{
+                      background: videoDuration >= 60 ? "#F0FDF4" : "#FEF2F2",
+                      border: `1.5px solid ${videoDuration >= 60 ? "#86EFAC" : "#FCA5A5"}`,
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: videoDuration >= 60 ? "#166534" : "#991B1B" }}>Video Duration:</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: videoDuration >= 60 ? "#15803D" : "#DC2626" }}>
+                        <i className={`fa-solid ${videoDuration >= 60 ? "fa-circle-check" : "fa-triangle-exclamation"}`} style={{ marginRight: 4 }}></i>
+                        {videoDuration}s {videoDuration >= 60 ? "(Met 60s requirement)" : "(Short — Min 60s)"}
+                      </span>
+                    </div>
+                  )}
+
+                  {videoDuration > 0 && videoDuration < 60 && (
+                    <div style={{
+                      background: "#FEF2F2",
+                      border: "1px solid #FECACA",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      color: "#B91C1C",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      lineHeight: 1.45,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8
+                    }}>
+                      <i className="fa-solid fa-circle-exclamation" style={{ marginTop: 2, fontSize: 14 }}></i>
+                      <span>Video must be 60 seconds in duration. Your video is only {videoDuration}s. Please upload a 60-second video.</span>
+                    </div>
+                  )}
+
+                  {uploadedFile.size > 20 * 1024 * 1024 && (
+                    <div style={{
+                      background: "#FEF2F2",
+                      border: "1px solid #FECACA",
+                      borderRadius: 8,
+                      padding: "10px 12px",
+                      color: "#B91C1C",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      lineHeight: 1.45,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 8
+                    }}>
+                      <i className="fa-solid fa-circle-exclamation" style={{ marginTop: 2, fontSize: 14 }}></i>
+                      <span>Video file size must be under 20 MB. Your file is {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                    {videoDuration < 60 || uploadedFile.size > 20 * 1024 * 1024 ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (uploadedFile.size > 20 * 1024 * 1024) {
+                            setUploadError(`Video file size must be under 20 MB. Current file size is ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.`);
+                            toast("Video file size must be under 20 MB.", "!");
+                          } else {
+                            setUploadError(`Video must be 60 seconds in duration. Current video length is ${videoDuration}s.`);
+                            toast("Video must be 60 seconds in duration.", "!");
+                          }
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "12px 18px",
+                          fontWeight: 800,
+                          fontSize: 13.5,
+                          borderRadius: 8,
+                          background: "#E2E8F0",
+                          color: "#64748B",
+                          border: "1px solid #CBD5E1",
+                          cursor: "not-allowed",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 6
+                        }}
+                      >
+                        <i className="fa-solid fa-lock"></i>
+                        <span>
+                          {uploadedFile.size > 20 * 1024 * 1024
+                            ? "File size must be under 20 MB"
+                            : "Video must be 60 seconds in duration"}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-gold"
+                        onClick={handlePreRecordedVideoSubmit}
+                        disabled={submitting}
+                        style={{ width: "100%", justifyContent: "center", padding: "12px 18px", fontWeight: 800, fontSize: 14 }}
+                      >
+                        {submitting ? "Uploading & Evaluating…" : "Submit Pre-Recorded Video →"}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedFile(null);
+                        setUploadPreviewUrl("");
+                        setVideoDuration(0);
+                        setUploadError("");
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "#475569",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <i className="fa-solid fa-rotate-left" style={{ marginRight: 6 }}></i> Choose Another Video
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {uploadError && (
+            <div style={{ color: "#DC2626", fontSize: 12.5, fontWeight: 700, marginTop: 14, display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="fa-solid fa-circle-exclamation"></i>
+              <span>{uploadError}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODE A: LIVE CAMERA RECORDING SECTION                                     */}
+      {/* ========================================================================= */}
+      {activeTab === "record" && step === "liveness" && (
         <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 24 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "center" }}>
             {/* Live Camera Feed Preview */}
@@ -964,7 +1445,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 Step 1: Liveness &amp; Camera Check
               </h4>
               <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, marginBottom: 16 }}>
-                Before starting the AI Q&amp;A video assessment, ensure your face is directly in front of the camera and look at the screen.
+                Before starting your live 60-second video recording, ensure your face is directly in front of the camera and look at the screen.
               </p>
 
               {cameraError ? (
@@ -975,7 +1456,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                     ✓ Liveness Verified! Face presence confirmed.
                   </div>
                   <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={() => setStep("recording")} disabled={questionsLoading}>
-                    {questionsLoading ? "Loading Questions…" : "Start 90s Self-Introduction Recording →"}
+                    {questionsLoading ? "Loading…" : "Start 60s Self-Introduction Recording →"}
                   </button>
                 </div>
               ) : (
@@ -993,8 +1474,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         </div>
       )}
 
-      {/* STEP 3: INTERACTIVE AI Q&A RECORDING */}
-      {step === "recording" && (
+      {/* STEP 3: LIVE RECORDING WITH PAUSE & RESUME */}
+      {activeTab === "record" && step === "recording" && (
         <div style={{ background: "#fff", border: "2px solid var(--navy)", borderRadius: 16, padding: 24, boxShadow: "0 10px 30px rgba(0,0,0,0.06)" }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
             {/* Left: Video Recorder Feed */}
@@ -1002,19 +1483,76 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", height: 320 }}>
                 <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
 
+                {/* PAUSED VIDEO OVERLAY */}
+                {isPaused && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      background: "rgba(15, 23, 42, 0.7)",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                      zIndex: 10,
+                      backdropFilter: "blur(2px)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 52,
+                        height: 52,
+                        borderRadius: "50%",
+                        background: "rgba(255, 255, 255, 0.2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 22,
+                        marginBottom: 8,
+                      }}
+                    >
+                      <i className="fa-solid fa-pause"></i>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 800 }}>Recording Paused</div>
+                    <div style={{ fontSize: 12, color: "#CBD5E1", marginTop: 4 }}>
+                      Recorded: <strong>{recordingSeconds}s</strong> of 60s · Click Resume to continue
+                    </div>
+                  </div>
+                )}
+
                 {/* Recording Badge & Timer */}
-                <div style={{ position: "absolute", top: 12, left: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <div style={{ background: isRecording ? "#DC2626" : isSpeaking ? "#F59E0B" : "rgba(0,0,0,0.6)", color: "#fff", padding: "4px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
-                    <i className="fa-solid fa-circle" style={{ color: isRecording ? "#fff" : "#22C55E", animation: isRecording || isSpeaking ? "pulse 1s infinite" : "none" }}></i>
-                    {isRecording ? "RECORDING IN PROGRESS" : isSpeaking ? "AI ASKING QUESTION…" : "READY"}
+                <div style={{ position: "absolute", top: 12, left: 12, display: "flex", gap: 8, flexWrap: "wrap", zIndex: 12 }}>
+                  <div
+                    style={{
+                      background: isPaused ? "#F59E0B" : isRecording ? "#DC2626" : isSpeaking ? "#6366F1" : "rgba(0,0,0,0.6)",
+                      color: "#fff",
+                      padding: "4px 12px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    <i
+                      className={`fa-solid ${isPaused ? "fa-pause" : "fa-circle"}`}
+                      style={{
+                        color: isPaused ? "#fff" : isRecording ? "#fff" : "#22C55E",
+                        animation: !isPaused && (isRecording || isSpeaking) ? "pulse 1s infinite" : "none",
+                      }}
+                    ></i>
+                    {isPaused ? "RECORDING PAUSED" : isRecording ? "RECORDING IN PROGRESS" : isSpeaking ? "AI ASKING QUESTION…" : "READY"}
                   </div>
                   {isRecording && (
                     <>
                       <div style={{ background: "#F59E0B", color: "#fff", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
-                        <i className="fa-solid fa-clock" style={{ marginRight: 4 }}></i> {recTimeLeft}s
+                        <i className="fa-solid fa-clock" style={{ marginRight: 4 }}></i> {recordingSeconds}s / 60s
                       </div>
-                      <div style={{ background: silenceTimeLeft <= 3 ? "#DC2626" : "#6366F1", color: "#fff", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
-                        <i className="fa-solid fa-comment-slash" style={{ marginRight: 4 }}></i> Silence auto-next: {silenceTimeLeft}s
+                      <div style={{ background: recordingSeconds >= 60 ? "#16A34A" : "#6366F1", color: "#fff", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
+                        <i className={`fa-solid ${recordingSeconds >= 60 ? "fa-circle-check" : "fa-hourglass-half"}`} style={{ marginRight: 4 }}></i>
+                        {recordingSeconds >= 60 ? "Min 60s Met" : `Min: ${60 - recordingSeconds}s remaining`}
                       </div>
                     </>
                   )}
@@ -1026,7 +1564,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: "var(--gold)" }}>
-                  {currentQ?.title || `Question ${qIdx + 1} of ${questionsList.length}`}
+                  {currentQ?.title || "60-Second Self-Introduction"}
                 </div>
                 <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "6px 0 12px", lineHeight: 1.5 }}>
                   {currentQ?.question}
@@ -1037,45 +1575,124 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                   <strong>Live Spoken Answer Transcript:</strong>{" "}
                   {qaTranscripts[currentQ?.id] ||
                     (isRecording
-                      ? "Listening to your spoken answer..."
+                      ? isPaused
+                        ? "Recording paused. Click Resume to continue speaking."
+                        : "Listening to your spoken answer..."
                       : isSpeaking
                       ? "AI is asking the question - your answer timer starts once it finishes."
-                      : "Click Start Single-Take AI Video Interview to begin.")}
+                      : "Click Start 60s Self-Introduction Recording to begin.")}
                 </div>
               </div>
 
               <div>
                 {!sessionStarted ? (
-                  isFacePresent ? (
-                    <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "12px 16px", textAlign: "center", fontSize: 12, fontWeight: 700, color: "var(--navy)" }}>
-                      <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 3s linear infinite" }}></i>
-                      Starting your 90-second self-introduction recording…
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "12px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 700, color: "var(--navy)" }}>
+                      <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 2s linear infinite" }}></i>
+                      Starting your 60-second self-introduction recording…
                     </div>
-                  ) : (
                     <button
                       type="button"
                       className="btn btn-gold"
-                      style={{ width: "100%", justifyContent: "center", padding: "12px 16px" }}
-                      disabled
+                      onClick={() => handleStartSingleTakeInterview()}
+                      style={{ width: "100%", justifyContent: "center", padding: "12px 18px", fontSize: 13.5, fontWeight: 800 }}
                     >
-                      <i className="fa-solid fa-video" style={{ marginRight: 6 }}></i>
-                      🔒 Face Required in Front of Camera
+                      <i className="fa-solid fa-circle-play" style={{ marginRight: 6 }}></i> Start Recording Immediately →
                     </button>
-                  )
+                  </div>
                 ) : (
                   <div>
-                    <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: "var(--navy)", marginBottom: 10 }}>
-                      <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 3s linear infinite" }}></i>
-                      {isSpeaking ? "AI is asking you to introduce yourself..." : `Speak clearly. Recording will submit automatically in ${recTimeLeft}s or when you click submit.`}
+                    {/* Real-time Guidance Message */}
+                    <div style={{ background: isPaused ? "#FEF3C7" : "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: isPaused ? "#B45309" : "var(--navy)", marginBottom: 10 }}>
+                      {isSpeaking
+                        ? "AI is asking you to introduce yourself..."
+                        : isPaused
+                        ? "⏸️ Recording is paused. Click Resume Recording when ready."
+                        : recordingSeconds < 60
+                        ? `Speak clearly. Minimum duration is 60 seconds (${60 - recordingSeconds}s remaining).`
+                        : `Minimum 60s duration met! Submit whenever you are ready or recording will auto-finish in ${recTimeLeft}s.`}
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-gold"
-                      style={{ width: "100%", justifyContent: "center", padding: "12px 16px", fontWeight: 800 }}
-                      onClick={handleFinishSingleTakeInterview}
-                    >
-                      <i className="fa-solid fa-check" style={{ marginRight: 6 }}></i> Submit 90s Video Recording →
-                    </button>
+
+                    {/* Action Bar: Pause/Resume + Submit */}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {isRecording && (
+                        <button
+                          type="button"
+                          onClick={isPaused ? handleResumeRecording : handlePauseRecording}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 6,
+                            padding: "12px 16px",
+                            borderRadius: 10,
+                            fontWeight: 800,
+                            fontSize: 12.5,
+                            cursor: "pointer",
+                            border: "none",
+                            background: isPaused ? "#16A34A" : "#0F172A",
+                            color: "#FFFFFF",
+                            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                            flex: "1 1 40%",
+                          }}
+                        >
+                          <i className={`fa-solid ${isPaused ? "fa-play" : "fa-pause"}`}></i>
+                          <span>{isPaused ? "Resume" : "Pause"}</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        className="btn btn-gold"
+                        style={{
+                          flex: "1 1 55%",
+                          justifyContent: "center",
+                          padding: "12px 14px",
+                          fontWeight: 800,
+                          fontSize: 12.5,
+                          opacity: recordingSeconds < 60 ? 0.65 : 1,
+                          cursor: recordingSeconds < 60 ? "not-allowed" : "pointer",
+                        }}
+                        disabled={recordingSeconds < 60}
+                        onClick={() => handleFinishSingleTakeInterview(false)}
+                      >
+                        {recordingSeconds < 60 ? (
+                          <>
+                            <i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> 60s Min ({60 - recordingSeconds}s left)
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Submit 60s Video →
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Reset & Start Over Option */}
+                    <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        onClick={handleResetRecording}
+                        style={{
+                          background: "#F8FAFC",
+                          border: "1px solid #CBD5E1",
+                          borderRadius: 8,
+                          padding: "7px 16px",
+                          color: "#475569",
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          transition: "all 0.15s ease",
+                        }}
+                        title="Reset recording time to 0s and start fresh"
+                      >
+                        <i className="fa-solid fa-rotate-left" style={{ color: "#F59E0B" }}></i>
+                        <span>Restart Recording from 0s</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1121,7 +1738,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 </div>
                 <div>
                   <div style={{ fontWeight: 800, color: "#15803D", fontSize: 14 }}>
-                    Recording + mock complete · Fluency {evaluation.rubric.fluency} · Confidence {evaluation.rubric.confidenceDelivery}
+                    Recording complete · Fluency {evaluation.rubric.fluency} · Confidence {evaluation.rubric.confidenceDelivery}
                   </div>
                   <div style={{ fontSize: 12, color: "#166534" }}>
                     Available to companies that shortlist you. Re-record from your dashboard anytime.
@@ -1148,7 +1765,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "center", marginBottom: 10 }}>
               <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
-                <i className="fa-solid fa-circle-check"></i> 90s SELF-INTRODUCTION RECORDED
+                <i className="fa-solid fa-circle-check"></i> 60s SELF-INTRODUCTION RECORDED
               </span>
               <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #F59E0B" }}>
                 <i className="fa-solid fa-lock"></i> Single Attempt Completed
@@ -1156,7 +1773,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             </div>
 
             <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>
-              Thank you for recording your self-introduction!
+              Thank you for recording your 60-second self-introduction!
             </h3>
 
             {/* DEVELOPER RETAKE OPTION */}
@@ -1165,9 +1782,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 type="button"
                 onClick={() => {
                   setStep("liveness");
+                  setActiveTab("record");
                   setSessionStarted(false);
                   setIsRecording(false);
-                  setRecTimeLeft(90);
+                  setIsPaused(false);
+                  setRecTimeLeft(60);
+                  setRecordingSeconds(0);
                 }}
                 style={{
                   background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
@@ -1185,10 +1805,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               </button>
             </div>
 
-            <h3 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: "4px 0 8px" }}>
-              Thank you for completing the interview!
-            </h3>
-            <p style={{ fontSize: 13, color: "#475569", margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: "#475569", margin: "20px auto", maxWidth: 460, lineHeight: 1.6 }}>
               Our AI has analyzed your spoken communication - no manual review needed. Here's how you did:
             </p>
 

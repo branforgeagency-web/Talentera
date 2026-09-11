@@ -469,28 +469,6 @@ export default function AssessmentRunner() {
             <button type="button" className="btn btn-gold" onClick={() => navigate("/dashboard")}>
               Return to Dashboard →
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTestState("running");
-                setUserAnswers({});
-                setCurrentIdx(0);
-                setTimeLeft(900);
-                isSubmittingRef.current = false;
-              }}
-              style={{
-                background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
-                color: "#06152A",
-                border: "none",
-                padding: "10px 20px",
-                borderRadius: 8,
-                fontWeight: 800,
-                fontSize: 13,
-                cursor: "pointer"
-              }}
-            >
-              ⚡ Retake Assessment (Dev Mode)
-            </button>
           </div>
         </div>
       </div>

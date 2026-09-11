@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import AuthLayout from "../components/AuthLayout.jsx";
 
@@ -8,11 +8,21 @@ import { safeJson } from "../utils/safeJson.js";
 export default function Login() {
   const { login, demoLogin } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const redirectUrl = searchParams.get("redirect") || "/dashboard";
+  const emailParam = searchParams.get("email") || "";
+
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [demoSubmitting, setDemoSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (emailParam && !email) {
+      setEmail(emailParam);
+    }
+  }, [emailParam]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -20,7 +30,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(email, password);
-      navigate("/dashboard");
+      navigate(redirectUrl);
     } catch (err) {
       setError(err.response?.data?.message || "Login failed. Please try again.");
     } finally {
@@ -34,7 +44,7 @@ export default function Login() {
     setDemoSubmitting(true);
     try {
       await demoLogin();
-      navigate("/dashboard");
+      navigate(redirectUrl);
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.message || err.message || "Demo login failed.");
