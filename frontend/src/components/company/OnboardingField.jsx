@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import companyApi from "../../api/companyClient";
 import { useToast } from "../Toast.jsx";
 
@@ -29,7 +30,7 @@ function isFieldEmpty(input, val) {
   return false;
 }
 
-export default function OnboardingField({ item, value, onSave, stageId, showStageErrors, isRejectedField }) {
+export default function OnboardingField({ item, value, onSave, stageId, showStageErrors, isRejectedField, companyPlan = "free" }) {
   const toast = useToast();
   const isUpperType = item.input === "gstin" || item.input === "pan";
   const [text, setText] = useState(() => (typeof value === "string" ? value : ""));
@@ -155,12 +156,20 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
     (item.input === "file" && Boolean(fileInfo && (fileInfo.docUrl || fileInfo.docName || fileInfo.url || fileInfo.fileUrl))) ||
     (item.input === "name-email" && Boolean(nameEmail?.name && String(nameEmail.name).trim() && nameEmail?.email && String(nameEmail.email).trim()));
 
+  const isEnterpriseField =
+    (stageId === "5" && item.id === "qcustom") ||
+    stageId === "6" ||
+    (stageId === "8" && ["sats", "swebhook"].includes(item.id));
+  const isLockedByPlan = isEnterpriseField && companyPlan !== "enterprise";
+
   return (
     <div
       className={`conb-field ${isFilled ? "conb-field-filled" : ""}`}
       style={
         isRejectedField
           ? { border: "2px solid #EF4444", background: "#FEF2F2", borderRadius: 14, padding: 18, marginBottom: 12 }
+          : isLockedByPlan
+          ? { border: "1.5px dashed #CBD5E1", background: "#F8FAFC", borderRadius: 14, padding: 18, marginBottom: 12 }
           : {}
       }
     >
@@ -171,16 +180,55 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
       )}
       <div className="conb-field-head">
         <label className="conb-field-label">{item.name}</label>
-        {isFilled ? (
+        {isLockedByPlan ? (
+          <span className="conb-field-tag" style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", fontWeight: 800 }}>
+            💎 ENTERPRISE TIER
+          </span>
+        ) : isFilled ? (
           <div className="conb-field-check">✓</div>
         ) : (
           <span className="conb-field-tag" style={badgeStyle(item.tag)}>{TAG_LABEL[item.tag]}</span>
         )}
       </div>
 
-      {["text", "gstin", "pan", "email", "url", "number"].includes(item.input) && (
-        <div>
-          <input
+      {isLockedByPlan ? (
+        <div style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 16px", marginTop: 6 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B", display: "flex", alignItems: "center", gap: 6 }}>
+                <span>🔒</span> Locked on {companyPlan === "growth" ? "Growth Tier" : "Free Tier"}
+              </div>
+              <div style={{ fontSize: 12, color: "#64748B", marginTop: 3, lineHeight: 1.4 }}>
+                {stageId === "5"
+                  ? "Custom question bank uploads are exclusively available on Enterprise Tier (₹19,999/mo)."
+                  : stageId === "6"
+                  ? "Custom per-role rubric weights and policies are available on Enterprise Tier (₹19,999/mo)."
+                  : "ATS integrations (Workday, Greenhouse, etc.) and webhooks are available on Enterprise Tier (₹19,999/mo)."}
+              </div>
+            </div>
+            <Link
+              to="/companies/billing"
+              style={{
+                background: "var(--navy)",
+                color: "var(--gold)",
+                textDecoration: "none",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 800,
+                whiteSpace: "nowrap",
+                display: "inline-block",
+              }}
+            >
+              Upgrade to Enterprise →
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <>
+          {["text", "gstin", "pan", "email", "url", "number"].includes(item.input) && (
+            <div>
+              <input
             type={item.input === "number" ? "number" : item.input === "email" ? "email" : item.input === "url" ? "url" : "text"}
             className="conb-input"
             value={text}
@@ -324,6 +372,8 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
       )}
       {error && <div className="error-text">{error}</div>}
       {saving && <div className="conb-field-saving">Saving…</div>}
+        </>
+      )}
     </div>
   );
 }

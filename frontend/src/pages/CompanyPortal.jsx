@@ -35,8 +35,11 @@ export default function CompanyPortal() {
 
   // Verification & Access State
   const [companyKycStatus, setCompanyKycStatus] = useState("pending");
+  const [companyPlan, setCompanyPlan] = useState(() => company?.plan || "free");
   const [contactCandidateModal, setContactCandidateModal] = useState(null);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [showPlanUpgradeModal, setShowPlanUpgradeModal] = useState(false);
+  const [planUpgradeFeature, setPlanUpgradeFeature] = useState("");
 
   const [formData, setFormData] = useState({
     fullName: "",
@@ -63,6 +66,9 @@ export default function CompanyPortal() {
     if (company?.kycStatus) {
       setCompanyKycStatus(company.kycStatus);
     }
+    if (company?.plan) {
+      setCompanyPlan(company.plan);
+    }
   }, [company]);
 
   const fetchCompanyProfile = async () => {
@@ -70,6 +76,7 @@ export default function CompanyPortal() {
       const res = await companyApi.get("/company/me");
       if (res.data?.company) {
         setCompanyKycStatus(res.data.company.kycStatus || "pending");
+        setCompanyPlan(res.data.company.plan || "free");
       }
     } catch (err) {
       console.log("No active company session or error loading profile:", err?.message);
@@ -102,12 +109,20 @@ export default function CompanyPortal() {
       // that token, so it has to actually reach the request.
       const res = await companyApi.get("/public/candidates");
       setCandidates(res.data?.candidates || []);
+      if (res.data?.plan) {
+        setCompanyPlan(res.data.plan);
+      }
     } catch (err) {
       console.error(err);
       setLoadError("Couldn't load the candidate directory. Please refresh the page.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const triggerUpgrade = (feature) => {
+    setPlanUpgradeFeature(feature);
+    setShowPlanUpgradeModal(true);
   };
 
   const handleAddCandidateSubmit = async (e) => {
@@ -148,6 +163,7 @@ export default function CompanyPortal() {
   };
 
   const filteredCandidates = candidates.filter((c) => {
+    if (companyPlan === "free") return true;
     if (c.verificationScore < minScore) return false;
     if (selectedExp !== "All" && c.experience !== selectedExp) return false;
     if (selectedDomain !== "All") {
@@ -168,6 +184,10 @@ export default function CompanyPortal() {
 
   const toggleShortlist = (id, e) => {
     if (e) e.stopPropagation();
+    if (companyPlan === "free") {
+      triggerUpgrade("shortlist");
+      return;
+    }
     setShortlistedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -175,6 +195,10 @@ export default function CompanyPortal() {
 
   const handleContactClick = (candidate, e) => {
     if (e) e.stopPropagation();
+    if (companyPlan === "free") {
+      triggerUpgrade("contact");
+      return;
+    }
     if (isVerifiedCompany) {
       setContactCandidateModal(candidate);
     } else {
@@ -217,6 +241,27 @@ export default function CompanyPortal() {
           </div>
 
           <Link
+            to="/companies/billing"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 20,
+              background: companyPlan === "enterprise" ? "rgba(229,168,46,0.2)" : companyPlan === "growth" ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.1)",
+              border: `1px solid ${companyPlan === "enterprise" ? "var(--gold)" : companyPlan === "growth" ? "#60A5FA" : "rgba(255,255,255,0.2)"}`,
+              fontSize: 12,
+              fontWeight: 800,
+              color: companyPlan === "enterprise" ? "var(--gold)" : companyPlan === "growth" ? "#93C5FD" : "#fff",
+              textDecoration: "none",
+              textTransform: "uppercase",
+            }}
+          >
+            <span>{companyPlan === "enterprise" ? "💎" : companyPlan === "growth" ? "⚡" : "🌱"}</span>
+            <span>{companyPlan} Tier</span>
+          </Link>
+
+          <Link
             to="/companies/directory"
             style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}
           >
@@ -233,6 +278,12 @@ export default function CompanyPortal() {
             style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
           >
             Applicants
+          </Link>
+          <Link
+            to="/companies/billing"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Plan &amp; Billing
           </Link>
           <Link
             to="/companies/dashboard"
@@ -263,7 +314,7 @@ export default function CompanyPortal() {
               border: "1.5px solid #F59E0B",
               borderRadius: 12,
               padding: "18px 24px",
-              marginBottom: 24,
+              marginBottom: 20,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -310,7 +361,7 @@ export default function CompanyPortal() {
               border: "1.5px solid #22C55E",
               borderRadius: 12,
               padding: "16px 24px",
-              marginBottom: 24,
+              marginBottom: 20,
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -325,13 +376,63 @@ export default function CompanyPortal() {
               </div>
               <div>
                 <strong style={{ fontSize: 14, color: "#15803D" }}>
-                  VERIFIED COMPANY ACCOUNT — FULL ACCESS UNLOCKED
+                  VERIFIED COMPANY ACCOUNT — DIRECT CONTACTS UNLOCKED
                 </strong>
                 <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#166534" }}>
-                  You have complete access to candidate direct contact numbers, email addresses, detailed chart audits, and interview scheduling.
+                  You have complete access to candidate direct contact numbers, email addresses, and interview scheduling.
                 </p>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Free Tier Notice Banner */}
+        {companyPlan === "free" && (
+          <div
+            style={{
+              background: "#EFF6FF",
+              border: "1.5px solid #3B82F6",
+              borderRadius: 12,
+              padding: "16px 24px",
+              marginBottom: 24,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+              boxShadow: "0 4px 14px rgba(59,130,246,0.1)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
+                ⚡
+              </div>
+              <div>
+                <strong style={{ fontSize: 14.5, color: "#1E40AF", letterSpacing: "0.02em" }}>
+                  FREE TIER SUBSCRIPTION — DIRECT CANDIDATE SEARCH, SCORES &amp; SHORTLISTING LOCKED
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#1D4ED8", lineHeight: 1.45 }}>
+                  Free Tier gives you 1 active job post and candidate application tracking. Upgrade to <strong>Growth Tier (₹4,999/mo)</strong> to search &amp; filter talent directly, view proctored test &amp; chart audit scores, AAPC/AHIMA certificates, and shortlist candidates.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              style={{
+                background: "#1D4ED8",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "10px 20px",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => navigate("/companies/billing")}
+            >
+              Upgrade to Growth (₹4,999/mo) →
+            </button>
           </div>
         )}
 
@@ -340,16 +441,59 @@ export default function CompanyPortal() {
           <aside style={{ background: "#fff", borderRadius: 12, padding: 22, border: "1px solid var(--border-light)", alignSelf: "start" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 700, margin: 0 }}>Filter Talent</h3>
-              <button style={{ fontSize: 12, color: "var(--gold)", fontWeight: 700, border: "none", background: "none", cursor: "pointer" }} onClick={() => { setMinScore(0); setSelectedExp("All"); setSelectedDomain("All"); setSearchQuery(""); }}>
+              <button
+                style={{ fontSize: 12, color: "var(--gold)", fontWeight: 700, border: "none", background: "none", cursor: "pointer" }}
+                onClick={() => {
+                  if (companyPlan === "free") {
+                    triggerUpgrade("search");
+                    return;
+                  }
+                  setMinScore(0);
+                  setSelectedExp("All");
+                  setSelectedDomain("All");
+                  setSearchQuery("");
+                }}
+              >
                 Reset
               </button>
             </div>
+
+            {companyPlan === "free" && (
+              <div style={{ background: "#EFF6FF", border: "1.5px solid #3B82F6", borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#1E40AF", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>🔒</span> FILTERING LOCKED (FREE TIER)
+                </div>
+                <div style={{ fontSize: 11.5, color: "#1D4ED8", marginTop: 4, lineHeight: 1.4 }}>
+                  Upgrade to Growth Tier (₹4,999/mo) to filter by minimum verification score, experience, and domain.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/companies/billing")}
+                  style={{
+                    marginTop: 8,
+                    background: "#1D4ED8",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    width: "100%",
+                  }}
+                >
+                  Upgrade to Growth →
+                </button>
+              </div>
+            )}
 
             {/* Score Slider */}
             <div style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #F1F5F9" }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "#64748B" }}>
                 <span>MIN VERIFICATION SCORE</span>
-                <span style={{ color: "var(--navy)", fontFamily: "var(--font-mono)" }}>{minScore}/100</span>
+                <span style={{ color: "var(--navy)", fontFamily: "var(--font-mono)" }}>
+                  {companyPlan === "free" ? "🔒 Locked" : `${minScore}/100`}
+                </span>
               </div>
               <input
                 type="range"
@@ -357,11 +501,24 @@ export default function CompanyPortal() {
                 max="95"
                 step="5"
                 value={minScore}
-                onChange={(e) => setMinScore(Number(e.target.value))}
-                style={{ width: "100%", accentColor: "var(--gold)", cursor: "pointer" }}
+                disabled={companyPlan === "free"}
+                onChange={(e) => {
+                  if (companyPlan === "free") {
+                    triggerUpgrade("search");
+                    return;
+                  }
+                  setMinScore(Number(e.target.value));
+                }}
+                style={{ width: "100%", accentColor: "var(--gold)", cursor: companyPlan === "free" ? "not-allowed" : "pointer" }}
               />
               <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700, marginTop: 6 }}>
-                {minScore >= 75 ? <span><i className="fa-solid fa-star" style={{ marginRight: 4 }}></i> Showing Gold-Badged Verified Talent Only</span> : "Showing all verified scores"}
+                {companyPlan === "free" ? (
+                  <span style={{ color: "#64748B" }}>Score filtering requires Growth Tier</span>
+                ) : minScore >= 75 ? (
+                  <span><i className="fa-solid fa-star" style={{ marginRight: 4 }}></i> Showing Gold-Badged Verified Talent Only</span>
+                ) : (
+                  "Showing all verified scores"
+                )}
               </div>
             </div>
 
@@ -374,7 +531,13 @@ export default function CompanyPortal() {
                 {["All", "Fresher", "1-3", "3-5", "5+"].map((exp) => (
                   <button
                     key={exp}
-                    onClick={() => setSelectedExp(exp)}
+                    onClick={() => {
+                      if (companyPlan === "free") {
+                        triggerUpgrade("search");
+                        return;
+                      }
+                      setSelectedExp(exp);
+                    }}
                     style={{
                       padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
                       background: selectedExp === exp ? "var(--navy)" : "#F1F5F9",
@@ -400,7 +563,13 @@ export default function CompanyPortal() {
                       type="radio"
                       name="domain"
                       checked={selectedDomain === domain}
-                      onChange={() => setSelectedDomain(domain)}
+                      onChange={() => {
+                        if (companyPlan === "free") {
+                          triggerUpgrade("search");
+                          return;
+                        }
+                        setSelectedDomain(domain);
+                      }}
                       style={{ accentColor: "var(--gold)" }}
                     />
                     {domain === "AR" ? "AR Follow-up" : domain === "Coding" ? "Medical Coding (CPC)" : domain === "Billing" ? "Billing & Claims" : domain === "Denial" ? "Denial Management" : domain === "Payment" ? "Payment Posting" : "All Roles"}
@@ -414,20 +583,69 @@ export default function CompanyPortal() {
           <main>
             {/* Search Bar */}
             <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, border: "1px solid var(--border-light)" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 14px" }}>
-                <span style={{ color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  background: companyPlan === "free" ? "#F8FAFC" : "#F8FAFC",
+                  border: `1px solid ${companyPlan === "free" ? "#CBD5E1" : "#E2E8F0"}`,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  cursor: companyPlan === "free" ? "pointer" : "text",
+                }}
+                onClick={() => {
+                  if (companyPlan === "free") triggerUpgrade("search");
+                }}
+              >
+                <span style={{ color: "#94A3B8" }}>
+                  {companyPlan === "free" ? "🔒" : <i className="fa-solid fa-magnifying-glass"></i>}
+                </span>
                 <input
                   type="text"
-                  placeholder="Search by candidate name, skill (CPC, Denial, Payment Posting), or city..."
-                  value={searchQuery}
+                  placeholder={companyPlan === "free" ? "Search locked on Free Tier — Upgrade to Growth (₹4,999/mo) to search talent" : "Search by candidate name, skill (CPC, Denial, Payment Posting), or city..."}
+                  value={companyPlan === "free" ? "" : searchQuery}
+                  disabled={companyPlan === "free"}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: 14, fontFamily: "var(--font-body)" }}
+                  style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: 14, fontFamily: "var(--font-body)", cursor: companyPlan === "free" ? "pointer" : "text" }}
                 />
+                {companyPlan === "free" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate("/companies/billing");
+                    }}
+                    style={{
+                      background: "#1D4ED8",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Unlock Search →
+                  </button>
+                )}
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
                 <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>Popular:</span>
                 {["CPC Certified", "AR Caller", "Denial Management", "Bengaluru"].map((tag) => (
-                  <button key={tag} onClick={() => setSearchQuery(tag)} style={{ background: "#F1F5F9", fontSize: 11, padding: "3px 8px", borderRadius: 4, color: "var(--navy)", border: "none", fontWeight: 600, cursor: "pointer" }}>
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      if (companyPlan === "free") {
+                        triggerUpgrade("search");
+                      } else {
+                        setSearchQuery(tag);
+                      }
+                    }}
+                    style={{ background: "#F1F5F9", fontSize: 11, padding: "3px 8px", borderRadius: 4, color: "var(--navy)", border: "none", fontWeight: 600, cursor: "pointer" }}
+                  >
                     {tag}
                   </button>
                 ))}
@@ -440,7 +658,11 @@ export default function CompanyPortal() {
                 Verified Candidates <span style={{ color: "var(--gold)" }}>({filteredCandidates.length})</span>
               </h3>
               <div style={{ fontSize: 12, color: "#64748B" }}>
-                {isVerifiedCompany ? "🔓 Full Profile & Direct Contacts Unlocked" : "🔒 Contacts Masked (Unverified Account)"}
+                {companyPlan === "free"
+                  ? "🔒 Candidate Scores Locked (Free Tier)"
+                  : isVerifiedCompany
+                  ? "🔓 Full Profile & Direct Contacts Unlocked"
+                  : "🔒 Contacts Masked (Unverified Account)"}
               </div>
             </div>
 
@@ -497,10 +719,12 @@ export default function CompanyPortal() {
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
-                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24, color: "var(--navy)", lineHeight: 1 }}>
-                          {c.verificationScore}
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: (companyPlan === "free" || c.verificationScore == null) ? 17 : 24, color: "var(--navy)", lineHeight: 1 }}>
+                          {companyPlan === "free" || c.verificationScore == null ? "🔒 Locked" : c.verificationScore}
                         </div>
-                        <div style={{ fontSize: 9, color: "var(--gold)", fontWeight: 800, letterSpacing: "0.06em" }}>{c.badgeLabel}</div>
+                        <div style={{ fontSize: 9, color: companyPlan === "free" ? "#94A3B8" : "var(--gold)", fontWeight: 800, letterSpacing: "0.06em", marginTop: 3 }}>
+                          {companyPlan === "free" ? "GROWTH TIER" : c.badgeLabel}
+                        </div>
                       </div>
                     </div>
 
@@ -535,15 +759,23 @@ export default function CompanyPortal() {
                       <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.15)", color: "#92400E", fontWeight: 700 }}>
                         📍 {c.city || "Location not specified"}
                       </span>
-                      {c.academyName && (
-                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DCFCE7", color: "#15803D", fontWeight: 700 }}>
-                          Academy Verified
+                      {companyPlan === "free" ? (
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700 }}>
+                          🔒 Verified Audit (Growth Tier)
                         </span>
-                      )}
-                      {c.certificationName && (
-                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DBEAFE", color: "#1E40AF", fontWeight: 700 }}>
-                          {c.certificationName}
-                        </span>
+                      ) : (
+                        <>
+                          {c.academyName && (
+                            <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DCFCE7", color: "#15803D", fontWeight: 700 }}>
+                              Academy Verified
+                            </span>
+                          )}
+                          {c.certificationName && (
+                            <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DBEAFE", color: "#1E40AF", fontWeight: 700 }}>
+                              {c.certificationName}
+                            </span>
+                          )}
+                        </>
                       )}
                       {c.videoUrl && (
                         <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.18)", color: "#B45309", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -580,9 +812,9 @@ export default function CompanyPortal() {
                       <button
                         onClick={(e) => toggleShortlist(c.id, e)}
                         style={{
-                          background: shortlistedIds.includes(c.id) ? "#15803D" : "var(--gold)",
-                          color: shortlistedIds.includes(c.id) ? "#fff" : "var(--navy)",
-                          border: "none",
+                          background: companyPlan === "free" ? "#F1F5F9" : shortlistedIds.includes(c.id) ? "#15803D" : "var(--gold)",
+                          color: companyPlan === "free" ? "#64748B" : shortlistedIds.includes(c.id) ? "#fff" : "var(--navy)",
+                          border: companyPlan === "free" ? "1px solid #CBD5E1" : "none",
                           padding: "6px 12px",
                           borderRadius: 6,
                           fontSize: 11.5,
@@ -590,7 +822,7 @@ export default function CompanyPortal() {
                           cursor: "pointer",
                         }}
                       >
-                        {shortlistedIds.includes(c.id) ? "Shortlisted ✓" : "Shortlist"}
+                        {companyPlan === "free" ? "🔒 Shortlist" : shortlistedIds.includes(c.id) ? "Shortlisted ✓" : "Shortlist"}
                       </button>
                     </div>
                   </div>
@@ -605,16 +837,39 @@ export default function CompanyPortal() {
       {selectedCandidate && (
         <div className="modal-overlay" onClick={() => setSelectedCandidate(null)}>
           <div className="modal-content" style={{ maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
-            <button style={{ position: "absolute", top: 16, right: 16, fontSize: 24, cursor: "pointer", background: "none", border: "none" }} onClick={() => setSelectedCandidate(null)}>
-              ✕
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setSelectedCandidate(null)}
+              aria-label="Close candidate profile"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
 
             <div style={{ padding: 32 }}>
+              {/* Plan Tier Callout */}
+              {companyPlan === "free" && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #3B82F6", borderRadius: 8, padding: "10px 16px", marginBottom: 16, marginRight: 36, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: "#1E40AF", fontWeight: 700 }}>
+                    🔒 Candidate Assessment Scores, Live Chart Audits &amp; AAPC Certifications Locked on Free Tier
+                  </span>
+                  <button
+                    style={{ background: "#1D4ED8", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
+                    onClick={() => navigate("/companies/billing")}
+                  >
+                    Upgrade to Growth Tier →
+                  </button>
+                </div>
+              )}
+
               {/* Header Status Callout */}
               {!isVerifiedCompany ? (
-                <div style={{ background: "#FFFBEB", border: "1px solid #F59E0B", borderRadius: 8, padding: "10px 16px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ background: "#FFFBEB", border: "1px solid #F59E0B", borderRadius: 8, padding: "10px 16px", marginBottom: 20, marginRight: 36, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, color: "#92400E", fontWeight: 700 }}>
-                    🔒 Candidate Contacts & Full Profile Gated (Unverified Company)
+                    🔒 Candidate Contacts &amp; Full Profile Gated (Unverified Company)
                   </span>
                   <button
                     style={{ background: "#D97706", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
@@ -624,10 +879,10 @@ export default function CompanyPortal() {
                   </button>
                 </div>
               ) : (
-                <div style={{ background: "#F0FDF4", border: "1px solid #22C55E", borderRadius: 8, padding: "10px 16px", marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ background: "#F0FDF4", border: "1px solid #22C55E", borderRadius: 8, padding: "10px 16px", marginBottom: 20, marginRight: 36, display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ color: "#15803D", fontWeight: 800 }}>✓</span>
                   <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>
-                    Full Candidate Profile & Direct Contact Details Unlocked for Verified Company
+                    Full Candidate Profile &amp; Direct Contact Details Unlocked for Verified Company
                   </span>
                 </div>
               )}
@@ -646,11 +901,11 @@ export default function CompanyPortal() {
                 </div>
 
                 <div style={{ background: "rgba(229,168,46,0.15)", padding: "10px 16px", borderRadius: 10, textAlign: "center" }}>
-                  <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-                    {selectedCandidate.verificationScore}<span style={{ fontSize: 16, color: "#94A3B8" }}>/100</span>
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: (companyPlan === "free" || selectedCandidate.verificationScore == null) ? 19 : 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
+                    {companyPlan === "free" || selectedCandidate.verificationScore == null ? "🔒 Locked" : `${selectedCandidate.verificationScore}/100`}
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 800, color: "var(--gold)", letterSpacing: "0.06em", marginTop: 4 }}>
-                    {selectedCandidate.badgeLabel}
+                    {companyPlan === "free" ? "GROWTH TIER" : selectedCandidate.badgeLabel}
                   </div>
                 </div>
               </div>
@@ -699,9 +954,9 @@ export default function CompanyPortal() {
                 <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em", marginBottom: 10, margin: 0 }}>VERIFICATION AUDIT BREAKDOWN</h4>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, marginTop: 10 }}>
                   <div>{selectedCandidate.aadhaarVerified ? (<>✓ Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
-                  <div>{selectedCandidate.academyName ? (<>✓ Academy Claim: <strong style={{ color: "#15803D" }}>{selectedCandidate.academyName}</strong></>) : (<>Academy Claim: <strong style={{ color: "#94A3B8" }}>Not claimed</strong></>)}</div>
-                  <div>{selectedCandidate.assessmentScore != null ? (<>✓ Proctored Test: <strong style={{ color: "#15803D" }}>{selectedCandidate.assessmentScore}% Score</strong></>) : (<>Proctored Test: <strong style={{ color: "#94A3B8" }}>Not yet completed</strong></>)}</div>
-                  <div>{selectedCandidate.accuracyScore != null ? (<>✓ Live Chart Audit: <strong style={{ color: "#15803D" }}>{selectedCandidate.accuracyScore}% Accuracy ({selectedCandidate.chartsAudited} Charts)</strong></>) : (<>Live Chart Audit: <strong style={{ color: "#94A3B8" }}>Not yet completed</strong></>)}</div>
+                  <div>✓ Academy Claim: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : (selectedCandidate.academyName || "Not claimed")}</strong></div>
+                  <div>✓ Proctored Test: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.assessmentScore != null ? `${selectedCandidate.assessmentScore}% Score` : "Not yet completed"}</strong></div>
+                  <div>✓ Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited} Charts)` : "Not yet completed"}</strong></div>
                 </div>
               </div>
 
@@ -729,7 +984,9 @@ export default function CompanyPortal() {
                     <div style={{ fontSize: 12, color: "#64748B", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                       <span>Recorded on Talentera Single-Take Assessment Platform</span>
                       {selectedCandidate.stage5Score !== null && selectedCandidate.stage5Score !== undefined && (
-                        <strong style={{ color: "#15803D" }}>AI Communication Score: {selectedCandidate.stage5Score}%</strong>
+                        <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>
+                          AI Communication Score: {companyPlan === "free" ? "🔒 Locked (Growth Tier)" : `${selectedCandidate.stage5Score}%`}
+                        </strong>
                       )}
                     </div>
                   </div>
@@ -748,14 +1005,28 @@ export default function CompanyPortal() {
 
               {/* Modal Buttons */}
               <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
-                <button className="btn-gold" style={{ flex: 1, minWidth: 140, justifyContent: "center" }} onClick={() => alert(`Connecting with ${selectedCandidate.name}...`)}>
+                <button
+                  className="btn-gold"
+                  style={{ flex: 1, minWidth: 140, justifyContent: "center" }}
+                  onClick={(e) => handleContactClick(selectedCandidate, e)}
+                >
                   <i className="fa-solid fa-phone" style={{ marginRight: 6 }}></i> Contact Candidate
                 </button>
                 <button
-                  style={{ flex: 1, minWidth: 140, padding: 12, borderRadius: 8, background: shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9", color: shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)", fontWeight: 700, border: "none", cursor: "pointer" }}
+                  style={{
+                    flex: 1,
+                    minWidth: 140,
+                    padding: 12,
+                    borderRadius: 8,
+                    background: companyPlan === "free" ? "#F1F5F9" : shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9",
+                    color: companyPlan === "free" ? "#64748B" : shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)",
+                    fontWeight: 700,
+                    border: companyPlan === "free" ? "1px solid #CBD5E1" : "none",
+                    cursor: "pointer",
+                  }}
                   onClick={() => toggleShortlist(selectedCandidate.id)}
                 >
-                  {shortlistedIds.includes(selectedCandidate.id) ? "Shortlisted ✓" : "+ Shortlist Profile"}
+                  {companyPlan === "free" ? "🔒 Shortlist (Growth Tier)" : shortlistedIds.includes(selectedCandidate.id) ? "Shortlisted ✓" : "+ Shortlist Profile"}
                 </button>
 
                 <Link
@@ -775,11 +1046,19 @@ export default function CompanyPortal() {
       {contactCandidateModal && (
         <div className="modal-overlay" onClick={() => setContactCandidateModal(null)}>
           <div className="modal-content" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
-            <button style={{ position: "absolute", top: 16, right: 16, fontSize: 22, cursor: "pointer", background: "none", border: "none" }} onClick={() => setContactCandidateModal(null)}>
-              ✕
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setContactCandidateModal(null)}
+              aria-label="Close contact modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
             <div style={{ padding: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, paddingRight: 36 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
                   📞
                 </div>
@@ -817,7 +1096,7 @@ export default function CompanyPortal() {
                     <span>{contactCandidateModal.email}</span>
                     <a
                       href={`mailto:${contactCandidateModal.email}`}
-                      style={{ background: "var(--navy)", color: "#fff", textDecoration: "none", padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}
+                      style={{ background: "#1D4ED8", color: "#fff", textDecoration: "none", padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}
                     >
                       Send Email
                     </a>
@@ -852,8 +1131,16 @@ export default function CompanyPortal() {
       {showUnlockModal && (
         <div className="modal-overlay" onClick={() => setShowUnlockModal(false)}>
           <div className="modal-content" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
-            <button style={{ position: "absolute", top: 16, right: 16, fontSize: 22, cursor: "pointer", background: "none", border: "none" }} onClick={() => setShowUnlockModal(false)}>
-              ✕
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setShowUnlockModal(false)}
+              aria-label="Close unlock modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
             <div style={{ padding: 28, textAlign: "center" }}>
               <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF3C7", color: "#D97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
@@ -898,10 +1185,85 @@ export default function CompanyPortal() {
         </div>
       )}
 
+      {/* ====== PLAN UPGRADE MODAL (FREE TIER GATING) ====== */}
+      {showPlanUpgradeModal && (
+        <div className="modal-overlay" onClick={() => setShowPlanUpgradeModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setShowPlanUpgradeModal(false)}
+              aria-label="Close plan upgrade modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div style={{ padding: 28, textAlign: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EFF6FF", color: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
+                ⚡
+              </div>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "var(--navy)" }}>
+                Upgrade to Growth Tier
+              </h3>
+              <p style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.55, marginBottom: 20 }}>
+                {planUpgradeFeature === "search"
+                  ? "Direct candidate directory searching and score filtering require Growth Tier (₹4,999/mo)."
+                  : planUpgradeFeature === "shortlist"
+                  ? "Candidate shortlisting and pipeline management require Growth Tier (₹4,999/mo)."
+                  : "Direct candidate contacts, verification scorecards, and shortlisting are unlocked on Growth Tier (₹4,999/mo)."}
+              </p>
+
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "14px 16px", marginBottom: 24, textAlign: "left", fontSize: 12.5, color: "#334155" }}>
+                <strong>What Growth Tier (₹4,999/mo) unlocks:</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "#475569", lineHeight: 1.6 }}>
+                  <li>Up to 5 Active Job Posts simultaneously</li>
+                  <li>Direct verified candidate search &amp; filtering</li>
+                  <li>Full candidate test scores &amp; AAPC/AHIMA certificates</li>
+                  <li>Candidate shortlisting &amp; hiring pipeline actions</li>
+                  <li>Priority KYC verification audit</li>
+                </ul>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  style={{ flex: 1, padding: 12, borderRadius: 8, background: "#F1F5F9", border: "none", fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => setShowPlanUpgradeModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={() => {
+                    setShowPlanUpgradeModal(false);
+                    navigate("/companies/billing");
+                  }}
+                >
+                  View Plans &amp; Upgrade →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ====== ADD CANDIDATE MODAL ====== */}
       {showAddModal && (
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setShowAddModal(false)}
+              aria-label="Close add candidate modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
             <form onSubmit={handleAddCandidateSubmit} style={{ padding: 32 }}>
               <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
                 + Add Real Candidate Profile

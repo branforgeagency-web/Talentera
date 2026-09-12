@@ -6,7 +6,7 @@ const Job = require("../models/Job");
 const { requireCompanyAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
-const { getPlan, isUnderJobPostLimit } = require("../config/plans");
+const { getPlan, isUnderJobPostLimit, PLANS } = require("../config/plans");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { cashfreeVerificationService } = require("../utils/cashfreeVerificationService");
 const logger = require("../utils/logger");
@@ -22,12 +22,12 @@ const JD_REQUIRED_FIELDS = [
   "level",
   "expmin",
   "expmax",
-  "shift",
-  "languages",
-  "location",
-  "workmode",
   "compmin",
   "compmax",
+  "workmode",
+  "location",
+  "shift",
+  "languages",
   "openings",
   "urgency",
   "hiringmanager",
@@ -47,46 +47,22 @@ function isEmptyValue(v) {
   return false;
 }
 
-// GET /api/company/me - full onboarding profile
+// Helper to sanitize input strings
+const toStr = (val, fallback = "") => (typeof val === "string" ? val.trim() : fallback);
+
+// GET /api/company/me - Fetch logged-in company profile
 router.get("/me", async (req, res) => {
-  const company = await Company.findById(req.companyId);
-  if (!company) return res.status(401).json({ message: "Company session expired or account not found." });
-
-  let modified = false;
-  const stage1a = company.stage1a || {};
-  if (!stage1a.legalname && company.companyName) {
-    stage1a.legalname = company.companyName;
-    company.stage1a = stage1a;
-    company.markModified("stage1a");
-    modified = true;
+  try {
+    const company = await Company.findById(req.companyId);
+    if (!company) return res.status(404).json({ message: "Company not found." });
+    res.json({ company });
+  } catch (err) {
+    logger.error(`Fetch company error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch company profile." });
   }
-
-  const stage1b = company.stage1b || {};
-  if (!stage1b.pocname && company.contactName) {
-    stage1b.pocname = company.contactName;
-    modified = true;
-  }
-  if (!stage1b.pocemail && company.email) {
-    stage1b.pocemail = company.email;
-    modified = true;
-  }
-  if (!stage1b.pocmobile && company.mobile) {
-    stage1b.pocmobile = company.mobile;
-    modified = true;
-  }
-  if (modified) {
-    company.stage1b = stage1b;
-    company.markModified("stage1b");
-    await company.save();
-  }
-
-  res.json({ company });
 });
 
-// GET /api/company/billing - current plan + usage, for a "Plan & Billing"
-// screen. SCAFFOLDING ONLY - no payment gateway wired, see
-// backend/config/plans.js and IMPROVEMENT_ROADMAP.md "No plans, seats, or
-// billing."
+// GET /api/company/billing - current plan + usage and available plan catalog
 router.get("/billing", async (req, res) => {
   try {
     const company = await Company.findById(req.companyId).lean();
@@ -99,14 +75,70 @@ router.get("/billing", async (req, res) => {
     res.json({
       plan,
       planAssignedAt: company.planAssignedAt || null,
+      planAssignedBy: company.planAssignedBy || "default",
       usage: {
         activeJobPosts: legacyJobActive + postedActiveCount,
         maxActiveJobPosts: plan.maxActiveJobPosts,
       },
+      availablePlans: Object.values(PLANS),
     });
   } catch (err) {
     logger.error(`Company billing fetch error: ${err.message}`);
     res.status(500).json({ message: "Failed to load billing information." });
+  }
+});
+
+// POST /api/company/billing/change-plan - self-serve plan tier change for companies
+router.post("/billing/change-plan", async (req, res) => {
+  try {
+    const { plan: targetPlan } = req.body;
+    if (!targetPlan || !PLANS[targetPlan]) {
+      return res.status(400).json({ message: "Invalid plan. Must be one of: free, growth, enterprise." });
+    }
+
+    const company = await Company.findById(req.companyId);
+    if (!company) return res.status(404).json({ message: "Company not found." });
+
+    const previousPlan = company.plan || "free";
+    if (previousPlan === targetPlan) {
+      return res.status(400).json({ message: `Your company is already on the ${getPlan(targetPlan).label} plan.` });
+    }
+
+    const nextPlanConfig = getPlan(targetPlan);
+    company.plan = targetPlan;
+    company.planAssignedAt = new Date();
+    company.planAssignedBy = "self-serve";
+    await company.save();
+
+    // Log notification for company
+    try {
+      await Notification.create({
+        recipientType: "company",
+        recipientId: String(company._id),
+        title: `Plan Changed to ${nextPlanConfig.label}`,
+        message: `Your subscription plan has been successfully updated from ${getPlan(previousPlan).label} to ${nextPlanConfig.label}.`,
+      });
+    } catch (notifErr) {
+      logger.warn(`Could not create plan change notification: ${notifErr.message}`);
+    }
+
+    const legacyJobActive = company.jdPublished && company.jobId ? 1 : 0;
+    const postedActiveCount = await Job.countDocuments({ companyId: req.companyId, published: true });
+
+    res.json({
+      message: `Your plan has been successfully updated to ${nextPlanConfig.label}!`,
+      company,
+      plan: nextPlanConfig,
+      planAssignedAt: company.planAssignedAt,
+      usage: {
+        activeJobPosts: legacyJobActive + postedActiveCount,
+        maxActiveJobPosts: nextPlanConfig.maxActiveJobPosts,
+      },
+      availablePlans: Object.values(PLANS),
+    });
+  } catch (err) {
+    logger.error(`Company change plan error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update subscription plan." });
   }
 });
 
@@ -152,6 +184,41 @@ router.put("/stage/:id", async (req, res) => {
   const company = await Company.findById(req.companyId);
   if (!company) return res.status(404).json({ message: "Not found." });
 
+  const plan = getPlan(company.plan);
+
+  // Plan feature gating:
+  // Custom Question Banks (Stage 5 qcustom) is gated to Enterprise tier
+  if (stageId === "5" && req.body && req.body.qcustom) {
+    if (!plan.customQuestionBanks) {
+      return res.status(403).json({
+        message: "Custom interview question banks are only available on the Enterprise Tier. Please upgrade to unlock custom questions.",
+        requiredPlan: "enterprise",
+      });
+    }
+  }
+
+  // Custom Screening Rubrics (Stage 6) is gated to Enterprise tier
+  if (stageId === "6" && req.body && (req.body.rweights || req.body.rpolicy || req.body.rroles)) {
+    if (!plan.customScreeningRubrics) {
+      return res.status(403).json({
+        message: "Custom screening rubrics and per-role weight calibrations are only available on the Enterprise Tier. Please upgrade to unlock.",
+        requiredPlan: "enterprise",
+      });
+    }
+  }
+
+  // ATS / HRIS Integrations (Stage 8 sats, swebhook) is gated to Enterprise tier
+  if (stageId === "8" && req.body && (req.body.sats || req.body.swebhook)) {
+    const isConnectingAts = req.body.sats && req.body.sats !== "None";
+    const isSettingWebhook = Boolean(req.body.swebhook);
+    if ((isConnectingAts || isSettingWebhook) && !plan.integrationsAtsHris) {
+      return res.status(403).json({
+        message: "ATS and HRIS webhook / API integrations are only available on the Enterprise Tier. Please upgrade to unlock.",
+        requiredPlan: "enterprise",
+      });
+    }
+  }
+
   const key = `stage${stageId}`;
   company[key] = { ...(company[key] || {}), ...req.body };
   if (!company.completedStages.includes(stageId)) {
@@ -159,7 +226,7 @@ router.put("/stage/:id", async (req, res) => {
   }
   await company.save();
 
-  res.json({ company });
+  res.json({ company, plan: plan.id });
 });
 
 // POST /api/company/verify-pan - Real-time PAN validation via Cashfree
@@ -309,30 +376,25 @@ router.post("/publish-jd", async (req, res) => {
     return res.status(400).json({ message: "Some required JD fields are missing.", missing });
   }
 
+  const isVerified = company.kycStatus === "verified";
+  if (!isVerified) {
+    return res.status(403).json({
+      message: "Account & KYC approval required. Only KYC-approved companies can post jobs on Talentera.",
+      kycStatus: company.kycStatus || "pending",
+    });
+  }
+
   if (!company.jdPublished) {
     const jobId = `TLT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const isVerified = company.kycStatus === "verified";
     company.jdPublished = true;
     company.jobId = jobId;
     company.jdPublishedAt = new Date();
-    company.jdApprovalStatus = isVerified ? "approved" : "pending";
-    company.jdApprovedAt = isVerified ? new Date() : null;
-    company.jdApprovedBy = isVerified ? "Auto-Approved (KYC Verified)" : "";
+    company.jdApprovalStatus = "approved";
+    company.jdApprovedAt = new Date();
+    company.jdApprovedBy = "Auto-Approved (KYC Verified)";
     company.jdRejectionReason = "";
     if (!company.completedStages.includes("9")) company.completedStages.push("9");
     await company.save();
-
-    if (!isVerified) {
-      // Notify staff only if company is not yet verified and requires manual review
-      await Notification.create({
-        recipientType: "staff",
-        recipientId: "staff",
-        title: "New Job Post Awaiting Approval",
-        message: `${company.companyName || company.email} submitted a job post ("${stage9.roletitle || "Untitled role"}", ${jobId}) for review.`,
-        type: "job_submitted",
-        meta: { source: "onboarding", companyId: String(company._id), jobId },
-      });
-    }
   }
 
   res.json({ company });
@@ -348,11 +410,40 @@ router.get("/jobs", async (req, res) => {
     const company = await Company.findById(req.companyId);
     if (!company) return res.status(404).json({ message: "Not found." });
 
+    const isCompanyVerified = company.kycStatus === "verified";
+
+    // Verified companies do not need employee approval — their jobs are auto-approved immediately
+    if (isCompanyVerified) {
+      if (company.jdPublished && company.jdApprovalStatus !== "rejected" && company.jdApprovalStatus !== "approved") {
+        company.jdApprovalStatus = "approved";
+        company.jdApprovedAt = company.jdApprovedAt || new Date();
+        company.jdApprovedBy = company.jdApprovedBy || "Auto-Approved (KYC Verified)";
+        await company.save();
+      }
+      await Job.updateMany(
+        { companyId: req.companyId, approvalStatus: "pending" },
+        { approvalStatus: "approved", approvedAt: new Date(), approvedBy: "Auto-Approved (KYC Verified)" }
+      );
+    } else {
+      // If company is not KYC verified, ensure any previously auto-approved jobs are restored to pending
+      if (company.jdPublished && company.jdApprovedBy === "Auto-Approved (KYC Verified)") {
+        company.jdApprovalStatus = "pending";
+        company.jdApprovedAt = null;
+        company.jdApprovedBy = "";
+        await company.save();
+      }
+      await Job.updateMany(
+        { companyId: req.companyId, approvedBy: "Auto-Approved (KYC Verified)" },
+        { approvalStatus: "pending", approvedAt: null, approvedBy: "" }
+      );
+    }
+
     const jobs = [];
 
     if (company.jdPublished && company.jobId) {
       const s9 = company.stage9 || {};
       const applicantsCount = await Application.countDocuments({ jobId: company.jobId });
+      const approvalStatus = (isCompanyVerified && company.jdApprovalStatus !== "rejected") ? "approved" : (company.jdApprovalStatus || "pending");
       jobs.push({
         source: "onboarding",
         jobId: company.jobId,
@@ -361,9 +452,7 @@ router.get("/jobs", async (req, res) => {
         closedAt: null,
         applicantsCount,
         fields: s9,
-        // Staff approval status - a job only reaches the public board once
-        // this is "approved" (see routes/public.js GET /jobs).
-        approvalStatus: company.jdApprovalStatus || "pending",
+        approvalStatus,
         rejectionReason: company.jdRejectionReason || "",
       });
     }
@@ -371,6 +460,7 @@ router.get("/jobs", async (req, res) => {
     const postedJobs = await Job.find({ companyId: req.companyId }).sort({ createdAt: -1 }).lean();
     for (const job of postedJobs) {
       const applicantsCount = await Application.countDocuments({ jobId: job.jobId });
+      const approvalStatus = (isCompanyVerified && job.approvalStatus !== "rejected") ? "approved" : (job.approvalStatus || "pending");
       jobs.push({
         source: "posted",
         id: job._id,
@@ -380,7 +470,7 @@ router.get("/jobs", async (req, res) => {
         closedAt: job.closedAt,
         applicantsCount,
         fields: job.fields || {},
-        approvalStatus: job.approvalStatus || "pending",
+        approvalStatus,
         rejectionReason: job.rejectionReason || "",
       });
     }
@@ -392,15 +482,12 @@ router.get("/jobs", async (req, res) => {
 
     res.json({
       jobs,
-      // Gate for the "Post another job" UI - the wizard's 9-step KYC/profile
-      // flow already establishes trust; kycStatus is the one signal every
-      // other verified-only feature in this app (contact unmasking,
-      // company badge, etc.) keys off, so multi-job posting uses the same
-      // gate rather than re-deriving a separate "100% profile" check here.
-      canPostMoreJobs: company.kycStatus === "verified" && isUnderJobPostLimit(plan, activeCount),
+      canPostMoreJobs: isUnderJobPostLimit(plan, activeCount),
       plan: plan.id,
       activeJobPosts: activeCount,
       maxActiveJobPosts: plan.maxActiveJobPosts,
+      isVerified: isCompanyVerified,
+      kycStatus: company.kycStatus || "pending",
     });
   } catch (err) {
     logger.error(`Fetch company jobs error: ${err.message}`);
@@ -408,18 +495,20 @@ router.get("/jobs", async (req, res) => {
   }
 });
 
-// POST /api/company/jobs - post an additional job once the company is KYC
-// verified, without re-running the onboarding wizard. Reuses the same
-// required-field list and jobId format as /publish-jd. Also enforces the
-// company's plan's active-job-post limit (billing scaffolding - see
-// backend/config/plans.js).
+// POST /api/company/jobs - post a job when required from the Company Dashboard.
+// Reuses the required-field list and jobId format. Automatically publishes live if
+// company is KYC-verified; otherwise submits for review.
 router.post("/jobs", async (req, res) => {
   try {
     const company = await Company.findById(req.companyId);
     if (!company) return res.status(404).json({ message: "Not found." });
 
-    if (company.kycStatus !== "verified") {
-      return res.status(403).json({ message: "Complete Account & KYC verification before posting additional jobs." });
+    const isVerified = company.kycStatus === "verified";
+    if (!isVerified) {
+      return res.status(403).json({
+        message: "Account & KYC approval required. Only KYC-approved companies can post jobs on Talentera.",
+        kycStatus: company.kycStatus || "pending",
+      });
     }
 
     const plan = getPlan(company.plan);
@@ -455,7 +544,10 @@ router.post("/jobs", async (req, res) => {
       fields,
     });
 
-    res.status(201).json({ message: "Job posted and published live! Candidates can discover and apply now.", job });
+    res.status(201).json({
+      message: "Job posted and published live! Candidates can discover and apply now.",
+      job,
+    });
   } catch (err) {
     logger.error(`Post job error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to post job." });
@@ -514,6 +606,7 @@ router.put("/jobs/:id", async (req, res) => {
 router.get("/applications", async (req, res) => {
   const company = await Company.findById(req.companyId);
   const isKycVerified = Boolean(company && company.kycStatus === "verified");
+  const plan = getPlan(company?.plan);
 
   const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
   const page = Math.max(1, Number(req.query.page) || 1);
@@ -567,6 +660,8 @@ router.get("/applications", async (req, res) => {
       : "🔒 Contact Locked";
 
     const scoring = calculateVerificationScore(candidate.completedStages || []);
+    const canViewScoresAndCerts = Boolean(plan.viewCandidateScoresAndCerts);
+
     return {
       _id: app._id,
       status: app.status,
@@ -586,19 +681,15 @@ router.get("/applications", async (req, res) => {
           email: maskedEmail,
         },
         training: candidate.stage2 || {},
-        certification: candidate.stage3 || {},
-        assessment: candidate.stage4 || {},
+        certification: canViewScoresAndCerts ? (candidate.stage3 || {}) : { name: (candidate.stage3?.name || "Professional Certification"), masked: true },
+        assessment: canViewScoresAndCerts ? (candidate.stage4 || {}) : { masked: true },
         videoIntro: candidate.stage5 || {},
-        liveCharts: candidate.stage6 || {},
-        // Previously missing from this response, so the applicant detail
-        // view had no summary or employment-status data to show even
-        // though the candidate had filled it in - stage7/stage8 exist on
-        // every candidate, same as the other stages above.
+        liveCharts: canViewScoresAndCerts ? (candidate.stage6 || {}) : { masked: true },
         summary: candidate.stage7 || {},
         employmentStatus: candidate.stage8 || {},
         completedStages: candidate.completedStages,
-        score: scoring.score,
-        badge: scoring.badge,
+        score: canViewScoresAndCerts ? scoring.score : null,
+        badge: canViewScoresAndCerts ? scoring.badge : null,
         verified: scoring.verified,
       },
     };
@@ -607,6 +698,8 @@ router.get("/applications", async (req, res) => {
   res.json({
     applications: formatted,
     isKycVerified,
+    plan: plan.id,
+    planFeatures: plan,
     total,
     ...(hasPaging ? { page, limit, totalPages: Math.ceil(total / limit) } : {}),
   });

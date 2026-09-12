@@ -41,15 +41,15 @@ const CompanySchema = new mongoose.Schema(
       default: [],
     },
 
-    // Stage 1A: Account & KYC (15 fields)
+    // Stage 1A: Account & KYC (12 fields)
     stage1a: { type: mongoose.Schema.Types.Mixed, default: null },
     // Stage 1B: Point of Contact (4 fields)
     stage1b: { type: mongoose.Schema.Types.Mixed, default: null },
-    // Stage 2: Company Profile (12 fields)
+    // Stage 2: Company Profile (4 fields)
     stage2: { type: mongoose.Schema.Types.Mixed, default: null },
     // Stage 3: Team Setup (6 fields)
     stage3: { type: mongoose.Schema.Types.Mixed, default: null },
-    // Stage 4: Branding (5 fields)
+    // Stage 4: Company Communication Setup (3 fields)
     stage4: { type: mongoose.Schema.Types.Mixed, default: null },
     // Stage 5: Question Bank (2 fields)
     stage5: { type: mongoose.Schema.Types.Mixed, default: null },

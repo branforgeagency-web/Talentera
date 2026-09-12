@@ -28,6 +28,7 @@ export default function CompanyApplicants() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [isKycVerified, setIsKycVerified] = useState(false);
+  const [canViewScoresAndCerts, setCanViewScoresAndCerts] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [jobFilter, setJobFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
@@ -44,6 +45,7 @@ export default function CompanyApplicants() {
       const res = await companyApi.get("/company/applications");
       setApplications(res.data?.applications || []);
       setIsKycVerified(Boolean(res.data?.isKycVerified));
+      setCanViewScoresAndCerts(res.data?.canViewScoresAndCerts ?? (company?.plan !== "free"));
     } catch (err) {
       console.error(err);
       setLoadError("Couldn't load your applicants. Please refresh the page.");
@@ -105,6 +107,9 @@ export default function CompanyApplicants() {
           </Link>
           <Link to="/companies/applicants" style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}>
             Applicants
+          </Link>
+          <Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Plan &amp; Billing
           </Link>
           <Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Edit Profile
@@ -226,7 +231,7 @@ export default function CompanyApplicants() {
                       {c.email} · {c.mobile}
                     </div>
                     <div style={{ fontSize: 12, color: "#94A3B8" }}>
-                      Job ID {app.jobId} · Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : ""} · Verification score {c.score ?? "—"}
+                      Job ID {app.jobId} · Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString() : ""} · Verification score: {c.score != null ? c.score : (!canViewScoresAndCerts ? "🔒 Locked (Free Plan)" : "—")}
                     </div>
                     {app.coverNote && (
                       <div style={{ marginTop: 8, fontSize: 12.5, color: "#334155", background: "#F8FAFC", padding: "8px 10px", borderRadius: 8 }}>
@@ -261,6 +266,7 @@ export default function CompanyApplicants() {
       {selectedApp && (
         <ApplicantDetailModal
           application={selectedApp}
+          canViewScoresAndCerts={canViewScoresAndCerts}
           updatingId={updatingId}
           onStatusChange={(status) => updateStatus(selectedApp._id, status)}
           onClose={() => setSelectedApp(null)}
@@ -276,7 +282,7 @@ export default function CompanyApplicants() {
 // certification, assessment, video intro, live-chart audit, self summary,
 // employment status) was already coming back from GET /company/applications
 // but had nowhere to render. Clicking a card opens this instead.
-function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose }) {
+function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onClose }) {
   const c = application.candidate || {};
   const basic = c.basicInfo || {};
   const training = c.training || {};
@@ -287,6 +293,7 @@ function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose
   const summary = c.summary || {};
   const employment = c.employmentStatus || {};
   const style = STATUS_STYLE[application.status] || STATUS_STYLE.applied;
+  const isScoresLocked = !canViewScoresAndCerts || assessment.scoreLocked || liveCharts.locked;
 
   const Section = ({ title, children }) => (
     <div style={{ marginBottom: 22 }}>
@@ -338,6 +345,34 @@ function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose
         </div>
 
         <div style={{ padding: "20px 26px 26px" }}>
+          {isScoresLocked && (
+            <div style={{ background: "#EFF6FF", border: "1.5px solid #3B82F6", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#1E40AF" }}>
+                  🔒 CANDIDATE ASSESSMENT SCORES & AUDITS GATED (FREE TIER)
+                </div>
+                <div style={{ fontSize: 12, color: "#1D4ED8", marginTop: 2 }}>
+                  Upgrade to Growth Tier (₹4,999/mo) to unlock complete proctored test scorecards, live chart accuracy breakdowns, and AAPC/AHIMA verification.
+                </div>
+              </div>
+              <Link
+                to="/companies/billing"
+                style={{
+                  background: "#1D4ED8",
+                  color: "#fff",
+                  textDecoration: "none",
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Upgrade to Growth →
+              </Link>
+            </div>
+          )}
+
           {!application.isKycVerified && (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, marginBottom: 20 }}>
               🔒 Contact details are masked until your company completes Account &amp; KYC verification.
@@ -362,18 +397,23 @@ function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose
           {!certification.skipped && (
             <Section title="Certification">
               <Row label="Certification" value={certification.name} />
-              <Row label="Certificate ID" value={certification.certId} />
-              <Row label="Verified" value={certification.verified ? "Yes ✓" : "Self-reported"} />
+              <Row label="Certificate ID" value={isScoresLocked ? "🔒 Locked (Free Tier)" : certification.certId} />
+              <Row label="Verified" value={isScoresLocked ? "🔒 Locked (Free Tier)" : (certification.verified ? "Yes ✓" : "Self-reported")} />
             </Section>
           )}
 
-          {assessment.score !== undefined && (
+          {isScoresLocked ? (
+            <Section title="Assessment">
+              <Row label="Proctored Assessment Score" value="🔒 Locked (Free Tier)" />
+              <Row label="Scorecard" value="Upgrade to Growth Tier to unlock" />
+            </Section>
+          ) : assessment.score !== undefined ? (
             <Section title="Assessment">
               <Row label="Topic" value={assessment.topic} />
               <Row label="Score" value={assessment.total ? `${assessment.score} / ${assessment.total}` : assessment.score} />
               <Row label="Passed" value={assessment.passed ? "Yes ✓" : "No"} />
             </Section>
-          )}
+          ) : null}
 
           <Section title="AI Video Introduction & Assessment">
             {videoIntro.videoUrl || c.videoUrl ? (
@@ -393,13 +433,18 @@ function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose
             )}
           </Section>
 
-          {liveCharts.liveChartsAudited !== undefined && (
+          {isScoresLocked ? (
+            <Section title="Live chart audit">
+              <Row label="Live Chart Accuracy" value="🔒 Locked (Free Tier)" />
+              <Row label="Audit Breakdown" value="Upgrade to Growth Tier to unlock" />
+            </Section>
+          ) : liveCharts.liveChartsAudited !== undefined ? (
             <Section title="Live chart audit">
               <Row label="Charts audited" value={liveCharts.liveChartsAudited} />
               <Row label="Accuracy score" value={liveCharts.accuracyScore !== undefined ? `${liveCharts.accuracyScore}%` : null} />
               <Row label="Verified" value={liveCharts.verified ? "Yes ✓" : "Self-reported"} />
             </Section>
-          )}
+          ) : null}
 
           {summary.summary && (
             <Section title="Candidate summary">
@@ -413,7 +458,7 @@ function ApplicantDetailModal({ application, updatingId, onStatusChange, onClose
           </Section>
 
           <Section title="Verification">
-            <Row label="Score" value={c.score !== undefined ? `${c.score} / 100` : null} />
+            <Row label="Score" value={isScoresLocked ? "🔒 Locked (Free Tier)" : (c.score !== undefined ? `${c.score} / 100` : null)} />
             <Row label="Completed stages" value={(c.completedStages || []).length ? c.completedStages.join(", ") : "None yet"} />
           </Section>
 

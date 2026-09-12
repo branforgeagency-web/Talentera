@@ -295,6 +295,17 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       };
     });
 
+    // Priority KYC Audit Sorting: Enterprise (Express) -> Growth (Priority) -> Free (Standard)
+    const PLAN_PRIORITY = { enterprise: 1, growth: 2, free: 3 };
+    companyKycQueue.sort((a, b) => {
+      const pA = PLAN_PRIORITY[a.plan] || 3;
+      const pB = PLAN_PRIORITY[b.plan] || 3;
+      if (pA !== pB) return pA - pB;
+      const tA = a.kycSubmittedAt ? new Date(a.kycSubmittedAt).getTime() : 0;
+      const tB = b.kycSubmittedAt ? new Date(b.kycSubmittedAt).getTime() : 0;
+      return tB - tA;
+    });
+
     // Video Introductions Queue - candidate self-introductions and AI proctored mock interview recordings
     const videoIntrosQueue = candidates
       .filter((c) => {

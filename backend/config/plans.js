@@ -18,33 +18,50 @@ const PLANS = {
   free: {
     id: "free",
     label: "Free",
+    name: "Free Tier",
     maxActiveJobPosts: 1,
     candidatePoolSearch: false,
+    viewCandidateScoresAndCerts: false,
+    candidateShortlisting: false,
+    customQuestionBanks: false,
+    customScreeningRubrics: false,
+    integrationsAtsHris: false,
+    priorityKycAudit: false,
+    prioritySupport: false,
+    dedicatedAccountManager: false,
     monthlyPriceInr: 0,
   },
   growth: {
     id: "growth",
     label: "Growth",
+    name: "Growth Tier",
     maxActiveJobPosts: 5,
     candidatePoolSearch: true,
+    viewCandidateScoresAndCerts: true,
+    candidateShortlisting: true,
+    customQuestionBanks: false,
+    customScreeningRubrics: false,
+    integrationsAtsHris: false,
+    priorityKycAudit: true,
+    prioritySupport: true,
+    dedicatedAccountManager: false,
     monthlyPriceInr: 4999,
   },
   enterprise: {
     id: "enterprise",
     label: "Enterprise",
-    // BUG FIX (2026-08-21): this was JS `Infinity`, which isn't valid JSON -
-    // JSON.stringify silently turns it into `null` on the way out of
-    // GET /api/company/billing and GET /api/staff/plans, so any frontend
-    // reading this field would have seen `maxActiveJobPosts: null` for
-    // Enterprise (and `activeCount < null` is always false in JS, which
-    // would incorrectly block Enterprise companies from posting more jobs
-    // the moment a UI consumed this field). `null` is now the deliberate,
-    // documented sentinel for "unlimited" - see isUnlimitedJobPosts() /
-    // isUnderJobPostLimit() below, which every caller should use instead of
-    // comparing directly against this field.
+    name: "Enterprise Tier",
     maxActiveJobPosts: null, // null = unlimited
     candidatePoolSearch: true,
-    monthlyPriceInr: null, // "Contact sales"
+    viewCandidateScoresAndCerts: true,
+    candidateShortlisting: true,
+    customQuestionBanks: true,
+    customScreeningRubrics: true,
+    integrationsAtsHris: true,
+    priorityKycAudit: true,
+    prioritySupport: true,
+    dedicatedAccountManager: true,
+    monthlyPriceInr: 19999,
   },
 };
 

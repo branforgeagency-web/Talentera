@@ -7,6 +7,7 @@ const Company = require("../models/Company");
 const Job = require("../models/Job");
 const Application = require("../models/Application");
 const { calculateVerificationScore } = require("../utils/verificationScore");
+const { getPlan } = require("../config/plans");
 const { requireCompanyAuth, JWT_SECRET } = require("../middleware/auth");
 const logger = require("../utils/logger");
 
@@ -37,6 +38,7 @@ function maskMobile(mobile) {
 // req.isVerifiedCompany so the route handler can decide what to send.
 async function attachVerifiedCompanyStatus(req, _res, next) {
   req.isVerifiedCompany = false;
+  req.companyPlan = getPlan("free");
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   if (!token) return next();
@@ -46,6 +48,8 @@ async function attachVerifiedCompanyStatus(req, _res, next) {
     if (decoded.role !== "company") return next();
     const company = await Company.findById(decoded.id).lean();
     req.isVerifiedCompany = !!company && company.kycStatus === "verified";
+    req.companyPlan = getPlan(company?.plan);
+    req.companyId = company?._id;
   } catch (err) {
     // Invalid/expired token on a route that doesn't require auth - just
     // treat the requester as anonymous rather than failing the request.
@@ -120,36 +124,71 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       };
     });
 
+    const plan = req.companyPlan || getPlan("free");
+    const canSearchPool = Boolean(plan.candidatePoolSearch);
+    const canViewScores = Boolean(plan.viewCandidateScoresAndCerts);
+
+    // Free tier: Direct candidate search & filtering is gated
+    // If a free-tier company tries to use search queries or filters (?q, ?city, ?domain, ?minScore)
     const { q, city, domain, minScore } = req.query;
+    const hasSearchFilters = Boolean((q && q.trim()) || (city && city.trim()) || (domain && domain.trim()) || (minScore && Number(minScore) > 0));
 
-    if (q && String(q).trim()) {
-      const needle = String(q).trim().toLowerCase();
-      formatted = formatted.filter(
-        (c) =>
-          c.name.toLowerCase().includes(needle) ||
-          (c.currentRole || "").toLowerCase().includes(needle) ||
-          (c.summary || "").toLowerCase().includes(needle)
-      );
-    }
-    if (city && String(city).trim()) {
-      const needle = String(city).trim().toLowerCase();
-      formatted = formatted.filter((c) => (c.city || "").toLowerCase().includes(needle));
-    }
-    if (domain && String(domain).trim()) {
-      const needle = String(domain).trim().toLowerCase();
-      formatted = formatted.filter(
-        (c) =>
-          (c.currentRole || "").toLowerCase().includes(needle) ||
-          (c.academyName || "").toLowerCase().includes(needle) ||
-          (c.certificationName || "").toLowerCase().includes(needle)
-      );
-    }
-    if (minScore && !Number.isNaN(Number(minScore))) {
-      const min = Number(minScore);
-      formatted = formatted.filter((c) => c.verificationScore >= min);
+    if (hasSearchFilters && !canSearchPool) {
+      return res.status(403).json({
+        message: "Direct candidate directory search and filtering requires Growth or Enterprise subscription. Please upgrade your plan.",
+        requiredPlan: "growth",
+        plan: plan.id,
+      });
     }
 
-    res.json({ candidates: formatted, total: formatted.length, isVerifiedCompany: req.isVerifiedCompany });
+    if (canSearchPool) {
+      if (q && String(q).trim()) {
+        const needle = String(q).trim().toLowerCase();
+        formatted = formatted.filter(
+          (c) =>
+            c.name.toLowerCase().includes(needle) ||
+            (c.currentRole || "").toLowerCase().includes(needle) ||
+            (c.summary || "").toLowerCase().includes(needle)
+        );
+      }
+      if (city && String(city).trim()) {
+        const needle = String(city).trim().toLowerCase();
+        formatted = formatted.filter((c) => (c.city || "").toLowerCase().includes(needle));
+      }
+      if (domain && String(domain).trim()) {
+        const needle = String(domain).trim().toLowerCase();
+        formatted = formatted.filter(
+          (c) =>
+            (c.currentRole || "").toLowerCase().includes(needle) ||
+            (c.academyName || "").toLowerCase().includes(needle) ||
+            (c.certificationName || "").toLowerCase().includes(needle)
+        );
+      }
+      if (minScore && !Number.isNaN(Number(minScore))) {
+        const min = Number(minScore);
+        formatted = formatted.filter((c) => c.verificationScore >= min);
+      }
+    }
+
+    // For Free Tier, preview candidate cards without scores/verified certificate audit details
+    if (!canViewScores) {
+      formatted = formatted.map((c) => ({
+        ...c,
+        verificationScore: null,
+        badge: false,
+        badgeLabel: "Verified Pool",
+        certVerified: false,
+        scoresGated: true,
+      }));
+    }
+
+    res.json({
+      candidates: formatted,
+      total: formatted.length,
+      isVerifiedCompany: req.isVerifiedCompany,
+      plan: plan.id,
+      planFeatures: plan,
+    });
   } catch (err) {
     logger.error(`Fetch public candidates error: ${err.message}`);
     res.status(500).json({ message: "Failed to load candidates." });

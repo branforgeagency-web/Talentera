@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
@@ -16,21 +16,18 @@ function emptyFormState() {
   return state;
 }
 
-// The "post another job" screen for companies that are already fully
-// onboarded and KYC-verified - see companyOnboardingStages.js's
-// isFullyOnboarded(). Previously a company could only ever have exactly one
-// live JD (the one captured during onboarding Stage 9); this reuses that
-// same field vocabulary against the new POST /api/company/jobs endpoint so
-// a verified company can publish as many roles as it actually has open.
 export default function CompanyJobs() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const toast = useToast();
   const { company: authCompany, logout } = useCompanyAuth();
 
   const [jobs, setJobs] = useState([]);
-  const [canPostMoreJobs, setCanPostMoreJobs] = useState(false);
+  const [canPostMoreJobs, setCanPostMoreJobs] = useState(true);
+  const [isCompanyVerified, setIsCompanyVerified] = useState(false);
+  const [kycStatus, setKycStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
   const [form, setForm] = useState(emptyFormState);
   const [submitting, setSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
@@ -45,6 +42,9 @@ export default function CompanyJobs() {
       const res = await companyApi.get("/company/jobs");
       setJobs(res.data?.jobs || []);
       setCanPostMoreJobs(Boolean(res.data?.canPostMoreJobs));
+      const verified = Boolean(res.data?.isVerified || authCompany?.kycStatus === "verified");
+      setIsCompanyVerified(verified);
+      setKycStatus(res.data?.kycStatus || authCompany?.kycStatus || "pending");
     } catch (err) {
       console.error(err);
       toast("Couldn't load your job posts.", "!");
@@ -74,6 +74,11 @@ export default function CompanyJobs() {
 
   async function handlePost(e) {
     e.preventDefault();
+    if (!isCompanyVerified) {
+      toast("Account & KYC approval required. Only KYC-approved companies can post jobs.", "!");
+      navigate("/companies/dashboard");
+      return;
+    }
     const missing = STAGE9.items.filter((i) => REQUIRED_IDS.has(i.id) && isEmpty(form[i.id]));
     if (missing.length > 0) {
       toast(`Fill in: ${missing.map((i) => i.name).join(", ")}`, "!");
@@ -127,6 +132,9 @@ export default function CompanyJobs() {
           <Link to="/companies/applicants" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Applicants
           </Link>
+          <Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Plan &amp; Billing
+          </Link>
           <Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Edit Profile
           </Link>
@@ -145,13 +153,30 @@ export default function CompanyJobs() {
       <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 24px 80px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
-            <h1 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Job Posts</h1>
+            <h1 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Job Posts &amp; Requisitions</h1>
             <p style={{ fontSize: 13.5, color: "#64748B" }}>
-              Your profile is complete and verified — post as many open roles as you need. Every job post is
-              reviewed by Talentera staff before it appears on the public job board.
+              Create, publish, and manage job requisitions whenever you have active vacancies.
+              Postings go live immediately once your company Account &amp; KYC is approved.
             </p>
           </div>
-          {canPostMoreJobs ? (
+          {!isCompanyVerified ? (
+            <div
+              style={{
+                background: "#FEF3C7",
+                border: "1px solid #FCD34D",
+                color: "#92400E",
+                padding: "10px 18px",
+                borderRadius: 10,
+                fontWeight: 700,
+                fontSize: 13.5,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span>⏳</span> Wait for KYC approval to post jobs
+            </div>
+          ) : canPostMoreJobs ? (
             <button
               type="button"
               onClick={() => setShowForm((v) => !v)}
@@ -161,13 +186,68 @@ export default function CompanyJobs() {
             </button>
           ) : (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, maxWidth: 320 }}>
-              🔒 Complete Account &amp; KYC verification to post additional jobs.{" "}
-              <Link to="/companies/dashboard" style={{ color: "#92400E", fontWeight: 800 }}>Verify now →</Link>
+              Active job posting limit reached for your current plan tier.{" "}
+              <Link to="/companies/billing" style={{ color: "var(--navy)", fontWeight: 800, textDecoration: "underline" }}>
+                Upgrade plan →
+              </Link>
             </div>
           )}
         </div>
 
-        {showForm && (
+        {!isCompanyVerified ? (
+          <div
+            style={{
+              background: "#FFFBEB",
+              border: "1px solid #FDE68A",
+              color: "#92400E",
+              padding: "14px 18px",
+              borderRadius: 12,
+              fontSize: 13.5,
+              marginBottom: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>⏳</span>
+              <div>
+                <strong style={{ display: "block", marginBottom: 2, fontSize: 14 }}>
+                  {kycStatus === "under_review" ? "KYC Under Review" : "Wait for KYC Approval"}
+                </strong>
+                <span style={{ color: "#78350F", fontSize: 13 }}>
+                  {kycStatus === "under_review"
+                    ? "Your company documents are under review. Once KYC is approved, you can post and manage active jobs."
+                    : "Please wait for KYC approval before posting jobs. Complete and submit your KYC details if not submitted yet."}
+                </span>
+              </div>
+            </div>
+            <Link
+              to="/companies/dashboard"
+              style={{
+                background: "var(--navy)",
+                color: "#fff",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontWeight: 700,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                fontSize: 12.5,
+              }}
+            >
+              Check KYC Status →
+            </Link>
+          </div>
+        ) : (
+          <div style={{ background: "#DCFCE7", border: "1px solid #86EFAC", color: "#166534", padding: "12px 18px", borderRadius: 12, fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>✓</span>
+            <span><strong>KYC Verified:</strong> Your company is approved! Any jobs you post are published live immediately without employee review.</span>
+          </div>
+        )}
+
+        {isCompanyVerified && showForm && (
           <form onSubmit={handlePost} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: 24, marginBottom: 28 }}>
             <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>New job details</h2>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -262,12 +342,11 @@ export default function CompanyJobs() {
           jobs.map((job) => {
             const f = job.fields || {};
             const isOpen = job.published && !job.closedAt;
-            const approvalStatus = job.approvalStatus || "pending";
+            const isVerifiedEmployer = isCompanyVerified || authCompany?.kycStatus === "verified";
+            const rawStatus = job.approvalStatus || "pending";
+            const approvalStatus = (isVerifiedEmployer && rawStatus !== "rejected") ? "approved" : rawStatus;
 
-            // Approval status takes priority over Open/Closed - a job isn't
-            // visible to candidates at all until Talentera staff approve it,
-            // however the company itself is toggling published/closed.
-            let statusLabel = isOpen ? "Open" : "Closed";
+            let statusLabel = isOpen ? "Live ✓" : "Closed";
             let statusBg = isOpen ? "#DCFCE7" : "#F1F5F9";
             let statusColor = isOpen ? "#166534" : "#64748B";
             if (isOpen && approvalStatus === "pending") {
@@ -297,7 +376,12 @@ export default function CompanyJobs() {
                   </div>
                   {isOpen && approvalStatus === "pending" && (
                     <div style={{ fontSize: 12, color: "#92400E", marginBottom: 6 }}>
-                      Talentera staff are reviewing this job post — it isn't visible on the public job board yet.
+                      Talentera staff are reviewing this job post — it will go live upon company verification.
+                    </div>
+                  )}
+                  {isOpen && approvalStatus === "approved" && (
+                    <div style={{ fontSize: 12, color: "#166534", marginBottom: 6 }}>
+                      ✓ Live on public job board — candidates can discover and apply now.
                     </div>
                   )}
                   {approvalStatus === "rejected" && job.rejectionReason && (

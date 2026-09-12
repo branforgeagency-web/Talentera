@@ -33,9 +33,9 @@ body {
    ========================================================================== */
 
 /* Headings default to dark blue across light pages */
-h1:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading),
-h2:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading),
-h3, h4, h5, h6,
+h1:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading):not(.conb-hero-title):not(.conb-sidebar-title):not(.conb-banner-title),
+h2:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading):not(.conb-hero-title):not(.conb-sidebar-title):not(.conb-banner-title),
+h3:not(.conb-banner-title), h4, h5, h6,
 .hero-main-title,
 .section-title-light,
 .job-role-title,
@@ -48,7 +48,7 @@ h3, h4, h5, h6,
 }
 
 /* Subtitles, labels, and readable body text in light sections */
-p:not(.fc-hero-sub):not(.fa-hero-sub):not(.fco-hero-sub):not(.candidate-parallax-lead):not(.pipeline-parallax-lead):not(.fc-cta-sub):not(.fco-cta-sub):not(.tal-fn-sub):not(.fc-benefit-desc):not(.fc-fasttrack-desc):not(.st-ai-bubble-text),
+p:not(.fc-hero-sub):not(.fa-hero-sub):not(.fco-hero-sub):not(.candidate-parallax-lead):not(.pipeline-parallax-lead):not(.fc-cta-sub):not(.fco-cta-sub):not(.tal-fn-sub):not(.fc-benefit-desc):not(.fc-fasttrack-desc):not(.st-ai-bubble-text):not(.conb-hero-sub):not(.conb-banner-desc),
 .section-lead,
 .hero-partner-desc,
 .pipeline-step-desc,
@@ -2822,12 +2822,24 @@ p.progression-parallax-lead,
 .cauth-brand h1,
 .cauth-brand-title,
 .hv-wrapper h1, .hv-wrapper h2, .hv-wrapper h3,
-.hv-hero-title {
+.hv-hero-title,
+.conb-hero h1,
+.conb-hero-title,
+.conb-sidebar h2,
+.conb-sidebar-title,
+.conb-banner h3,
+.conb-banner-title,
+.conb-topnav-name {
   color: #FFFFFF !important;
 }
 
-.cauth-brand-sub {
+.cauth-brand-sub,
+.conb-banner-desc {
   color: rgba(241, 245, 249, 0.92) !important;
+}
+
+.conb-hero-sub {
+  color: rgba(200, 209, 224, 0.9) !important;
 }
 
 /* 9. Light Background Dot Grid & Cream Surfaces (NEVER WHITE TEXT) */

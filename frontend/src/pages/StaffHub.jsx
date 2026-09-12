@@ -5487,9 +5487,21 @@ export default function StaffHub() {
                                   {toStr(comp.companyName, "Unnamed Company")}
                                 </div>
                                 <div style={{ fontSize: 11, color: "#64748B", marginBottom: 6 }}>{toStr(comp.contactName, "N/A")} · {toStr(comp.entity, "Company")}</div>
-                                <span style={{ fontSize: 9.5, fontWeight: 800, padding: "3px 8px", borderRadius: 4, background: isVerified ? "#DCFCE7" : isRejected ? "#FEE2E2" : "#FEF3C7", color: isVerified ? "#15803D" : isRejected ? "#B91C1C" : "#B45309", fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)", textTransform: "uppercase" }}>
-                                  {toStr(comp.kycStatus, "pending")}
-                                </span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <span style={{ fontSize: 9.5, fontWeight: 800, padding: "3px 8px", borderRadius: 4, background: isVerified ? "#DCFCE7" : isRejected ? "#FEE2E2" : "#FEF3C7", color: isVerified ? "#15803D" : isRejected ? "#B91C1C" : "#B45309", fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)", textTransform: "uppercase" }}>
+                                    {toStr(comp.kycStatus, "pending")}
+                                  </span>
+                                  {comp.plan === "enterprise" && (
+                                    <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}>
+                                      ⚡ EXPRESS AUDIT
+                                    </span>
+                                  )}
+                                  {comp.plan === "growth" && (
+                                    <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EFF6FF", color: "#1E40AF", border: "1px solid #BFDBFE" }}>
+                                      ⚡ PRIORITY
+                                    </span>
+                                  )}
+                                </div>
                               </button>
                             );
                           })}
@@ -5539,8 +5551,10 @@ export default function StaffHub() {
                                 <div style={{ fontSize: 13, color: "#0F172A", marginTop: 2 }}>{toStr(selectedComp.signatory, "Not specified")}</div>
                               </div>
                               <div>
-                                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>Subscription Plan</div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: "#2563EB", marginTop: 2, textTransform: "uppercase" }}>{toStr(selectedComp.plan, "Free")}</div>
+                                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>Subscription Plan Tier</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: selectedComp.plan === "enterprise" ? "#B45309" : selectedComp.plan === "growth" ? "#1D4ED8" : "#475569", marginTop: 2, textTransform: "uppercase" }}>
+                                  {toStr(selectedComp.plan, "Free")} Tier {selectedComp.plan === "enterprise" ? "⚡ (Express Audit)" : selectedComp.plan === "growth" ? "⚡ (Priority Audit)" : ""}
+                                </div>
                               </div>
                             </div>
 
@@ -8621,9 +8635,9 @@ export default function StaffHub() {
                 const docs = [
                   { id: "kycgst", label: "GST Certificate", val: s1a.kycgst },
                   { id: "kycpan", label: "PAN Card", val: s1a.kycpan },
-                  { id: "kycincorp", label: "Certificate of Incorporation", val: s1a.kycincorp },
-                  { id: "kyccheque", label: "Cancelled Cheque", val: s1a.kyccheque },
-                  { id: "msme", label: "MSME Certificate", val: s1a.msme },
+                  { id: "kycincorp", label: "Certificate of Incorporation (Optional)", val: s1a.kycincorp },
+                  ...(s1a.kyccheque ? [{ id: "kyccheque", label: "Cancelled Cheque", val: s1a.kyccheque }] : []),
+                  ...(s1a.msme ? [{ id: "msme", label: "MSME Certificate", val: s1a.msme }] : []),
                 ];
 
                 return (
@@ -8646,10 +8660,12 @@ export default function StaffHub() {
                         <div className="staff-meta-label">Entity Constitution</div>
                         <div className="staff-meta-value">{s1a.entity || "Private Limited"}</div>
                       </div>
-                      <div className="staff-meta-item">
-                        <div className="staff-meta-label">Date of Incorporation</div>
-                        <div className="staff-meta-value">{s1a.doi || "Not provided"}</div>
-                      </div>
+                      {s1a.doi && (
+                        <div className="staff-meta-item">
+                          <div className="staff-meta-label">Date of Incorporation</div>
+                          <div className="staff-meta-value">{s1a.doi}</div>
+                        </div>
+                      )}
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Company Size</div>
                         <div className="staff-meta-value">{s1a.cosize || "100–500"}</div>
@@ -8751,30 +8767,31 @@ export default function StaffHub() {
               {/* TAB: PROFILE */}
               {companyModalTab === "profile" && (() => {
                 const s2 = selectedCompany.stage2 || {};
+                const branchVal = Array.isArray(s2.branches)
+                  ? s2.branches.join(", ")
+                  : s2.branches || (Array.isArray(s2.otherlocations) ? s2.otherlocations.join(", ") : s2.otherlocations) || "None";
                 return (
                   <div>
-                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 2: Company Profile & Industry</h3>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 2: Company Profile</h3>
                     <div className="staff-meta-grid">
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">Industry Domain</div>
-                        <div className="staff-meta-value">{s2.industry || "Healthcare RCM & Medical Coding"}</div>
+                        <div className="staff-meta-label">Company Headquarters</div>
+                        <div className="staff-meta-value">{s2.hq || s2.headoffice || "Not provided"}</div>
                       </div>
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">Employee Headcount</div>
-                        <div className="staff-meta-value">{s2.companySize || "1,000–5,000"}</div>
-                      </div>
-                      <div className="staff-meta-item">
-                        <div className="staff-meta-label">Official Website</div>
-                        <div className="staff-meta-value">{s2.website || "Not provided"}</div>
-                      </div>
-                      <div className="staff-meta-item">
-                        <div className="staff-meta-label">Head Office Location</div>
-                        <div className="staff-meta-value">{s2.headoffice || "India"}</div>
+                        <div className="staff-meta-label">Branches</div>
+                        <div className="staff-meta-value">{branchVal}</div>
                       </div>
                       <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
-                        <div className="staff-meta-label">About Company</div>
+                        <div className="staff-meta-label">Company Description</div>
                         <div className="staff-meta-value" style={{ fontSize: 13, lineHeight: 1.5 }}>
-                          {s2.about || "Leading healthcare operations company hiring certified medical coders, billing executives, and AR specialists."}
+                          {s2.about || "Not provided"}
+                        </div>
+                      </div>
+                      <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
+                        <div className="staff-meta-label">Projects</div>
+                        <div className="staff-meta-value" style={{ fontSize: 13, lineHeight: 1.5 }}>
+                          {s2.projects || "Not provided"}
                         </div>
                       </div>
                     </div>

@@ -14,6 +14,7 @@ import CompanyPortal from "./pages/CompanyPortal.jsx";
 import CompanyDashboardSetup from "./pages/CompanyDashboardSetup.jsx";
 import CompanyApplicants from "./pages/CompanyApplicants.jsx";
 import CompanyJobs from "./pages/CompanyJobs.jsx";
+import CompanyBilling from "./pages/CompanyBilling.jsx";
 import Jobs from "./pages/Jobs.jsx";
 import AcademyLogin from "./pages/AcademyLogin.jsx";
 import AcademyPortal from "./pages/AcademyPortal.jsx";
@@ -80,6 +81,14 @@ export default function App() {
         element={
           <CompanyRequireAuth>
             <CompanyJobs />
+          </CompanyRequireAuth>
+        }
+      />
+      <Route
+        path="/companies/billing"
+        element={
+          <CompanyRequireAuth>
+            <CompanyBilling />
           </CompanyRequireAuth>
         }
       />

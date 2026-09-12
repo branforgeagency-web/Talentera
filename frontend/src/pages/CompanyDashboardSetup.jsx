@@ -24,9 +24,6 @@ export default function CompanyDashboardSetup() {
   const [activeStageId, setActiveStageId] = useState("1a");
   const [stageErrors, setStageErrors] = useState({});
   const [missingFields, setMissingFields] = useState(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [publishing, setPublishing] = useState(false);
-  const [publishSuccess, setPublishSuccess] = useState(false);
   const [submittingKyc, setSubmittingKyc] = useState(false);
 
   const [notifications, setNotifications] = useState([]);
@@ -112,10 +109,11 @@ export default function CompanyDashboardSetup() {
     );
   }
 
-  const activeStage = ONBOARDING_STAGES.find((s) => s.id === activeStageId);
-  const banner = STAGE_BANNERS[activeStageId];
-  let activeData = company[`stage${activeStageId}`] || {};
-  if (activeStageId === "1a" && !activeData.legalname && (company.companyName || authCompany?.companyName)) {
+  const activeStage = ONBOARDING_STAGES.find((s) => s.id === activeStageId) || ONBOARDING_STAGES[0];
+  const effectiveStageId = activeStage.id;
+  const banner = STAGE_BANNERS[effectiveStageId] || STAGE_BANNERS["1a"];
+  let activeData = company[`stage${effectiveStageId}`] || {};
+  if (effectiveStageId === "1a" && !activeData.legalname && (company.companyName || authCompany?.companyName)) {
     activeData = { ...activeData, legalname: company.companyName || authCompany?.companyName || "" };
   }
   if (activeStageId === "1b") {
@@ -173,40 +171,6 @@ export default function CompanyDashboardSetup() {
     // Always allow moving backward to previous sections or switching to an earlier stage
     setActiveStageId(targetId);
     setMissingFields(null);
-    setPreviewOpen(false);
-  }
-
-  function handleJdButtonClick() {
-    const stage9 = company.stage9 || {};
-    const mustItems = ONBOARDING_STAGES.find((s) => s.id === "9").items.filter((i) => i.tag === "must");
-    const missing = mustItems.filter((i) => {
-      const v = stage9[i.id];
-      if (v === undefined || v === null) return true;
-      if (typeof v === "string") return v.trim() === "";
-      if (Array.isArray(v)) return v.length === 0;
-      return false;
-    });
-    if (missing.length > 0) {
-      const missingNames = missing.map((i) => i.name);
-      setMissingFields(missingNames);
-      toast(`⚠️ Section 9 Incomplete: Please fill required fields (${missingNames.join(", ")})`, "!");
-      return;
-    }
-    setPreviewOpen(true);
-  }
-
-  async function confirmPublish() {
-    setPublishing(true);
-    try {
-      const res = await companyApi.post("/company/publish-jd");
-      setCompany(res.data.company);
-      setPreviewOpen(false);
-      setPublishSuccess(true);
-    } catch (err) {
-      toast(err.response?.data?.message || "Couldn't publish the JD.", "!");
-    } finally {
-      setPublishing(false);
-    }
   }
 
   if (loading) {
@@ -271,18 +235,21 @@ export default function CompanyDashboardSetup() {
             Hire Verified Talent
           </Link>
           <Link
-            to="/companies/jobs"
+            to="/companies/jobs?create=1"
             style={{
-              color: "rgba(255,255,255,0.85)",
+              color: "var(--navy)",
+              background: "var(--gold)",
               fontSize: 13,
-              fontWeight: 700,
+              fontWeight: 800,
               textDecoration: "none",
-              padding: "8px 14px",
+              padding: "8px 16px",
               borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.15)",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
             }}
           >
-            Job Posts
+            <span>+</span> Create / Post JD
           </Link>
           <Link
             to="/companies/applicants"
@@ -297,6 +264,20 @@ export default function CompanyDashboardSetup() {
             }}
           >
             Applicants
+          </Link>
+          <Link
+            to="/companies/billing"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Plan &amp; Billing
           </Link>
           {/* IN-APP NOTIFICATION BELL & DROPDOWN */}
           <div style={{ position: "relative" }}>
@@ -438,12 +419,12 @@ export default function CompanyDashboardSetup() {
               : "ACCOUNT CREATED · SETUP IN PROGRESS"}
           </div>
 
-          <h1 className="conb-hero-title">
+          <h1 className="conb-hero-title" style={{ color: "#FFFFFF" }}>
             Welcome, <span className="gold-italic">{contactName}</span> — let's get{" "}
             <span className="gold-italic">{companyName}</span> hiring.
           </h1>
 
-          <p className="conb-hero-sub">
+          <p className="conb-hero-sub" style={{ color: "rgba(226, 232, 240, 0.9)" }}>
             Complete your profile to unlock the full verified candidate pool. Most companies finish in{" "}
             <strong style={{ color: "var(--gold-light)" }}>~12 minutes</strong>. Your data is encrypted, never shared with competitors.
           </p>
@@ -554,11 +535,17 @@ export default function CompanyDashboardSetup() {
                   </div>
                   <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
                 </div>
-                <div>
-                  <div className="conb-hero-stat-val">
-                    {jdIsLive ? "LIVE" : jdIsPendingApproval ? "IN REVIEW" : jdIsRejected ? "REVISION" : "DRAFT"}
+                <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
+                  <div className="conb-hero-stat-val" style={{ fontSize: company.jobId ? 26 : 18 }}>
+                    {jdIsLive ? "1 LIVE" : jdIsPendingApproval ? "IN REVIEW" : "+ POST JD"}
                   </div>
-                  <div className="conb-hero-stat-label">FIRST JD STATUS</div>
+                  <div className="conb-hero-stat-label">JOB REQUISITIONS</div>
+                </div>
+                <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/billing")}>
+                  <div className="conb-hero-stat-val" style={{ fontSize: 17, color: "var(--gold)" }}>
+                    {(company.plan || "free").toUpperCase()} ⚡
+                  </div>
+                  <div className="conb-hero-stat-label">PLAN TIER (CHANGE)</div>
                 </div>
               </div>
             );
@@ -571,7 +558,7 @@ export default function CompanyDashboardSetup() {
         {/* LEFT SIDEBAR */}
         <aside className="conb-sidebar">
           <div className="conb-sidebar-eyebrow">ONBOARDING</div>
-          <h2 className="conb-sidebar-title">
+          <h2 className="conb-sidebar-title" style={{ color: "#FFFFFF" }}>
             Register yourself with <span style={{ color: "var(--gold)" }}>Talentera</span>
           </h2>
 
@@ -592,8 +579,6 @@ export default function CompanyDashboardSetup() {
               const isActive = activeStageId === st.id;
               const done = stageDoneFields(st.id, company[`stage${st.id}`]);
               const total = stageTotalFields(st.id);
-              const isLive = st.id === "9" && jdIsLive;
-              const isPendingJd = st.id === "9" && jdIsPendingApproval;
               const isKycStage = st.id === "1a";
               return (
                 <div
@@ -608,7 +593,7 @@ export default function CompanyDashboardSetup() {
                     <div>
                       <div className="conb-stage-item-title">{st.name}</div>
                       <div className="conb-stage-item-status">
-                        {isKycStage && company.kycStatus === "verified" ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : isLive ? "JOB LIVE ✓" : isPendingJd ? "AWAITING APPROVAL ⌛" : `${done} of ${total} done`}
+                        {isKycStage && company.kycStatus === "verified" ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : `${done} of ${total} done`}
                       </div>
                     </div>
                   </div>
@@ -638,8 +623,8 @@ export default function CompanyDashboardSetup() {
             <div className="conb-banner-icon"><i className={banner.icon}></i></div>
             <div>
               <div className="conb-banner-eyebrow">STAGE {activeStage.key} · WHY THIS MATTERS</div>
-              <h3 className="conb-banner-title">{banner.title}</h3>
-              <p className="conb-banner-desc">{banner.desc}</p>
+              <h3 className="conb-banner-title" style={{ color: "#FFFFFF" }}>{banner.title}</h3>
+              <p className="conb-banner-desc" style={{ color: "rgba(241, 245, 249, 0.9)" }}>{banner.desc}</p>
               <div className="conb-banner-unlocks">
                 {banner.unlocks.map((u) => <span key={u}><i className="fa-solid fa-check" style={{ marginRight: 4, color: "var(--gold)" }}></i> {u}</span>)}
               </div>
@@ -652,25 +637,6 @@ export default function CompanyDashboardSetup() {
             </div>
             <h2 className="conb-form-title">{activeStage.name}</h2>
             <p className="conb-form-sub">{activeStage.sub}</p>
-
-            {activeStageId === "9" && jdIsLive && (
-              <div className="conb-jd-live-banner">
-                <span>✓ JOB POST · LIVE</span>
-                <span className="conb-jd-live-id">{company.jobId}</span>
-              </div>
-            )}
-            {activeStageId === "9" && jdIsPendingApproval && (
-              <div className="conb-jd-live-banner" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                <span>⏳ JOB POST · AWAITING TALENTERA APPROVAL</span>
-                <span className="conb-jd-live-id">{company.jobId}</span>
-              </div>
-            )}
-            {activeStageId === "9" && jdIsRejected && (
-              <div className="conb-jd-live-banner" style={{ background: "#FEE2E2", color: "#B91C1C" }}>
-                <span>✕ JOB POST · NOT APPROVED — {company.jdRejectionReason || "please review and resubmit"}</span>
-                <span className="conb-jd-live-id">{company.jobId}</span>
-              </div>
-            )}
 
             {/* INLINE SECTION ERROR BANNER FOR MISSING MUST INPUTS */}
             {stageErrors[activeStageId] && stageErrors[activeStageId].length > 0 && (
@@ -700,6 +666,92 @@ export default function CompanyDashboardSetup() {
               </div>
             )}
 
+            {activeStageId === "6" && company?.plan !== "enterprise" && (
+              <div
+                style={{
+                  background: "#EFF6FF",
+                  border: "1.5px solid #3B82F6",
+                  borderRadius: 12,
+                  padding: "16px 20px",
+                  marginBottom: 20,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 13.5, color: "#1E40AF", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>💎</span> ENTERPRISE FEATURE: CUSTOM SCORING RUBRICS
+                  </strong>
+                  <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#1D4ED8", lineHeight: 1.5 }}>
+                    Your candidates are currently scored using Talentera's standard 100-point calibrated healthcare RCM rubric. Upgrade to Enterprise Tier (₹19,999/mo) to set custom role weights and override approval policies.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/companies/billing")}
+                  style={{
+                    background: "#1D4ED8",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 16px",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Upgrade to Enterprise →
+                </button>
+              </div>
+            )}
+
+            {activeStageId === "5" && company?.plan !== "enterprise" && (
+              <div
+                style={{
+                  background: "#FFFBEB",
+                  border: "1.5px solid #F59E0B",
+                  borderRadius: 12,
+                  padding: "16px 20px",
+                  marginBottom: 20,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 13.5, color: "#92400E", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>⚡</span> TALENTERA DEFAULT QUESTION BANK ACTIVE
+                  </strong>
+                  <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#B45309", lineHeight: 1.5 }}>
+                    Your candidate interviews are powered by Talentera's verified AAPC/AHIMA-aligned question bank. Uploading proprietary custom interview question banks is an Enterprise Tier feature.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/companies/billing")}
+                  style={{
+                    background: "#D97706",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    padding: "8px 16px",
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Upgrade to Enterprise →
+                </button>
+              </div>
+            )}
+
             <div className="conb-field-list">
               {activeStage.items.map((item) => (
                 <OnboardingField
@@ -707,6 +759,7 @@ export default function CompanyDashboardSetup() {
                   item={item}
                   value={activeData[item.id]}
                   stageId={activeStageId}
+                  companyPlan={company?.plan || "free"}
                   onSave={saveField}
                   showStageErrors={Boolean(stageErrors[activeStageId])}
                   isRejectedField={Boolean(company.rejectedKycFields?.includes(item.id))}
@@ -714,28 +767,44 @@ export default function CompanyDashboardSetup() {
               ))}
             </div>
 
-            <div className="conb-form-footer">
-              {activeStageId === "9" ? (
-                <button type="button" className="conb-cta-btn" onClick={handleJdButtonClick}>
-                  {jdIsLive ? "View live JD →" : company.jdPublished ? "View submission →" : "Preview & Publish JD →"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="conb-cta-btn"
-                  onClick={() => {
-                    const idx = ONBOARDING_STAGES.findIndex((s) => s.id === activeStageId);
-                    const next = ONBOARDING_STAGES[idx + 1];
-                    if (next) goToStage(next.id);
-                  }}
-                >
-                  Continue: {(() => {
-                    const idx = ONBOARDING_STAGES.findIndex((s) => s.id === activeStageId);
-                    const next = ONBOARDING_STAGES[idx + 1];
-                    return next ? `Stage ${next.key}: ${next.name} →` : "Done";
-                  })()}
-                </button>
-              )}
+            <div className="conb-form-footer" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              {(() => {
+                const idx = ONBOARDING_STAGES.findIndex((s) => s.id === activeStageId);
+                const next = ONBOARDING_STAGES[idx + 1];
+                if (next) {
+                  return (
+                    <button
+                      type="button"
+                      className="conb-cta-btn"
+                      onClick={() => goToStage(next.id)}
+                    >
+                      Continue: Stage {next.key}: {next.name} →
+                    </button>
+                  );
+                }
+                // Final stage in onboarding flow (Stage 8: Settings & Integrations)
+                return (
+                  <>
+                    <button
+                      type="button"
+                      className="conb-cta-btn"
+                      style={{ background: "#16A34A", color: "#fff" }}
+                      onClick={() => {
+                        const missing = checkMustFields(activeStageId);
+                        if (missing.length > 0) {
+                          setStageErrors((prev) => ({ ...prev, [activeStageId]: missing.map((i) => i.name) }));
+                          toast(`Please complete required fields: ${missing.map((i) => i.name).join(", ")}`, "!");
+                          return;
+                        }
+                        toast("Registration completed successfully! Redirecting to Job Posts…", "✓");
+                        navigate("/companies/jobs");
+                      }}
+                    >
+                      ✓ Complete Registration →
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </main>
@@ -756,178 +825,6 @@ export default function CompanyDashboardSetup() {
         </div>
       )}
 
-      {/* JD PREVIEW MODAL */}
-      {previewOpen && !publishSuccess && (
-        <div className="conb-modal-backdrop" onClick={() => setPreviewOpen(false)}>
-          <div className="conb-modal conb-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <div className="conb-jd-preview-eyebrow">LIVE JOB LISTING PREVIEW &amp; REQUISITION REVIEW</div>
-            <h2 className="conb-jd-preview-title">{company.stage9?.roletitle || "Untitled role"}</h2>
-            <div className="conb-jd-preview-pills">
-              {[
-                company.stage9?.workmode,
-                company.stage9?.shift,
-                company.stage9?.level,
-                company.stage9?.openings ? `${company.stage9.openings} openings` : null,
-                company.stage9?.urgency,
-              ]
-                .filter(Boolean)
-                .map((p) => (
-                  <span key={p} className="conb-jd-pill">
-                    {p}
-                  </span>
-                ))}
-            </div>
-            <p style={{ fontSize: 13.5, color: "#64748B", margin: "8px 0 16px" }}>
-              {companyName} · {company.stage9?.location || "Location not set"}
-            </p>
-
-            {/* ALL REQUIRED MUST FIELDS REVIEW SUMMARY */}
-            {(() => {
-              const st9 = company.stage9 || {};
-              return (
-                <div
-                  style={{
-                    background: "#F8FAFC",
-                    border: "1.5px solid #E2E8F0",
-                    borderRadius: 12,
-                    padding: 16,
-                    marginBottom: 20,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 800,
-                      color: "var(--navy)",
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      marginBottom: 12,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <span>📋 REQUIRED (MUST) REQUISITION SUMMARY</span>
-                    <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10, padding: "2px 8px", borderRadius: 4, fontWeight: 800 }}>
-                      MUST FIELDS REVIEW
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
-                      gap: "10px 16px",
-                      fontSize: 12.5,
-                      color: "var(--navy)",
-                    }}
-                  >
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>ROLE TITLE</span>
-                      <strong>{st9.roletitle || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>PRIMARY SPECIALTY</span>
-                      <strong>{st9.specialty || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>HIRING LEVEL</span>
-                      <strong>{st9.level || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>EXPERIENCE RANGE</span>
-                      <strong>{st9.expmin != null && st9.expmax != null ? `${st9.expmin} – ${st9.expmax} Years` : "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>COMPENSATION PACKAGE</span>
-                      <strong>{st9.compmin != null && st9.compmax != null ? `₹${st9.compmin} – ${st9.compmax} LPA` : "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>WORK MODE &amp; SHIFT</span>
-                      <strong>{st9.workmode || "—"} · {st9.shift || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>JOB LOCATION</span>
-                      <strong>{st9.location || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>REQUIRED LANGUAGES</span>
-                      <strong>{Array.isArray(st9.languages) ? st9.languages.join(", ") : st9.languages || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>NO. OF OPENINGS</span>
-                      <strong>{st9.openings || "1"} Openings</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>HIRING URGENCY</span>
-                      <strong>{st9.urgency || "—"}</strong>
-                    </div>
-                    <div>
-                      <span style={{ color: "#64748B", fontSize: 10.5, fontWeight: 700, display: "block" }}>HIRING MANAGER</span>
-                      <strong>{st9.hiringmanager || "—"}</strong>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="conb-jd-preview-section">
-              <div className="conb-jd-preview-heading">Required skills &amp; certifications</div>
-              <div style={{ fontSize: 13.5, color: "var(--navy)" }}>
-                {[...(company.stage9?.certs || []), ...(company.stage9?.reqtools || []), ...(company.stage9?.languages || [])].join(", ") || "None specified"}
-              </div>
-            </div>
-
-            <div className="conb-jd-preview-section">
-              <div className="conb-jd-preview-heading">Must-haves <span className="conb-jd-tag-hardfilter">Hard filter</span></div>
-              <div style={{ fontSize: 13.5, color: "var(--navy)" }}>{company.stage9?.musthaves || "—"}</div>
-            </div>
-
-            <div className="conb-jd-preview-section">
-              <div className="conb-jd-preview-heading">Nice-to-haves <span className="conb-jd-tag-scoreboost">Score boost</span></div>
-              <div style={{ fontSize: 13.5, color: "var(--navy)" }}>{company.stage9?.nicetohaves || "—"}</div>
-            </div>
-
-            <div className="conb-jd-preview-internal">
-              <div className="conb-jd-preview-heading">Internal — visible to your team only</div>
-              <div style={{ fontSize: 13, color: "#64748B" }}>
-                Hiring manager: {company.stage9?.hiringmanager || "—"} · Urgency: {company.stage9?.urgency || "—"}
-                {company.stage9?.panel?.length ? ` · Panel: ${company.stage9.panel.join(", ")}` : ""}
-              </div>
-            </div>
-
-            <div className="conb-jd-preview-footer">
-              <button type="button" className="btn btn-ghost" onClick={() => setPreviewOpen(false)}>← Edit JD</button>
-              <button type="button" className="conb-cta-btn" onClick={confirmPublish} disabled={publishing}>
-                {publishing ? "Publishing…" : company.kycStatus === "verified" ? "✓ Confirm & Publish Job" : "✓ Confirm & submit"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* PUBLISH SUCCESS MODAL */}
-      {publishSuccess && (
-        <div className="conb-modal-backdrop">
-          <div className="conb-modal conb-modal-success" onClick={(e) => e.stopPropagation()}>
-            <div className="conb-success-check">✓</div>
-            <h2>{company.kycStatus === "verified" ? "Job Published & Live!" : "Submitted for Review"}</h2>
-            <p style={{ color: "#64748B", marginBottom: 20 }}>
-              Job ID <strong>{company.jobId}</strong> — {company.kycStatus === "verified"
-                ? "Your company is KYC-verified, so this job is immediately published and live on the candidate job board!"
-                : "Your job requisition has been saved. Complete your company KYC verification to activate direct job publishing."}
-            </p>
-            <div className="conb-hero-stats" style={{ marginBottom: 24 }}>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>{company.kycStatus === "verified" ? "⚡" : "⏳"}</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>{company.kycStatus === "verified" ? "ACTIVE & LIVE" : "AWAITING KYC"}</div></div>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>{company.kycStatus === "verified" ? "Instant" : "~24 hrs"}</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>TURNAROUND</div></div>
-              <div><div className="conb-hero-stat-val" style={{ color: "var(--navy)" }}>100%</div><div className="conb-hero-stat-label" style={{ color: "#94A3B8" }}>VERIFIED POOL</div></div>
-            </div>
-            <button type="button" className="conb-cta-btn" onClick={() => navigate("/companies/jobs")}>
-              Manage your jobs →
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
