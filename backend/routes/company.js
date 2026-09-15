@@ -711,7 +711,11 @@ router.get("/applications", async (req, res) => {
         training: candidate.stage2 || {},
         certification: canViewScoresAndCerts ? (candidate.stage3 || {}) : { name: (candidate.stage3?.name || "Professional Certification"), masked: true },
         assessment: canViewScoresAndCerts ? (candidate.stage4 || {}) : { masked: true },
-        videoIntro: candidate.stage5 || {},
+        videoIntro: {
+          ...(candidate.stage5 || {}),
+          videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
+        },
+        videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
         liveCharts: canViewScoresAndCerts ? (candidate.stage6 || {}) : { masked: true },
         summary: candidate.stage7 || {},
         employmentStatus: candidate.stage8 || {},

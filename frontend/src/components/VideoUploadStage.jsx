@@ -12,7 +12,15 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
   const [mockSession, setMockSession] = useState(null);
   const [loadingMockState, setLoadingMockState] = useState(true);
 
-  // Fetch the latest mock interview session state from backend
+  // Retake Request state
+  const [retakeRequest, setRetakeRequest] = useState(null);
+  const [showRetakeModal, setShowRetakeModal] = useState(false);
+  const [retakeReason, setRetakeReason] = useState("");
+  const [submittingRetake, setSubmittingRetake] = useState(false);
+  const [retakeError, setRetakeError] = useState("");
+  const [retakeSuccessMsg, setRetakeSuccessMsg] = useState("");
+
+  // Fetch the latest mock interview session state & retake request from backend
   useEffect(() => {
     let active = true;
     api
@@ -27,6 +35,18 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
       .finally(() => {
         if (active) setLoadingMockState(false);
       });
+
+    api
+      .get("/candidate/retake-request?stage=5")
+      .then((res) => {
+        if (!active) return;
+        if (res.data?.request) {
+          setRetakeRequest(res.data.request);
+        } else {
+          setRetakeRequest(null);
+        }
+      })
+      .catch(() => {});
 
     return () => {
       active = false;
@@ -46,9 +66,21 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
   const isMockCompleted = Boolean(
     (mockSession && (mockSession.status === "COMPLETED" || mockSession.status === "STOPPED")) ||
     existingData?.stage8?.aiInterview?.status === "COMPLETED" ||
+    existingData?.stage8?.aiInterview?.status === "STOPPED" ||
     existingData?.aiInterview?.status === "COMPLETED" ||
+    existingData?.aiInterview?.status === "STOPPED" ||
     existingData?.mockInterviewCompleted ||
     existingData?.stage5?.mockInterviewCompleted
+  );
+
+  const isMockEndedEarly = Boolean(
+    mockSession?.status === "STOPPED" ||
+    mockSession?.endedReason === "USER_ENDED" ||
+    existingData?.stage5?.endedReason === "USER_ENDED" ||
+    existingData?.stage5?.status === "STOPPED" ||
+    existingData?.stage5?.endedEarly ||
+    existingData?.stage8?.aiInterview?.status === "STOPPED" ||
+    existingData?.aiInterview?.status === "STOPPED"
   );
 
   const isMockInProgress = Boolean(mockSession?.status === "IN_PROGRESS");
@@ -72,6 +104,40 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
   function handleMockCompleted(data) {
     if (onSaved) onSaved(data, { advance: false });
     setMode("overview");
+  }
+
+  async function handleSubmitRetakeRequest(e) {
+    if (e) e.preventDefault();
+    if (!retakeReason.trim()) {
+      setRetakeError("Please provide a reason for requesting a retake.");
+      return;
+    }
+    if (retakeReason.trim().length < 10) {
+      setRetakeError("Please provide a more detailed reason (minimum 10 characters).");
+      return;
+    }
+    setSubmittingRetake(true);
+    setRetakeError("");
+    setRetakeSuccessMsg("");
+
+    try {
+      const res = await api.post("/candidate/retake-request", {
+        stage: 5,
+        assessmentType: "Talentera AI Mock Interview (Stage 5)",
+        reason: retakeReason.trim(),
+      });
+
+      if (res.data?.success || res.data?.request) {
+        setRetakeRequest(res.data.request);
+        setRetakeSuccessMsg("Your retake request has been submitted to Talentera employees!");
+        setShowRetakeModal(false);
+        setRetakeReason("");
+      }
+    } catch (err) {
+      setRetakeError(err.response?.data?.message || "Failed to submit retake request. Please try again.");
+    } finally {
+      setSubmittingRetake(false);
+    }
   }
 
   async function handleProceedToStage6() {
@@ -554,7 +620,11 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
             <div className="stage5-card-info">
               <div className="stage5-card-heading-row">
                 <h3 className="stage5-card-heading">2. AI-Reviewed Mock Interview</h3>
-                {isMockCompleted ? (
+                {isMockEndedEarly ? (
+                  <span className="stage5-tag-completed" style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FCD34D" }}>
+                    <i className="fa-solid fa-flag-checkered"></i> ENDED EARLY
+                  </span>
+                ) : isMockCompleted ? (
                   <span className="stage5-tag-completed">
                     <i className="fa-solid fa-circle-check"></i> COMPLETED
                   </span>
@@ -571,8 +641,10 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
                 )}
               </div>
               <p className="stage5-card-desc">
-                {isMockCompleted
-                  ? `Mock interview complete${mockScore !== null ? ` · Score: ${mockScore}/100` : ""}. Click View Score to inspect feedback.`
+                {isMockEndedEarly
+                  ? `Interview was ended early${mockScore !== null ? ` · Score: ${mockScore}/100` : ""}. You can submit a retake request to Talentera employees to attempt the interview again.`
+                  : isMockCompleted
+                  ? `Mock interview completed successfully${mockScore !== null ? ` · Score: ${mockScore}/100` : ""}. Verified technical & communication evaluation saved.`
                   : isTerminatedTabSwitch
                   ? "Interview auto-submitted due to browser tab switch anti-cheat violation. Request a retake to have Talentera staff review and approve a new attempt."
                   : "Interactive AI mock interview covering 5 student/fresher topics: Introduction, Education, Skills, Projects, and Career Goals."}
@@ -580,21 +652,74 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
             </div>
           </div>
 
-          {isMockCompleted ? (
-            <button type="button" className="stage5-view-score-btn" onClick={() => setMode("start_mock")}>
-              <i className="fa-solid fa-chart-simple"></i>
-              <span>VIEW SCORE</span>
-            </button>
-          ) : isTerminatedTabSwitch ? (
-            <button
-              type="button"
-              className="stage5-action-btn"
-              onClick={() => setMode("start_mock")}
-              style={{ background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)", boxShadow: "0 4px 14px rgba(217, 119, 6, 0.35)" }}
-            >
-              <i className="fa-solid fa-rotate-right"></i>
-              <span>REQUEST RETAKE / STATUS</span>
-            </button>
+          {isMockEndedEarly || isTerminatedTabSwitch ? (
+            retakeRequest?.status === "PENDING" ? (
+              <button
+                type="button"
+                disabled
+                className="stage5-action-btn"
+                style={{
+                  background: "rgba(245, 158, 11, 0.15)",
+                  border: "1.5px solid #F59E0B",
+                  color: "#B45309",
+                  cursor: "not-allowed",
+                }}
+              >
+                <i className="fa-solid fa-hourglass-half"></i>
+                <span>RETAKE PENDING</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="stage5-action-btn"
+                onClick={() => {
+                  setRetakeError("");
+                  setShowRetakeModal(true);
+                }}
+                style={{
+                  background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)",
+                  boxShadow: "0 4px 14px rgba(217, 119, 6, 0.35)",
+                }}
+              >
+                <i className="fa-solid fa-rotate-right"></i>
+                <span>REQUEST RETAKE</span>
+              </button>
+            )
+          ) : isMockCompleted ? (
+            retakeRequest?.status === "PENDING" ? (
+              <button
+                type="button"
+                disabled
+                className="stage5-action-btn"
+                style={{
+                  background: "rgba(245, 158, 11, 0.15)",
+                  border: "1.5px solid #F59E0B",
+                  color: "#B45309",
+                  cursor: "not-allowed",
+                }}
+              >
+                <i className="fa-solid fa-hourglass-half"></i>
+                <span>RETAKE PENDING</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="stage5-action-btn"
+                onClick={() => {
+                  setRetakeError("");
+                  setShowRetakeModal(true);
+                }}
+                style={{
+                  background: "#F1F5F9",
+                  border: "1.5px solid #CBD5E1",
+                  color: "#0A1F3D",
+                  fontWeight: 800,
+                }}
+              >
+                <i className="fa-solid fa-rotate-right"></i>
+                <span>REQUEST RETAKE</span>
+              </button>
+            )
           ) : isMockInProgress ? (
             <button type="button" className="stage5-action-btn" onClick={() => setMode("start_mock")}>
               <i className="fa-solid fa-play"></i>
@@ -608,6 +733,14 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
           )}
         </div>
       </div>
+
+      {/* Retake Request Notification Banner if submitted */}
+      {retakeSuccessMsg && (
+        <div style={{ margin: "20px 0 0", background: "#ECFDF5", border: "1px solid #10B981", color: "#065F46", padding: "12px 18px", borderRadius: 12, fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 10 }}>
+          <i className="fa-solid fa-circle-check" style={{ color: "#10B981", fontSize: 16 }}></i>
+          <span>{retakeSuccessMsg}</span>
+        </div>
+      )}
 
       {/* Footer / Gated Next Progression */}
       <div className="stage5-footer">
@@ -637,6 +770,131 @@ export default function VideoUploadStage({ stage, existingData, onSaved }) {
           </button>
         )}
       </div>
+
+      {/* RETAKE REQUEST MODAL */}
+      {showRetakeModal && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(6, 21, 42, 0.8)",
+          backdropFilter: "blur(6px)",
+          zIndex: 9999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 16,
+        }}>
+          <div style={{
+            background: "#081B33",
+            border: "1px solid rgba(255,255,255,0.15)",
+            borderRadius: 16,
+            maxWidth: 500,
+            width: "100%",
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.7)",
+            padding: 24,
+            color: "#F8FAFC",
+            fontFamily: "inherit",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(245, 180, 26, 0.2)", border: "1px solid #F5B41A", display: "flex", alignItems: "center", justifyContent: "center", color: "#F5C95B", fontSize: 16 }}>
+                  <i className="fa-solid fa-rotate-right"></i>
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#FFFFFF" }}>
+                    Request AI Mock Interview Retake
+                  </h4>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>
+                    Stage 5 Mock Assessment
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRetakeModal(false)}
+                style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 18, cursor: "pointer", padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.55, margin: "0 0 16px" }}>
+              Please describe the reason for your retake request (e.g. accidentally ended early, microphone issue, network glitch, emergency). Your request will be submitted to Talentera staff for review and approval.
+            </p>
+
+            <form onSubmit={handleSubmitRetakeRequest}>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#F5C95B", marginBottom: 6 }}>
+                  Reason for Retake Request *
+                </label>
+                <textarea
+                  rows={4}
+                  value={retakeReason}
+                  onChange={(e) => setRetakeReason(e.target.value)}
+                  placeholder="Explain why you are requesting a retake (e.g. ended interview early by mistake, wanted to re-record answers)..."
+                  style={{
+                    width: "100%",
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    borderRadius: 10,
+                    padding: "10px 12px",
+                    color: "#FFFFFF",
+                    fontSize: 13,
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    boxSizing: "border-box",
+                    outline: "none",
+                  }}
+                  disabled={submittingRetake}
+                />
+              </div>
+
+              {retakeError && (
+                <div style={{ background: "rgba(239, 68, 68, 0.2)", border: "1px solid #EF4444", color: "#FCA5A5", padding: "8px 12px", borderRadius: 8, fontSize: 12, marginBottom: 14 }}>
+                  {retakeError}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRetakeModal(false)}
+                  disabled={submittingRetake}
+                  style={{
+                    padding: "10px 16px",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    color: "rgba(255,255,255,0.8)",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRetake || !retakeReason.trim()}
+                  style={{
+                    padding: "10px 20px",
+                    background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
+                    color: "#06152A",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: submittingRetake || !retakeReason.trim() ? "not-allowed" : "pointer",
+                    opacity: submittingRetake || !retakeReason.trim() ? 0.6 : 1,
+                  }}
+                >
+                  {submittingRetake ? "Submitting Request…" : "Submit to Talentera Employee"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

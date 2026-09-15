@@ -17,6 +17,13 @@ const DOMAIN_KEYWORDS = {
   Payment: ["payment"],
 };
 
+function getAssetUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
+  return `${base}${url.startsWith("/") ? url : "/" + url}`;
+}
+
 export default function CompanyPortal() {
   const navigate = useNavigate();
   const { company, logout } = useCompanyAuth();
@@ -978,7 +985,7 @@ export default function CompanyPortal() {
                   <div>
                     <video
                       controls
-                      src={selectedCandidate.videoUrl}
+                      src={getAssetUrl(selectedCandidate.videoUrl)}
                       style={{ width: "100%", maxHeight: 320, borderRadius: 10, background: "#000", display: "block", marginBottom: 10 }}
                     />
                     <div style={{ fontSize: 12, color: "#64748B", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>

@@ -71,6 +71,9 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   const stoppingAnswerRef = useRef(false);
   const accumulatedTranscriptRef = useRef("");
   const liveTranscriptRef = useRef("");
+  const activeUtteranceRef = useRef(null);
+  const speechResumeIntervalRef = useRef(null);
+  const speechSafetyTimerRef = useRef(null);
   // True only while an answer window should actively be listening. Browsers
   // (Chrome in particular) can silently stop a "continuous" SpeechRecognition
   // session on their own after a while - even mid-answer, with the candidate
@@ -174,6 +177,10 @@ export default function AiAudioInterview({ existingData, onSaved }) {
     return () => {
       stopMedia();
       if (window.speechSynthesis) window.speechSynthesis.cancel();
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      activeUtteranceRef.current = null;
+      window.__activeUtterance = null;
     };
   }, []);
 
@@ -281,13 +288,31 @@ export default function AiAudioInterview({ existingData, onSaved }) {
   }
 
   function speakQuestion(question, onEnd) {
+    if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+    if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+
     if (!window.speechSynthesis) {
       setIsSpeaking(false);
       if (onEnd) onEnd();
       return;
     }
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      activeUtteranceRef.current = null;
+      window.__activeUtterance = null;
+      setIsSpeaking(false);
+      if (onEnd) onEnd();
+    };
+
     try {
       window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+
       const cleanQuestion = String(question || "")
         .replace(/[*_#`~[\]]/g, " ")
         .replace(/\bE\/M\b/gi, "E and M")
@@ -305,7 +330,14 @@ export default function AiAudioInterview({ existingData, onSaved }) {
         .replace(/\s+/g, " ")
         .trim();
 
+      if (!cleanQuestion) {
+        finish();
+        return;
+      }
+
       const utterance = new SpeechSynthesisUtterance(cleanQuestion);
+      activeUtteranceRef.current = utterance;
+      window.__activeUtterance = utterance; // Prevent GC
       utterance.lang = "en-US";
       utterance.rate = 0.95;
       utterance.pitch = 1.0;
@@ -359,16 +391,21 @@ export default function AiAudioInterview({ existingData, onSaved }) {
         if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
       }
       setIsSpeaking(true);
-      const finish = () => {
-        setIsSpeaking(false);
-        if (onEnd) onEnd();
-      };
       utterance.onend = finish;
       utterance.onerror = finish;
+
       window.speechSynthesis.speak(utterance);
+
+      speechResumeIntervalRef.current = setInterval(() => {
+        if (window.speechSynthesis && window.speechSynthesis.speaking) {
+          window.speechSynthesis.resume();
+        }
+      }, 3000);
+
+      const estimatedMs = Math.min(60000, Math.max(5000, cleanQuestion.length * 120));
+      speechSafetyTimerRef.current = setTimeout(finish, estimatedMs);
     } catch (err) {
-      setIsSpeaking(false);
-      if (onEnd) onEnd();
+      finish();
     }
   }
 

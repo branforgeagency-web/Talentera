@@ -29,9 +29,9 @@ function toStr(val, fallback = "") {
 
 function getAssetUrl(url) {
   if (!url) return "#";
-  if (url.startsWith("http")) return url;
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
   const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
-  return `${base}${url}`;
+  return `${base}${url.startsWith("/") ? url : "/" + url}`;
 }
 
 // Feather-style icon paths, ported verbatim from the Talentera design mockup's
@@ -8168,7 +8168,7 @@ export default function StaffHub() {
               {/* TAB 5: AI VIDEO INTERVIEW */}
               {candidateModalTab === "video" && (() => {
                 const s5 = selectedCandidate.stage5 || {};
-                const videoUrl = s5.proctoredInterviewVideoUrl || s5.videoUrl || selectedCandidate.stage8?.aiInterview?.videoUrl || selectedCandidate.videoUrl;
+                const videoUrl = s5.selfIntroVideoUrl || s5.videoUrl || s5.proctoredInterviewVideoUrl || s5.url || s5.fileUrl || s5.videoFileName || selectedCandidate.stage8?.aiInterview?.videoUrl || selectedCandidate.videoUrl;
                 const qaPairs = Array.isArray(s5.qaPairs) && s5.qaPairs.length > 0
                   ? s5.qaPairs
                   : (Array.isArray(selectedCandidate.stage8?.aiInterview?.result?.questionBreakdown) ? selectedCandidate.stage8.aiInterview.result.questionBreakdown : []);

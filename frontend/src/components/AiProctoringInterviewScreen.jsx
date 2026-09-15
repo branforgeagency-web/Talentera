@@ -396,9 +396,12 @@ export default function AiProctoringInterviewScreen({
 
   const recognitionRef = useRef(null);
   const liveTranscriptRef = useRef("");
+  const activeUtteranceRef = useRef(null);
+  const speechResumeIntervalRef = useRef(null);
+  const speechSafetyTimerRef = useRef(null);
   const currentQ = questionsList[currentQIndex] || questionsList[0] || DEFAULT_QUESTIONS[0];
 
-  // Fetch active interview questions directly from database bank on mount
+  // Fetch active interview questions directly from database bank on mount (strictly capped to 5)
   useEffect(() => {
     let isMounted = true;
     api
@@ -407,11 +410,12 @@ export default function AiProctoringInterviewScreen({
         if (!isMounted) return;
         const session = res.data?.session;
         if (session?.questions && session.questions.length > 0) {
-          const mapped = session.questions.map((q, idx) => ({
+          const rawList = session.questions.slice(0, 5);
+          const mapped = rawList.map((q, idx) => ({
             id: q.id || q._id || `q-${idx + 1}`,
             index: idx,
             topic: q.topic || `Question ${idx + 1}`,
-            title: `Question ${idx + 1} of ${session.questions.length}`,
+            title: `Question ${idx + 1} of ${rawList.length}`,
             question: q.question || q.text,
             correctAnswer: q.correctAnswer || "",
             expectedConcepts: q.expectedConcepts || [],
@@ -452,6 +456,9 @@ export default function AiProctoringInterviewScreen({
 
   // --- 6. AUDIO & SPEECH STREAMING PIPELINE ---
   const speakQuestion = useCallback((text, callback) => {
+    if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+    if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+
     setBotState("SPEAKING");
 
     if (!window.speechSynthesis) {
@@ -460,33 +467,70 @@ export default function AiProctoringInterviewScreen({
       return;
     }
 
-    try {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.lang = "en-US";
-
-      const voices = window.speechSynthesis.getVoices();
-      const naturalVoice = voices.find(
-        (v) => (v.name.includes("Natural") || v.name.includes("Neural") || v.name.includes("Google") || v.name.includes("Samantha")) && v.lang.startsWith("en")
-      );
-      if (naturalVoice) utterance.voice = naturalVoice;
-
-      utterance.onend = () => {
-        setBotState("LISTENING");
-        if (callback) callback();
-      };
-      utterance.onerror = () => {
-        setBotState("LISTENING");
-        if (callback) callback();
-      };
-
-      window.speechSynthesis.speak(utterance);
-    } catch {
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      activeUtteranceRef.current = null;
+      window.__activeUtterance = null;
       setBotState("LISTENING");
       if (callback) callback();
-    }
+    };
+
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+    } catch (e) {}
+
+    setTimeout(() => {
+      try {
+        window.speechSynthesis.resume();
+        const cleanText = String(text || "")
+          .replace(/[*_#`~[\]]/g, " ")
+          .replace(/Question\s*(\d+)\s*of\s*(\d+):?/gi, "Question $1 of $2. ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!cleanText) {
+          finish();
+          return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        activeUtteranceRef.current = utterance;
+        window.__activeUtterance = utterance; // Prevent GC across turns
+
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.lang = "en-US";
+
+        const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+        const naturalVoice = voices.find(
+          (v) => (v.name && /natural|neural|google|samantha|aria|jenny/i.test(v.name)) && v.lang && v.lang.startsWith("en")
+        );
+        if (naturalVoice) utterance.voice = naturalVoice;
+
+        utterance.onstart = () => setBotState("SPEAKING");
+        utterance.onend = finish;
+        utterance.onerror = finish;
+
+        window.speechSynthesis.speak(utterance);
+
+        // Keepalive resume interval for Chromium browsers
+        speechResumeIntervalRef.current = setInterval(() => {
+          if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            window.speechSynthesis.resume();
+          }
+        }, 3000);
+
+        const estimatedMs = Math.min(60000, Math.max(5000, cleanText.length * 120));
+        speechSafetyTimerRef.current = setTimeout(finish, estimatedMs);
+      } catch (err) {
+        finish();
+      }
+    }, 60);
   }, []);
 
   // --- 7. SPEECH RECOGNITION (STT) ---
@@ -956,23 +1000,26 @@ export default function AiProctoringInterviewScreen({
       }
     }
 
+    let mappedQuestions = questionsList;
     try {
       const res = await api.post("/candidate/ai-interview/start", { retake: true });
       if (res.data?.session?.questions?.length > 0) {
-        const mapped = res.data.session.questions.map((q, idx) => ({
+        const rawList = res.data.session.questions.slice(0, 5);
+        const mapped = rawList.map((q, idx) => ({
           id: q.id || q._id || `q-${idx + 1}`,
           index: idx,
           topic: q.topic || `Question ${idx + 1}`,
-          title: `Question ${idx + 1} of ${res.data.session.questions.length}`,
+          title: `Question ${idx + 1} of ${rawList.length}`,
           question: q.question || q.text,
           correctAnswer: q.correctAnswer || "",
           expectedConcepts: q.expectedConcepts || [],
         }));
+        mappedQuestions = mapped;
         setQuestionsList(mapped);
       }
     } catch {}
 
-    const firstQuestionText = questionsList[0]?.question || DEFAULT_QUESTIONS[0].question;
+    const firstQuestionText = mappedQuestions[0]?.question || DEFAULT_QUESTIONS[0].question;
     speakQuestion(firstQuestionText, () => {
       startListening();
     });
@@ -1060,6 +1107,72 @@ export default function AiProctoringInterviewScreen({
     }
   };
 
+  const handleEndInterviewNow = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to end the interview now? Your recorded answers so far will be evaluated and finalized."
+      )
+    ) {
+      return;
+    }
+
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    stopListening();
+    setBotState("IDLE");
+    setCompleted(true);
+    setEvaluatingTurn(true);
+
+    const answeredText = liveTranscriptRef.current || liveTranscript || "(ended early)";
+    const currentQObj = questionsList[currentQIndex] || DEFAULT_QUESTIONS[currentQIndex];
+
+    const currentPair = {
+      questionId: currentQObj.id,
+      question: currentQObj.question,
+      correctAnswer: currentQObj.correctAnswer,
+      transcript: answeredText,
+    };
+
+    const updatedPairs = [...accumulatedQaPairs, currentPair];
+    setAccumulatedQaPairs(updatedPairs);
+    setLiveTranscript("");
+    liveTranscriptRef.current = "";
+
+    try {
+      const endRes = await api.post("/candidate/ai-interview/end", {
+        proctorLogs: {
+          tabSwitches: tabSwitchCount,
+          gazeWarnings: attentionWarningsCount,
+        },
+      });
+
+      const evaluatedReport = endRes.data?.result || endRes.data?.session?.result;
+      if (evaluatedReport) {
+        setInterviewResult(evaluatedReport);
+      }
+
+      const calculatedScore =
+        typeof evaluatedReport?.overallScore === "number"
+          ? evaluatedReport.overallScore
+          : 75;
+
+      submitProctoredSession({
+        finalStatus: "STOPPED",
+        isTabSwitch: false,
+        evaluatedScore: calculatedScore,
+        qaPairs: updatedPairs,
+      });
+    } catch (err) {
+      console.warn("End interview notice:", err);
+      submitProctoredSession({
+        finalStatus: "STOPPED",
+        isTabSwitch: false,
+        qaPairs: updatedPairs,
+      });
+    } finally {
+      setEvaluatingTurn(false);
+    }
+  };
+
   const integrityScore = Math.max(0, 100 - attentionWarningsCount * 4 - (tabSwitchCount > 0 ? 50 : 0));
   const isBotSpeaking = botState === "SPEAKING";
 
@@ -1096,6 +1209,30 @@ export default function AiProctoringInterviewScreen({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          {interviewStarted && !completed && !isTerminated && (
+            <button
+              type="button"
+              onClick={handleEndInterviewNow}
+              disabled={evaluatingTurn}
+              style={{
+                fontSize: 12,
+                fontWeight: 800,
+                color: "#FCA5A5",
+                padding: "6px 14px",
+                borderRadius: 8,
+                background: "rgba(239, 68, 68, 0.18)",
+                border: "1px solid #EF4444",
+                cursor: evaluatingTurn ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease",
+              }}
+            >
+              <i className="fa-solid fa-flag-checkered"></i>
+              <span>End Interview</span>
+            </button>
+          )}
           {onExit && (
             <button
               type="button"
@@ -1673,6 +1810,31 @@ export default function AiProctoringInterviewScreen({
                 >
                   <i className="fa-solid fa-volume-high"></i>
                   <span>Replay Question Audio</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleEndInterviewNow}
+                  disabled={evaluatingTurn}
+                  style={{
+                    width: "100%",
+                    padding: "9px 14px",
+                    borderRadius: 8,
+                    background: "rgba(239, 68, 68, 0.12)",
+                    border: "1px solid rgba(239, 68, 68, 0.35)",
+                    color: "#FCA5A5",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: evaluatingTurn ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <i className="fa-solid fa-flag-checkered"></i>
+                  <span>End Interview Early</span>
                 </button>
               </div>
             )}

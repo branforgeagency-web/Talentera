@@ -186,6 +186,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const startedAtRef = useRef(null);
   const speechDelayTimerRef = useRef(null);
   const speechSafetyTimerRef = useRef(null);
+  const speechResumeIntervalRef = useRef(null);
+  const activeUtteranceRef = useRef(null);
   const accumulatedTranscriptRef = useRef("");
   const liveInterimRef = useRef("");
 
@@ -270,6 +272,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
       if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      activeUtteranceRef.current = null;
+      window.__activeUtterance = null;
     };
   }, []);
 
@@ -362,10 +367,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
-  // Text-To-Speech with human-like voice selection
+  // Text-To-Speech with human-like voice selection & Chromium GC resilience
   function speakText(text, onEnd) {
     if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
     if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+    if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
 
     const cleanText = String(text || "")
       .replace(/[*_#`~[\]]/g, " ")
@@ -384,6 +390,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (finished) return;
       finished = true;
       if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      activeUtteranceRef.current = null;
+      window.__activeUtterance = null;
       setIsSpeaking(false);
       if (onEnd) onEnd();
     };
@@ -397,6 +406,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       try {
         window.speechSynthesis.resume();
         const utterance = new SpeechSynthesisUtterance(cleanText);
+        activeUtteranceRef.current = utterance;
+        window.__activeUtterance = utterance; // Prevent GC across turn transitions
         utterance.lang = "en-US";
         utterance.rate = 0.96; // warm, natural conversational cadence
         utterance.pitch = 1.0;
@@ -417,6 +428,13 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
         setIsSpeaking(true);
         window.speechSynthesis.speak(utterance);
+
+        // Periodically ping resume to prevent Chromium from dropping speech pipeline
+        speechResumeIntervalRef.current = setInterval(() => {
+          if (window.speechSynthesis && window.speechSynthesis.speaking) {
+            window.speechSynthesis.resume();
+          }
+        }, 3000);
 
         const estimatedMs = Math.min(60000, Math.max(5000, cleanText.length * 120));
         speechSafetyTimerRef.current = setTimeout(finish, estimatedMs);
@@ -660,19 +678,22 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               type="button"
               onClick={handleEndNow}
               style={{
-                background: "rgba(239, 68, 68, 0.15)",
-                border: "1px solid #EF4444",
-                color: "#FCA5A5",
+                background: "#DC2626",
+                border: "1px solid #B91C1C",
+                color: "#FFFFFF",
                 borderRadius: 8,
-                padding: "6px 12px",
-                fontSize: 11.5,
-                fontWeight: 700,
+                padding: "7px 14px",
+                fontSize: 12,
+                fontWeight: 800,
                 cursor: "pointer",
                 transition: "all 0.15s ease",
+                display: "inline-flex",
+                alignItems: "center",
+                boxShadow: "0 2px 6px rgba(220,38,38,0.3)",
               }}
             >
-              <i className="fa-solid fa-flag-checkered" style={{ marginRight: 6 }}></i>
-              Finish Early
+              <i className="fa-solid fa-circle-stop" style={{ marginRight: 6 }}></i>
+              End Interview
             </button>
           </div>
         )}
@@ -1051,6 +1072,31 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               }}
             >
               Skip →
+            </button>
+
+            {/* End Interview button */}
+            <button
+              type="button"
+              onClick={handleEndNow}
+              disabled={loadingTurn}
+              style={{
+                background: "#FEE2E2",
+                border: "1px solid #F87171",
+                color: "#991B1B",
+                borderRadius: 10,
+                padding: "10px 14px",
+                fontSize: 12,
+                fontWeight: 800,
+                cursor: loadingTurn ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                marginLeft: "auto",
+              }}
+              title="Stop and end the mock interview now"
+            >
+              <i className="fa-solid fa-circle-stop"></i>
+              End Interview
             </button>
           </form>
         </>

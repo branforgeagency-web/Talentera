@@ -51,6 +51,7 @@ const DEFAULT_INTERVIEW_QUESTIONS = {
     "Tell me about your training or course - what did you study, and what did you learn from it?",
     "Tell me about a challenge you've faced (personal or professional) and how you handled it.",
     "What are your strengths, and where do you see yourself professionally a few years from now?",
+    "Why did you choose a career in Medical Coding / Healthcare RCM specifically?",
   ],
 };
 
@@ -566,13 +567,16 @@ router.get("/interview-questions", async (req, res) => {
     const mode = req.query.mode === "video" ? "video" : "audio";
     let questions = await InterviewQuestion.find({ active: true, mode: { $in: [mode, "both"] } })
       .sort({ order: 1, createdAt: 1 })
+      .limit(5)
       .select("_id text")
       .lean();
 
     if (!questions.length) {
       // No staff-configured questions yet for this mode - fall back to a
       // small built-in set so the interview still works end-to-end.
-      questions = DEFAULT_INTERVIEW_QUESTIONS[mode].map((text, idx) => ({ _id: `default-${idx + 1}`, text }));
+      questions = DEFAULT_INTERVIEW_QUESTIONS[mode].slice(0, 5).map((text, idx) => ({ _id: `default-${idx + 1}`, text }));
+    } else if (questions.length > 5) {
+      questions = questions.slice(0, 5);
     }
 
     res.json({ questions: questions.map((q) => ({ id: String(q._id), question: q.text })) });
@@ -643,6 +647,8 @@ router.post(
         ...(candidate.stage5 || {}),
         interviewMode: "video",
         videoUrl: fileUrl,
+        selfIntroVideoUrl: fileUrl,
+        selfIntroCompleted: true,
         // evaluation.qaPairs carries the original transcript PLUS
         // translatedTranscript/detectedLanguage per question (see
         // evaluateAiVideoAssessment) - persisting that instead of the raw
@@ -659,6 +665,7 @@ router.post(
         proctoringDeductions: evaluation.proctoringDeductions,
         completedAt: new Date(),
       };
+      candidate.videoUrl = fileUrl;
       candidate.markModified("stage5");
 
       if (!candidate.completedStages.includes(5)) {
@@ -792,14 +799,15 @@ async function buildFreshAiInterviewSession(candidate) {
   const role = candidate.stage1?.currentRole || "Medical Coder";
   const experienceYears = candidate.stage1?.experience ?? null;
 
-  // Retrieve staff-configured active interview questions bank
+  // Retrieve staff-configured active interview questions bank (capped to exactly 5 questions)
   const activeBankQuestions = await InterviewQuestion.find({ active: true })
     .sort({ order: 1, createdAt: 1 })
+    .limit(5)
     .lean();
 
   let questions;
   if (activeBankQuestions && activeBankQuestions.length > 0) {
-    questions = activeBankQuestions.map((q, idx) => ({
+    questions = activeBankQuestions.slice(0, 5).map((q, idx) => ({
       index: idx,
       id: String(q._id),
       topic: q.mode === "both" ? "Core Assessment" : (q.mode === "video" ? "Video Technical" : "Audio Interview"),
@@ -815,6 +823,9 @@ async function buildFreshAiInterviewSession(candidate) {
     }));
   } else {
     questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
+    if (Array.isArray(questions) && questions.length > 5) {
+      questions = questions.slice(0, 5);
+    }
   }
 
   return {
@@ -857,6 +868,9 @@ async function finalizeAiInterviewSession(candidate, session, status) {
     ...(candidate.stage5 || {}),
     mockInterviewCompleted: true,
     mockScore: result.overallScore,
+    status: status,
+    endedEarly: status === "STOPPED",
+    endedReason: status === "STOPPED" ? "USER_ENDED" : null,
   };
   candidate.markModified("stage8");
   candidate.markModified("stage5");
@@ -1116,7 +1130,10 @@ router.post(
       // 1. Update Candidate Stage 5 record
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
-        mockInterviewCompleted: status === "COMPLETED",
+        mockInterviewCompleted: status === "COMPLETED" || status === "STOPPED",
+        status: isTabSwitch ? "TERMINATED_TAB_SWITCH" : (status === "STOPPED" ? "STOPPED" : "COMPLETED"),
+        endedEarly: status === "STOPPED",
+        endedReason: status === "STOPPED" ? "USER_ENDED" : (isTabSwitch ? "TAB_SWITCH" : null),
         mockScore: finalScore,
         integrityScore: integrityScore,
         qaPairs: parsedQaPairs.length > 0 ? parsedQaPairs : (candidate.stage5?.qaPairs || []),
@@ -1127,11 +1144,12 @@ router.post(
         },
         terminatedDueToTabSwitch: isTabSwitch,
         proctoredInterviewVideoUrl: fileUrl || candidate.stage5?.proctoredInterviewVideoUrl || null,
-        videoUrl: fileUrl || candidate.stage5?.videoUrl || null,
+        selfIntroVideoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || null,
+        videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || fileUrl || null,
         updatedAt: new Date(),
       };
 
-      if (fileUrl) {
+      if (!candidate.videoUrl && fileUrl) {
         candidate.videoUrl = fileUrl;
       }
 
@@ -1139,7 +1157,8 @@ router.post(
       candidate.stage8 = {
         ...(candidate.stage8 || {}),
         aiInterview: {
-          status: isTabSwitch ? "TERMINATED_TAB_SWITCH" : "COMPLETED",
+          status: isTabSwitch ? "TERMINATED_TAB_SWITCH" : (status === "STOPPED" ? "STOPPED" : "COMPLETED"),
+          endedAt: new Date(),
           completedAt: new Date(),
           videoUrl: fileUrl || candidate.stage5?.videoUrl || null,
           proctorLogs: {

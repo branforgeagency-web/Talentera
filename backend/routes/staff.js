@@ -310,16 +310,15 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const videoIntrosQueue = candidates
       .filter((c) => {
         const s5 = c.stage5 || {};
-        const videoUrl = s5.proctoredInterviewVideoUrl || s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || "";
+        const videoUrl = s5.selfIntroVideoUrl || s5.videoUrl || s5.proctoredInterviewVideoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || "";
         if (!videoUrl || s5.skipped) return false;
         if (c.email && c.email.includes("test.candidate.")) return false;
-        if (videoUrl.includes("/samples/") || videoUrl.includes("sample.mp4")) return false;
         return true;
       })
       .map((c) => {
         const s1 = c.stage1 || {};
         const s5 = c.stage5 || {};
-        const videoPath = s5.proctoredInterviewVideoUrl || s5.videoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || "";
+        const videoPath = s5.selfIntroVideoUrl || s5.videoUrl || s5.proctoredInterviewVideoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || "";
 
         const noteQuestions = Array.isArray(s5.answerNotes) ? s5.answerNotes : [];
         const legacyScoredQuestions = Array.isArray(s5.questionScores) ? s5.questionScores : [];
@@ -1504,7 +1503,11 @@ router.get("/candidates", requireStaffAuth, async (req, res) => {
         stage2: s2,
         stage3: s3,
         stage4: s4,
-        stage5: s5,
+        stage5: {
+          ...s5,
+          videoUrl: s5.selfIntroVideoUrl || s5.videoUrl || s5.proctoredInterviewVideoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || null,
+        },
+        videoUrl: s5.selfIntroVideoUrl || s5.videoUrl || s5.proctoredInterviewVideoUrl || s5.url || s5.fileUrl || s5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || null,
         stage6: s6,
         stage7: s7,
         stage8: s8,
@@ -1579,9 +1582,17 @@ router.get("/candidates/:id", requireStaffAuth, async (req, res) => {
       rejected: applications.filter((a) => a.status === "rejected").length,
     };
 
+    const s5 = candidate.stage5 || {};
+    const resolvedVideoUrl = s5.selfIntroVideoUrl || s5.videoUrl || s5.proctoredInterviewVideoUrl || s5.url || s5.fileUrl || s5.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null;
+
     res.json({
       candidate: {
         ...candidate,
+        stage5: {
+          ...s5,
+          videoUrl: resolvedVideoUrl,
+        },
+        videoUrl: resolvedVideoUrl,
         fullName: candidate.stage1?.fullName || candidate.fullName || (candidate.email ? candidate.email.split("@")[0] : "Candidate"),
         applicationMetrics: metrics,
         applicationsCount: applications.length,
@@ -2310,6 +2321,9 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
 
       if (candidate.stage5) {
         candidate.stage5.mockInterviewCompleted = false;
+        candidate.stage5.status = null;
+        candidate.stage5.endedEarly = false;
+        candidate.stage5.endedReason = null;
         candidate.stage5.mockScore = null;
         candidate.stage5.terminatedDueToTabSwitch = false;
         candidate.stage5.proctorLogs = null;

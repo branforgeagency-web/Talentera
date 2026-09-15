@@ -19,6 +19,13 @@ const STATUS_STYLE = {
 // PUT /company/applications/:id/status) but nothing in the frontend ever
 // called - a company could publish a JD and then had no page to see who
 // applied to it.
+function getAssetUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
+  return `${base}${url.startsWith("/") ? url : "/" + url}`;
+}
+
 export default function CompanyApplicants() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -416,9 +423,9 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
           ) : null}
 
           <Section title="AI Video Introduction & Assessment">
-            {videoIntro.videoUrl || c.videoUrl ? (
+            {(videoIntro.videoUrl || c.videoUrl) ? (
               <div>
-                <video controls src={videoIntro.videoUrl || c.videoUrl} style={{ width: "100%", maxHeight: 300, borderRadius: 10, background: "#000", display: "block" }} />
+                <video controls src={getAssetUrl(videoIntro.videoUrl || c.videoUrl)} style={{ width: "100%", maxHeight: 300, borderRadius: 10, background: "#000", display: "block" }} />
                 {videoIntro.aiScore !== undefined && (
                   <div style={{ marginTop: 8, fontSize: 13, color: "#15803D", fontWeight: 700 }}>
                     AI Communication Score: {videoIntro.aiScore}%
