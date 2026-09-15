@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { body, validationResult } = require("express-validator");
 const Candidate = require("../models/Candidate");
+const StudentInvite = require("../models/StudentInvite");
 const { signToken, requireAuth } = require("../middleware/auth");
 const { authLimiter, otpLimiter } = require("../middleware/rateLimit");
 const { generateResetOtp, verifyAndConsumeResetOtp } = require("../utils/passwordReset");
@@ -12,6 +13,20 @@ const logger = require("../utils/logger");
 const router = express.Router();
 
 // POST /api/auth/register
+//
+// Two entry paths:
+//  - Normal signup: OTP-verified via accessToken (MSG91 widget), as before.
+//  - Invite signup (inviteToken in the body): the student clicked the link
+//    from their academy's invite email (routes/academy.js sendInviteEmail /
+//    GET /invite/:token). The academy already vouches for them and a
+//    Candidate record already exists (created at upload/add time, see
+//    routes/academy.js upload-confirm & add-single) with a shared
+//    placeholder password and isVerified:false — this is the step where
+//    they set their OWN password and the account actually becomes
+//    loginable. No OTP widget round-trip for this path: that's the whole
+//    point of an academy-trusted invite (see IMPROVEMENT_ROADMAP-adjacent
+//    Academy Dashboard roadmap, Phase 1 "invite link ... skips
+//    verification friction").
 router.post(
   "/register",
   authLimiter,
@@ -30,10 +45,43 @@ router.post(
       return res.status(400).json({ message: errors.array()[0].msg, errors: errors.array() });
     }
 
-    const { email, password, mobile, accessToken } = req.body;
+    const { email, password, mobile, accessToken, inviteToken } = req.body;
     const cleanEmail = (email || "").toLowerCase().trim();
 
     try {
+      if (inviteToken) {
+        const invite = await StudentInvite.findOne({ inviteToken });
+        if (!invite) {
+          return res.status(400).json({ message: "This invite link is invalid or has expired." });
+        }
+        if (invite.status === "signed_up") {
+          return res.status(409).json({ message: "This invite has already been used. Please log in instead." });
+        }
+
+        let candidate = invite.candidateId ? await Candidate.findById(invite.candidateId) : null;
+        if (!candidate) candidate = await Candidate.findOne({ email: invite.email.toLowerCase().trim() });
+        if (!candidate) {
+          return res.status(404).json({ message: "We couldn't find the profile your academy created for this invite. Please ask them to resend it." });
+        }
+        if (candidate.isVerified) {
+          return res.status(409).json({ message: "An account with this email already exists. Please log in instead." });
+        }
+
+        candidate.passwordHash = await bcrypt.hash(password, 10);
+        candidate.mobile = mobile || candidate.mobile || "";
+        candidate.isVerified = true;
+        candidate.verifiedAt = new Date();
+        await candidate.save();
+
+        invite.status = "signed_up";
+        invite.signupCompletedAt = new Date();
+        invite.candidateId = candidate._id;
+        await invite.save();
+
+        const token = signToken(candidate._id, "candidate");
+        return res.status(201).json({ token, candidate });
+      }
+
       if (!accessToken) {
         return res.status(400).json({ message: "OTP verification is required before creating your student account." });
       }
@@ -62,6 +110,15 @@ router.post(
           verifiedAt: new Date(),
           completedStages: [],
         });
+      }
+
+      // Link any existing StudentInvite for this email
+      const matchingInvite = await StudentInvite.findOne({ email: cleanEmail });
+      if (matchingInvite) {
+        matchingInvite.status = "signed_up";
+        matchingInvite.signupCompletedAt = new Date();
+        matchingInvite.candidateId = candidate._id;
+        await matchingInvite.save();
       }
 
       const token = signToken(candidate._id, "candidate");

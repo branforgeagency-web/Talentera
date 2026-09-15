@@ -3,12 +3,16 @@ const Company = require("../models/Company");
 const Application = require("../models/Application");
 const Notification = require("../models/Notification");
 const Job = require("../models/Job");
+const Candidate = require("../models/Candidate");
+const AcademyActivityEvent = require("../models/AcademyActivityEvent");
+const PlacementConfirmation = require("../models/PlacementConfirmation");
 const { requireCompanyAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { getPlan, isUnderJobPostLimit, PLANS } = require("../config/plans");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { cashfreeVerificationService } = require("../utils/cashfreeVerificationService");
+const { emitAcademyEvent } = require("../utils/academyEvents");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -39,6 +43,30 @@ const APPLICATION_STATUS_LABELS = {
   hired: "Hired / Offered",
   rejected: "not selected for this role",
 };
+
+// Maps a real ATS status transition onto the academy activity event types
+// consumed by routes/academy.js (Live Activity feed, Interviews Kanban,
+// Batch Heatmap). "applied" is deliberately absent - that event fires from
+// routes/candidate.js's apply endpoint, at the moment the candidate acts,
+// not here.
+const ACADEMY_EVENT_TYPE_BY_STATUS = {
+  shortlisted: "shortlisted",
+  interviewing: "interview_scheduled",
+  hired: "offer_extended",
+  rejected: "rejected",
+};
+
+// Resolves a job's display title from wherever it actually lives: the
+// legacy "first JD" published straight from onboarding Stage 9, or a
+// standalone Job document posted afterward from the Job Posts screen (see
+// routes/company.js's own GET /jobs for the same two-source merge).
+async function resolveJobTitle(jobId, companyDoc) {
+  if (companyDoc?.jdPublished && companyDoc.jobId === jobId) {
+    return companyDoc.stage9?.roletitle || "Medical Coder";
+  }
+  const job = await Job.findOne({ jobId }).select("fields.roletitle").lean();
+  return job?.fields?.roletitle || "Medical Coder";
+}
 
 function isEmptyValue(v) {
   if (v === undefined || v === null) return true;
@@ -695,6 +723,38 @@ router.get("/applications", async (req, res) => {
     };
   });
 
+  // Real "Profile Viewed" activity for the academy's Live Activity feed /
+  // heatmap (see backend/utils/academyEvents.js) - fired the first time this
+  // company loads an academy-linked candidate's application, deduped so
+  // paging back through the same list doesn't re-fire it every load.
+  try {
+    const academyLinked = applications.filter((app) => app.candidateId && app.candidateId.stage2?.academyId);
+    if (academyLinked.length > 0) {
+      const candidateIds = academyLinked.map((app) => app.candidateId._id);
+      const alreadyViewed = await AcademyActivityEvent.find({
+        eventType: "viewed",
+        companyId: req.companyId,
+        candidateId: { $in: candidateIds },
+      })
+        .distinct("candidateId");
+      const alreadyViewedSet = new Set(alreadyViewed.map(String));
+
+      const toNotify = academyLinked.filter((app) => !alreadyViewedSet.has(String(app.candidateId._id)));
+      for (const app of toNotify) {
+        await emitAcademyEvent({
+          candidate: app.candidateId,
+          eventType: "viewed",
+          companyId: req.companyId,
+          companyName: company?.companyName || "Talentera Employer",
+          jobTitle: jobTitleByJobId[app.jobId],
+          applicationId: app._id,
+        });
+      }
+    }
+  } catch (viewErr) {
+    logger.warn(`Academy "viewed" event emission failed: ${viewErr.message}`);
+  }
+
   res.json({
     applications: formatted,
     isKycVerified,
@@ -716,7 +776,7 @@ router.put("/applications/:id/status", async (req, res) => {
   const application = await Application.findOne({
     _id: req.params.id,
     companyId: req.companyId,
-  }).populate("candidateId", "email stage1");
+  }).populate("candidateId", "email stage1 stage2");
 
   if (!application) {
     return res.status(404).json({ message: "Application not found." });
@@ -736,9 +796,9 @@ router.put("/applications/:id/status", async (req, res) => {
     const candidate = application.candidateId;
     const candidateId = candidate?._id || candidate;
     const candidateEmail = candidate?.email;
-    const company = await Company.findById(req.companyId).select("companyName").lean();
+    const company = await Company.findById(req.companyId).select("companyName stage9 jobId jdPublished").lean();
     const companyName = company?.companyName || "Employer";
-    const roleTitle = application.jobTitle || "Role";
+    const roleTitle = await resolveJobTitle(application.jobId, company);
 
     // In-app Candidate Notification from Company
     try {
@@ -798,6 +858,74 @@ router.put("/applications/:id/status", async (req, res) => {
            <p style="color: #64748B; font-size: 13px;">Log in to your Talentera candidate portal to see the full details.</p>`
         ),
       }).catch((err) => logger.warn(`Lifecycle email failed for application ${application._id}: ${err.message}`));
+    }
+
+    // Real academy activity event - bridges this status change into the
+    // linked academy's Live Activity feed / Interviews Kanban / Batch
+    // Heatmap (see backend/utils/academyEvents.js). No-ops silently for a
+    // candidate who didn't come through an academy invite/upload.
+    const academyEventType = ACADEMY_EVENT_TYPE_BY_STATUS[status];
+    if (academyEventType && candidate) {
+      const eventMeta = {};
+      if (status === "interviewing" && req.body.interviewTime) eventMeta.interviewTime = req.body.interviewTime;
+      if (status === "hired" && req.body.ctc) eventMeta.salary = req.body.ctc;
+      if (status === "rejected" && req.body.reason) eventMeta.reason = req.body.reason;
+
+      await emitAcademyEvent({
+        candidate,
+        eventType: academyEventType,
+        companyId: req.companyId,
+        companyName,
+        jobTitle: roleTitle,
+        applicationId: application._id,
+        eventMeta,
+      });
+
+      // Hiring also opens the Phase 4 placement-confirmation loop: a real
+      // PlacementConfirmation record (instead of the academy's manual "add
+      // placement" form) so it shows up in the academy's
+      // /placements/confirmations queue for them to verify.
+      if (status === "hired" && candidate.stage2?.academyId) {
+        try {
+          const existingPlacement = await PlacementConfirmation.findOne({
+            candidateId: candidate._id,
+            companyId: req.companyId,
+          });
+          if (!existingPlacement) {
+            await PlacementConfirmation.create({
+              academyId: candidate.stage2.academyId,
+              candidateId: candidate._id,
+              candidateName: candidate.stage1?.fullName || candidateEmail,
+              candidateEmail: candidateEmail || "",
+              companyId: req.companyId,
+              companyName,
+              batchCode: candidate.stage2?.batch || "",
+              courseTitle: candidate.stage2?.course || "",
+              role: roleTitle,
+              ctc: req.body.ctc || "To be confirmed",
+              city: req.body.city || candidate.stage1?.city || "",
+            });
+          }
+
+          // Reflect the hire on the candidate's own record too, so
+          // GET /api/academy/dashboard's placement KPIs and the Interviews
+          // Kanban's "joined" heuristics see it without a second lookup.
+          const fullCandidate = await Candidate.findById(candidate._id);
+          if (fullCandidate) {
+            fullCandidate.stage8 = {
+              ...(fullCandidate.stage8 || {}),
+              placementStatus: `Placed at ${companyName} — Pending Confirmation`,
+              employer: companyName,
+              role: roleTitle,
+              ctc: req.body.ctc || fullCandidate.stage8?.ctc || "",
+              placedAt: new Date(),
+            };
+            await fullCandidate.save();
+          }
+        } catch (placementErr) {
+          logger.warn(`Placement confirmation wiring failed for application ${application._id}: ${placementErr.message}`);
+        }
+      }
     }
   }
 

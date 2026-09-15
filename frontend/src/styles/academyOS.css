@@ -1,0 +1,603 @@
+/* ====== TALENTERA ACADEMY OS & DASHBOARD STYLES ====== */
+
+:root {
+  --aos-navy-dark: #06152A;
+  --aos-navy-card: #0D223F;
+  --aos-navy-card-hover: #132D52;
+  --aos-navy-border: rgba(255, 255, 255, 0.08);
+  --aos-gold: #E5A82E;
+  --aos-gold-soft: rgba(229, 168, 46, 0.15);
+  --aos-emerald: #10B981;
+  --aos-emerald-soft: rgba(16, 185, 129, 0.15);
+  --aos-red: #EF4444;
+  --aos-red-soft: rgba(239, 68, 68, 0.15);
+  --aos-blue: #3B82F6;
+  --aos-blue-soft: rgba(59, 130, 246, 0.15);
+  --aos-purple: #8B5CF6;
+  --aos-purple-soft: rgba(139, 92, 246, 0.15);
+  --aos-text-primary: #FFFFFF;
+  --aos-text-secondary: #94A3B8;
+  --aos-text-muted: #64748B;
+}
+
+/* ========================================================= */
+/* 1. APPROVALS QUEUE STYLES */
+/* ========================================================= */
+.aos-approvals-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+}
+
+.aos-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.aos-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aos-title-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.aos-page-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #06152A;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aos-badge-amber {
+  background: rgba(202, 138, 4, 0.12);
+  color: #B45309;
+  border: 1px solid rgba(202, 138, 4, 0.3);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+.aos-badge-blue {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1D4ED8;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.aos-badge-purple {
+  background: rgba(139, 92, 246, 0.12);
+  color: #6D28D9;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.aos-subtitle {
+  font-size: 13px;
+  color: #64748B;
+  margin: 0;
+}
+
+.aos-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  flex-wrap: wrap;
+}
+
+.aos-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.aos-tab-btn {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.aos-tab-btn:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+  border-color: #CBD5E1;
+}
+
+.aos-tab-btn.active {
+  background: #06152A;
+  color: #FFFFFF;
+  border-color: #06152A;
+}
+
+.aos-search-input-wrap {
+  position: relative;
+  min-width: 220px;
+}
+
+.aos-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94A3B8;
+  width: 14px;
+  height: 14px;
+}
+
+.aos-search-input {
+  width: 100%;
+  padding: 7px 12px 7px 32px;
+  font-size: 12px;
+  border: 1px solid #CBD5E1;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #0F172A;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.aos-search-input:focus {
+  border-color: #E5A82E;
+  box-shadow: 0 0 0 2px rgba(229, 168, 46, 0.15);
+}
+
+.aos-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.aos-approval-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  transition: all 0.2s ease;
+}
+
+.aos-approval-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-1px);
+}
+
+.aos-card-main {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.aos-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #06152A;
+  color: #E5A82E;
+  font-weight: 800;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.aos-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aos-stage-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.aos-stage-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.aos-stage-tag.stage2 {
+  background: rgba(59, 130, 246, 0.1);
+  color: #1D4ED8;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.aos-stage-tag.stage5 {
+  background: rgba(139, 92, 246, 0.1);
+  color: #6D28D9;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.aos-timestamp {
+  color: #94A3B8;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.aos-candidate-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0F172A;
+  margin: 0;
+}
+
+.aos-candidate-email {
+  font-size: 12px;
+  color: #64748B;
+}
+
+.aos-batch-course {
+  font-size: 12px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.aos-card-desc {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 2px;
+}
+
+.aos-video-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #F1F5F9;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #E2E8F0;
+  margin-top: 6px;
+  transition: all 0.15s ease;
+}
+
+.aos-video-pill:hover {
+  background: #06152A;
+  color: #FFFFFF;
+  border-color: #06152A;
+}
+
+.aos-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.aos-btn-approve {
+  background: #10B981;
+  color: #FFFFFF;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 185, 129, 0.2);
+  transition: all 0.15s ease;
+}
+
+.aos-btn-approve:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.aos-btn-reject {
+  background: #FFFFFF;
+  color: #DC2626;
+  border: 1px solid #FCA5A5;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.aos-btn-reject:hover {
+  background: #FEF2F2;
+  border-color: #EF4444;
+}
+
+/* ========================================================= */
+/* 2. MODALS & POPUPS */
+/* ========================================================= */
+.aos-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 21, 42, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.aos-modal-box {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.aos-modal-header {
+  padding: 18px 24px;
+  background: #06152A;
+  color: #FFFFFF;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.aos-modal-title {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aos-modal-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.aos-modal-close:hover {
+  color: #FFFFFF;
+}
+
+.aos-modal-body {
+  padding: 24px;
+}
+
+.aos-modal-footer {
+  padding: 16px 24px;
+  background: #F8FAFC;
+  border-top: 1px solid #E2E8F0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ========================================================= */
+/* 3. 8-DOT STAGE TRACKER */
+/* ========================================================= */
+.aos-stage-tracker-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+  padding: 4px 0;
+}
+
+.aos-stage-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.aos-stage-dot.done {
+  background: #10B981;
+  color: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.aos-stage-dot.pending {
+  background: #E5A82E;
+  color: #06152A;
+  box-shadow: 0 0 0 2px rgba(229, 168, 46, 0.2);
+}
+
+.aos-stage-dot.todo {
+  background: #CBD5E1;
+  color: #64748B;
+}
+
+.aos-stage-connector {
+  width: 6px;
+  height: 2px;
+  background: #E2E8F0;
+}
+
+.aos-stage-connector.done {
+  background: #10B981;
+}
+
+/* ========================================================= */
+/* 4. KANBAN BOARD STYLES */
+/* ========================================================= */
+.aos-kanban-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(240px, 1fr));
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.aos-kanban-col {
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 480px;
+}
+
+.aos-kanban-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #E2E8F0;
+}
+
+.aos-kanban-col-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0F172A;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aos-kanban-count {
+  background: #E2E8F0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.aos-kanban-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.aos-kanban-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+/* ========================================================= */
+/* 5. UPLOAD DROPZONE & INVITES ENGINE */
+/* ========================================================= */
+.aos-dropzone {
+  border: 2px dashed #CBD5E1;
+  border-radius: 16px;
+  padding: 36px 20px;
+  text-align: center;
+  background: #FFFFFF;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.aos-dropzone:hover {
+  border-color: #E5A82E;
+  background: #FFFDF8;
+}
+
+.aos-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.aos-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.aos-table th {
+  background: #F8FAFC;
+  color: #475569;
+  font-weight: 700;
+  text-align: left;
+  padding: 12px 16px;
+  border-bottom: 1px solid #E2E8F0;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.aos-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #F1F5F9;
+  color: #1E293B;
+}
+
+.aos-table tr:hover td {
+  background: #F8FAFC;
+}

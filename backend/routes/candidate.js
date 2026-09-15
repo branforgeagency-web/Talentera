@@ -15,6 +15,7 @@ const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
 const { generateInterviewQuestions, getMessiTurn, generateFinalReport, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { verhoeffValidate } = require("../utils/verhoeffBackend");
+const { emitAcademyEvent } = require("../utils/academyEvents");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -411,6 +412,20 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage3.certVerifiedAt = null;
       candidate.stage3.certVerifiedBy = null;
       candidate.stage3.certRejectionReason = "";
+    } else if (stageNum === 2) {
+      candidate.stage2.verified = false;
+      candidate.stage2.rejected = false;
+      candidate.stage2.needsRevision = false;
+      candidate.stage2.status = "pending_review";
+      candidate.stage2.rejectionReason = "";
+      candidate.stage2.feedback = "";
+    } else if (stageNum === 5) {
+      candidate.stage5.verified = false;
+      candidate.stage5.rejected = false;
+      candidate.stage5.needsRevision = false;
+      candidate.stage5.status = "pending_review";
+      candidate.stage5.rejectionReason = "";
+      candidate.stage5.feedback = "";
     }
 
     candidate.markModified(key);
@@ -510,6 +525,12 @@ router.post("/video-platform/sync", async (req, res) => {
       videoUrl: resolvedVideoUrl,
       transcript: transcript || "",
       livenessVerified: Boolean(livenessVerified),
+      verified: false,
+      rejected: false,
+      needsRevision: false,
+      status: "pending_review",
+      rejectionReason: "",
+      feedback: "",
       syncedAt: new Date(),
     };
 
@@ -1373,19 +1394,31 @@ router.post("/apply/:jobId", async (req, res) => {
     // application actually went through beyond the in-page toast. See
     // IMPROVEMENT_ROADMAP.md "No candidate-facing email notifications."
     // Best-effort: never blocks the response.
+    const applyCompany = await Company.findById(companyId).select("companyName").lean();
     if (candidate.email) {
-      const company = await Company.findById(companyId).select("companyName").lean();
       sendTransactionalEmail({
         to: candidate.email,
         toName: candidate.stage1?.fullName,
         subject: `Application received: ${roleTitle}`,
         html: wrapEmailTemplate(
           "We've received your application",
-          `<p style="color: #475569; font-size: 15px; line-height: 1.5;">Your application for <strong>${roleTitle}</strong> at <strong>${company?.companyName || "the employer"}</strong> has been submitted.</p>
+          `<p style="color: #475569; font-size: 15px; line-height: 1.5;">Your application for <strong>${roleTitle}</strong> at <strong>${applyCompany?.companyName || "the employer"}</strong> has been submitted.</p>
            <p style="color: #64748B; font-size: 13px;">We'll email you again as soon as the employer updates your application status. You can also check progress any time from the "My Applications" tab on the Jobs page.</p>`
         ),
       }).catch((err) => logger.warn(`Application-received email failed for ${candidate.email}: ${err.message}`));
     }
+
+    // Real "Applied" activity event for the linked academy's Live Activity
+    // feed / Interviews Kanban / Batch Heatmap (see backend/utils/academyEvents.js).
+    // No-ops silently for a candidate who isn't academy-linked.
+    emitAcademyEvent({
+      candidate,
+      eventType: "applied",
+      companyId,
+      companyName: applyCompany?.companyName || "Talentera Employer",
+      jobTitle: roleTitle,
+      applicationId: application._id,
+    }).catch(() => {});
 
     res.json({ message: "Application submitted successfully!", application });
   } catch (err) {

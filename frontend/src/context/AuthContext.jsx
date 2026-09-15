@@ -16,24 +16,28 @@ export function AuthProvider({ children }) {
     }
     api
       .get("/auth/me")
-      .then((res) => setCandidate(res.data.candidate))
-      .catch(() => {
-        const storedInfo = localStorage.getItem("talentera_candidate_info");
-        if (storedInfo) {
-          try {
-            setCandidate(JSON.parse(storedInfo));
-          } catch (e) {
-            setCandidate({ email: "demo.candidate@talentera.in", stage1: { fullName: "Ananya Sharma" }, completedStages: [1, 2, 3, 4, 5, 6, 7, 8] });
-          }
+      .then((res) => {
+        if (res.data?.candidate) {
+          setCandidate(res.data.candidate);
         } else {
-          setCandidate({ email: "demo.candidate@talentera.in", stage1: { fullName: "Ananya Sharma" }, completedStages: [1, 2, 3, 4, 5, 6, 7, 8] });
+          localStorage.removeItem("talentera_token");
+          localStorage.removeItem("talentera_candidate_info");
+          setCandidate(null);
         }
+      })
+      .catch((err) => {
+        // If token is invalid or candidate no longer exists in DB, clean up stale credentials
+        if (err.response?.status === 401 || err.response?.status === 404) {
+          localStorage.removeItem("talentera_token");
+          localStorage.removeItem("talentera_candidate_info");
+        }
+        setCandidate(null);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  async function register(email, password, mobile, accessToken) {
-    const res = await api.post("/auth/register", { email, password, mobile, accessToken });
+  async function register(email, password, mobile, accessToken, inviteToken) {
+    const res = await api.post("/auth/register", { email, password, mobile, accessToken, inviteToken });
     localStorage.setItem("talentera_token", res.data.token);
     setCandidate(res.data.candidate);
     return res.data.candidate;

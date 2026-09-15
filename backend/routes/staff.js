@@ -949,9 +949,42 @@ router.post("/verify-video", requireStaffAuth, async (req, res) => {
     }
 
     if (action === "verify") {
-      candidate.stage5 = { ...s5, verified: true, verifiedAt: new Date(), verifiedBy: req.staffName || "" };
+      candidate.stage5 = {
+        ...s5,
+        verified: true,
+        status: "verified",
+        approvedAt: new Date(),
+        verifiedAt: new Date(),
+        verifiedBy: req.staffName || "Talentera Employee",
+        rejected: false,
+        needsRevision: false,
+        rejectionReason: "",
+        feedback: "",
+      };
+      if (!Array.isArray(candidate.completedStages)) {
+        candidate.completedStages = [];
+      }
+      if (!candidate.completedStages.includes(5)) {
+        candidate.completedStages.push(5);
+      }
+      candidate.markModified("completedStages");
     } else {
-      candidate.stage5 = { ...s5, verified: false, verifiedAt: null, verifiedBy: "" };
+      candidate.stage5 = {
+        ...s5,
+        verified: false,
+        status: "rejected",
+        rejected: true,
+        needsRevision: true,
+        rejectionReason: notes || "Video requires re-recording.",
+        feedback: notes || "Video requires re-recording.",
+        verifiedAt: null,
+        approvedAt: null,
+        verifiedBy: "",
+      };
+      if (Array.isArray(candidate.completedStages)) {
+        candidate.completedStages = candidate.completedStages.filter((st) => st !== 5);
+        candidate.markModified("completedStages");
+      }
     }
     candidate.markModified("stage5");
     await candidate.save();

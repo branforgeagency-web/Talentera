@@ -1,11 +1,15 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { startOtpWidget } from "../utils/msg91Widget.js";
+import api from "../api/client";
 
 export default function Register() {
   const { register, login } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get("invite") || "";
+
   const [authMode, setAuthMode] = useState("signup"); // "signup" or "login"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -14,13 +18,47 @@ export default function Register() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Invite prefill: a student who clicked the "Activate my profile" link
+  // from their academy's invite email (routes/academy.js sendInviteEmail)
+  // lands here with ?invite=<token>. Pull their details from the invite so
+  // they don't retype what the academy already gave us, and skip the OTP
+  // widget entirely below - the academy vouching for them at upload time is
+  // the trust signal for this path (see routes/auth.js /register).
+  const [invite, setInvite] = useState(null);
+  const [inviteError, setInviteError] = useState("");
+  const [inviteLoading, setInviteLoading] = useState(Boolean(inviteToken));
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    setAuthMode("signup");
+    api
+      .get(`/academy/invite/${inviteToken}`)
+      .then((res) => {
+        setInvite(res.data);
+        setEmail(res.data.email || "");
+        setMobile((res.data.mobile || "").replace(/\D/g, "").slice(-10));
+      })
+      .catch((err) => {
+        setInviteError(err.response?.data?.message || "This invite link is invalid or has expired.");
+      })
+      .finally(() => setInviteLoading(false));
+  }, [inviteToken]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccessMsg("");
     setSubmitting(true);
     try {
-      if (authMode === "signup") {
+      if (inviteToken) {
+        if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
+          throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+        }
+        // Academy-invited students skip the OTP widget - the academy
+        // already vouched for them when they were uploaded/added.
+        await register(email, password, mobile, null, inviteToken);
+        navigate("/dashboard");
+      } else if (authMode === "signup") {
         if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
           throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
         }
@@ -137,13 +175,51 @@ export default function Register() {
             letterSpacing: "-0.01em"
           }}
         >
-          Start your verification journey
+          {inviteToken ? "Activate your profile" : "Start your verification journey"}
         </h2>
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: 24 }}>
-          Create your account or log in to begin.
+          {inviteToken
+            ? invite
+              ? `${invite.academyName} added you to Talentera. Set a password to continue.`
+              : "Loading your invite..."
+            : "Create your account or log in to begin."}
         </p>
 
-        {/* Tab Pill Switcher */}
+        {/* Invite banner */}
+        {inviteToken && invite && (
+          <div
+            style={{
+              background: "rgba(229,168,46,0.12)",
+              border: "1px solid rgba(229,168,46,0.35)",
+              color: "#E5A82E",
+              padding: "10px 14px",
+              borderRadius: 8,
+              fontSize: 12.5,
+              marginBottom: 16,
+              lineHeight: 1.5
+            }}
+          >
+            Hi {invite.name}! Batch <strong>{invite.batchCode}</strong> · {invite.course}. Your identity verification (Stage 1) is still required after you log in - the academy has only vouched for your training record.
+          </div>
+        )}
+        {inviteToken && inviteError && (
+          <div
+            style={{
+              background: "rgba(248,113,113,0.1)",
+              border: "1px solid rgba(248,113,113,0.3)",
+              color: "#F87171",
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 13,
+              marginBottom: 16
+            }}
+          >
+            {inviteError} You can still <Link to="/register" style={{ color: "#F87171", textDecoration: "underline" }}>sign up normally</Link>.
+          </div>
+        )}
+
+        {/* Tab Pill Switcher - hidden for an invite link: that path is signup-only */}
+        {!inviteToken && (
         <div
           style={{
             display: "flex",
@@ -195,6 +271,7 @@ export default function Register() {
             Sign up
           </div>
         </div>
+        )}
 
         {/* Success Message */}
         {successMsg && (
@@ -253,13 +330,14 @@ export default function Register() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@example.com"
               required
+              readOnly={Boolean(inviteToken && invite)}
               style={{
                 width: "100%",
                 padding: "12px 14px",
                 background: "rgba(0,0,0,0.3)",
                 border: "1px solid rgba(255,255,255,0.12)",
                 borderRadius: 10,
-                color: "#FAF7F0",
+                color: inviteToken && invite ? "rgba(250,247,240,0.6)" : "#FAF7F0",
                 fontFamily: "inherit",
                 fontSize: 14,
                 outline: "none",
@@ -358,7 +436,7 @@ export default function Register() {
           {/* SUBMIT BUTTON */}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || (Boolean(inviteToken) && (inviteLoading || Boolean(inviteError)))}
             style={{
               width: "100%",
               padding: 14,
@@ -372,10 +450,15 @@ export default function Register() {
               fontFamily: "inherit",
               marginTop: 4,
               transition: "all 0.2s",
+              opacity: submitting || (inviteToken && (inviteLoading || inviteError)) ? 0.6 : 1,
             }}
           >
             {submitting
               ? "Processing..."
+              : inviteToken
+              ? inviteLoading
+                ? "Loading invite..."
+                : "Set Password & Activate →"
               : authMode === "signup"
               ? "Verify Email & Create Account →"
               : "Log In"}
