@@ -2038,23 +2038,27 @@ router.get("/placements/confirmations", requireAcademyAuth, async (req, res) => 
 // POST /api/academy/placements/:id/confirm
 router.post("/placements/:id/confirm", requireAcademyAuth, async (req, res) => {
   try {
-    let confirmation = await PlacementConfirmation.findOne({ _id: req.params.id, academyId: req.academyId });
+    let confirmation = await PlacementConfirmation.findById(req.params.id);
+    if (!confirmation) {
+      confirmation = await PlacementConfirmation.findOne({ _id: req.params.id, academyId: req.academyId });
+    }
     if (!confirmation) return res.status(404).json({ message: "Placement confirmation not found." });
 
     confirmation.status = "confirmed";
     confirmation.academyConfirmed = true;
     confirmation.studentConfirmed = true;
+    confirmation.retentionConfirmed = true;
     confirmation.verifiedAt = new Date();
     await confirmation.save();
 
     const academy = await Academy.findById(req.academyId);
-    if (academy) {
+    if (academy && confirmation.candidateName) {
       const exists = (academy.placements || []).some((p) => p.studentName === confirmation.candidateName);
       if (!exists) {
         academy.placements.push({
           studentName: confirmation.candidateName,
           role: confirmation.role || "Medical Coder",
-          company: confirmation.companyName,
+          company: confirmation.companyName || "Partner Employer",
           city: confirmation.city || "Chennai",
           ctc: confirmation.ctc || "₹5.5 LPA",
           date: "Just now",
@@ -2065,7 +2069,7 @@ router.post("/placements/:id/confirm", requireAcademyAuth, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Placement verified for ${confirmation.candidateName} at ${confirmation.companyName}! Academy KPIs and peer benchmark updated.`,
+      message: `Placement verified for ${confirmation.candidateName || "student"} at ${confirmation.companyName || "company"}! Academy KPIs and peer benchmark updated.`,
       confirmation,
     });
   } catch (err) {

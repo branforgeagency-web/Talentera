@@ -1,4 +1,4 @@
-﻿const mongoose = require("mongoose");
+const mongoose = require("mongoose");
 const crypto = require("crypto");
 
 const PlacementConfirmationSchema = new mongoose.Schema(
@@ -71,6 +71,10 @@ const PlacementConfirmationSchema = new mongoose.Schema(
       default: true,
     },
     academyConfirmed: {
+      type: Boolean,
+      default: false,
+    },
+    retentionConfirmed: {
       type: Boolean,
       default: false,
     },
