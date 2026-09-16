@@ -10,6 +10,7 @@ export default function CandidateNavbar({
   candidate: propCandidate,
   counts: propCounts,
   onEditStage,
+  onOpenVault,
 }) {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
@@ -225,7 +226,39 @@ export default function CandidateNavbar({
         </nav>
 
         {/* Right Action Icons & User Info */}
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {/* Document Vault quick launcher */}
+          {onOpenVault && (
+            <button
+              type="button"
+              onClick={onOpenVault}
+              style={{
+                background: "rgba(245, 184, 46, 0.12)",
+                border: "1px solid rgba(245, 184, 46, 0.4)",
+                color: "#F5B82E",
+                padding: "6px 14px",
+                borderRadius: 20,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                transition: "all 0.15s ease",
+              }}
+              title="Open Document Vault (Certificates & ID Proofs)"
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = "rgba(245, 184, 46, 0.25)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = "rgba(245, 184, 46, 0.12)";
+              }}
+            >
+              <span>🗄️</span>
+              <span>Vault</span>
+            </button>
+          )}
+
           {/* Notification Bell -> Opens Notification Modal */}
           <div
             style={{

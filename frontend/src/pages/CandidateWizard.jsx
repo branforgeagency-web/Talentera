@@ -217,30 +217,80 @@ export default function CandidateWizard() {
         onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
       />
 
-      <WizardStagePane
-        stage={activeStage}
-        isDone={isDone}
-        onPrev={handleSelectStage}
-        prevNum={prevStage?.num}
-        onBackToDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
-      >
-        {activeStage.num === 5 && (
-          <VideoUploadStage
-            stage={{ id: 5, title: activeStage.long, subtitle: activeStage.intro }}
-            existingData={existingData}
-            onSaved={handleStageSaved}
-          />
-        )}
+      {activeStageId === 1 || activeStageId === 2 || activeStageId === 3 ? (
+        <div style={{ flex: 1, minWidth: 0, padding: "20px 28px", overflowY: "auto", height: "100vh" }}>
+          {canViewDashboard && (
+            <div style={{ marginBottom: 14 }}>
+              <button
+                type="button"
+                onClick={() => setShowDashboard(true)}
+                style={{
+                  background: "#0A1F3D",
+                  color: "#FFFFFF",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 16px",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                ← Back to My Dashboard
+              </button>
+            </div>
+          )}
+          {activeStageId === 1 ? (
+            <Stage1Aadhaar
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          ) : activeStageId === 2 ? (
+            <Stage2Training
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          ) : (
+            <Stage3Certification
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          )}
+        </div>
+      ) : (
+        <WizardStagePane
+          stage={activeStage}
+          isDone={isDone}
+          onPrev={handleSelectStage}
+          prevNum={prevStage?.num}
+          onBackToDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
+        >
+          {activeStage.num === 5 && (
+            <VideoUploadStage
+              stage={{ id: 5, title: activeStage.long, subtitle: activeStage.intro }}
+              existingData={existingData}
+              onSaved={handleStageSaved}
+            />
+          )}
 
-        {StageComponent && (
-          <StageComponent
-            stage={activeStage}
-            existingData={existingData}
-            candidate={candidateObj}
-            onSaved={handleStageSaved}
-          />
-        )}
-      </WizardStagePane>
+          {StageComponent && (
+            <StageComponent
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          )}
+        </WizardStagePane>
+      )}
     </div>
   );
 }

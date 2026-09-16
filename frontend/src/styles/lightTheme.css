@@ -33,8 +33,8 @@ body {
    ========================================================================== */
 
 /* Headings default to dark blue across light pages */
-h1:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading):not(.conb-hero-title):not(.conb-sidebar-title):not(.conb-banner-title),
-h2:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading):not(.conb-hero-title):not(.conb-sidebar-title):not(.conb-banner-title),
+h1:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading):not(.conb-hero-title):not(.conb-sidebar-title):not(.conb-banner-title):not(.hero-title),
+h2:not(.fc-hero-title):not(.fa-hero-title):not(.fco-hero-title):not(.candidate-parallax-title):not(.fc-cta-title):not(.fco-cta-title):not(.tal-fn-title):not(.pipeline-parallax-title):not(.adv-main-heading):not(.conb-hero-title):not(.conb-sidebar-title):not(.conb-banner-title):not(.hero-title),
 h3:not(.conb-banner-title), h4, h5, h6,
 .hero-main-title,
 .section-title-light,

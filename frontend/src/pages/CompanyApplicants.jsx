@@ -409,6 +409,61 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </Section>
           )}
 
+          {/* DOCUMENT VAULT & ATTACHMENTS */}
+          {Array.isArray(c.documentVault) && c.documentVault.length > 0 && (
+            <Section title={`Document Vault & Verified Attachments (${c.documentVault.length})`}>
+              {isScoresLocked ? (
+                <Row label="Document Vault" value="🔒 Locked (Upgrade to Growth to view certificates)" />
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+                  {c.documentVault.map((doc, idx) => (
+                    <div
+                      key={doc.id || idx}
+                      style={{
+                        background: "#F8FAFC",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: 8,
+                        padding: "10px 12px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--navy)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {doc.title || doc.docName || `Document #${idx + 1}`}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#64748B", textTransform: "capitalize" }}>
+                          {(doc.docType || "Document").replace("_", " ")} {doc.issueYear ? `· ${doc.issueYear}` : ""}
+                        </div>
+                      </div>
+                      {doc.docUrl && (
+                        <a
+                          href={getAssetUrl(doc.docUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            background: "var(--navy)",
+                            color: "#fff",
+                            textDecoration: "none",
+                            padding: "5px 10px",
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          View ↗
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
+
           {isScoresLocked ? (
             <Section title="Assessment">
               <Row label="Proctored Assessment Score" value="🔒 Locked (Free Tier)" />

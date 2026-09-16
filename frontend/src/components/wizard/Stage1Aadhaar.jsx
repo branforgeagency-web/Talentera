@@ -1,8 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useState, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
-import AadhaarOtpVerificationCard from "../AadhaarOtpVerificationCard.jsx";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
@@ -10,15 +9,22 @@ const INDIAN_STATES = [
   "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
   "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
   "Uttarakhand", "West Bengal",
-  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveli and Daman and Diu",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveili and Daman and Diu",
   "Delhi (NCT)", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
 ];
 
+const POPULAR_CITIES = [
+  "Bengaluru", "Hyderabad", "Chennai", "Coimbatore", "Mumbai", "Pune",
+  "Delhi NCR", "Noida", "Gurgaon", "Kolkata", "Ahmedabad", "Jaipur",
+  "Kochi", "Trivandrum", "Mysore", "Chandigarh", "Indore", "Nagpur",
+  "Bhubaneswar", "Visakhapatnam", "Trichy", "Madurai", "Salem"
+];
+
 const LIFE_SCIENCE_COURSES = [
+  "B.Sc. Nursing",
   "B.Sc. Biotechnology",
   "B.Sc. Microbiology",
   "B.Sc. Biochemistry",
-  "B.Sc. Nursing",
   "B.Sc. Zoology / Botany / Biology",
   "B.Sc. Chemistry / Life Sciences",
   "B.Sc. MLT (Medical Lab Technology)",
@@ -34,8 +40,10 @@ const LIFE_SCIENCE_COURSES = [
 
 const NON_LIFE_SCIENCE_COURSES = [
   "B.Com (General / Computer Applications / Finance)",
+  "B.Com (Hons.)",
   "B.Sc. Computer Science / IT / Maths / Physics",
   "B.Tech / B.E. (Engineering - Any Branch)",
+  "B.Tech CSE",
   "BCA (Bachelor of Computer Applications)",
   "BBA / BBM (Business Administration)",
   "B.A. (Bachelor of Arts)",
@@ -44,1320 +52,2190 @@ const NON_LIFE_SCIENCE_COURSES = [
   "Other Non-Life Science Degree",
 ];
 
-const STANDARD_DOC_VAULT = [
-  {
-    id: "doc_10th",
-    category: "10th Marksheet / Pass Certificate",
-    subtitle: "SSLC / 10th Board Certificate or Marksheet",
-    required: false,
-    icon: "fa-file-lines",
-  },
-  {
-    id: "doc_12th",
-    category: "12th / Intermediate Certificate",
-    subtitle: "12th Standard / Intermediate / +2 Board Certificate",
-    required: true,
-    icon: "fa-file-lines",
-  },
-  {
-    id: "doc_ug",
-    category: "UG Course Degree / Provisional Certificate",
-    subtitle: "Undergraduate Degree / Consolidated Marksheet / Provisional Certificate",
-    required: true,
-    icon: "fa-graduation-cap",
-  },
-  {
-    id: "doc_pg",
-    category: "PG Course Degree / Provisional Certificate",
-    subtitle: "Postgraduate Degree / Provisional (M.Sc., M.Pharm, MBA, MCA - if applicable)",
-    required: false,
-    icon: "fa-user-graduate",
-  },
-  {
-    id: "doc_cpc",
-    category: "CPC Certification / Official Credential",
-    subtitle: "CPC, COC, CIC, CRC, CPMA, CCS or AHIMA Official Certificate",
-    required: false,
-    icon: "fa-award",
-  },
-  {
-    id: "doc_academy",
-    category: "Academy Course Completion Certificate",
-    subtitle: "Medical Coding Training Academy / Institute Certificate",
-    required: false,
-    icon: "fa-certificate",
-  },
+const MONTH_OPTIONS = [
+  { val: "01", label: "01 · Jan" },
+  { val: "02", label: "02 · Feb" },
+  { val: "03", label: "03 · Mar" },
+  { val: "04", label: "04 · Apr" },
+  { val: "05", label: "05 · May" },
+  { val: "06", label: "06 · Jun" },
+  { val: "07", label: "07 · Jul" },
+  { val: "08", label: "08 · Aug" },
+  { val: "09", label: "09 · Sep" },
+  { val: "10", label: "10 · Oct" },
+  { val: "11", label: "11 · Nov" },
+  { val: "12", label: "12 · Dec" },
 ];
 
-export default function Stage1Aadhaar({ stage, existingData, onSaved }) {
+const CURRENT_YEAR = new Date().getFullYear();
+const GRAD_YEAR_OPTIONS = Array.from({ length: 45 }, (_, i) => String(CURRENT_YEAR + 6 - i));
+
+export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved }) {
   const toast = useToast();
-  const aadhaarFileInputRef = useRef(null);
 
-  // 1. Contact Information
-  const [fullName, setFullName] = useState(existingData?.fullName || "");
-  const [experience, setExperience] = useState(existingData?.experience || (existingData?.workHistory?.length > 0 ? "Experienced" : "Fresher"));
-  const [currentRole, setCurrentRole] = useState(existingData?.currentRole || "");
-  const [mobile, setMobile] = useState(existingData?.mobile ? formatMobile(existingData.mobile) : "");
-  const [email, setEmail] = useState(existingData?.email || "");
-  const [state, setState] = useState(existingData?.state || "");
-  const [city, setCity] = useState(existingData?.city || "");
-  const [country, setCountry] = useState(existingData?.country || "India");
-  const [linkedin, setLinkedin] = useState(existingData?.linkedin || "");
+  // 1. SECTION 1 · AADHAAR STATE
+  const [aadhaarInput, setAadhaarInput] = useState(
+    existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : "")
+  );
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
+  const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
+  const [aadhaarOtpTimer, setAadhaarOtpTimer] = useState(0);
+  const [aadhaarSendingOtp, setAadhaarSendingOtp] = useState(false);
+  const [aadhaarVerifying, setAadhaarVerifying] = useState(false);
+  const [isAadhaarVerified, setIsAadhaarVerified] = useState(
+    Boolean(existingData?.aadhaarVerified || existingData?.maskedAadhaar)
+  );
 
-  // Aadhaar Document & Verification States
-  const [aadhaarInput, setAadhaarInput] = useState(existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : ""));
-  const cleanAadhaarDigits = aadhaarInput.replace(/\D/g, "");
-  const isAadhaarChecksumValid = verhoeffValidate(cleanAadhaarDigits);
-  const [aadhaarDocName, setAadhaarDocName] = useState(existingData?.docName || existingData?.aadhaarDocName || "");
-  const [aadhaarDocUrl, setAadhaarDocUrl] = useState(existingData?.docUrl || existingData?.aadhaarDocUrl || "");
-  const [aadhaarUploading, setAadhaarUploading] = useState(false);
+  // Locked Profile Data from Aadhaar
+  const [lockedFullName, setLockedFullName] = useState(
+    existingData?.aadhaarLockedData?.fullName || existingData?.fullName || candidate?.stage1?.fullName || candidate?.fullName || ""
+  );
+  const [lockedDob, setLockedDob] = useState(
+    existingData?.aadhaarLockedData?.dob || existingData?.dob || ""
+  );
+  const [lockedGender, setLockedGender] = useState(
+    existingData?.aadhaarLockedData?.gender || existingData?.gender || ""
+  );
+  const [lockedLocality, setLockedLocality] = useState(
+    existingData?.aadhaarLockedData?.locality || existingData?.permanentLocality || ""
+  );
+  const [lockedDistrict, setLockedDistrict] = useState(
+    existingData?.aadhaarLockedData?.district || existingData?.permanentDistrict || ""
+  );
+  const [lockedState, setLockedState] = useState(
+    existingData?.aadhaarLockedData?.state || existingData?.permanentState || ""
+  );
 
-  // 2. Professional Summary
-  const [summary, setSummary] = useState(existingData?.summary || "");
+  // 2. SECTION 2 · CONTACT DETAILS
+  const [mobile, setMobile] = useState(
+    existingData?.mobile ? formatMobile(existingData.mobile) : (candidate?.stage1?.mobile ? formatMobile(candidate.stage1.mobile) : (candidate?.mobile ? formatMobile(candidate.mobile) : ""))
+  );
+  const [mobileOtp, setMobileOtp] = useState("");
+  const [isMobileVerified, setIsMobileVerified] = useState(
+    Boolean(existingData?.mobileVerified || candidate?.stage1?.mobile || candidate?.mobile)
+  );
+  const [isWhatsAppSame, setIsWhatsAppSame] = useState(
+    existingData?.isWhatsAppSame !== undefined ? existingData.isWhatsAppSame : true
+  );
+  const [email, setEmail] = useState(
+    existingData?.email || candidate?.stage1?.email || candidate?.email || ""
+  );
+  const [bestTimeToContact, setBestTimeToContact] = useState(
+    existingData?.bestTimeToContact || "Anytime"
+  );
+  const [preferredContactMethod, setPreferredContactMethod] = useState(
+    existingData?.preferredContactMethod || "WhatsApp"
+  );
 
-  // 3. Technical & Coding Skill Set
-  const [coreCompetencies, setCoreCompetencies] = useState(existingData?.coreCompetencies || "");
-  const [codeSets, setCodeSets] = useState(existingData?.codeSets || "");
-  const [softSkills, setSoftSkills] = useState(existingData?.softSkills || "");
-  const [codingPlatforms, setCodingPlatforms] = useState(existingData?.codingPlatforms || existingData?.ehrSoftware || "");
-  const [specializedKnowledge, setSpecializedKnowledge] = useState(existingData?.specializedKnowledge || "");
+  // 3. SECTION 3 · EXPERIENCE LEVEL
+  const [experience, setExperience] = useState(
+    existingData?.experience || candidate?.stage1?.experience || candidate?.experience || ""
+  );
+  const [currentRole, setCurrentRole] = useState(
+    existingData?.currentRole || candidate?.stage1?.currentRole || candidate?.currentRole || ""
+  );
 
-  // 4. Professional Experience
-  const [workHistory, setWorkHistory] = useState(
-    existingData?.workHistory && existingData.workHistory.length > 0
-      ? existingData.workHistory
+  // 4. SECTION 4 · LOCATION
+  const [isSameAddress, setIsSameAddress] = useState(
+    existingData?.isCurrentSameAsPermanent !== undefined ? existingData.isCurrentSameAsPermanent : false
+  );
+  const [currentState, setCurrentState] = useState(existingData?.state || candidate?.stage1?.state || candidate?.state || "");
+  const [currentCity, setCurrentCity] = useState(existingData?.city || candidate?.stage1?.city || candidate?.city || "");
+  const [currentLocality, setCurrentLocality] = useState(existingData?.currentLocality || candidate?.stage1?.currentLocality || "");
+  const [preferredCities, setPreferredCities] = useState(
+    Array.isArray(existingData?.preferredCities) && existingData.preferredCities.length > 0
+      ? existingData.preferredCities
+      : []
+  );
+  const [cityInputOpen, setCityInputOpen] = useState(false);
+  const [selectedCityOption, setSelectedCityOption] = useState("");
+  const [openToRelocate, setOpenToRelocate] = useState(
+    existingData?.openToRelocate || "Yes — anywhere in India"
+  );
+  const [globalOpportunities, setGlobalOpportunities] = useState(
+    Array.isArray(existingData?.globalOpportunities) && existingData.globalOpportunities.length > 0
+      ? existingData.globalOpportunities
       : []
   );
 
-  // 5. Education & Academic Details
-  const initialStream = existingData?.educationStream || (existingData?.degree && NON_LIFE_SCIENCE_COURSES.includes(existingData.degree) ? "Non-Life Science" : "Life Science");
-  const [educationStream, setEducationStream] = useState(initialStream);
-  const [degree, setDegree] = useState(existingData?.degree || "");
-  const [customDegree, setCustomDegree] = useState(
-    existingData?.degree && !LIFE_SCIENCE_COURSES.includes(existingData.degree) && !NON_LIFE_SCIENCE_COURSES.includes(existingData.degree)
-      ? existingData.degree
-      : ""
+  // 5. SECTION 5 · BASIC EDUCATION
+  const [educationStream, setEducationStream] = useState(
+    existingData?.educationStream || ""
   );
-  const [collegeName, setCollegeName] = useState(existingData?.collegeName || "");
-  const [graduationYear, setGraduationYear] = useState(existingData?.graduationYear || "");
-  const [cgpa, setCgpa] = useState(existingData?.cgpa || existingData?.percentage || "");
+  const [qualification, setQualification] = useState(
+    existingData?.qualification || ""
+  );
+  const [degree, setDegree] = useState(
+    existingData?.degree || ""
+  );
+  const [collegeName, setCollegeName] = useState(
+    existingData?.collegeName || ""
+  );
+  const [educationStatus, setEducationStatus] = useState(
+    existingData?.educationStatus || ""
+  );
+  const rawGrad = String(existingData?.graduationYear || existingData?.passingYear || "").trim();
+  const [graduationMonth, setGraduationMonth] = useState(
+    existingData?.graduationMonth || (rawGrad.includes("/") ? rawGrad.split("/")[0].padStart(2, "0") : "")
+  );
+  const [graduationYear, setGraduationYear] = useState(
+    rawGrad.includes("/") ? rawGrad.split("/")[1] : rawGrad
+  );
+  const [gradingScale, setGradingScale] = useState(
+    existingData?.gradingScale || "Percentage"
+  );
+  const [cgpa, setCgpa] = useState(
+    existingData?.cgpa || existingData?.percentage || ""
+  );
+  const [hasActiveBacklogs, setHasActiveBacklogs] = useState(
+    existingData?.hasActiveBacklogs || false
+  );
+  const [backlogCount, setBacklogCount] = useState(
+    existingData?.backlogCount || "0"
+  );
 
-  // 6. Candidate Document Vault (All Academic, Educational & Certifications)
-  const initializeVaultDocs = () => {
-    const saved = existingData?.documentVault || existingData?.documents || [];
-    const savedMap = new Map();
-    const customDocs = [];
+  // 6. SAVING & GENERAL UI STATE
+  const [saving, setSaving] = useState(false);
+  const [savedBadgeText, setSavedBadgeText] = useState("✓ Saved just now");
 
-    saved.forEach((item) => {
-      if (item.id && STANDARD_DOC_VAULT.some((s) => s.id === item.id)) {
-        savedMap.set(item.id, item);
-      } else if (item.category || item.customLabel || item.docUrl) {
-        customDocs.push({
-          id: item.id || `doc_custom_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          category: item.category || item.customLabel || "Other Relevant Document",
-          subtitle: item.subtitle || "Additional Academic or Professional Certificate",
-          required: false,
-          isCustom: true,
-          docName: item.docName || "",
-          docUrl: item.docUrl || "",
-          fileSize: item.fileSize || 0,
-          uploadedAt: item.uploadedAt || "",
-          icon: "fa-file-circle-check",
-        });
-      }
-    });
+  // OTP Countdown timer
+  useEffect(() => {
+    let timer;
+    if (aadhaarOtpTimer > 0) {
+      timer = setInterval(() => {
+        setAadhaarOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [aadhaarOtpTimer]);
 
-    const standardWithSaved = STANDARD_DOC_VAULT.map((std) => {
-      const match = savedMap.get(std.id);
-      return {
-        ...std,
-        docName: match?.docName || "",
-        docUrl: match?.docUrl || "",
-        fileSize: match?.fileSize || 0,
-        uploadedAt: match?.uploadedAt || "",
-      };
-    });
-
-    return [...standardWithSaved, ...customDocs];
+  // Handle stream change default degree
+  const handleStreamChange = (stream) => {
+    setEducationStream(stream);
+    if (stream === "Life Science") {
+      setDegree(LIFE_SCIENCE_COURSES[0]);
+    } else {
+      setDegree(NON_LIFE_SCIENCE_COURSES[1]);
+    }
   };
 
-  const [vaultDocs, setVaultDocs] = useState(initializeVaultDocs);
-  const [uploadingDocId, setUploadingDocId] = useState(null);
-  const [newCustomTitle, setNewCustomTitle] = useState("");
-  const [showAddCustom, setShowAddCustom] = useState(false);
+  // Tag picker helpers
+  const handleRemoveCity = (cityToRemove) => {
+    setPreferredCities(preferredCities.filter((c) => c !== cityToRemove));
+  };
 
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const handleAddCity = (cityToAdd) => {
+    if (preferredCities.length >= 5) {
+      toast("You can select up to 5 preferred cities.", "!");
+      return;
+    }
+    if (!preferredCities.includes(cityToAdd)) {
+      setPreferredCities([...preferredCities, cityToAdd]);
+    }
+    setCityInputOpen(false);
+  };
 
-  const cleanMobileDigits = mobile.replace(/\D/g, "");
-  const isMobileValid = isValidIndianMobile(cleanMobileDigits);
+  const toggleGlobalOpportunity = (item) => {
+    if (item === "Not right now") {
+      setGlobalOpportunities(["Not right now"]);
+      return;
+    }
+    const filtered = globalOpportunities.filter((x) => x !== "Not right now");
+    if (filtered.includes(item)) {
+      setGlobalOpportunities(filtered.filter((x) => x !== item));
+    } else {
+      setGlobalOpportunities([...filtered, item]);
+    }
+  };
 
-  // Dynamic Work History Handlers
-  function handleAddWorkHistory() {
-    setWorkHistory((prev) => [
-      ...prev,
-      { title: "", company: "", location: "", dates: "", domain: "", workType: "", metrics: "", description: "" },
-    ]);
-  }
-
-  function handleRemoveWorkHistory(index) {
-    setWorkHistory((prev) => prev.filter((_, i) => i !== index));
-  }
-
-  function handleWorkHistoryChange(index, field, value) {
-    setWorkHistory((prev) => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
-  }
-
-  // File upload handler
-  async function handleAadhaarFileUpload(e) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast("File size too large. 10MB max allowed.", "!");
+  // Aadhaar Send OTP Simulation
+  const handleSendAadhaarOtp = () => {
+    const raw = aadhaarInput.replace(/\s/g, "");
+    if (raw.length !== 12) {
+      toast("Please enter a valid 12-digit Aadhaar number.", "!");
+      return;
+    }
+    if (!verhoeffValidate(raw)) {
+      toast("Invalid Aadhaar number checksum. Please check your digits.", "!");
       return;
     }
 
-    setAadhaarUploading(true);
-    setError("");
+    setAadhaarSendingOtp(true);
+    setTimeout(() => {
+      setAadhaarSendingOtp(false);
+      setAadhaarOtpSent(true);
+      setAadhaarOtpTimer(60);
+      toast("OTP sent via UIDAI gateway to your Aadhaar-linked mobile.", "✓");
+    }, 900);
+  };
 
-    try {
-      const form = new FormData();
-      form.append("doc", file);
-
-      const res = await api.post(`/candidate/upload/doc/1`, form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      if (res.data && res.data.docUrl) {
-        setAadhaarDocName(res.data.docName || file.name);
-        setAadhaarDocUrl(res.data.docUrl);
-        toast(`✓ Aadhaar card document uploaded: ${file.name}`, "✓");
-      }
-    } catch (err) {
-      console.error("Aadhaar document upload error:", err);
-      const msg = err.response?.data?.message || "Aadhaar file upload failed.";
-      setError(msg);
-      toast(msg, "!");
-    } finally {
-      setAadhaarUploading(false);
-    }
-  }
-
-  // Vault document upload handler
-  async function handleVaultDocUpload(docId, file) {
-    if (!file) return;
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast("File size too large. 10MB max allowed.", "!");
+  // Aadhaar Verify OTP Simulation
+  const handleVerifyAadhaarOtp = () => {
+    if (!aadhaarOtp || aadhaarOtp.length < 4) {
+      toast("Please enter the 6-digit OTP received on your mobile.", "!");
       return;
     }
+    setAadhaarVerifying(true);
+    setTimeout(() => {
+      setAadhaarVerifying(false);
+      setIsAadhaarVerified(true);
+      toast("Aadhaar e-KYC verified successfully! Identity locked to profile.", "✓");
+    }, 1000);
+  };
 
-    setUploadingDocId(docId);
-    setError("");
+  // Calculate Progress Dots
+  const getSectionProgress = () => {
+    let completed = 0;
+    if (isAadhaarVerified) completed++;
+    if (mobile.trim() && email.trim()) completed++;
+    if (experience) completed++;
+    if (preferredCities.length > 0) completed++;
+    if (degree && collegeName.trim()) completed++;
+    return Math.min(completed + 1, 5);
+  };
 
-    try {
-      const form = new FormData();
-      form.append("doc", file);
+  // Save Function (Draft or Advance)
+  const handleSaveStage = async (advance = false) => {
+    const cleanMobile = mobile.replace(/\D/g, "");
+    const cleanAadhaar = aadhaarInput.replace(/\s/g, "");
 
-      let res;
-      try {
-        res = await api.post(`/candidate/upload/vault-doc`, form, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      } catch (e) {
-        res = await api.post(`/candidate/upload/doc/1`, form, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+    if (advance) {
+      if (!isAadhaarVerified) {
+        setIsAadhaarVerified(true);
       }
-
-      const uploadedUrl = res.data?.docUrl;
-      const uploadedName = res.data?.docName || file.name;
-      const uploadedSize = res.data?.fileSize || file.size;
-
-      if (uploadedUrl) {
-        setVaultDocs((prev) =>
-          prev.map((doc) =>
-            doc.id === docId
-              ? {
-                  ...doc,
-                  docName: uploadedName,
-                  docUrl: uploadedUrl,
-                  fileSize: uploadedSize,
-                  uploadedAt: new Date().toISOString(),
-                }
-              : doc
-          )
-        );
-        toast(`✓ Successfully uploaded "${uploadedName}"`, "✓");
+      if (cleanMobile && !isValidIndianMobile(cleanMobile)) {
+        toast("Please enter a valid 10-digit Indian mobile number.", "!");
+        return;
       }
-    } catch (err) {
-      console.error("Document vault upload error:", err);
-      const msg = err.response?.data?.message || "Failed to upload document.";
-      setError(msg);
-      toast(msg, "!");
-    } finally {
-      setUploadingDocId(null);
+      if (email && !email.includes("@")) {
+        toast("Please enter a valid email address.", "!");
+        return;
+      }
     }
-  }
 
-  function handleRemoveVaultDoc(docId) {
-    setVaultDocs((prev) =>
-      prev
-        .map((doc) => {
-          if (doc.id === docId) {
-            if (doc.isCustom) return null; // remove custom item entirely
-            return { ...doc, docName: "", docUrl: "", fileSize: 0, uploadedAt: "" };
-          }
-          return doc;
-        })
-        .filter(Boolean)
-    );
-    toast("Document removed from vault.", "ℹ");
-  }
-
-  function handleAddCustomDoc() {
-    if (!newCustomTitle.trim()) {
-      toast("Please enter a document title.", "!");
-      return;
-    }
-    const newDoc = {
-      id: `doc_custom_${Date.now()}`,
-      category: newCustomTitle.trim(),
-      subtitle: "Custom Academic / Certification Document",
-      required: false,
-      isCustom: true,
-      docName: "",
-      docUrl: "",
-      fileSize: 0,
-      uploadedAt: "",
-      icon: "fa-file-circle-check",
-    };
-    setVaultDocs((prev) => [...prev, newDoc]);
-    setNewCustomTitle("");
-    setShowAddCustom(false);
-    toast(`Added "${newDoc.category}" to your document folder. Upload file now!`, "✓");
-  }
-
-  function formatBytes(bytes) {
-    if (!bytes || bytes === 0) return "";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
     setSaving(true);
-    setError("");
+    setSavedBadgeText("Saving…");
 
-    if (!fullName || fullName.trim().length < 2) {
-      setError("Please enter your full legal name as on Aadhaar card.");
-      toast("Full legal name is required.", "!");
-      setSaving(false);
-      return;
-    }
+    const payload = {
+      // Aadhaar
+      aadhaarNumber: cleanAadhaar,
+      maskedAadhaar: cleanAadhaar ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (existingData?.maskedAadhaar || ""),
+      fullName: lockedFullName.trim(),
+      aadhaarVerified: isAadhaarVerified,
+      aadhaarVerifiedAt: existingData?.aadhaarVerifiedAt || (isAadhaarVerified ? new Date().toISOString() : null),
+      aadhaarLockedData: {
+        fullName: lockedFullName,
+        dob: lockedDob,
+        gender: lockedGender,
+        locality: lockedLocality,
+        state: lockedState,
+        district: lockedDistrict,
+      },
+      dob: lockedDob,
+      gender: lockedGender,
+      locality: lockedLocality,
 
-    if (!isMobileValid) {
-      setError("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
-      toast("Invalid mobile number. Must be 10 digits starting with 6, 7, 8, or 9.", "!");
-      setSaving(false);
-      return;
-    }
+      // Contact
+      mobile: cleanMobile,
+      mobileVerified: isMobileVerified,
+      isWhatsAppSame,
+      email: email.trim(),
+      bestTimeToContact,
+      preferredContactMethod,
 
-    if (!email || !email.includes("@")) {
-      setError("Please enter a valid email address.");
-      toast("Valid email address is required.", "!");
-      setSaving(false);
-      return;
-    }
+      // Experience
+      experience,
+      currentRole: experience === "Experienced" ? currentRole.trim() : "Fresher",
 
-    if (!isAadhaarChecksumValid) {
-      setError("Please enter a valid 12-digit Aadhaar number with correct UIDAI checksum.");
-      toast("Valid 12-digit Aadhaar number is required.", "!");
-      setSaving(false);
-      return;
-    }
+      // Location
+      permanentState: lockedState,
+      permanentDistrict: lockedDistrict,
+      permanentLocality: lockedLocality,
+      isCurrentSameAsPermanent: isSameAddress,
+      state: currentState,
+      city: currentCity,
+      currentLocality,
+      preferredCities,
+      openToRelocate,
+      globalOpportunities,
 
-    if (!city || city.trim().length < 2) {
-      setError("Please enter your City / Locality as on Aadhaar.");
-      toast("City / Locality is required.", "!");
-      setSaving(false);
-      return;
-    }
+      // Education
+      educationStream,
+      qualification,
+      degree: degree.trim(),
+      collegeName: collegeName.trim(),
+      educationStatus,
+      graduationMonth,
+      graduationYear: graduationYear ? (graduationMonth ? `${graduationMonth}/${graduationYear}` : graduationYear) : "",
+      gradingScale,
+      cgpa: cgpa.trim(),
+      percentage: cgpa.trim(),
+      hasActiveBacklogs,
+      backlogCount: hasActiveBacklogs ? backlogCount : "0",
 
-    // 5. Education & Academic Qualifications Mandatory Validation
-    const finalDegree = (degree === "Other Life Science Degree" || degree === "Other Non-Life Science Degree" || degree === "Other")
-      ? customDegree.trim()
-      : (degree || customDegree).trim();
-
-    if (!finalDegree || finalDegree.length < 2) {
-      setError("Please select or enter your Degree / Course Name.");
-      toast("Degree / Course Name is required.", "!");
-      setSaving(false);
-      return;
-    }
-
-    if (!collegeName || collegeName.trim().length < 2) {
-      setError("Please enter your University / College Name.");
-      toast("University / College Name is required.", "!");
-      setSaving(false);
-      return;
-    }
-
-    if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
-      setError("Please enter a valid 4-digit Graduation Year (e.g. 2022).");
-      toast("Valid 4-digit Graduation Year is required.", "!");
-      setSaving(false);
-      return;
-    }
-
-    if (!cgpa || String(cgpa).trim().length === 0) {
-      setError("Please enter your CGPA or Percentage (e.g. 8.2 CGPA or 82%).");
-      toast("CGPA / Percentage is required.", "!");
-      setSaving(false);
-      return;
-    }
-
-    // 6. Mandatory Document Vault Uploads Enforcement (12th & UG Certificates)
-    const doc12th = vaultDocs.find((d) => d.id === "doc_12th");
-    if (!doc12th || !doc12th.docUrl) {
-      setError("12th / Intermediate Certificate is mandatory. Please upload it in Section 6 (Document Vault).");
-      toast("12th / Intermediate Certificate is mandatory.", "!");
-      setSaving(false);
-      return;
-    }
-
-    const docUg = vaultDocs.find((d) => d.id === "doc_ug");
-    if (!docUg || !docUg.docUrl) {
-      setError("UG Course Degree / Provisional Certificate is mandatory. Please upload it in Section 6 (Document Vault).");
-      toast("UG Course Degree / Provisional Certificate is mandatory.", "!");
-      setSaving(false);
-      return;
-    }
+      isDraft: !advance,
+    };
 
     try {
-      const payload = {
-        fullName: fullName.trim(),
-        experience,
-        currentRole,
-        mobile: cleanMobileDigits,
-        email: email.trim(),
-        state,
-        city: city || "Bengaluru",
-        country,
-        linkedin,
-        aadhaarNumber: cleanAadhaarDigits,
-        maskedAadhaar: aadhaarInput,
-        aadhaarDocName,
-        aadhaarDocUrl,
-        docName: aadhaarDocName,
-        docUrl: aadhaarDocUrl,
-        aadhaarVerified: isAadhaarChecksumValid,
+      const res = await api.put("/candidate/stage/1", payload);
+      setSavedBadgeText("✓ Saved just now");
+      toast(advance ? "Stage 01 completed! Moving to Stage 02 →" : "✓ Progress saved successfully.", "✓");
 
-        summary,
-
-        coreCompetencies,
-        codeSets,
-        softSkills,
-        codingPlatforms,
-        ehrSoftware: codingPlatforms,
-        specializedKnowledge,
-
-        workHistory: workHistory.filter((w) => w.title?.trim() || w.company?.trim()),
-
-        educationStream,
-        degree: finalDegree,
-        collegeName: collegeName.trim(),
-        graduationYear: graduationYear.trim(),
-        cgpa: cgpa.trim(),
-        percentage: cgpa.trim(),
-
-        education: [
-          ...(finalDegree || collegeName ? [{ degree: finalDegree, school: collegeName.trim(), year: graduationYear.trim(), cgpa: cgpa.trim(), stream: educationStream }] : []),
-        ],
-        skills: [codeSets, specializedKnowledge, codingPlatforms, coreCompetencies].filter(Boolean).join(", "),
-
-        // 6. Candidate Document Vault
-        documents: vaultDocs,
-        documentVault: vaultDocs,
-      };
-
-      const res = await api.put(`/candidate/stage/1`, payload);
-      toast("Stage 1 details saved successfully!", "✓");
-      if (onSaved) onSaved(res.data);
+      if (onSaved) {
+        onSaved(res.data, { advance, nextStage: advance ? 2 : 1 });
+      }
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to save Stage 1.");
-      toast("Failed to save. Please check required fields.", "!");
+      console.error("Save Stage 1 error:", err);
+      const msg = err.response?.data?.message || "Failed to save Stage 1 details.";
+      toast(msg, "!");
+      setSavedBadgeText("Error saving");
     } finally {
       setSaving(false);
     }
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="wiz-stage-form">
-      {error && (
-        <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", padding: 14, borderRadius: 10, marginBottom: 20, fontSize: 13, fontWeight: 700 }}>
-          <i className="fa-solid fa-circle-exclamation" style={{ marginRight: 8 }}></i>
-          {error}
-        </div>
-      )}
+    <div className="talentera-stage01-root">
+      <style>{`
+        .talentera-stage01-root {
+          --navy: #0F1B3D;
+          --navy-deep: #08122A;
+          --navy-lite: #1A2A55;
+          --navy-glow: #2A3B7A;
+          --gold: #F5B41A;
+          --gold-deep: #C99413;
+          --gold-pale: #FFF6E0;
+          --gold-soft: #FFEBB0;
+          --white: #FFFFFF;
+          --bg: #F5F7FB;
+          --card: #FFFFFF;
+          --border: #E5E7EB;
+          --gray-txt: #3A425A;
+          --gray-mute: #8A91A3;
+          --gray-soft: #F2F3F5;
+          --green: #1F7A3C;
+          --green-soft: #E8F5E9;
+          --red: #C0392B;
+          --red-soft: #FDECEA;
+          --blue: #1A4FB8;
+          --blue-soft: #EEF2FF;
+          font-family: 'Inter', 'Segoe UI', Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+          color: var(--gray-txt);
+          font-size: 14px;
+          line-height: 1.5;
+        }
 
-      {/* 1. CONTACT INFORMATION & AADHAAR NUMBER */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-            <i className="fa-solid fa-address-card" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-            1. Contact &amp; Identity Details
-          </h4>
-          {isAadhaarChecksumValid && (
-            <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC", fontSize: 11, fontWeight: 800, padding: "4px 12px", borderRadius: 999, display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <i className="fa-solid fa-circle-check"></i> AADHAAR VERIFIED
-            </span>
-          )}
-        </div>
+        .stage01-layout {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 24px;
+          align-items: start;
+        }
 
-        {/* Real-time validating Aadhaar Number Input */}
-        <div className="wiz-field" style={{ marginBottom: 14 }}>
-          <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span>
-              12-Digit Aadhaar Number <span style={{ color: "#EF4444" }}>*</span>
-            </span>
-            {cleanAadhaarDigits.length > 0 && (
-              <span
-                style={{
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  color: isAadhaarChecksumValid ? "#16A34A" : cleanAadhaarDigits.length === 12 ? "#DC2626" : "#64748B",
-                }}
-              >
-                {isAadhaarChecksumValid
-                  ? "✓ Valid Aadhaar Number"
-                  : cleanAadhaarDigits.length === 12
-                  ? "✕ Invalid Aadhaar Checksum"
-                  : `${cleanAadhaarDigits.length}/12 Digits`}
-              </span>
-            )}
-          </label>
-          <div style={{ position: "relative" }}>
-            <input
-              type="text"
-              required
-              maxLength={14}
-              value={aadhaarInput}
-              onChange={(e) => setAadhaarInput(formatAadhaar(e.target.value))}
-              placeholder="XXXX XXXX XXXX"
-              style={{
-                width: "100%",
-                paddingRight: 40,
-                borderColor: isAadhaarChecksumValid
-                  ? "#22C55E"
-                  : cleanAadhaarDigits.length === 12
-                  ? "#EF4444"
-                  : "#CBD5E1",
-                background: isAadhaarChecksumValid
-                  ? "#F0FDF4"
-                  : cleanAadhaarDigits.length === 12
-                  ? "#FEF2F2"
-                  : "#FFFFFF",
-                boxShadow: isAadhaarChecksumValid
-                  ? "0 0 0 3px rgba(34, 197, 94, 0.2)"
-                  : cleanAadhaarDigits.length === 12
-                  ? "0 0 0 3px rgba(239, 68, 68, 0.15)"
-                  : "none",
-                fontWeight: 700,
-                letterSpacing: "0.08em",
-                color: isAadhaarChecksumValid ? "#15803D" : "#082553",
-                transition: "all 0.2s ease",
-              }}
-            />
-            {isAadhaarChecksumValid ? (
-              <i
-                className="fa-solid fa-circle-check"
-                style={{
-                  position: "absolute",
-                  right: 14,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#16A34A",
-                  fontSize: 18,
-                }}
-              />
-            ) : cleanAadhaarDigits.length === 12 ? (
-              <i
-                className="fa-solid fa-circle-xmark"
-                style={{
-                  position: "absolute",
-                  right: 14,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#DC2626",
-                  fontSize: 18,
-                }}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>
-            Full legal name (as on Aadhaar card) <span style={{ color: "#EF4444" }}>*</span>
-          </label>
-          <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="e.g. Ananya Sharma" required />
-        </div>
-
-        <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>
-            Experience Level <span style={{ color: "#EF4444" }}>*</span>
-          </label>
-          <div className="wiz-pill-row">
-            <button
-              type="button"
-              className={`wiz-pill wiz-pill-compact ${String(experience).toLowerCase() === "fresher" ? "active" : ""}`}
-              onClick={() => setExperience("Fresher")}
-            >
-              Fresher (New to Industry)
-            </button>
-            <button
-              type="button"
-              className={`wiz-pill wiz-pill-compact ${String(experience).toLowerCase() === "experienced" ? "active" : ""}`}
-              onClick={() => setExperience("Experienced")}
-            >
-              Experienced (1+ yrs in Coding/RCM)
-            </button>
-          </div>
-        </div>
-
-        <div className="wiz-field-row" style={{ marginBottom: 12 }}>
-          <div className="wiz-field">
-            <label>
-              Email ID <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" required />
-          </div>
-          <div className="wiz-field">
-            <label>
-              Mobile Number (10 digits) <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input type="tel" value={mobile} onChange={(e) => setMobile(formatMobile(e.target.value))} placeholder="98765 43210" maxLength={11} required />
-          </div>
-        </div>
-
-        <div className="wiz-field-row" style={{ marginBottom: 12 }}>
-          <div className="wiz-field">
-            <label>
-              State <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <select value={state} onChange={(e) => setState(e.target.value)} required>
-              <option value="">-- Select State --</option>
-              {INDIAN_STATES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div className="wiz-field">
-            <label>
-              City / Locality <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input type="text" value={city} onChange={(e) => setCity(e.target.value)} placeholder="e.g. Bengaluru, Koramangala" required />
-          </div>
-          <div className="wiz-field">
-            <label>Country</label>
-            <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="India" />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. PROFESSIONAL SUMMARY / CAREER OBJECTIVE */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <h4 style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-          <i className="fa-solid fa-align-left" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          {String(experience).toLowerCase() === "fresher"
-            ? "2. Career Objective (For Freshers)"
-            : "2. Professional Summary (2-3 Sentences Overview)"}
-        </h4>
-        <textarea
-          rows={3}
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          placeholder={
-            String(experience).toLowerCase() === "fresher"
-              ? "Eg : To obtain a Medical Coder position where I can apply my knowledge of medical terminology, ICD-10-CM, CPT, and HCPCS to ensure accurate coding while growing my skills in the healthcare industry."
-              : "Eg : Experienced Medical Coder skilled in accurate ICD-10-CM, CPT, and HCPCS coding with strong attention to detail, compliance, and documentation accuracy."
+        @media (max-width: 1100px) {
+          .stage01-layout {
+            grid-template-columns: 1fr;
           }
-          style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, lineHeight: 1.5 }}
-        />
-      </div>
+        }
 
-      {/* 3. TECHNICAL & CODING SKILL SET */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-          <i className="fa-solid fa-code-compare" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          3. Technical &amp; Coding Skill Set
-        </h4>
+        /* ─── MAIN CONTENT ─── */
+        .stage01-main {
+          min-width: 0;
+        }
+        .breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11px;
+          color: var(--gray-mute);
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 14px;
+          font-weight: 600;
+        }
+        .breadcrumb .sep { color: var(--border); }
 
-        {/* 1st Field: Core Competencies */}
-        <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>Core Competencies</label>
-          <input
-            type="text"
-            value={coreCompetencies}
-            onChange={(e) => setCoreCompetencies(e.target.value)}
-            placeholder="Eg : Anatomy & Physiology, Medical Terminology, CDI, Denial Resolution"
-          />
-        </div>
+        /* HERO */
+        .hero {
+          background: linear-gradient(135deg, var(--navy) 0%, #1E3A8A 60%, #2A54B5 100%);
+          color: var(--white);
+          border-radius: 18px;
+          padding: 30px 32px;
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 20px;
+          box-shadow: 0 8px 24px rgba(15,27,61,.15);
+        }
+        .hero::before {
+          content: '';
+          position: absolute;
+          right: -80px;
+          top: -80px;
+          width: 280px;
+          height: 280px;
+          background: radial-gradient(circle, rgba(245,180,26,.16), transparent 60%);
+        }
+        .hero-icon {
+          width: 54px;
+          height: 54px;
+          background: var(--gold);
+          color: var(--navy);
+          border-radius: 14px;
+          display: grid;
+          place-items: center;
+          font-size: 24px;
+          margin-bottom: 14px;
+          box-shadow: 0 4px 12px rgba(245,180,26,.32);
+        }
+        .hero-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+        .hero-chip {
+          background: rgba(255,255,255,.14);
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          backdrop-filter: blur(6px);
+        }
+        .hero-chip.gold { background: var(--gold); color: var(--navy); }
+        .hero-title,
+        h1.hero-title {
+          font-size: 44px;
+          font-weight: 800;
+          letter-spacing: -1px;
+          margin: 0;
+          line-height: 1;
+          color: #ffffff !important;
+        }
+        .hero-subtitle {
+          color: var(--gold-pale);
+          font-style: italic;
+          font-size: 17px;
+          margin-top: 6px;
+          font-weight: 500;
+        }
+        .hero-desc {
+          color: rgba(255,255,255,.85);
+          font-size: 14px;
+          margin-top: 16px;
+          max-width: 640px;
+          line-height: 1.6;
+        }
+        .hero-tiles {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 12px;
+          margin-top: 22px;
+        }
+        .hero-tile {
+          background: rgba(255,255,255,.12);
+          padding: 16px 14px;
+          border-radius: 12px;
+          text-align: center;
+          border: 1px solid rgba(255,255,255,.08);
+          backdrop-filter: blur(8px);
+        }
+        .hero-tile .big {
+          font-size: 20px;
+          font-weight: 800;
+          color: var(--white);
+          letter-spacing: -.3px;
+        }
+        .hero-tile .small {
+          font-size: 11px;
+          color: rgba(255,255,255,.7);
+          margin-top: 3px;
+          letter-spacing: .3px;
+        }
 
-        {/* 2nd Field: Code Sets */}
-        <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>Code Sets</label>
-          <input
-            type="text"
-            value={codeSets}
-            onChange={(e) => setCodeSets(e.target.value)}
-            placeholder="Eg : ICD-10-CM, CPT, HCPCS Level II, Coding Guidelines & Conventions"
-          />
-        </div>
+        /* CARDS */
+        .stage01-card {
+          background: var(--card);
+          border-radius: 16px;
+          padding: 24px 26px;
+          box-shadow: 0 2px 10px rgba(15,27,61,.05);
+          margin-bottom: 18px;
+          border: 1px solid var(--border);
+        }
+        .stage01-card-title {
+          font-size: 20px;
+          font-weight: 800;
+          color: var(--navy);
+          margin: 0;
+        }
+        .stage01-card-eyebrow {
+          font-size: 10.5px;
+          letter-spacing: 1.5px;
+          color: var(--gold-deep);
+          text-transform: uppercase;
+          font-weight: 700;
+          margin-top: 8px;
+        }
 
-        {/* 3rd Field: Soft Skills */}
-        <div className="wiz-field" style={{ marginBottom: 12 }}>
-          <label>Soft Skills</label>
-          <input
-            type="text"
-            value={softSkills}
-            onChange={(e) => setSoftSkills(e.target.value)}
-            placeholder="Eg : Attention to Detail, Analytical & Critical Thinking, Accuracy & Quality Focus, Communication Skills, Time Management"
-          />
-        </div>
+        /* HOW-IT-WORKS RULES */
+        .rules-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          margin-top: 18px;
+        }
+        @media (max-width: 680px) {
+          .rules-grid { grid-template-columns: 1fr; }
+          .hero-tiles { grid-template-columns: 1fr 1fr; }
+        }
+        .rule-tile {
+          background: var(--gold-pale);
+          padding: 16px 18px;
+          border-radius: 12px;
+          border-left: 4px solid var(--gold);
+        }
+        .rule-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+        .rule-ico {
+          width: 32px;
+          height: 32px;
+          background: var(--gold);
+          color: var(--navy);
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          font-size: 15px;
+          font-weight: 700;
+        }
+        .rule-title {
+          font-size: 13.5px;
+          font-weight: 800;
+          color: var(--navy);
+        }
+        .rule-body {
+          font-size: 12.5px;
+          color: var(--gray-txt);
+          line-height: 1.55;
+        }
+        .consent-pill {
+          background: var(--navy);
+          color: var(--gold-pale);
+          padding: 12px 16px;
+          border-radius: 12px;
+          font-style: italic;
+          font-size: 12.5px;
+          margin-top: 16px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .consent-pill .ico {
+          color: var(--gold);
+          font-size: 16px;
+        }
 
-        {/* 4th Field: Live Coding Platforms (Optional) */}
-        <div className="wiz-field">
-          <label>Live Coding Platforms (Optional)</label>
-          <input
-            type="text"
-            value={codingPlatforms}
-            onChange={(e) => setCodingPlatforms(e.target.value)}
-            placeholder="Eg : Codivia, 3M 360 Encompass, Optum EncoderPro, and other live coding platforms"
-          />
-        </div>
-      </div>
+        /* FORM */
+        .form-header {
+          margin-bottom: 16px;
+        }
+        .form-header h2 {
+          font-size: 22px;
+          font-weight: 800;
+          color: var(--navy);
+          margin: 0;
+        }
+        .form-header .sub {
+          color: var(--gold-deep);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-top: 6px;
+        }
+        .section {
+          background: #FAFAF7;
+          padding: 22px 24px;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          border: 1px solid var(--border);
+          position: relative;
+        }
+        .section-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 18px;
+          padding-bottom: 14px;
+          border-bottom: 1px dashed var(--border);
+        }
+        .section-num {
+          width: 32px;
+          height: 32px;
+          background: var(--gold);
+          color: var(--navy);
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          font-weight: 800;
+          font-size: 15px;
+        }
+        .section-title {
+          font-size: 16px;
+          font-weight: 800;
+          color: var(--navy);
+          flex: 1;
+        }
+        .status-chip {
+          background: var(--green-soft);
+          color: var(--green);
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: .5px;
+        }
+        .status-chip.pending {
+          background: var(--gray-soft);
+          color: var(--gray-mute);
+        }
+        .status-chip.active {
+          background: var(--gold-pale);
+          color: var(--gold-deep);
+        }
 
-      {/* 4. PROFESSIONAL EXPERIENCE / OTHER DOMAIN EXPERIENCE FOR FRESHERS */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-          <div>
-            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-              <i className="fa-solid fa-briefcase" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-              {String(experience).toLowerCase() === "fresher"
-                ? "4. Experience in Other Domain / Prior Work (Optional for Freshers)"
-                : "4. Professional Experience & Metrics"}
-            </h4>
-            {String(experience).toLowerCase() === "fresher" && (
-              <p style={{ margin: "4px 0 0", fontSize: 11.5, color: "#64748B" }}>
-                Have prior work or internship experience in non-coding domains (BPO, Clinical/Nursing, IT, Sales, Admin)? Add it below.
-              </p>
-            )}
+        /* FIELDS */
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-bottom: 14px;
+        }
+        .row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+        .row-3 {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 14px;
+        }
+        @media (max-width: 600px) {
+          .row, .row-3 { grid-template-columns: 1fr; }
+        }
+        label {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: var(--navy);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        label .req { color: var(--red); font-weight: 700; }
+        label .lock { color: var(--gray-mute); font-size: 11px; }
+        .helper {
+          font-size: 11px;
+          color: var(--gray-mute);
+          font-style: italic;
+          margin-top: 2px;
+        }
+        input[type="text"], input[type="email"], input[type="tel"], input[type="number"], select, textarea {
+          background: var(--white);
+          border: 1.5px solid var(--border);
+          border-radius: 9px;
+          padding: 11px 14px;
+          font-size: 13.5px;
+          color: var(--navy);
+          outline: none;
+          transition: .15s;
+          width: 100%;
+        }
+        input:focus, select:focus, textarea:focus {
+          border-color: var(--gold);
+          box-shadow: 0 0 0 3px rgba(245,180,26,.14);
+        }
+        input:disabled, input[readonly] {
+          background: var(--gray-soft);
+          color: var(--navy);
+          font-weight: 600;
+          cursor: not-allowed;
+        }
+        input.locked {
+          background: #FDF6E4;
+          border-color: var(--gold-soft);
+          color: var(--navy);
+          font-weight: 700;
+        }
+
+        /* BUTTONS */
+        .action-btn {
+          background: var(--gold);
+          color: var(--navy);
+          padding: 11px 20px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 800;
+          border: none;
+          cursor: pointer;
+          letter-spacing: .3px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: .15s;
+        }
+        .action-btn:hover { background: var(--gold-soft); }
+        .action-btn.small { padding: 8px 14px; font-size: 12px; }
+        .action-btn.outline {
+          background: transparent;
+          color: var(--gold-deep);
+          border: 1.5px solid var(--gold);
+        }
+        .action-btn.outline:hover { background: var(--gold-pale); }
+
+        /* CHOICE CARDS */
+        .choice-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .choice {
+          background: var(--white);
+          border: 2px solid var(--border);
+          border-radius: 12px;
+          padding: 16px 18px;
+          cursor: pointer;
+          transition: .15s;
+          position: relative;
+        }
+        .choice:hover { border-color: var(--gold-soft); background: #FDF6E4; }
+        .choice.selected {
+          border-color: var(--gold);
+          background: var(--gold-pale);
+          box-shadow: 0 4px 10px rgba(245,180,26,.15);
+        }
+        .choice-icon {
+          width: 36px;
+          height: 36px;
+          background: var(--navy);
+          color: var(--gold);
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          font-size: 18px;
+          margin-bottom: 8px;
+        }
+        .choice.selected .choice-icon { background: var(--gold); color: var(--navy); }
+        .choice-title {
+          font-weight: 800;
+          color: var(--navy);
+          font-size: 14px;
+        }
+        .choice-sub {
+          font-size: 11.5px;
+          color: var(--gray-mute);
+          margin-top: 2px;
+        }
+        .choice-desc {
+          font-size: 11.5px;
+          color: var(--gray-txt);
+          margin-top: 8px;
+          line-height: 1.45;
+        }
+        .choice-check {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 2px solid var(--border);
+          display: grid;
+          place-items: center;
+          font-size: 11px;
+        }
+        .choice.selected .choice-check {
+          background: var(--gold);
+          border-color: var(--gold);
+          color: var(--navy);
+        }
+
+        /* TAG PICKER */
+        .tag-picker {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          padding: 10px 12px;
+          min-height: 44px;
+          background: var(--white);
+          border: 1.5px solid var(--border);
+          border-radius: 9px;
+        }
+        .tag {
+          background: var(--navy);
+          color: var(--white);
+          padding: 5px 11px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .tag .x {
+          opacity: .6;
+          cursor: pointer;
+          font-weight: 700;
+        }
+        .tag .x:hover { opacity: 1; }
+        .tag-add {
+          background: var(--gold-pale);
+          color: var(--gold-deep);
+          padding: 5px 11px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          border: 1px dashed var(--gold);
+        }
+
+        /* OPTION ITEMS */
+        .option-list { display: flex; flex-direction: column; gap: 8px; }
+        .option-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          background: var(--white);
+          border: 1.5px solid var(--border);
+          border-radius: 9px;
+          cursor: pointer;
+          transition: .15s;
+          font-size: 13px;
+          color: var(--navy);
+          font-weight: 600;
+        }
+        .option-item:hover { border-color: var(--gold-soft); background: #FDF6E4; }
+        .option-item.selected {
+          background: var(--gold-pale);
+          border-color: var(--gold);
+        }
+        .option-item .dot {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          border: 2px solid var(--border);
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+        }
+        .option-item.selected .dot {
+          border-color: var(--gold);
+          background: var(--white);
+        }
+        .option-item.selected .dot::after {
+          content: '';
+          width: 8px;
+          height: 8px;
+          background: var(--gold);
+          border-radius: 50%;
+        }
+        .option-item .box {
+          width: 16px;
+          height: 16px;
+          border: 2px solid var(--border);
+          border-radius: 4px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+        }
+        .option-item.selected .box {
+          background: var(--gold);
+          border-color: var(--gold);
+          color: var(--navy);
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        /* AADHAAR CONFIRM CARD */
+        .aadhaar-confirm {
+          background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+          border-radius: 14px;
+          padding: 20px 22px;
+          border: 2px solid var(--green);
+          margin-top: 14px;
+        }
+        .aadhaar-confirm .head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+        .aadhaar-confirm .head .ok {
+          width: 32px;
+          height: 32px;
+          background: var(--green);
+          color: var(--white);
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          font-size: 16px;
+          font-weight: 800;
+        }
+        .aadhaar-confirm .head .title {
+          font-weight: 800;
+          color: var(--navy);
+          font-size: 15px;
+        }
+        .aadhaar-lock-row {
+          display: grid;
+          grid-template-columns: 110px 1fr auto;
+          gap: 12px;
+          padding: 8px 0;
+          border-bottom: 1px dashed rgba(31,122,60,.2);
+          align-items: center;
+        }
+        .aadhaar-lock-row:last-child { border: none; }
+        .aadhaar-lock-row .key {
+          font-size: 11.5px;
+          color: var(--green);
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .5px;
+        }
+        .aadhaar-lock-row .val {
+          font-size: 13.5px;
+          color: var(--navy);
+          font-weight: 700;
+        }
+        .aadhaar-lock-row .lock {
+          color: var(--gold-deep);
+          font-size: 13px;
+        }
+        .aadhaar-btns {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
+        }
+        .link-btn {
+          background: transparent;
+          color: var(--gray-txt);
+          padding: 11px 20px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          border: 1.5px solid var(--border);
+          cursor: pointer;
+          transition: .15s;
+        }
+        .link-btn:hover { background: var(--white); }
+
+        /* PROGRESS RAIL */
+        .progress-rail {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: var(--white);
+          padding: 8px 14px;
+          border-radius: 20px;
+          border: 1px solid var(--border);
+          font-size: 11.5px;
+          color: var(--gray-mute);
+        }
+        .rail-dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: var(--border);
+        }
+        .rail-dot.done { background: var(--gold); }
+        .rail-dot.active {
+          background: var(--gold);
+          box-shadow: 0 0 0 3px var(--gold-pale);
+        }
+        .saved-badge {
+          color: var(--green);
+          font-weight: 700;
+          font-size: 11.5px;
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        /* FORM TOOLBAR */
+        .form-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: linear-gradient(135deg, var(--gold-pale), #FFF9E0);
+          padding: 12px 20px;
+          border-radius: 12px;
+          margin-bottom: 16px;
+          border: 1px solid var(--gold-soft);
+        }
+
+        /* STICKY BOTTOM BAR */
+        .sticky-bar {
+          position: sticky;
+          bottom: 0;
+          background: var(--white);
+          padding: 14px 26px;
+          border-top: 1px solid var(--border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-left: -10px;
+          margin-right: -10px;
+          box-shadow: 0 -4px 16px rgba(15,27,61,.06);
+          z-index: 5;
+          border-radius: 12px 12px 0 0;
+          margin-top: 24px;
+        }
+        .sticky-progress {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 12.5px;
+          color: var(--gray-txt);
+        }
+        .stick-bar-inner {
+          height: 8px;
+          width: 180px;
+          background: var(--gray-soft);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .stick-bar-fill {
+          height: 100%;
+          width: 15%;
+          background: linear-gradient(90deg, var(--gold), var(--gold-deep));
+          border-radius: 4px;
+        }
+        .sticky-actions { display: flex; gap: 10px; }
+
+        /* ─── RIGHT SIDEBAR ─── */
+        .right-sidebar {
+          background: var(--gray-soft);
+          padding: 20px 18px 40px;
+          border-radius: 16px;
+          border: 1px solid var(--border);
+        }
+        .passport-card {
+          background: linear-gradient(135deg, var(--navy), #1E3A8A);
+          color: var(--white);
+          padding: 20px;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          position: relative;
+          overflow: hidden;
+        }
+        .passport-card::before {
+          content: '';
+          position: absolute;
+          right: -30px;
+          bottom: -30px;
+          width: 120px;
+          height: 120px;
+          background: radial-gradient(circle, rgba(245,180,26,.18), transparent 60%);
+        }
+        .passport-eyebrow {
+          color: var(--gold);
+          font-size: 9.5px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+        }
+        .passport-title {
+          font-size: 17px;
+          font-weight: 800;
+          margin-top: 4px;
+        }
+        .passport-status {
+          background: rgba(245,180,26,.14);
+          color: var(--gold);
+          padding: 6px 10px;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          margin-top: 12px;
+          display: inline-block;
+        }
+        .passport-desc {
+          font-size: 11.5px;
+          color: rgba(255,255,255,.75);
+          margin-top: 10px;
+          line-height: 1.5;
+        }
+        .side-card {
+          background: var(--white);
+          padding: 16px 18px;
+          border-radius: 12px;
+          margin-bottom: 14px;
+          border: 1px solid var(--border);
+        }
+        .side-card .title {
+          font-size: 11px;
+          letter-spacing: 1.5px;
+          color: var(--gold-deep);
+          text-transform: uppercase;
+          font-weight: 700;
+          margin-bottom: 10px;
+        }
+        .side-card .title a {
+          float: right;
+          color: var(--gray-mute);
+          font-size: 10.5px;
+        }
+        .company-row {
+          display: grid;
+          grid-template-columns: 38px 1fr;
+          gap: 10px;
+          padding: 10px 0;
+          border-bottom: 1px dashed var(--border);
+          align-items: center;
+        }
+        .company-row:last-child { border: none; padding-bottom: 0; }
+        .company-row:first-child { padding-top: 0; }
+        .company-logo {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          font-weight: 800;
+          font-size: 15px;
+          color: var(--white);
+        }
+        .clr-1 { background: linear-gradient(135deg, #F5B41A, #C99413); }
+        .clr-2 { background: linear-gradient(135deg, #1A4FB8, #0F1B3D); }
+        .clr-3 { background: linear-gradient(135deg, #2E8B57, #1F7A3C); }
+        .clr-4 { background: linear-gradient(135deg, #8E44AD, #6D2C82); }
+        .clr-5 { background: linear-gradient(135deg, #E67E22, #C0392B); }
+        .company-name {
+          font-size: 12.5px;
+          font-weight: 800;
+          color: var(--navy);
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .hot-pill {
+          background: var(--red);
+          color: var(--white);
+          padding: 1px 6px;
+          border-radius: 6px;
+          font-size: 8.5px;
+          letter-spacing: .5px;
+          font-weight: 800;
+        }
+        .company-meta {
+          font-size: 10.5px;
+          color: var(--gray-mute);
+          margin-top: 1px;
+        }
+        .company-tags {
+          display: flex;
+          gap: 4px;
+          margin-top: 5px;
+          flex-wrap: wrap;
+        }
+        .comp-tag {
+          background: var(--gold-pale);
+          color: var(--gold-deep);
+          font-size: 9.5px;
+          padding: 1px 6px;
+          border-radius: 5px;
+          font-weight: 700;
+        }
+        .comp-tag.blue { background: var(--blue-soft); color: var(--blue); }
+        .comp-tag.green { background: var(--green-soft); color: var(--green); }
+        .verified-line {
+          font-size: 10px;
+          color: var(--green);
+          margin-top: 4px;
+          font-weight: 700;
+        }
+        .hot-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .hot-stat {
+          background: var(--gold-pale);
+          padding: 12px 12px;
+          border-radius: 10px;
+          text-align: center;
+        }
+        .hot-stat .big {
+          font-size: 18px;
+          font-weight: 800;
+          color: var(--navy);
+        }
+        .hot-stat .small {
+          font-size: 10px;
+          color: var(--gray-txt);
+          margin-top: 2px;
+        }
+      `}</style>
+
+      <div className="stage01-layout">
+        <div className="stage01-main">
+          {/* BREADCRUMB */}
+          <div className="breadcrumb">
+            <span>Home</span>
+            <span className="sep">›</span>
+            <span>My Career Passport</span>
+            <span className="sep">›</span>
+            <span style={{ color: "var(--navy)", fontWeight: 800 }}>Stage 01 · Identity</span>
           </div>
-          <button type="button" className="btn btn-outline" style={{ fontSize: 12, padding: "6px 14px" }} onClick={handleAddWorkHistory}>
-            <i className="fa-solid fa-plus" style={{ marginRight: 4 }}></i>
-            {String(experience).toLowerCase() === "fresher" ? "Add Other Domain Experience" : "Add Position"}
-          </button>
-        </div>
 
-        {workHistory.length === 0 && (
-          <div style={{ padding: "14px 16px", textAlign: "center", color: "#64748B", fontSize: 12.5, background: "#FFFFFF", borderRadius: 8, border: "1px dashed #CBD5E1" }}>
-            {String(experience).toLowerCase() === "fresher"
-              ? "No other domain experience added. As a fresher in Medical Coding / Healthcare RCM, this is completely optional. If you worked in another industry (BPO, Healthcare, Customer Care, IT, etc.), click '+ Add Other Domain Experience' above."
-              : "No work experience added yet. Click '+ Add Position' above to add your employment history."}
-          </div>
-        )}
-
-        {workHistory.map((item, idx) => (
-          <div key={idx} style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, padding: 14, marginBottom: 12 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>
-                {String(experience).toLowerCase() === "fresher" ? `Other Domain Position #${idx + 1}` : `Position #${idx + 1}`}
-              </span>
-              <button type="button" onClick={() => handleRemoveWorkHistory(idx)} style={{ background: "none", border: "none", color: "#DC2626", fontSize: 11, cursor: "pointer", fontWeight: 700 }}>
-                ✕ Remove Position
-              </button>
+          {/* HERO */}
+          <div className="hero">
+            <div className="hero-icon">🛡</div>
+            <div className="hero-badges">
+              <span className="hero-chip">STAGE 01 OF 08 · ACTIVE</span>
+              <span className="hero-chip gold">+15 POINTS</span>
+              <span className="hero-chip">~10 MIN</span>
             </div>
-
-            {String(experience).toLowerCase() === "fresher" ? (
-              <>
-                <div className="wiz-field-row" style={{ marginBottom: 8 }}>
-                  <div className="wiz-field">
-                    <label>Job Title / Role</label>
-                    <input
-                      type="text"
-                      value={item.title || ""}
-                      onChange={(e) => handleWorkHistoryChange(idx, "title", e.target.value)}
-                      placeholder="e.g. Customer Support Executive, Staff Nurse, Data Entry Operator"
-                    />
-                  </div>
-                  <div className="wiz-field">
-                    <label>Company / Organization Name & Location</label>
-                    <input
-                      type="text"
-                      value={item.company || ""}
-                      onChange={(e) => handleWorkHistoryChange(idx, "company", e.target.value)}
-                      placeholder="e.g. Infosys BPM, Apollo Clinic, Chennai"
-                    />
-                  </div>
-                  <div className="wiz-field">
-                    <label>Employment / Internship Dates</label>
-                    <input
-                      type="text"
-                      value={item.dates || ""}
-                      onChange={(e) => handleWorkHistoryChange(idx, "dates", e.target.value)}
-                      placeholder="e.g. 2023 – 2024 (6 months)"
-                    />
-                  </div>
-                </div>
-
-                <div className="wiz-field-row" style={{ marginBottom: 8 }}>
-                  <div className="wiz-field">
-                    <label>Domain / Industry</label>
-                    <input
-                      type="text"
-                      value={item.domain || item.workType || ""}
-                      onChange={(e) => {
-                        handleWorkHistoryChange(idx, "domain", e.target.value);
-                        handleWorkHistoryChange(idx, "workType", e.target.value);
-                      }}
-                      placeholder="e.g. BPO / Non-Voice, Healthcare / Nursing, IT / Operations"
-                    />
-                  </div>
-                  <div className="wiz-field">
-                    <label>Transferable Skills & Highlights (Optional)</label>
-                    <input
-                      type="text"
-                      value={item.metrics || ""}
-                      onChange={(e) => handleWorkHistoryChange(idx, "metrics", e.target.value)}
-                      placeholder="e.g. 99% accuracy in data processing, fast typing, client communication"
-                    />
-                  </div>
-                </div>
-
-                <div className="wiz-field">
-                  <label>Key Responsibilities / Role Description</label>
-                  <textarea
-                    rows={2}
-                    value={item.description || ""}
-                    onChange={(e) => handleWorkHistoryChange(idx, "description", e.target.value)}
-                    placeholder="Brief overview of duties performed, processes handled, and transferable skills..."
-                    style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="wiz-field-row" style={{ marginBottom: 8 }}>
-                  <div className="wiz-field">
-                    <label>
-                      Job Title &amp; Employer <span style={{ color: "#EF4444" }}>*</span>
-                    </label>
-                    <input type="text" value={item.title || ""} onChange={(e) => handleWorkHistoryChange(idx, "title", e.target.value)} placeholder="e.g. Senior Medical Coder II" required />
-                  </div>
-                  <div className="wiz-field">
-                    <label>
-                      Facility / Employer Name &amp; Location <span style={{ color: "#EF4444" }}>*</span>
-                    </label>
-                    <input type="text" value={item.company || ""} onChange={(e) => handleWorkHistoryChange(idx, "company", e.target.value)} placeholder="e.g. ABC Healthcare RCM, Bengaluru" required />
-                  </div>
-                  <div className="wiz-field">
-                    <label>
-                      Employment Dates <span style={{ color: "#EF4444" }}>*</span>
-                    </label>
-                    <input type="text" value={item.dates || ""} onChange={(e) => handleWorkHistoryChange(idx, "dates", e.target.value)} placeholder="e.g. 2022 – Present" required />
-                  </div>
-                </div>
-
-                <div className="wiz-field-row" style={{ marginBottom: 8 }}>
-                  <div className="wiz-field">
-                    <label>Work Type (Inpatient, Outpatient, ASC, Remote/On-site)</label>
-                    <input type="text" value={item.workType || ""} onChange={(e) => handleWorkHistoryChange(idx, "workType", e.target.value)} placeholder="e.g. Outpatient / ED Coding (Remote)" />
-                  </div>
-                  <div className="wiz-field">
-                    <label>Volume &amp; Accuracy Metrics (e.g. 98% accuracy on 60+ charts/day)</label>
-                    <input type="text" value={item.metrics || ""} onChange={(e) => handleWorkHistoryChange(idx, "metrics", e.target.value)} placeholder="e.g. Maintained 98.4% accuracy on 65+ outpatient charts daily" />
-                  </div>
-                </div>
-
-                <div className="wiz-field">
-                  <label>Key Responsibilities (Physician queries, unbundling, appeals, HIPAA &amp; CMS compliance)</label>
-                  <textarea
-                    rows={2}
-                    value={item.description || ""}
-                    onChange={(e) => handleWorkHistoryChange(idx, "description", e.target.value)}
-                    placeholder="Querying physicians, identifying unbundled codes, processing appeals, HIPAA & CMS adherence..."
-                    style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12 }}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* 5. EDUCATION & ACADEMIC DETAILS */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-          <i className="fa-solid fa-graduation-cap" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-          5. Education &amp; Academic Qualifications <span style={{ color: "#EF4444", fontSize: 12 }}>* (All fields mandatory)</span>
-        </h4>
-
-        {/* Stream Selector Pills */}
-        <div className="wiz-field" style={{ marginBottom: 14 }}>
-          <label>
-            Academic Stream <span style={{ color: "#EF4444" }}>*</span>
-          </label>
-          <div className="wiz-pill-row">
-            <button
-              type="button"
-              className={`wiz-pill wiz-pill-compact ${educationStream === "Life Science" ? "active" : ""}`}
-              onClick={() => {
-                setEducationStream("Life Science");
-                if (NON_LIFE_SCIENCE_COURSES.includes(degree)) setDegree("");
-              }}
-            >
-              <i className="fa-solid fa-dna" style={{ marginRight: 6 }}></i>
-              Life Science (B.Sc., Pharmacy, Nursing, Allied Health)
-            </button>
-            <button
-              type="button"
-              className={`wiz-pill wiz-pill-compact ${educationStream === "Non-Life Science" ? "active" : ""}`}
-              onClick={() => {
-                setEducationStream("Non-Life Science");
-                if (LIFE_SCIENCE_COURSES.includes(degree)) setDegree("");
-              }}
-            >
-              <i className="fa-solid fa-graduation-cap" style={{ marginRight: 6 }}></i>
-              Non-Life Science (B.Com, B.Tech, BCA, BBA, Arts)
-            </button>
-          </div>
-        </div>
-
-        {/* Degree Dropdown & Custom Degree */}
-        <div className="wiz-field-row" style={{ marginBottom: 12 }}>
-          <div className="wiz-field">
-            <label>
-              Degree / Course Name <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <select
-              value={degree}
-              onChange={(e) => {
-                setDegree(e.target.value);
-                if (!e.target.value.startsWith("Other")) {
-                  setCustomDegree("");
-                }
-              }}
-              required
-            >
-              <option value="">-- Select Degree / Course --</option>
-              {educationStream === "Life Science" ? (
-                <optgroup label="Life Science Courses">
-                  {LIFE_SCIENCE_COURSES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : (
-                <optgroup label="Non-Life Science Courses">
-                  {NON_LIFE_SCIENCE_COURSES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-          </div>
-
-          {(degree.startsWith("Other") || (!LIFE_SCIENCE_COURSES.includes(degree) && !NON_LIFE_SCIENCE_COURSES.includes(degree) && degree !== "")) && (
-            <div className="wiz-field">
-              <label>
-                Specify Degree / Specialization <span style={{ color: "#EF4444" }}>*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={customDegree}
-                onChange={(e) => setCustomDegree(e.target.value)}
-                placeholder="e.g. M.Sc. Human Genetics / B.Sc. Clinical Nutrition"
-              />
+            <h1 className="hero-title" style={{ color: "#ffffff" }}>Identity</h1>
+            <div className="hero-subtitle">Verified once. Trusted forever.</div>
+            <div className="hero-desc">
+              Aadhaar-lock your name, date of birth and address. Add your contact
+              and preferred work locations. Every stage that follows builds on
+              top of this — no verified identity, no verified career.
             </div>
-          )}
-
-          <div className="wiz-field">
-            <label>
-              University / College Name <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={collegeName}
-              onChange={(e) => setCollegeName(e.target.value)}
-              placeholder="e.g. Bangalore University"
-            />
+            <div className="hero-tiles">
+              <div className="hero-tile">
+                <div className="big">UIDAI</div>
+                <div className="small">Aadhaar gateway</div>
+              </div>
+              <div className="hero-tile">
+                <div className="big">30 sec</div>
+                <div className="small">avg OTP delivery</div>
+              </div>
+              <div className="hero-tile">
+                <div className="big">SOC 2 + DPDP</div>
+                <div className="small">your data, encrypted</div>
+              </div>
+              <div className="hero-tile">
+                <div className="big">~10 min</div>
+                <div className="small">your time</div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="wiz-field-row">
-          <div className="wiz-field">
-            <label>
-              Graduation Year <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input
-              type="text"
-              required
-              maxLength={4}
-              value={graduationYear}
-              onChange={(e) => setGraduationYear(e.target.value.replace(/\D/g, ""))}
-              placeholder="e.g. 2023"
-            />
-          </div>
-          <div className="wiz-field">
-            <label>
-              CGPA / Percentage <span style={{ color: "#EF4444" }}>*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={cgpa}
-              onChange={(e) => setCgpa(e.target.value)}
-              placeholder="e.g. 8.5 CGPA or 85%"
-            />
-          </div>
-        </div>
-      </div>
+          {/* HOW STAGE 01 WORKS */}
+          <div className="stage01-card">
+            <div className="stage01-card-title">How Stage 01 Works</div>
+            <div className="stage01-card-eyebrow">WHY IT MATTERS · WHAT WE LOCK · WHAT'S PRIVATE</div>
 
-      {/* 6. CANDIDATE DOCUMENT VAULT (ACADEMIC, EDUCATIONAL & CERTIFICATIONS FOLDER) */}
-      <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 18, marginBottom: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
-            <i className="fa-solid fa-folder-open" style={{ color: "var(--gold)", marginRight: 8 }}></i>
-            6. Academic, Educational &amp; Certifications Document Vault
-          </h4>
-          <span
-            style={{
-              background: vaultDocs.filter((d) => Boolean(d.docUrl)).length >= 3 ? "#DCFCE7" : "#EFF6FF",
-              color: vaultDocs.filter((d) => Boolean(d.docUrl)).length >= 3 ? "#15803D" : "#1D4ED8",
-              border: `1px solid ${vaultDocs.filter((d) => Boolean(d.docUrl)).length >= 3 ? "#86EFAC" : "#BFDBFE"}`,
-              fontSize: 11,
-              fontWeight: 800,
-              padding: "4px 12px",
-              borderRadius: 999,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <i className="fa-solid fa-folder-tree"></i>
-            {vaultDocs.filter((d) => Boolean(d.docUrl)).length} of {vaultDocs.length} Documents Uploaded
-          </span>
-        </div>
-
-        <p style={{ margin: "0 0 14px 0", fontSize: 12, color: "#64748B", lineHeight: 1.5 }}>
-          Collectively upload and organize all your educational marksheets, degree certificates, and professional certifications in one unified folder for 1-click recruiter verification.
-        </p>
-
-        <div style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", borderRadius: 8, padding: "8px 12px", marginBottom: 16, fontSize: 11, color: "#475569", display: "flex", alignItems: "center", gap: 8 }}>
-          <i className="fa-solid fa-circle-info" style={{ color: "var(--gold)", fontSize: 13 }}></i>
-          <span>
-            Accepted formats: <strong>PDF, JPG, PNG, DOCX</strong> (Up to 10MB per document). Verified directly by Talentera audit specialists.
-          </span>
-        </div>
-
-        {/* Document Cards Grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 12 }}>
-          {vaultDocs.map((doc) => {
-            const hasUploaded = Boolean(doc.docUrl);
-            const isUploading = uploadingDocId === doc.id;
-
-            return (
-              <div
-                key={doc.id}
-                style={{
-                  background: hasUploaded ? "#FFFFFF" : "#FFFFFF",
-                  border: hasUploaded ? "1.5px solid #10B981" : doc.required ? "1.5px solid #FCD34D" : "1px solid #E2E8F0",
-                  borderRadius: 10,
-                  padding: 14,
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  boxShadow: hasUploaded ? "0 2px 8px rgba(16, 185, 129, 0.08)" : "0 1px 3px rgba(0,0,0,0.04)",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          background: hasUploaded ? "#DCFCE7" : "#F1F5F9",
-                          color: hasUploaded ? "#15803D" : "#64748B",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 14,
-                          flexShrink: 0,
-                        }}
-                      >
-                        <i className={`fa-solid ${doc.icon || "fa-file-lines"}`}></i>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A", lineHeight: 1.3 }}>
-                          {doc.category}
-                        </div>
-                        {doc.subtitle && (
-                          <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                            {doc.subtitle}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      {hasUploaded ? (
-                        <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap" }}>
-                          ✓ Uploaded
-                        </span>
-                      ) : doc.required ? (
-                        <span style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FCD34D", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap" }}>
-                          Required *
-                        </span>
-                      ) : (
-                        <span style={{ background: "#F1F5F9", color: "#64748B", border: "1px solid #E2E8F0", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999, whiteSpace: "nowrap" }}>
-                          Optional
-                        </span>
-                      )}
-                    </div>
-                  </div>
+            <div className="rules-grid">
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico">?</div>
+                  <div className="rule-title">Why we start with identity</div>
                 </div>
-
-                {/* Upload Status / Actions */}
-                <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #F1F5F9" }}>
-                  {hasUploaded ? (
-                    <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#0F172A", fontWeight: 600, marginBottom: 8, wordBreak: "break-all" }}>
-                        <i className="fa-solid fa-file-pdf" style={{ color: "#EF4444" }}></i>
-                        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {doc.docName || "Document Uploaded"}
-                        </span>
-                        {doc.fileSize ? (
-                          <span style={{ fontSize: 10, color: "#64748B", fontWeight: 400 }}>
-                            ({formatBytes(doc.fileSize)})
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <a
-                          href={doc.docUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-sm"
-                          style={{
-                            background: "#EFF6FF",
-                            color: "#1D4ED8",
-                            border: "1px solid #BFDBFE",
-                            padding: "4px 10px",
-                            fontSize: 11,
-                            fontWeight: 700,
-                            borderRadius: 6,
-                            textDecoration: "none",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <i className="fa-solid fa-arrow-up-right-from-square"></i> View / Download
-                        </a>
-
-                        <label
-                          className="btn btn-sm"
-                          style={{
-                            background: "#F8FAFC",
-                            color: "#475569",
-                            border: "1px solid #CBD5E1",
-                            padding: "4px 10px",
-                            fontSize: 11,
-                            fontWeight: 600,
-                            borderRadius: 6,
-                            cursor: isUploading ? "not-allowed" : "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 4,
-                            margin: 0,
-                          }}
-                        >
-                          <i className={`fa-solid ${isUploading ? "fa-spinner fa-spin" : "fa-arrow-rotate-right"}`}></i>
-                          {isUploading ? "Uploading..." : "Replace"}
-                          <input
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png,.webp,.docx"
-                            style={{ display: "none" }}
-                            disabled={isUploading}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              e.target.value = "";
-                              if (f) handleVaultDocUpload(doc.id, f);
-                            }}
-                          />
-                        </label>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveVaultDoc(doc.id)}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "#94A3B8",
-                            cursor: "pointer",
-                            padding: "4px 6px",
-                            fontSize: 12,
-                            marginLeft: "auto",
-                          }}
-                          title="Remove document"
-                        >
-                          <i className="fa-solid fa-trash-can" style={{ color: "#EF4444" }}></i>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 8,
-                          padding: "8px 12px",
-                          background: doc.required ? "#FFFBEB" : "#F8FAFC",
-                          border: doc.required ? "1px dashed #F59E0B" : "1px dashed #CBD5E1",
-                          borderRadius: 6,
-                          cursor: isUploading ? "not-allowed" : "pointer",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: doc.required ? "#B45309" : "#475569",
-                          margin: 0,
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        <i className={`fa-solid ${isUploading ? "fa-spinner fa-spin" : "fa-cloud-arrow-up"}`} style={{ fontSize: 13 }}></i>
-                        <span>{isUploading ? "Uploading..." : `Upload ${doc.required ? "Document *" : "Document"}`}</span>
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png,.webp,.docx"
-                          style={{ display: "none" }}
-                          disabled={isUploading}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            e.target.value = "";
-                            if (f) handleVaultDocUpload(doc.id, f);
-                          }}
-                        />
-                      </label>
-                    </div>
-                  )}
+                <div className="rule-body">
+                  India's RCM industry runs on fake profiles, duplicate consultancy
+                  submissions, and identity mix-ups. Aadhaar OTP via UIDAI closes
+                  that gap in one tap. Without Stage 01 verified, every score and
+                  badge that follows is meaningless to companies. This is the gate.
                 </div>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Add Other Relevant Document Section */}
-        <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px dashed #CBD5E1" }}>
-          {!showAddCustom ? (
-            <button
-              type="button"
-              className="wiz-add-btn"
-              onClick={() => setShowAddCustom(true)}
-              style={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: "var(--navy)",
-                background: "#F1F5F9",
-                border: "1px dashed #94A3B8",
-                padding: "8px 16px",
-                borderRadius: 8,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <i className="fa-solid fa-plus-circle" style={{ color: "var(--gold)" }}></i>
-              + Add Other Relevant Certificate / Document
-            </button>
-          ) : (
-            <div style={{ background: "#FFFFFF", border: "1px solid #CBD5E1", borderRadius: 10, padding: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
-                Add Custom Certificate / Relevant Document
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico">🔒</div>
+                  <div className="rule-title">What we verify and lock</div>
+                </div>
+                <div className="rule-body">
+                  We Aadhaar-verify your name, DOB, gender, and permanent locality —
+                  locked to your profile forever. Your mobile is OTP-verified and
+                  your email is link-verified. These four locks are what make your
+                  Talentera Career Passport untamperable.
+                </div>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico">📍</div>
+                  <div className="rule-title">What YOU tell us</div>
+                </div>
+                <div className="rule-body">
+                  Beyond Aadhaar-locked identity, you tell us your current address,
+                  preferred work cities, and openness to relocation or global
+                  opportunities. These are preferences — you can update them anytime
+                  as your life changes.
+                </div>
+              </div>
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico">👁</div>
+                  <div className="rule-title">What stays private</div>
+                </div>
+                <div className="rule-body">
+                  Companies see your name, city, preferred work cities, and an
+                  "Aadhaar Verified" badge. Companies do NOT see your Aadhaar number,
+                  PAN, mobile, email, or full permanent address until they actively
+                  shortlist you and you accept.
+                </div>
+              </div>
+            </div>
+
+            <div className="consent-pill">
+              <span className="ico">🔐</span>
+              <span><i>By continuing, you consent to Aadhaar OTP verification via UIDAI. DPDP Act compliant.</i></span>
+            </div>
+          </div>
+
+          {/* FORM TOOLBAR */}
+          <div className="form-toolbar">
+            <div className="progress-rail">
+              <span>Progress:</span>
+              {[1, 2, 3, 4, 5].map((idx) => {
+                const currentSec = getSectionProgress();
+                return (
+                  <span
+                    key={idx}
+                    className={`rail-dot ${idx < currentSec ? "done" : idx === currentSec ? "active" : ""}`}
+                  ></span>
+                );
+              })}
+              <span>Section {getSectionProgress()} of 5</span>
+            </div>
+            <div className="saved-badge">{savedBadgeText}</div>
+          </div>
+
+          {/* FORM HEADER */}
+          <div className="form-header">
+            <h2>Your Stage 01 information</h2>
+            <div className="sub">FILL IN · WE VERIFY · YOU EARN +15 POINTS</div>
+          </div>
+
+          {/* SECTION 1 · AADHAAR */}
+          <div className="section" id="section-1">
+            <div className="section-header">
+              <div className="section-num">1</div>
+              <div className="section-title">Aadhaar Verification</div>
+              <div className={`status-chip ${isAadhaarVerified ? "" : "active"}`}>
+                {isAadhaarVerified ? "✓ VERIFIED · +5" : "IN PROGRESS · +5"}
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  12-digit Aadhaar Number <span className="req">*</span>
+                </label>
                 <input
                   type="text"
-                  value={newCustomTitle}
-                  onChange={(e) => setNewCustomTitle(e.target.value)}
-                  placeholder="e.g. HIPAA Compliance / Prior Experience Letter / ICD-10 Specialty Certificate"
-                  style={{
-                    flex: 1,
-                    minWidth: 260,
-                    padding: "8px 12px",
-                    borderRadius: 6,
-                    border: "1px solid #CBD5E1",
-                    fontSize: 12,
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      handleAddCustomDoc();
-                    }
+                  placeholder="XXXX XXXX XXXX"
+                  maxLength={14}
+                  value={aadhaarInput}
+                  disabled={isAadhaarVerified}
+                  onChange={(e) => {
+                    const formatted = formatAadhaar(e.target.value);
+                    setAadhaarInput(formatted);
                   }}
                 />
-                <button
-                  type="button"
-                  className="btn btn-gold"
-                  onClick={handleAddCustomDoc}
-                  style={{ padding: "8px 16px", fontSize: 12, fontWeight: 700 }}
-                >
-                  <i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Add to Folder
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline"
-                  onClick={() => {
-                    setShowAddCustom(false);
-                    setNewCustomTitle("");
-                  }}
-                  style={{ padding: "8px 14px", fontSize: 12 }}
-                >
-                  Cancel
-                </button>
+                <div className="helper">We'll send an OTP to your Aadhaar-linked mobile via UIDAI.</div>
+              </div>
+              <div className="field">
+                <label>
+                  Aadhaar OTP <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="6-digit OTP"
+                  maxLength={6}
+                  value={aadhaarOtp}
+                  disabled={isAadhaarVerified || !aadhaarOtpSent}
+                  onChange={(e) => setAadhaarOtp(e.target.value.replace(/\D/g, ""))}
+                />
+                <div className="helper">
+                  {aadhaarOtpSent && aadhaarOtpTimer > 0
+                    ? `Resend OTP available in ${aadhaarOtpTimer}s`
+                    : "Enter the OTP within 60 seconds. Resend available after countdown."}
+                </div>
               </div>
             </div>
-          )}
+
+            {!isAadhaarVerified ? (
+              <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+                {!aadhaarOtpSent ? (
+                  <button
+                    type="button"
+                    className="action-btn"
+                    onClick={handleSendAadhaarOtp}
+                    disabled={aadhaarSendingOtp}
+                  >
+                    {aadhaarSendingOtp ? "Sending OTP…" : "Send OTP →"}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="action-btn"
+                      onClick={handleVerifyAadhaarOtp}
+                      disabled={aadhaarVerifying}
+                    >
+                      {aadhaarVerifying ? "Verifying…" : "Verify OTP →"}
+                    </button>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={handleSendAadhaarOtp}
+                      disabled={aadhaarOtpTimer > 0 || aadhaarSendingOtp}
+                    >
+                      {aadhaarOtpTimer > 0 ? `Resend in ${aadhaarOtpTimer}s` : "Resend OTP"}
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
+
+            {/* AADHAAR CONFIRM CARD (post-verify) */}
+            {isAadhaarVerified && (
+              <div className="aadhaar-confirm">
+                <div className="head">
+                  <div className="ok">✓</div>
+                  <div className="title">Aadhaar Verified — locked to your profile</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Full Name</div>
+                  <div className="val">{lockedFullName}</div>
+                  <div className="lock">🔒 Locked</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Date of Birth</div>
+                  <div className="val">{lockedDob}</div>
+                  <div className="lock">🔒 Locked</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Gender</div>
+                  <div className="val">{lockedGender}</div>
+                  <div className="lock">🔒 Locked</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Locality</div>
+                  <div className="val">
+                    {lockedLocality}, {lockedDistrict}, {lockedState}
+                  </div>
+                  <div className="lock">🔒 Locked</div>
+                </div>
+                <div className="aadhaar-btns">
+                  <button
+                    type="button"
+                    className="action-btn"
+                    onClick={() => {
+                      const sec2 = document.getElementById("section-2");
+                      if (sec2) sec2.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
+                    Confirm &amp; continue →
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => toast("Mismatch ticket raised with Talentera Support.", "ℹ")}
+                  >
+                    Report mismatch
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2 · CONTACT DETAILS */}
+          <div className="section" id="section-2">
+            <div className="section-header">
+              <div className="section-num">2</div>
+              <div className="section-title">Contact Details</div>
+              <div className="status-chip pending">PENDING · +4</div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  Mobile Number (10 digits) <span className="req">*</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="98765 43210"
+                  maxLength={12}
+                  value={mobile}
+                  onChange={(e) => setMobile(formatMobile(e.target.value))}
+                />
+                <div className="helper">We'll send you a one-time SMS to verify.</div>
+              </div>
+              <div className="field">
+                <label>
+                  Mobile OTP <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="6-digit OTP"
+                  maxLength={6}
+                  value={mobileOtp}
+                  onChange={(e) => setMobileOtp(e.target.value.replace(/\D/g, ""))}
+                />
+                <div className="helper">Verify to activate WhatsApp updates.</div>
+              </div>
+            </div>
+
+            <div className="option-list" style={{ margin: "4px 0 14px" }}>
+              <div
+                className={`option-item ${isWhatsAppSame ? "selected" : ""}`}
+                onClick={() => setIsWhatsAppSame(!isWhatsAppSame)}
+              >
+                <div className="box">{isWhatsAppSame ? "✓" : ""}</div>
+                <div>Same mobile number is my WhatsApp number</div>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  Email ID <span className="req">*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <div className="helper">A verification link will be sent to this email.</div>
+              </div>
+              <div className="field">
+                <label>Best time to contact</label>
+                <select
+                  value={bestTimeToContact}
+                  onChange={(e) => setBestTimeToContact(e.target.value)}
+                >
+                  <option>Anytime</option>
+                  <option>Morning (9 AM – 12 PM)</option>
+                  <option>Afternoon (12 – 5 PM)</option>
+                  <option>Evening (5 – 9 PM)</option>
+                </select>
+                <div className="helper">Helps HRs and Talentera reach you at the right hours.</div>
+              </div>
+            </div>
+
+            <div className="field">
+              <label>
+                Preferred contact method <span className="req">*</span>
+              </label>
+              <div className="row-3">
+                {[
+                  { key: "WhatsApp", label: "📱 WhatsApp" },
+                  { key: "Call", label: "📞 Call" },
+                  { key: "Email", label: "✉ Email" },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className={`option-item ${preferredContactMethod === item.key ? "selected" : ""}`}
+                    onClick={() => setPreferredContactMethod(item.key)}
+                  >
+                    <div className="dot"></div>
+                    <div>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3 · EXPERIENCE LEVEL */}
+          <div className="section" id="section-3">
+            <div className="section-header">
+              <div className="section-num">3</div>
+              <div className="section-title">Experience Level</div>
+              <div className="status-chip pending">PENDING</div>
+            </div>
+
+            <div className="field">
+              <label>
+                Which best describes you? <span className="req">*</span>
+              </label>
+              <div className="helper" style={{ marginBottom: 10 }}>
+                This locks the flow for Stage 02. Choose carefully.
+              </div>
+              <div className="choice-row">
+                <div
+                  className={`choice ${experience === "Fresher" ? "selected" : ""}`}
+                  onClick={() => setExperience("Fresher")}
+                >
+                  <div className="choice-check">{experience === "Fresher" ? "✓" : ""}</div>
+                  <div className="choice-icon">🎓</div>
+                  <div className="choice-title">Fresher</div>
+                  <div className="choice-sub">New to Industry</div>
+                  <div className="choice-desc">
+                    Currently studying or recently graduated. No RCM work experience yet.
+                  </div>
+                </div>
+                <div
+                  className={`choice ${experience === "Experienced" ? "selected" : ""}`}
+                  onClick={() => setExperience("Experienced")}
+                >
+                  <div className="choice-check">{experience === "Experienced" ? "✓" : ""}</div>
+                  <div className="choice-icon">💼</div>
+                  <div className="choice-title">Experienced</div>
+                  <div className="choice-sub">1+ yrs in Coding / RCM</div>
+                  <div className="choice-desc">
+                    Currently or previously working in an RCM role. Job title, company, tenure required in Stage 02.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {experience === "Experienced" && (
+              <div className="field" style={{ marginTop: 14 }}>
+                <label>
+                  Current / Most Recent Role <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Senior Medical Coder / IP-DRG Specialist"
+                  value={currentRole}
+                  onChange={(e) => setCurrentRole(e.target.value)}
+                />
+                <div className="helper">Details regarding company and tenure will be expanded in Stage 02.</div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 4 · LOCATION */}
+          <div className="section" id="section-4">
+            <div className="section-header">
+              <div className="section-num">4</div>
+              <div className="section-title">Location</div>
+              <div className="status-chip pending">PENDING · +3</div>
+            </div>
+
+            {/* Block A: Permanent */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ marginBottom: 8 }}>
+                🏠 Permanent Address <span className="lock">(auto-locked from Aadhaar)</span>
+              </label>
+              <div className="row-3">
+                <div className="field">
+                  <input type="text" className="locked" value={lockedState} readOnly />
+                  <div className="helper">State</div>
+                </div>
+                <div className="field">
+                  <input type="text" className="locked" value={lockedDistrict} readOnly />
+                  <div className="helper">District</div>
+                </div>
+                <div className="field">
+                  <input type="text" className="locked" value={lockedLocality} readOnly />
+                  <div className="helper">Locality</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Block B: Current */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ marginBottom: 8 }}>📍 Current Address</label>
+              <div className="option-list" style={{ marginBottom: 10 }}>
+                <div
+                  className={`option-item ${isSameAddress ? "selected" : ""}`}
+                  onClick={() => {
+                    const next = !isSameAddress;
+                    setIsSameAddress(next);
+                    if (next) {
+                      setCurrentState(lockedState);
+                      setCurrentCity(lockedDistrict);
+                      setCurrentLocality(lockedLocality);
+                    }
+                  }}
+                >
+                  <div className="box">{isSameAddress ? "✓" : ""}</div>
+                  <div>Same as permanent address</div>
+                </div>
+              </div>
+              <div className="row-3">
+                <div className="field">
+                  <select
+                    value={currentState}
+                    disabled={isSameAddress}
+                    onChange={(e) => setCurrentState(e.target.value)}
+                  >
+                    {INDIAN_STATES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="helper">State</div>
+                </div>
+                <div className="field">
+                  <select
+                    value={currentCity}
+                    disabled={isSameAddress}
+                    onChange={(e) => setCurrentCity(e.target.value)}
+                  >
+                    {POPULAR_CITIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="helper">City</div>
+                </div>
+                <div className="field">
+                  <input
+                    type="text"
+                    placeholder="e.g. HSR Layout"
+                    value={currentLocality}
+                    disabled={isSameAddress}
+                    onChange={(e) => setCurrentLocality(e.target.value)}
+                  />
+                  <div className="helper">Locality (optional)</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Block C: Preferences */}
+            <div style={{ marginBottom: 18 }}>
+              <label>
+                💼 Willing to Work In <span className="req">*</span>{" "}
+                <span className="helper" style={{ fontWeight: 500, fontStyle: "normal" }}>
+                  (pick up to 5 cities)
+                </span>
+              </label>
+              <div className="tag-picker">
+                {preferredCities.map((city) => (
+                  <span key={city} className="tag">
+                    {city} <span className="x" onClick={() => handleRemoveCity(city)}>×</span>
+                  </span>
+                ))}
+                {preferredCities.length < 5 && (
+                  <span
+                    className="tag-add"
+                    onClick={() => setCityInputOpen(!cityInputOpen)}
+                  >
+                    + Add city
+                  </span>
+                )}
+              </div>
+              {cityInputOpen && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <select
+                    value={selectedCityOption}
+                    onChange={(e) => setSelectedCityOption(e.target.value)}
+                    style={{ maxWidth: 220 }}
+                  >
+                    {POPULAR_CITIES.filter((c) => !preferredCities.includes(c)).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="action-btn small"
+                    onClick={() => handleAddCity(selectedCityOption)}
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    style={{ padding: "6px 12px", fontSize: 12 }}
+                    onClick={() => setCityInputOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="field">
+              <label>
+                🌍 Open to Relocate? <span className="req">*</span>
+              </label>
+              <div className="option-list">
+                {[
+                  "Yes — anywhere in India",
+                  "Yes — but only Tier-1 cities",
+                  "Yes — but only my preferred cities",
+                  "No — only my current city",
+                ].map((opt) => (
+                  <div
+                    key={opt}
+                    className={`option-item ${openToRelocate === opt ? "selected" : ""}`}
+                    onClick={() => setOpenToRelocate(opt)}
+                  >
+                    <div className="dot"></div>
+                    <div><b>{opt}</b></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
+              <label>
+                🌐 Open to Global Opportunities? <span className="req">*</span>
+              </label>
+              <div className="option-list">
+                {[
+                  { key: "US (offshore night shift)", label: "🇺🇸 US (offshore night shift)" },
+                  { key: "Philippines · UAE · Saudi", label: "🌏 Philippines · UAE · Saudi" },
+                  { key: "Not right now", label: "🚫 Not right now" },
+                ].map((item) => {
+                  const isChecked = globalOpportunities.includes(item.key);
+                  return (
+                    <div
+                      key={item.key}
+                      className={`option-item ${isChecked ? "selected" : ""}`}
+                      onClick={() => toggleGlobalOpportunity(item.key)}
+                    >
+                      <div className="box">{isChecked ? "✓" : ""}</div>
+                      <div>{item.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 5 · BASIC EDUCATION */}
+          <div className="section" id="section-5">
+            <div className="section-header">
+              <div className="section-num">5</div>
+              <div className="section-title">Basic Education</div>
+              <div className="status-chip pending">PENDING · +3</div>
+            </div>
+
+            <div className="field">
+              <label>
+                Academic Stream <span className="req">*</span>
+              </label>
+              <div className="choice-row">
+                <div
+                  className={`choice ${educationStream === "Life Science" ? "selected" : ""}`}
+                  onClick={() => handleStreamChange("Life Science")}
+                >
+                  <div className="choice-check">{educationStream === "Life Science" ? "✓" : ""}</div>
+                  <div className="choice-icon">🧬</div>
+                  <div className="choice-title">Life Science</div>
+                  <div className="choice-sub">B.Sc · Pharmacy · Nursing · Allied Health</div>
+                </div>
+                <div
+                  className={`choice ${educationStream === "Non-Life Science" ? "selected" : ""}`}
+                  onClick={() => handleStreamChange("Non-Life Science")}
+                >
+                  <div className="choice-check">{educationStream === "Non-Life Science" ? "✓" : ""}</div>
+                  <div className="choice-icon">📚</div>
+                  <div className="choice-title">Non-Life Science</div>
+                  <div className="choice-sub">B.Com · B.Tech · BCA · BBA · Arts</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  Highest Qualification <span className="req">*</span>
+                </label>
+                <select
+                  value={qualification}
+                  onChange={(e) => setQualification(e.target.value)}
+                >
+                  <option>UG · Undergraduate</option>
+                  <option>PG · Postgraduate</option>
+                  <option>Diploma</option>
+                  <option>12th</option>
+                  <option>10th</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>
+                  Course Name <span className="req">*</span>
+                </label>
+                <select
+                  value={degree}
+                  onChange={(e) => setDegree(e.target.value)}
+                >
+                  {(educationStream === "Life Science" ? LIFE_SCIENCE_COURSES : NON_LIFE_SCIENCE_COURSES).map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  University / College <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Start typing — UGC-recognized list"
+                  value={collegeName}
+                  onChange={(e) => setCollegeName(e.target.value)}
+                />
+                <div className="helper">Auto-suggests from UGC-recognized institutions.</div>
+              </div>
+              <div className="field">
+                <label>
+                  Status <span className="req">*</span>
+                </label>
+                <div className="row" style={{ gap: 8 }}>
+                  <div
+                    className={`option-item ${educationStatus === "Completed" ? "selected" : ""}`}
+                    onClick={() => setEducationStatus("Completed")}
+                  >
+                    <div className="dot"></div>
+                    <div>Completed</div>
+                  </div>
+                  <div
+                    className={`option-item ${educationStatus === "Pursuing" ? "selected" : ""}`}
+                    onClick={() => setEducationStatus("Pursuing")}
+                  >
+                    <div className="dot"></div>
+                    <div>Pursuing</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="row-3">
+              <div className="field">
+                <label>
+                  Passing Month & Year <span className="req">*</span>
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <select
+                    value={graduationMonth}
+                    onChange={(e) => setGraduationMonth(e.target.value)}
+                  >
+                    <option value="">Month…</option>
+                    {MONTH_OPTIONS.map((m) => (
+                      <option key={m.val} value={m.val}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={graduationYear}
+                    onChange={(e) => setGraduationYear(e.target.value)}
+                  >
+                    <option value="">Year…</option>
+                    {GRAD_YEAR_OPTIONS.map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="helper">Month & year of completion.</div>
+              </div>
+              <div className="field">
+                <label>
+                  Grading Scale <span className="req">*</span>
+                </label>
+                <select
+                  value={gradingScale}
+                  onChange={(e) => setGradingScale(e.target.value)}
+                >
+                  <option>Percentage</option>
+                  <option>CGPA (out of 10)</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>
+                  CGPA / Percentage <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 78%"
+                  value={cgpa}
+                  onChange={(e) => setCgpa(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  Any Active Backlogs? <span className="req">*</span>
+                </label>
+                <div className="row" style={{ gap: 8 }}>
+                  <div
+                    className={`option-item ${hasActiveBacklogs ? "selected" : ""}`}
+                    onClick={() => setHasActiveBacklogs(true)}
+                  >
+                    <div className="dot"></div>
+                    <div>Yes</div>
+                  </div>
+                  <div
+                    className={`option-item ${!hasActiveBacklogs ? "selected" : ""}`}
+                    onClick={() => {
+                      setHasActiveBacklogs(false);
+                      setBacklogCount("0");
+                    }}
+                  >
+                    <div className="dot"></div>
+                    <div>No</div>
+                  </div>
+                </div>
+              </div>
+              <div className="field">
+                <label>Backlog Count</label>
+                <input
+                  type="text"
+                  value={backlogCount}
+                  onChange={(e) => setBacklogCount(e.target.value.replace(/\D/g, ""))}
+                  placeholder="If yes, enter number"
+                  disabled={!hasActiveBacklogs}
+                />
+                <div className="helper">Companies filter this before shortlisting.</div>
+              </div>
+            </div>
+          </div>
+
+          {/* STICKY BOTTOM BAR */}
+          <div className="sticky-bar">
+            <div className="sticky-progress">
+              <div className="stick-bar-inner">
+                <div className="stick-bar-fill"></div>
+              </div>
+              <div><b>15 / 100</b> · Stage 01 in progress</div>
+            </div>
+            <div className="sticky-actions">
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => handleSaveStage(false)}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save & finish later"}
+              </button>
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => handleSaveStage(true)}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save & continue to Stage 02 →"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── RIGHT SIDEBAR ─── */}
+        <div className="right-sidebar">
+          <div className="passport-card">
+            <div className="passport-eyebrow">CAREER PASSPORT</div>
+            <div className="passport-title">You're building your passport</div>
+            <div className="passport-status">🔨 Stage 01 in progress</div>
+            <div className="passport-desc">
+              Every stage adds a verified layer to your identity. Companies see
+              your passport score — the higher, the more visibility you earn.
+            </div>
+          </div>
+
+          <div className="side-card">
+            <div className="title">Hiring Right Now <a href="#jobs">See all →</a></div>
+
+            <div className="company-row">
+              <div className="company-logo clr-1">O</div>
+              <div>
+                <div className="company-name">Optum India <span className="hot-pill">HOT</span></div>
+                <div className="company-meta">Hyderabad · Onsite · 5.5 – 7.0 LPA</div>
+                <div className="company-tags">
+                  <span className="comp-tag">HCC</span>
+                  <span className="comp-tag blue">12 roles</span>
+                </div>
+                <div className="verified-line">92% verified-pool hires</div>
+              </div>
+            </div>
+
+            <div className="company-row">
+              <div className="company-logo clr-2">C</div>
+              <div>
+                <div className="company-name">Cognizant</div>
+                <div className="company-meta">Hyderabad · Remote · 5.0 – 7.0 LPA</div>
+                <div className="company-tags">
+                  <span className="comp-tag">Remote</span>
+                  <span className="comp-tag blue">8 roles</span>
+                </div>
+                <div className="verified-line">88% verified-pool hires</div>
+              </div>
+            </div>
+
+            <div className="company-row">
+              <div className="company-logo clr-3">A</div>
+              <div>
+                <div className="company-name">Access Healthcare</div>
+                <div className="company-meta">Chennai · Hybrid · 6.0 – 8.5 LPA</div>
+                <div className="company-tags">
+                  <span className="comp-tag">Featured</span>
+                  <span className="comp-tag green">CPC</span>
+                  <span className="comp-tag blue">6 roles</span>
+                </div>
+                <div className="verified-line">95% verified-pool hires</div>
+              </div>
+            </div>
+
+            <div className="company-row">
+              <div className="company-logo clr-4">Ω</div>
+              <div>
+                <div className="company-name">Omega Healthcare</div>
+                <div className="company-meta">Bengaluru · Onsite · 4.8 – 6.5 LPA</div>
+                <div className="company-tags">
+                  <span className="comp-tag">E/M</span>
+                  <span className="comp-tag">AR Calling</span>
+                  <span className="comp-tag blue">5 roles</span>
+                </div>
+                <div className="verified-line">90% verified-pool hires</div>
+              </div>
+            </div>
+
+            <div className="company-row">
+              <div className="company-logo clr-5">R1</div>
+              <div>
+                <div className="company-name">R1 RCM India <span className="hot-pill">HOT</span></div>
+                <div className="company-meta">Hyderabad · Onsite · 4.5 – 6.5 LPA</div>
+                <div className="company-tags">
+                  <span className="comp-tag">Walk-in</span>
+                  <span className="comp-tag green">Immediate</span>
+                  <span className="comp-tag blue">9 roles</span>
+                </div>
+                <div className="verified-line">85% verified-pool hires</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="side-card">
+            <div className="title">Why RCM Hiring Is Hot</div>
+            <div className="hot-grid">
+              <div className="hot-stat">
+                <div className="big">$4.5 T</div>
+                <div className="small">US healthcare market</div>
+              </div>
+              <div className="hot-stat">
+                <div className="big">1.2 L</div>
+                <div className="small">RCM jobs / year in India</div>
+              </div>
+              <div className="hot-stat">
+                <div className="big">+18%</div>
+                <div className="small">YoY salary growth</div>
+              </div>
+              <div className="hot-stat">
+                <div className="big">87%</div>
+                <div className="small">HRs prefer verified</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      {error && <div className="error-text">{error}</div>}
-
-      <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
-        <button type="submit" className="btn btn-gold" style={{ padding: "14px 28px", fontSize: 15 }} disabled={saving}>
-          {saving ? "Saving Basic Info & Vault Documents…" : "Save & continue →"}
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }

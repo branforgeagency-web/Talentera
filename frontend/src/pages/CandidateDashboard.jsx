@@ -5,6 +5,7 @@ import { useToast } from "../components/Toast.jsx";
 import api from "../api/client";
 import { WIZARD_STAGES, STAGE_POINTS, GOLD_BADGE_THRESHOLD } from "../data/wizardStages.js";
 import CandidateNavbar from "../components/CandidateNavbar.jsx";
+import DocumentVaultModal from "../components/DocumentVaultModal.jsx";
 import { LearnContent } from "./Learn.jsx";
 
 const STATUS_CONFIG = {
@@ -78,6 +79,7 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     if (email && String(email).trim()) fields.push({ label: "EMAIL", val: String(email).trim() });
     if (s1.experience && String(s1.experience).trim()) fields.push({ label: "EXPERIENCE", val: `${s1.experience} yrs` });
     if (s1.currentRole && String(s1.currentRole).trim()) fields.push({ label: "CURRENT ROLE", val: String(s1.currentRole).trim() });
+    if (s1.degree && String(s1.degree).trim()) fields.push({ label: "EDUCATION", val: `${s1.degree}${s1.collegeName ? ` · ${s1.collegeName}` : ""}${s1.graduationYear ? ` (${s1.graduationYear})` : ""}` });
     if (s1.gender && String(s1.gender).trim()) fields.push({ label: "GENDER", val: String(s1.gender).trim() });
     if (s1.dob && String(s1.dob).trim()) fields.push({ label: "DOB", val: String(s1.dob).trim() });
     if (s1.photoBase64) fields.push({ label: "PHOTO", val: "Aadhaar photo captured ✓" });
@@ -92,24 +94,36 @@ function getStageFilledFields(candidate, completedStages, stageNum) {
     const academy = s2.academyName || s2.instituteName;
     if (academy && String(academy).trim()) fields.push({ label: "ACADEMY", val: String(academy).trim() });
     if (s2.domain && String(s2.domain).trim()) fields.push({ label: "DOMAIN", val: String(s2.domain).trim() });
-    if (s2.specialty && String(s2.specialty).trim()) fields.push({ label: "SPECIALTY", val: String(s2.specialty).trim() });
-    if (s2.courseName && String(s2.courseName).trim() && s2.courseName !== s2.domain) {
-      fields.push({ label: "COURSE", val: String(s2.courseName).trim() });
-    }
+    const specs = Array.isArray(s2.specialties) && s2.specialties.length > 0 ? s2.specialties.join(", ") : s2.specialty;
+    if (specs && String(specs).trim()) fields.push({ label: "SPECIALTIES", val: String(specs).trim() });
+    if (s2.trainingLevel && String(s2.trainingLevel).trim()) fields.push({ label: "LEVEL", val: String(s2.trainingLevel).trim().toUpperCase() });
     if (s2.duration && String(s2.duration).trim()) fields.push({ label: "DURATION", val: String(s2.duration).trim() });
-    if (s2.trainerName && String(s2.trainerName).trim()) fields.push({ label: "TRAINER", val: String(s2.trainerName).trim() });
-    if (s2.batch && String(s2.batch).trim()) fields.push({ label: "BATCH", val: String(s2.batch).trim() });
+    if (s2.batch && String(s2.batch).trim()) fields.push({ label: "BATCH / ROLL", val: String(s2.batch).trim() });
   } else if (stageNum === 3) {
     const s3 = candidate?.stage3 || {};
-    const body = s3.body || s3.issuingBody;
-    if (body && String(body).trim()) fields.push({ label: "ISSUING BODY", val: String(body).trim().toUpperCase() });
-    const cert = s3.certCode || s3.certName || s3.name;
-    if (cert && String(cert).trim()) fields.push({ label: "CREDENTIAL", val: String(cert).trim() });
-    if (s3.memberId && String(s3.memberId).trim()) fields.push({ label: "MEMBER ID", val: `****${String(s3.memberId).trim().slice(-4)}` });
-    if (s3.issueDate && String(s3.issueDate).trim()) fields.push({ label: "ISSUE DATE", val: String(s3.issueDate).trim() });
-    if (s3.expiryDate && String(s3.expiryDate).trim()) fields.push({ label: "EXPIRY DATE", val: String(s3.expiryDate).trim() });
-    if (s3.docName && String(s3.docName).trim()) fields.push({ label: "DOCUMENT", val: String(s3.docName).trim() });
-    if (s3.certStatus && String(s3.certStatus).trim()) fields.push({ label: "AUDIT STATUS", val: String(s3.certStatus).trim().toUpperCase() });
+    if (s3.nonCertified) {
+      fields.push({ label: "STATUS", val: "Non-Certified (Talentera Assessment Track)" });
+    } else if (s3.pursuing) {
+      fields.push({ label: "STATUS", val: `Pursuing ${s3.targetCert || "Certification"}` });
+      if (s3.targetExamDate) fields.push({ label: "TARGET EXAM", val: s3.targetExamDate });
+    } else if (Array.isArray(s3.certifications) && s3.certifications.length > 0) {
+      s3.certifications.forEach((c, idx) => {
+        const bodyName = (c.body || c.issuingBody || "").toUpperCase();
+        const certName = c.certCode || c.certName || c.name || "Credential";
+        fields.push({ label: `CERTIFICATION ${idx + 1}`, val: `${bodyName ? `${bodyName} · ` : ""}${certName}` });
+        if (c.memberId) fields.push({ label: `MEMBER ID`, val: `****${String(c.memberId).trim().slice(-4)}` });
+      });
+    } else {
+      const body = s3.body || s3.issuingBody;
+      if (body && String(body).trim()) fields.push({ label: "ISSUING BODY", val: String(body).trim().toUpperCase() });
+      const cert = s3.certCode || s3.certName || s3.name;
+      if (cert && String(cert).trim()) fields.push({ label: "CREDENTIAL", val: String(cert).trim() });
+      if (s3.memberId && String(s3.memberId).trim()) fields.push({ label: "MEMBER ID", val: `****${String(s3.memberId).trim().slice(-4)}` });
+      if (s3.issueDate && String(s3.issueDate).trim()) fields.push({ label: "ISSUE DATE", val: String(s3.issueDate).trim() });
+      if (s3.expiryDate && String(s3.expiryDate).trim()) fields.push({ label: "EXPIRY DATE", val: String(s3.expiryDate).trim() });
+      if (s3.docName && String(s3.docName).trim()) fields.push({ label: "DOCUMENT", val: String(s3.docName).trim() });
+      if (s3.certStatus && String(s3.certStatus).trim()) fields.push({ label: "AUDIT STATUS", val: String(s3.certStatus).trim().toUpperCase() });
+    }
   } else if (stageNum === 4) {
     const s4 = candidate?.stage4 || {};
     const fScore = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
@@ -170,6 +184,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
   const [jobs, setJobs] = useState([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [applyingJobId, setApplyingJobId] = useState(null);
+  const [isVaultOpen, setIsVaultOpen] = useState(false);
 
   // Active tab: 'home' | 'profile' | 'apply' | 'applications' | 'interviews' | 'learn'
   const initialTab = searchParams.get("tab") || "home";
@@ -194,7 +209,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
   }
 
   // Load real profile data
-  useEffect(() => {
+  const fetchProfile = () => {
     api
       .get("/candidate/me")
       .then((res) => {
@@ -204,6 +219,10 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
         }
       })
       .catch((err) => console.error("Could not fetch candidate profile:", err));
+  };
+
+  useEffect(() => {
+    fetchProfile();
   }, []);
 
   // Fetch real published jobs
@@ -657,6 +676,7 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
           interviewsCount: interviewRecords.length,
         }}
         onEditStage={handleStageClick}
+        onOpenVault={() => setIsVaultOpen(true)}
       />
 
       {/* ========================================================================= */}
@@ -805,6 +825,35 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#A78BFA" }} />
                     PROFILE {candidate?.isSubmitted ? "SUBMITTED" : "IN SETUP"}
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsVaultOpen(true)}
+                    style={{
+                      background: "rgba(245, 184, 46, 0.15)",
+                      border: "1px solid rgba(245, 184, 46, 0.4)",
+                      color: "#F5B82E",
+                      padding: "6px 14px",
+                      borderRadius: 20,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      letterSpacing: "0.5px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.background = "rgba(245, 184, 46, 0.3)";
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.background = "rgba(245, 184, 46, 0.15)";
+                    }}
+                  >
+                    <span>🗄️</span>
+                    DOCUMENT VAULT ({candidate?.documentVault?.length || 0}) →
+                  </button>
                 </div>
               </div>
 
@@ -2643,6 +2692,14 @@ export default function CandidateDashboard({ profile: initialProfile, onEditStag
       {activeTab === "learn" && (
         <LearnContent candidate={candidate} onEditStage={handleStageClick} />
       )}
+
+      {/* Document Vault Modal */}
+      <DocumentVaultModal
+        isOpen={isVaultOpen}
+        onClose={() => setIsVaultOpen(false)}
+        candidate={candidate}
+        onVaultUpdated={fetchProfile}
+      />
     </div>
   );
 }

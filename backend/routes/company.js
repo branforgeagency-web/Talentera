@@ -719,6 +719,7 @@ router.get("/applications", async (req, res) => {
         liveCharts: canViewScoresAndCerts ? (candidate.stage6 || {}) : { masked: true },
         summary: candidate.stage7 || {},
         employmentStatus: candidate.stage8 || {},
+        documentVault: canViewScoresAndCerts ? (candidate.documentVault || []) : [],
         completedStages: candidate.completedStages,
         score: canViewScoresAndCerts ? scoring.score : null,
         badge: canViewScoresAndCerts ? scoring.badge : null,

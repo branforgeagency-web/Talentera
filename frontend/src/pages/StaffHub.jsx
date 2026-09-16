@@ -7921,6 +7921,11 @@ export default function StaffHub() {
                     stage: "🎯",
                     label: `Job Applications (${selectedCandidate.applicationMetrics?.total ?? (selectedCandidate.applications || []).length})`,
                   },
+                  {
+                    id: "vault",
+                    stage: "🗄️",
+                    label: `Document Vault (${(selectedCandidate.documentVault || selectedCandidate.documents || []).length})`,
+                  },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -8064,6 +8069,49 @@ export default function StaffHub() {
                         </div>
                       </div>
                     </div>
+
+                    {/* ALL ADDED / STACKED CERTIFICATIONS */}
+                    {Array.isArray(s3.certifications) && s3.certifications.length > 0 && (
+                      <div style={{ marginTop: 18, marginBottom: 18 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>
+                          All Registered Credentials & Certifications ({s3.certifications.length})
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
+                          {s3.certifications.map((cert, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                background: "#FFFFFF",
+                                border: "1.5px solid #E2E8F0",
+                                borderRadius: 10,
+                                padding: "12px 14px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", background: "#EFF6FF", padding: "2px 8px", borderRadius: 6 }}>
+                                  {cert.code || "CERT"}
+                                </span>
+                                <span style={{ fontSize: 10.5, fontWeight: 800, color: cert.status === "Verified" ? "#15803D" : "#B45309" }}>
+                                  {cert.status || "API-Verified"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
+                                {cert.name || cert.certName || "Certification"}
+                              </div>
+                              <div style={{ fontSize: 11, color: "#64748B" }}>
+                                {cert.body || "AAPC"} · Member ID: <strong style={{ fontFamily: "monospace" }}>{cert.memberId || "N/A"}</strong>
+                              </div>
+                              <div style={{ fontSize: 10.5, color: "#94A3B8" }}>
+                                Issued: {cert.issueDate || cert.issueYear || "N/A"} {cert.expiryDate ? `· Renews: ${cert.expiryDate}` : ""}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* CERTIFICATE DOCUMENT PREVIEW */}
                     <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18, marginBottom: 16 }}>
@@ -8528,6 +8576,151 @@ export default function StaffHub() {
                         </div>
                       )}
                     </div>
+                  </div>
+                );
+              })()}
+
+              {/* TAB 10: DOCUMENT VAULT & VERIFIED ATTACHMENTS */}
+              {candidateModalTab === "vault" && (() => {
+                const vaultDocs = Array.isArray(selectedCandidate.documentVault) && selectedCandidate.documentVault.length > 0
+                  ? selectedCandidate.documentVault
+                  : Array.isArray(selectedCandidate.documents) && selectedCandidate.documents.length > 0
+                  ? selectedCandidate.documents
+                  : [];
+
+                const typeLabels = {
+                  cert_aapc: "AAPC Certification",
+                  cert_ahima: "AHIMA Certification",
+                  degree: "Degree Certificate",
+                  marksheet: "Marksheet / Transcript",
+                  institute_cert: "Institute Certificate",
+                  govt_id: "Government ID Proof",
+                  experience_letter: "Experience / Relieving Letter",
+                  other: "Document Proof",
+                };
+
+                return (
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                          🗄️ Candidate Document Vault ({vaultDocs.length})
+                        </h3>
+                        <p style={{ fontSize: 12, color: "#64748B", margin: "3px 0 0" }}>
+                          All official certificates, degree transcripts, government IDs, and verification proofs uploaded by the candidate.
+                        </p>
+                      </div>
+                    </div>
+
+                    {vaultDocs.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+                        {vaultDocs.map((doc, idx) => {
+                          const docType = doc.docType || doc.type || "other";
+                          const docName = doc.title || doc.docName || doc.name || `Document #${idx + 1}`;
+                          const docUrl = doc.docUrl || doc.url || doc.fileUrl;
+                          const uploadedDate = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString("en-IN") : null;
+                          const issueDate = doc.issueDate || doc.issueMonth ? `${doc.issueMonth || ""} ${doc.issueYear || ""}`.trim() : null;
+
+                          return (
+                            <div
+                              key={doc.id || doc._id || idx}
+                              style={{
+                                background: "#FFFFFF",
+                                border: "1.5px solid #E2E8F0",
+                                borderRadius: 12,
+                                padding: "16px 18px",
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: "space-between",
+                                gap: 12,
+                                boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
+                                  <span
+                                    style={{
+                                      fontSize: 10.5,
+                                      fontWeight: 800,
+                                      textTransform: "uppercase",
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      background: docType.startsWith("cert") ? "#FEF3C7" : "#EFF6FF",
+                                      color: docType.startsWith("cert") ? "#B45309" : "#1D4ED8",
+                                      border: docType.startsWith("cert") ? "1px solid #FDE68A" : "1px solid #BFDBFE",
+                                    }}
+                                  >
+                                    {typeLabels[docType] || docType.toUpperCase()}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 10.5,
+                                      fontWeight: 800,
+                                      color: doc.verified ? "#15803D" : "#64748B",
+                                    }}
+                                  >
+                                    {doc.verified ? "✓ Verified" : "• Attached"}
+                                  </span>
+                                </div>
+
+                                <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)", lineHeight: 1.3 }}>
+                                  {docName}
+                                </div>
+
+                                {doc.docName && doc.docName !== docName && (
+                                  <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, wordBreak: "break-all" }}>
+                                    📎 {doc.docName}
+                                  </div>
+                                )}
+
+                                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                  {issueDate && <span>📅 Issue: {issueDate}</span>}
+                                  {uploadedDate && <span>🕒 Uploaded: {uploadedDate}</span>}
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 8, borderTop: "1px solid #F1F5F9", paddingTop: 10 }}>
+                                {docUrl ? (
+                                  <a
+                                    href={docUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      flex: 1,
+                                      background: "var(--navy)",
+                                      color: "#FFFFFF",
+                                      textAlign: "center",
+                                      padding: "8px 12px",
+                                      borderRadius: 8,
+                                      fontSize: 12,
+                                      fontWeight: 800,
+                                      textDecoration: "none",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: 6,
+                                    }}
+                                  >
+                                    <span>👁️</span>
+                                    <span>View Document Proof ↗</span>
+                                  </a>
+                                ) : (
+                                  <span style={{ fontSize: 12, color: "#94A3B8" }}>No file link available</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ padding: 40, background: "#F8FAFC", borderRadius: 12, color: "#64748B", fontSize: 13, textAlign: "center", border: "1px dashed #CBD5E1" }}>
+                        <div style={{ fontSize: 32, marginBottom: 8 }}>🗄️</div>
+                        <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>No documents in vault</div>
+                        <div style={{ fontSize: 12, marginTop: 4 }}>
+                          The candidate has not uploaded extra certificates or degree proofs to their Document Vault yet.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

@@ -26,15 +26,16 @@ export const STAGES = [
   {
     id: 2,
     key: "stage2",
-    title: "Training",
-    subtitle: "Academy training, confirmed by the academy.",
-    mandatory: false,
-    skippable: true,
+    title: "Foundation",
+    subtitle: "Where you learned it. Where you earned it.",
+    mandatory: true,
+    skippable: false,
     fields: [
+      { name: "domain", label: "Primary Domain", type: "text", required: true },
+      { name: "trainingLevel", label: "Training Level", type: "text", required: true },
+      { name: "specialties", label: "Specialties", type: "array", required: true },
       { name: "academyName", label: "Academy Name", type: "text", required: true },
-      { name: "courseName", label: "Course / Program", type: "text", required: true },
-      { name: "completionDate", label: "Completion Date", type: "date", required: true },
-      { name: "durationWeeks", label: "Duration (weeks)", type: "number", required: false },
+      { name: "batch", label: "Batch / Roll Number", type: "text", required: true },
     ],
   },
   {

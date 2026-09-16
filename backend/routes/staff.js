@@ -410,20 +410,25 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const certificationQueue = candidates
       .filter((c) => {
         const s3 = c.stage3 || {};
-        return s3 && !s3.skipped && (s3.certName || s3.memberId || s3.name);
+        const hasCert = s3 && !s3.skipped && (s3.certName || s3.memberId || s3.name || (Array.isArray(s3.certifications) && s3.certifications.length > 0));
+        const hasVaultCert = Array.isArray(c.documentVault) && c.documentVault.some((d) => d.docType && d.docType.startsWith("cert"));
+        return hasCert || hasVaultCert;
       })
       .map((c) => {
         const s1 = c.stage1 || {};
         const s3 = c.stage3 || {};
+        const firstCert = Array.isArray(s3.certifications) && s3.certifications.length > 0 ? s3.certifications[0] : {};
         return {
           id: c._id,
           studentName: toStr(s1.fullName || (c.email ? c.email.split("@")[0] : "Candidate"), "Candidate"),
           email: toStr(c.email, ""),
           mobile: toStr(s1.mobile || c.mobile, "N/A"),
-          issuingBody: toStr(s3.issuingBody, ""),
-          certName: toStr(s3.certName || s3.name, ""),
-          memberId: toStr(s3.memberId, ""),
-          issueDate: toStr(s3.issueDate, ""),
+          issuingBody: toStr(s3.issuingBody || s3.body || firstCert.body, "AAPC"),
+          certName: toStr(s3.certName || s3.name || firstCert.name || firstCert.code, "CPC Certified"),
+          memberId: toStr(s3.memberId || firstCert.memberId, ""),
+          issueDate: toStr(s3.issueDate || firstCert.issueDate, ""),
+          certifications: Array.isArray(s3.certifications) ? s3.certifications : [],
+          documentVault: Array.isArray(c.documentVault) ? c.documentVault : [],
           docUrl: toStr(s3.docUrl, null),
           docName: toStr(s3.docName, null),
           certStatus: toStr(s3.certStatus, "pending"),
@@ -1797,7 +1802,7 @@ router.get("/companies/:id", requireStaffAuth, async (req, res) => {
     const [jobs, applications] = await Promise.all([
       Job.find({ companyId: company._id }).sort({ createdAt: -1 }).lean(),
       Application.find({ companyId: company._id })
-        .populate("candidateId", "email mobile stage1 stage2 stage3 stage4 stage5 stage6 stage7 stage8 resumeUrl resumeFileName completedStages manualResume")
+        .populate("candidateId", "email mobile stage1 stage2 stage3 stage4 stage5 stage6 stage7 stage8 resumeUrl resumeFileName completedStages manualResume documentVault")
         .sort({ createdAt: -1 })
         .lean(),
     ]);

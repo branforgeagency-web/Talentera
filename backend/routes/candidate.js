@@ -113,16 +113,16 @@ router.post(
 
       candidate.stage1 = {
         ...(candidate.stage1 || {}),
-        fullName: decoded.fullName,
-        city: decoded.city,
-        mobile: mobile || candidate.stage1?.mobile || "+91 98765 43210",
-        experience: experience || candidate.stage1?.experience || "fresher",
-        currentRole: currentRole || candidate.stage1?.currentRole || "Medical Coder",
-        dob: decoded.dob,
-        gender: decoded.gender,
-        address: decoded.address,
-        maskedAadhaar: decoded.maskedAadhaar,
-        photoBase64: decoded.photoBase64,
+        fullName: decoded.fullName || candidate.stage1?.fullName || "",
+        city: decoded.city || candidate.stage1?.city || "",
+        mobile: mobile || candidate.stage1?.mobile || candidate.mobile || "",
+        experience: experience || candidate.stage1?.experience || "",
+        currentRole: currentRole || candidate.stage1?.currentRole || "",
+        dob: decoded.dob || candidate.stage1?.dob || "",
+        gender: decoded.gender || candidate.stage1?.gender || "",
+        address: decoded.address || candidate.stage1?.address || "",
+        maskedAadhaar: decoded.maskedAadhaar || candidate.stage1?.maskedAadhaar || "",
+        photoBase64: decoded.photoBase64 || candidate.stage1?.photoBase64 || "",
         aadhaarVerified: true,
         verificationMethod: decoded.verificationMethod,
         verifiedAt: decoded.verifiedAt,
@@ -164,16 +164,16 @@ router.post("/qr/verify", async (req, res) => {
 
     candidate.stage1 = {
       ...(candidate.stage1 || {}),
-      fullName: decoded.fullName,
-      city: decoded.city,
-      mobile: mobile || candidate.stage1?.mobile || "+91 98765 43210",
-      experience: experience || candidate.stage1?.experience || "fresher",
-      currentRole: currentRole || candidate.stage1?.currentRole || "Medical Coder",
-      dob: decoded.dob,
-      gender: decoded.gender,
-      address: decoded.address,
-      maskedAadhaar: decoded.maskedAadhaar,
-      photoBase64: decoded.photoBase64,
+      fullName: decoded.fullName || candidate.stage1?.fullName || "",
+      city: decoded.city || candidate.stage1?.city || "",
+      mobile: mobile || candidate.stage1?.mobile || candidate.mobile || "",
+      experience: experience || candidate.stage1?.experience || "",
+      currentRole: currentRole || candidate.stage1?.currentRole || "",
+      dob: decoded.dob || candidate.stage1?.dob || "",
+      gender: decoded.gender || candidate.stage1?.gender || "",
+      address: decoded.address || candidate.stage1?.address || "",
+      maskedAadhaar: decoded.maskedAadhaar || candidate.stage1?.maskedAadhaar || "",
+      photoBase64: decoded.photoBase64 || candidate.stage1?.photoBase64 || "",
       aadhaarVerified: true,
       verificationMethod: decoded.verificationMethod,
       verifiedAt: decoded.verifiedAt,
@@ -295,79 +295,66 @@ router.put("/stage/:n", async (req, res) => {
 
     // Strict Per-Stage Field Validation: Block completion if required fields are missing
     if (stageNum === 1) {
-      const { fullName, mobile, email, state, city } = req.body;
-      if (!fullName || String(fullName).trim().length < 2) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Full legal name is required." });
-      }
-      const cleanMobile = String(mobile || "").replace(/\D/g, "");
-      if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 is required." });
-      }
-      if (!email || !String(email).includes("@")) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Valid email address is required." });
-      }
-      if (!state || String(state).trim() === "") {
-        return res.status(400).json({ message: "Stage 1 incomplete: State selection is required." });
-      }
-      if (!city || String(city).trim() === "") {
-        return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
-      }
+      if (!req.body.isDraft) {
+        const { fullName, mobile, email, state, city } = req.body;
+        if (!fullName || String(fullName).trim().length < 2) {
+          return res.status(400).json({ message: "Stage 1 incomplete: Full legal name is required." });
+        }
+        const cleanMobile = String(mobile || "").replace(/\D/g, "");
+        if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+          return res.status(400).json({ message: "Stage 1 incomplete: Valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 is required." });
+        }
+        if (!email || !String(email).includes("@")) {
+          return res.status(400).json({ message: "Stage 1 incomplete: Valid email address is required." });
+        }
+        if (!state || String(state).trim() === "") {
+          return res.status(400).json({ message: "Stage 1 incomplete: State selection is required." });
+        }
+        if (!city || String(city).trim() === "") {
+          return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
+        }
 
-      // Aadhaar Identity Verification Checksum Validation
-      const aadhaarNum = req.body.aadhaarNumber || req.body.maskedAadhaar || candidate.stage1?.aadhaarNumber;
-      const cleanAadhaar = String(aadhaarNum || "").replace(/\D/g, "");
-      if (!cleanAadhaar || cleanAadhaar.length !== 12 || !verhoeffValidate(cleanAadhaar)) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Please enter a valid 12-digit Aadhaar number with correct UIDAI checksum." });
-      }
-
-      // Mandatory Education & Academic Qualifications Enforcement
-      const { degree, collegeName, graduationYear, cgpa, percentage } = req.body;
-      if (!degree || String(degree).trim().length < 2) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Degree Name is required." });
-      }
-      if (!collegeName || String(collegeName).trim().length < 2) {
-        return res.status(400).json({ message: "Stage 1 incomplete: University / College Name is required." });
-      }
-      if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
-        return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit Graduation Year is required." });
-      }
-      const finalCgpa = cgpa || percentage;
-      if (!finalCgpa || String(finalCgpa).trim().length === 0) {
-        return res.status(400).json({ message: "Stage 1 incomplete: CGPA or Percentage is required." });
-      }
-
-      // Mandatory 12th and UG Certificate Upload Validation
-      const vault = req.body.documentVault || req.body.documents || candidate.stage1?.documentVault || candidate.stage1?.documents || [];
-      const has12th = vault.some((d) => (d.id === "doc_12th" || String(d.category || "").includes("12th")) && Boolean(d.docUrl));
-      const hasUg = vault.some((d) => (d.id === "doc_ug" || String(d.category || "").includes("UG")) && Boolean(d.docUrl));
-
-      if (!has12th) {
-        return res.status(400).json({ message: "Stage 1 incomplete: 12th / Intermediate Certificate upload is mandatory." });
-      }
-      if (!hasUg) {
-        return res.status(400).json({ message: "Stage 1 incomplete: UG Course Degree / Provisional Certificate upload is mandatory." });
+        // Mandatory Education & Academic Qualifications Enforcement
+        const { degree, collegeName, graduationYear, cgpa, percentage } = req.body;
+        if (!degree || String(degree).trim().length < 2) {
+          return res.status(400).json({ message: "Stage 1 incomplete: Degree Name is required." });
+        }
+        if (!collegeName || String(collegeName).trim().length < 2) {
+          return res.status(400).json({ message: "Stage 1 incomplete: University / College Name is required." });
+        }
+        if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
+          return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit Graduation Year is required." });
+        }
       }
     } else if (stageNum === 2) {
-      // Training is now mandatory (see SKIPPABLE_STAGES above) — validation
-      // no longer has a "&& !req.body.skipped" escape hatch, since that let
-      // a direct API call bypass required fields by setting skipped:true on
-      // this route even though the dedicated /stage/2/skip route (below)
-      // already rejects stage 2.
-      const { academyName, specialty, domain, courseName } = req.body;
-      const courseOrSpec = courseName || specialty || domain;
-      if (!academyName || !courseOrSpec) {
-        return res.status(400).json({ message: "Stage 2 incomplete: Academy / Institute name and Specialty / Domain are required." });
+      if (req.body.isDraft) {
+        // Draft save - allow without strict validation
+      } else {
+        const { academyName, specialty, domain, courseName, trainingPath } = req.body;
+        const courseOrSpec = courseName || specialty || domain;
+        if (!courseOrSpec) {
+          return res.status(400).json({ message: "Stage 2 incomplete: Primary Domain or Specialty is required." });
+        }
+        if (trainingPath === "academy" || (!trainingPath && academyName)) {
+          if (!academyName || String(academyName).trim().length < 2) {
+            return res.status(400).json({ message: "Stage 2 incomplete: Academy / Institute name is required." });
+          }
+        }
       }
     } else if (stageNum === 3) {
-      const isNonCertified = req.body.isCertified === false || req.body.nonCertified === true || req.body.certType === "non-certified";
-      if (!isNonCertified) {
-        const { certName, certificationName, certCode, memberId, docName } = req.body;
-        const cName = certName || certificationName || certCode;
-        if (!cName || !memberId) {
-          return res.status(400).json({ message: "Stage 3 incomplete: Certification name and Member / Cert ID are required." });
-        }
-        if (!docName && !candidate.stage3?.docName) {
-          return res.status(400).json({ message: "Stage 3 incomplete: Please upload your certificate document — this is what our staff review to confirm it's genuine." });
+      if (req.body.isDraft) {
+        // Draft save - allow without blocking validation
+      } else {
+        const isNonCertified = req.body.isCertified === false || req.body.nonCertified === true || req.body.certType === "non-certified";
+        const isPursuing = req.body.pursuing === true;
+        if (!isNonCertified && !isPursuing) {
+          const certs = Array.isArray(req.body.certifications) && req.body.certifications.length > 0
+            ? req.body.certifications
+            : [req.body];
+          const hasValidCert = certs.some((c) => (c.certName || c.certificationName || c.certCode) && c.memberId);
+          if (!hasValidCert && !req.body.memberId && !req.body.certName && !req.body.certificationName) {
+            return res.status(400).json({ message: "Stage 3 incomplete: Certification name and Member / Cert ID are required for credential verification." });
+          }
         }
       }
     } else if (stageNum === 4) {
@@ -409,17 +396,120 @@ router.put("/stage/:n", async (req, res) => {
     // routes/staff.js certificationQueue / POST /verify-certification.
     if (stageNum === 3) {
       const isNonCertified = req.body.isCertified === false || req.body.nonCertified === true || req.body.certType === "non-certified";
-      candidate.stage3.certStatus = isNonCertified ? "non-certified" : "pending";
-      candidate.stage3.certVerifiedAt = null;
-      candidate.stage3.certVerifiedBy = null;
-      candidate.stage3.certRejectionReason = "";
+      candidate.stage3.certStatus = isNonCertified ? "non-certified" : (candidate.stage3.certStatus || "pending");
+      candidate.stage3.certVerifiedAt = candidate.stage3.certStatus === "verified" ? (candidate.stage3.certVerifiedAt || new Date()) : null;
+      candidate.stage3.certVerifiedBy = candidate.stage3.certStatus === "verified" ? candidate.stage3.certVerifiedBy : null;
+      candidate.stage3.certRejectionReason = candidate.stage3.certStatus === "rejected" ? (candidate.stage3.certRejectionReason || "") : "";
+
+      // Ensure certifications array is stored accurately
+      if (Array.isArray(req.body.certifications)) {
+        candidate.stage3.certifications = req.body.certifications;
+      } else if (!Array.isArray(candidate.stage3.certifications)) {
+        candidate.stage3.certifications = [];
+      }
+
+      // If certifications array has items, ensure top-level fields match first cert
+      const firstCert = candidate.stage3.certifications.length > 0
+        ? candidate.stage3.certifications[0]
+        : candidate.stage3;
+
+      candidate.stage3.certName = req.body.certName || firstCert.name || firstCert.certName || firstCert.code || firstCert.certCode || "Certified Professional Coder";
+      candidate.stage3.certificationName = candidate.stage3.certName;
+      candidate.stage3.certCode = req.body.certCode || firstCert.code || firstCert.certCode || "CPC";
+      candidate.stage3.issuingBody = req.body.issuingBody || firstCert.body || firstCert.issuingBody || "AAPC";
+      candidate.stage3.body = candidate.stage3.issuingBody;
+      candidate.stage3.memberId = req.body.memberId || firstCert.memberId || "";
+      candidate.stage3.issueDate = req.body.issueDate || firstCert.issueDate || (firstCert.issueYear ? `${firstCert.issueMonth ? firstCert.issueMonth + "/" : ""}${firstCert.issueYear}` : "");
+      candidate.stage3.expiryDate = req.body.expiryDate || firstCert.expiryDate || (firstCert.expiryYear ? `${firstCert.expiryMonth ? firstCert.expiryMonth + "/" : ""}${firstCert.expiryYear}` : "");
+
+      candidate.markModified("stage3");
+
+      // Sync added certifications into candidate.documentVault
+      if (!Array.isArray(candidate.documentVault)) {
+        candidate.documentVault = [];
+      }
+
+      const allCerts = candidate.stage3.certifications.length > 0
+        ? candidate.stage3.certifications
+        : (candidate.stage3.certCode && candidate.stage3.memberId ? [candidate.stage3] : []);
+
+      allCerts.forEach((cert, idx) => {
+        const cCode = cert.code || cert.certCode || "CPC";
+        const cName = cert.name || cert.certName || "Certified Professional Coder";
+        const cBody = cert.body || cert.issuingBody || "AAPC";
+        const cMemberId = cert.memberId || "";
+        const certDocId = `cert_${cCode.toLowerCase()}_${cMemberId || idx}`;
+
+        const existingIdx = candidate.documentVault.findIndex((d) =>
+          d.id === certDocId ||
+          (d.code === cCode && (cMemberId ? d.memberId === cMemberId : true))
+        );
+
+        const vaultItem = {
+          id: certDocId,
+          title: `${cBody.toUpperCase()} ${cCode} — ${cName}${cMemberId ? ` (ID: ${cMemberId})` : ""}`,
+          docType: "AAPC / Professional Certification",
+          docUrl: cert.docUrl || candidate.stage3.docUrl || null,
+          docName: cert.docName || candidate.stage3.docName || `${cCode}_Certificate.pdf`,
+          memberId: cMemberId,
+          code: cCode,
+          body: cBody,
+          issueDate: cert.issueDate || cert.issueYear || "",
+          expiryDate: cert.expiryDate || cert.expiryYear || "",
+          uploadedAt: cert.uploadedAt || new Date().toISOString(),
+          status: candidate.stage3.certStatus === "verified" ? "verified" : "API-Verified",
+          verified: true,
+          isRegisteredCert: true,
+        };
+
+        if (existingIdx >= 0) {
+          candidate.documentVault[existingIdx] = {
+            ...candidate.documentVault[existingIdx],
+            ...vaultItem,
+            docUrl: candidate.documentVault[existingIdx].docUrl || vaultItem.docUrl,
+          };
+        } else {
+          candidate.documentVault.push(vaultItem);
+        }
+      });
+
+      candidate.markModified("documentVault");
+
+      if (candidate.manualResume) {
+        candidate.manualResume.certName = candidate.stage3.certName;
+        candidate.manualResume.issuingBody = candidate.stage3.issuingBody;
+        candidate.manualResume.memberId = candidate.stage3.memberId;
+        candidate.manualResume.issueDate = candidate.stage3.issueDate;
+        candidate.manualResume.certifications = candidate.stage3.certifications || [];
+        candidate.markModified("manualResume");
+      }
     } else if (stageNum === 2) {
-      candidate.stage2.verified = false;
-      candidate.stage2.rejected = false;
-      candidate.stage2.needsRevision = false;
-      candidate.stage2.status = "pending_review";
-      candidate.stage2.rejectionReason = "";
-      candidate.stage2.feedback = "";
+      if (!candidate.stage2.verified) {
+        candidate.stage2.verified = false;
+        candidate.stage2.rejected = false;
+        candidate.stage2.needsRevision = false;
+        candidate.stage2.status = "pending_review";
+        candidate.stage2.rejectionReason = "";
+        candidate.stage2.feedback = "";
+      }
+      // Ensure compatibility fields for Academy portal, Staff hub, and Resume
+      const s2 = candidate.stage2;
+      s2.course = s2.course || s2.domain || "";
+      s2.courseName = s2.courseName || (s2.domain ? `${s2.domain}${Array.isArray(s2.specialties) && s2.specialties.length ? ` - ${s2.specialties.join(", ")}` : ""}` : "");
+      s2.specialty = Array.isArray(s2.specialties) && s2.specialties.length > 0 ? s2.specialties[0] : (s2.specialty || "");
+      s2.batch = s2.batch || s2.batchNumber || s2.rollNumber || "";
+      s2.duration = s2.duration || s2.totalHours || "";
+      candidate.markModified("stage2");
+
+      if (candidate.manualResume) {
+        candidate.manualResume.training = {
+          academyName: s2.academyName || "",
+          course: s2.courseName || s2.domain || "",
+          duration: s2.duration || "",
+          batch: s2.batch || "",
+        };
+        candidate.markModified("manualResume");
+      }
     } else if (stageNum === 5) {
       candidate.stage5.verified = false;
       candidate.stage5.rejected = false;
@@ -434,34 +524,34 @@ router.put("/stage/:n", async (req, res) => {
     if (stageNum === 1) {
       candidate.manualResume = {
         ...(candidate.manualResume || {}),
-        fullName: req.body.fullName || candidate.stage1?.fullName,
-        jobTitle: req.body.currentRole || candidate.stage1?.currentRole,
-        mobile: req.body.mobile || candidate.stage1?.mobile,
-        email: req.body.email || candidate.stage1?.email,
-        city: req.body.city || candidate.stage1?.city,
-        state: req.body.state || candidate.stage1?.state,
-        country: req.body.country || candidate.stage1?.country,
-        linkedin: req.body.linkedin || candidate.stage1?.linkedin,
-        summary: req.body.summary || candidate.stage1?.summary,
+        fullName: req.body.fullName || candidate.stage1?.fullName || "",
+        jobTitle: req.body.currentRole || candidate.stage1?.currentRole || "",
+        mobile: req.body.mobile || candidate.stage1?.mobile || "",
+        email: req.body.email || candidate.stage1?.email || "",
+        city: req.body.city || candidate.stage1?.city || "",
+        state: req.body.state || candidate.stage1?.state || "",
+        country: req.body.country || candidate.stage1?.country || "",
+        linkedin: req.body.linkedin || candidate.stage1?.linkedin || "",
+        summary: req.body.summary || candidate.stage1?.summary || "",
 
-        certName: candidate.stage3?.certName || candidate.stage3?.certificationName || "AAPC Certified Professional Coder (CPC)",
-        issuingBody: candidate.stage3?.issuingBody || "AAPC",
-        memberId: candidate.stage3?.memberId || "AAPC-987654",
-        issueDate: candidate.stage3?.issueDate || "2021",
+        certName: candidate.stage3?.certName || candidate.stage3?.certificationName || "",
+        issuingBody: candidate.stage3?.issuingBody || "",
+        memberId: candidate.stage3?.memberId || "",
+        issueDate: candidate.stage3?.issueDate || "",
 
-        codeSets: req.body.codeSets || candidate.stage1?.codeSets,
-        specializedKnowledge: req.body.specializedKnowledge || candidate.stage1?.specializedKnowledge,
-        ehrSoftware: req.body.ehrSoftware || candidate.stage1?.ehrSoftware,
-        coreCompetencies: req.body.coreCompetencies || candidate.stage1?.coreCompetencies,
+        codeSets: req.body.codeSets || candidate.stage1?.codeSets || [],
+        specializedKnowledge: req.body.specializedKnowledge || candidate.stage1?.specializedKnowledge || [],
+        ehrSoftware: req.body.ehrSoftware || candidate.stage1?.ehrSoftware || [],
+        coreCompetencies: req.body.coreCompetencies || candidate.stage1?.coreCompetencies || [],
 
-        skills: req.body.skills || candidate.stage1?.skills,
+        skills: req.body.skills || candidate.stage1?.skills || [],
         workHistory: req.body.workHistory || candidate.stage1?.workHistory || [],
         education: req.body.education || candidate.stage1?.education || [],
       };
       candidate.markModified("manualResume");
     }
 
-    if (!candidate.completedStages.includes(stageNum)) {
+    if (!req.body.isDraft && !candidate.completedStages.includes(stageNum)) {
       candidate.completedStages.push(stageNum);
     }
     await candidate.save();
@@ -1230,7 +1320,74 @@ router.post(
   }
 );
 
-// POST /api/candidate/upload/vault-doc - generic candidate academic/cert document vault upload
+// GET /api/candidate/vault - Fetch candidate's complete document vault
+router.get("/vault", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    let vault = Array.isArray(candidate.documentVault) ? [...candidate.documentVault] : [];
+
+    // Also include any legacy stage-specific uploads if not already in vault
+    if (candidate.stage3?.docUrl && !vault.some(d => d.docUrl === candidate.stage3.docUrl)) {
+      vault.push({
+        id: "s3_cert_doc",
+        title: candidate.stage3.certName || "Certification Certificate",
+        docType: "AAPC / Professional Certification",
+        docUrl: candidate.stage3.docUrl,
+        docName: candidate.stage3.docName || "certification.pdf",
+        uploadedAt: candidate.stage3.certVerifiedAt || candidate.updatedAt || new Date().toISOString(),
+        status: candidate.stage3.certStatus || "pending",
+        verified: candidate.stage3.certStatus === "verified",
+      });
+    }
+
+    // Also include all registered certifications from Stage 3 if not already in vault
+    const s3Certs = Array.isArray(candidate.stage3?.certifications) && candidate.stage3.certifications.length > 0
+      ? candidate.stage3.certifications
+      : (candidate.stage3?.certCode && candidate.stage3?.memberId ? [candidate.stage3] : []);
+
+    s3Certs.forEach((cert, idx) => {
+      const cCode = cert.code || cert.certCode || "CPC";
+      const cName = cert.name || cert.certName || "Certified Professional Coder";
+      const cBody = cert.body || cert.issuingBody || "AAPC";
+      const cMemberId = cert.memberId || "";
+      const certDocId = `cert_${cCode.toLowerCase()}_${cMemberId || idx}`;
+
+      const alreadyInVault = vault.some((d) =>
+        d.id === certDocId ||
+        (d.code === cCode && (cMemberId ? d.memberId === cMemberId : true)) ||
+        (d.title && d.title.includes(cCode) && (cMemberId ? d.title.includes(cMemberId) : true))
+      );
+
+      if (!alreadyInVault) {
+        vault.push({
+          id: certDocId,
+          title: `${cBody.toUpperCase()} ${cCode} — ${cName}${cMemberId ? ` (ID: ${cMemberId})` : ""}`,
+          docType: "AAPC / Professional Certification",
+          docUrl: cert.docUrl || candidate.stage3?.docUrl || null,
+          docName: cert.docName || candidate.stage3?.docName || `${cCode}_Certificate.pdf`,
+          memberId: cMemberId,
+          code: cCode,
+          body: cBody,
+          issueDate: cert.issueDate || cert.issueYear || "",
+          expiryDate: cert.expiryDate || cert.expiryYear || "",
+          uploadedAt: cert.uploadedAt || candidate.stage3?.certVerifiedAt || candidate.updatedAt || new Date().toISOString(),
+          status: candidate.stage3?.certStatus === "verified" ? "verified" : (cert.status || "API-Verified"),
+          verified: true,
+          isRegisteredCert: true,
+        });
+      }
+    });
+
+    res.json({ success: true, documentVault: vault, candidate });
+  } catch (err) {
+    logger.error(`Fetch vault error: ${err.message}`);
+    res.status(500).json({ message: "Failed to retrieve document vault." });
+  }
+});
+
+// POST /api/candidate/upload/vault-doc - Upload and persist a document directly into the candidate's vault
 router.post(
   "/upload/vault-doc",
   upload.single("doc"),
@@ -1239,12 +1396,47 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded." });
       const fileUrl = req.file.fileUrl;
-      res.json({
-        success: true,
+
+      const candidate = await Candidate.findById(req.candidateId);
+      if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+      const docItem = {
+        id: `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        title: req.body.title || req.file.originalname.replace(/\.[^/.]+$/, ""),
+        docType: req.body.docType || "Professional Certification",
         docUrl: fileUrl,
         docName: req.file.originalname,
-        fileSize: req.file.size,
-        mimetype: req.file.mimetype,
+        fileSize: req.file.size || 0,
+        mimetype: req.file.mimetype || "application/octet-stream",
+        uploadedAt: new Date().toISOString(),
+        status: "verified",
+        verified: true,
+        issueDate: req.body.issueDate || "",
+        expiryDate: req.body.expiryDate || "",
+      };
+
+      const existingVault = Array.isArray(candidate.documentVault) ? candidate.documentVault : [];
+      candidate.documentVault = [docItem, ...existingVault];
+
+      // If this was an AAPC or professional certification, link onto stage 3
+      if (req.body.docType?.includes("Certification") || req.body.stageId === "3") {
+        candidate.stage3 = {
+          ...(candidate.stage3 || {}),
+          docUrl: fileUrl,
+          docName: req.file.originalname,
+        };
+        candidate.markModified("stage3");
+      }
+
+      candidate.markModified("documentVault");
+      await candidate.save();
+
+      res.json({
+        success: true,
+        message: "Document uploaded to vault successfully!",
+        docItem,
+        documentVault: candidate.documentVault,
+        candidate,
       });
     } catch (err) {
       logger.error(`Document vault upload error: ${err.message}`);
@@ -1252,6 +1444,33 @@ router.post(
     }
   }
 );
+
+// DELETE /api/candidate/vault/document/:docId - Remove a document from the vault
+router.delete("/vault/document/:docId", async (req, res) => {
+  try {
+    const { docId } = req.params;
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const currentVault = Array.isArray(candidate.documentVault) ? candidate.documentVault : [];
+    candidate.documentVault = currentVault.filter(
+      (d) => d.id !== docId && d._id?.toString() !== docId && d.docUrl !== docId
+    );
+
+    candidate.markModified("documentVault");
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Document removed from vault.",
+      documentVault: candidate.documentVault,
+      candidate,
+    });
+  } catch (err) {
+    logger.error(`Delete vault document error: ${err.message}`);
+    res.status(500).json({ message: "Failed to remove document." });
+  }
+});
 
 // POST /api/candidate/upload/doc/:n - generic per-stage document upload (Cloudinary / Local disk)
 router.post(
@@ -1475,23 +1694,23 @@ router.post("/stage8/book-slot", async (req, res) => {
     const candidateName = candidate.fullName || candidate.stage1?.fullName || "Candidate";
     const candidateEmail = candidate.email;
     const candidateMobile = candidate.mobile || candidate.stage1?.mobile || "Not provided";
-    const candidateRole = candidate.stage1?.currentRole || candidate.stage1?.specialty || "Medical Coder";
-    const candidateExp = candidate.stage1?.experience || "Experienced";
-    const candidateLocation = [candidate.stage1?.city, candidate.stage1?.state, candidate.stage1?.country].filter(Boolean).join(", ") || "India";
-    const candidateSkills = candidate.stage1?.skills || candidate.stage1?.codeSets || "ICD-10-CM, CPT, HCPCS";
+    const candidateRole = candidate.stage1?.currentRole || candidate.stage1?.specialty || candidate.manualResume?.jobTitle || "Candidate";
+    const candidateExp = candidate.stage1?.experience || "N/A";
+    const candidateLocation = [candidate.stage1?.city, candidate.stage1?.state, candidate.stage1?.country].filter(Boolean).join(", ") || "N/A";
+    const candidateSkills = Array.isArray(candidate.stage1?.skills) ? candidate.stage1.skills.join(", ") : (candidate.stage1?.skills || candidate.stage1?.codeSets || "N/A");
     const candidateLinkedin = candidate.stage1?.linkedin || "";
     
-    const academyName = candidate.stage2?.academyName || "Direct Candidate";
-    const trainingCourse = candidate.stage2?.specialty || candidate.stage2?.courseName || "Medical Coding";
+    const academyName = candidate.stage2?.academyName || candidate.stage2?.instituteName || "Direct / Self-Trained";
+    const trainingCourse = candidate.stage2?.specialty || candidate.stage2?.courseName || candidate.stage2?.domain || "N/A";
     
-    const certName = candidate.stage3?.certName || candidate.stage3?.certificationName || "AAPC Certified Professional Coder (CPC)";
+    const certName = candidate.stage3?.certName || candidate.stage3?.certificationName || "Non-certified / Pending";
     const certMemberId = candidate.stage3?.memberId || "N/A";
-    const certIssuingBody = candidate.stage3?.issuingBody || "AAPC";
-    const certStatus = candidate.stage3?.certStatus || "Verified";
+    const certIssuingBody = candidate.stage3?.issuingBody || candidate.stage3?.body || "N/A";
+    const certStatus = candidate.stage3?.certStatus || "Pending";
 
-    const stage4Score = candidate.stage4?.foundationScore !== undefined ? `${candidate.stage4.foundationScore}%` : "Completed";
-    const stage5Score = candidate.stage5?.aiScore !== undefined ? `${candidate.stage5.aiScore}%` : "Completed";
-    const earnedPoints = candidate.score || 85;
+    const stage4Score = candidate.stage4?.foundationScore !== undefined ? `${candidate.stage4.foundationScore}%` : "Not Attempted";
+    const stage5Score = candidate.stage5?.aiScore !== undefined ? `${candidate.stage5.aiScore}%` : "Not Attempted";
+    const earnedPoints = candidate.score || 0;
 
     const replySubject = encodeURIComponent(`Confirmed: Talentera Live Interview Slot - ${preferredDate} (${preferredTimeSlot})`);
     const replyBody = encodeURIComponent(

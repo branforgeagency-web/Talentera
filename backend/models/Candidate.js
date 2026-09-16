@@ -75,6 +75,12 @@ const CandidateSchema = new mongoose.Schema(
     // Stage 8: Track (employment status)
     stage8: { type: mongoose.Schema.Types.Mixed, default: null },
 
+    // Academic & Professional Document Vault
+    documentVault: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+
     resumeUrl: { type: String, default: null },
     resumeFileName: { type: String, default: null },
     resumeTemplate: {
