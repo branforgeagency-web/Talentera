@@ -8,8 +8,6 @@ const INACTIVITY_TIMEOUT_SECONDS = 5;
 // Once candidate starts speaking, how many ms of silence after answering before auto-submitting
 const SILENCE_TIMEOUT_AFTER_ANSWER_MS = 4000;
 
-const STOP_COMMAND_RE = /\b(stop|end|quit|terminate)\b[\s\S]*\binterview\b|^(stop|end)( it| this)?$/i;
-
 const TOPIC_CONFIG = [
   { key: "ICD-10-CM", label: "1. ICD-10-CM Coding", icon: "fa-notes-medical" },
   { key: "CPT Codes", label: "2. CPT Procedure Codes", icon: "fa-file-medical" },
@@ -208,6 +206,16 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [micDenied, setMicDenied] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
+  // Candidate's own camera + mic preview. Per the AI Mock Interview
+  // requirements, the candidate's camera and microphone should automatically
+  // turn on (after the browser permission prompt) once the interview
+  // starts - this is separate from the browser SpeechRecognition API used
+  // for live transcription below, which needs its own mic access grant.
+  const candidateVideoRef = useRef(null);
+  const candidateStreamRef = useRef(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+
   // Inactivity state
   const [inactivitySecondsLeft, setInactivitySecondsLeft] = useState(INACTIVITY_TIMEOUT_SECONDS);
   const [isWaitingForAnswerStart, setIsWaitingForAnswerStart] = useState(false);
@@ -275,8 +283,51 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
       activeUtteranceRef.current = null;
       window.__activeUtterance = null;
+      stopCandidateCamera();
     };
   }, []);
+
+  // Request camera + microphone access and start a live self-view preview.
+  // Called right when the mock interview starts (handleStart), so the
+  // candidate's camera/mic turn on automatically once the browser
+  // permission prompt is answered - it never blocks the interview from
+  // starting if the candidate declines or no camera is available, it just
+  // shows a small banner instead (same graceful-degradation pattern as the
+  // Self-Introduction recorder).
+  async function startCandidateCamera() {
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraError("Camera is not supported in this browser.");
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      candidateStreamRef.current = stream;
+      if (candidateVideoRef.current) {
+        candidateVideoRef.current.srcObject = stream;
+      }
+      setCameraReady(true);
+      setCameraError("");
+    } catch (err) {
+      console.warn("Camera/mic access error:", err);
+      setCameraReady(false);
+      setCameraError(
+        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+          ? "Camera/microphone access denied. Please allow permissions to be proctored on camera during the interview."
+          : "Could not access your camera/microphone."
+      );
+    }
+  }
+
+  function stopCandidateCamera() {
+    if (candidateStreamRef.current) {
+      candidateStreamRef.current.getTracks().forEach((t) => t.stop());
+      candidateStreamRef.current = null;
+    }
+    if (candidateVideoRef.current) {
+      candidateVideoRef.current.srcObject = null;
+    }
+    setCameraReady(false);
+  }
 
   // Duration timer
   useEffect(() => {
@@ -570,10 +621,12 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     setHasStartedAnswering(false);
 
     try {
-      const endpoint = STOP_COMMAND_RE.test(text) ? "/candidate/ai-interview/end" : "/candidate/ai-interview/turn";
-      const body = endpoint.endsWith("/end") ? {} : { candidateUtterance: text };
-
-      const res = await api.post(endpoint, body);
+      // Per the AI Mock Interview requirements, the candidate cannot
+      // manually finish before all 5 questions are answered - even a
+      // "stop the interview" utterance is sent through as a normal turn
+      // (Messi acknowledges it and re-asks the current question) rather
+      // than routed to an early-end endpoint.
+      const res = await api.post("/candidate/ai-interview/turn", { candidateUtterance: text });
       let acknowledgment = res.data.messiReply || "Thank you for sharing that!";
       const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
       const nextSession = res.data.session;
@@ -597,6 +650,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (interviewEnded) {
         speakText(speechToPlay, () => {});
         setStep("report");
+        stopCandidateCamera();
         const finalResult = res.data.result || nextSession?.result;
         if (typeof finalResult?.overallScore === "number" && onCompleted) {
           onCompleted({ score: finalResult.overallScore });
@@ -620,6 +674,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   async function handleStart(retake) {
     setStarting(true);
     try {
+      // Camera + mic turn on automatically as the interview starts (fires
+      // the browser permission prompt if not already granted); this runs
+      // in parallel with starting the session so one slow permission
+      // prompt doesn't stall the other.
+      startCandidateCamera();
       const res = await api.post("/candidate/ai-interview/start", retake ? { retake: true } : {});
       const nextSession = res.data.session;
       setSession(nextSession);
@@ -635,11 +694,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     } finally {
       setStarting(false);
     }
-  }
-
-  function handleEndNow() {
-    if (!window.confirm("End the interview now? The AI will generate your feedback report from the answered questions.")) return;
-    submitUtterance("Please end the interview.");
   }
 
   const result = session?.result;
@@ -674,27 +728,10 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               <i className="fa-regular fa-clock" style={{ color: "#F5B41A" }}></i>
               <span>{formatDuration(elapsedSeconds)}</span>
             </div>
-            <button
-              type="button"
-              onClick={handleEndNow}
-              style={{
-                background: "#DC2626",
-                border: "1px solid #B91C1C",
-                color: "#FFFFFF",
-                borderRadius: 8,
-                padding: "7px 14px",
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-                display: "inline-flex",
-                alignItems: "center",
-                boxShadow: "0 2px 6px rgba(220,38,38,0.3)",
-              }}
-            >
-              <i className="fa-solid fa-circle-stop" style={{ marginRight: 6 }}></i>
-              End Interview
-            </button>
+            <div style={{ background: "rgba(245,180,26,0.15)", padding: "5px 12px", borderRadius: 8, fontSize: 11.5, fontWeight: 800, color: "#F5B41A", display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="fa-solid fa-lock"></i>
+              All 5 questions required - no early finish
+            </div>
           </div>
         )}
       </div>
@@ -910,6 +947,25 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             {/* Left: Avatar & State */}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
               <InterviewerVideoAvatar state={avatarState} size="compact" />
+
+              {/* Candidate's own camera self-view - confirms camera+mic are
+                  live for proctoring, per the AI Mock Interview requirements. */}
+              <div style={{ width: 160, height: 110, borderRadius: 12, overflow: "hidden", background: "#0A1F3D", position: "relative", border: "2px solid #E2E8F0" }}>
+                <video ref={candidateVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: cameraReady ? "block" : "none" }} />
+                {!cameraReady && (
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,.6)", fontSize: 10, textAlign: "center", padding: 6 }}>
+                    <i className="fa-solid fa-video-slash" style={{ fontSize: 16, marginBottom: 4 }}></i>
+                    {cameraError || "Starting camera…"}
+                  </div>
+                )}
+                {cameraReady && (
+                  <span style={{ position: "absolute", top: 6, left: 6, background: "#DC2626", color: "#fff", fontSize: 8.5, fontWeight: 800, padding: "2px 6px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff" }} />
+                    LIVE
+                  </span>
+                )}
+              </div>
+
               {isWaitingForAnswerStart && (
                 <div style={{ width: "100%", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 8, textAlign: "center" }}>
                   <div style={{ fontSize: 10.5, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 3 }}>
@@ -1073,31 +1129,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             >
               Skip →
             </button>
-
-            {/* End Interview button */}
-            <button
-              type="button"
-              onClick={handleEndNow}
-              disabled={loadingTurn}
-              style={{
-                background: "#FEE2E2",
-                border: "1px solid #F87171",
-                color: "#991B1B",
-                borderRadius: 10,
-                padding: "10px 14px",
-                fontSize: 12,
-                fontWeight: 800,
-                cursor: loadingTurn ? "not-allowed" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                marginLeft: "auto",
-              }}
-              title="Stop and end the mock interview now"
-            >
-              <i className="fa-solid fa-circle-stop"></i>
-              End Interview
-            </button>
           </form>
         </>
       )}
@@ -1177,10 +1208,15 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                     <strong style={{ color: "#0A1F3D", fontSize: 13 }}>
                       Q{q.questionNumber || idx + 1}. {q.question}
                     </strong>
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
                       <span style={{ background: tag.bg, color: tag.color, fontWeight: 800, padding: "3px 8px", borderRadius: 999, fontSize: 10.5 }}>
                         {tag.label}
                       </span>
+                      {Number.isFinite(q.keywordMatchCount) && (
+                        <span style={{ background: "#EEF2FF", color: "#3730A3", fontWeight: 800, padding: "3px 8px", borderRadius: 999, fontSize: 10.5 }}>
+                          Keyword Match: {q.keywordMatchCount}/{q.totalKeywords || 3}
+                        </span>
+                      )}
                       <span style={{ background: "#F1F5F9", color: "#0A1F3D", fontWeight: 800, padding: "3px 8px", borderRadius: 999, fontSize: 10.5 }}>
                         {q.score}/10
                       </span>
@@ -1189,6 +1225,16 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   <div style={{ color: "#475569", marginBottom: 6 }}>
                     <strong>Your Response:</strong> {q.candidateAnswer || "(No response within 5s window)"}
                   </div>
+                  {Array.isArray(q.matchedKeywords) && q.matchedKeywords.length > 0 && (
+                    <div style={{ color: "#166534", marginBottom: 6, fontSize: 11.5 }}>
+                      <strong>Matched keywords:</strong> {q.matchedKeywords.join(", ")}
+                      {Array.isArray(q.missingKeywords) && q.missingKeywords.length > 0 && (
+                        <>
+                          {" "}· <strong style={{ color: "#991B1B" }}>Missed:</strong> <span style={{ color: "#991B1B" }}>{q.missingKeywords.join(", ")}</span>
+                        </>
+                      )}
+                    </div>
+                  )}
                   <div style={{ color: "#334155", fontStyle: "italic", background: "#F8FAFC", padding: "8px 10px", borderRadius: 8, borderLeft: "3px solid #0A1F3D" }}>
                     <strong>Feedback:</strong> {q.feedback}
                   </div>

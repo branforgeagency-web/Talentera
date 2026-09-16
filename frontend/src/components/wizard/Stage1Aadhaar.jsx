@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
@@ -1588,22 +1589,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           border: 1px solid var(--gold-soft);
         }
 
-        /* STICKY BOTTOM BAR */
+        /* BOTTOM ACTION BAR */
         .sticky-bar {
-          position: sticky;
-          bottom: 0;
           background: var(--white);
-          padding: 14px 26px;
-          border-top: 1px solid var(--border);
+          padding: 16px 24px;
+          border: 1px solid var(--border);
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-left: -10px;
-          margin-right: -10px;
-          box-shadow: 0 -4px 16px rgba(15,27,61,.06);
-          z-index: 5;
-          border-radius: 12px 12px 0 0;
-          margin-top: 24px;
+          box-shadow: 0 4px 16px rgba(15,27,61,.04);
+          border-radius: 12px;
+          margin-top: 32px;
+          margin-bottom: 32px;
         }
         .sticky-progress {
           display: flex;
@@ -2788,110 +2785,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         </div>
 
         {/* ─── RIGHT SIDEBAR ─── */}
-        <div className="right-sidebar">
-          <div className="passport-card">
-            <div className="passport-eyebrow">CAREER PASSPORT</div>
-            <div className="passport-title">You're building your passport</div>
-            <div className="passport-status">🔨 Stage 01 in progress</div>
-            <div className="passport-desc">
-              Every stage adds a verified layer to your identity. Companies see
-              your passport score — the higher, the more visibility you earn.
-            </div>
-          </div>
-
-          <div className="side-card">
-            <div className="title">Hiring Right Now <a href="#jobs">See all →</a></div>
-
-            <div className="company-row">
-              <div className="company-logo clr-1">O</div>
-              <div>
-                <div className="company-name">Optum India <span className="hot-pill">HOT</span></div>
-                <div className="company-meta">Hyderabad · Onsite · 5.5 – 7.0 LPA</div>
-                <div className="company-tags">
-                  <span className="comp-tag">HCC</span>
-                  <span className="comp-tag blue">12 roles</span>
-                </div>
-                <div className="verified-line">92% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="company-row">
-              <div className="company-logo clr-2">C</div>
-              <div>
-                <div className="company-name">Cognizant</div>
-                <div className="company-meta">Hyderabad · Remote · 5.0 – 7.0 LPA</div>
-                <div className="company-tags">
-                  <span className="comp-tag">Remote</span>
-                  <span className="comp-tag blue">8 roles</span>
-                </div>
-                <div className="verified-line">88% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="company-row">
-              <div className="company-logo clr-3">A</div>
-              <div>
-                <div className="company-name">Access Healthcare</div>
-                <div className="company-meta">Chennai · Hybrid · 6.0 – 8.5 LPA</div>
-                <div className="company-tags">
-                  <span className="comp-tag">Featured</span>
-                  <span className="comp-tag green">CPC</span>
-                  <span className="comp-tag blue">6 roles</span>
-                </div>
-                <div className="verified-line">95% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="company-row">
-              <div className="company-logo clr-4">Ω</div>
-              <div>
-                <div className="company-name">Omega Healthcare</div>
-                <div className="company-meta">Bengaluru · Onsite · 4.8 – 6.5 LPA</div>
-                <div className="company-tags">
-                  <span className="comp-tag">E/M</span>
-                  <span className="comp-tag">AR Calling</span>
-                  <span className="comp-tag blue">5 roles</span>
-                </div>
-                <div className="verified-line">90% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="company-row">
-              <div className="company-logo clr-5">R1</div>
-              <div>
-                <div className="company-name">R1 RCM India <span className="hot-pill">HOT</span></div>
-                <div className="company-meta">Hyderabad · Onsite · 4.5 – 6.5 LPA</div>
-                <div className="company-tags">
-                  <span className="comp-tag">Walk-in</span>
-                  <span className="comp-tag green">Immediate</span>
-                  <span className="comp-tag blue">9 roles</span>
-                </div>
-                <div className="verified-line">85% verified-pool hires</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="side-card">
-            <div className="title">Why RCM Hiring Is Hot</div>
-            <div className="hot-grid">
-              <div className="hot-stat">
-                <div className="big">$4.5 T</div>
-                <div className="small">US healthcare market</div>
-              </div>
-              <div className="hot-stat">
-                <div className="big">1.2 L</div>
-                <div className="small">RCM jobs / year in India</div>
-              </div>
-              <div className="hot-stat">
-                <div className="big">+18%</div>
-                <div className="small">YoY salary growth</div>
-              </div>
-              <div className="hot-stat">
-                <div className="big">87%</div>
-                <div className="small">HRs prefer verified</div>
-              </div>
-            </div>
-          </div>
+        <div className="right-sidebar" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+          <WizardCompanionRail stageNum={1} candidate={candidate} />
         </div>
       </div>
     </div>

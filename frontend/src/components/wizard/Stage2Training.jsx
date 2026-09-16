@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 // Pre-mapped top RCM training academies
 const ACADEMY_SUGGESTIONS = [
@@ -412,6 +413,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           gap: 24px;
           max-width: 1380px;
           margin: 0 auto;
+          align-items: start;
         }
         @media (max-width: 1080px) {
           .stage02-shell {
@@ -1205,20 +1207,18 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         .s2-hot-stat .big { font-size: 18px; font-weight: 800; color: var(--navy); }
         .s2-hot-stat .small { font-size: 10px; color: var(--gray-txt); margin-top: 2px; }
 
-        /* STICKY BOTTOM BAR */
+        /* BOTTOM ACTION BAR */
         .s2-sticky-bar {
-          position: sticky;
-          bottom: 0;
           background: var(--white);
-          padding: 14px 24px;
-          border-top: 1px solid var(--border);
+          padding: 16px 24px;
+          border: 1px solid var(--border);
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-top: 24px;
+          margin-top: 32px;
+          margin-bottom: 32px;
           border-radius: 12px;
-          box-shadow: 0 -4px 16px rgba(15,27,61,.06);
-          z-index: 20;
+          box-shadow: 0 4px 16px rgba(15,27,61,.04);
         }
         .s2-sticky-progress {
           display: flex;
@@ -1924,114 +1924,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         </div>
 
         {/* RIGHT SIDEBAR COLUMN */}
-        <div className="s2-right">
-          <div className="s2-passport-card">
-            <div className="s2-passport-eyebrow">CAREER PASSPORT</div>
-            <div className="s2-passport-title" style={{ color: "#ffffff" }}>Your passport is 25% built</div>
-            <div className="s2-passport-status">🎓 Stage 02 · Foundation in progress</div>
-            <div className="s2-passport-desc">
-              Once your academy verifies your foundation, your visibility to hiring
-              companies jumps sharply. A verified fresher outranks 87% of Naukri
-              profiles for RCM roles.
-            </div>
-          </div>
-
-          <div className="s2-side-card">
-            <div className="title">
-              <span>Hiring Right Now</span>
-              <a href="/jobs" onClick={(e) => { e.preventDefault(); toast("Browse open jobs after profile verification.", "ℹ"); }} style={{ color: "var(--gray-mute)", fontSize: 10.5, textDecoration: "none" }}>See all →</a>
-            </div>
-
-            <div className="s2-company-row">
-              <div className="s2-company-logo" style={{ background: "linear-gradient(135deg,#F5B41A,#C99413)" }}>O</div>
-              <div>
-                <div className="s2-company-name">Optum India <span className="s2-hot-pill">HOT</span></div>
-                <div className="s2-company-meta">Hyderabad · Onsite · 5.5 – 7.0 LPA</div>
-                <div className="s2-company-tags">
-                  <span className="s2-comp-tag">HCC</span>
-                  <span className="s2-comp-tag blue">12 roles</span>
-                </div>
-                <div className="s2-verified-line">92% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="s2-company-row">
-              <div className="s2-company-logo" style={{ background: "linear-gradient(135deg,#1A4FB8,#0F1B3D)" }}>C</div>
-              <div>
-                <div className="s2-company-name">Cognizant</div>
-                <div className="s2-company-meta">Hyderabad · Remote · 5.0 – 7.0 LPA</div>
-                <div className="s2-company-tags">
-                  <span className="s2-comp-tag">Remote</span>
-                  <span className="s2-comp-tag blue">8 roles</span>
-                </div>
-                <div className="s2-verified-line">88% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="s2-company-row">
-              <div className="s2-company-logo" style={{ background: "linear-gradient(135deg,#2E8B57,#1F7A3C)" }}>A</div>
-              <div>
-                <div className="s2-company-name">Access Healthcare</div>
-                <div className="s2-company-meta">Chennai · Hybrid · 6.0 – 8.5 LPA</div>
-                <div className="s2-company-tags">
-                  <span className="s2-comp-tag">Featured</span>
-                  <span className="s2-comp-tag green">CPC</span>
-                  <span className="s2-comp-tag blue">6 roles</span>
-                </div>
-                <div className="s2-verified-line">95% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="s2-company-row">
-              <div className="s2-company-logo" style={{ background: "linear-gradient(135deg,#8E44AD,#6D2C82)" }}>Ω</div>
-              <div>
-                <div className="s2-company-name">Omega Healthcare</div>
-                <div className="s2-company-meta">Bengaluru · Onsite · 4.8 – 6.5 LPA</div>
-                <div className="s2-company-tags">
-                  <span className="s2-comp-tag">E/M</span>
-                  <span className="s2-comp-tag">AR Calling</span>
-                  <span className="s2-comp-tag blue">5 roles</span>
-                </div>
-                <div className="s2-verified-line">90% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="s2-company-row">
-              <div className="s2-company-logo" style={{ background: "linear-gradient(135deg,#E67E22,#C0392B)" }}>R1</div>
-              <div>
-                <div className="s2-company-name">R1 RCM India <span className="s2-hot-pill">HOT</span></div>
-                <div className="s2-company-meta">Hyderabad · Onsite · 4.5 – 6.5 LPA</div>
-                <div className="s2-company-tags">
-                  <span className="s2-comp-tag">Walk-in</span>
-                  <span className="s2-comp-tag green">Immediate</span>
-                  <span className="s2-comp-tag blue">9 roles</span>
-                </div>
-                <div className="s2-verified-line">85% verified-pool hires</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="s2-side-card">
-            <div className="title">Why RCM Hiring Is Hot</div>
-            <div className="s2-hot-grid">
-              <div className="s2-hot-stat">
-                <div className="big">$4.5 T</div>
-                <div className="small">US healthcare market</div>
-              </div>
-              <div className="s2-hot-stat">
-                <div className="big">1.2 L</div>
-                <div className="small">RCM jobs / year in India</div>
-              </div>
-              <div className="s2-hot-stat">
-                <div className="big">+18%</div>
-                <div className="small">YoY salary growth</div>
-              </div>
-              <div className="s2-hot-stat">
-                <div className="big">87%</div>
-                <div className="small">HRs prefer verified</div>
-              </div>
-            </div>
-          </div>
+        <div className="s2-right" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+          <WizardCompanionRail stageNum={2} candidate={candidate} />
         </div>
       </div>
     </div>

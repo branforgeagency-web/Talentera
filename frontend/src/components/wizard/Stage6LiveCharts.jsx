@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 // Standard platforms grouped by category matching the design
 const PLATFORM_CATEGORIES = [
@@ -324,7 +325,7 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
   };
 
   return (
-    <div style={{ maxWidth: 1060, margin: "0 auto", paddingBottom: 60, fontFamily: "var(--font-sans, system-ui, -apple-system, sans-serif)" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", paddingBottom: 60, fontFamily: "var(--font-sans, system-ui, -apple-system, sans-serif)" }}>
       {/* ========================================================================= */}
       {/* 0. BREADCRUMBS                                                           */}
       {/* ========================================================================= */}
@@ -336,10 +337,13 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
         <span style={{ color: "var(--gold, #F59E0B)" }}>STAGE 06 · LIVE CHART</span>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 1. HERO CARD BANNER                                                      */}
-      {/* ========================================================================= */}
-      <div
+      {/* 2-COLUMN MAIN SHELL */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "start" }}>
+        <div style={{ minWidth: 0 }}>
+          {/* ========================================================================= */}
+          {/* 1. HERO CARD BANNER                                                      */}
+          {/* ========================================================================= */}
+          <div
         style={{
           background: "linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 50%, #2563EB 100%)",
           borderRadius: 20,
@@ -1482,6 +1486,13 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
           </div>
         </div>
       </div>
+    </div>
+
+    {/* RIGHT SIDEBAR COMPANION RAIL */}
+    <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+      <WizardCompanionRail stageNum={6} candidate={candidate} />
+    </div>
+  </div>
 
       {/* ========================================================================= */}
       {/* 6. MODALS                                                                */}

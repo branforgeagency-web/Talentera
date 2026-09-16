@@ -4,6 +4,7 @@ import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import AiVideoAssessment from "../AiVideoAssessment.jsx";
 import ClaudeMockInterviewBot from "../ClaudeMockInterviewBot.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 // ══════════════════════════════════════════════════════════════════════════
 // PROFILE-ADAPTIVE 5-QUESTION AI MOCK INTERVIEW SETS
@@ -323,7 +324,17 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
   // Load candidate Stage 5 state
   const stage5 = candidate?.stage5 || existingData || {};
-  const isCompleted = Boolean(stage5 && (stage5.aiScore !== undefined || stage5.score !== undefined || stage5.overallScore !== undefined));
+  // Stage 05 requires BOTH the real, backend-evaluated 60-second
+  // Self-Introduction (stage5.aiScore is only ever set by the validated
+  // /ai-video/assess submission - see AiVideoAssessment.jsx) AND the
+  // 5-question AI Mock Interview (stage5.mockInterviewCompleted, only set
+  // once all 5 questions have been answered - see
+  // finalizeAiInterviewSession in backend/routes/candidate.js). Checking
+  // aiScore alone let a candidate reach "Stage 05 completed" without ever
+  // doing the Mock Interview.
+  const hasRealSelfIntro = Boolean(stage5 && (stage5.aiScore !== undefined || stage5.score !== undefined || stage5.overallScore !== undefined));
+  const hasRealMockInterview = Boolean(stage5?.mockInterviewCompleted);
+  const isCompleted = hasRealSelfIntro && hasRealMockInterview;
   const candidateScore = stage5?.aiScore ?? stage5?.score ?? stage5?.overallScore ?? 78;
 
   // Real candidate profile context from previous stages
@@ -1147,58 +1158,40 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // FINAL STAGE 5 SUBMISSION
   // ══════════════════════════════════════════════════════════════════════════
 
-  const handleSubmitAllVideos = async () => {
-    if (!introVideoUrl && !introVideoBlob) {
-      toast("Please record or upload your 60-second Self-Introduction first (Section 2).", "!");
+  // NOTE: this does NOT independently score or submit anything. Both the
+  // Self-Introduction (via AiVideoAssessment -> POST /ai-video/assess) and
+  // the AI Mock Interview (via ClaudeMockInterviewBot -> the /ai-interview/*
+  // endpoints) already save their own real, AI-evaluated results directly
+  // to the backend the moment each one completes. This handler only
+  // verifies both are genuinely done and advances the wizard - it used to
+  // also PUT a block of hardcoded fake scores (78%, Clarity 82, etc.) to
+  // /candidate/stage/5, which would silently overwrite the real evaluation
+  // with fabricated numbers, and only checked that a video existed (not
+  // that the Mock Interview had even been attempted). That made it possible
+  // to reach "Stage 05 completed" from an unvalidated video with zero
+  // keyword-matched interview answers.
+  const handleSubmitAllVideos = async (advance = true) => {
+    if (!hasRealSelfIntro) {
+      toast("Please complete your 60-second Self-Introduction first (Section 2).", "!");
       const el = document.getElementById("stage5-intro-section");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    // Advancing to Stage 06 requires BOTH parts done for real; "save &
+    // finish later" is just a checkpoint (each real sub-flow already
+    // persisted its own result the moment it completed), so it doesn't
+    // need to block on the Mock Interview too.
+    if (advance && !hasRealMockInterview) {
+      toast("Please complete all 5 questions of the AI Mock Interview first (Section 3).", "!");
       return;
     }
 
     setIsSubmittingStage5(true);
     try {
-      const overallScore = 78;
-      const payload = {
-        aiScore: overallScore,
-        score: overallScore,
-        overallScore,
-        clarityScore: 82,
-        fluencyScore: 75,
-        vocabScore: 80,
-        confidenceScore: 70,
-        contentScore: 82,
-        medal: "Silver",
-        verified: true,
-        isLiveVerified: introMode === "live",
-        faceMatched: true,
-        verificationType: introMode === "live" ? "Live Verified" : "Uploaded",
-        introVideoUrl: introVideoUrl || "stage5_intro_live.webm",
-        videoUrl: introVideoUrl || "stage5_intro_live.webm",
-        mockInterviewVideoUrl: "stage5_mock_interview.webm",
-        passionVideoUrl: passionVideoUrl || null,
-        passionScore: passionScore || null,
-        regionalVideoUrl: regionalVideoUrl || null,
-        regionalLanguage: regionalVideoUrl ? selectedRegionalLang : null,
-        dimensions: [
-          { name: "Clarity", icon: "🎙", score: 82, benchmark: 75, status: "strong" },
-          { name: "Fluency", icon: "🌊", score: 75, benchmark: 75, status: "strong" },
-          { name: "Vocab & Grammar", icon: "📚", score: 80, benchmark: 75, status: "strong" },
-          { name: "Confidence & Delivery", icon: "💪", score: 70, benchmark: 75, status: "weak" },
-          { name: "Content Relevance", icon: "🎯", score: 82, benchmark: 75, status: "strong" },
-        ],
-        answers: mockAnswers,
-        submittedAt: new Date().toISOString(),
-      };
-
-      const res = await api.put("/candidate/stage/5", payload);
-      toast("Stage 05 Video Pitch Completed! AI Score: 78% (Silver Medal) · +10 Points Earned 🚀", "✓");
-
+      toast(advance ? "Stage 05 Completed! Moving to Stage 06 →" : "✓ Stage 05 progress saved.", "✓");
       if (onSaved) {
-        onSaved(res.data, { advance: false });
+        onSaved(existingData, { advance, nextStage: advance ? 6 : null });
       }
-    } catch (err) {
-      console.error(err);
-      toast(err.response?.data?.message || "Failed to submit Video Pitch. Please try again.", "!");
     } finally {
       setIsSubmittingStage5(false);
     }
@@ -1283,8 +1276,19 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
         </div>
         <ClaudeMockInterviewBot
           candidateData={candidate}
-          onCompleted={(result) => {
-            if (onSaved) onSaved(result, { advance: false });
+          onCompleted={async (result) => {
+            // The /ai-interview/turn|end responses that ClaudeMockInterviewBot
+            // acts on don't include the updated candidate document (only
+            // {score}), so without this refetch the parent's candidate state
+            // never learns stage5.mockInterviewCompleted became true and the
+            // "both parts done" gate below would never pass. Re-fetching
+            // /candidate/me picks up the real, already-persisted result.
+            try {
+              const res = await api.get("/candidate/me");
+              if (onSaved) onSaved(res.data, { advance: false });
+            } catch (e) {
+              if (onSaved) onSaved(result, { advance: false });
+            }
             setMode("overview");
             toast("AI Mock Interview completed & evaluated!", "✓");
           }}
@@ -1719,9 +1723,21 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
             <div style={{ background: "var(--navy)", borderRadius: 14, padding: 20, color: "#FFFFFF", position: "relative", overflow: "hidden" }}>
               <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+                {/*
+                  Both tabs open the real, validated AiVideoAssessment flow
+                  (mode="record_intro"), which enforces the 60-second
+                  minimum for BOTH live recording and file upload server-side
+                  and client-side. These used to toggle a local `introMode`
+                  that rendered this component's own inline recording UI
+                  ("live") or a raw file-upload input ("upload") - neither
+                  path ever checked video duration, so a candidate could
+                  upload a video of any length here and have it silently
+                  count as a completed Self-Introduction. Routing both
+                  through handleStartIntroRecording closes that gap.
+                */}
                 <button
                   type="button"
-                  onClick={() => setIntroMode("live")}
+                  onClick={handleStartIntroRecording}
                   style={{
                     background: introMode === "live" ? "var(--gold)" : "rgba(255,255,255,.08)",
                     color: introMode === "live" ? "var(--navy)" : "#FFFFFF",
@@ -1740,7 +1756,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIntroMode("upload")}
+                  onClick={handleStartIntroRecording}
                   style={{
                     background: introMode === "upload" ? "var(--gold)" : "rgba(255,255,255,.08)",
                     color: introMode === "upload" ? "var(--navy)" : "#FFFFFF",
@@ -1755,7 +1771,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     gap: 8,
                   }}
                 >
-                  ☁ Upload Pre-recorded · 🟡 Uploaded
+                  ☁ Upload Pre-recorded (60s min, verified on submit)
                 </button>
                 <button
                   type="button"
@@ -2457,212 +2473,115 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </div>
             </div>
 
-            {/* ACTION BUTTONS */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, alignItems: "center" }}>
-              {isCompleted ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setShowRetakeModal(true)}
-                    style={{
-                      background: "transparent",
-                      color: "var(--gray-txt)",
-                      padding: "11px 20px",
-                      borderRadius: 10,
-                      fontSize: 13,
-                      fontWeight: 700,
-                      border: "1.5px solid #E5E7EB",
-                      cursor: "pointer",
-                    }}
-                  >
-                    🔁 Request Retake for Stage 05
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleContinueToStage6}
-                    style={{
-                      background: "var(--gold)",
-                      color: "var(--navy)",
-                      padding: "11px 24px",
-                      borderRadius: 10,
-                      fontSize: 13,
-                      fontWeight: 800,
-                      border: "none",
-                      cursor: "pointer",
-                      letterSpacing: 0.3,
-                      boxShadow: "0 4px 12px rgba(245,180,26,.35)",
-                    }}
-                  >
-                    Continue to Stage 06 · Live Chart →
-                  </button>
-                </>
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleSubmitAllVideos}
-                  disabled={isSubmittingStage5}
-                  style={{
-                    background: "var(--gold)",
-                    color: "var(--navy)",
-                    padding: "14px 32px",
-                    borderRadius: 12,
-                    fontSize: 15,
-                    fontWeight: 800,
-                    border: "none",
-                    cursor: "pointer",
-                    letterSpacing: 0.5,
-                    boxShadow: "0 6px 16px rgba(245,180,26,.35)",
-                  }}
-                >
-                  {isSubmittingStage5 ? "Evaluating & Submitting..." : "Submit Videos & Complete Stage 05 🚀"}
-                </button>
-              )}
+            {/* ACTION BOTTOM BAR */}
+            <div
+              style={{
+                background: "#FFFFFF",
+                padding: "16px 24px",
+                border: "1px solid #E2E8F0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 32,
+                marginBottom: 40,
+                borderRadius: 12,
+                boxShadow: "0 4px 16px rgba(15,27,61,.04)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "12.5px", color: "#64748B" }}>
+                <div style={{ height: 8, width: 180, background: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: isCompleted ? "100%" : "65%", background: "linear-gradient(90deg, #F5B41A, #D97706)", borderRadius: 4 }}></div>
+                </div>
+                <div><b>65 / 100</b> · Stage 05 {isCompleted ? "completed" : "in progress"}</div>
+              </div>
+
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                {isCompleted ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowRetakeModal(true)}
+                      style={{
+                        background: "transparent",
+                        color: "var(--gray-txt)",
+                        padding: "11px 20px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        border: "1.5px solid #E5E7EB",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🔁 Request Retake for Stage 05
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleContinueToStage6}
+                      style={{
+                        background: "var(--gold)",
+                        color: "var(--navy)",
+                        padding: "11px 24px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: "none",
+                        cursor: "pointer",
+                        letterSpacing: 0.3,
+                        boxShadow: "0 4px 12px rgba(245,180,26,.35)",
+                      }}
+                    >
+                      Save &amp; continue to Stage 06 →
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitAllVideos(false)}
+                      disabled={isSubmittingStage5}
+                      style={{
+                        background: "transparent",
+                        color: "var(--gray-txt)",
+                        padding: "11px 20px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        border: "1.5px solid #E5E7EB",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Save &amp; finish later
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSubmitAllVideos(true)}
+                      disabled={isSubmittingStage5}
+                      style={{
+                        background: "var(--gold)",
+                        color: "var(--navy)",
+                        padding: "11px 24px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: "none",
+                        cursor: "pointer",
+                        letterSpacing: 0.3,
+                        boxShadow: "0 4px 12px rgba(245,180,26,.35)",
+                      }}
+                    >
+                      {isSubmittingStage5 ? "Saving…" : "Save & continue to Stage 06 →"}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
         </div>
 
         {/* ═══════ RIGHT COLUMN ═══════ */}
-        <div style={{ minWidth: 0 }}>
-
-          {/* PASSPORT SUMMARY CARD */}
-          <div
-            style={{
-              background: "linear-gradient(135deg, var(--navy), #1E3A8A)",
-              color: "#FFFFFF",
-              padding: 20,
-              borderRadius: 14,
-              marginBottom: 16,
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                position: "absolute",
-                right: -30,
-                bottom: -30,
-                width: 120,
-                height: 120,
-                background: "radial-gradient(circle, rgba(245,180,26,.18), transparent 60%)",
-              }}
-            />
-            <div style={{ color: "var(--gold)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>
-              CAREER PASSPORT
-            </div>
-            <div style={{ fontSize: 17, fontWeight: 800, marginTop: 4 }}>
-              {isCompleted ? "90/100 · 3 stages to go" : "80/100 · 4 stages to go"}
-            </div>
-            <div style={{ background: "rgba(245,180,26,.14)", color: "var(--gold)", padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700, marginTop: 12, display: "inline-block" }}>
-              🎤 Stage 05 · {isCompleted ? "Completed ✓" : "Video Pitch active"}
-            </div>
-            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,.75)", marginTop: 10, lineHeight: 1.5 }}>
-              US-payer roles filter heavily on communication. A Silver or Gold Video Pitch opens 3× more shortlists than the average fresher on Naukri or Foundit.
-            </div>
-          </div>
-
-          {/* HIRING RIGHT NOW */}
-          <div style={{ background: "#FFFFFF", padding: "16px 18px", borderRadius: 12, marginBottom: 14, border: "1px solid #E5E7EB" }}>
-            <div style={{ fontSize: 11, letterSpacing: 1.5, color: "var(--gold-deep)", textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>
-              Hiring Right Now
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: 10, padding: "10px 0", borderBottom: "1px dashed #E5E7EB", alignItems: "center" }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15, color: "#FFFFFF", background: "linear-gradient(135deg,#F5B41A,#C99413)" }}>
-                O
-              </div>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)", display: "flex", alignItems: "center", gap: 5 }}>
-                  Optum India <span style={{ background: "#C0392B", color: "#FFFFFF", padding: "1px 6px", borderRadius: 6, fontSize: 8.5, letterSpacing: 0.5, fontWeight: 800 }}>HOT</span>
-                </div>
-                <div style={{ fontSize: 10.5, color: "#8A91A3", marginTop: 1 }}>Hyderabad · Onsite · 5.5 – 7.0 LPA</div>
-                <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
-                  <span style={{ background: "#FFF6E0", color: "var(--gold-deep)", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>HCC</span>
-                  <span style={{ background: "#E8F5E9", color: "#1F7A3C", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Video ≥ 75</span>
-                </div>
-                <div style={{ fontSize: 10, color: "#1F7A3C", marginTop: 4, fontWeight: 700 }}>
-                  Video score ≥ 75 required · you qualify at 78 ✓
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: 10, padding: "10px 0", borderBottom: "1px dashed #E5E7EB", alignItems: "center" }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15, color: "#FFFFFF", background: "linear-gradient(135deg,#2E8B57,#1F7A3C)" }}>
-                A
-              </div>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>Access Healthcare</div>
-                <div style={{ fontSize: 10.5, color: "#8A91A3", marginTop: 1 }}>Chennai · Hybrid · 6.0 – 8.5 LPA</div>
-                <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
-                  <span style={{ background: "#FFF6E0", color: "var(--gold-deep)", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Featured</span>
-                  <span style={{ background: "#E8F5E9", color: "#1F7A3C", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Live Verified only</span>
-                </div>
-                <div style={{ fontSize: 10, color: "#1F7A3C", marginTop: 4, fontWeight: 700 }}>
-                  Live Verified required · you qualify ✓
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: 10, padding: "10px 0", borderBottom: "1px dashed #E5E7EB", alignItems: "center" }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15, color: "#FFFFFF", background: "linear-gradient(135deg,#1A4FB8,#0F1B3D)" }}>
-                C
-              </div>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>Cognizant · AR Team</div>
-                <div style={{ fontSize: 10.5, color: "#8A91A3", marginTop: 1 }}>Hyderabad · Remote · 5.0 – 7.0 LPA</div>
-                <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
-                  <span style={{ background: "#FFF6E0", color: "var(--gold-deep)", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Remote</span>
-                  <span style={{ background: "#E8F5E9", color: "#1F7A3C", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Clarity ≥ 80</span>
-                </div>
-                <div style={{ fontSize: 10, color: "#1F7A3C", marginTop: 4, fontWeight: 700 }}>
-                  Clarity ≥ 80 required · you qualify at 82 ✓
-                </div>
-              </div>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "38px 1fr", gap: 10, padding: "10px 0", alignItems: "center" }}>
-              <div style={{ width: 38, height: 38, borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15, color: "#FFFFFF", background: "linear-gradient(135deg,#8E44AD,#6D2C82)" }}>
-                Ω
-              </div>
-              <div>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>Omega · US Night Shift</div>
-                <div style={{ fontSize: 10.5, color: "#8A91A3", marginTop: 1 }}>Bengaluru · Onsite · 5.5 – 7.5 LPA</div>
-                <div style={{ display: "flex", gap: 4, marginTop: 5, flexWrap: "wrap" }}>
-                  <span style={{ background: "#FFF6E0", color: "var(--gold-deep)", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Night</span>
-                  <span style={{ background: "#E8F5E9", color: "#1F7A3C", fontSize: 9.5, padding: "1px 6px", borderRadius: 5, fontWeight: 700 }}>Confidence ≥ 75</span>
-                </div>
-                <div style={{ fontSize: 10, color: "#E08E00", marginTop: 4, fontWeight: 700 }}>
-                  Confidence gap: 70 vs 75 · re-record to unlock
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* WHY VIDEO PITCH MATTERS */}
-          <div style={{ background: "#FFFFFF", padding: "16px 18px", borderRadius: 12, border: "1px solid #E5E7EB", marginBottom: 14 }}>
-            <div style={{ fontSize: 11, letterSpacing: 1.5, color: "var(--gold-deep)", textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>
-              Why Video Pitch Matters
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div style={{ background: "#FFF6E0", padding: 12, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>89%</div>
-                <div style={{ fontSize: 10, color: "var(--gray-txt)", marginTop: 2 }}>HRs watch before shortlist</div>
-              </div>
-              <div style={{ background: "#FFF6E0", padding: 12, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>3×</div>
-                <div style={{ fontSize: 10, color: "var(--gray-txt)", marginTop: 2 }}>shortlists for Silver+</div>
-              </div>
-              <div style={{ background: "#FFF6E0", padding: 12, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>+₹60k</div>
-                <div style={{ fontSize: 10, color: "var(--gray-txt)", marginTop: 2 }}>CTC uplift · Gold vs Bronze</div>
-              </div>
-              <div style={{ background: "#FFF6E0", padding: 12, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>5</div>
-                <div style={{ fontSize: 10, color: "var(--gray-txt)", marginTop: 2 }}>AI scoring dimensions</div>
-              </div>
-            </div>
-          </div>
-
+        <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto", minWidth: 0 }}>
+          <WizardCompanionRail stageNum={5} candidate={candidate} isCompleted={isCompleted} />
         </div>
 
       </div>

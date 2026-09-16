@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 // ══════════════════════════════════════════════════════════════════════════
 // 10-QUESTION BANK (4 Universal Sections x 2 Qs + 4 Profile-Adaptive Sets x 2 Qs)
@@ -2200,127 +2201,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         </div>
 
         {/* ═══════ RIGHT SIDEBAR ═══════ */}
-        <div style={{ position: "sticky", top: 20 }}>
-          {/* PASSPORT CARD */}
-          <div
-            style={{
-              background: "linear-gradient(135deg, var(--navy), #1E3A8A)",
-              color: "#FFFFFF",
-              padding: 20,
-              borderRadius: 14,
-              marginBottom: 16,
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <div style={{ color: "var(--gold)", fontSize: 9.5, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase" }}>
-              CAREER PASSPORT
-            </div>
-            <div style={{ fontSize: 17, fontWeight: 800, marginTop: 4 }}>
-              Passport Score · {candidate?.score || candidateScore || 0}/100
-            </div>
-            <div style={{ background: "rgba(245,180,26,0.14)", color: "var(--gold)", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700, marginTop: 10, display: "inline-block" }}>
-              🧪 Stage 04 · Assessment {isCompleted ? "Complete (+25)" : "Active"}
-            </div>
-            <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.75)", marginTop: 10, lineHeight: 1.5 }}>
-              This is the biggest single-stage points jump (+25 pts). A Silver or Gold Assessment score puts you in the top 20% of candidates on every company search.
-            </div>
-          </div>
-
-          {/* HIRING REQUIREMENTS CARD */}
-          <div style={{ background: "#FFFFFF", padding: "16px 18px", borderRadius: 12, marginBottom: 14, border: "1px solid #E5E7EB" }}>
-            <div style={{ fontSize: 11, letterSpacing: "1.5px", color: "#C99413", textTransform: "uppercase", fontWeight: 700, marginBottom: 10, display: "flex", justifyContent: "space-between" }}>
-              <span>Hiring Requirements</span>
-              <span style={{ color: "#8A91A3", fontSize: 10.5, cursor: "pointer" }}>Overview</span>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 10, paddingBottom: 10, borderBottom: "1px dashed #E5E7EB", alignItems: "center" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, #F5B41A, #C99413)", color: "#FFFFFF", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                  O
-                </div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)", display: "flex", alignItems: "center", gap: 5 }}>
-                    Optum India <span style={{ background: "#C0392B", color: "#FFFFFF", padding: "1px 5px", borderRadius: 4, fontSize: 8.5, fontWeight: 800 }}>HOT</span>
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "#8A91A3" }}>Medical Coder · Onsite</div>
-                  <div style={{ fontSize: 10, color: isCompleted ? (candidateScore >= 70 ? "#1F7A3C" : "#E08E00") : "#8A91A3", marginTop: 3, fontWeight: 700 }}>
-                    Min Assessment 70 required · {isCompleted ? (candidateScore >= 70 ? "you qualify ✓" : `gap of ${70 - candidateScore} pts`) : "Take test to qualify"}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 10, paddingBottom: 10, borderBottom: "1px dashed #E5E7EB", alignItems: "center" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, #2E8B57, #1F7A3C)", color: "#FFFFFF", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                  A
-                </div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>
-                    Access Healthcare
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "#8A91A3" }}>RCM Specialist · Hybrid</div>
-                  <div style={{ fontSize: 10, color: isCompleted ? (candidateScore >= 80 ? "#1F7A3C" : "#E08E00") : "#8A91A3", marginTop: 3, fontWeight: 700 }}>
-                    Min 80 required · {isCompleted ? (candidateScore >= 80 ? "you qualify ✓" : `gap of ${80 - candidateScore} pts`) : "Take test to qualify"}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 10, paddingBottom: 10, borderBottom: "1px dashed #E5E7EB", alignItems: "center" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, #1A4FB8, #0F1B3D)", color: "#FFFFFF", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                  C
-                </div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>
-                    Cognizant
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "#8A91A3" }}>Medical Billing · Remote</div>
-                  <div style={{ fontSize: 10, color: isCompleted ? (candidateScore >= 65 ? "#1F7A3C" : "#E08E00") : "#8A91A3", marginTop: 3, fontWeight: 700 }}>
-                    Min 65 required · {isCompleted ? (candidateScore >= 65 ? "you qualify ✓" : `gap of ${65 - candidateScore} pts`) : "Take test to qualify"}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 10, alignItems: "center" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: "linear-gradient(135deg, #8E44AD, #6D2C82)", color: "#FFFFFF", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                  Ω
-                </div>
-                <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--navy)" }}>
-                    Omega Healthcare
-                  </div>
-                  <div style={{ fontSize: 10.5, color: "#8A91A3" }}>Coding Associate · Onsite</div>
-                  <div style={{ fontSize: 10, color: isCompleted ? (candidateScore >= 60 ? "#1F7A3C" : "#E08E00") : "#8A91A3", marginTop: 3, fontWeight: 700 }}>
-                    Min 60 required · {isCompleted ? (candidateScore >= 60 ? "you qualify ✓" : `gap of ${60 - candidateScore} pts`) : "Take test to qualify"}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* WHY ASSESSMENT MATTERS */}
-          <div style={{ background: "#FFFFFF", padding: "16px 18px", borderRadius: 12, border: "1px solid #E5E7EB" }}>
-            <div style={{ fontSize: 11, letterSpacing: "1.5px", color: "#C99413", textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>
-              Why Assessment Matters
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-              <div style={{ background: "#FFF6E0", padding: 10, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)" }}>72%</div>
-                <div style={{ fontSize: 10, color: "#3A425A", marginTop: 2 }}>HRs filter min score</div>
-              </div>
-              <div style={{ background: "#FFF6E0", padding: 10, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)" }}>3×</div>
-                <div style={{ fontSize: 10, color: "#3A425A", marginTop: 2 }}>callback for Silver+</div>
-              </div>
-              <div style={{ background: "#FFF6E0", padding: 10, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)" }}>+₹80k</div>
-                <div style={{ fontSize: 10, color: "#3A425A", marginTop: 2 }}>avg CTC Gold</div>
-              </div>
-              <div style={{ background: "#FFF6E0", padding: 10, borderRadius: 10, textAlign: "center" }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)" }}>15</div>
-                <div style={{ fontSize: 10, color: "#3A425A", marginTop: 2 }}>anti-cheat layers</div>
-              </div>
-            </div>
-          </div>
+        <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+          <WizardCompanionRail stageNum={4} candidate={candidate} score={candidateScore} isCompleted={isCompleted} />
         </div>
 
       </div>

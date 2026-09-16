@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 // 6 Verified Resume Templates matching the design
 const RESUME_TEMPLATES = [
@@ -466,7 +467,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     <div className="stage7-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
       <style>{`
         .stage7-root * { box-sizing: border-box; }
-        .s7-shell { display: grid; grid-template-columns: 1fr 320px; gap: 24px; min-width: 0; }
+        .s7-shell { display: grid; grid-template-columns: 1fr 320px; gap: 24px; min-width: 0; align-items: start; }
         @media (max-width: 1100px) { .s7-shell { grid-template-columns: 1fr; } }
         
         .s7-hero {
@@ -1450,71 +1451,41 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           </div>
 
           {/* Navigation Bottom Actions */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, marginBottom: 40 }}>
-            <button type="button" onClick={() => setShowFullPreviewModal(true)} className="s7-link-btn">
-              Preview full page
-            </button>
-            <button type="button" onClick={() => handleSaveAndAdvance(false)} disabled={saving} className="s7-link-btn">
-              Save &amp; finish later
-            </button>
-            <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
-              {saving ? "Saving..." : "Continue to Stage 08 · Career Passport →"}
-            </button>
+          <div style={{
+            background: "#FFFFFF",
+            padding: "16px 24px",
+            border: "1px solid #E2E8F0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 32,
+            marginBottom: 40,
+            borderRadius: 12,
+            boxShadow: "0 4px 16px rgba(15,27,61,.04)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "12.5px", color: "#64748B" }}>
+              <div style={{ height: 8, width: 180, background: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: "85%", background: "linear-gradient(90deg, #F5B41A, #D97706)", borderRadius: 4 }}></div>
+              </div>
+              <div><b>85 / 100</b> · Stage 07 in progress</div>
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button type="button" onClick={() => setShowFullPreviewModal(true)} className="s7-link-btn">
+                Preview full page
+              </button>
+              <button type="button" onClick={() => handleSaveAndAdvance(false)} disabled={saving} className="s7-link-btn">
+                Save &amp; finish later
+              </button>
+              <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
+                {saving ? "Saving..." : "Continue to Stage 08 · Career Passport →"}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Right Companion Rail */}
-        <div className="s7-right-rail">
-          {/* Career Passport Ready Card */}
-          <div className="s7-passport-card">
-            <div className="s7-passport-eyebrow">CAREER PASSPORT</div>
-            <div className="s7-passport-title">🏆 {totalPoints} / 100</div>
-            <div className="s7-passport-status">{totalPoints >= 75 ? "✓ Ready to Activate" : "In Progress"}</div>
-            <div className="s7-passport-desc">
-              You've completed the proof stages. Stage 07 (Resume) is auto-built. Stage 08 (Career Passport) is one click away — that's when you go LIVE and companies start finding you.
-            </div>
-          </div>
-
-          {/* Live Matched Companies */}
-          <div className="s7-side-card">
-            <div className="title">Active Hiring Partners ({liveCompanies.length})</div>
-
-            {liveCompanies.length > 0 ? (
-              liveCompanies.slice(0, 4).map((comp, cIdx) => (
-                <div key={comp.id || cIdx} className="s7-company-row">
-                  <div className={`s7-company-logo s7-clr-${(cIdx % 4) + 1}`}>
-                    {(comp.name || comp.companyName || "C")[0]}
-                  </div>
-                  <div>
-                    <div className="s7-company-name">
-                      {comp.name || comp.companyName} {comp.isHot && <span className="s7-hot-pill">HOT</span>}
-                    </div>
-                    <div className="s7-company-meta">{comp.location || "India"} · {comp.workMode || "Onsite"} · {comp.salary || "Competitive Band"}</div>
-                    <div className="s7-company-tags">
-                      <span className="s7-comp-tag green">{totalPoints}/100 ✓</span>
-                      <span className="s7-comp-tag blue">{comp.openRoles ? `${comp.openRoles} roles` : "Active"}</span>
-                    </div>
-                    <div className="s7-verified-line">{comp.note || "Verified hiring partner"}</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: "16px 8px", textAlign: "center", color: "#8A91A3", fontSize: "12px", fontStyle: "italic" }}>
-                Connected to Talentera verified employer network.
-              </div>
-            )}
-          </div>
-
-          {/* Why Verified Resume Wins */}
-          <div className="s7-side-card">
-            <div className="title">Why Verified Resume Wins</div>
-            <div className="s7-hot-grid">
-              <div className="s7-hot-stat"><div className="big">3×</div><div className="small">shortlists via Live URL</div></div>
-              <div className="s7-hot-stat"><div className="big">Zero</div><div className="small">fake claims possible</div></div>
-              <div className="s7-hot-stat"><div className="big">6 formats</div><div className="small">templates auto-picked</div></div>
-              <div className="s7-hot-stat"><div className="big">Live</div><div className="small">always current</div></div>
-            </div>
-          </div>
+        <div className="s7-right-rail" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+          <WizardCompanionRail stageNum={7} candidate={candidate} />
         </div>
       </div>
 

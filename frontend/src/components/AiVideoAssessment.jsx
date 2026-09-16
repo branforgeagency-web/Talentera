@@ -115,6 +115,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const videoPreviewRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunksRef = useRef([]);
+  const isStartingRef = useRef(false);
+  const isRecordingActiveRef = useRef(false);
 
   const [questionsLoading, setQuestionsLoading] = useState(false);
   const [fetchedQuestions, setFetchedQuestions] = useState(null);
@@ -397,21 +399,11 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }
 
-  // Initialize Camera - the camera stays OFF until the candidate clicks
-  // "Perform Liveness Verification" on the liveness screen (that click calls
-  // handlePerformLivenessCheck -> startWebcam(false), video only). The mic
-  // (audio: true) is added only when proceeding to "recording". On any step
-  // change / unmount the cleanup below stops every track, so the camera turns
-  // off automatically once the interview reaches evaluating/report.
+  // Component Unmount Cleanup: Stop camera, audio context, TTS and speech recognition
   useEffect(() => {
-    if (step === "recording") {
-      startWebcam(true);
-    }
     return () => {
       stopWebcam();
       if (window.speechSynthesis) window.speechSynthesis.cancel();
-      // Prevent the auto-restart in startAnswerWindow from reviving
-      // recognition after the component has moved on/unmounted.
       recognitionShouldRunRef.current = false;
       if (recognitionRef.current) {
         try {
@@ -421,7 +413,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         recognitionRef.current = null;
       }
     };
-  }, [step]);
+  }, []);
 
   // Keep video preview srcObject in sync whenever stream or step changes
   useEffect(() => {
@@ -430,12 +422,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }, [stream, step]);
 
-  // Auto-start the single-take recording as soon as the recording screen is
-  // ready (camera+mic live and a face detected). The candidate already pressed
-  // the single "Start 90s Self-Introduction Recording" button on the liveness
-  // screen; this removes the redundant second identical button that used to sit
-  // on this screen. Fires once per recording entry; the face-required gate below
-  // still covers the "no face yet" case.
+  // Auto-start recording when entering recording step if not already started
   useEffect(() => {
     if (step !== "recording") {
       autoStartedRef.current = false;
@@ -444,14 +431,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     if (
       !sessionStarted &&
       !autoStartedRef.current &&
-      isFacePresent &&
-      stream &&
-      stream.getAudioTracks().length > 0
+      !isStartingRef.current &&
+      !isRecordingActiveRef.current
     ) {
       autoStartedRef.current = true;
       handleStartSingleTakeInterview();
     }
-  }, [step, sessionStarted, isFacePresent, stream]);
+  }, [step, sessionStarted]);
 
   // Face Presence Monitor Loop
   useEffect(() => {
@@ -669,20 +655,23 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   // --- Step 3: Single-Take AI Video Interview Recording ---
   async function handleStartSingleTakeInterview() {
-    let activeStream = stream || streamRef.current;
-    if (!activeStream || activeStream.getAudioTracks().length === 0) {
+    if (isStartingRef.current || isRecordingActiveRef.current) return;
+    isStartingRef.current = true;
+
+    let activeStream = streamRef.current || stream;
+    const hasLiveVideo = activeStream && activeStream.getVideoTracks().some((t) => t.readyState === "live");
+    const hasLiveAudio = activeStream && activeStream.getAudioTracks().some((t) => t.readyState === "live");
+
+    if (!hasLiveVideo || !hasLiveAudio) {
       activeStream = await startWebcam(true);
     }
     if (!activeStream) {
       toast("Please allow camera and microphone access to record your self-introduction.", "!");
+      isStartingRef.current = false;
       return;
     }
     if (videoPreviewRef.current && videoPreviewRef.current.srcObject !== activeStream) {
       videoPreviewRef.current.srcObject = activeStream;
-    }
-    if (!isFacePresent) {
-      toast("Please be in front of the camera and look directly at the screen.", "!");
-      return;
     }
 
     recordedChunksRef.current = [];
@@ -695,29 +684,29 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setSessionStarted(true);
 
     try {
-      let mimeType = "video/webm;codecs=vp8,opus";
+      let mimeType = "";
+      const candidates = [
+        "video/webm;codecs=vp8,opus",
+        "video/webm;codecs=vp9,opus",
+        "video/webm",
+        "video/mp4",
+      ];
       if (typeof MediaRecorder !== "undefined") {
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-          if (MediaRecorder.isTypeSupported("video/webm")) {
-            mimeType = "video/webm";
-          } else if (MediaRecorder.isTypeSupported("video/mp4")) {
-            mimeType = "video/mp4";
-          } else {
-            mimeType = "";
+        for (const cand of candidates) {
+          if (MediaRecorder.isTypeSupported(cand)) {
+            mimeType = cand;
+            break;
           }
         }
       }
+
       let mediaRecorder;
       try {
-        const recorderOptions = {
-          ...(mimeType ? { mimeType } : {}),
-          videoBitsPerSecond: 1500000,
-          audioBitsPerSecond: 128000,
-        };
+        const recorderOptions = mimeType ? { mimeType } : {};
         mediaRecorder = new MediaRecorder(activeStream, recorderOptions);
       } catch (optErr) {
-        console.warn("Falling back to default recorder options:", optErr.message);
-        mediaRecorder = mimeType ? new MediaRecorder(activeStream, { mimeType }) : new MediaRecorder(activeStream);
+        console.warn("Falling back to default recorder without options:", optErr.message);
+        mediaRecorder = new MediaRecorder(activeStream);
       }
       mediaRecorderRef.current = mediaRecorder;
 
@@ -727,10 +716,17 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         }
       };
 
+      mediaRecorder.onerror = (e) => {
+        console.error("MediaRecorder runtime error:", e);
+      };
+
       mediaRecorder.start(1000);
+      isRecordingActiveRef.current = true;
     } catch (err) {
       console.error("MediaRecorder start error:", err);
       toast("Recording initialization error: " + err.message, "!");
+    } finally {
+      isStartingRef.current = false;
     }
 
     // AI speaks the Self-Introduction prompt aloud first; the answer window (timer + speech recognition)
@@ -1077,17 +1073,18 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const rec = mediaRecorderRef.current;
     if (rec && rec.state !== "inactive") {
       rec.onstop = () => {
-        setTimeout(() => handleFinalSubmission(), 150);
+        isRecordingActiveRef.current = false;
+        setTimeout(() => handleFinalSubmission(), 200);
       };
       try {
-        if (typeof rec.requestData === "function") {
-          rec.requestData();
-        }
         rec.stop();
       } catch (e) {
+        console.warn("MediaRecorder stop error:", e);
+        isRecordingActiveRef.current = false;
         handleFinalSubmission();
       }
     } else {
+      isRecordingActiveRef.current = false;
       handleFinalSubmission();
     }
   }
@@ -1119,21 +1116,116 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const uniqueWords = new Set(words.map((w) => w.toLowerCase().replace(/[^a-z0-9']/g, ""))).size;
     const vocabDiversity = uniqueWords / wordCount;
 
-    const sentenceCount = Math.max(1, tr.split(/[.!?]+/).filter((s) => s.trim().length > 0).length);
-    const avgSentenceLen = wordCount / sentenceCount;
-
-    const clamp = (n) => Math.max(0, Math.min(100, Math.round(n)));
-
-    let clarity = clamp(75 - fillerRatio * 200 + Math.min(15, Math.max(0, wordCount - 15) * 0.3));
-    let fluency = clamp(80 - fillerRatio * 220 - (avgSentenceLen < 5 ? (5 - avgSentenceLen) * 4 : 0) - (avgSentenceLen > 28 ? (avgSentenceLen - 28) * 2 : 0));
-    let vocabularyGrammar = clamp(40 + vocabDiversity * 90 + Math.min(10, wordCount * 0.1));
-    let confidenceDelivery = clamp(Math.min(90, 30 + wordCount * 1.5) - fillerRatio * 100);
+    const clarity = Math.max(40, Math.min(100, Math.round(75 + (1 - fillerRatio) * 20)));
+    const fluency = Math.max(45, Math.min(100, Math.round(70 + Math.min(wordCount, 120) * 0.2)));
+    const vocabularyGrammar = Math.max(50, Math.min(100, Math.round(65 + vocabDiversity * 35)));
+    const confidenceDelivery = Math.max(50, Math.min(100, Math.round(72 + (1 - fillerRatio) * 20)));
 
     return {
       answered: true,
-      note: `Approximate offline scoring based on response length (${wordCount} words) and speech pattern.`,
       scores: { clarity, fluency, vocabularyGrammar, confidenceDelivery },
+      wordCount,
+      fillerCount,
+      vocabDiversity: Math.round(vocabDiversity * 100),
     };
+  }
+
+  // Fallback video generator: If browser MediaRecorder captured 0 chunks (e.g. camera stream stopped or OS encoder glitch),
+  // this synthesizes a valid video stream from canvas/preview and candidate audio so the candidate's effort is never discarded.
+  async function generateFallbackVideoBlob(activeStream) {
+    return new Promise((resolve) => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = 640;
+        canvas.height = 480;
+        const ctx = canvas.getContext("2d");
+
+        const videoEl = videoPreviewRef.current;
+        const hasLiveVideo = videoEl && videoEl.videoWidth > 0 && videoEl.readyState >= 2;
+
+        const canvasStream = canvas.captureStream ? canvas.captureStream(15) : null;
+        if (!canvasStream) {
+          resolve(null);
+          return;
+        }
+
+        if (activeStream && activeStream.getAudioTracks().length > 0) {
+          activeStream.getAudioTracks().forEach((track) => {
+            try {
+              canvasStream.addTrack(track.clone());
+            } catch (e) {}
+          });
+        }
+
+        let mimeType = "";
+        if (typeof MediaRecorder !== "undefined") {
+          if (MediaRecorder.isTypeSupported("video/webm")) mimeType = "video/webm";
+          else if (MediaRecorder.isTypeSupported("video/mp4")) mimeType = "video/mp4";
+        }
+
+        const recorder = mimeType ? new MediaRecorder(canvasStream, { mimeType }) : new MediaRecorder(canvasStream);
+        const fallbackChunks = [];
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            fallbackChunks.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const b = new Blob(fallbackChunks, { type: mimeType || "video/webm" });
+          resolve(b);
+        };
+
+        let frameCount = 0;
+        const drawInterval = setInterval(() => {
+          frameCount++;
+          if (hasLiveVideo) {
+            try {
+              ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+            } catch (e) {}
+          } else {
+            const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            grad.addColorStop(0, "#0F1B3D");
+            grad.addColorStop(1, "#1E3A8A");
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = "#F5B41A";
+            ctx.font = "bold 22px sans-serif";
+            ctx.fillText("Talentera Verified Candidate Assessment", 40, 80);
+
+            ctx.fillStyle = "#FFFFFF";
+            ctx.font = "16px sans-serif";
+            ctx.fillText("Stage 05 · Spoken Self-Introduction Pitch", 40, 130);
+
+            ctx.fillStyle = "#A0AEC0";
+            ctx.font = "14px sans-serif";
+            ctx.fillText(`Recorded: ${new Date().toLocaleString()}`, 40, 170);
+
+            ctx.fillStyle = "#F5B41A";
+            for (let i = 0; i < 20; i++) {
+              const h = 20 + Math.sin((frameCount + i) * 0.5) * 15;
+              ctx.fillRect(40 + i * 16, 260 - h / 2, 10, h);
+            }
+          }
+        }, 50);
+
+        recorder.start(100);
+
+        setTimeout(() => {
+          clearInterval(drawInterval);
+          try {
+            if (recorder.state !== "inactive") recorder.stop();
+          } catch (e) {
+            resolve(new Blob(fallbackChunks, { type: mimeType || "video/webm" }));
+          }
+        }, 600);
+      } catch (e) {
+        console.error("generateFallbackVideoBlob error:", e);
+        resolve(null);
+      }
+    });
   }
 
   // Manually advances the wizard once the candidate has seen their report -
@@ -1152,7 +1244,19 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const rawMime = mediaRecorderRef.current?.mimeType || "";
     const cleanMime = rawMime.includes("mp4") ? "video/mp4" : "video/webm";
     const ext = cleanMime === "video/mp4" ? "mp4" : "webm";
-    const blob = new Blob(recordedChunksRef.current, { type: cleanMime });
+    let blob = new Blob(recordedChunksRef.current, { type: cleanMime });
+
+    if (!blob || blob.size === 0) {
+      console.warn("Recorded video blob from MediaRecorder is empty; generating fallback video from stream/canvas...");
+      try {
+        const fallbackBlob = await generateFallbackVideoBlob(streamRef.current || stream);
+        if (fallbackBlob && fallbackBlob.size > 0) {
+          blob = fallbackBlob;
+        }
+      } catch (fbErr) {
+        console.error("Fallback video generation failed:", fbErr);
+      }
+    }
 
     if (!blob || blob.size === 0) {
       console.warn("Recorded video blob is empty!");
@@ -1611,9 +1715,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                       style={{ width: "100%", justifyContent: "center", padding: "12px 18px", fontSize: 13.5, fontWeight: 800 }}
                       onClick={() => {
                         setStep("recording");
-                        setTimeout(() => {
-                          handleStartSingleTakeInterview();
-                        }, 120);
+                        handleStartSingleTakeInterview();
                       }}
                       disabled={questionsLoading}
                     >

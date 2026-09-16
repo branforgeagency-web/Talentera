@@ -3,6 +3,7 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { CERT_LIBRARY, CERT_ID_PATTERNS } from "../../data/certLibrary";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 const REGIONS = [
   { id: "us", name: "United States", flag: "🇺🇸", count: "55 certs" },
@@ -440,6 +441,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           gap: 24px;
           max-width: 1380px;
           margin: 0 auto;
+          align-items: start;
         }
         @media (max-width: 1080px) {
           .stage03-shell {
@@ -1268,20 +1270,18 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         .s3-hot-stat .big { font-size: 18px; font-weight: 800; color: var(--navy); }
         .s3-hot-stat .small { font-size: 10px; color: var(--gray-txt); margin-top: 2px; }
 
-        /* STICKY BOTTOM BAR */
+        /* BOTTOM ACTION BAR */
         .s3-sticky-bar {
-          position: sticky;
-          bottom: 0;
           background: var(--white);
-          padding: 14px 24px;
-          border-top: 1px solid var(--border);
+          padding: 16px 24px;
+          border: 1px solid var(--border);
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-top: 24px;
+          margin-top: 32px;
+          margin-bottom: 32px;
           border-radius: 12px;
-          box-shadow: 0 -4px 16px rgba(15,27,61,.06);
-          z-index: 20;
+          box-shadow: 0 4px 16px rgba(15,27,61,.04);
         }
         .s3-sticky-progress { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--gray-txt); }
         .s3-stick-bar-inner { height: 8px; width: 180px; background: var(--gray-soft); border-radius: 4px; overflow: hidden; }
@@ -1972,116 +1972,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         </div>
 
         {/* RIGHT SIDEBAR COLUMN */}
-        <div className="s3-right">
-          <div className="s3-passport-card">
-            <div className="s3-passport-eyebrow">CAREER PASSPORT</div>
-            <div className="s3-passport-title" style={{ color: "#ffffff" }}>
-              {certStack.length} certs registered · halfway to verified
-            </div>
-            <div className="s3-passport-status">🏆 Stage 03 · Certification active</div>
-            <div className="s3-passport-desc">
-              A verified CPC coder ranks 4× higher than an uncertified one on RCM company
-              searches. Each verified cert unlocks a new set of companies globally.
-            </div>
-          </div>
-
-          <div className="s3-side-card">
-            <div className="title">
-              <span>Hiring Right Now</span>
-              <a href="/jobs" onClick={(e) => { e.preventDefault(); toast("Browse open jobs after profile verification.", "ℹ"); }} style={{ color: "var(--gray-mute)", fontSize: 10.5, textDecoration: "none" }}>See all →</a>
-            </div>
-
-            <div className="s3-company-row">
-              <div className="s3-company-logo" style={{ background: "linear-gradient(135deg,#F5B41A,#C99413)" }}>O</div>
-              <div>
-                <div className="s3-company-name">Optum India <span className="s3-hot-pill">HOT</span></div>
-                <div className="s3-company-meta">Hyderabad · Onsite · 5.5 – 7.0 LPA</div>
-                <div className="s3-company-tags">
-                  <span className="s3-comp-tag">HCC</span>
-                  <span className="s3-comp-tag green">CPC</span>
-                  <span className="s3-comp-tag blue">12 roles</span>
-                </div>
-                <div className="s3-verified-line">CPC required · you qualify ✓</div>
-              </div>
-            </div>
-
-            <div className="s3-company-row">
-              <div className="s3-company-logo" style={{ background: "linear-gradient(135deg,#2E8B57,#1F7A3C)" }}>A</div>
-              <div>
-                <div className="s3-company-name">Access Healthcare</div>
-                <div className="s3-company-meta">Chennai · Hybrid · 6.0 – 8.5 LPA</div>
-                <div className="s3-company-tags">
-                  <span className="s3-comp-tag">Featured</span>
-                  <span className="s3-comp-tag green">CPC + CRC</span>
-                  <span className="s3-comp-tag blue">6 roles</span>
-                </div>
-                <div className="s3-verified-line">CPC + CRC required · you qualify ✓</div>
-              </div>
-            </div>
-
-            <div className="s3-company-row">
-              <div className="s3-company-logo" style={{ background: "linear-gradient(135deg,#1A4FB8,#0F1B3D)" }}>C</div>
-              <div>
-                <div className="s3-company-name">Cognizant</div>
-                <div className="s3-company-meta">Hyderabad · Remote · 5.0 – 7.0 LPA</div>
-                <div className="s3-company-tags">
-                  <span className="s3-comp-tag">Remote</span>
-                  <span className="s3-comp-tag blue">8 roles</span>
-                </div>
-                <div className="s3-verified-line">88% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="s3-company-row">
-              <div className="s3-company-logo" style={{ background: "linear-gradient(135deg,#8E44AD,#6D2C82)" }}>Ω</div>
-              <div>
-                <div className="s3-company-name">Omega Healthcare</div>
-                <div className="s3-company-meta">Bengaluru · Onsite · 4.8 – 6.5 LPA</div>
-                <div className="s3-company-tags">
-                  <span className="s3-comp-tag">E/M</span>
-                  <span className="s3-comp-tag">AR Calling</span>
-                  <span className="s3-comp-tag blue">5 roles</span>
-                </div>
-                <div className="s3-verified-line">90% verified-pool hires</div>
-              </div>
-            </div>
-
-            <div className="s3-company-row">
-              <div className="s3-company-logo" style={{ background: "linear-gradient(135deg,#E67E22,#C0392B)" }}>GD</div>
-              <div>
-                <div className="s3-company-name">GEBBS Dental <span className="s3-hot-pill">NEW</span></div>
-                <div className="s3-company-meta">Mumbai · Onsite · 5.0 – 7.5 LPA</div>
-                <div className="s3-company-tags">
-                  <span className="s3-comp-tag" style={{ background: "#F3E5F5", color: "#6D2C82" }}>🦷 Dental</span>
-                  <span className="s3-comp-tag green">CDC</span>
-                  <span className="s3-comp-tag blue">4 roles</span>
-                </div>
-                <div className="s3-verified-line">CDC required · you qualify ✓</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="s3-side-card">
-            <div className="title">Why Certification Matters</div>
-            <div className="s3-hot-grid">
-              <div className="s3-hot-stat">
-                <div className="big">4×</div>
-                <div className="small">higher shortlist rate</div>
-              </div>
-              <div className="s3-hot-stat">
-                <div className="big">87%</div>
-                <div className="small">HRs filter certified only</div>
-              </div>
-              <div className="s3-hot-stat">
-                <div className="big">+₹1.2L</div>
-                <div className="small">avg CTC uplift</div>
-              </div>
-              <div className="s3-hot-stat">
-                <div className="big">80+</div>
-                <div className="small">certs in library</div>
-              </div>
-            </div>
-          </div>
+        <div className="s3-right" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+          <WizardCompanionRail stageNum={3} candidate={candidate} certCount={certStack?.length || 1} />
         </div>
       </div>
 

@@ -33,6 +33,11 @@ const FALLBACK_QUESTION_BANK = [
     question: "In simple terms, what is an ICD-10-CM code used for in medical coding?",
     correctAnswer: "An ICD-10-CM code is a standardized diagnostic classification code used by healthcare providers to classify and report patient diagnoses, diseases, symptoms, injuries, and reasons for encounter on medical claims for billing and reimbursement.",
     expectedConcepts: ["icd-10-cm", "diagnosis", "disease", "symptom", "condition", "patient encounter", "reimbursement", "billing", "classification"],
+    // Exactly 3 keywords/concepts - see Answer Evaluation / Keyword Matching
+    // in the Stage 5 / AI Mock Interview requirements: every question has 3
+    // predefined keywords and every answer is scored as a Keyword Match out
+    // of 3 against them (semantic/synonym matching, not exact text only).
+    keywords: ["ICD-10-CM", "Diagnosis", "Reimbursement/Billing"],
   },
   {
     topic: "CPT Procedure Codes",
@@ -40,6 +45,7 @@ const FALLBACK_QUESTION_BANK = [
     question: "What is a CPT code used for, and how does it differ from an ICD-10 code?",
     correctAnswer: "A CPT (Current Procedural Terminology) code is used to report medical, surgical, and diagnostic procedures and healthcare services performed by physicians, whereas ICD-10-CM codes explain the diagnosis or medical reason why the service was necessary.",
     expectedConcepts: ["cpt", "procedure", "surgical", "service", "treatment", "physician service", "diagnostic", "icd-10", "diagnosis", "medical necessity"],
+    keywords: ["CPT", "Procedures", "ICD-10-CM/Diagnosis"],
   },
   {
     topic: "Evaluation & Management (E/M) Coding",
@@ -47,6 +53,7 @@ const FALLBACK_QUESTION_BANK = [
     question: "What does an Evaluation and Management (E/M) code describe, and how is its level determined?",
     correctAnswer: "An E/M code represents the provider-patient clinical encounter (office visits, consultations, hospital visits), with the code level determined primarily by the complexity of Medical Decision Making (MDM) or total time spent by the physician on the date of encounter.",
     expectedConcepts: ["e/m", "evaluation and management", "patient visit", "office visit", "medical decision making", "mdm", "time", "complexity", "encounter"],
+    keywords: ["Evaluation and Management (E/M)", "Patient Encounter/Visit", "Medical Decision Making (MDM)"],
   },
   {
     topic: "Medical Billing & Claims",
@@ -54,6 +61,7 @@ const FALLBACK_QUESTION_BANK = [
     question: "What is a medical claim, and how should a medical coder or biller handle a claim denial?",
     correctAnswer: "A medical claim is an itemized bill submitted to an insurance payer for healthcare services. When a denial occurs, the coder reviews the denial reason code on the EOB/ERA, checks for coding or documentation errors, corrects the claim, and submits an appeal or corrected claim.",
     expectedConcepts: ["medical claim", "insurance claim", "denial", "claim denial", "eob", "era", "appeal", "corrected claim", "remittance", "investigate", "documentation"],
+    keywords: ["Medical Claim", "Claim Denial", "Appeal/EOB-ERA"],
   },
   {
     topic: "HIPAA & Compliance",
@@ -61,8 +69,33 @@ const FALLBACK_QUESTION_BANK = [
     question: "What is HIPAA, and why is protecting patient health information crucial in medical coding?",
     correctAnswer: "HIPAA (Health Insurance Portability and Accountability Act) is a federal law that safeguards Protected Health Information (PHI) through privacy and security rules, ensuring patient confidentiality, data protection, and regulatory compliance across all medical records and billing workflows.",
     expectedConcepts: ["hipaa", "phi", "protected health information", "privacy rule", "security rule", "confidentiality", "compliance", "patient data", "security"],
+    keywords: ["HIPAA", "Protected Health Information (PHI)", "Compliance/Confidentiality"],
   },
 ];
+
+// A tiny synonym map so keyword matching is semantic rather than pure
+// exact-text - e.g. a candidate who says "insurance" instead of "payer",
+// or "notes" instead of "documentation", still gets credit. This is the
+// heuristic (no-LLM-key) fallback path only; when an Anthropic API key is
+// configured, getMessiTurn asks Claude to do real semantic/synonym
+// matching directly (see MESSI_SYSTEM_PROMPT / the turn prompt below).
+const KEYWORD_SYNONYMS = {
+  "icd-10-cm": ["icd10", "icd 10", "icd-10", "diagnosis code", "diagnostic code"],
+  diagnosis: ["diagnoses", "diagnostic", "condition", "disease", "symptom", "illness"],
+  "reimbursement/billing": ["reimbursement", "billing", "bill", "payment", "pay", "revenue"],
+  cpt: ["current procedural terminology", "procedure code"],
+  procedures: ["procedure", "surgical", "surgery", "service", "treatment"],
+  "icd-10-cm/diagnosis": ["icd-10", "icd10", "diagnosis", "diagnostic"],
+  "evaluation and management (e/m)": ["e/m", "e and m", "evaluation and management", "em code", "em coding"],
+  "patient encounter/visit": ["encounter", "visit", "office visit", "consultation", "consult"],
+  "medical decision making (mdm)": ["mdm", "decision making", "complexity", "medical decision"],
+  "medical claim": ["claim", "insurance claim", "itemized bill"],
+  "claim denial": ["denial", "denied", "rejection", "rejected"],
+  "appeal/eob-era": ["appeal", "eob", "era", "remittance", "explanation of benefits", "corrected claim"],
+  hipaa: ["health insurance portability and accountability act"],
+  "protected health information (phi)": ["phi", "protected health information", "patient data", "patient information"],
+  "compliance/confidentiality": ["compliance", "confidentiality", "privacy", "security", "regulatory"],
+};
 
 const STOPWORDS = new Set([
   "a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't",
@@ -91,6 +124,29 @@ function extractKeywords(text = "") {
     .filter((w) => w.length > 2 && !STOPWORDS.has(w));
 }
 
+// Resolve the exactly-3 keyword set for a question: prefer staff-configured
+// `keywords`, then the fallback bank's curated 3, then (last resort) the
+// first 3 of a broader `expectedConcepts` list so older/custom questions
+// without a dedicated `keywords` field still get a usable 3.
+function resolveKeywords(q, idx) {
+  if (Array.isArray(q.keywords) && q.keywords.length === 3) {
+    return q.keywords.map(String);
+  }
+  const fallbackKeywords = FALLBACK_QUESTION_BANK[idx]?.keywords;
+  if (Array.isArray(fallbackKeywords) && fallbackKeywords.length === 3) {
+    return fallbackKeywords;
+  }
+  const concepts = Array.isArray(q.expectedConcepts) && q.expectedConcepts.length > 0
+    ? q.expectedConcepts
+    : extractKeywords(q.correctAnswer || "");
+  if (concepts.length >= 3) return concepts.slice(0, 3).map(String);
+  // Pad out with generic placeholders rather than shipping fewer than 3 -
+  // every question must have exactly 3 keywords per the grading contract.
+  const padded = concepts.map(String);
+  while (padded.length < 3) padded.push(`concept-${padded.length + 1}`);
+  return padded;
+}
+
 function withIndices(list) {
   return list.slice(0, 5).map((q, idx) => ({
     index: idx,
@@ -102,6 +158,7 @@ function withIndices(list) {
     expectedConcepts: Array.isArray(q.expectedConcepts) && q.expectedConcepts.length > 0
       ? q.expectedConcepts.map(String)
       : extractKeywords(q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer || ""),
+    keywords: resolveKeywords(q, idx),
   }));
 }
 
@@ -129,7 +186,8 @@ Return STRICT JSON only as an array of 5 objects:
     "topicLabel": string,
     "question": string (concise single question),
     "correctAnswer": string (authoritative, clear correct answer),
-    "expectedConcepts": string[] (5-8 key technical terms that must be in a good answer)
+    "expectedConcepts": string[] (5-8 key technical terms that must be in a good answer),
+    "keywords": string[] (EXACTLY 3 - the 3 most essential medical-coding keywords/concepts a correct answer must cover, used to score the candidate's answer as a Keyword Match out of 3)
   }
 ]`;
 
@@ -157,6 +215,7 @@ Return STRICT JSON only as an array of 5 objects:
             question: (q.question || q.text).trim(),
             correctAnswer: q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer,
             expectedConcepts: q.expectedConcepts || FALLBACK_QUESTION_BANK[idx]?.expectedConcepts,
+            keywords: Array.isArray(q.keywords) && q.keywords.length === 3 ? q.keywords : undefined,
           }));
         if (cleaned.length >= 5) {
           return withIndices(cleaned);
@@ -187,95 +246,124 @@ function detectQuickIntent(utterance) {
   return "answer";
 }
 
+// A keyword "matches" a candidate's answer if it appears verbatim, as a
+// stemmed/partial word, or via the small synonym map above - this is the
+// semantic-ish matching used when no Claude API key is configured (the
+// heuristic fallback path); with a key configured, getMessiTurn asks Claude
+// to judge the same 3 keywords with real semantic/meaning understanding.
+function keywordIsPresent(keyword, lowerCandidate, candidateKeywordSet) {
+  const cLower = String(keyword || "").toLowerCase().trim();
+  if (!cLower) return false;
+  if (lowerCandidate.includes(cLower)) return true;
+
+  const synonyms = KEYWORD_SYNONYMS[cLower] || [];
+  if (synonyms.some((syn) => lowerCandidate.includes(syn))) return true;
+
+  // Handle "X/Y" or "X, Y" compound keywords - a match on either side counts.
+  const parts = cLower.split(/[\/,]| and /).map((p) => p.trim()).filter(Boolean);
+  const partsToCheck = parts.length > 1 ? parts : [cLower];
+
+  return partsToCheck.some((part) => {
+    if (lowerCandidate.includes(part)) return true;
+    const words = part.split(/\s+/).filter(Boolean);
+    return words.some(
+      (w) => candidateKeywordSet.has(w) || (w.length > 4 && lowerCandidate.includes(w.slice(0, -1)))
+    );
+  });
+}
+
 /**
- * Compare candidate answer directly against the database's correctAnswer and expectedConcepts
+ * Score a candidate's answer as a Keyword Match out of 3 against a
+ * question's exactly-3 predefined keywords (see InterviewQuestion.keywords /
+ * FALLBACK_QUESTION_BANK[].keywords). This is the heuristic (no API key)
+ * implementation of the "Answer Evaluation / Keyword Matching" requirement.
+ */
+function evaluateKeywordMatch(utterance, keywords = []) {
+  const text = String(utterance || "").trim();
+  const lowerCandidate = text.toLowerCase();
+  const candidateKeywordSet = new Set(extractKeywords(text));
+  const totalKeywords = Array.isArray(keywords) && keywords.length > 0 ? keywords.length : 3;
+
+  const matchedKeywords = [];
+  const missingKeywords = [];
+  (keywords || []).forEach((kw) => {
+    if (keywordIsPresent(kw, lowerCandidate, candidateKeywordSet)) {
+      matchedKeywords.push(kw);
+    } else {
+      missingKeywords.push(kw);
+    }
+  });
+
+  return {
+    matchedKeywords,
+    missingKeywords,
+    keywordMatchCount: matchedKeywords.length,
+    totalKeywords,
+  };
+}
+
+/**
+ * Compare candidate answer against the database's 3 predefined keywords
+ * (primary signal, per the Keyword Match X/3 requirement) with the broader
+ * expectedConcepts/correctAnswer comparison kept as a secondary signal for
+ * nuanced feedback text.
  */
 function computeHeuristicAnswerEvaluation(utterance, questionOrAnswer = {}, maybeConcepts = []) {
   const text = String(utterance || "").trim();
   const words = text.split(/\s+/).filter(Boolean);
-  const lowerCandidate = text.toLowerCase();
 
   const modelAnswer = typeof questionOrAnswer === "string" ? questionOrAnswer : (questionOrAnswer?.correctAnswer || "");
-  let concepts = Array.isArray(maybeConcepts) && maybeConcepts.length > 0
-    ? maybeConcepts
-    : (Array.isArray(questionOrAnswer?.expectedConcepts) && questionOrAnswer.expectedConcepts.length > 0
-        ? questionOrAnswer.expectedConcepts
-        : extractKeywords(modelAnswer));
+  const keywords = Array.isArray(questionOrAnswer?.keywords) && questionOrAnswer.keywords.length > 0
+    ? questionOrAnswer.keywords
+    : (Array.isArray(maybeConcepts) && maybeConcepts.length > 0 ? maybeConcepts.slice(0, 3) : extractKeywords(modelAnswer).slice(0, 3));
 
   if (words.length < 3) {
     return {
       evaluation: "no_answer",
       score: 0,
-      missingConcepts: concepts,
+      missingConcepts: keywords,
       matchedConcepts: [],
+      matchedKeywords: [],
+      missingKeywords: keywords,
+      keywordMatchCount: 0,
+      totalKeywords: keywords.length || 3,
       feedback: "No substantial answer recorded.",
     };
   }
 
-  // 1. Keyword & concept matching
-  const candidateKeywords = new Set(extractKeywords(text));
-  const matched = [];
-  const missing = [];
+  const { matchedKeywords, missingKeywords, keywordMatchCount, totalKeywords } = evaluateKeywordMatch(text, keywords);
 
-  concepts.forEach((concept) => {
-    const cLower = concept.toLowerCase().trim();
-    if (!cLower) return;
-    // Check exact substring or keyword presence
-    if (lowerCandidate.includes(cLower)) {
-      matched.push(concept);
-    } else {
-      // Check partial/stemmed word match
-      const cWords = cLower.split(/\s+/);
-      const isMatched = cWords.some((w) => candidateKeywords.has(w) || (w.length > 4 && lowerCandidate.includes(w.slice(0, -1))));
-      if (isMatched) {
-        matched.push(concept);
-      } else {
-        missing.push(concept);
-      }
-    }
-  });
+  // Primary score: Keyword Match count out of however many keywords the
+  // question has (normally 3), scaled to the existing 0-10 scale so the
+  // rest of the pipeline (session.questionRecords, generateFinalReport)
+  // keeps working unchanged.
+  const matchRatio = totalKeywords > 0 ? keywordMatchCount / totalKeywords : 0;
+  const score = Math.max(0, Math.min(10, Math.round(matchRatio * 10)));
 
-  // 2. Compute similarity ratio with correct answer
-  const modelKeywords = extractKeywords(modelAnswer);
-  let modelWordsMatched = 0;
-  modelKeywords.forEach((w) => {
-    if (candidateKeywords.has(w) || lowerCandidate.includes(w)) {
-      modelWordsMatched++;
-    }
-  });
-
-  const conceptCoverage = concepts.length > 0 ? matched.length / concepts.length : 0;
-  const modelCoverage = modelKeywords.length > 0 ? modelWordsMatched / modelKeywords.length : 0;
-  const blendedCoverage = Math.max(conceptCoverage, modelCoverage * 0.85 + conceptCoverage * 0.15);
-
-  let score = 0;
-  let evaluation = "incorrect";
-
-  if (blendedCoverage >= 0.65 || (matched.length >= 4 && words.length >= 10)) {
-    evaluation = "correct";
-    score = Math.min(10, Math.max(8, Math.round(blendedCoverage * 10)));
-  } else if (blendedCoverage >= 0.35 || (matched.length >= 2 && words.length >= 6)) {
-    evaluation = "partial";
-    score = Math.min(7, Math.max(5, Math.round(blendedCoverage * 10)));
-  } else if (matched.length >= 1 || words.length >= 5) {
-    evaluation = "incorrect";
-    score = Math.min(4, Math.max(2, Math.round(blendedCoverage * 10) || 3));
+  let evaluation;
+  if (keywordMatchCount >= totalKeywords && totalKeywords > 0) {
+    evaluation = "correct"; // 3/3
+  } else if (keywordMatchCount >= Math.ceil(totalKeywords / 2)) {
+    evaluation = "partial"; // e.g. 2/3
   } else {
-    evaluation = "incorrect";
-    score = 1;
+    evaluation = "incorrect"; // 0/3 or 1/3, but an answer was given
   }
 
   return {
     evaluation,
     score,
-    missingConcepts: missing,
-    matchedConcepts: matched,
+    missingConcepts: missingKeywords,
+    matchedConcepts: matchedKeywords,
+    matchedKeywords,
+    missingKeywords,
+    keywordMatchCount,
+    totalKeywords,
     feedback:
       evaluation === "correct"
-        ? `Accurately matched key concepts: ${matched.slice(0, 3).join(", ")}.`
+        ? `Keyword Match: ${keywordMatchCount}/${totalKeywords} - covered ${matchedKeywords.join(", ")}.`
         : evaluation === "partial"
-        ? `Covered ${matched.join(", ")}; missed: ${missing.slice(0, 2).join(", ")}.`
-        : `Answer missed core reference concepts (${missing.slice(0, 3).join(", ")}).`,
+        ? `Keyword Match: ${keywordMatchCount}/${totalKeywords} - covered ${matchedKeywords.join(", ") || "some concepts"}; missed ${missingKeywords.join(", ")}.`
+        : `Keyword Match: ${keywordMatchCount}/${totalKeywords} - missed core keywords (${missingKeywords.join(", ")}).`,
   };
 }
 
@@ -308,12 +396,16 @@ function computeHeuristicTurn({ utterance, currentQuestion, quickIntent }) {
   const intent = quickIntent || detectQuickIntent(utterance);
 
   if (intent === "stop") {
+    // Per the AI Mock Interview requirements, the candidate cannot manually
+    // finish before all 5 questions are answered - "stop"/"end interview"
+    // is acknowledged but does NOT end the session; Messi just re-asks the
+    // current question instead of treating it as a hint/skip.
     return {
       intent: "stop",
       evaluation: "no_answer",
       score: 0,
       missingConcepts: [],
-      messiReply: "Understood—concluding our interview here. Your responses are being finalized.",
+      messiReply: `We need to finish all 5 questions before wrapping up - let's continue with this one: ${currentQuestion.question}`,
       askFollowUp: false,
     };
   }
@@ -333,12 +425,16 @@ function computeHeuristicTurn({ utterance, currentQuestion, quickIntent }) {
       evaluation: "no_answer",
       score: 0,
       missingConcepts: currentQuestion.expectedConcepts || [],
+      matchedKeywords: [],
+      missingKeywords: currentQuestion.keywords || [],
+      keywordMatchCount: 0,
+      totalKeywords: (currentQuestion.keywords || []).length || 3,
       messiReply: "No problem at all, let's proceed to the next question.",
       askFollowUp: false,
     };
   }
   if (intent === "hint") {
-    const hintTerm = (currentQuestion.expectedConcepts || [])[0] || "the core definition";
+    const hintTerm = (currentQuestion.keywords || currentQuestion.expectedConcepts || [])[0] || "the core definition";
     return {
       intent: "hint",
       evaluation: "no_answer",
@@ -367,6 +463,10 @@ function computeHeuristicTurn({ utterance, currentQuestion, quickIntent }) {
     score: evalResult.score,
     missingConcepts: evalResult.missingConcepts,
     matchedConcepts: evalResult.matchedConcepts,
+    matchedKeywords: evalResult.matchedKeywords,
+    missingKeywords: evalResult.missingKeywords,
+    keywordMatchCount: evalResult.keywordMatchCount,
+    totalKeywords: evalResult.totalKeywords,
     messiReply,
     askFollowUp: false,
   };
@@ -398,17 +498,47 @@ function normalizeTurnResult(parsed, quickIntent, utterance, currentQuestion) {
     ? cleanMessiReply(parsed.messiReply.trim())
     : "Thank you for sharing that response.";
 
-  // Safety fallback if LLM returned 0 for a non-trivial answer
-  if (intent === "answer" && (evaluation === "no_answer" || score === 0) && wordCount >= 3) {
+  const totalKeywords = Array.isArray(currentQuestion.keywords) && currentQuestion.keywords.length > 0
+    ? currentQuestion.keywords.length
+    : 3;
+  let matchedKeywords = Array.isArray(parsed.matchedKeywords) ? parsed.matchedKeywords.filter(Boolean).map(String) : [];
+  let keywordMatchCount = Number.isFinite(Number(parsed.keywordMatchCount))
+    ? Math.max(0, Math.min(totalKeywords, Math.round(Number(parsed.keywordMatchCount))))
+    : matchedKeywords.length;
+  let missingKeywords = Array.isArray(parsed.missingKeywords)
+    ? parsed.missingKeywords.filter(Boolean).map(String)
+    : (currentQuestion.keywords || []).filter((k) => !matchedKeywords.includes(k));
+
+  // Safety fallback if LLM returned 0 for a non-trivial answer, or didn't
+  // return keyword-match fields at all (older prompt cache / odd response).
+  if (intent === "answer" && wordCount >= 3) {
     const heuristic = computeHeuristicAnswerEvaluation(utterance, currentQuestion);
-    if (heuristic.score > score) {
-      score = heuristic.score;
-      evaluation = heuristic.evaluation;
-      missingConcepts = heuristic.missingConcepts;
+    if (!parsed.keywordMatchCount && !Array.isArray(parsed.matchedKeywords)) {
+      matchedKeywords = heuristic.matchedKeywords;
+      missingKeywords = heuristic.missingKeywords;
+      keywordMatchCount = heuristic.keywordMatchCount;
+    }
+    if (evaluation === "no_answer" || score === 0) {
+      if (heuristic.score > score) {
+        score = heuristic.score;
+        evaluation = heuristic.evaluation;
+        missingConcepts = heuristic.missingConcepts;
+      }
     }
   }
 
-  return { intent, evaluation, score, missingConcepts, messiReply, askFollowUp: false };
+  return {
+    intent,
+    evaluation,
+    score,
+    missingConcepts,
+    matchedKeywords,
+    missingKeywords,
+    keywordMatchCount,
+    totalKeywords,
+    messiReply,
+    askFollowUp: false,
+  };
 }
 
 /**
@@ -429,26 +559,28 @@ async function getMessiTurn({ session, candidateUtterance }) {
       const expectedConceptsList = currentQuestion.expectedConcepts && currentQuestion.expectedConcepts.length > 0
         ? `\nExpected Key Concepts: ${JSON.stringify(currentQuestion.expectedConcepts)}`
         : "";
+      const keywordsList = currentQuestion.keywords && currentQuestion.keywords.length > 0
+        ? currentQuestion.keywords
+        : ["", "", ""];
 
       const prompt = `You are evaluating a candidate's answer against the official Question & Reference Answer from the database.
 Question (#${session.currentQuestionIndex + 1} of ${session.questions.length}, Topic: "${currentQuestion.topic || "Medical Coding"}"):
 "${currentQuestion.question}"${modelAnswerPart}${expectedConceptsList}
 
+The 3 predefined keywords/concepts for this question are: ${JSON.stringify(keywordsList)}
+
 Candidate's Answer: "${utterance}"
 
 Instructions:
-1. Compare the Candidate's Answer against the Reference Correct Answer.
-2. Rate "score" on a strict 0 to 10 scale:
-   - 8 to 10: Accurate and comprehensive, covers main concepts of the reference answer.
-   - 5 to 7: Partial answer, covers basic ideas but misses specific details or terminology.
-   - 1 to 4: Inaccurate, very weak, or mostly off-topic compared to the reference answer.
-   - 0: No response, blank, or completely irrelevant.
-3. Set "evaluation" to "correct" (8-10), "partial" (5-7), "incorrect" (1-4), or "no_answer" (0).
-4. Identify any "missingConcepts" from the reference answer.
-5. Provide a warm, brief 1-2 sentence conversational acknowledgment ("messiReply").
+1. For EACH of the 3 predefined keywords above, decide if the candidate's answer covers that keyword/concept - by MEANING, not exact wording (accept synonyms, paraphrases, and closely related terms as a match, e.g. "insurance company" for "payer", or "notes" for "documentation").
+2. Set "matchedKeywords" to the subset of the 3 keywords the answer covers, "missingKeywords" to the rest, and "keywordMatchCount" to how many of the 3 were matched (0-3).
+3. Rate "score" on a 0 to 10 scale, driven primarily by keywordMatchCount: 3/3 -> 8-10, 2/3 -> 5-7, 1/3 -> 2-4, 0/3 -> 0-1 (adjust slightly within each band for overall answer quality).
+4. Set "evaluation" to "correct" (3/3 keywords), "partial" (2/3), "incorrect" (1/3 or 0/3 but an answer was attempted), or "no_answer" (blank/no real answer).
+5. Also list any "missingConcepts" from the broader reference answer (for feedback only).
+6. Provide a warm, brief 1-2 sentence conversational acknowledgment ("messiReply") that does NOT reveal the score or which keywords were missed.
 
 Return STRICT JSON only:
-{"intent": "answer|repeat|skip|hint|clarify|stop|unclear", "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "missingConcepts": string[], "messiReply": string, "askFollowUp": false}`;
+{"intent": "answer|repeat|skip|hint|clarify|stop|unclear", "evaluation": "correct|partial|incorrect|no_answer", "score": 0-10, "matchedKeywords": string[], "missingKeywords": string[], "keywordMatchCount": 0-3, "missingConcepts": string[], "messiReply": string, "askFollowUp": false}`;
 
       const response = await axios.post(
         ANTHROPIC_URL,
@@ -484,13 +616,32 @@ function clampPercent(n, fallback = 70) {
   return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : fallback;
 }
 
+// Deterministic overall score per the "Calculate the overall score" /
+// keyword-matching requirement: sum of Keyword Match counts across all
+// questions, out of (numQuestions * 3) possible keyword matches. Falls back
+// to the 0-10 `score` field for any record predating keyword tracking so
+// old in-progress sessions still produce a sane score.
+function computeOverallScoreFromKeywords(questionRecords = []) {
+  if (!questionRecords.length) return 0;
+  let totalMatched = 0;
+  let totalPossible = 0;
+  questionRecords.forEach((r) => {
+    if (Number.isFinite(Number(r.keywordMatchCount)) && Number.isFinite(Number(r.totalKeywords)) && Number(r.totalKeywords) > 0) {
+      totalMatched += Number(r.keywordMatchCount);
+      totalPossible += Number(r.totalKeywords);
+    } else {
+      // Legacy record without keyword tracking - treat its 0-10 score as
+      // an equivalent out-of-3 keyword match so the blend stays consistent.
+      totalMatched += (Number(r.score) || 0) / (10 / 3);
+      totalPossible += 3;
+    }
+  });
+  return totalPossible > 0 ? Math.min(100, Math.max(0, Math.round((totalMatched / totalPossible) * 100))) : 0;
+}
+
 function computeHeuristicFinalReport({ candidateName, role, questionRecords = [] }) {
   const totalQuestions = Math.max(1, questionRecords.length);
-  const totalPossiblePoints = totalQuestions * 10;
-  const totalPoints = questionRecords.reduce((sum, r) => sum + (Number(r.score) || 0), 0);
-
-  // Exact score calculation by comparing answers with correct answers
-  const overallScore = Math.min(100, Math.max(0, Math.round((totalPoints / totalPossiblePoints) * 100)));
+  const overallScore = computeOverallScoreFromKeywords(questionRecords);
 
   const correctCount = questionRecords.filter((r) => r.evaluation === "correct").length;
   const partialCount = questionRecords.filter((r) => r.evaluation === "partial").length;
@@ -501,23 +652,33 @@ function computeHeuristicFinalReport({ candidateName, role, questionRecords = []
   const communication = clampPercent(50 + (answeredCount / totalQuestions) * 45);
   const confidence = clampPercent(Math.round((clarity + technicalReadiness) / 2));
 
-  const questionAnalysis = questionRecords.map((r, idx) => ({
-    questionNumber: idx + 1,
-    topic: r.topic || `Question ${idx + 1}`,
-    question: r.question,
-    correctAnswer: r.correctAnswer || "",
-    candidateAnswer: r.candidateAnswer || "(no answer)",
-    evaluation: r.evaluation || "no_answer",
-    score: Number(r.score) || 0,
-    feedback:
-      r.evaluation === "correct"
-        ? "Accurate answer covering the core reference concepts."
-        : r.evaluation === "partial"
-        ? `Partially correct; missed key reference concepts (${(r.missingConcepts || []).slice(0, 2).join(", ") || "details"}).`
-        : r.evaluation === "no_answer"
-        ? "No response was recorded for this question."
-        : "Answer was inaccurate or did not align with the standard coding definition.",
-  }));
+  const questionAnalysis = questionRecords.map((r, idx) => {
+    const totalKeywords = Number(r.totalKeywords) || 3;
+    const keywordMatchCount = Number.isFinite(Number(r.keywordMatchCount)) ? Number(r.keywordMatchCount) : null;
+    const keywordSummary = keywordMatchCount !== null ? `Keyword Match: ${keywordMatchCount}/${totalKeywords}. ` : "";
+    return {
+      questionNumber: idx + 1,
+      topic: r.topic || `Question ${idx + 1}`,
+      question: r.question,
+      correctAnswer: r.correctAnswer || "",
+      candidateAnswer: r.candidateAnswer || "(no answer)",
+      evaluation: r.evaluation || "no_answer",
+      score: Number(r.score) || 0,
+      keywordMatchCount,
+      totalKeywords,
+      matchedKeywords: r.matchedKeywords || [],
+      missingKeywords: r.missingKeywords || r.missingConcepts || [],
+      feedback:
+        keywordSummary +
+        (r.evaluation === "correct"
+          ? "Accurate answer covering all 3 core keywords/concepts."
+          : r.evaluation === "partial"
+          ? `Partially correct; missed key reference concepts (${(r.missingKeywords || r.missingConcepts || []).slice(0, 2).join(", ") || "details"}).`
+          : r.evaluation === "no_answer"
+          ? "No response was recorded for this question."
+          : "Answer was inaccurate or did not align with the standard coding definition."),
+    };
+  });
 
   return {
     overallScore,
@@ -618,8 +779,28 @@ Return STRICT JSON only:
       if (match) {
         const parsed = JSON.parse(match[0]);
         if (parsed && typeof parsed.overallScore !== "undefined" && Array.isArray(parsed.questionAnalysis)) {
+          // overallScore is always recomputed deterministically from the
+          // stored per-question Keyword Match counts (not trusted from the
+          // LLM) so the final score is reliable and reproducible - see the
+          // "Calculate the overall score" requirement.
+          const overallScore = computeOverallScoreFromKeywords(questionRecords);
+          // Likewise, merge our own tracked keyword-match fields into each
+          // question's analysis - the LLM's questionAnalysis has no reason
+          // to know these, but the report needs to display them.
+          const questionAnalysis = parsed.questionAnalysis.map((qa, idx) => {
+            const record = questionRecords[idx] || {};
+            const totalKeywords = Number(record.totalKeywords) || 3;
+            const keywordMatchCount = Number.isFinite(Number(record.keywordMatchCount)) ? Number(record.keywordMatchCount) : null;
+            return {
+              ...qa,
+              keywordMatchCount,
+              totalKeywords,
+              matchedKeywords: record.matchedKeywords || [],
+              missingKeywords: record.missingKeywords || record.missingConcepts || [],
+            };
+          });
           return {
-            overallScore: clampPercent(parsed.overallScore),
+            overallScore,
             breakdown: {
               technicalReadiness: clampPercent(parsed.breakdown?.technicalReadiness),
               communication: clampPercent(parsed.breakdown?.communication),
@@ -627,7 +808,7 @@ Return STRICT JSON only:
               confidence: clampPercent(parsed.breakdown?.confidence),
               structuredThinking: clampPercent(parsed.breakdown?.structuredThinking),
             },
-            questionAnalysis: parsed.questionAnalysis,
+            questionAnalysis,
             finalFeedback: parsed.finalFeedback || "",
             strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
             areasToImprove: Array.isArray(parsed.areasToImprove) ? parsed.areasToImprove : [],

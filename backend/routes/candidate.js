@@ -1089,20 +1089,33 @@ async function buildFreshAiInterviewSession(candidate) {
 
   let questions;
   if (activeBankQuestions && activeBankQuestions.length > 0) {
-    questions = activeBankQuestions.slice(0, 5).map((q, idx) => ({
-      index: idx,
-      id: String(q._id),
-      topic: q.mode === "both" ? "Core Assessment" : (q.mode === "video" ? "Video Technical" : "Audio Interview"),
-      topicLabel: `Question ${idx + 1}`,
-      question: q.text,
-      correctAnswer: q.correctAnswer || "",
-      expectedConcepts: q.correctAnswer
+    questions = activeBankQuestions.slice(0, 5).map((q, idx) => {
+      const expectedConcepts = q.correctAnswer
         ? q.correctAnswer
             .replace(/[^\w\s]/g, " ")
             .split(/\s+/)
             .filter((w) => w.length > 3)
-        : [],
-    }));
+        : [];
+      // Exactly 3 keywords per the Answer Evaluation / Keyword Matching
+      // requirement - prefer staff-configured InterviewQuestion.keywords,
+      // otherwise derive 3 from the correct answer / expected concepts.
+      const keywords =
+        Array.isArray(q.keywords) && q.keywords.length === 3
+          ? q.keywords
+          : expectedConcepts.slice(0, 3).length === 3
+          ? expectedConcepts.slice(0, 3)
+          : [expectedConcepts[0], expectedConcepts[1], expectedConcepts[2]].filter(Boolean);
+      return {
+        index: idx,
+        id: String(q._id),
+        topic: q.mode === "both" ? "Core Assessment" : (q.mode === "video" ? "Video Technical" : "Audio Interview"),
+        topicLabel: `Question ${idx + 1}`,
+        question: q.text,
+        correctAnswer: q.correctAnswer || "",
+        expectedConcepts,
+        keywords: keywords.length === 3 ? keywords : keywords.concat(["concept", "detail", "accuracy"]).slice(0, 3),
+      };
+    });
   } else {
     questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
     if (Array.isArray(questions) && questions.length > 5) {
@@ -1253,10 +1266,13 @@ router.post("/ai-interview/turn", async (req, res) => {
 
     let interviewEnded = false;
 
-    if (turnResult.intent === "stop") {
-      interviewEnded = true;
-    } else if (["hint", "repeat", "clarify"].includes(turnResult.intent)) {
-      // Repeat/hint/clarify current question - no advance
+    // Per the AI Mock Interview requirements, the candidate cannot manually
+    // finish before all 5 questions are answered - a "stop"/"end interview"
+    // utterance is acknowledged (see claudeInterview.js's messiReply for
+    // that intent) but, like hint/repeat/clarify, does NOT end the session
+    // or advance past the current question.
+    if (["hint", "repeat", "clarify", "stop"].includes(turnResult.intent)) {
+      // Repeat/hint/clarify/stop current question - no advance, no end.
     } else {
       // Record result for this question
       session.questionRecords.push({
@@ -1265,13 +1281,20 @@ router.post("/ai-interview/turn", async (req, res) => {
         question: currentQuestion.question,
         correctAnswer: currentQuestion.correctAnswer || "",
         expectedConcepts: currentQuestion.expectedConcepts,
+        keywords: currentQuestion.keywords || [],
         candidateAnswer: utterance,
         evaluation: turnResult.evaluation,
         score: turnResult.score,
         missingConcepts: turnResult.missingConcepts,
+        matchedKeywords: turnResult.matchedKeywords || [],
+        missingKeywords: turnResult.missingKeywords || [],
+        keywordMatchCount: Number.isFinite(turnResult.keywordMatchCount) ? turnResult.keywordMatchCount : 0,
+        totalKeywords: turnResult.totalKeywords || (currentQuestion.keywords || []).length || 3,
         followUp: null,
       });
 
+      // Auto-submit: once the 5th question has been answered, the
+      // interview completes on its own - there is no other way to finish.
       if (currentIndex >= session.questions.length - 1) {
         interviewEnded = true;
       } else {
@@ -1282,7 +1305,7 @@ router.post("/ai-interview/turn", async (req, res) => {
 
     let result = null;
     if (interviewEnded) {
-      result = await finalizeAiInterviewSession(candidate, session, turnResult.intent === "stop" ? "STOPPED" : "COMPLETED");
+      result = await finalizeAiInterviewSession(candidate, session, "COMPLETED");
     } else {
       candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
       candidate.markModified("stage8");
@@ -1303,8 +1326,12 @@ router.post("/ai-interview/turn", async (req, res) => {
   }
 });
 
-// POST /api/candidate/ai-interview/end - explicit "End Interview" button path.
-// body: { proctorLogs? }
+// POST /api/candidate/ai-interview/end - safety-valve finalize path, used
+// only if a session somehow reaches the last question without /turn having
+// auto-finalized it already. Per the AI Mock Interview requirements, the
+// candidate can NOT manually finish before all 5 questions are answered -
+// this route rejects any attempt to end early instead of offering an
+// early-exit "End Interview" button.
 router.post("/ai-interview/end", async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.candidateId);
@@ -1315,6 +1342,13 @@ router.post("/ai-interview/end", async (req, res) => {
       return res.status(400).json({ message: "No active AI Interview session to end." });
     }
 
+    const totalQuestions = session.questions?.length || 5;
+    if ((session.questionRecords?.length || 0) < totalQuestions) {
+      return res.status(400).json({
+        message: `You must complete all ${totalQuestions} questions before the AI Mock Interview can be finished. ${session.questionRecords?.length || 0}/${totalQuestions} answered so far.`,
+      });
+    }
+
     if (req.body?.proctorLogs && typeof req.body.proctorLogs === "object") {
       session.proctorLogs = {
         tabSwitches: Number(req.body.proctorLogs.tabSwitches) || session.proctorLogs?.tabSwitches || 0,
@@ -1322,7 +1356,7 @@ router.post("/ai-interview/end", async (req, res) => {
       };
     }
 
-    const result = await finalizeAiInterviewSession(candidate, session, "STOPPED");
+    const result = await finalizeAiInterviewSession(candidate, session, "COMPLETED");
     await candidate.save();
 
     res.json({ session, result });

@@ -28,6 +28,20 @@ const InterviewQuestionSchema = new mongoose.Schema(
       default: "",
       trim: true,
     },
+    // Exactly 3 staff-configured medical-coding keywords/concepts for this
+    // question, used by the AI Mock Interview ("Messi", see
+    // backend/utils/claudeInterview.js) to score each candidate answer as a
+    // Keyword Match out of 3 (semantic/synonym matching, not just exact
+    // text). If a staff member leaves this empty, claudeInterview.js derives
+    // a best-effort set of 3 keywords from correctAnswer instead.
+    keywords: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (arr) => !Array.isArray(arr) || arr.length === 0 || arr.length === 3,
+        message: "keywords must be either empty or contain exactly 3 entries.",
+      },
+    },
     // Which interview mode this question is asked in. "both" means it's
     // used by the video assessment AND the audio interview.
     mode: {

@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
+import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 export default function Stage8Track({ stage, existingData, candidate, onSaved, onNavigateStage, onGoToDashboard }) {
   const toast = useToast();
@@ -247,7 +248,7 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
     <div className="stage8-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
       <style>{`
         .stage8-root * { box-sizing: border-box; }
-        .s8-shell { display: grid; grid-template-columns: 1fr 320px; gap: 24px; min-width: 0; }
+        .s8-shell { display: grid; grid-template-columns: 1fr 320px; gap: 24px; min-width: 0; align-items: start; }
         @media (max-width: 1100px) { .s8-shell { grid-template-columns: 1fr; } }
         
         .s8-hero {
@@ -1052,53 +1053,8 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
         </div>
 
         {/* Right Companion Rail */}
-        <div className="s8-right-rail">
-          {/* Career Passport Card */}
-          <div className="s8-passport-card">
-            <div className="s8-passport-eyebrow">CAREER PASSPORT</div>
-            <div className="s8-passport-title">🏆 Talentera Verified</div>
-            <div className="s8-passport-status">{isLiveActive ? "🟢 LIVE FOR HIRING" : "🚀 ONE CLICK FROM LIVE"}</div>
-            <div className="s8-passport-desc">
-              You've built a profile with {totalPoints}/100 trust points. Every claim verified. Every score real. Sourced directly from your authenticated credentials.
-            </div>
-          </div>
-
-          {/* Companies Waiting */}
-          <div className="s8-side-card">
-            <div className="title">Active Hiring Partners ({realCompaniesCount})</div>
-
-            {liveCompanies.length > 0 ? (
-              liveCompanies.slice(0, 5).map((comp, idx) => (
-                <div key={comp.id || comp._id || idx} className="s8-company-row">
-                  <div className={`s8-company-logo s8-clr-${(idx % 5) + 1}`}>
-                    {(comp.initial || comp.name || comp.companyName || "C")[0]}
-                  </div>
-                  <div>
-                    <div className="s8-company-name">
-                      {comp.name || comp.companyName} {comp.hot && <span className="s8-hot-pill">HIRING</span>}
-                    </div>
-                    <div className="s8-company-meta">{comp.location || "Pan-India"} · {comp.salary || "Competitive Band"} · {comp.openRoles ? `${comp.openRoles} open roles` : "Active"}</div>
-                    <div className="s8-verified-line">{comp.note || "Verified hiring partner"}</div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div style={{ padding: "16px 8px", textAlign: "center", color: "#8A91A3", fontSize: "12px", fontStyle: "italic" }}>
-                Connected to Talentera employer network.
-              </div>
-            )}
-          </div>
-
-          {/* Verification Highlights */}
-          <div className="s8-side-card">
-            <div className="title">Your Verification Stack</div>
-            <div className="s8-hot-grid">
-              <div className="s8-hot-stat"><div className="big">{totalPoints}</div><div className="small">trust points earned</div></div>
-              <div className="s8-hot-stat"><div className="big">{totalCharts}</div><div className="small">live charts audited</div></div>
-              <div className="s8-hot-stat"><div className="big">{certificationsList.length}</div><div className="small">credentials verified</div></div>
-              <div className="s8-hot-stat"><div className="big">100%</div><div className="small">tamper-proof passport</div></div>
-            </div>
-          </div>
+        <div className="s8-right-rail" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
+          <WizardCompanionRail stageNum={8} candidate={candidate} isLiveActive={isLiveActive} />
         </div>
       </div>
 
