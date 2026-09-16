@@ -17,6 +17,7 @@ jest.mock("../models/Notification");
 jest.mock("../models/InterviewQuestion");
 
 const Staff = require("../models/Staff");
+const Company = require("../models/Company");
 const AuditLog = require("../models/AuditLog");
 const staffRoutes = require("../routes/staff");
 const { signToken } = require("../middleware/auth");
@@ -240,6 +241,59 @@ describe("Staff & Employee Account Management", () => {
       expect(mockTarget.save).toHaveBeenCalled();
       const isMatch = await bcrypt.compare("NewSecretPassword123", mockTarget.passwordHash);
       expect(isMatch).toBe(true);
+    });
+  });
+
+  describe("PUT /api/staff/companies/:id/reset-password", () => {
+    test("rejects company password shorter than 6 characters", async () => {
+      const res = await request(app)
+        .put("/api/staff/companies/60d0fe4f5311236168a109cc/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "123" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/at least 6 characters/i);
+    });
+
+    test("returns 404 if company is not found", async () => {
+      Company.findById = jest.fn().mockResolvedValue(null);
+
+      const res = await request(app)
+        .put("/api/staff/companies/60d0fe4f5311236168a109cc/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "ValidPassword123" });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toMatch(/company not found/i);
+    });
+
+    test("resets company password successfully with bcrypt hash and audit log", async () => {
+      const mockCompany = {
+        _id: "60d0fe4f5311236168a109cc",
+        companyName: "Apollo Hospitals",
+        email: "hr@apollo.com",
+        passwordHash: "old_company_hash",
+        save: jest.fn().mockResolvedValue({}),
+      };
+      Company.findById = jest.fn().mockResolvedValue(mockCompany);
+
+      const res = await request(app)
+        .put("/api/staff/companies/60d0fe4f5311236168a109cc/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "ApolloNewPassword2026!" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toMatch(/reset successfully/i);
+      expect(mockCompany.save).toHaveBeenCalled();
+      const isMatch = await bcrypt.compare("ApolloNewPassword2026!", mockCompany.passwordHash);
+      expect(isMatch).toBe(true);
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "reset_company_password",
+          targetType: "company",
+          targetId: "60d0fe4f5311236168a109cc",
+        })
+      );
     });
   });
 });

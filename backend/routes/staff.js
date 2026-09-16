@@ -1869,6 +1869,38 @@ router.get("/companies/:id", requireStaffAuth, async (req, res) => {
   }
 });
 
+// PUT /api/staff/companies/:id/reset-password - Reset a company's password (Protected)
+router.put("/companies/:id/reset-password", requireStaffAuth, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+
+    const company = await Company.findById(req.params.id);
+    if (!company) {
+      return res.status(404).json({ message: "Company not found." });
+    }
+
+    company.passwordHash = await bcrypt.hash(newPassword, 10);
+    await company.save();
+
+    await recordAudit(req, {
+      action: "reset_company_password",
+      targetType: "company",
+      targetId: company._id,
+      summary: `Password was reset for company account "${company.companyName || company.email}" (${company.email}).`,
+    });
+
+    res.json({
+      message: `Password for "${company.companyName || company.email}" reset successfully.`,
+    });
+  } catch (err) {
+    logger.error(`Reset company password error: ${err.message}`);
+    res.status(500).json({ message: "Failed to reset company password." });
+  }
+});
+
 // PUT /api/staff/applications/:id/status - Staff update candidate application status
 router.put("/applications/:id/status", requireStaffAuth, async (req, res) => {
   try {

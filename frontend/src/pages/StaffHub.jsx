@@ -782,6 +782,13 @@ export default function StaffHub() {
   const [resetPasswordSubmitting, setResetPasswordSubmitting] = useState(false);
   const [resetPasswordError, setResetPasswordError] = useState("");
 
+  // --- COMPANY PASSWORD RESET STATE ---
+  const [resetPasswordCompany, setResetPasswordCompany] = useState(null);
+  const [newCompanyPasswordForReset, setNewCompanyPasswordForReset] = useState("");
+  const [showCompanyPassword, setShowCompanyPassword] = useState(false);
+  const [resetCompanyPasswordSubmitting, setResetCompanyPasswordSubmitting] = useState(false);
+  const [resetCompanyPasswordError, setResetCompanyPasswordError] = useState("");
+
   // --- ASSESSMENT RETAKES STATE ---
   const [retakeRequestsList, setRetakeRequestsList] = useState([]);
   const [retakeRequestsLoading, setRetakeRequestsLoading] = useState(false);
@@ -1309,6 +1316,37 @@ export default function StaffHub() {
       setResetPasswordError("Network error resetting password.");
     } finally {
       setResetPasswordSubmitting(false);
+    }
+  };
+
+  const handleResetCompanyPassword = async (e) => {
+    e.preventDefault();
+    if (!newCompanyPasswordForReset || newCompanyPasswordForReset.length < 6) {
+      setResetCompanyPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    setResetCompanyPasswordError("");
+    setResetCompanyPasswordSubmitting(true);
+    try {
+      const cid = resetPasswordCompany._id || resetPasswordCompany.id;
+      const res = await fetch(`/api/staff/companies/${cid}/reset-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ newPassword: newCompanyPasswordForReset }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setResetCompanyPasswordError(data.message || "Failed to reset company password.");
+        return;
+      }
+      showToast(`Password reset successfully for ${resetPasswordCompany.companyName || resetPasswordCompany.email}! 🔑`);
+      setActiveModal(null);
+      setResetPasswordCompany(null);
+      setNewCompanyPasswordForReset("");
+    } catch (err) {
+      setResetCompanyPasswordError("Network error resetting company password.");
+    } finally {
+      setResetCompanyPasswordSubmitting(false);
     }
   };
 
@@ -3705,6 +3743,21 @@ export default function StaffHub() {
                                         Audit KYC
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn"
+                                      style={{ background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", fontWeight: 700 }}
+                                      onClick={() => {
+                                        setResetPasswordCompany(comp);
+                                        setNewCompanyPasswordForReset("");
+                                        setResetCompanyPasswordError("");
+                                        setShowCompanyPassword(false);
+                                        setActiveModal("reset_company_password");
+                                      }}
+                                      title={`Reset login password for ${comp.companyName || comp.email}`}
+                                    >
+                                      🔑 Reset Pass
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -3812,9 +3865,35 @@ export default function StaffHub() {
                                     <span style={{ fontSize: 10.5, color: "var(--st-text-muted, #64748B)" }}>
                                       {comp.email}
                                     </span>
-                                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-accent, #B45309)" }}>
-                                      Manage ↗
-                                    </span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                      <button
+                                        type="button"
+                                        style={{
+                                          background: "rgba(109,40,217,0.1)",
+                                          border: "1px solid rgba(109,40,217,0.25)",
+                                          color: "#6D28D9",
+                                          borderRadius: 4,
+                                          fontSize: 10,
+                                          fontWeight: 800,
+                                          padding: "2px 6px",
+                                          cursor: "pointer",
+                                        }}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setResetPasswordCompany(comp);
+                                          setNewCompanyPasswordForReset("");
+                                          setResetCompanyPasswordError("");
+                                          setShowCompanyPassword(false);
+                                          setActiveModal("reset_company_password");
+                                        }}
+                                        title={`Reset login password for ${comp.companyName || comp.email}`}
+                                      >
+                                        🔑 Pass
+                                      </button>
+                                      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-accent, #B45309)" }}>
+                                        Manage ↗
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -3924,6 +4003,21 @@ export default function StaffHub() {
                               title="Assign Subscription Plan"
                             >
                               ⚙️ Plan
+                            </button>
+                            <button
+                              type="button"
+                              className="sf-action-btn"
+                              style={{ background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", fontWeight: 700 }}
+                              onClick={() => {
+                                setResetPasswordCompany(comp);
+                                setNewCompanyPasswordForReset("");
+                                setResetCompanyPasswordError("");
+                                setShowCompanyPassword(false);
+                                setActiveModal("reset_company_password");
+                              }}
+                              title={`Reset login password for ${comp.companyName || comp.email}`}
+                            >
+                              🔑 Reset Pass
                             </button>
                           </div>
                         </div>
@@ -7531,6 +7625,7 @@ export default function StaffHub() {
                 {activeModal === "kanban" && "📋 Core Verification Pipeline Kanban"}
                 {activeModal === "create_employee" && "🛡️ Create New Employee Account"}
                 {activeModal === "reset_employee_password" && "🔑 Reset Employee Password"}
+                {activeModal === "reset_company_password" && "🔑 Reset Company Account Password"}
               </h2>
               <button
                 type="button"
@@ -8126,6 +8221,130 @@ export default function StaffHub() {
                     }}
                   >
                     {resetPasswordSubmitting ? "Updating..." : "Update Password"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* RESET COMPANY PASSWORD MODAL */}
+            {activeModal === "reset_company_password" && resetPasswordCompany && (
+              <form onSubmit={handleResetCompanyPassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Target Company Account
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginTop: 2 }}>
+                    {resetPasswordCompany.companyName || resetPasswordCompany.legalName || "Employer"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span>✉️ {resetPasswordCompany.email}</span>
+                    {resetPasswordCompany.mobile && <span>📞 {resetPasswordCompany.mobile}</span>}
+                    {resetPasswordCompany.stage1a?.gstin && (
+                      <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 11, background: "#EFF6FF", color: "#2563EB", padding: "1px 6px", borderRadius: 4 }}>
+                        GSTIN: {resetPasswordCompany.stage1a.gstin}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <p style={{ margin: "2px 0 6px", fontSize: 12.5, color: "#64748B", lineHeight: 1.5 }}>
+                  Set a new password for this employer account. Once updated, the employer can immediately sign in with this password.
+                </p>
+
+                {resetCompanyPasswordError && (
+                  <div className="emp-modal-alert">
+                    <span>⚠️</span>
+                    <span>{resetCompanyPasswordError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", fontFamily: "var(--font-mono, monospace)" }}>
+                      NEW PASSWORD *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$";
+                        let pass = "";
+                        for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setNewCompanyPasswordForReset(pass);
+                        setShowCompanyPassword(true);
+                      }}
+                      style={{
+                        background: "#F1F5F9",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: "var(--navy, #0A1F3D)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🎲 Auto-Generate
+                    </button>
+                  </div>
+                  <div className="emp-pw-input-wrapper">
+                    <input
+                      type={showCompanyPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                      value={newCompanyPasswordForReset}
+                      onChange={(e) => setNewCompanyPasswordForReset(e.target.value)}
+                      style={{ width: "100%", padding: "10px 38px 10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", fontFamily: showCompanyPassword ? "var(--font-mono, monospace)" : "inherit", boxSizing: "border-box" }}
+                    />
+                    <button
+                      type="button"
+                      className="emp-pw-toggle-btn"
+                      onClick={() => setShowCompanyPassword(!showCompanyPassword)}
+                      title={showCompanyPassword ? "Hide password" : "Show password"}
+                    >
+                      {showCompanyPassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveModal(null);
+                      setResetPasswordCompany(null);
+                      setNewCompanyPasswordForReset("");
+                      setResetCompanyPasswordError("");
+                    }}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      background: "#fff",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetCompanyPasswordSubmitting}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "linear-gradient(135deg, var(--navy, #0A1F3D) 0%, #15325B 100%)",
+                      color: "var(--gold, #E5A82E)",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: resetCompanyPasswordSubmitting ? "not-allowed" : "pointer",
+                      opacity: resetCompanyPasswordSubmitting ? 0.7 : 1,
+                    }}
+                  >
+                    {resetCompanyPasswordSubmitting ? "Resetting Password..." : "Reset Company Password"}
                   </button>
                 </div>
               </form>
@@ -9062,13 +9281,41 @@ export default function StaffHub() {
                     </div>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCompany(null)}
-                  style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                >
-                  ✕
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    type="button"
+                    style={{
+                      background: "rgba(255,255,255,0.15)",
+                      border: "1px solid rgba(255,255,255,0.25)",
+                      color: "#fff",
+                      padding: "6px 14px",
+                      borderRadius: 8,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                    onClick={() => {
+                      setResetPasswordCompany(selectedCompany);
+                      setNewCompanyPasswordForReset("");
+                      setResetCompanyPasswordError("");
+                      setShowCompanyPassword(false);
+                      setActiveModal("reset_company_password");
+                    }}
+                    title={`Reset login password for ${selectedCompany.companyName || selectedCompany.email}`}
+                  >
+                    🔑 Reset Password
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCompany(null)}
+                    style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -9737,13 +9984,41 @@ export default function StaffHub() {
               <div style={{ fontSize: 12, color: "#64748B" }}>
                 Company ID: <span style={{ fontFamily: "monospace" }}>{selectedCompany._id || selectedCompany.id}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedCompany(null)}
-                style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
-              >
-                Close Drawer
-              </button>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetPasswordCompany(selectedCompany);
+                    setNewCompanyPasswordForReset("");
+                    setResetCompanyPasswordError("");
+                    setShowCompanyPassword(false);
+                    setActiveModal("reset_company_password");
+                  }}
+                  style={{
+                    background: "#EDE9FE",
+                    color: "#6D28D9",
+                    border: "1px solid #DDD6FE",
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  title={`Reset login password for ${selectedCompany.companyName || selectedCompany.email}`}
+                >
+                  🔑 Reset Password
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCompany(null)}
+                  style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                >
+                  Close Drawer
+                </button>
+              </div>
             </div>
           </div>
         </div>
