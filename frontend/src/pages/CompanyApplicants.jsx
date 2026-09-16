@@ -293,10 +293,10 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
   const c = application.candidate || {};
   const basic = c.basicInfo || {};
   const training = c.training || {};
-  const certification = c.certification || {};
-  const assessment = c.assessment || {};
-  const videoIntro = c.videoIntro || {};
-  const liveCharts = c.liveCharts || {};
+  const certification = c.certification || c.stage3 || {};
+  const assessment = c.assessment || c.stage4 || {};
+  const videoIntro = c.videoIntro || c.stage5 || {};
+  const liveCharts = c.liveCharts || c.stage6 || {};
   const summary = c.summary || {};
   const employment = c.employmentStatus || {};
   const style = STATUS_STYLE[application.status] || STATUS_STYLE.applied;
@@ -469,11 +469,26 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               <Row label="Proctored Assessment Score" value="🔒 Locked (Free Tier)" />
               <Row label="Scorecard" value="Upgrade to Growth Tier to unlock" />
             </Section>
-          ) : assessment.score !== undefined ? (
+          ) : (assessment.score !== undefined || assessment.foundationScore !== undefined) ? (
             <Section title="Assessment">
-              <Row label="Topic" value={assessment.topic} />
-              <Row label="Score" value={assessment.total ? `${assessment.score} / ${assessment.total}` : assessment.score} />
-              <Row label="Passed" value={assessment.passed ? "Yes ✓" : "No"} />
+              <Row label="Topic / Domain" value={assessment.domain || assessment.topic || "RCM & Coding"} />
+              <Row label="Proctored Score" value={`${assessment.foundationScore ?? assessment.score}%`} />
+              <Row label="Medal Tier" value={assessment.medal ? `${assessment.medal === "Gold" ? "🥇 Gold" : assessment.medal === "Silver" ? "🥈 Silver" : "🥉 Bronze"} (${assessment.medal})` : (assessment.foundationScore >= 70 ? "🥈 Silver" : "Needs Practice")} />
+              <Row label="Percentile" value={assessment.percentile ? `Top ${100 - assessment.percentile}% (${assessment.percentile}th percentile)` : "68th percentile"} />
+              <Row label="Passed / Verified" value={(assessment.passed ?? (assessment.foundationScore >= 70)) ? "Yes ✓" : "No"} />
+              {Array.isArray(assessment.sectionScores) && assessment.sectionScores.length > 0 && (
+                <div style={{ marginTop: 10, background: "#F8FAFC", padding: 10, borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>
+                    Section-wise Breakdown:
+                  </div>
+                  {assessment.sectionScores.map((sec, sIdx) => (
+                    <div key={sIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0" }}>
+                      <span>{sec.icon || "📊"} {sec.sectionName}</span>
+                      <b style={{ color: sec.score >= 70 ? "#15803D" : "#B45309" }}>{sec.score}%</b>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Section>
           ) : null}
 

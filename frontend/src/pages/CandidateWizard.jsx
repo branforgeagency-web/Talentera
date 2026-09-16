@@ -9,6 +9,7 @@ import Stage1Aadhaar from "../components/wizard/Stage1Aadhaar.jsx";
 import Stage2Training from "../components/wizard/Stage2Training.jsx";
 import Stage3Certification from "../components/wizard/Stage3Certification.jsx";
 import Stage4Assessment from "../components/wizard/Stage4Assessment.jsx";
+import Stage5VideoPitch from "../components/wizard/Stage5VideoPitch.jsx";
 import Stage6LiveCharts from "../components/wizard/Stage6LiveCharts.jsx";
 import Stage7Resume from "../components/wizard/Stage7Resume.jsx";
 import Stage8Track from "../components/wizard/Stage8Track.jsx";
@@ -21,6 +22,7 @@ const STAGE_COMPONENTS = {
   2: Stage2Training,
   3: Stage3Certification,
   4: Stage4Assessment,
+  5: Stage5VideoPitch,
   6: Stage6LiveCharts,
   7: Stage7Resume,
   8: Stage8Track,
@@ -217,7 +219,7 @@ export default function CandidateWizard() {
         onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
       />
 
-      {activeStageId === 1 || activeStageId === 2 || activeStageId === 3 ? (
+      {activeStageId === 1 || activeStageId === 2 || activeStageId === 3 || activeStageId === 4 || activeStageId === 5 ? (
         <div style={{ flex: 1, minWidth: 0, padding: "20px 28px", overflowY: "auto", height: "100vh" }}>
           {canViewDashboard && (
             <div style={{ marginBottom: 14 }}>
@@ -256,8 +258,22 @@ export default function CandidateWizard() {
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : (
+          ) : activeStageId === 3 ? (
             <Stage3Certification
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          ) : activeStageId === 4 ? (
+            <Stage4Assessment
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          ) : (
+            <Stage5VideoPitch
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}

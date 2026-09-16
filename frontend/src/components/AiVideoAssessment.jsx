@@ -156,6 +156,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   // Face Detection State (Anti-cheat face guard)
   const [isFacePresent, setIsFacePresent] = useState(true);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const audioCtxRef = useRef(null);
+  const analyserRef = useRef(null);
+  const animFrameRef = useRef(null);
 
   // Liveness States
   const [livenessVerified, setLivenessVerified] = useState(Boolean(existingData?.livenessVerified));
@@ -534,9 +538,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         setStream(null);
       }
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720 },
-        audio: includeAudio,
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
+        audio: includeAudio ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
       });
+      if (includeAudio) {
+        initAudioMeter(mediaStream);
+      }
       streamRef.current = mediaStream;
       setStream(mediaStream);
       setIsFacePresent(true);
@@ -556,7 +563,82 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }
 
+    function initAudioMeter(mediaStream) {
+    if (!mediaStream) return;
+    try {
+      const audioTracks = mediaStream.getAudioTracks();
+      if (!audioTracks || audioTracks.length === 0) return;
+
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+
+      if (audioCtxRef.current) {
+        try { audioCtxRef.current.close(); } catch(e) {}
+      }
+
+      const ctx = new AudioCtx();
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      audioCtxRef.current = ctx;
+      const src = ctx.createMediaStreamSource(mediaStream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.4;
+      src.connect(analyser);
+      analyserRef.current = analyser;
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const checkAudio = () => {
+        if (!analyserRef.current) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        // Sensitivity curve: standard speaking decibels mapped smoothly to 0-100%
+        const level = Math.min(100, Math.round((avg / 60) * 100));
+        setAudioLevel(level);
+        if (avg > 4) {
+          lastSpeechTimeRef.current = Date.now();
+        }
+        animFrameRef.current = requestAnimationFrame(checkAudio);
+      };
+      checkAudio();
+    } catch (e) {
+      console.warn("AudioContext meter error:", e);
+    }
+  }
+
+  // Ensure video element srcObject and audio meter are linked whenever step or stream changes
+  useEffect(() => {
+    let activeStream = streamRef.current || stream;
+    if (activeStream) {
+      if (videoPreviewRef.current && videoPreviewRef.current.srcObject !== activeStream) {
+        videoPreviewRef.current.srcObject = activeStream;
+      }
+      if (!analyserRef.current) {
+        initAudioMeter(activeStream);
+      }
+    }
+  }, [step, stream]);
+
+  function stopAudioMeter() {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    if (audioCtxRef.current) {
+      try { audioCtxRef.current.close(); } catch(e) {}
+      audioCtxRef.current = null;
+    }
+    analyserRef.current = null;
+    setAudioLevel(0);
+  }
+
   function stopWebcam() {
+    stopAudioMeter();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -569,7 +651,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setLivenessChecking(true);
     let activeStream = streamRef.current || stream;
     if (!activeStream) {
-      activeStream = await startWebcam(false);
+      activeStream = await startWebcam(true);
     }
     if (!activeStream) {
       // Camera could not start - startWebcam already set cameraError. Don't
@@ -656,6 +738,47 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     speakQuestion(questionsList[0].question, () => startAnswerWindow(0));
   }
 
+  function speakQuestion(text, onComplete) {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      if (onComplete) onComplete();
+      return;
+    }
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      utterance.lang = "en-US";
+      setIsSpeaking(true);
+      let ended = false;
+      const finish = () => {
+        if (!ended) {
+          ended = true;
+          setIsSpeaking(false);
+          if (onComplete) onComplete();
+        }
+      };
+      utterance.onend = finish;
+      utterance.onerror = finish;
+      // Safety timeout in case onend event does not trigger
+      setTimeout(() => finish(), 6000);
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("TTS speak error:", e);
+      setIsSpeaking(false);
+      if (onComplete) onComplete();
+    }
+  }
+
+  function startAnswerWindow(idx) {
+    setIsSpeaking(false);
+    setIsRecording(true);
+    setIsPaused(false);
+    lastSpeechTimeRef.current = Date.now();
+    recognitionShouldRunRef.current = true;
+    startSpeechRecognition(questionsList[idx]?.id || 1);
+  }
+
   function startSpeechRecognition(qId) {
     if (recognitionRef.current) {
       try {
@@ -668,53 +791,50 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (!SpeechRecognition) {
+      console.warn("SpeechRecognition not supported in this browser");
+      return;
+    }
 
     function begin() {
       if (!recognitionShouldRunRef.current) return;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.onresult = (e) => {
-        let text = "";
-        for (let i = 0; i < e.results.length; i++) {
-          text += e.results[i][0].transcript + " ";
-        }
-        if (text.trim()) {
-          lastSpeechTimeRef.current = Date.now();
-        }
-        setQaTranscripts((prev) => ({ ...prev, [qId]: text }));
-      };
-      recognition.onerror = () => {};
-      recognition.onend = () => {
-        if (recognitionShouldRunRef.current) {
-          try {
-            begin();
-          } catch (e) {}
-        }
-      };
       try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+        recognition.maxAlternatives = 1;
+
+        recognition.onresult = (e) => {
+          let fullText = "";
+          for (let i = 0; i < e.results.length; i++) {
+            fullText += e.results[i][0].transcript + " ";
+          }
+          if (fullText.trim()) {
+            lastSpeechTimeRef.current = Date.now();
+            setQaTranscripts((prev) => ({ ...prev, [qId]: fullText.trim() }));
+          }
+        };
+
+        recognition.onerror = (err) => {
+          console.debug("Speech recognition event:", err?.error);
+        };
+
+        recognition.onend = () => {
+          if (recognitionShouldRunRef.current) {
+            try {
+              begin();
+            } catch (e) {}
+          }
+        };
+
         recognition.start();
         recognitionRef.current = recognition;
-      } catch (e) {}
+      } catch (e) {
+        console.warn("SpeechRecognition start error:", e);
+      }
     }
     begin();
-  }
-
-  // Opens the answer window: starts the 60s countdown, elapsed seconds tracker,
-  // and speech-recognition instance.
-  function startAnswerWindow(idx) {
-    const q = questionsList[idx] || questionsList[0];
-    if (!q) return;
-
-    setRecTimeLeft(q.timeLimit || 60);
-    setRecordingSeconds(0);
-    setIsPaused(false);
-    setSilenceTimeLeft(SILENCE_TIMEOUT_SECONDS);
-    lastSpeechTimeRef.current = Date.now();
-    setIsRecording(true);
-    recognitionShouldRunRef.current = true;
-    startSpeechRecognition(q.id);
   }
 
   function handlePauseRecording() {
@@ -1429,46 +1549,88 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       {/* ========================================================================= */}
       {activeTab === "record" && step === "liveness" && (
         <div style={{ background: "#F8FAFC", border: "2px solid var(--navy)", borderRadius: 16, padding: 24 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "stretch" }}>
             {/* Live Camera Feed Preview */}
-            <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", minHeight: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: "100%", height: 280, objectFit: "cover", transform: "scaleX(-1)" }} />
-              <div style={{ position: "absolute", top: 12, left: 12, background: !stream ? "rgba(0,0,0,0.6)" : isFacePresent ? "rgba(0,0,0,0.6)" : "#DC2626", color: "#fff", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
-                <i className="fa-solid fa-circle" style={{ color: !stream ? "#94A3B8" : isFacePresent ? "#22C55E" : "#fff", marginRight: 6 }}></i>
-                {!stream ? "Camera Off · Click Verify to Start" : isFacePresent ? "Face Detected · Camera Live" : "No Face Detected"}
+            <div>
+              <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", minHeight: 480, height: 480, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
+                <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
+                <div style={{ position: "absolute", top: 14, left: 14, background: !stream ? "rgba(0,0,0,0.75)" : isFacePresent ? "rgba(0,0,0,0.75)" : "#DC2626", color: "#fff", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700, backdropFilter: "blur(4px)", zIndex: 10 }}>
+                  <i className="fa-solid fa-circle" style={{ color: !stream ? "#94A3B8" : isFacePresent ? "#22C55E" : "#fff", marginRight: 8 }}></i>
+                  {!stream ? "Camera Off · Click Verify to Start" : isFacePresent ? "Face Detected · Camera Live" : "No Face Detected"}
+                </div>
+              </div>
+
+              {/* Real-time Audio Visualizer Meter */}
+              <div style={{ marginTop: 12, background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 90 }}>
+                  <i className="fa-solid fa-microphone" style={{ color: audioLevel > 15 ? "#16A34A" : "#64748B", fontSize: 13 }}></i>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>Mic Audio:</span>
+                </div>
+                <div style={{ flex: 1, height: 8, background: "#F1F5F9", borderRadius: 999, overflow: "hidden", border: "1px solid #E2E8F0" }}>
+                  <div style={{ width: `${Math.min(100, audioLevel * 1.6)}%`, height: "100%", background: audioLevel > 60 ? "#EF4444" : audioLevel > 20 ? "#10B981" : "#3B82F6", transition: "width 0.1s ease" }} />
+                </div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: audioLevel > 5 ? "#16A34A" : "#94A3B8", minWidth: 65, textAlign: "right" }}>
+                  {audioLevel > 5 ? "Receiving" : "Waiting…"}
+                </span>
               </div>
             </div>
 
             {/* Liveness Controls */}
-            <div>
-              <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginBottom: 8 }}>
-                Step 1: Liveness &amp; Camera Check
-              </h4>
-              <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, marginBottom: 16 }}>
-                Before starting your live 60-second video recording, ensure your face is directly in front of the camera and look at the screen.
-              </p>
+            <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 20 }}>
+              <div>
+                <h4 style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>
+                  Step 1: Liveness &amp; Camera Check
+                </h4>
+                <p style={{ fontSize: 12.5, color: "#475569", lineHeight: 1.6, marginBottom: 16 }}>
+                  Before starting your live 60-second video recording, ensure your face is clearly framed and look directly at the screen.
+                </p>
 
-              {cameraError ? (
-                <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>{cameraError}</div>
-              ) : livenessVerified ? (
-                <div>
-                  <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#15803D", padding: 12, borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 16 }}>
-                    ✓ Liveness Verified! Face presence confirmed.
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)", marginBottom: 6 }}>
+                    <i className="fa-solid fa-circle-check" style={{ color: "var(--gold)", marginRight: 6 }}></i> Camera Guidelines:
                   </div>
-                  <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={() => setStep("recording")} disabled={questionsLoading}>
-                    {questionsLoading ? "Loading…" : "Start 60s Self-Introduction Recording →"}
-                  </button>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11.5, color: "#64748B", lineHeight: 1.5 }}>
+                    <li>Position yourself head and shoulders in center</li>
+                    <li>Ensure good lighting on your face</li>
+                    <li>Speak clearly into your microphone</li>
+                  </ul>
                 </div>
-              ) : (
-                <div>
-                  <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#B45309", padding: 12, borderRadius: 8, fontSize: 11, fontWeight: 600, marginBottom: 16 }}>
-                    Prompt: Look directly at the camera, blink twice, and click Verify.
+              </div>
+
+              <div>
+                {cameraError ? (
+                  <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 700, marginBottom: 12 }}>{cameraError}</div>
+                ) : livenessVerified ? (
+                  <div>
+                    <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#15803D", padding: 12, borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 16 }}>
+                      ✓ Liveness Verified! Face presence confirmed.
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-gold"
+                      style={{ width: "100%", justifyContent: "center", padding: "12px 18px", fontSize: 13.5, fontWeight: 800 }}
+                      onClick={() => {
+                        setStep("recording");
+                        setTimeout(() => {
+                          handleStartSingleTakeInterview();
+                        }, 120);
+                      }}
+                      disabled={questionsLoading}
+                    >
+                      {questionsLoading ? "Loading…" : "Start 60s Self-Introduction Recording →"}
+                    </button>
                   </div>
-                  <button type="button" className="btn btn-navy" style={{ width: "100%", justifyContent: "center" }} onClick={handlePerformLivenessCheck} disabled={livenessChecking}>
-                    {livenessChecking ? "Validating Liveness…" : "Perform Liveness Verification →"}
-                  </button>
-                </div>
-              )}
+                ) : (
+                  <div>
+                    <div style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#B45309", padding: 12, borderRadius: 8, fontSize: 11.5, fontWeight: 600, marginBottom: 16 }}>
+                      Prompt: Look directly at the camera, blink twice, and click Verify.
+                    </div>
+                    <button type="button" className="btn btn-navy" style={{ width: "100%", justifyContent: "center", padding: "12px 18px", fontSize: 13.5, fontWeight: 800 }} onClick={handlePerformLivenessCheck} disabled={livenessChecking}>
+                      {livenessChecking ? "Validating Liveness…" : "Perform Liveness Verification →"}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1477,10 +1639,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       {/* STEP 3: LIVE RECORDING WITH PAUSE & RESUME */}
       {activeTab === "record" && step === "recording" && (
         <div style={{ background: "#fff", border: "2px solid var(--navy)", borderRadius: 16, padding: 24, boxShadow: "0 10px 30px rgba(0,0,0,0.06)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 24, alignItems: "stretch" }}>
             {/* Left: Video Recorder Feed */}
             <div>
-              <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", height: 320 }}>
+              <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", position: "relative", minHeight: 480, height: 480, boxShadow: "0 4px 20px rgba(0,0,0,0.15)" }}>
                 <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
 
                 {/* PAUSED VIDEO OVERLAY */}
@@ -1489,51 +1651,52 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                     style={{
                       position: "absolute",
                       inset: 0,
-                      background: "rgba(15, 23, 42, 0.7)",
+                      background: "rgba(15, 23, 42, 0.75)",
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
                       color: "#fff",
                       zIndex: 10,
-                      backdropFilter: "blur(2px)",
+                      backdropFilter: "blur(3px)",
                     }}
                   >
                     <div
                       style={{
-                        width: 52,
-                        height: 52,
+                        width: 56,
+                        height: 56,
                         borderRadius: "50%",
                         background: "rgba(255, 255, 255, 0.2)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 22,
-                        marginBottom: 8,
+                        fontSize: 24,
+                        marginBottom: 10,
                       }}
                     >
                       <i className="fa-solid fa-pause"></i>
                     </div>
-                    <div style={{ fontSize: 16, fontWeight: 800 }}>Recording Paused</div>
-                    <div style={{ fontSize: 12, color: "#CBD5E1", marginTop: 4 }}>
+                    <div style={{ fontSize: 18, fontWeight: 800 }}>Recording Paused</div>
+                    <div style={{ fontSize: 13, color: "#CBD5E1", marginTop: 4 }}>
                       Recorded: <strong>{recordingSeconds}s</strong> of 60s · Click Resume to continue
                     </div>
                   </div>
                 )}
 
                 {/* Recording Badge & Timer */}
-                <div style={{ position: "absolute", top: 12, left: 12, display: "flex", gap: 8, flexWrap: "wrap", zIndex: 12 }}>
+                <div style={{ position: "absolute", top: 14, left: 14, display: "flex", gap: 8, flexWrap: "wrap", zIndex: 12 }}>
                   <div
                     style={{
-                      background: isPaused ? "#F59E0B" : isRecording ? "#DC2626" : isSpeaking ? "#6366F1" : "rgba(0,0,0,0.6)",
+                      background: isPaused ? "#F59E0B" : isRecording ? "#DC2626" : isSpeaking ? "#6366F1" : "rgba(0,0,0,0.75)",
                       color: "#fff",
-                      padding: "4px 12px",
+                      padding: "6px 14px",
                       borderRadius: 999,
-                      fontSize: 11,
+                      fontSize: 11.5,
                       fontWeight: 800,
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
+                      backdropFilter: "blur(4px)",
                     }}
                   >
                     <i
@@ -1547,16 +1710,30 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                   </div>
                   {isRecording && (
                     <>
-                      <div style={{ background: "#F59E0B", color: "#fff", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
+                      <div style={{ background: "#F59E0B", color: "#fff", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
                         <i className="fa-solid fa-clock" style={{ marginRight: 4 }}></i> {recordingSeconds}s / 60s
                       </div>
-                      <div style={{ background: recordingSeconds >= 60 ? "#16A34A" : "#6366F1", color: "#fff", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
+                      <div style={{ background: recordingSeconds >= 60 ? "#16A34A" : "#6366F1", color: "#fff", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
                         <i className={`fa-solid ${recordingSeconds >= 60 ? "fa-circle-check" : "fa-hourglass-half"}`} style={{ marginRight: 4 }}></i>
                         {recordingSeconds >= 60 ? "Min 60s Met" : `Min: ${60 - recordingSeconds}s remaining`}
                       </div>
                     </>
                   )}
                 </div>
+              </div>
+
+              {/* Real-time Audio Visualizer Meter */}
+              <div style={{ marginTop: 12, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 90 }}>
+                  <i className="fa-solid fa-microphone" style={{ color: audioLevel > 15 ? "#16A34A" : "#64748B", fontSize: 13 }}></i>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#334155" }}>Mic Audio:</span>
+                </div>
+                <div style={{ flex: 1, height: 8, background: "#E2E8F0", borderRadius: 999, overflow: "hidden" }}>
+                  <div style={{ width: `${Math.min(100, audioLevel * 1.6)}%`, height: "100%", background: audioLevel > 60 ? "#EF4444" : audioLevel > 20 ? "#10B981" : "#3B82F6", transition: "width 0.1s ease" }} />
+                </div>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: audioLevel > 5 ? "#16A34A" : "#94A3B8", minWidth: 65, textAlign: "right" }}>
+                  {audioLevel > 5 ? "Receiving" : "Waiting…"}
+                </span>
               </div>
             </div>
 
@@ -1571,7 +1748,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 </h4>
 
                 {/* Live STT Transcript Preview */}
-                <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 8, padding: 12, minHeight: 80, fontSize: 12, color: "#334155", fontStyle: "italic", marginBottom: 16 }}>
+                <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 8, padding: 12, minHeight: 100, fontSize: 12, color: "#334155", fontStyle: "italic", marginBottom: 16 }}>
                   <strong>Live Spoken Answer Transcript:</strong>{" "}
                   {qaTranscripts[currentQ?.id] ||
                     (isRecording
