@@ -74,15 +74,28 @@ function resolveStage1Data(existingData, candidate) {
   const s1 = existingData || candidate?.stage1 || {};
   const lData = s1?.aadhaarLockedData || candidate?.stage1?.aadhaarLockedData || {};
 
-  const isVerified = Boolean(
-    s1.aadhaarVerified ||
-    s1.aadhaarStatus === "VERIFIED" ||
-    s1.maskedAadhaar ||
+  const rawFullName =
     lData.fullName ||
-    candidate?.stage1?.aadhaarVerified ||
-    candidate?.stage1?.aadhaarStatus === "VERIFIED" ||
-    candidate?.isVerified
+    s1.fullName ||
+    candidate?.stage1?.fullName ||
+    candidate?.fullName ||
+    "";
+
+  const isDummyName =
+    !rawFullName ||
+    rawFullName.trim().toLowerCase() === "verified candidate" ||
+    rawFullName.trim().toLowerCase() === "candidate";
+
+  // Aadhaar is verified ONLY if explicitly verified via UIDAI / DigiLocker
+  // (NEVER check candidate.isVerified which is only the account login/signup flag)
+  const isAadhaarFlag = Boolean(
+    s1.aadhaarVerified === true ||
+    s1.aadhaarStatus === "VERIFIED" ||
+    candidate?.stage1?.aadhaarVerified === true ||
+    candidate?.stage1?.aadhaarStatus === "VERIFIED"
   );
+
+  const isVerified = isAadhaarFlag && !isDummyName;
 
   const maskedAadhaar =
     s1.maskedAadhaar ||
@@ -90,12 +103,7 @@ function resolveStage1Data(existingData, candidate) {
     candidate?.stage1?.maskedAadhaar ||
     (s1.aadhaarNumber ? formatAadhaar(s1.aadhaarNumber) : "");
 
-  const fullName =
-    lData.fullName ||
-    s1.fullName ||
-    candidate?.stage1?.fullName ||
-    candidate?.fullName ||
-    "";
+  const fullName = isDummyName ? "" : rawFullName;
 
   const dob = lData.dob || s1.dob || candidate?.stage1?.dob || "";
   const gender = lData.gender || s1.gender || candidate?.stage1?.gender || "";
@@ -162,7 +170,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [lockedGender, setLockedGender] = useState(initAadhaar.gender);
   const [lockedLocality, setLockedLocality] = useState(initAadhaar.locality);
   const [lockedDistrict, setLockedDistrict] = useState(initAadhaar.district);
-  const [lockedState, setLockedState] = useState(initAadhaar.state || "Tamil Nadu");
+  const [lockedState, setLockedState] = useState(initAadhaar.state || "");
 
   // 2. SECTION 2 · CONTACT DETAILS
   const [mobile, setMobile] = useState(
@@ -287,6 +295,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       if (resolved.photoUrl) setAadhaarPhoto(resolved.photoUrl);
       if (resolved.maskedMobile) setMaskedMobileInfo(resolved.maskedMobile);
       if (resolved.transactionId) setTransactionId(resolved.transactionId);
+    } else {
+      setIsAadhaarVerified(false);
+      if (resolved.fullName) {
+        setLockedFullName(resolved.fullName);
+      }
     }
     // Also sync contact & location if current fields are empty
     const s1 = existingData || candidate?.stage1 || {};
@@ -2068,14 +2081,14 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     onChange={(e) => setLockedFullName(e.target.value)}
                     style={{
                       background: isAadhaarVerified ? "#f0fdf4" : undefined,
-                      borderColor: isAadhaarVerified ? "#86efac" : (!lockedFullName.trim() ? "#fca5a5" : undefined),
+                      borderColor: isAadhaarVerified ? "#86efac" : undefined,
                     }}
                   />
-                  {!lockedFullName.trim() && (
-                    <span style={{ color: "#dc2626", fontSize: 11.5, marginTop: 4, display: "block" }}>
-                      Enter your full legal name as it appears on official documents
-                    </span>
-                  )}
+                  <span style={{ color: "var(--gray-mute, #64748B)", fontSize: 11.5, marginTop: 4, display: "block" }}>
+                    {isAadhaarVerified
+                      ? "Official name retrieved from Government UIDAI database."
+                      : "Enter your full legal name as it appears on official documents, or verify with DigiLocker below."}
+                  </span>
                 </div>
               </div>
             </div>
@@ -2104,12 +2117,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
 
                 <div className="aadhaar-lock-row">
                   <div className="key">Aadhaar Number</div>
-                  <div className="val">{aadhaarInput || existingData?.maskedAadhaar || candidate?.stage1?.maskedAadhaar || "XXXX XXXX Verified"}</div>
+                  <div className="val">{aadhaarInput || existingData?.maskedAadhaar || candidate?.stage1?.maskedAadhaar || "UIDAI Verified"}</div>
                   <div className="lock">🔒 UIDAI Verified</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Full Name</div>
-                  <div className="val">{lockedFullName || "Verified Candidate"}</div>
+                  <div className="val">{lockedFullName || "—"}</div>
                   <div className="lock">🔒 Locked</div>
                 </div>
                 {aadhaarCareOf && (
@@ -2121,18 +2134,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 )}
                 <div className="aadhaar-lock-row">
                   <div className="key">Date of Birth</div>
-                  <div className="val">{lockedDob || "15/08/1998"}</div>
+                  <div className="val">{lockedDob || "—"}</div>
                   <div className="lock">🔒 Locked</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Gender</div>
-                  <div className="val">{lockedGender || "Male"}</div>
+                  <div className="val">{lockedGender || "—"}</div>
                   <div className="lock">🔒 Locked</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Address</div>
                   <div className="val">
-                    {lockedLocality || [lockedDistrict, lockedState].filter(Boolean).join(", ") || "Verified Address"}
+                    {lockedLocality || [lockedDistrict, lockedState].filter(Boolean).join(", ") || "—"}
                   </div>
                   <div className="lock">🔒 Locked</div>
                 </div>
