@@ -58,10 +58,22 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         score += STAGE_POINTS[6];
         verifiedStages.push(6);
       } else {
-        const opt = candidate.stage6?.option;
-        const pts = opt === "upload" ? 7 : opt === "declare" ? 3 : 10;
+        const s6 = candidate.stage6 || {};
+        const opt = (s6.evidencePath || s6.option || "").toLowerCase();
+        let pts = 0;
+        if (opt === "a" || opt.includes("api") || opt === "practicode") {
+          pts = 20;
+        } else if (opt === "b" || opt.includes("academy") || opt === "upload") {
+          pts = 15;
+        } else if (opt === "c" || opt.includes("self") || opt === "declare") {
+          pts = 8;
+        } else if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
+          pts = 0;
+        } else {
+          pts = 10;
+        }
         score += pts;
-        if (pts >= 7) verifiedStages.push(6);
+        if (pts >= 8) verifiedStages.push(6);
       }
     } else if (stage === 7) {
       score += STAGE_POINTS[7];

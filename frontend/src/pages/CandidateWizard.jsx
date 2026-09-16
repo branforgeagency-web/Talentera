@@ -232,7 +232,7 @@ export default function CandidateWizard() {
         onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
       />
 
-      {activeStageId === 1 || activeStageId === 2 || activeStageId === 3 || activeStageId === 4 || activeStageId === 5 ? (
+      {activeStageId >= 1 && activeStageId <= 8 ? (
         <div style={{ flex: 1, minWidth: 0, padding: "20px 28px", overflowY: "auto", height: "100vh" }}>
           {canViewDashboard && (
             <div style={{ marginBottom: 14 }}>
@@ -285,12 +285,36 @@ export default function CandidateWizard() {
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : (
+          ) : activeStageId === 5 ? (
             <Stage5VideoPitch
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
+            />
+          ) : activeStageId === 6 ? (
+            <Stage6LiveCharts
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+            />
+          ) : activeStageId === 7 ? (
+            <Stage7Resume
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+              onNavigateStage={handleSelectStage}
+            />
+          ) : (
+            <Stage8Track
+              stage={activeStage}
+              existingData={existingData}
+              candidate={candidateObj}
+              onSaved={handleStageSaved}
+              onNavigateStage={handleSelectStage}
+              onGoToDashboard={() => setShowDashboard(true)}
             />
           )}
         </div>
@@ -302,14 +326,6 @@ export default function CandidateWizard() {
           prevNum={prevStage?.num}
           onBackToDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
         >
-          {activeStage.num === 5 && (
-            <VideoUploadStage
-              stage={{ id: 5, title: activeStage.long, subtitle: activeStage.intro }}
-              existingData={existingData}
-              onSaved={handleStageSaved}
-            />
-          )}
-
           {StageComponent && (
             <StageComponent
               stage={activeStage}

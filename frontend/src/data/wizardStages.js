@@ -214,7 +214,7 @@ const RAW_WIZARD_STAGES = [
     num: 6,
     short: "Live Charts",
     long: "Live Chart Exposure",
-    pts: 10,
+    pts: 20,
     mins: 5,
     icon: "activity",
     intro:

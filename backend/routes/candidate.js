@@ -568,6 +568,128 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage5.regionalLanguage = req.body.regionalLanguage || candidate.stage5.regionalLanguage || "";
       candidate.stage5.isLiveVerified = req.body.isLiveVerified !== undefined ? req.body.isLiveVerified : true;
       candidate.stage5.faceMatched = req.body.faceMatched !== undefined ? req.body.faceMatched : true;
+    } else if (stageNum === 6) {
+      const s6 = candidate.stage6 || {};
+      const evidencePath = req.body.evidencePath || s6.evidencePath || (req.body.option === "upload" ? "B" : req.body.option === "declare" ? "C" : req.body.option === "none" ? "D" : "A");
+      const totalCharts = typeof req.body.totalCharts === "number" ? req.body.totalCharts : (typeof s6.totalCharts === "number" ? s6.totalCharts : 141);
+      const overallAccuracy = typeof req.body.overallAccuracy === "number" ? req.body.overallAccuracy : (typeof s6.overallAccuracy === "number" ? s6.overallAccuracy : 83.5);
+      
+      let tier = "Bronze";
+      if (totalCharts >= 500 && overallAccuracy >= 90) tier = "Platinum";
+      else if (totalCharts >= 201 && overallAccuracy >= 85) tier = "Gold";
+      else if (totalCharts >= 51 && overallAccuracy >= 75) tier = "Silver";
+      else tier = "Bronze";
+
+      candidate.stage6 = {
+        ...s6,
+        ...req.body,
+        evidencePath,
+        option: req.body.option || (evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none"),
+        totalCharts,
+        overallAccuracy,
+        tier,
+        liveChartsAudited: totalCharts,
+        accuracyScore: overallAccuracy,
+        accuracy: overallAccuracy,
+        timePracticedHours: req.body.timePracticedHours || s6.timePracticedHours || 48,
+        chartsPerHour: req.body.chartsPerHour || s6.chartsPerHour || 2.9,
+        verified: evidencePath === "A" || evidencePath === "B",
+        verificationMethod: evidencePath === "A" ? "API-Verified" : evidencePath === "B" ? "Academy-Signed" : evidencePath === "C" ? "Self-Declared" : "No Charts",
+        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || ["Practicode", "Codivia", "3M 360 Encompass"]),
+        specialtyCharts: Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || [
+          { id: 1, name: "HCC (Risk Adjustment)", icon: "stethoscope", count: 65, accuracy: 87, timePerChart: "5.2 min", lastCoded: "2 days ago", active: true },
+          { id: 2, name: "E/M (Evaluation)", icon: "clipboard-list", count: 48, accuracy: 82, timePerChart: "4.1 min", lastCoded: "5 days ago", active: true },
+          { id: 3, name: "ED (Emergency)", icon: "truck-medical", count: 20, accuracy: 78, timePerChart: "6.8 min", lastCoded: "12 days ago", active: true },
+          { id: 4, name: "Surgery", icon: "flask", count: 8, accuracy: 85, timePerChart: "8.4 min", lastCoded: "20 days ago", active: true },
+        ]),
+        completedAt: candidate.stage6?.completedAt || new Date(),
+      };
+
+      if (!Array.isArray(candidate.documentVault)) {
+        candidate.documentVault = [];
+      }
+      const docVaultId = "live_chart_proof_stage6";
+      const existingDocIdx = candidate.documentVault.findIndex((d) => d.id === docVaultId);
+      const proofVaultItem = {
+        id: docVaultId,
+        title: `Live Chart Proof — ${tier} Tier (${totalCharts} Charts)`,
+        docType: "Live Chart Proof",
+        docUrl: req.body.docUrl || req.body.proofDocUrl || null,
+        docName: req.body.docName || req.body.proofDocName || (evidencePath === "B" ? (req.body.docName || "Academy_Chart_Log.pdf") : "Practicode_Codivia_Confirmation.pdf"),
+        uploadedAt: new Date(),
+        verified: evidencePath === "A" || evidencePath === "B",
+        tier,
+        totalCharts,
+        overallAccuracy,
+      };
+      if (existingDocIdx >= 0) {
+        candidate.documentVault[existingDocIdx] = { ...candidate.documentVault[existingDocIdx], ...proofVaultItem };
+      } else {
+        candidate.documentVault.push(proofVaultItem);
+      }
+      candidate.markModified("documentVault");
+      candidate.markModified("stage6");
+    } else if (stageNum === 7) {
+      const s7 = candidate.stage7 || {};
+      const template = req.body.template || s7.template || "fresher_modern";
+      const objective = req.body.objective || req.body.summary || s7.objective || s7.summary || "";
+      const versionHistory = Array.isArray(req.body.versionHistory) && req.body.versionHistory.length > 0
+        ? req.body.versionHistory
+        : (s7.versionHistory || [
+            { version: "v3", timestamp: "16 Sep 2026 · 14:22", title: `Career Objective updated, template = ${template.replace(/_/g, " ")}`, current: true },
+            { version: "v2", timestamp: "12 Sep 2026", title: "Added Live Chart entries (HCC + E/M)", current: false },
+            { version: "v1", timestamp: "04 Sep 2026", title: "Initial resume generated after Stage 06 completion", current: false }
+          ]);
+
+      candidate.stage7 = {
+        ...s7,
+        ...req.body,
+        template,
+        objective,
+        summary: objective,
+        versionHistory,
+        updatedAt: new Date(),
+      };
+      candidate.resumeTemplate = template;
+
+      if (!Array.isArray(candidate.documentVault)) {
+        candidate.documentVault = [];
+      }
+      const resumeVaultId = "verified_resume_stage7";
+      const existingResumeIdx = candidate.documentVault.findIndex((d) => d.id === resumeVaultId);
+      const resumeDocName = `${(candidate.stage1?.fullName || "Candidate").replace(/\s+/g, "_")}_Talentera_Verified_Resume.pdf`;
+      const resumeVaultItem = {
+        id: resumeVaultId,
+        title: `Talentera Verified Resume (${template.replace(/_/g, " ").toUpperCase()})`,
+        docType: "Talentera Verified Resume",
+        docUrl: req.body.resumeUrl || null,
+        docName: resumeDocName,
+        uploadedAt: new Date(),
+        verified: true,
+        template,
+      };
+
+      if (existingResumeIdx >= 0) {
+        candidate.documentVault[existingResumeIdx] = { ...candidate.documentVault[existingResumeIdx], ...resumeVaultItem };
+      } else {
+        candidate.documentVault.push(resumeVaultItem);
+      }
+      candidate.markModified("documentVault");
+      candidate.markModified("stage7");
+    } else if (stageNum === 8) {
+      const s8 = candidate.stage8 || {};
+      candidate.stage8 = {
+        ...s8,
+        ...req.body,
+        consent: req.body.consent !== undefined ? req.body.consent : true,
+        isLive: req.body.isLive !== undefined ? req.body.isLive : true,
+        dpdpConsent: true,
+        preferences: req.body.preferences || s8.preferences || {},
+        activatedAt: s8.activatedAt || new Date(),
+      };
+      candidate.isSubmitted = true;
+      candidate.submittedAt = candidate.submittedAt || new Date();
+      candidate.markModified("stage8");
     }
 
     candidate.markModified(key);

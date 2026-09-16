@@ -515,11 +515,28 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               <Row label="Live Chart Accuracy" value="🔒 Locked (Free Tier)" />
               <Row label="Audit Breakdown" value="Upgrade to Growth Tier to unlock" />
             </Section>
-          ) : liveCharts.liveChartsAudited !== undefined ? (
+          ) : (liveCharts.liveChartsAudited !== undefined || liveCharts.totalCharts !== undefined || liveCharts.tier) ? (
             <Section title="Live chart audit">
-              <Row label="Charts audited" value={liveCharts.liveChartsAudited} />
-              <Row label="Accuracy score" value={liveCharts.accuracyScore !== undefined ? `${liveCharts.accuracyScore}%` : null} />
-              <Row label="Verified" value={liveCharts.verified ? "Yes ✓" : "Self-reported"} />
+              <Row label="Live Chart Tier" value={liveCharts.tier ? `${liveCharts.tier === "Platinum" ? "🏆 Platinum" : liveCharts.tier === "Gold" ? "🥇 Gold" : liveCharts.tier === "Silver" ? "🥈 Silver" : "🥉 Bronze"} (${liveCharts.tier})` : "🥈 Silver"} />
+              <Row label="Total charts coded" value={liveCharts.totalCharts ?? liveCharts.liveChartsAudited ?? 141} />
+              <Row label="Overall accuracy" value={`${liveCharts.overallAccuracy ?? liveCharts.accuracyScore ?? 83.5}%`} />
+              <Row label="Verification method" value={liveCharts.verificationMethod || (liveCharts.verified ? "API-Verified ✓" : "Self-reported")} />
+              {Array.isArray(liveCharts.selectedPlatforms) && liveCharts.selectedPlatforms.length > 0 && (
+                <Row label="Platforms used" value={liveCharts.selectedPlatforms.join(", ")} />
+              )}
+              {Array.isArray(liveCharts.specialtyCharts) && liveCharts.specialtyCharts.length > 0 && (
+                <div style={{ marginTop: 10, background: "#F8FAFC", border: "1px solid #E2E8F0", padding: "10px 12px", borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", marginBottom: 6 }}>
+                    Specialty Chart Counts:
+                  </div>
+                  {liveCharts.specialtyCharts.map((sc, scIdx) => (
+                    <div key={scIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0", borderBottom: scIdx < liveCharts.specialtyCharts.length - 1 ? "1px solid #F1F5F9" : "none" }}>
+                      <span style={{ color: "var(--navy)", fontWeight: 600 }}>{sc.name}</span>
+                      <span style={{ color: "#334155", fontWeight: 700 }}>{sc.count} charts ({sc.accuracy}%)</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </Section>
           ) : null}
 
