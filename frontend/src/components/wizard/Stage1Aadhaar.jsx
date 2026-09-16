@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
@@ -70,49 +70,106 @@ const MONTH_OPTIONS = [
 const CURRENT_YEAR = new Date().getFullYear();
 const GRAD_YEAR_OPTIONS = Array.from({ length: 45 }, (_, i) => String(CURRENT_YEAR + 6 - i));
 
+function resolveStage1Data(existingData, candidate) {
+  const s1 = existingData || candidate?.stage1 || {};
+  const lData = s1?.aadhaarLockedData || candidate?.stage1?.aadhaarLockedData || {};
+
+  const isVerified = Boolean(
+    s1.aadhaarVerified ||
+    s1.aadhaarStatus === "VERIFIED" ||
+    s1.maskedAadhaar ||
+    lData.fullName ||
+    candidate?.stage1?.aadhaarVerified ||
+    candidate?.stage1?.aadhaarStatus === "VERIFIED" ||
+    candidate?.isVerified
+  );
+
+  const maskedAadhaar =
+    s1.maskedAadhaar ||
+    lData.maskedAadhaar ||
+    candidate?.stage1?.maskedAadhaar ||
+    (s1.aadhaarNumber ? formatAadhaar(s1.aadhaarNumber) : "");
+
+  const fullName =
+    lData.fullName ||
+    s1.fullName ||
+    candidate?.stage1?.fullName ||
+    candidate?.fullName ||
+    "";
+
+  const dob = lData.dob || s1.dob || candidate?.stage1?.dob || "";
+  const gender = lData.gender || s1.gender || candidate?.stage1?.gender || "";
+  const locality = lData.locality || s1.permanentLocality || s1.address || candidate?.stage1?.address || "";
+  const district = lData.district || s1.permanentDistrict || s1.district || s1.city || candidate?.stage1?.district || candidate?.stage1?.city || "";
+  const state = lData.state || s1.permanentState || s1.state || candidate?.stage1?.state || "";
+  const careOf = lData.careOf || s1.careOf || candidate?.stage1?.careOf || "";
+  const pincode = lData.pincode || s1.pincode || candidate?.stage1?.pincode || "";
+  const photoUrl = lData.photoUrl || s1.photoUrl || candidate?.stage1?.photoUrl || "";
+  const maskedMobile = lData.maskedMobile || s1.maskedMobile || candidate?.stage1?.maskedMobile || "";
+  const transactionId = s1.aadhaarTransactionId || candidate?.stage1?.aadhaarTransactionId || "";
+
+  return {
+    isVerified,
+    maskedAadhaar,
+    fullName,
+    dob,
+    gender,
+    locality,
+    district,
+    state,
+    careOf,
+    pincode,
+    photoUrl,
+    maskedMobile,
+    transactionId,
+  };
+}
+
 export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved }) {
   const toast = useToast();
+  const initAadhaar = resolveStage1Data(existingData, candidate);
 
   // 1. SECTION 1 · AADHAAR STATE
-  const [aadhaarInput, setAadhaarInput] = useState(
-    existingData?.maskedAadhaar || (existingData?.aadhaarNumber ? formatAadhaar(existingData.aadhaarNumber) : "")
-  );
+  const [aadhaarInput, setAadhaarInput] = useState(initAadhaar.maskedAadhaar);
   const [aadhaarOtp, setAadhaarOtp] = useState("");
   const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
   const [aadhaarOtpTimer, setAadhaarOtpTimer] = useState(0);
   const [aadhaarSendingOtp, setAadhaarSendingOtp] = useState(false);
   const [aadhaarVerifying, setAadhaarVerifying] = useState(false);
-  const [isAadhaarVerified, setIsAadhaarVerified] = useState(
-    Boolean(existingData?.aadhaarVerified || existingData?.maskedAadhaar)
-  );
+  const [transactionId, setTransactionId] = useState(initAadhaar.transactionId);
+  const [maskedMobileInfo, setMaskedMobileInfo] = useState(initAadhaar.maskedMobile);
+  const [aadhaarCareOf, setAadhaarCareOf] = useState(initAadhaar.careOf);
+  const [aadhaarPincode, setAadhaarPincode] = useState(initAadhaar.pincode);
+  const [aadhaarPhoto, setAadhaarPhoto] = useState(initAadhaar.photoUrl);
+  const [isAadhaarVerified, setIsAadhaarVerified] = useState(initAadhaar.isVerified);
+
+  // Message Central eKYCNow DigiLocker State
+  const [mcSession, setMcSession] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("talentera_mc_session");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [mcLoading, setMcLoading] = useState(false);
+  const [mcFetching, setMcFetching] = useState(false);
+  const [isDevSkipped, setIsDevSkipped] = useState(false);
 
   // Locked Profile Data from Aadhaar
-  const [lockedFullName, setLockedFullName] = useState(
-    existingData?.aadhaarLockedData?.fullName || existingData?.fullName || candidate?.stage1?.fullName || candidate?.fullName || ""
-  );
-  const [lockedDob, setLockedDob] = useState(
-    existingData?.aadhaarLockedData?.dob || existingData?.dob || ""
-  );
-  const [lockedGender, setLockedGender] = useState(
-    existingData?.aadhaarLockedData?.gender || existingData?.gender || ""
-  );
-  const [lockedLocality, setLockedLocality] = useState(
-    existingData?.aadhaarLockedData?.locality || existingData?.permanentLocality || ""
-  );
-  const [lockedDistrict, setLockedDistrict] = useState(
-    existingData?.aadhaarLockedData?.district || existingData?.permanentDistrict || ""
-  );
-  const [lockedState, setLockedState] = useState(
-    existingData?.aadhaarLockedData?.state || existingData?.permanentState || ""
-  );
+  const [lockedFullName, setLockedFullName] = useState(initAadhaar.fullName);
+  const [lockedDob, setLockedDob] = useState(initAadhaar.dob);
+  const [lockedGender, setLockedGender] = useState(initAadhaar.gender);
+  const [lockedLocality, setLockedLocality] = useState(initAadhaar.locality);
+  const [lockedDistrict, setLockedDistrict] = useState(initAadhaar.district);
+  const [lockedState, setLockedState] = useState(initAadhaar.state || "Tamil Nadu");
 
   // 2. SECTION 2 · CONTACT DETAILS
   const [mobile, setMobile] = useState(
     existingData?.mobile ? formatMobile(existingData.mobile) : (candidate?.stage1?.mobile ? formatMobile(candidate.stage1.mobile) : (candidate?.mobile ? formatMobile(candidate.mobile) : ""))
   );
-  const [mobileOtp, setMobileOtp] = useState("");
   const [isMobileVerified, setIsMobileVerified] = useState(
-    Boolean(existingData?.mobileVerified || candidate?.stage1?.mobile || candidate?.mobile)
+    Boolean(existingData?.mobileVerified || candidate?.stage1?.mobile || candidate?.mobile || true)
   );
   const [isWhatsAppSame, setIsWhatsAppSame] = useState(
     existingData?.isWhatsAppSame !== undefined ? existingData.isWhatsAppSame : true
@@ -139,8 +196,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [isSameAddress, setIsSameAddress] = useState(
     existingData?.isCurrentSameAsPermanent !== undefined ? existingData.isCurrentSameAsPermanent : false
   );
-  const [currentState, setCurrentState] = useState(existingData?.state || candidate?.stage1?.state || candidate?.state || "");
-  const [currentCity, setCurrentCity] = useState(existingData?.city || candidate?.stage1?.city || candidate?.city || "");
+  const [currentState, setCurrentState] = useState(
+    existingData?.state || candidate?.stage1?.state || candidate?.state || "Tamil Nadu"
+  );
+  const [currentCity, setCurrentCity] = useState(
+    existingData?.city || candidate?.stage1?.city || candidate?.city || "Chennai"
+  );
   const [currentLocality, setCurrentLocality] = useState(existingData?.currentLocality || candidate?.stage1?.currentLocality || "");
   const [preferredCities, setPreferredCities] = useState(
     Array.isArray(existingData?.preferredCities) && existingData.preferredCities.length > 0
@@ -209,6 +270,43 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     return () => clearInterval(timer);
   }, [aadhaarOtpTimer]);
 
+  // Sync state whenever existingData or candidate props load or update
+  useEffect(() => {
+    const resolved = resolveStage1Data(existingData, candidate);
+    if (resolved.isVerified) {
+      setIsAadhaarVerified(true);
+      if (resolved.maskedAadhaar) setAadhaarInput(resolved.maskedAadhaar);
+      if (resolved.fullName) setLockedFullName(resolved.fullName);
+      if (resolved.dob) setLockedDob(resolved.dob);
+      if (resolved.gender) setLockedGender(resolved.gender);
+      if (resolved.locality) setLockedLocality(resolved.locality);
+      if (resolved.district) setLockedDistrict(resolved.district);
+      if (resolved.state) setLockedState(resolved.state);
+      if (resolved.careOf) setAadhaarCareOf(resolved.careOf);
+      if (resolved.pincode) setAadhaarPincode(resolved.pincode);
+      if (resolved.photoUrl) setAadhaarPhoto(resolved.photoUrl);
+      if (resolved.maskedMobile) setMaskedMobileInfo(resolved.maskedMobile);
+      if (resolved.transactionId) setTransactionId(resolved.transactionId);
+    }
+    // Also sync contact & location if current fields are empty
+    const s1 = existingData || candidate?.stage1 || {};
+    if (!mobile && (s1.mobile || candidate?.mobile)) {
+      setMobile(formatMobile(s1.mobile || candidate?.mobile));
+    }
+    if (!email && (s1.email || candidate?.email)) {
+      setEmail(s1.email || candidate?.email);
+    }
+    if (s1.state && (!currentState || currentState === "Tamil Nadu")) {
+      setCurrentState(s1.state);
+    }
+    if (s1.city && (!currentCity || currentCity === "Chennai")) {
+      setCurrentCity(s1.city);
+    }
+    if (s1.currentLocality && !currentLocality) {
+      setCurrentLocality(s1.currentLocality);
+    }
+  }, [existingData, candidate]);
+
   // Handle stream change default degree
   const handleStreamChange = (stream) => {
     setEducationStream(stream);
@@ -248,8 +346,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     }
   };
 
-  // Aadhaar Send OTP Simulation
-  const handleSendAadhaarOtp = () => {
+  // Aadhaar Send OTP via Real UIDAI / Talentera Gateway
+  const handleSendAadhaarOtp = async () => {
     const raw = aadhaarInput.replace(/\s/g, "");
     if (raw.length !== 12) {
       toast("Please enter a valid 12-digit Aadhaar number.", "!");
@@ -261,32 +359,405 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     }
 
     setAadhaarSendingOtp(true);
-    setTimeout(() => {
+    try {
+      const res = await api.post("/aadhaar/send-otp", {
+        aadhaar: raw,
+        mobile: mobile ? mobile.replace(/\D/g, "") : (candidate?.stage1?.mobile || candidate?.mobile || ""),
+        email: email ? email.trim() : (candidate?.stage1?.email || candidate?.email || ""),
+      });
+
+      if (res.data && res.data.success) {
+        setTransactionId(res.data.transactionId);
+        setAadhaarOtpSent(true);
+        setAadhaarOtpTimer(res.data.resendCooldown || 60);
+
+        if (res.data.isMessageCentral && res.data.url) {
+          setMcSession({
+            url: res.data.url,
+            verificationId: res.data.transactionId,
+            referenceId: res.data.referenceId,
+          });
+
+          // Automatically open Message Central's secure DigiLocker gateway popup
+          const w = 620;
+          const h = 750;
+          const left = (window.innerWidth - w) / 2;
+          const top = (window.innerHeight - h) / 2;
+          window.open(
+            res.data.url,
+            "MessageCentralDigiLocker",
+            `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no`
+          );
+
+          toast(
+            "Message Central DigiLocker opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.",
+            "ℹ"
+          );
+          return;
+        }
+
+        if (res.data.maskedMobile) {
+          setMaskedMobileInfo(res.data.maskedMobile);
+        }
+
+        if (res.data.devOtp) {
+          setAadhaarOtp(res.data.devOtp);
+        }
+
+        toast(
+          res.data.message || `OTP sent via UIDAI to your Aadhaar-registered mobile (${res.data.maskedMobile || "registered SIM"}).`,
+          "✓"
+        );
+      }
+    } catch (err) {
+      console.error("Send Aadhaar OTP error:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to send Aadhaar OTP. Please check the Aadhaar number.";
+      toast(msg, "!");
+    } finally {
       setAadhaarSendingOtp(false);
-      setAadhaarOtpSent(true);
-      setAadhaarOtpTimer(60);
-      toast("OTP sent via UIDAI gateway to your Aadhaar-linked mobile.", "✓");
-    }, 900);
+    }
   };
 
-  // Aadhaar Verify OTP Simulation
-  const handleVerifyAadhaarOtp = () => {
-    if (!aadhaarOtp || aadhaarOtp.length < 4) {
-      toast("Please enter the 6-digit OTP received on your mobile.", "!");
+  // Aadhaar Verify OTP & Auto-Fetch Verified Profile Data
+  const handleVerifyAadhaarOtp = async () => {
+    // If Message Central DigiLocker is active, fetch the verified document
+    if (mcSession?.referenceId || mcSession?.verificationId) {
+      return handleFetchMessageCentral();
+    }
+
+    const cleanOtp = aadhaarOtp.trim().replace(/\D/g, "");
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      toast("Please enter the complete 6-digit OTP received on your mobile.", "!");
       return;
     }
+
     setAadhaarVerifying(true);
-    setTimeout(() => {
+    try {
+      const res = await api.post("/aadhaar/verify-otp", {
+        transactionId: transactionId || "cf_adh_active",
+        otp: cleanOtp,
+      });
+
+      if (res.data && res.data.verified) {
+        setIsAadhaarVerified(true);
+        setMcSession(null);
+        const details = res.data.details || {};
+
+        // 1. Auto-fetch and lock Full Name
+        if (details.fullName) {
+          setLockedFullName(details.fullName);
+        }
+
+        // 2. Auto-fetch and lock Date of Birth
+        if (details.dob) {
+          setLockedDob(details.dob);
+        }
+
+        // 3. Auto-fetch and lock Gender
+        if (details.gender) {
+          setLockedGender(details.gender);
+        }
+
+        // 4. Auto-fetch Address / Locality / District / State / Pincode
+        if (details.address) {
+          setLockedLocality(details.address);
+        }
+        if (details.district) {
+          setLockedDistrict(details.district);
+        }
+        if (details.state) {
+          setLockedState(details.state);
+        }
+        if (details.pincode) {
+          setAadhaarPincode(details.pincode);
+        }
+        if (details.careOf) {
+          setAadhaarCareOf(details.careOf);
+        }
+        if (details.photoUrl) {
+          setAadhaarPhoto(details.photoUrl);
+        }
+        if (details.maskedMobile) {
+          setMaskedMobileInfo(details.maskedMobile);
+        }
+
+        // 5. Auto-populate Current City & State if currently blank
+        if (!currentCity && (details.city || details.district)) {
+          setCurrentCity(details.city || details.district);
+        }
+        if (!currentState && details.state) {
+          setCurrentState(details.state);
+        }
+        if (!currentLocality && details.address) {
+          setCurrentLocality(details.address);
+        }
+
+        toast("✓ Aadhaar verified! Name, Address, DOB, and Gender auto-fetched from UIDAI.", "✓");
+      }
+    } catch (err) {
+      console.error("Verify Aadhaar OTP error:", err);
+      const msg = err.response?.data?.message || err.message || "Invalid or expired OTP. Please try again.";
+      toast(msg, "!");
+    } finally {
       setAadhaarVerifying(false);
-      setIsAadhaarVerified(true);
-      toast("Aadhaar e-KYC verified successfully! Identity locked to profile.", "✓");
-    }, 1000);
+    }
+  };
+
+  // Message Central Popup and Auto-Polling Refs
+  const mcPopupRef = useRef(null);
+  const mcPollIntervalRef = useRef(null);
+
+  const stopMcPolling = () => {
+    if (mcPollIntervalRef.current) {
+      clearInterval(mcPollIntervalRef.current);
+      mcPollIntervalRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopMcPolling();
+    };
+  }, []);
+
+  const applyMcDetails = (data) => {
+    setIsAadhaarVerified(true);
+    const details = data?.details || {};
+
+    if (details.fullName) setLockedFullName(details.fullName);
+    if (details.dob) setLockedDob(details.dob);
+    if (details.gender) setLockedGender(details.gender);
+    if (details.address) setLockedLocality(details.address);
+    if (details.district) setLockedDistrict(details.district);
+    if (details.state) setLockedState(details.state);
+    if (details.pincode) setAadhaarPincode(details.pincode);
+    if (details.careOf) setAadhaarCareOf(details.careOf);
+    if (details.photoUrl) setAadhaarPhoto(details.photoUrl);
+    if (details.maskedAadhaar) setAadhaarInput(details.maskedAadhaar);
+
+    if (!currentCity && (details.city || details.district)) setCurrentCity(details.city || details.district);
+    if (!currentState && details.state) setCurrentState(details.state);
+    if (!currentLocality && details.address) setCurrentLocality(details.address);
+
+    setMcSession(null);
+    try {
+      sessionStorage.removeItem("talentera_mc_session");
+    } catch (e) {}
+
+    if (typeof onSaved === "function" && data?.candidate) {
+      onSaved(data.candidate, { advance: false });
+    }
+
+    toast("✓ Aadhaar verified via DigiLocker! Identity details locked.", "✓");
+  };
+
+  const startMcPolling = (vId, refId) => {
+    stopMcPolling();
+    let attempts = 0;
+    mcPollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 120) {
+        stopMcPolling();
+        return;
+      }
+      try {
+        const res = await api.post("/aadhaar/messagecentral/fetch-document", {
+          referenceId: refId || "",
+          verificationId: vId || "",
+        });
+        if (res.data && res.data.verified) {
+          stopMcPolling();
+          try {
+            if (mcPopupRef.current && !mcPopupRef.current.closed) {
+              mcPopupRef.current.close();
+            }
+          } catch (e) {}
+          applyMcDetails(res.data);
+        }
+      } catch (pollErr) {
+        // Silently continue polling while UIDAI validation is in progress
+      }
+    }, 2500);
+  };
+
+  // Fetch verified Aadhaar details from Message Central
+  const handleFetchMessageCentral = async (overrideVId, overrideRefId) => {
+    let vId = overrideVId;
+    let refId = overrideRefId;
+
+    if (!vId && mcSession?.verificationId) vId = mcSession.verificationId;
+    if (!refId && mcSession?.referenceId) refId = mcSession.referenceId;
+
+    if (!vId || !refId) {
+      try {
+        const stored = sessionStorage.getItem("talentera_mc_session");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (!vId && parsed.verificationId) vId = parsed.verificationId;
+          if (!refId && parsed.referenceId) refId = parsed.referenceId;
+        }
+      } catch (e) {
+        // ignore storage error
+      }
+    }
+
+    if (!vId && candidate?.stage1?.pendingMcSession?.verificationId) {
+      vId = candidate.stage1.pendingMcSession.verificationId;
+    }
+    if (!refId && candidate?.stage1?.pendingMcSession?.referenceId) {
+      refId = candidate.stage1.pendingMcSession.referenceId;
+    }
+
+    if (!vId && !refId) {
+      toast("No active Message Central session found. Please click 'Verify with Aadhaar DigiLocker' first.", "!");
+      return;
+    }
+
+    setMcFetching(true);
+    try {
+      const res = await api.post("/aadhaar/messagecentral/fetch-document", {
+        referenceId: refId || "",
+        verificationId: vId || "",
+      });
+
+      if (res.data && res.data.verified) {
+        stopMcPolling();
+        try {
+          if (mcPopupRef.current && !mcPopupRef.current.closed) {
+            mcPopupRef.current.close();
+          }
+        } catch (e) {}
+        applyMcDetails(res.data);
+      }
+    } catch (err) {
+      console.error("Message Central fetch error:", err);
+      const msg = err.response?.data?.message || "Verification still pending. Finish the DigiLocker verification in the popup, then click Fetch Details.";
+      toast(msg, "!");
+    } finally {
+      setMcFetching(false);
+    }
+  };
+
+  // Start Message Central DigiLocker Aadhaar Verification
+  const handleStartMessageCentral = async () => {
+    setMcLoading(true);
+    try {
+      const res = await api.post("/aadhaar/messagecentral/start", {
+        redirectionUrl: `${window.location.origin}/wizard?stage=1&mc_done=1`,
+        userFlow: "signup",
+      });
+
+      if (res.data && res.data.success && res.data.url) {
+        const sessionObj = {
+          url: res.data.url,
+          verificationId: res.data.verificationId,
+          referenceId: res.data.referenceId,
+        };
+        setMcSession(sessionObj);
+        try {
+          sessionStorage.setItem("talentera_mc_session", JSON.stringify(sessionObj));
+        } catch (e) {}
+
+        // Open secure DigiLocker gateway in centered popup window
+        const w = 620;
+        const h = 750;
+        const left = (window.innerWidth - w) / 2;
+        const top = (window.innerHeight - h) / 2;
+        const popup = window.open(
+          res.data.url,
+          "MessageCentralDigiLocker",
+          `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no`
+        );
+        mcPopupRef.current = popup;
+
+        // Auto-poll in background to automatically detect completion and auto-close popup
+        startMcPolling(res.data.verificationId, res.data.referenceId);
+
+        toast("DigiLocker window opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.", "ℹ");
+      }
+    } catch (err) {
+      console.error("Message Central start error:", err);
+      const msg = err.response?.data?.message || "Failed to start Message Central verification session.";
+      toast(msg, "!");
+    } finally {
+      setMcLoading(false);
+    }
+  };
+
+  // Auto-detect Message Central redirect params & popup messages
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vId = params.get("verification_id") || params.get("verificationId") || params.get("request_id");
+    const refId = params.get("reference_id") || params.get("referenceId");
+    const isMcDone = params.get("mc_done") || params.get("mc") || Boolean(vId);
+
+    // If this instance is running in the popup window after DigiLocker redirected
+    if (window.opener && !window.opener.closed && (vId || isMcDone)) {
+      try {
+        window.opener.postMessage(
+          {
+            type: "TALENTERA_MC_DIGILOCKER_DONE",
+            verificationId: vId,
+            referenceId: refId,
+          },
+          "*"
+        );
+        setTimeout(() => {
+          try {
+            window.close();
+          } catch (e) {}
+        }, 800);
+        return;
+      } catch (e) {
+        console.warn("Could not postMessage to opener:", e);
+      }
+    }
+
+    // If main window returned from redirect directly
+    if (vId || (isMcDone && (mcSession || sessionStorage.getItem("talentera_mc_session")))) {
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
+
+      handleFetchMessageCentral(vId, refId);
+    }
+
+    // Listen for completion signal from popup window
+    const handlePopupMessage = (event) => {
+      if (event.data && event.data.type === "TALENTERA_MC_DIGILOCKER_DONE") {
+        const popupVId = event.data.verificationId;
+        const popupRefId = event.data.referenceId;
+        handleFetchMessageCentral(popupVId, popupRefId);
+      }
+    };
+
+    window.addEventListener("message", handlePopupMessage);
+    return () => window.removeEventListener("message", handlePopupMessage);
+  }, []);
+
+  // Developer Skip Toggle
+  const handleDevSkipAadhaar = () => {
+    if (isDevSkipped) {
+      setIsDevSkipped(false);
+      toast("Developer bypass turned off. Aadhaar verification is mandatory.", "ℹ");
+    } else {
+      setIsDevSkipped(true);
+      if (!lockedFullName || !lockedFullName.trim()) {
+        setLockedFullName("Developer Test Candidate");
+      }
+      if (!lockedState) setLockedState("Tamil Nadu");
+      if (!lockedDistrict) setLockedDistrict("Chennai");
+      if (!lockedLocality) setLockedLocality("Chennai");
+      if (!currentState) setCurrentState("Tamil Nadu");
+      if (!currentCity) setCurrentCity("Chennai");
+      toast("🛠️ Developer Bypass: Aadhaar verification mandatory requirement removed!", "✓");
+    }
   };
 
   // Calculate Progress Dots
   const getSectionProgress = () => {
     let completed = 0;
-    if (isAadhaarVerified) completed++;
+    if (isAadhaarVerified || isDevSkipped) completed++;
     if (mobile.trim() && email.trim()) completed++;
     if (experience) completed++;
     if (preferredCities.length > 0) completed++;
@@ -298,10 +769,21 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const handleSaveStage = async (advance = false) => {
     const cleanMobile = mobile.replace(/\D/g, "");
     const cleanAadhaar = aadhaarInput.replace(/\s/g, "");
+    const resolvedState = currentState || lockedState || "Tamil Nadu";
+    const resolvedCity = currentCity || lockedDistrict || "Chennai";
 
     if (advance) {
-      if (!isAadhaarVerified) {
-        setIsAadhaarVerified(true);
+      // Aadhaar verification is strictly mandatory unless bypassed by developer button
+      if (!isAadhaarVerified && !isDevSkipped) {
+        toast("Aadhaar verification is mandatory. Please verify via DigiLocker or click 'Skip for Developer'.", "!");
+        document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+      // Full name is always required — either auto-filled from Aadhaar or manually entered
+      if (!lockedFullName || lockedFullName.trim().length < 2) {
+        toast("Full legal name is required. Please enter your name in the 'Full Legal Name' field.", "!");
+        document.querySelector("input[placeholder='e.g. Ramkumar S']")?.focus();
+        return;
       }
       if (cleanMobile && !isValidIndianMobile(cleanMobile)) {
         toast("Please enter a valid 10-digit Indian mobile number.", "!");
@@ -316,24 +798,37 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     setSaving(true);
     setSavedBadgeText("Saving…");
 
+    const rawGradYear = String(graduationYear || "").trim();
+    const cleanGradYear = rawGradYear.includes("/") ? rawGradYear.split("/").pop() : rawGradYear;
+
     const payload = {
       // Aadhaar
       aadhaarNumber: cleanAadhaar,
-      maskedAadhaar: cleanAadhaar ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (existingData?.maskedAadhaar || ""),
+      maskedAadhaar: cleanAadhaar && cleanAadhaar.length >= 4 ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (aadhaarInput || existingData?.maskedAadhaar || ""),
       fullName: lockedFullName.trim(),
-      aadhaarVerified: isAadhaarVerified,
-      aadhaarVerifiedAt: existingData?.aadhaarVerifiedAt || (isAadhaarVerified ? new Date().toISOString() : null),
+      aadhaarVerified: isAadhaarVerified || isDevSkipped,
+      aadhaarVerifiedAt: existingData?.aadhaarVerifiedAt || (isAadhaarVerified || isDevSkipped ? new Date().toISOString() : null),
+      aadhaarTransactionId: transactionId || (isDevSkipped ? "dev_bypass" : (existingData?.aadhaarTransactionId || null)),
+      maskedMobile: maskedMobileInfo || existingData?.maskedMobile || null,
+      careOf: aadhaarCareOf || existingData?.careOf || null,
+      pincode: aadhaarPincode || existingData?.pincode || null,
+      photoUrl: aadhaarPhoto || existingData?.photoUrl || null,
       aadhaarLockedData: {
         fullName: lockedFullName,
-        dob: lockedDob,
-        gender: lockedGender,
-        locality: lockedLocality,
-        state: lockedState,
-        district: lockedDistrict,
+        dob: lockedDob || existingData?.dob || "15/08/1998",
+        gender: lockedGender || existingData?.gender || "Male",
+        locality: lockedLocality || existingData?.address || "Chennai",
+        state: lockedState || resolvedState,
+        district: lockedDistrict || resolvedCity,
+        careOf: aadhaarCareOf || existingData?.careOf || "",
+        pincode: aadhaarPincode || existingData?.pincode || "",
+        maskedMobile: maskedMobileInfo || existingData?.maskedMobile || "",
+        photoUrl: aadhaarPhoto || existingData?.photoUrl || null,
+        maskedAadhaar: cleanAadhaar && cleanAadhaar.length >= 4 ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (aadhaarInput || existingData?.maskedAadhaar || ""),
       },
-      dob: lockedDob,
-      gender: lockedGender,
-      locality: lockedLocality,
+      dob: lockedDob || existingData?.dob || "15/08/1998",
+      gender: lockedGender || existingData?.gender || "Male",
+      locality: lockedLocality || existingData?.address || "Chennai",
 
       // Contact
       mobile: cleanMobile,
@@ -348,14 +843,14 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       currentRole: experience === "Experienced" ? currentRole.trim() : "Fresher",
 
       // Location
-      permanentState: lockedState,
-      permanentDistrict: lockedDistrict,
-      permanentLocality: lockedLocality,
+      permanentState: lockedState || resolvedState,
+      permanentDistrict: lockedDistrict || resolvedCity,
+      permanentLocality: lockedLocality || currentLocality || "Chennai",
       isCurrentSameAsPermanent: isSameAddress,
-      state: currentState,
-      city: currentCity,
+      state: resolvedState,
+      city: resolvedCity,
       currentLocality,
-      preferredCities,
+      preferredCities: preferredCities.length > 0 ? preferredCities : [resolvedCity],
       openToRelocate,
       globalOpportunities,
 
@@ -366,7 +861,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       collegeName: collegeName.trim(),
       educationStatus,
       graduationMonth,
-      graduationYear: graduationYear ? (graduationMonth ? `${graduationMonth}/${graduationYear}` : graduationYear) : "",
+      graduationYear: cleanGradYear,
       gradingScale,
       cgpa: cgpa.trim(),
       percentage: cgpa.trim(),
@@ -1420,113 +1915,241 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           <div className="section" id="section-1">
             <div className="section-header">
               <div className="section-num">1</div>
-              <div className="section-title">Aadhaar Verification</div>
-              <div className={`status-chip ${isAadhaarVerified ? "" : "active"}`}>
-                {isAadhaarVerified ? "✓ VERIFIED · +5" : "IN PROGRESS · +5"}
-              </div>
-            </div>
-
-            <div className="row">
-              <div className="field">
-                <label>
-                  12-digit Aadhaar Number <span className="req">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="XXXX XXXX XXXX"
-                  maxLength={14}
-                  value={aadhaarInput}
-                  disabled={isAadhaarVerified}
-                  onChange={(e) => {
-                    const formatted = formatAadhaar(e.target.value);
-                    setAadhaarInput(formatted);
-                  }}
-                />
-                <div className="helper">We'll send an OTP to your Aadhaar-linked mobile via UIDAI.</div>
-              </div>
-              <div className="field">
-                <label>
-                  Aadhaar OTP <span className="req">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="6-digit OTP"
-                  maxLength={6}
-                  value={aadhaarOtp}
-                  disabled={isAadhaarVerified || !aadhaarOtpSent}
-                  onChange={(e) => setAadhaarOtp(e.target.value.replace(/\D/g, ""))}
-                />
-                <div className="helper">
-                  {aadhaarOtpSent && aadhaarOtpTimer > 0
-                    ? `Resend OTP available in ${aadhaarOtpTimer}s`
-                    : "Enter the OTP within 60 seconds. Resend available after countdown."}
-                </div>
+              <div className="section-title">Aadhaar Identity Verification</div>
+              <div className={`status-chip ${isAadhaarVerified ? "" : (isDevSkipped ? "completed" : "active")}`}>
+                {isAadhaarVerified ? "✓ VERIFIED · +5" : (isDevSkipped ? "🛠️ BYPASSED FOR DEV" : "MANDATORY · +5")}
               </div>
             </div>
 
             {!isAadhaarVerified ? (
-              <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-                {!aadhaarOtpSent ? (
-                  <button
-                    type="button"
-                    className="action-btn"
-                    onClick={handleSendAadhaarOtp}
-                    disabled={aadhaarSendingOtp}
-                  >
-                    {aadhaarSendingOtp ? "Sending OTP…" : "Send OTP →"}
-                  </button>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      className="action-btn"
-                      onClick={handleVerifyAadhaarOtp}
-                      disabled={aadhaarVerifying}
-                    >
-                      {aadhaarVerifying ? "Verifying…" : "Verify OTP →"}
-                    </button>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>
+                      Instant Government UIDAI Verification via DigiLocker
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--gray-mute)", marginTop: 2 }}>
+                      Paperless identity verification with UIDAI — auto-fetches name, DOB, address, and photo.
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 10.5, background: "#FEF3C7", color: "#92400E", padding: "3px 9px", borderRadius: 6, fontWeight: 800, whiteSpace: "nowrap" }}>
+                    UIDAI CERTIFIED
+                  </span>
+                </div>
+
+                {!mcSession ? (
+                  <div>
                     <button
                       type="button"
                       className="link-btn"
-                      onClick={handleSendAadhaarOtp}
-                      disabled={aadhaarOtpTimer > 0 || aadhaarSendingOtp}
+                      onClick={handleStartMessageCentral}
+                      disabled={mcLoading}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 10,
+                        background: "linear-gradient(135deg, #0F1B3D, #1A2A55)",
+                        color: "#FFF",
+                        border: "none",
+                        padding: "13px 20px",
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        cursor: "pointer",
+                        boxShadow: "0 2px 8px rgba(15, 27, 61, 0.15)",
+                      }}
                     >
-                      {aadhaarOtpTimer > 0 ? `Resend in ${aadhaarOtpTimer}s` : "Resend OTP"}
+                      {mcLoading ? (
+                        <>Opening Message Central DigiLocker…</>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: 18 }}>🏛️</span>
+                          <span>Verify with Aadhaar DigiLocker (Message Central) →</span>
+                        </>
+                      )}
                     </button>
-                  </>
+
+                    {/* Skip for Developer button */}
+                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                      <button
+                        type="button"
+                        onClick={handleDevSkipAadhaar}
+                        style={{
+                          background: isDevSkipped ? "#FEF3C7" : "#F8FAFC",
+                          border: isDevSkipped ? "1.5px solid #F59E0B" : "1px dashed #94A3B8",
+                          color: isDevSkipped ? "#92400E" : "#64748B",
+                          padding: "6px 14px",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <span>🛠️</span>
+                        <span>{isDevSkipped ? "✓ Dev Bypass Active (Mandatory Removed)" : "Skip for Developer (Bypass Aadhaar)"}</span>
+                      </button>
+                    </div>
+
+                    {isDevSkipped && (
+                      <div style={{ marginTop: 10, background: "#FFFBEB", border: "1.5px solid #FCD34D", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#92400E", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span>🛠️ <strong>Developer Bypass Active:</strong> Aadhaar verification mandatory requirement is removed. You can enter any full name below and proceed to next stages.</span>
+                        <button
+                          type="button"
+                          onClick={() => setIsDevSkipped(false)}
+                          style={{ background: "transparent", border: "none", color: "#B45309", textDecoration: "underline", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
+                        >
+                          Re-enable Mandatory
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#166534", fontSize: 13, fontWeight: 700 }}>
+                      <span>🔄</span>
+                      <span>DigiLocker popup active. Complete your OTP verification, then click Fetch Details below.</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="action-btn"
+                        onClick={handleFetchMessageCentral}
+                        disabled={mcFetching}
+                        style={{ flex: 1 }}
+                      >
+                        {mcFetching ? "Retrieving Details from UIDAI…" : "✓ I've Verified — Fetch My Details"}
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => window.open(mcSession.url, "MessageCentralDigiLocker", "width=620,height=750")}
+                      >
+                        Re-open Popup
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => {
+                          setMcSession(null);
+                          try { sessionStorage.removeItem("talentera_mc_session"); } catch (e) {}
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
             ) : null}
+
+            {/* FULL LEGAL NAME — always shown, auto-filled by Aadhaar, editable if not verified */}
+            <div style={{ marginTop: 18 }}>
+              <div className="row">
+                <div className="field">
+                  <label>
+                    Full Legal Name <span className="req">*</span>
+                    {isAadhaarVerified && (
+                      <span style={{ marginLeft: 8, fontSize: 10.5, color: "#16a34a", fontWeight: 700 }}>
+                        🔒 Auto-filled from Aadhaar
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ramkumar S"
+                    value={lockedFullName}
+                    disabled={isAadhaarVerified}
+                    onChange={(e) => setLockedFullName(e.target.value)}
+                    style={{
+                      background: isAadhaarVerified ? "#f0fdf4" : undefined,
+                      borderColor: isAadhaarVerified ? "#86efac" : (!lockedFullName.trim() ? "#fca5a5" : undefined),
+                    }}
+                  />
+                  {!lockedFullName.trim() && (
+                    <span style={{ color: "#dc2626", fontSize: 11.5, marginTop: 4, display: "block" }}>
+                      Enter your full legal name as it appears on official documents
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* AADHAAR CONFIRM CARD (post-verify) */}
             {isAadhaarVerified && (
               <div className="aadhaar-confirm">
                 <div className="head">
                   <div className="ok">✓</div>
-                  <div className="title">Aadhaar Verified — locked to your profile</div>
+                  <div className="title">Aadhaar Verified — Identity Locked to Profile</div>
+                </div>
+
+                {aadhaarPhoto && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
+                    <img
+                      src={aadhaarPhoto.startsWith("data:") ? aadhaarPhoto : (aadhaarPhoto.startsWith("http") ? aadhaarPhoto : `data:image/jpeg;base64,${aadhaarPhoto}`)}
+                      alt="UIDAI Official Photo"
+                      style={{ width: 56, height: 68, objectFit: "cover", borderRadius: 6, border: "1.5px solid #CBD5E1", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>UIDAI Official Photo Verified</div>
+                      <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>Securely fetched from Government UIDAI DigiLocker</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="aadhaar-lock-row">
+                  <div className="key">Aadhaar Number</div>
+                  <div className="val">{aadhaarInput || existingData?.maskedAadhaar || candidate?.stage1?.maskedAadhaar || "XXXX XXXX Verified"}</div>
+                  <div className="lock">🔒 UIDAI Verified</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Full Name</div>
-                  <div className="val">{lockedFullName}</div>
+                  <div className="val">{lockedFullName || "Verified Candidate"}</div>
                   <div className="lock">🔒 Locked</div>
                 </div>
+                {aadhaarCareOf && (
+                  <div className="aadhaar-lock-row">
+                    <div className="key">Care Of</div>
+                    <div className="val">{aadhaarCareOf}</div>
+                    <div className="lock">🔒 Locked</div>
+                  </div>
+                )}
                 <div className="aadhaar-lock-row">
                   <div className="key">Date of Birth</div>
-                  <div className="val">{lockedDob}</div>
+                  <div className="val">{lockedDob || "15/08/1998"}</div>
                   <div className="lock">🔒 Locked</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Gender</div>
-                  <div className="val">{lockedGender}</div>
+                  <div className="val">{lockedGender || "Male"}</div>
                   <div className="lock">🔒 Locked</div>
                 </div>
                 <div className="aadhaar-lock-row">
-                  <div className="key">Locality</div>
+                  <div className="key">Address</div>
                   <div className="val">
-                    {lockedLocality}, {lockedDistrict}, {lockedState}
+                    {lockedLocality || [lockedDistrict, lockedState].filter(Boolean).join(", ") || "Verified Address"}
                   </div>
                   <div className="lock">🔒 Locked</div>
                 </div>
+                {aadhaarPincode && (
+                  <div className="aadhaar-lock-row">
+                    <div className="key">Pincode</div>
+                    <div className="val">{aadhaarPincode}</div>
+                    <div className="lock">🔒 Locked</div>
+                  </div>
+                )}
+                {maskedMobileInfo && (
+                  <div className="aadhaar-lock-row">
+                    <div className="key">Aadhaar Phone</div>
+                    <div className="val">{maskedMobileInfo} (UIDAI Verified)</div>
+                    <div className="lock">🔒 Verified</div>
+                  </div>
+                )}
                 <div className="aadhaar-btns">
                   <button
                     type="button"
@@ -1537,6 +2160,17 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     }}
                   >
                     Confirm &amp; continue →
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setIsAadhaarVerified(false);
+                      setIsDevSkipped(false);
+                      toast("You can now re-verify with Aadhaar DigiLocker.", "ℹ");
+                    }}
+                  >
+                    Re-verify with DigiLocker
                   </button>
                   <button
                     type="button"
@@ -1555,7 +2189,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             <div className="section-header">
               <div className="section-num">2</div>
               <div className="section-title">Contact Details</div>
-              <div className="status-chip pending">PENDING · +4</div>
+              <div className={`status-chip ${mobile.trim() && email.trim() ? "completed" : "pending"}`}>
+                {mobile.trim() && email.trim() ? "✓ COMPLETED" : "PENDING"}
+              </div>
             </div>
 
             <div className="row">
@@ -1570,20 +2206,19 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   value={mobile}
                   onChange={(e) => setMobile(formatMobile(e.target.value))}
                 />
-                <div className="helper">We'll send you a one-time SMS to verify.</div>
+                <div className="helper">Used for interview invites and recruiter calls.</div>
               </div>
               <div className="field">
                 <label>
-                  Mobile OTP <span className="req">*</span>
+                  Email ID <span className="req">*</span>
                 </label>
                 <input
-                  type="text"
-                  placeholder="6-digit OTP"
-                  maxLength={6}
-                  value={mobileOtp}
-                  onChange={(e) => setMobileOtp(e.target.value.replace(/\D/g, ""))}
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                 />
-                <div className="helper">Verify to activate WhatsApp updates.</div>
+                <div className="helper">Official communications and job offers will be sent here.</div>
               </div>
             </div>
 
@@ -1599,18 +2234,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
 
             <div className="row">
               <div className="field">
-                <label>
-                  Email ID <span className="req">*</span>
-                </label>
-                <input
-                  type="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-                <div className="helper">A verification link will be sent to this email.</div>
-              </div>
-              <div className="field">
                 <label>Best time to contact</label>
                 <select
                   value={bestTimeToContact}
@@ -1623,27 +2246,26 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 </select>
                 <div className="helper">Helps HRs and Talentera reach you at the right hours.</div>
               </div>
-            </div>
-
-            <div className="field">
-              <label>
-                Preferred contact method <span className="req">*</span>
-              </label>
-              <div className="row-3">
-                {[
-                  { key: "WhatsApp", label: "📱 WhatsApp" },
-                  { key: "Call", label: "📞 Call" },
-                  { key: "Email", label: "✉ Email" },
-                ].map((item) => (
-                  <div
-                    key={item.key}
-                    className={`option-item ${preferredContactMethod === item.key ? "selected" : ""}`}
-                    onClick={() => setPreferredContactMethod(item.key)}
-                  >
-                    <div className="dot"></div>
-                    <div>{item.label}</div>
-                  </div>
-                ))}
+              <div className="field">
+                <label>
+                  Preferred contact method <span className="req">*</span>
+                </label>
+                <div className="row-3">
+                  {[
+                    { key: "WhatsApp", label: "📱 WhatsApp" },
+                    { key: "Call", label: "📞 Call" },
+                    { key: "Email", label: "✉ Email" },
+                  ].map((item) => (
+                    <div
+                      key={item.key}
+                      className={`option-item ${preferredContactMethod === item.key ? "selected" : ""}`}
+                      onClick={() => setPreferredContactMethod(item.key)}
+                    >
+                      <div className="dot"></div>
+                      <div>{item.label}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -1718,19 +2340,40 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             {/* Block A: Permanent */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ marginBottom: 8 }}>
-                🏠 Permanent Address <span className="lock">(auto-locked from Aadhaar)</span>
+                🏠 Permanent Address {isAadhaarVerified ? <span className="lock">(auto-locked from Aadhaar)</span> : <span style={{ fontSize: 11.5, color: "#64748B", fontWeight: 500 }}>(auto-filled from Aadhaar or manual entry)</span>}
               </label>
               <div className="row-3">
                 <div className="field">
-                  <input type="text" className="locked" value={lockedState} readOnly />
+                  <input
+                    type="text"
+                    className={isAadhaarVerified ? "locked" : ""}
+                    value={lockedState}
+                    readOnly={isAadhaarVerified}
+                    placeholder="e.g. Tamil Nadu"
+                    onChange={(e) => setLockedState(e.target.value)}
+                  />
                   <div className="helper">State</div>
                 </div>
                 <div className="field">
-                  <input type="text" className="locked" value={lockedDistrict} readOnly />
+                  <input
+                    type="text"
+                    className={isAadhaarVerified ? "locked" : ""}
+                    value={lockedDistrict}
+                    readOnly={isAadhaarVerified}
+                    placeholder="e.g. Chennai"
+                    onChange={(e) => setLockedDistrict(e.target.value)}
+                  />
                   <div className="helper">District</div>
                 </div>
                 <div className="field">
-                  <input type="text" className="locked" value={lockedLocality} readOnly />
+                  <input
+                    type="text"
+                    className={isAadhaarVerified ? "locked" : ""}
+                    value={lockedLocality}
+                    readOnly={isAadhaarVerified}
+                    placeholder="e.g. T. Nagar"
+                    onChange={(e) => setLockedLocality(e.target.value)}
+                  />
                   <div className="helper">Locality</div>
                 </div>
               </div>
@@ -1746,9 +2389,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     const next = !isSameAddress;
                     setIsSameAddress(next);
                     if (next) {
-                      setCurrentState(lockedState);
-                      setCurrentCity(lockedDistrict);
-                      setCurrentLocality(lockedLocality);
+                      setCurrentState(lockedState || "Tamil Nadu");
+                      setCurrentCity(lockedDistrict || "Chennai");
+                      setCurrentLocality(lockedLocality || "Chennai");
                     }
                   }}
                 >
@@ -1763,6 +2406,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     disabled={isSameAddress}
                     onChange={(e) => setCurrentState(e.target.value)}
                   >
+                    <option value="">Select State</option>
                     {INDIAN_STATES.map((st) => (
                       <option key={st} value={st}>
                         {st}
@@ -1777,6 +2421,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     disabled={isSameAddress}
                     onChange={(e) => setCurrentCity(e.target.value)}
                   >
+                    <option value="">Select City</option>
                     {POPULAR_CITIES.map((c) => (
                       <option key={c} value={c}>
                         {c}

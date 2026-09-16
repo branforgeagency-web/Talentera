@@ -58,17 +58,25 @@ export default function CandidateWizard() {
           setShowDashboard(true);
         }
 
+        const savedActiveStage = Number(localStorage.getItem("talentera_active_stage"));
         if (stageParam >= 1 && stageParam <= 8) {
           setActiveStageId(stageParam);
+          localStorage.setItem("talentera_active_stage", String(stageParam));
           if (!viewParam) {
             setShowDashboard(false);
             setShowVerifiedPool(false);
           }
+        } else if (savedActiveStage >= 1 && savedActiveStage <= 8) {
+          setActiveStageId(savedActiveStage);
         } else if (!isStage1Done) {
           setActiveStageId(1);
+          localStorage.setItem("talentera_active_stage", "1");
         } else {
           const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));
-          if (nextIncomplete) setActiveStageId(nextIncomplete.num);
+          if (nextIncomplete) {
+            setActiveStageId(nextIncomplete.num);
+            localStorage.setItem("talentera_active_stage", String(nextIncomplete.num));
+          }
         }
       })
       .catch((err) => {
@@ -84,9 +92,11 @@ export default function CandidateWizard() {
     if (stageNum > 1 && !isStage1Done) {
       toast("Please complete and save Stage 1 (Identity & Basics) first before moving to higher stages.", "!");
       setActiveStageId(1);
+      localStorage.setItem("talentera_active_stage", "1");
       return;
     }
     setActiveStageId(stageNum);
+    localStorage.setItem("talentera_active_stage", String(stageNum));
   }
 
   // `advance: false` lets a stage persist its result (score, completedStages,
@@ -125,6 +135,7 @@ export default function CandidateWizard() {
 
     if (nextStage) {
       setActiveStageId(nextStage);
+      localStorage.setItem("talentera_active_stage", String(nextStage));
       return;
     }
 
@@ -134,8 +145,10 @@ export default function CandidateWizard() {
 
     if (nextIncomplete) {
       setActiveStageId(nextIncomplete.num);
+      localStorage.setItem("talentera_active_stage", String(nextIncomplete.num));
     } else if (activeStageId < 8) {
       setActiveStageId(activeStageId + 1);
+      localStorage.setItem("talentera_active_stage", String(activeStageId + 1));
     }
   }
 

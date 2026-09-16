@@ -9,6 +9,7 @@ const { startLiveVerifySession, captureLiveVerifyResult, closeLiveVerifySession 
 const { isCloudinaryConfigured, uploadBufferToCloudinary } = require("../config/cloudinary");
 const { validateAadhaarNumber } = require("../utils/verhoeffBackend");
 const { calculateVerificationScore } = require("../utils/verificationScore");
+const { messageCentralService } = require("../utils/messageCentralService");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -267,6 +268,9 @@ router.post(
       if (verification.city) {
         candidate.stage1.city = verification.city;
       }
+      if (verification.district) {
+        candidate.stage1.district = verification.district;
+      }
       if (verification.pincode) {
         candidate.stage1.pincode = verification.pincode;
       }
@@ -276,6 +280,17 @@ router.post(
       if (verification.photoUrl) {
         candidate.stage1.photoUrl = verification.photoUrl;
       }
+
+      // Sync aadhaarLockedData so that wizard stage 1 reflects verified locks
+      candidate.stage1.aadhaarLockedData = {
+        fullName: candidate.stage1.fullName || "",
+        dob: candidate.stage1.dob || "",
+        gender: candidate.stage1.gender || "",
+        locality: candidate.stage1.address || "",
+        district: verification.district || candidate.stage1.city || "",
+        state: candidate.stage1.state || "",
+        pincode: candidate.stage1.pincode || "",
+      };
 
       if (!candidate.completedStages.includes(1)) {
         candidate.completedStages.push(1);
@@ -290,15 +305,22 @@ router.post(
         success: true,
         verified: true,
         maskedAadhaar: verification.maskedAadhaar,
+        maskedMobile: verification.maskedMobile || null,
         verificationMethod: candidate.stage1.verificationMethod,
         verifiedAt: verification.verifiedAt,
         details: {
           fullName: candidate.stage1.fullName,
           dob: candidate.stage1.dob,
           gender: candidate.stage1.gender,
+          careOf: verification.careOf || null,
           city: candidate.stage1.city,
+          district: verification.district || candidate.stage1.city,
           state: candidate.stage1.state,
+          pincode: candidate.stage1.pincode || null,
           address: candidate.stage1.address,
+          photoUrl: candidate.stage1.photoUrl || null,
+          maskedMobile: verification.maskedMobile || null,
+          maskedAadhaar: verification.maskedAadhaar,
         },
         candidate,
         ...scoring,
@@ -309,6 +331,150 @@ router.post(
     }
   }
 );
+
+/**
+ * POST /api/aadhaar/messagecentral/start
+ * Generates Message Central DigiLocker session URL
+ */
+router.post("/messagecentral/start", async (req, res) => {
+  try {
+    const rawOrigin = req.headers.origin || process.env.APP_URL || "https://localhost:5173";
+    const defaultRedirect = `${rawOrigin.replace(/^http:\/\//i, "https://")}/wizard?stage=1&mc_done=1`;
+    const redirectionUrl = req.body.redirectionUrl || defaultRedirect;
+    const result = await messageCentralService.generateDigilockerUrl(redirectionUrl, req.body.userFlow || "signup");
+
+    // Persist pending session on candidate profile so fetch can recover it across tabs/redirects
+    try {
+      const candidate = await Candidate.findById(req.candidateId);
+      if (candidate) {
+        candidate.stage1 = {
+          ...(candidate.stage1 || {}),
+          pendingMcSession: {
+            verificationId: result.verificationId,
+            referenceId: result.referenceId,
+            startedAt: new Date(),
+          },
+        };
+        candidate.markModified("stage1");
+        await candidate.save();
+      }
+    } catch (saveErr) {
+      logger.warn(`Could not persist pendingMcSession: ${saveErr.message}`);
+    }
+
+    res.json({
+      success: true,
+      url: result.url,
+      verificationId: result.verificationId,
+      referenceId: result.referenceId,
+      status: result.status,
+    });
+  } catch (err) {
+    logger.error(`Message Central start error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Failed to initiate Message Central verification." });
+  }
+});
+
+/**
+ * POST /api/aadhaar/messagecentral/fetch-document
+ * Fetches verified Aadhaar document after candidate completes OTP on DigiLocker
+ */
+router.post("/messagecentral/fetch-document", async (req, res) => {
+  let { referenceId, verificationId } = req.body;
+
+  const candidate = await Candidate.findById(req.candidateId);
+  if (!candidate) {
+    return res.status(404).json({ message: "Candidate profile not found." });
+  }
+
+  // Fallback to candidate's stored pending session if either ID is missing
+  if (!referenceId && candidate.stage1?.pendingMcSession?.referenceId) {
+    referenceId = candidate.stage1.pendingMcSession.referenceId;
+  }
+  if (!verificationId && candidate.stage1?.pendingMcSession?.verificationId) {
+    verificationId = candidate.stage1.pendingMcSession.verificationId;
+  }
+
+  if (!referenceId && !verificationId) {
+    return res.status(400).json({ message: "No active Message Central verification found. Please click 'Verify with Aadhaar DigiLocker' first." });
+  }
+
+  try {
+    const verification = await messageCentralService.getDocument(referenceId, verificationId);
+
+    // Save into candidate stage1
+    candidate.stage1 = {
+      ...(candidate.stage1 || {}),
+      aadhaarVerified: true,
+      aadhaarStatus: "VERIFIED",
+      maskedAadhaar: verification.maskedAadhaar,
+      aadhaarTransactionId: String(referenceId || verificationId),
+      verificationMethod: "Message Central eKYCNow (DigiLocker UIDAI Verified)",
+      verifiedAt: verification.verifiedAt,
+      pendingMcSession: null,
+    };
+
+    if (verification.name) candidate.stage1.fullName = verification.name;
+    if (verification.dob) candidate.stage1.dob = verification.dob;
+    if (verification.gender) candidate.stage1.gender = verification.gender;
+    if (verification.state) candidate.stage1.state = verification.state;
+    if (verification.city) candidate.stage1.city = verification.city;
+    if (verification.district) candidate.stage1.district = verification.district;
+    if (verification.pincode) candidate.stage1.pincode = verification.pincode;
+    if (verification.address) candidate.stage1.address = verification.address;
+    if (verification.photoUrl) candidate.stage1.photoUrl = verification.photoUrl;
+    if (verification.careOf) candidate.stage1.careOf = verification.careOf;
+
+    candidate.stage1.permanentState = verification.state || candidate.stage1.state || "";
+    candidate.stage1.permanentDistrict = verification.district || candidate.stage1.city || "";
+    candidate.stage1.permanentLocality = verification.address || candidate.stage1.address || "";
+
+    candidate.stage1.aadhaarLockedData = {
+      fullName: candidate.stage1.fullName || "",
+      dob: candidate.stage1.dob || "",
+      gender: candidate.stage1.gender || "",
+      locality: candidate.stage1.address || "",
+      district: verification.district || candidate.stage1.city || "",
+      state: candidate.stage1.state || "",
+      pincode: candidate.stage1.pincode || "",
+      careOf: verification.careOf || candidate.stage1.careOf || "",
+      photoUrl: verification.photoUrl || candidate.stage1.photoUrl || null,
+      maskedAadhaar: verification.maskedAadhaar || candidate.stage1.maskedAadhaar || "",
+      maskedMobile: candidate.stage1.maskedMobile || "",
+    };
+
+    candidate.markModified("stage1");
+    await candidate.save();
+
+    const scoring = calculateVerificationScore(candidate.completedStages);
+
+    res.json({
+      success: true,
+      verified: true,
+      maskedAadhaar: verification.maskedAadhaar,
+      verificationMethod: candidate.stage1.verificationMethod,
+      verifiedAt: verification.verifiedAt,
+      details: {
+        fullName: candidate.stage1.fullName,
+        dob: candidate.stage1.dob,
+        gender: candidate.stage1.gender,
+        careOf: verification.careOf || null,
+        city: candidate.stage1.city,
+        district: verification.district || candidate.stage1.city,
+        state: candidate.stage1.state,
+        pincode: candidate.stage1.pincode || null,
+        address: candidate.stage1.address,
+        photoUrl: candidate.stage1.photoUrl || null,
+        maskedAadhaar: verification.maskedAadhaar,
+      },
+      candidate,
+      ...scoring,
+    });
+  } catch (err) {
+    logger.error(`Message Central fetch-document error: ${err.message}`);
+    res.status(400).json({ message: err.message || "Failed to retrieve verified Aadhaar document." });
+  }
+});
 
 /**
  * GET /api/aadhaar/status/:transactionId

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { safeJson } from "../utils/safeJson.js";
+import { CERT_ID_PATTERNS, CERT_LIBRARY } from "../data/certLibrary.js";
 import "../styles/staffHub.css";
 
 function isPdfUrl(url = "", fileName = "") {
@@ -195,6 +196,355 @@ const STAFF_THEMES = [
   { id: "royal", name: "Royal Amethyst", color: "#2D1B4E", accent: "#F472B6", desc: "Plum & champagne rose gold" },
   { id: "nordic", name: "Nordic Crisp Light", color: "#FFFFFF", accent: "#0284C7", desc: "Porcelain minimalist slate" },
 ];
+
+// --- CREDENTIAL VERIFICATION PANEL (3-SIGNAL AUDIT) ---
+function CertAuditVerificationPanel({
+  selectedCert,
+  processingId,
+  startLiveVerify,
+  handleAuditCertification,
+  getAssetUrl,
+}) {
+  const [registryChecked, setRegistryChecked] = useState(false);
+  const [docChecked, setDocChecked] = useState(false);
+  const [auditNotes, setAuditNotes] = useState("");
+
+  // Reset local checks whenever active cert switches
+  useEffect(() => {
+    setRegistryChecked(Boolean(selectedCert?.liveVerificationEvidenceUrl));
+    setDocChecked(false);
+    setAuditNotes("");
+  }, [selectedCert?.id, selectedCert?.liveVerificationEvidenceUrl]);
+
+  // Determine official registry link & ID pattern
+  const rawBody = String(selectedCert?.issuingBody || "aapc").toLowerCase().trim();
+  const bodyKey = rawBody.includes("ahima")
+    ? "ahima"
+    : rawBody.includes("himaa")
+    ? "himaa"
+    : rawBody.includes("specialty") || rawBody.includes("bmsc") || rawBody.includes("amba") || rawBody.includes("pmi")
+    ? "specialty"
+    : "aapc";
+
+  const patternMeta = CERT_ID_PATTERNS[bodyKey] || CERT_ID_PATTERNS.aapc;
+  const officialMeta = CERT_LIBRARY[bodyKey] || CERT_LIBRARY.aapc;
+  const rawMemberId = String(selectedCert?.memberId || "").trim();
+
+  const idFormatValid = patternMeta?.regex ? patternMeta.regex.test(rawMemberId) : Boolean(rawMemberId);
+  const hasLiveCapture = Boolean(selectedCert?.liveVerificationEvidenceUrl);
+
+  const isVerified = selectedCert?.certStatus === "verified";
+  const isRejected = selectedCert?.certStatus === "rejected";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* SECTION 1: UPLOADED DOCUMENT PROOF */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: 0 }}>
+            📁 1. Uploaded Certificate Document
+          </h4>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>
+            Candidate Evidence
+          </span>
+        </div>
+        <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 14 }}>
+          Document File: <strong style={{ color: "#0F172A" }}>{toStr(selectedCert.docName, "Certificate proof file")}</strong>
+        </div>
+        {selectedCert.docUrl ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <a
+              href={getAssetUrl(selectedCert.docUrl)}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                background: "#9333EA",
+                color: "#FFFFFF",
+                padding: "10px 18px",
+                borderRadius: 8,
+                fontSize: 13,
+                fontWeight: 700,
+                textDecoration: "none",
+                boxShadow: "0 2px 8px rgba(147,51,234,0.2)",
+              }}
+            >
+              📄 View / Download Certificate PDF
+            </a>
+            <span style={{ fontSize: 12, color: "#475569" }}>
+              (Confirm name, body seal, credential code, and member ID match)
+            </span>
+          </div>
+        ) : (
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FEE2E2", color: "#DC2626", fontSize: 12.5, fontWeight: 600 }}>
+            ⚠️ No certificate document file attached to this claim.
+          </div>
+        )}
+      </div>
+
+      {/* SECTION 2: OFFICIAL REGISTRY LOOKUP & LIVE SESSION */}
+      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: 0 }}>
+            🌐 2. Issuing Body Official Registry Lookup
+          </h4>
+          {officialMeta?.verifyUrl && (
+            <a
+              href={officialMeta.verifyUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 12, fontWeight: 700, color: "#2563EB", textDecoration: "none" }}
+            >
+              Direct Link ↗
+            </a>
+          )}
+        </div>
+        <p style={{ fontSize: 12.5, color: "#64748B", margin: "0 0 14px 0", lineHeight: 1.5 }}>
+          AAPC and AHIMA prohibit unattended bot scraping (via reCAPTCHA). The verified protocol is to check the official registry directly. Use our live remote browser session or open the registry URL to verify candidate records.
+        </p>
+
+        {selectedCert.liveVerificationEvidenceUrl && (
+          <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#047857", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>✓ Evidence captured</span>
+              {selectedCert.liveVerificationCapturedAt && `(${new Date(selectedCert.liveVerificationCapturedAt).toLocaleString()})`}
+              {selectedCert.liveVerificationCapturedBy && `by ${selectedCert.liveVerificationCapturedBy}`}
+            </div>
+            <a
+              href={getAssetUrl(selectedCert.liveVerificationEvidenceUrl)}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 12.5, fontWeight: 700, color: "#2563EB", display: "inline-block" }}
+            >
+              🖼️ View captured registry screenshot ↗
+            </a>
+            {selectedCert.liveVerificationText && (
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ fontSize: 12, color: "#64748B", cursor: "pointer", fontWeight: 600 }}>
+                  Show captured registry page text
+                </summary>
+                <pre style={{ whiteSpace: "pre-wrap", fontSize: 11, color: "#334155", marginTop: 6, maxHeight: 160, overflowY: "auto", background: "#FFFFFF", padding: 10, borderRadius: 6, border: "1px solid #E2E8F0" }}>
+                  {selectedCert.liveVerificationText}
+                </pre>
+              </details>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={() => startLiveVerify(selectedCert)}
+            style={{
+              background: "#0F172A",
+              color: "#FFFFFF",
+              border: "none",
+              padding: "10px 18px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            🎥 Start Live Remote Verification
+          </button>
+          {officialMeta?.verifyUrl && (
+            <a
+              href={officialMeta.verifyUrl}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                background: "#F1F5F9",
+                color: "#1E293B",
+                border: "1px solid #CBD5E1",
+                padding: "9px 16px",
+                borderRadius: 8,
+                fontSize: 12.5,
+                fontWeight: 700,
+                textDecoration: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              🔗 Open {officialMeta.name} Portal in New Tab ↗
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* SECTION 3: 3-SIGNAL VERIFICATION CHECKLIST */}
+      <div style={{ background: "#FAF5FF", border: "1.5px solid #D8B4FE", borderRadius: 14, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <h4 style={{ fontSize: 14, fontWeight: 800, color: "#581C87", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>✅</span> Verification Quality Checklist
+          </h4>
+          <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", background: "#E9D5FF", color: "#6B21A8", padding: "3px 10px", borderRadius: 999 }}>
+            Anti-Fraud Protocol
+          </span>
+        </div>
+        <p style={{ fontSize: 12, color: "#6B21A8", margin: "0 0 16px 0", lineHeight: 1.4 }}>
+          Medical-coding credentials must be audited against official issuing authorities before confirming on candidate profile.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* Check 1: Member ID Pattern Validation */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#FFFFFF", padding: "10px 14px", borderRadius: 10, border: idFormatValid ? "1px solid #BBF7D0" : "1px solid #FED7AA" }}>
+            <div style={{ width: 22, height: 22, borderRadius: "50%", background: idFormatValid ? "#DCFCE7" : "#FFEDD5", color: idFormatValid ? "#15803D" : "#C2410C", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 12, flexShrink: 0, marginTop: 1 }}>
+              {idFormatValid ? "✓" : "!"}
+            </div>
+            <div style={{ flex: 1, fontSize: 12.5 }}>
+              <div style={{ fontWeight: 700, color: "#0F172A" }}>
+                1. Member / Credential ID Format Check (Automated)
+              </div>
+              <div style={{ color: "#64748B", marginTop: 2, fontSize: 11.5 }}>
+                {idFormatValid ? (
+                  <span style={{ color: "#15803D", fontWeight: 600 }}>
+                    ✓ ID &quot;{rawMemberId || "N/A"}&quot; matches {patternMeta?.description || "expected format"} for {officialMeta?.name || "body"}.
+                  </span>
+                ) : (
+                  <span style={{ color: "#C2410C", fontWeight: 600 }}>
+                    ⚠️ ID &quot;{rawMemberId}&quot; does not conform to expected {patternMeta?.description} for {officialMeta?.name}.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Check 2: Official Registry Confirmation */}
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#FFFFFF", padding: "10px 14px", borderRadius: 10, border: registryChecked ? "1px solid #BBF7D0" : "1px solid #E2E8F0", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={registryChecked}
+              onChange={(e) => setRegistryChecked(e.target.checked)}
+              style={{ marginTop: 3, width: 16, height: 16, accentColor: "#9333EA", cursor: "pointer" }}
+            />
+            <div style={{ flex: 1, fontSize: 12.5 }}>
+              <div style={{ fontWeight: 700, color: "#0F172A" }}>
+                2. Official Registry Verified
+              </div>
+              <div style={{ color: "#64748B", marginTop: 2, fontSize: 11.5 }}>
+                {hasLiveCapture ? "✓ Evidence captured via Live Remote Browser Session." : `Audited on official ${officialMeta?.name || "body"} registry (status active, credential valid for candidate name).`}
+              </div>
+            </div>
+          </label>
+
+          {/* Check 3: Document Review */}
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#FFFFFF", padding: "10px 14px", borderRadius: 10, border: docChecked ? "1px solid #BBF7D0" : "1px solid #E2E8F0", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={docChecked}
+              onChange={(e) => setDocChecked(e.target.checked)}
+              style={{ marginTop: 3, width: 16, height: 16, accentColor: "#9333EA", cursor: "pointer" }}
+            />
+            <div style={{ flex: 1, fontSize: 12.5 }}>
+              <div style={{ fontWeight: 700, color: "#0F172A" }}>
+                3. Certificate Document Authentic & Consistent
+              </div>
+              <div style={{ color: "#64748B", marginTop: 2, fontSize: 11.5 }}>
+                Certificate PDF shows genuine seals, matches candidate identity, and aligns with registry record.
+              </div>
+            </div>
+          </label>
+        </div>
+
+        {/* Auditor Notes Input */}
+        <div style={{ marginTop: 14 }}>
+          <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, color: "#581C87", marginBottom: 4 }}>
+            Auditor Internal Notes (Optional — saved to audit trail):
+          </label>
+          <input
+            type="text"
+            placeholder="e.g., Verified on AAPC registry: Active CPC through Dec 2026"
+            value={auditNotes}
+            onChange={(e) => setAuditNotes(e.target.value)}
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "8px 12px",
+              borderRadius: 8,
+              border: "1px solid #D8B4FE",
+              fontSize: 12.5,
+              background: "#FFFFFF",
+              color: "#0F172A",
+              outline: "none",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* SECTION 4: AUDIT DECISION ACTIONS */}
+      <div style={{ display: "flex", gap: 12, borderTop: "1px solid #F1F5F9", paddingTop: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <button
+          type="button"
+          disabled={processingId === selectedCert.id}
+          onClick={() => handleAuditCertification(selectedCert.id, "verify", "", auditNotes)}
+          style={{
+            background: "#10B981",
+            color: "#FFFFFF",
+            border: "none",
+            padding: "12px 24px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: processingId === selectedCert.id ? "not-allowed" : "pointer",
+            boxShadow: "0 4px 12px rgba(16,185,129,0.3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            opacity: processingId === selectedCert.id ? 0.7 : 1,
+          }}
+        >
+          {processingId === selectedCert.id ? "Processing…" : "✓ Approve & Verify Certification"}
+        </button>
+
+        <button
+          type="button"
+          disabled={processingId === selectedCert.id}
+          onClick={() => {
+            const defaultReason = !idFormatValid
+              ? `Member ID format does not match ${officialMeta?.name || "issuing body"} records. Please re-check and upload an authentic certificate.`
+              : "Certificate could not be verified on the official registry. Please upload official certificate copy.";
+            const reason = prompt("Enter rejection reason for candidate:", defaultReason);
+            if (reason) handleAuditCertification(selectedCert.id, "reject", reason, auditNotes);
+          }}
+          style={{
+            background: "#EF4444",
+            color: "#FFFFFF",
+            border: "none",
+            padding: "12px 24px",
+            borderRadius: 10,
+            fontWeight: 800,
+            fontSize: 14,
+            cursor: processingId === selectedCert.id ? "not-allowed" : "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            opacity: processingId === selectedCert.id ? 0.7 : 1,
+          }}
+        >
+          ✕ Reject Certification Claim
+        </button>
+
+        {isVerified && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#15803D" }}>
+            ✓ Currently marked verified in database
+          </span>
+        )}
+        {isRejected && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>
+            ✕ Currently rejected in database
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function StaffHub() {
   const navigate = useNavigate();
@@ -1200,13 +1550,13 @@ export default function StaffHub() {
     }
   };
 
-  const handleAuditCertification = async (candidateId, action, rejectionReason = "") => {
+  const handleAuditCertification = async (candidateId, action, rejectionReason = "", notes = "") => {
     setProcessingId(candidateId);
     try {
       const res = await fetch("/api/staff/verify-certification", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ candidateId, action, rejectionReason }),
+        body: JSON.stringify({ candidateId, action, rejectionReason, notes }),
       });
       if (res.ok) {
         setCertAuditModal(null);
@@ -5756,85 +6106,14 @@ export default function StaffHub() {
                               </div>
                             </div>
 
-                            {/* UPLOADED CERTIFICATE DOCUMENT PROOF */}
-                            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20, marginBottom: 24 }}>
-                              <h4 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: "0 0 8px 0" }}>Uploaded Certificate Evidence</h4>
-                              <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 14 }}>
-                                Document File: <strong>{toStr(selectedCert.docName, "Certificate proof file")}</strong>
-                              </div>
-                              {selectedCert.docUrl ? (
-                                <a
-                                  href={getAssetUrl(selectedCert.docUrl)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#9333EA", color: "#FFFFFF", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
-                                >
-                                  📄 View / Download Certificate PDF
-                                </a>
-                              ) : (
-                                <span style={{ color: "#EF4444", fontSize: 13, fontWeight: 600 }}>No document attached to this claim.</span>
-                              )}
-                            </div>
-
-                            {/* LIVE WEBSITE VERIFICATION */}
-                            <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20, marginBottom: 24 }}>
-                              <h4 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: "0 0 8px 0" }}>Live Website Verification</h4>
-                              <p style={{ fontSize: 12.5, color: "#64748B", margin: "0 0 14px 0" }}>
-                                Opens the real {selectedCert.issuingBody || "issuing body"} verification page in a live browser session. You solve the CAPTCHA and read the result yourself; capturing saves a screenshot + the page text here as evidence — it doesn't decide verified/rejected for you.
-                              </p>
-                              {selectedCert.liveVerificationEvidenceUrl && (
-                                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                                  <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
-                                    Last captured{selectedCert.liveVerificationCapturedAt ? ` ${new Date(selectedCert.liveVerificationCapturedAt).toLocaleString()}` : ""}
-                                    {selectedCert.liveVerificationCapturedBy ? ` by ${selectedCert.liveVerificationCapturedBy}` : ""}
-                                  </div>
-                                  <a
-                                    href={getAssetUrl(selectedCert.liveVerificationEvidenceUrl)}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    style={{ fontSize: 12.5, fontWeight: 700, color: "#2563EB" }}
-                                  >
-                                    🖼️ View captured screenshot ↗
-                                  </a>
-                                  {selectedCert.liveVerificationText && (
-                                    <details style={{ marginTop: 8 }}>
-                                      <summary style={{ fontSize: 12, color: "#64748B", cursor: "pointer" }}>Show captured page text</summary>
-                                      <pre style={{ whiteSpace: "pre-wrap", fontSize: 11, color: "#334155", marginTop: 6, maxHeight: 160, overflowY: "auto" }}>{selectedCert.liveVerificationText}</pre>
-                                    </details>
-                                  )}
-                                </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => startLiveVerify(selectedCert)}
-                                style={{ background: "#0F172A", color: "#FFFFFF", border: "none", padding: "10px 18px", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
-                              >
-                                🎥 Start Live Verification
-                              </button>
-                            </div>
-
-                            {/* ACTION BUTTONS */}
-                            <div style={{ display: "flex", gap: 12, borderTop: "1px solid #F1F5F9", paddingTop: 20 }}>
-                              <button
-                                type="button"
-                                disabled={processingId === selectedCert.id}
-                                onClick={() => handleAuditCertification(selectedCert.id, "verify")}
-                                style={{ background: "#10B981", color: "#FFFFFF", border: "none", padding: "12px 24px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}
-                              >
-                                {processingId === selectedCert.id ? "Processing…" : "✓ Approve & Verify Certification"}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={processingId === selectedCert.id}
-                                onClick={() => {
-                                  const reason = prompt("Enter rejection reason:");
-                                  if (reason) handleAuditCertification(selectedCert.id, "reject", reason);
-                                }}
-                                style={{ background: "#EF4444", color: "#FFFFFF", border: "none", padding: "12px 24px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
-                              >
-                                ✕ Reject Certification Claim
-                              </button>
-                            </div>
+                            {/* 3-SIGNAL VERIFICATION PANEL (DOCUMENT + REGISTRY + CHECKLIST + DECISION) */}
+                            <CertAuditVerificationPanel
+                              selectedCert={selectedCert}
+                              processingId={processingId}
+                              startLiveVerify={startLiveVerify}
+                              handleAuditCertification={handleAuditCertification}
+                              getAssetUrl={getAssetUrl}
+                            />
                           </div>
                         )}
                       </div>

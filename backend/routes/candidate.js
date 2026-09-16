@@ -296,7 +296,7 @@ router.put("/stage/:n", async (req, res) => {
     // Strict Per-Stage Field Validation: Block completion if required fields are missing
     if (stageNum === 1) {
       if (!req.body.isDraft) {
-        const { fullName, mobile, email, state, city } = req.body;
+        let { fullName, mobile, email, state, city } = req.body;
         if (!fullName || String(fullName).trim().length < 2) {
           return res.status(400).json({ message: "Stage 1 incomplete: Full legal name is required." });
         }
@@ -307,22 +307,27 @@ router.put("/stage/:n", async (req, res) => {
         if (!email || !String(email).includes("@")) {
           return res.status(400).json({ message: "Stage 1 incomplete: Valid email address is required." });
         }
-        if (!state || String(state).trim() === "") {
+
+        const resolvedState = state || req.body.permanentState || req.body.aadhaarLockedData?.state || "";
+        if (!resolvedState || String(resolvedState).trim() === "") {
           return res.status(400).json({ message: "Stage 1 incomplete: State selection is required." });
         }
-        if (!city || String(city).trim() === "") {
+        const resolvedCity = city || req.body.permanentDistrict || req.body.aadhaarLockedData?.district || req.body.aadhaarLockedData?.locality || "";
+        if (!resolvedCity || String(resolvedCity).trim() === "") {
           return res.status(400).json({ message: "Stage 1 incomplete: City / Locality is required." });
         }
 
         // Mandatory Education & Academic Qualifications Enforcement
-        const { degree, collegeName, graduationYear, cgpa, percentage } = req.body;
+        const { degree, collegeName, graduationYear } = req.body;
         if (!degree || String(degree).trim().length < 2) {
           return res.status(400).json({ message: "Stage 1 incomplete: Degree Name is required." });
         }
         if (!collegeName || String(collegeName).trim().length < 2) {
           return res.status(400).json({ message: "Stage 1 incomplete: University / College Name is required." });
         }
-        if (!graduationYear || !/^\d{4}$/.test(String(graduationYear).trim())) {
+        const rawGrad = String(graduationYear || "").trim();
+        const extractedYear = rawGrad.includes("/") ? rawGrad.split("/").pop() : rawGrad;
+        if (!extractedYear || !/^\d{4}$/.test(extractedYear)) {
           return res.status(400).json({ message: "Stage 1 incomplete: Valid 4-digit Graduation Year is required." });
         }
       }
@@ -381,6 +386,48 @@ router.put("/stage/:n", async (req, res) => {
     } else if (stageNum === 8) {
       if (req.body.consent !== true) {
         return res.status(400).json({ message: "Stage 8 incomplete: Consent to interview-track auto-capture is required." });
+      }
+    }
+
+
+    if (stageNum === 1 && (candidate.stage1?.aadhaarVerified || candidate.stage1?.aadhaarStatus === "VERIFIED")) {
+      const prevLocked = candidate.stage1.aadhaarLockedData || {};
+      const newLocked = req.body.aadhaarLockedData || {};
+      req.body.aadhaarVerified = true;
+      req.body.aadhaarStatus = candidate.stage1.aadhaarStatus || "VERIFIED";
+      req.body.maskedAadhaar = candidate.stage1.maskedAadhaar || req.body.maskedAadhaar;
+      req.body.verificationMethod = candidate.stage1.verificationMethod || req.body.verificationMethod;
+      req.body.verifiedAt = candidate.stage1.verifiedAt || req.body.verifiedAt;
+      req.body.aadhaarTransactionId = candidate.stage1.aadhaarTransactionId || req.body.aadhaarTransactionId;
+      req.body.photoUrl = candidate.stage1.photoUrl || req.body.photoUrl;
+      req.body.careOf = candidate.stage1.careOf || req.body.careOf;
+      req.body.pincode = candidate.stage1.pincode || req.body.pincode;
+      req.body.permanentState = candidate.stage1.permanentState || req.body.permanentState;
+      req.body.permanentDistrict = candidate.stage1.permanentDistrict || req.body.permanentDistrict;
+      req.body.permanentLocality = candidate.stage1.permanentLocality || req.body.permanentLocality;
+
+      req.body.aadhaarLockedData = {
+        fullName: prevLocked.fullName || candidate.stage1.fullName || req.body.fullName || newLocked.fullName,
+        dob: prevLocked.dob || candidate.stage1.dob || req.body.dob || newLocked.dob,
+        gender: prevLocked.gender || candidate.stage1.gender || req.body.gender || newLocked.gender,
+        locality: prevLocked.locality || candidate.stage1.address || candidate.stage1.permanentLocality || req.body.locality || newLocked.locality,
+        district: prevLocked.district || candidate.stage1.district || candidate.stage1.city || req.body.district || newLocked.district,
+        state: prevLocked.state || candidate.stage1.state || candidate.stage1.permanentState || req.body.state || newLocked.state,
+        pincode: prevLocked.pincode || candidate.stage1.pincode || req.body.pincode || newLocked.pincode,
+        careOf: prevLocked.careOf || candidate.stage1.careOf || req.body.careOf || newLocked.careOf,
+        photoUrl: prevLocked.photoUrl || candidate.stage1.photoUrl || req.body.photoUrl || newLocked.photoUrl,
+        maskedAadhaar: prevLocked.maskedAadhaar || candidate.stage1.maskedAadhaar || req.body.maskedAadhaar || newLocked.maskedAadhaar,
+        maskedMobile: prevLocked.maskedMobile || candidate.stage1.maskedMobile || req.body.maskedMobile || newLocked.maskedMobile,
+      };
+
+      if (!req.body.fullName && (prevLocked.fullName || candidate.stage1.fullName)) {
+        req.body.fullName = prevLocked.fullName || candidate.stage1.fullName;
+      }
+      if (!req.body.dob && (prevLocked.dob || candidate.stage1.dob)) {
+        req.body.dob = prevLocked.dob || candidate.stage1.dob;
+      }
+      if (!req.body.gender && (prevLocked.gender || candidate.stage1.gender)) {
+        req.body.gender = prevLocked.gender || candidate.stage1.gender;
       }
     }
 

@@ -23,7 +23,14 @@ connectDB();
 const defaultOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5174",
+  "http://localhost:5175",
+  "http://127.0.0.1:5175",
   "http://localhost:3000",
+  "http://127.0.0.1:3000",
+  "http://localhost:4173",
+  "http://127.0.0.1:4173",
   "https://talentera-nine.vercel.app",
   "https://talentera.in",
   "https://www.talentera.in",
@@ -47,17 +54,26 @@ app.use(
 app.use(
   cors({
     origin: function (origin, callback) {
-      // No Origin header at all (curl, server-to-server calls, some mobile
-      // clients) - allow; there's no browser same-origin policy to enforce.
+      // No Origin header at all (curl, mobile apps, Postman, server-to-server)
       if (!origin) return callback(null, true);
+
+      // In development or test mode, allow any localhost port or private local network IP
+      const isDev = process.env.NODE_ENV !== "production";
+      if (isDev) {
+        if (
+          /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ||
+          /^https?:\/\/192\.168\.\d+\.\d+(:\d+)?$/.test(origin) ||
+          /^https?:\/\/10\.\d+\.\d+\.\d+(:\d+)?$/.test(origin)
+        ) {
+          return callback(null, true);
+        }
+      }
+
       if (allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
         return callback(null, true);
       }
-      // Previously this branch also called callback(null, true) - the
-      // whitelist check above was computed but its result was discarded,
-      // so every origin was actually allowed regardless. See
-      // IMPROVEMENT_ROADMAP.md "CORS accepts every origin, silently."
-      // Fixed to genuinely reject anything not on the whitelist.
+
+      logger.warn(`[CORS BLOCKED] Origin '${origin}' is not in allowed origins.`);
       return callback(new Error("Not allowed by CORS for this origin."));
     },
     credentials: true,
