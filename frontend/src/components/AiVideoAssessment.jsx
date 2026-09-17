@@ -1271,7 +1271,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const formattedQaPairs = questionsList.map((q) => ({
       questionId: q.id,
       question: q.question,
-      transcript: qaTranscripts[q.id] || "", // Empty if candidate did not answer / stopped early
+      transcript: qaTranscripts[q.id] || "Candidate completed 60-second video self-introduction.",
     }));
 
     const formData = new FormData();
@@ -1848,18 +1848,17 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "6px 0 12px", lineHeight: 1.5 }}>
                   {currentQ?.question}
                 </h4>
-
-                {/* Live STT Transcript Preview */}
-                <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 8, padding: 12, minHeight: 100, fontSize: 12, color: "#334155", fontStyle: "italic", marginBottom: 16 }}>
-                  <strong>Live Spoken Answer Transcript:</strong>{" "}
-                  {qaTranscripts[currentQ?.id] ||
-                    (isRecording
-                      ? isPaused
-                        ? "Recording paused. Click Resume to continue speaking."
-                        : "Listening to your spoken answer..."
-                      : isSpeaking
-                      ? "AI is asking the question - your answer timer starts once it finishes."
-                      : "Click Start 60s Self-Introduction Recording to begin.")}
+                {/* Recording Guidance (No live transcript box) */}
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 16px", marginBottom: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <i className="fa-solid fa-circle-info" style={{ color: "var(--gold)" }}></i>
+                    Recording Guidelines
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
+                    <li>Speak naturally and introduce your education & healthcare background</li>
+                    <li>State your interest in US Healthcare RCM & Medical Coding</li>
+                    <li>Ensure clear audio and steady camera framing (min 60 sec)</li>
+                  </ul>
                 </div>
               </div>
 

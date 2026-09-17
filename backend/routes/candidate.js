@@ -969,6 +969,7 @@ router.post(
       }
 
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
+      const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
       const selfIntroScore = evaluation.overallScore;
       const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
       const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
@@ -988,6 +989,7 @@ router.post(
         // aiScore is now a communication score (clarity/fluency/vocabulary &
         // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: selfIntroScore,
+        selfIntroScore: selfIntroScore,
         score: combinedScore,
         overallScore: combinedScore,
         medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
@@ -1068,18 +1070,27 @@ router.post(
 
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
+      const selfIntroScore = evaluation.overallScore;
+      const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
+      const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
         interviewMode: "audio",
         videoUrl: fileUrl,
+        selfIntroVideoUrl: fileUrl,
+        selfIntroCompleted: true,
         // See the matching comment in /ai-video/assess above - this carries
         // translatedTranscript/detectedLanguage per question so it survives
         // page reloads, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
         // aiScore is now a communication score (clarity/fluency/vocabulary &
         // grammar/confidence, averaged) - not an answer-correctness score.
-        aiScore: evaluation.overallScore,
+        aiScore: selfIntroScore,
+        selfIntroScore: selfIntroScore,
+        score: combinedScore,
+        overallScore: combinedScore,
+        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
