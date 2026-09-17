@@ -2055,35 +2055,6 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               Thank you for recording your 60-second self-introduction!
             </h3>
 
-            {/* DEVELOPER RETAKE OPTION */}
-            <div style={{ marginTop: 16 }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("liveness");
-                  setActiveTab("record");
-                  setSessionStarted(false);
-                  setIsRecording(false);
-                  setIsPaused(false);
-                  setRecTimeLeft(60);
-                  setRecordingSeconds(0);
-                }}
-                style={{
-                  background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
-                  color: "#06152A",
-                  border: "none",
-                  padding: "10px 20px",
-                  borderRadius: 10,
-                  fontWeight: 800,
-                  fontSize: 13,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(229,168,46,0.3)"
-                }}
-              >
-                ⚡ Developer Retake Video Recording (Dev Mode)
-              </button>
-            </div>
-
             <p style={{ fontSize: 13, color: "#475569", margin: "20px auto", maxWidth: 460, lineHeight: 1.6 }}>
               Our AI has analyzed your spoken communication - no manual review needed. Here's how you did:
             </p>

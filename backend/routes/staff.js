@@ -1260,8 +1260,16 @@ router.post("/interview-questions", requireStaffAuth, async (req, res) => {
       return res.status(400).json({ message: "A correct answer is required so the AI can grade responses to this question." });
     }
 
+    const trimmedText = text.trim();
+    const existing = await InterviewQuestion.findOne({
+      text: { $regex: new RegExp(`^${trimmedText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+    });
+    if (existing) {
+      return res.status(400).json({ message: "An interview question with this exact text already exists in the question bank." });
+    }
+
     const question = await InterviewQuestion.create({
-      text: text.trim(),
+      text: trimmedText,
       correctAnswer: correctAnswer.trim(),
       mode: ["video", "audio", "both"].includes(mode) ? mode : "both",
       order: Number.isFinite(Number(order)) ? Number(order) : 0,
@@ -1289,13 +1297,25 @@ router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
     const question = await InterviewQuestion.findById(req.params.id);
     if (!question) return res.status(404).json({ message: "Interview question not found." });
 
-    if (text !== undefined) question.text = text.trim();
+    if (text !== undefined) {
+      const trimmedText = text.trim();
+      if (!trimmedText) return res.status(400).json({ message: "Question text is required." });
+      if (trimmedText.toLowerCase() !== (question.text || "").toLowerCase()) {
+        const duplicate = await InterviewQuestion.findOne({
+          _id: { $ne: req.params.id },
+          text: { $regex: new RegExp(`^${trimmedText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+        });
+        if (duplicate) {
+          return res.status(400).json({ message: "Another interview question with this exact text already exists in the question bank." });
+        }
+      }
+      question.text = trimmedText;
+    }
     if (correctAnswer !== undefined) question.correctAnswer = correctAnswer.trim();
     if (mode !== undefined && ["video", "audio", "both"].includes(mode)) question.mode = mode;
     if (order !== undefined && Number.isFinite(Number(order))) question.order = Number(order);
     if (active !== undefined) question.active = Boolean(active);
 
-    if (!question.text) return res.status(400).json({ message: "Question text is required." });
     if (!question.correctAnswer) return res.status(400).json({ message: "A correct answer is required so the AI can grade responses to this question." });
 
     await question.save();

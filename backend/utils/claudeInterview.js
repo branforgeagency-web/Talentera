@@ -33,10 +33,6 @@ const FALLBACK_QUESTION_BANK = [
     question: "In simple terms, what is an ICD-10-CM code used for in medical coding?",
     correctAnswer: "An ICD-10-CM code is a standardized diagnostic classification code used by healthcare providers to classify and report patient diagnoses, diseases, symptoms, injuries, and reasons for encounter on medical claims for billing and reimbursement.",
     expectedConcepts: ["icd-10-cm", "diagnosis", "disease", "symptom", "condition", "patient encounter", "reimbursement", "billing", "classification"],
-    // Exactly 3 keywords/concepts - see Answer Evaluation / Keyword Matching
-    // in the Stage 5 / AI Mock Interview requirements: every question has 3
-    // predefined keywords and every answer is scored as a Keyword Match out
-    // of 3 against them (semantic/synonym matching, not exact text only).
     keywords: ["ICD-10-CM", "Diagnosis", "Reimbursement/Billing"],
   },
   {
@@ -70,6 +66,86 @@ const FALLBACK_QUESTION_BANK = [
     correctAnswer: "HIPAA (Health Insurance Portability and Accountability Act) is a federal law that safeguards Protected Health Information (PHI) through privacy and security rules, ensuring patient confidentiality, data protection, and regulatory compliance across all medical records and billing workflows.",
     expectedConcepts: ["hipaa", "phi", "protected health information", "privacy rule", "security rule", "confidentiality", "compliance", "patient data", "security"],
     keywords: ["HIPAA", "Protected Health Information (PHI)", "Compliance/Confidentiality"],
+  },
+  {
+    topic: "CPT Modifiers",
+    topicLabel: "6. CPT Modifiers",
+    question: "Explain the distinction between CPT Modifiers 25 and 59 in outpatient billing.",
+    correctAnswer: "Modifier 25 designates a significant, separately identifiable E/M service by the same physician on the same day as a procedure, whereas Modifier 59 designates a distinct procedural service unrelated to other non-E/M procedures performed on the same day.",
+    expectedConcepts: ["modifier 25", "modifier 59", "significant separately identifiable", "distinct procedural service", "e/m service", "unbundling", "same day"],
+    keywords: ["Modifier 25", "Modifier 59", "Separately Identifiable Service"],
+  },
+  {
+    topic: "Risk Adjustment & HCC Coding",
+    topicLabel: "7. HCC Coding",
+    question: "Explain the M.E.A.T. criteria used to validate chronic condition diagnoses in Risk Adjustment / HCC coding.",
+    correctAnswer: "M.E.A.T. stands for Monitor, Evaluate, Assess, and Treat. In HCC risk adjustment coding, medical record documentation must demonstrate at least one of these criteria to substantiate that a chronic condition is actively managed and valid for RAF scoring.",
+    expectedConcepts: ["meat", "monitor", "evaluate", "assess", "treat", "hcc", "risk adjustment", "chronic condition", "raf score"],
+    keywords: ["M.E.A.T. Criteria", "Chronic Condition", "Risk Adjustment/HCC"],
+  },
+  {
+    topic: "ICD-10-CM Manifestations",
+    topicLabel: "8. ICD-10 Manifestation Coding",
+    question: "How do you code Type 2 Diabetes with neuropathy or nephropathy under ICD-10-CM guidelines?",
+    correctAnswer: "Under ICD-10-CM guidelines, diabetes with manifestations uses combination codes from category E11 such as E11.40 for diabetic neuropathy or E11.21 for diabetic nephropathy, establishing a presumptive causal relationship without needing two separate unlinked codes.",
+    expectedConcepts: ["e11", "type 2 diabetes", "combination code", "neuropathy", "nephropathy", "causal relationship", "manifestation"],
+    keywords: ["Type 2 Diabetes", "Combination Code (E11)", "Manifestation/Complication"],
+  },
+  {
+    topic: "Annual Wellness Visit (AWV)",
+    topicLabel: "9. Preventive & AWV Documentation",
+    question: "What documentation is required during an Annual Wellness Visit to capture active HCC diagnoses accurately?",
+    correctAnswer: "An Annual Wellness Visit requires documentation of a comprehensive health risk assessment, medical and family history review, an updated active chronic condition problem list evaluated with M.E.A.T., screening schedules, and physician signature.",
+    expectedConcepts: ["annual wellness visit", "awv", "health risk assessment", "chronic condition", "problem list", "physician signature", "meat criteria"],
+    keywords: ["Annual Wellness Visit", "Problem List/History", "Active Condition Documentation"],
+  },
+  {
+    topic: "Medical Billing & Rejections",
+    topicLabel: "10. Claim Rejections vs Denials",
+    question: "What is the difference between a claim rejection and a claim denial in medical billing?",
+    correctAnswer: "A claim rejection occurs before the claim is processed because it failed front-end payer or clearinghouse formatting and demographic edits, whereas a claim denial occurs after the claim was received and processed by the payer and adjudicated with a formal denial explanation.",
+    expectedConcepts: ["claim rejection", "claim denial", "clearinghouse", "front-end edits", "adjudication", "eob", "processed"],
+    keywords: ["Claim Rejection", "Claim Denial", "Clearinghouse/Adjudication"],
+  },
+  {
+    topic: "Clearinghouse Operations",
+    topicLabel: "11. Clearinghouse Operations",
+    question: "What is the role of a clearinghouse in the healthcare revenue cycle?",
+    correctAnswer: "A clearinghouse acts as an electronic intermediary between healthcare providers and insurance payers, scrubbing claims for formatting errors, checking eligibility, translating claim data into standard ANSI ASC X12 837 formats, and returning 277 acknowledgement reports.",
+    expectedConcepts: ["clearinghouse", "claim scrubbing", "electronic claims", "intermediary", "payer", "837", "edi", "formatting errors"],
+    keywords: ["Clearinghouse", "Claim Scrubbing/Validation", "Payer Intermediary"],
+  },
+  {
+    topic: "Accounts Receivable (AR) Follow-up",
+    topicLabel: "12. AR Follow-up Management",
+    question: "What is Accounts Receivable (AR) in medical billing, and how should an AR caller handle an aged claim pending beyond 45 days?",
+    correctAnswer: "Accounts Receivable is the outstanding money owed to the provider for rendered services. For claims pending beyond 45 days, the AR specialist verifies receipt via the payer portal or phone, checks if additional medical records were requested, confirms timely filing status, and initiates an escalation or claim rebill.",
+    expectedConcepts: ["accounts receivable", "ar aging", "payer portal", "timely filing", "pending claim", "follow up", "escalation", "medical records"],
+    keywords: ["Accounts Receivable (AR)", "Aging Claims", "Payer Follow-up/Timely Filing"],
+  },
+  {
+    topic: "NCCI Edits & Unbundling",
+    topicLabel: "13. NCCI Edits & Unbundling",
+    question: "What are National Correct Coding Initiative (NCCI) edits and how do they prevent unbundling?",
+    correctAnswer: "NCCI edits are CMS automated guidelines that identify pairs of CPT/HCPCS codes that should not normally be billed together for the same patient on the same day. They prevent unbundling by designating comprehensive-component code pairs that can only be separated with a valid modifier when clinically justified.",
+    expectedConcepts: ["ncci edits", "cms", "unbundling", "procedure-to-procedure", "ptp", "comprehensive code", "modifier override", "same day"],
+    keywords: ["NCCI Edits", "Unbundling", "Procedure-to-Procedure (PTP)"],
+  },
+  {
+    topic: "Medical Necessity & ABN",
+    topicLabel: "14. Medical Necessity & ABN",
+    question: "What is Medical Necessity, and when must an Advance Beneficiary Notice (ABN) be issued to a patient?",
+    correctAnswer: "Medical Necessity means healthcare services or supplies needed to prevent, diagnose, or treat an illness or injury meeting accepted standards of medicine. An ABN must be issued to a Medicare beneficiary before providing a service that Medicare is expected to deny as not medically necessary, informing the patient of potential financial liability.",
+    expectedConcepts: ["medical necessity", "advance beneficiary notice", "abn", "medicare", "patient financial liability", "accepted standards", "prior to service"],
+    keywords: ["Medical Necessity", "Advance Beneficiary Notice (ABN)", "Medicare Liability"],
+  },
+  {
+    topic: "HCPCS Level II Coding",
+    topicLabel: "15. HCPCS Level II Coding",
+    question: "What is the purpose of HCPCS Level II codes and how do they complement CPT codes?",
+    correctAnswer: "HCPCS Level II codes are alphanumeric codes used to identify products, supplies, and services not covered by CPT codes, including durable medical equipment (DME), prosthetics, orthotics, injectable drugs, and ambulance services.",
+    expectedConcepts: ["hcpcs level ii", "alphanumeric", "dme", "durable medical equipment", "supplies", "injectable drugs", "ambulance", "cpt complement"],
+    keywords: ["HCPCS Level II", "Durable Medical Equipment (DME)", "Supplies & Injectables"],
   },
 ];
 
@@ -147,37 +223,75 @@ function resolveKeywords(q, idx) {
   return padded;
 }
 
+function normalizeQText(text = "") {
+  return String(text || "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+}
+
 function withIndices(list) {
   return list.slice(0, 5).map((q, idx) => ({
     index: idx,
     id: q.id || q._id || `q-${idx + 1}`,
-    topic: q.topic || FALLBACK_QUESTION_BANK[idx]?.topic || `Topic ${idx + 1}`,
-    topicLabel: q.topicLabel || FALLBACK_QUESTION_BANK[idx]?.topicLabel || `Question ${idx + 1}`,
-    question: q.question || q.text,
-    correctAnswer: q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer || "",
+    topic: q.topic || `Topic ${idx + 1}`,
+    topicLabel: q.topicLabel || `Question ${idx + 1}`,
+    question: (q.question || q.text || "").trim(),
+    correctAnswer: q.correctAnswer || "",
     expectedConcepts: Array.isArray(q.expectedConcepts) && q.expectedConcepts.length > 0
       ? q.expectedConcepts.map(String)
-      : extractKeywords(q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer || ""),
+      : extractKeywords(q.correctAnswer || ""),
     keywords: resolveKeywords(q, idx),
   }));
+}
+
+function pickRandomFallbackQuestions(count = 5, excludeTexts = []) {
+  const excludeSet = new Set(excludeTexts.map(normalizeQText).filter(Boolean));
+  const seen = new Set();
+  const dedupedPool = [];
+  for (const q of FALLBACK_QUESTION_BANK) {
+    const key = normalizeQText(q.question);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    dedupedPool.push(q);
+  }
+
+  // Prioritize questions not yet seen by this candidate
+  const fresh = dedupedPool.filter((q) => !excludeSet.has(normalizeQText(q.question)));
+  const shuffledFresh = [...fresh].sort(() => 0.5 - Math.random());
+  const selected = shuffledFresh.slice(0, count);
+
+  // If candidate has seen most questions, backfill from the rest of the pool without duplicates
+  if (selected.length < count) {
+    const remainingPool = dedupedPool.filter(
+      (q) => !selected.some((s) => normalizeQText(s.question) === normalizeQText(q.question))
+    ).sort(() => 0.5 - Math.random());
+    for (const q of remainingPool) {
+      if (selected.length >= count) break;
+      selected.push(q);
+    }
+  }
+
+  return withIndices(selected);
 }
 
 /**
  * Generate or fetch structured medical coding interview questions
  */
-async function generateInterviewQuestions({ candidateName = "", role = "", experienceYears } = {}) {
+async function generateInterviewQuestions({ candidateName = "", role = "", experienceYears, excludeQuestions = [] } = {}) {
   const key = apiKey();
   const roleLabel = role || "Medical Coder";
 
   if (key) {
     try {
-      const prompt = `Generate exactly 5 medical coding interview questions with model answers for a candidate applying for: "${roleLabel}".
-Topics:
-1. ICD-10-CM Diagnosis Coding
-2. CPT Procedure Codes
-3. Evaluation & Management (E/M) Coding
-4. Medical Billing & Claims
-5. HIPAA & Compliance
+      const prompt = `Generate exactly 5 distinct, high-quality medical coding interview questions with model answers for a candidate applying for: "${roleLabel}".
+Experience level: ${experienceYears ? `${experienceYears} years` : "Entry/Mid-level"}.
+Topics should be 5 different areas selected from:
+1. ICD-10-CM Diagnosis Coding (guidelines, combination codes, conventions)
+2. CPT Procedure Codes & Modifiers (modifier 25 vs 59, unbundling, sequencing)
+3. Evaluation & Management (E/M) MDM Leveling & Time-based coding
+4. Medical Billing & Denial Resolution (EOB/ERA, appeals, root cause)
+5. HIPAA, Compliance & Medical Necessity (PHI, NCCI edits, ABN)
+
+IMPORTANT: Every question must be completely distinct from one another. No duplicate topics or questions.
+${excludeQuestions.length ? `Do NOT repeat these questions already asked to candidate: ${JSON.stringify(excludeQuestions.slice(0, 10))}` : ""}
 
 Return STRICT JSON only as an array of 5 objects:
 [
@@ -198,7 +312,7 @@ Return STRICT JSON only as an array of 5 objects:
           max_tokens: 1800,
           system: "You are an experienced medical coding supervisor and technical interviewer. Return valid JSON only.",
           messages: [{ role: "user", content: prompt }],
-          temperature: 0.4,
+          temperature: 0.7,
         },
         { headers: authHeaders(key), timeout: 25000 }
       );
@@ -207,26 +321,34 @@ Return STRICT JSON only as an array of 5 objects:
       const match = text.match(/\[[\s\S]*\]/);
       if (match) {
         const parsed = JSON.parse(match[0]);
-        const cleaned = parsed
-          .filter((q) => q && typeof (q.question || q.text) === "string")
-          .map((q, idx) => ({
-            topic: q.topic || FALLBACK_QUESTION_BANK[idx]?.topic,
-            topicLabel: q.topicLabel || FALLBACK_QUESTION_BANK[idx]?.topicLabel,
-            question: (q.question || q.text).trim(),
-            correctAnswer: q.correctAnswer || FALLBACK_QUESTION_BANK[idx]?.correctAnswer,
-            expectedConcepts: q.expectedConcepts || FALLBACK_QUESTION_BANK[idx]?.expectedConcepts,
+        // Deduplicate parsed questions by text
+        const seen = new Set();
+        const cleaned = [];
+        for (const q of parsed) {
+          if (!q || typeof (q.question || q.text) !== "string") continue;
+          const qText = (q.question || q.text).trim();
+          const norm = normalizeQText(qText);
+          if (!norm || seen.has(norm)) continue;
+          seen.add(norm);
+          cleaned.push({
+            topic: q.topic || `Topic ${cleaned.length + 1}`,
+            topicLabel: q.topicLabel || `Question ${cleaned.length + 1}`,
+            question: qText,
+            correctAnswer: q.correctAnswer || "",
+            expectedConcepts: Array.isArray(q.expectedConcepts) ? q.expectedConcepts : [],
             keywords: Array.isArray(q.keywords) && q.keywords.length === 3 ? q.keywords : undefined,
-          }));
+          });
+        }
         if (cleaned.length >= 5) {
-          return withIndices(cleaned);
+          return withIndices(cleaned.slice(0, 5));
         }
       }
     } catch (err) {
-      console.warn("generateInterviewQuestions LLM notice, using fallback question bank:", err.message);
+      console.warn("generateInterviewQuestions LLM notice, using diverse fallback question bank:", err.message);
     }
   }
 
-  return withIndices(FALLBACK_QUESTION_BANK);
+  return pickRandomFallbackQuestions(5, excludeQuestions);
 }
 
 // ---------------------------------------------------------------------------
@@ -830,4 +952,7 @@ module.exports = {
   generateFinalReport,
   detectQuickIntent,
   computeHeuristicAnswerEvaluation,
+  pickRandomFallbackQuestions,
+  FALLBACK_QUESTION_BANK,
+  normalizeQText,
 };

@@ -786,26 +786,6 @@ export default function AiAudioInterview({ existingData, onSaved }) {
                 <p style={{ fontSize: 13, color: "#475569", margin: "0 auto 16px", maxWidth: 440, lineHeight: 1.6 }}>
                   Your spoken answers have been recorded and submitted to our team for review as part of your candidate verification.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep("setup");
-                    setEvaluation(null);
-                  }}
-                  style={{
-                    background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
-                    color: "#06152A",
-                    border: "none",
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    fontWeight: 800,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 12px rgba(229,168,46,0.3)"
-                  }}
-                >
-                  ⚡ Retake AI Verbal Interview (Dev Mode)
-                </button>
               </div>
             </div>
           )}

@@ -1171,28 +1171,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     }
   };
 
-  const handleResetSelfIntroForDev = async () => {
-    stopAiVoice();
-    setIsIntroRecording(false);
-    setIsIntroPrompting(false);
-    if (introVideoUrl && introVideoUrl.startsWith("blob:")) {
-      URL.revokeObjectURL(introVideoUrl);
-    }
-    setIntroVideoUrl("");
-    setIntroVideoBlob(null);
-    setIntroRecordingTime(0);
-    setIntroTakeCount(1);
-    try {
-      localStorage.removeItem("talentera_ai_video_report_pending_v1");
-      await api.put("/candidate/stage/5", {
-        introVideoUrl: null,
-        videoUrl: null,
-        selfIntroCompleted: false,
-      });
-    } catch (e) {}
-    toast("🔄 Self-Intro section reset for Dev testing!", "✓");
-  };
-
   // ══════════════════════════════════════════════════════════════════════════
   // SECTION 3: 5-QUESTION AI MOCK INTERVIEW WITH CONTINUOUS 5-QUESTION PROGRESSION
   // ══════════════════════════════════════════════════════════════════════════
@@ -1999,28 +1977,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 >
                   ☁ Upload Pre-recorded (60s min, verified on submit)
                 </button>
-                <button
-                  type="button"
-                  onClick={handleResetSelfIntroForDev}
-                  style={{
-                    background: "rgba(245, 180, 26, 0.15)",
-                    border: "1px solid rgba(245, 180, 26, 0.4)",
-                    color: "var(--gold)",
-                    padding: "5px 12px",
-                    borderRadius: 8,
-                    fontSize: 11,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    marginLeft: "auto",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    transition: "all .2s",
-                  }}
-                  title="Clear recorded video and test self-introduction from scratch"
-                >
-                  🔄 Retake Self-Intro (Dev Test)
-                </button>
               </div>
 
                             {introMode === "live" ? (
@@ -2244,10 +2200,50 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 🎤 AI Mock Interview · 5 questions (Required)
               </div>
               <div style={{ background: "#FFF3D6", color: "#E08E00", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5 }}>
-                QUESTION {currentMockIndex + 1} OF 5
+                {hasRealMockInterview ? "SUBMITTED" : `QUESTION ${currentMockIndex + 1} OF 5`}
               </div>
             </div>
 
+            {/* Once all 5 questions are recorded and evaluated
+                (stage5.mockInterviewCompleted), this section should never
+                go back to showing the live "Question 1 of 5 / Click Start
+                Answer to begin" recording UI - candidates were seeing that
+                every time they revisited the page after finishing, which
+                looked exactly like the interview had never been submitted.
+                Show a plain success card instead, pointing at the existing
+                staff-reviewed retake workflow (setShowRetakeModal) rather
+                than implying they can just re-record it themselves. */}
+            {hasRealMockInterview ? (
+              <div style={{ background: "#F0FDF4", border: "1.5px solid #22C55E", borderRadius: 14, padding: "24px 22px", textAlign: "center" }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "grid", placeItems: "center", fontSize: 24, margin: "0 auto 14px" }}>
+                  <i className="fa-solid fa-check"></i>
+                </div>
+                <h4 style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)", margin: "0 0 6px" }}>
+                  AI Mock Interview successfully submitted
+                </h4>
+                <p style={{ fontSize: 13, color: "#475569", maxWidth: 460, margin: "0 auto 16px", lineHeight: 1.6 }}>
+                  All 5 questions have been recorded and evaluated. Under Talentera's single-attempt policy you can't
+                  re-record this yourself - if you need a retake, contact Talentera staff using the button below.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowRetakeModal(true)}
+                  style={{
+                    background: "var(--navy)",
+                    color: "var(--gold)",
+                    border: "none",
+                    padding: "11px 22px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  🔁 Request Retake for Stage 05
+                </button>
+              </div>
+            ) : (
+              <>
             {/* MOCK NAV PILLS */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, marginBottom: 16 }}>
               {mockQuestions.map((q, idx) => {
@@ -2474,6 +2470,8 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 </div>
               </div>
             </div>
+              </>
+            )}
           </div>
 
           {/* ═══════ SECTION 4 · WHY RCM (OPTIONAL BONUS) ═══════ */}

@@ -857,21 +857,38 @@ router.post("/video-platform/sync", async (req, res) => {
 router.get("/interview-questions", async (req, res) => {
   try {
     const mode = req.query.mode === "video" ? "video" : "audio";
-    let questions = await InterviewQuestion.find({ active: true, mode: { $in: [mode, "both"] } })
-      .sort({ order: 1, createdAt: 1 })
-      .limit(5)
+    const rawQuestions = await InterviewQuestion.find({ active: true, mode: { $in: [mode, "both"] } })
       .select("_id text")
       .lean();
 
-    if (!questions.length) {
-      // No staff-configured questions yet for this mode - fall back to a
-      // small built-in set so the interview still works end-to-end.
-      questions = DEFAULT_INTERVIEW_QUESTIONS[mode].slice(0, 5).map((text, idx) => ({ _id: `default-${idx + 1}`, text }));
-    } else if (questions.length > 5) {
-      questions = questions.slice(0, 5);
+    // Deduplicate by normalized text
+    const seenNorms = new Set();
+    const deduped = [];
+    for (const q of rawQuestions) {
+      const norm = String(q.text || "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+      if (!norm || seenNorms.has(norm)) continue;
+      seenNorms.add(norm);
+      deduped.push(q);
     }
 
-    res.json({ questions: questions.map((q) => ({ id: String(q._id), question: q.text })) });
+    // Shuffle to provide different questions per user
+    const shuffled = [...deduped].sort(() => 0.5 - Math.random());
+    let selected = shuffled.slice(0, 5);
+
+    // If fewer than 5 questions, supplement from DEFAULT_INTERVIEW_QUESTIONS without duplicates
+    if (selected.length < 5) {
+      const defaultPool = DEFAULT_INTERVIEW_QUESTIONS[mode] || [];
+      for (let i = 0; i < defaultPool.length && selected.length < 5; i++) {
+        const text = defaultPool[i];
+        const norm = text.toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+        if (!seenNorms.has(norm)) {
+          seenNorms.add(norm);
+          selected.push({ _id: `default-${i + 1}`, text });
+        }
+      }
+    }
+
+    res.json({ questions: selected.map((q) => ({ id: String(q._id), question: q.text })) });
   } catch (err) {
     logger.error(`Fetch interview questions error: ${err.message}`);
     res.status(500).json({ message: err.message || "Failed to load interview questions." });

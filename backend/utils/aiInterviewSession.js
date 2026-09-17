@@ -11,52 +11,123 @@ const { generateInterviewQuestions, generateFinalReport } = require("./claudeInt
 // lives in exactly one place rather than being duplicated per front door.
 // ---------------------------------------------------------------------------
 
+function normalizeQText(text = "") {
+  return String(text || "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
+}
+
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function formatQuestionItem(q, idx) {
+  const questionText = (q.text || q.question || "").trim();
+  const correctAnswer = (q.correctAnswer || "").trim();
+  const expectedConcepts = Array.isArray(q.expectedConcepts) && q.expectedConcepts.length > 0
+    ? q.expectedConcepts.map(String)
+    : correctAnswer
+        ? correctAnswer
+            .replace(/[^\w\s]/g, " ")
+            .split(/\s+/)
+            .filter((w) => w.length > 3)
+        : [];
+
+  let keywords = [];
+  if (Array.isArray(q.keywords) && q.keywords.length === 3) {
+    keywords = q.keywords.map(String);
+  } else if (expectedConcepts.length >= 3) {
+    keywords = expectedConcepts.slice(0, 3).map(String);
+  } else {
+    keywords = [...expectedConcepts, "concept", "detail", "accuracy"].slice(0, 3).map(String);
+  }
+
+  return {
+    index: idx,
+    id: String(q._id || q.id || `q-${idx + 1}`),
+    topic: q.topic || (q.mode === "video" ? "Video Technical" : (q.mode === "audio" ? "Audio Interview" : "Technical Medical Coding")),
+    topicLabel: `Question ${idx + 1}`,
+    question: questionText,
+    correctAnswer,
+    expectedConcepts,
+    keywords,
+  };
+}
+
 async function buildFreshAiInterviewSession(candidate) {
   const candidateName = candidate.stage1?.fullName || "Candidate";
   const role = candidate.stage1?.currentRole || "Medical Coder";
   const experienceYears = candidate.stage1?.experience ?? null;
 
-  // Retrieve staff-configured active interview questions bank (capped to exactly 5 questions)
-  const activeBankQuestions = await InterviewQuestion.find({ active: true })
-    .sort({ order: 1, createdAt: 1 })
-    .limit(5)
-    .lean();
+  // Retrieve all active interview questions from database bank
+  const allActiveBankQuestions = await InterviewQuestion.find({ active: true }).lean();
 
-  let questions;
-  if (activeBankQuestions && activeBankQuestions.length > 0) {
-    questions = activeBankQuestions.slice(0, 5).map((q, idx) => {
-      const expectedConcepts = q.correctAnswer
-        ? q.correctAnswer
-            .replace(/[^\w\s]/g, " ")
-            .split(/\s+/)
-            .filter((w) => w.length > 3)
-        : [];
-      // Exactly 3 keywords per the Answer Evaluation / Keyword Matching
-      // requirement - prefer staff-configured InterviewQuestion.keywords,
-      // otherwise derive 3 from the correct answer / expected concepts.
-      const keywords =
-        Array.isArray(q.keywords) && q.keywords.length === 3
-          ? q.keywords
-          : expectedConcepts.slice(0, 3).length === 3
-          ? expectedConcepts.slice(0, 3)
-          : [expectedConcepts[0], expectedConcepts[1], expectedConcepts[2]].filter(Boolean);
-      return {
-        index: idx,
-        id: String(q._id),
-        topic: q.mode === "both" ? "Core Assessment" : (q.mode === "video" ? "Video Technical" : "Audio Interview"),
-        topicLabel: `Question ${idx + 1}`,
-        question: q.text,
-        correctAnswer: q.correctAnswer || "",
-        expectedConcepts,
-        keywords: keywords.length === 3 ? keywords : keywords.concat(["concept", "detail", "accuracy"]).slice(0, 3),
-      };
-    });
-  } else {
-    questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
-    if (Array.isArray(questions) && questions.length > 5) {
-      questions = questions.slice(0, 5);
+  // Deduplicate active bank questions by normalized question text
+  const seenNorms = new Set();
+  const dedupedBank = [];
+  for (const q of allActiveBankQuestions) {
+    const norm = normalizeQText(q.text);
+    if (!norm || seenNorms.has(norm)) continue;
+    seenNorms.add(norm);
+    dedupedBank.push(q);
+  }
+
+  // Identify questions this candidate has previously answered (if retaking)
+  const priorNorms = new Set(
+    [
+      ...(candidate.stage8?.aiInterview?.questions || []),
+      ...(candidate.stage8?.aiInterview?.questionRecords || []),
+    ]
+      .map((q) => normalizeQText(q.question || q.text))
+      .filter(Boolean)
+  );
+
+  // Split into fresh (unseen by this candidate) and already-seen pools
+  const unseenPool = dedupedBank.filter((q) => !priorNorms.has(normalizeQText(q.text)));
+  const seenPool = dedupedBank.filter((q) => priorNorms.has(normalizeQText(q.text)));
+
+  // Randomly sample from unseen pool first
+  const chosenQuestions = shuffleArray(unseenPool).slice(0, 5);
+
+  // If fewer than 5 unseen questions in bank, backfill from seen pool without duplicates
+  if (chosenQuestions.length < 5 && seenPool.length > 0) {
+    const shuffledSeen = shuffleArray(seenPool);
+    for (const q of shuffledSeen) {
+      if (chosenQuestions.length >= 5) break;
+      const qNorm = normalizeQText(q.text);
+      if (!chosenQuestions.some((c) => normalizeQText(c.text) === qNorm)) {
+        chosenQuestions.push(q);
+      }
     }
   }
+
+  let finalRawQuestions = [...chosenQuestions];
+
+  // If active bank has fewer than 5 distinct questions, supplement using dynamic / diverse generator
+  if (finalRawQuestions.length < 5) {
+    const needed = 5 - finalRawQuestions.length;
+    const existingTexts = finalRawQuestions.map((q) => q.text || q.question);
+    const supplemental = await generateInterviewQuestions({
+      candidateName,
+      role,
+      experienceYears,
+      excludeQuestions: existingTexts,
+    });
+
+    for (const sq of supplemental) {
+      if (finalRawQuestions.length >= 5) break;
+      const sqNorm = normalizeQText(sq.question || sq.text);
+      if (!finalRawQuestions.some((f) => normalizeQText(f.text || f.question) === sqNorm)) {
+        finalRawQuestions.push(sq);
+      }
+    }
+  }
+
+  // Format exactly 5 distinct questions
+  const questions = finalRawQuestions.slice(0, 5).map((q, idx) => formatQuestionItem(q, idx));
 
   return {
     status: "IN_PROGRESS",

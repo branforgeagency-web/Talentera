@@ -163,7 +163,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   });
   const [mcLoading, setMcLoading] = useState(false);
   const [mcFetching, setMcFetching] = useState(false);
-  const [isDevSkipped, setIsDevSkipped] = useState(false);
 
   // Locked Profile Data from Aadhaar
   const [lockedFullName, setLockedFullName] = useState(initAadhaar.fullName);
@@ -749,29 +748,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     return () => window.removeEventListener("message", handlePopupMessage);
   }, []);
 
-  // Developer Skip Toggle
-  const handleDevSkipAadhaar = () => {
-    if (isDevSkipped) {
-      setIsDevSkipped(false);
-      toast("Developer bypass turned off. Aadhaar verification is mandatory.", "ℹ");
-    } else {
-      setIsDevSkipped(true);
-      if (!lockedFullName || !lockedFullName.trim()) {
-        setLockedFullName("Developer Test Candidate");
-      }
-      if (!lockedState) setLockedState("Tamil Nadu");
-      if (!lockedDistrict) setLockedDistrict("Chennai");
-      if (!lockedLocality) setLockedLocality("Chennai");
-      if (!currentState) setCurrentState("Tamil Nadu");
-      if (!currentCity) setCurrentCity("Chennai");
-      toast("🛠️ Developer Bypass: Aadhaar verification mandatory requirement removed!", "✓");
-    }
-  };
-
   // Calculate Progress Dots
   const getSectionProgress = () => {
     let completed = 0;
-    if (isAadhaarVerified || isDevSkipped) completed++;
+    if (isAadhaarVerified) completed++;
     if (mobile.trim() && email.trim()) completed++;
     if (experience) completed++;
     if (preferredCities.length > 0) completed++;
@@ -787,9 +767,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     const resolvedCity = currentCity || lockedDistrict || "Chennai";
 
     if (advance) {
-      // Aadhaar verification is strictly mandatory unless bypassed by developer button
-      if (!isAadhaarVerified && !isDevSkipped) {
-        toast("Aadhaar verification is mandatory. Please verify via DigiLocker or click 'Skip for Developer'.", "!");
+      // Aadhaar verification is strictly mandatory.
+      if (!isAadhaarVerified) {
+        toast("Aadhaar verification is mandatory. Please verify via DigiLocker.", "!");
         document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth" });
         return;
       }
@@ -820,9 +800,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       aadhaarNumber: cleanAadhaar,
       maskedAadhaar: cleanAadhaar && cleanAadhaar.length >= 4 ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (aadhaarInput || existingData?.maskedAadhaar || ""),
       fullName: lockedFullName.trim(),
-      aadhaarVerified: isAadhaarVerified || isDevSkipped,
-      aadhaarVerifiedAt: existingData?.aadhaarVerifiedAt || (isAadhaarVerified || isDevSkipped ? new Date().toISOString() : null),
-      aadhaarTransactionId: transactionId || (isDevSkipped ? "dev_bypass" : (existingData?.aadhaarTransactionId || null)),
+      aadhaarVerified: isAadhaarVerified,
+      aadhaarVerifiedAt: existingData?.aadhaarVerifiedAt || (isAadhaarVerified ? new Date().toISOString() : null),
+      aadhaarTransactionId: transactionId || existingData?.aadhaarTransactionId || null,
       maskedMobile: maskedMobileInfo || existingData?.maskedMobile || null,
       careOf: aadhaarCareOf || existingData?.careOf || null,
       pincode: aadhaarPincode || existingData?.pincode || null,
@@ -1926,8 +1906,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             <div className="section-header">
               <div className="section-num">1</div>
               <div className="section-title">Aadhaar Identity Verification</div>
-              <div className={`status-chip ${isAadhaarVerified ? "" : (isDevSkipped ? "completed" : "active")}`}>
-                {isAadhaarVerified ? "✓ VERIFIED · +5" : (isDevSkipped ? "🛠️ BYPASSED FOR DEV" : "MANDATORY · +5")}
+              <div className={`status-chip ${isAadhaarVerified ? "" : "active"}`}>
+                {isAadhaarVerified ? "✓ VERIFIED · +5" : "MANDATORY · +5"}
               </div>
             </div>
 
@@ -1980,44 +1960,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                         </>
                       )}
                     </button>
-
-                    {/* Skip for Developer button */}
-                    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
-                      <button
-                        type="button"
-                        onClick={handleDevSkipAadhaar}
-                        style={{
-                          background: isDevSkipped ? "#FEF3C7" : "#F8FAFC",
-                          border: isDevSkipped ? "1.5px solid #F59E0B" : "1px dashed #94A3B8",
-                          color: isDevSkipped ? "#92400E" : "#64748B",
-                          padding: "6px 14px",
-                          borderRadius: 8,
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 6,
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        <span>🛠️</span>
-                        <span>{isDevSkipped ? "✓ Dev Bypass Active (Mandatory Removed)" : "Skip for Developer (Bypass Aadhaar)"}</span>
-                      </button>
-                    </div>
-
-                    {isDevSkipped && (
-                      <div style={{ marginTop: 10, background: "#FFFBEB", border: "1.5px solid #FCD34D", borderRadius: 8, padding: "10px 14px", fontSize: 12.5, color: "#92400E", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span>🛠️ <strong>Developer Bypass Active:</strong> Aadhaar verification mandatory requirement is removed. You can enter any full name below and proceed to next stages.</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsDevSkipped(false)}
-                          style={{ background: "transparent", border: "none", color: "#B45309", textDecoration: "underline", cursor: "pointer", fontSize: 12, fontWeight: 700 }}
-                        >
-                          Re-enable Mandatory
-                        </button>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: 14 }}>
@@ -2176,7 +2118,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     className="link-btn"
                     onClick={() => {
                       setIsAadhaarVerified(false);
-                      setIsDevSkipped(false);
                       toast("You can now re-verify with Aadhaar DigiLocker.", "ℹ");
                     }}
                   >
