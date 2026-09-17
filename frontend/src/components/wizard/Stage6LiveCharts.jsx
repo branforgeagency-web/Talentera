@@ -56,7 +56,7 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
   const stage6Data = existingData || candidateObj.stage6 || {};
 
   // Candidate basic attributes from database
-  const candidateName = stage1.fullName || candidateObj.fullName || "Ananya Sharma";
+  const candidateName = stage1.fullName || candidateObj.fullName || candidateObj.name || (candidateObj.email ? candidateObj.email.split("@")[0] : "Candidate");
   const candidateExp = stage1.experience || candidateObj.experience || "Fresher";
   const candidateDomain = stage2.domain || stage2.courseName || stage2.specialty || "Medical Coding";
   

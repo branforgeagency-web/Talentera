@@ -126,8 +126,8 @@ export default function CandidateWizard() {
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
 
     if (completed.length >= 8) {
-      setShowVerifiedPool(true);
-      setShowDashboard(false);
+      setShowVerifiedPool(false);
+      setShowDashboard(true);
       return;
     }
 
@@ -172,8 +172,8 @@ export default function CandidateWizard() {
     }
 
     toast("Profile submitted for verification!", "✓");
-    setShowVerifiedPool(true);
-    setShowDashboard(false);
+    setShowVerifiedPool(false);
+    setShowDashboard(true);
   }
 
   function handleSaveExit() {

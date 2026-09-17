@@ -1,0 +1,441 @@
+<div class="page" id="page-jobs">
+      <div class="page-head">
+        <div class="page-eyebrow">Live · 380 open roles across 47 RCM companies · Updated 2 min ago</div>
+        <h1 class="page-title">Browse Jobs · Everything Medical Coding</h1>
+        <p class="page-sub">All open roles, all locations, all companies — in ONE place. No jumping to Naukri, Foundit, or LinkedIn. Filter, view full JD, and apply directly with your verified profile.</p>
+      </div>
+
+      <!-- LIVE JOB STATS -->
+      <div class="quick-stats" style="margin-bottom:18px">
+        <div class="qs-card" style="background:linear-gradient(135deg,var(--gold-pale),#FFFDF5);border-color:var(--gold)"><div class="qs-ico gold">🔥</div><div><div class="qs-val">380</div><div class="qs-lbl">Live Openings</div><div class="qs-trend">↑ 12 new today</div></div></div>
+        <div class="qs-card"><div class="qs-ico blue">🏢</div><div><div class="qs-val">47</div><div class="qs-lbl">Companies Hiring</div><div class="qs-trend">↑ 3 new this week</div></div></div>
+        <div class="qs-card"><div class="qs-ico green">🎯</div><div><div class="qs-val">142</div><div class="qs-lbl">Matching Your Profile</div><div class="qs-trend">Your Silver tier qualifies</div></div></div>
+        <div class="qs-card"><div class="qs-ico purple">📍</div><div><div class="qs-val">17</div><div class="qs-lbl">Cities Hiring Now</div><div class="qs-trend">Pan-India + Global</div></div></div>
+      </div>
+
+      <!-- FILTER BAR -->
+      <div class="card" style="background:linear-gradient(135deg,var(--navy),#1E3A8A);color:var(--white);padding:22px 24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="width:32px;height:32px;background:var(--gold);color:var(--navy);border-radius:10px;display:grid;place-items:center;font-size:15px">🎛</div>
+            <div style="font-size:15px;font-weight:800">Filter Jobs · Only in Talentera</div>
+          </div>
+          <button onclick="toast('All filters cleared')" style="background:transparent;color:var(--gold);font-size:12px;font-weight:800;cursor:pointer;padding:6px 12px;border:1px solid rgba(245,180,26,.3);border-radius:8px">Reset all</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px">
+          <div>
+            <label style="display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">📍 Location</label>
+            <select onchange="toast('Filtered by ' + this.value)" style="width:100%;background:rgba(255,255,255,.1);color:var(--white);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 10px;font-size:12px;cursor:pointer">
+              <option>All India (17 cities)</option>
+              <option>Bengaluru (48 jobs)</option>
+              <option>Hyderabad (72 jobs)</option>
+              <option>Chennai (55 jobs)</option>
+              <option>Mumbai (34 jobs)</option>
+              <option>Pune (28 jobs)</option>
+              <option>Delhi-NCR (22 jobs)</option>
+              <option>Kochi (18 jobs)</option>
+              <option>Coimbatore (15 jobs)</option>
+              <option>Vizag (12 jobs)</option>
+              <option>Remote (38 jobs)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">🩺 Specialty</label>
+            <select onchange="toast('Filtered by ' + this.value)" style="width:100%;background:rgba(255,255,255,.1);color:var(--white);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 10px;font-size:12px;cursor:pointer">
+              <option>All Specialties</option>
+              <option>HCC · Risk Adjustment (68 jobs)</option>
+              <option>E/M Coding (54 jobs)</option>
+              <option>ED Coding (38 jobs)</option>
+              <option>Surgery (29 jobs)</option>
+              <option>IP-DRG (24 jobs)</option>
+              <option>Home Health · HCS-D (18 jobs)</option>
+              <option>Dental · CDC (16 jobs)</option>
+              <option>AR Calling (42 jobs)</option>
+              <option>Denials Mgmt (28 jobs)</option>
+              <option>Radiology (12 jobs)</option>
+              <option>Pathology (8 jobs)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">🏢 Company</label>
+            <select onchange="toast('Filtered by ' + this.value)" style="width:100%;background:rgba(255,255,255,.1);color:var(--white);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 10px;font-size:12px;cursor:pointer">
+              <option>All Companies (47)</option>
+              <option>Optum India (12 roles)</option>
+              <option>Access Healthcare (8)</option>
+              <option>R1 RCM (11)</option>
+              <option>Cognizant (14)</option>
+              <option>Omega Healthcare (9)</option>
+              <option>GeBBS Healthcare (7)</option>
+              <option>Sutherland (8)</option>
+              <option>WNS Healthcare (6)</option>
+              <option>Coronis Health (5)</option>
+              <option>AGS Health (10)</option>
+              <option>Ventra Health (6)</option>
+              <option>Vee Technologies (5)</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">📋 Project / Client</label>
+            <select onchange="toast('Filtered by ' + this.value)" style="width:100%;background:rgba(255,255,255,.1);color:var(--white);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 10px;font-size:12px;cursor:pointer">
+              <option>All Projects</option>
+              <option>UnitedHealthcare</option>
+              <option>Anthem BCBS</option>
+              <option>Aetna</option>
+              <option>Humana</option>
+              <option>Cigna</option>
+              <option>Kaiser Permanente</option>
+              <option>Medicare Advantage</option>
+              <option>US Physician Offices</option>
+              <option>US Hospitals</option>
+              <option>UK NHS</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">💰 Salary Band</label>
+            <select onchange="toast('Filtered by salary')" style="width:100%;background:rgba(255,255,255,.1);color:var(--white);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 10px;font-size:12px;cursor:pointer">
+              <option>Any</option>
+              <option>Trainee ₹2.5-3.5 LPA</option>
+              <option>Fresher ₹3.5-5.0 LPA</option>
+              <option>Fresher+ ₹5.0-7.0 LPA</option>
+              <option>Junior ₹7.0-9.0 LPA</option>
+              <option>Mid ₹9.0-12.0 LPA</option>
+              <option>Senior ₹12+ LPA</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:10px;color:var(--gold);font-weight:800;letter-spacing:1px;margin-bottom:5px;text-transform:uppercase">🏢 Work Mode</label>
+            <select onchange="toast('Filtered by work mode')" style="width:100%;background:rgba(255,255,255,.1);color:var(--white);border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:9px 10px;font-size:12px;cursor:pointer">
+              <option>Any</option>
+              <option>Onsite (245)</option>
+              <option>Hybrid (97)</option>
+              <option>Remote (38)</option>
+              <option>Day Shift</option>
+              <option>US Night Shift</option>
+              <option>UK Evening Shift</option>
+              <option>Rotational</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          <span style="background:var(--gold);color:var(--navy);padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;display:inline-flex;align-items:center;gap:6px">🎯 Match my profile <span style="opacity:.5;cursor:pointer" onclick="toast('Filter removed')">✕</span></span>
+          <span style="background:rgba(255,255,255,.15);color:var(--white);padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer" onclick="toast('Filter added')">+ Verified Silver+ only</span>
+          <span style="background:rgba(255,255,255,.15);color:var(--white);padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer" onclick="toast('Filter added')">+ Featured only</span>
+          <span style="background:rgba(255,255,255,.15);color:var(--white);padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer" onclick="toast('Filter added')">+ Walk-in / Immediate</span>
+          <span style="background:rgba(255,255,255,.15);color:var(--white);padding:4px 10px;border-radius:12px;font-size:11px;font-weight:800;cursor:pointer" onclick="toast('Filter added')">+ Open to Global</span>
+        </div>
+      </div>
+
+      <!-- CITY MAP GRID -->
+      <div class="sec" style="margin-top:20px">
+        <div class="sec-head">
+          <div class="sec-title"><div class="mod-ico">🗺</div>Live Hiring Map — cities &amp; company counts <span class="count">17 CITIES ACTIVE</span></div>
+          <span class="sec-more" onclick="toast('Opening full map view')">View interactive map →</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+          <div class="qs-card" onclick="toast('Filtered by Hyderabad — 72 jobs')" style="cursor:pointer;background:linear-gradient(135deg,#FFFDF5,var(--gold-pale));border-color:var(--gold)"><div style="text-align:center;width:100%"><div style="font-size:22px">🏙</div><div style="font-size:14px;font-weight:800;color:var(--navy);margin-top:4px">Hyderabad</div><div style="font-size:11px;color:var(--gold-deep);font-weight:800;margin-top:2px">72 jobs · 15 companies</div><div style="font-size:10px;color:var(--gray-mute);margin-top:2px">🔥 Highest hiring</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Chennai — 55 jobs')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:22px">🏙</div><div style="font-size:14px;font-weight:800;color:var(--navy);margin-top:4px">Chennai</div><div style="font-size:11px;color:var(--gold-deep);font-weight:800;margin-top:2px">55 jobs · 11 companies</div><div style="font-size:10px;color:var(--gray-mute);margin-top:2px">📈 +8 this week</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Bengaluru — 48 jobs')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:22px">🌆</div><div style="font-size:14px;font-weight:800;color:var(--navy);margin-top:4px">Bengaluru</div><div style="font-size:11px;color:var(--gold-deep);font-weight:800;margin-top:2px">48 jobs · 10 companies</div><div style="font-size:10px;color:var(--gray-mute);margin-top:2px">🏠 Your city</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Remote — 38 jobs')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:22px">🌐</div><div style="font-size:14px;font-weight:800;color:var(--navy);margin-top:4px">Remote</div><div style="font-size:11px;color:var(--gold-deep);font-weight:800;margin-top:2px">38 jobs · 9 companies</div><div style="font-size:10px;color:var(--gray-mute);margin-top:2px">🏡 Work from home</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Mumbai — 34 jobs')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:22px">🏙</div><div style="font-size:14px;font-weight:800;color:var(--navy);margin-top:4px">Mumbai</div><div style="font-size:11px;color:var(--gold-deep);font-weight:800;margin-top:2px">34 jobs · 8 companies</div><div style="font-size:10px;color:var(--gray-mute);margin-top:2px">Dental-heavy</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Pune — 28 jobs')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:22px">🌆</div><div style="font-size:14px;font-weight:800;color:var(--navy);margin-top:4px">Pune</div><div style="font-size:11px;color:var(--gold-deep);font-weight:800;margin-top:2px">28 jobs · 6 companies</div><div style="font-size:10px;color:var(--gray-mute);margin-top:2px">Growing hub</div></div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:10px">
+          <div class="qs-card" onclick="toast('Filtered by Delhi-NCR')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:20px">🏙</div><div style="font-size:13px;font-weight:800;color:var(--navy);margin-top:3px">Delhi-NCR</div><div style="font-size:10.5px;color:var(--gold-deep);font-weight:800">22 jobs</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Kochi')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:20px">🌴</div><div style="font-size:13px;font-weight:800;color:var(--navy);margin-top:3px">Kochi</div><div style="font-size:10.5px;color:var(--gold-deep);font-weight:800">18 jobs</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Coimbatore')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:20px">🌴</div><div style="font-size:13px;font-weight:800;color:var(--navy);margin-top:3px">Coimbatore</div><div style="font-size:10.5px;color:var(--gold-deep);font-weight:800">15 jobs</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Vizag')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:20px">🏖</div><div style="font-size:13px;font-weight:800;color:var(--navy);margin-top:3px">Vizag</div><div style="font-size:10.5px;color:var(--gold-deep);font-weight:800">12 jobs</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Trivandrum')" style="cursor:pointer"><div style="text-align:center;width:100%"><div style="font-size:20px">🌴</div><div style="font-size:13px;font-weight:800;color:var(--navy);margin-top:3px">Trivandrum</div><div style="font-size:10.5px;color:var(--gold-deep);font-weight:800">10 jobs</div></div></div>
+          <div class="qs-card" onclick="toast('Filtered by Global roles')" style="cursor:pointer;background:linear-gradient(135deg,var(--blue-soft),#F5F8FF)"><div style="text-align:center;width:100%"><div style="font-size:20px">🌍</div><div style="font-size:13px;font-weight:800;color:var(--navy);margin-top:3px">Global (US·UAE)</div><div style="font-size:10.5px;color:var(--blue);font-weight:800">28 jobs</div></div></div>
+        </div>
+      </div>
+
+      <!-- COMPANY DIRECTORY -->
+      <div class="sec">
+        <div class="sec-head">
+          <div class="sec-title"><div class="mod-ico">🏢</div>Company Directory · Live Hiring Status <span class="count">47 COMPANIES · 380 JOBS</span></div>
+          <span class="sec-more" onclick="toast('Opening full directory')">View all 47 →</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+          <!-- Optum India -->
+          <div class="card" onclick="toast('Opening Optum full profile + 12 open roles')" style="cursor:pointer;margin-bottom:0;padding:16px 18px;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="co-logo clr-optum">O</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--navy)">Optum India</div><div style="font-size:11px;color:var(--gray-mute);margin-top:2px">Hyderabad · 40,000+ employees</div></div>
+              <span style="background:var(--red);color:var(--white);padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800">🔥 HOT</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--gray-txt);line-height:1.5;margin-bottom:8px">UnitedHealth Group's RCM arm. Serves major US payers. Silver-tier tech stack (EPIC + 3M 360).</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:10px;border-top:1px dashed var(--border)"><span style="color:var(--gold-deep);font-weight:800">12 open roles</span><span style="color:var(--gray-mute)">₹5.5 – 8.5 LPA</span></div>
+          </div>
+
+          <!-- Access Healthcare -->
+          <div class="card" onclick="toast('Opening Access Healthcare + 8 open roles')" style="cursor:pointer;margin-bottom:0;padding:16px 18px;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="co-logo clr-access">A</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--navy)">Access Healthcare</div><div style="font-size:11px;color:var(--gray-mute);margin-top:2px">Chennai · 18,000+ employees</div></div>
+              <span style="background:var(--gold);color:var(--navy);padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800">FEATURED</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--gray-txt);line-height:1.5;margin-bottom:8px">RCM services + payment integrity. Handles $70B annualized net collections for US healthcare providers.</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:10px;border-top:1px dashed var(--border)"><span style="color:var(--gold-deep);font-weight:800">8 open roles</span><span style="color:var(--gray-mute)">₹6.0 – 9.5 LPA</span></div>
+          </div>
+
+          <!-- R1 RCM -->
+          <div class="card" onclick="toast('Opening R1 RCM + 11 open roles')" style="cursor:pointer;margin-bottom:0;padding:16px 18px;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="co-logo clr-r1">R1</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--navy)">R1 RCM India</div><div style="font-size:11px;color:var(--gray-mute);margin-top:2px">Hyderabad · 15,000+ employees</div></div>
+              <span style="background:var(--red);color:var(--white);padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800">🔥 HOT</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--gray-txt);line-height:1.5;margin-bottom:8px">Enterprise RCM. Handles hospital + physician billing. NYSE-listed. Best for candidates wanting large-scale exposure.</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:10px;border-top:1px dashed var(--border)"><span style="color:var(--gold-deep);font-weight:800">11 open roles</span><span style="color:var(--gray-mute)">₹5.5 – 8.5 LPA</span></div>
+          </div>
+
+          <!-- Cognizant -->
+          <div class="card" onclick="toast('Opening Cognizant + 14 open roles')" style="cursor:pointer;margin-bottom:0;padding:16px 18px;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="co-logo clr-cognizant">C</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--navy)">Cognizant TriZetto</div><div style="font-size:11px;color:var(--gray-mute);margin-top:2px">Multi-city · 3,50,000 employees</div></div>
+              <span style="background:var(--blue);color:var(--white);padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800">🌐 REMOTE</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--gray-txt);line-height:1.5;margin-bottom:8px">RCM automation + AI-based coding. Best for tech-savvy coders. Remote roles available.</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:10px;border-top:1px dashed var(--border)"><span style="color:var(--gold-deep);font-weight:800">14 open roles</span><span style="color:var(--gray-mute)">₹5.0 – 7.5 LPA</span></div>
+          </div>
+
+          <!-- Omega Healthcare -->
+          <div class="card" onclick="toast('Opening Omega + 9 open roles')" style="cursor:pointer;margin-bottom:0;padding:16px 18px;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="co-logo clr-omega">Ω</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--navy)">Omega Healthcare</div><div style="font-size:11px;color:var(--gray-mute);margin-top:2px">Bengaluru · 25,000+ employees</div></div>
+              <span style="background:var(--purple);color:var(--white);padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800">🌙 US NIGHT</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--gray-txt);line-height:1.5;margin-bottom:8px">US-facing RCM services. E/M + AR heavy. Best for candidates open to US night shift with premium salary.</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:10px;border-top:1px dashed var(--border)"><span style="color:var(--gold-deep);font-weight:800">9 open roles</span><span style="color:var(--gray-mute)">₹5.5 – 7.5 LPA</span></div>
+          </div>
+
+          <!-- GeBBS Dental -->
+          <div class="card" onclick="toast('Opening GeBBS Dental + 7 open roles')" style="cursor:pointer;margin-bottom:0;padding:16px 18px;transition:.15s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              <div class="co-logo clr-gebbs">GD</div>
+              <div style="flex:1"><div style="font-size:14px;font-weight:800;color:var(--navy)">GeBBS Healthcare</div><div style="font-size:11px;color:var(--gray-mute);margin-top:2px">Mumbai · 8,000+ employees</div></div>
+              <span style="background:#EC4899;color:var(--white);padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800">🦷 DENTAL</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--gray-txt);line-height:1.5;margin-bottom:8px">Specialty RCM including dental (CDT codes) and behavioral health. Best for CDC-certified coders.</div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;padding-top:10px;border-top:1px dashed var(--border)"><span style="color:var(--gold-deep);font-weight:800">7 open roles</span><span style="color:var(--gray-mute)">₹5.0 – 7.0 LPA</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INDIVIDUAL JOB LISTINGS -->
+      <div class="sec">
+        <div class="sec-head">
+          <div class="sec-title"><div class="mod-ico">💼</div>Live Job Postings · Apply directly · 1-click <span class="count priority">142 MATCH YOU</span></div>
+          <span class="sec-more" onclick="toast('Sorted by best match')">Sort: Best match ↓</span>
+        </div>
+
+        <!-- Job 1 -->
+        <div class="card" style="margin-bottom:12px;padding:20px 22px;border-left:4px solid var(--gold)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:14px;flex:1">
+              <div class="co-logo clr-optum" style="width:56px;height:56px">O</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="font-size:16px;font-weight:800;color:var(--navy)">HCC Medical Coder · Fresher-Silver+</div>
+                  <span style="background:var(--red);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">🔥 HOT</span>
+                  <span style="background:var(--green);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">✓ MATCH</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--gray-txt);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap">
+                  <span>🏢 <b>Optum India</b></span>
+                  <span>📍 Hyderabad · Onsite</span>
+                  <span>💰 ₹5.5 – 7.0 LPA</span>
+                  <span>🕐 Day + US Night rotational</span>
+                  <span>📋 UnitedHealthcare Medicare Adv.</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="toast('Application sent to Optum with your verified Silver profile. HR notified.')" style="background:var(--gold);color:var(--navy);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:800;border:none;cursor:pointer;white-space:nowrap">📤 Apply Now</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">CPC Required ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">HCC Specialty ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Assessment ≥ 70 ✓ (you: 74)</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Live Charts ≥ 50 ✓ (you: 141)</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Video Silver+ ✓</span>
+          </div>
+          <div style="font-size:12px;color:var(--gray-txt);line-height:1.55;padding:12px 14px;background:#FAFAF7;border-radius:8px;margin-bottom:8px">
+            <b style="color:var(--navy)">📋 Full JD:</b> Code Medicare Advantage HCC charts using CMS V28 model. Handle 60-80 charts/day at 90%+ accuracy. Query providers for missing documentation. Weekly QA sessions with senior coders. Immediate joiners preferred. Complete training + shadowing for first 4 weeks. 12 CEUs/yr sponsored by Optum.
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray-mute);align-items:center">
+            <div style="display:flex;gap:14px"><span>📅 Posted 2 days ago</span><span>👥 47 applied</span><span>⚡ Fast-track hiring · Offer in 7 days</span></div>
+            <div><span style="color:var(--gold-deep);font-weight:800;cursor:pointer" onclick="event.stopPropagation();toast('Bookmarked')">🔖 Save</span></div>
+          </div>
+        </div>
+
+        <!-- Job 2 -->
+        <div class="card" style="margin-bottom:12px;padding:20px 22px;border-left:4px solid var(--green)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:14px;flex:1">
+              <div class="co-logo clr-access" style="width:56px;height:56px">A</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="font-size:16px;font-weight:800;color:var(--navy)">E/M Coder · Multi-Specialty</div>
+                  <span style="background:var(--green);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">✓ MATCH</span>
+                  <span style="background:var(--blue);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">🌐 HYBRID</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--gray-txt);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap">
+                  <span>🏢 <b>Access Healthcare</b></span>
+                  <span>📍 Chennai · Hybrid (3 days WFH)</span>
+                  <span>💰 ₹6.0 – 8.5 LPA</span>
+                  <span>🕐 Day shift</span>
+                  <span>📋 Anthem BCBS</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="toast('Application sent to Access Healthcare')" style="background:var(--gold);color:var(--navy);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:800;border:none;cursor:pointer;white-space:nowrap">📤 Apply Now</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">CPC ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">E/M Specialty ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Assessment ≥ 65 ✓</span>
+            <span style="background:var(--red-soft);color:var(--red);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Preferred: 3+ months experience (you: fresher)</span>
+          </div>
+          <div style="font-size:12px;color:var(--gray-txt);line-height:1.55;padding:12px 14px;background:#FAFAF7;border-radius:8px;margin-bottom:8px">
+            <b style="color:var(--navy)">📋 Full JD:</b> Code E/M visits for physician office practices. Apply 2024 MDM Grid. 50-70 charts/day at 92%+ accuracy. Hybrid 2 days Chennai office + 3 days WFH. Freshers with strong Assessment + Silver Video considered.
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray-mute);align-items:center">
+            <div style="display:flex;gap:14px"><span>📅 Posted 5 days ago</span><span>👥 38 applied</span><span>🎯 Silver+ candidates prioritized</span></div>
+            <div><span style="color:var(--gold-deep);font-weight:800;cursor:pointer" onclick="event.stopPropagation();toast('Bookmarked')">🔖 Save</span></div>
+          </div>
+        </div>
+
+        <!-- Job 3 -->
+        <div class="card" style="margin-bottom:12px;padding:20px 22px;border-left:4px solid var(--purple)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:14px;flex:1">
+              <div class="co-logo clr-gebbs" style="width:56px;height:56px">GD</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="font-size:16px;font-weight:800;color:var(--navy)">Dental Coder (CDT) · Fresher OK</div>
+                  <span style="background:#EC4899;color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">🦷 DENTAL</span>
+                  <span style="background:var(--green);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">✓ CDC MATCH</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--gray-txt);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap">
+                  <span>🏢 <b>GeBBS Healthcare</b></span>
+                  <span>📍 Mumbai · Onsite</span>
+                  <span>💰 ₹5.0 – 7.0 LPA</span>
+                  <span>🕐 Day shift</span>
+                  <span>📋 US Dental Practices</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="toast('Application sent to GeBBS Dental')" style="background:var(--gold);color:var(--navy);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:800;border:none;cursor:pointer;white-space:nowrap">📤 Apply Now</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">CDC Required ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">CDT Codes knowledge ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Dental Anatomy ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Freshers welcome ✓</span>
+          </div>
+          <div style="font-size:12px;color:var(--gray-txt);line-height:1.55;padding:12px 14px;background:#FAFAF7;border-radius:8px;margin-bottom:8px">
+            <b style="color:var(--navy)">📋 Full JD:</b> Code dental procedures using CDT codes (D0100-D9999). Handle 40-60 dental charts/day. Knowledge of restorative, endodontics, periodontics, oral surgery. Prior dental exposure preferred but not required.
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray-mute);align-items:center">
+            <div style="display:flex;gap:14px"><span>📅 Posted 1 day ago</span><span>👥 12 applied</span><span>🎯 CDC holders prioritized</span></div>
+            <div><span style="color:var(--gold-deep);font-weight:800;cursor:pointer" onclick="event.stopPropagation();toast('Bookmarked')">🔖 Save</span></div>
+          </div>
+        </div>
+
+        <!-- Job 4 · Remote -->
+        <div class="card" style="margin-bottom:12px;padding:20px 22px;border-left:4px solid var(--blue)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:14px;flex:1">
+              <div class="co-logo clr-cognizant" style="width:56px;height:56px">C</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="font-size:16px;font-weight:800;color:var(--navy)">AR Caller · Denial Management · Remote</div>
+                  <span style="background:var(--blue);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">🌐 REMOTE</span>
+                  <span style="background:var(--purple);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">🌙 US NIGHT</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--gray-txt);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap">
+                  <span>🏢 <b>Cognizant TriZetto</b></span>
+                  <span>📍 Anywhere India · WFH</span>
+                  <span>💰 ₹5.0 – 7.0 LPA + shift allowance</span>
+                  <span>🕐 US Night 6:30 PM – 3:30 AM</span>
+                  <span>📋 Multi-payer AR</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="toast('Application sent to Cognizant')" style="background:var(--gold);color:var(--navy);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:800;border:none;cursor:pointer;white-space:nowrap">📤 Apply Now</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Fluent English (spoken) ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Confidence ≥ 65 ✓ (you: 70)</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">US shift OK ✓</span>
+            <span style="background:var(--gold-pale);color:var(--gold-deep);padding:4px 10px;border-radius:8px;font-size:10.5px;font-weight:800">Freshers welcome ✓</span>
+          </div>
+          <div style="font-size:12px;color:var(--gray-txt);line-height:1.55;padding:12px 14px;background:#FAFAF7;border-radius:8px;margin-bottom:8px">
+            <b style="color:var(--navy)">📋 Full JD:</b> Call US insurance companies for AR follow-up + denial resolution. 60-80 calls per shift. Handle appeals, resubmissions. Fluent US-accent English required. Night shift allowance of ₹8,000/month over base.
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray-mute);align-items:center">
+            <div style="display:flex;gap:14px"><span>📅 Posted 3 days ago</span><span>👥 82 applied</span><span>🌐 100% Remote · Home internet reimbursed</span></div>
+            <div><span style="color:var(--gold-deep);font-weight:800;cursor:pointer" onclick="event.stopPropagation();toast('Bookmarked')">🔖 Save</span></div>
+          </div>
+        </div>
+
+        <!-- Job 5 · Walk-in -->
+        <div class="card" style="margin-bottom:12px;padding:20px 22px;border-left:4px solid var(--red)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:14px;flex:1">
+              <div class="co-logo clr-r1" style="width:56px;height:56px">R1</div>
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <div style="font-size:16px;font-weight:800;color:var(--navy)">Junior Coder Walk-In Drive · 40 openings</div>
+                  <span style="background:var(--red);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">⚡ WALK-IN 20 SEP</span>
+                  <span style="background:var(--green);color:var(--white);padding:2px 8px;border-radius:6px;font-size:10px;font-weight:800">SAME-DAY OFFER</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--gray-txt);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap">
+                  <span>🏢 <b>R1 RCM India</b></span>
+                  <span>📍 Hyderabad · HITEC City</span>
+                  <span>💰 ₹4.5 – 6.5 LPA</span>
+                  <span>🕐 Day + Night mix</span>
+                  <span>📋 Multi-specialty</span>
+                </div>
+              </div>
+            </div>
+            <button onclick="toast('Slot booked for 20 Sep walk-in drive. Calendar invite sent.')" style="background:var(--red);color:var(--white);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:800;border:none;cursor:pointer;white-space:nowrap">📅 Book Walk-In</button>
+          </div>
+          <div style="font-size:12px;color:var(--gray-txt);line-height:1.55;padding:12px 14px;background:#FAFAF7;border-radius:8px;margin-bottom:8px">
+            <b style="color:var(--navy)">📋 Full JD:</b> Mega walk-in drive at R1 Hyderabad campus, 20 Sep 2026 (Saturday, 9 AM - 4 PM). Rounds: HR + Technical + Manager. Talentera Silver+ candidates skip HR round. Bring Aadhaar + all cert originals + 2 passport photos. Same-day offer letters for selected candidates.
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--gray-mute);align-items:center">
+            <div style="display:flex;gap:14px"><span>📅 Walk-in on 20 Sep 2026</span><span>👥 156 slots booked · 44 remaining</span><span>🎁 Joining bonus ₹15k</span></div>
+            <div><span style="color:var(--gold-deep);font-weight:800;cursor:pointer" onclick="event.stopPropagation();toast('Bookmarked')">🔖 Save</span></div>
+          </div>
+        </div>
+
+        <!-- LOAD MORE -->
+        <div style="text-align:center;margin-top:20px">
+          <button onclick="toast('Loading next 20 jobs...')" style="background:var(--white);color:var(--navy);padding:14px 32px;border-radius:12px;font-size:14px;font-weight:800;border:2px solid var(--gold);cursor:pointer">
+            Load 20 more jobs · 137 remaining →
+          </button>
+          <div style="font-size:11px;color:var(--gray-mute);margin-top:10px;font-style:italic">💡 Talentera routes new matching roles to your WhatsApp every 24 hours. Never miss a match.</div>
+        </div>
+      </div>
+
+      <!-- ALL-IN-ONE PROMISE -->
+      <div class="card" style="background:linear-gradient(135deg,var(--gold-pale),#FFF9E0);border:1.5px solid var(--gold);margin-top:20px">
+        <div style="display:grid;grid-template-columns:60px 1fr;gap:16px;align-items:center">
+          <div style="font-size:44px">🎯</div>
+          <div>
+            <div style="font-size:15px;font-weight:800;color:var(--navy);margin-bottom:4px">Everything Medical Coding · One Portal · Zero Redirects</div>
+            <div style="font-size:12px;color:var(--gray-txt);line-height:1.6">No jumping to Naukri, Foundit, LinkedIn, or WhatsApp groups. Talentera aggregates every open RCM role from every hiring company in India (+ US/UAE remote). One-click apply with your verified profile. Same-portal Application Tracker · Interview Invites · Feedback Vault · Employment History. <b>Your entire medical coding career lives here.</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ REFER & EARN PAGE ═══════ -->
+    

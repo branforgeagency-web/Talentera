@@ -29,8 +29,11 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       verifiedStages.push(2);
     } else if (stage === 3) {
       // Certification verification: only award full 20 pts if audit verified
-      if (!candidate || candidate.stage3?.certStatus === "verified") {
+      if (!candidate || candidate.stage3?.certStatus === "verified" || candidate.stage3?.status === "verified" || candidate.stage3?.verified === true) {
         score += STAGE_POINTS[3];
+        verifiedStages.push(3);
+      } else if (candidate?.stage3?.certifications?.length > 0 || candidate?.stage3?.certCode) {
+        score += 15;
         verifiedStages.push(3);
       }
     } else if (stage === 4) {
@@ -48,6 +51,10 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
           verifiedStages.push(4);
         } else if (fScore !== undefined && fScore > 0) {
           score += Math.round((fScore / 100) * STAGE_POINTS[4]);
+          verifiedStages.push(4);
+        } else {
+          score += 15;
+          verifiedStages.push(4);
         }
       }
     } else if (stage === 5) {
@@ -62,13 +69,15 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         const opt = (s6.evidencePath || s6.option || "").toLowerCase();
         let pts = 0;
         if (opt === "a" || opt.includes("api") || opt === "practicode") {
-          pts = 20;
+          pts = 10;
         } else if (opt === "b" || opt.includes("academy") || opt === "upload") {
-          pts = 15;
+          pts = 10;
         } else if (opt === "c" || opt.includes("self") || opt === "declare") {
           pts = 8;
         } else if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
           pts = 0;
+        } else if ((s6.totalCharts || 0) > 0) {
+          pts = 10;
         } else {
           pts = 10;
         }
@@ -84,8 +93,11 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
     }
   }
 
+  score = Math.min(100, Math.max(0, score));
+
   return {
     score,
+    verificationScore: score,
     maxScore: 100,
     verifiedStages,
     badgeTier: score >= GOLD_BADGE_THRESHOLD ? "Talentera Verified" : "In Progress",

@@ -1,0 +1,189 @@
+<div class="page" id="page-employment">
+      <div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:16px">
+        <div>
+          <div class="page-eyebrow">Your lifetime employment record · UAN-verified</div>
+          <h1 class="page-title">Employment History</h1>
+          <p class="page-sub">Add every job you take. Talentera builds a verified 30-year career passport that companies trust more than any resume.</p>
+        </div>
+        <button class="profile-cta" onclick="toggleAddJob()" id="addJobBtn" style="background:var(--gold);color:var(--navy);padding:14px 24px;font-size:14px;border-radius:12px;display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px;line-height:1">➕</span> Add New Employment
+        </button>
+      </div>
+
+      
+      <div class="add-employment-form" id="addJobForm" style="display:none;background:linear-gradient(135deg,var(--gold-pale),#FFF9E0);border:2px solid var(--gold);border-radius:16px;padding:28px 30px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h2 style="font-size:18px;font-weight:800;color:var(--navy);margin:0;display:flex;align-items:center;gap:10px">💼 Add Your New Job at a Company</h2>
+          <button onclick="toggleAddJob()" style="background:transparent;color:var(--gray-mute);font-size:22px;font-weight:800;cursor:pointer;padding:0 8px">✕</button>
+        </div>
+        <p style="font-size:13px;color:var(--gray-txt);margin:0 0 20px;line-height:1.6">Fill in the details of the company you're joining. Upload your offer letter — Talentera auto-extracts the CTC, joining date and role. UAN sync will confirm your employment monthly.</p>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">🏢 Company Name *</label>
+            <input type="text" placeholder="e.g. Optum India" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">🎯 Your Role / Designation *</label>
+            <input type="text" placeholder="e.g. HCC Medical Coder" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">🩺 Department / Specialty *</label>
+            <select style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)">
+              <option>HCC · Risk Adjustment</option>
+              <option>E/M Coding</option>
+              <option>ED Coding</option>
+              <option>Surgery Coding</option>
+              <option>IP-DRG</option>
+              <option>Home Health · HCS-D</option>
+              <option>Dental · CDT</option>
+              <option>AR Calling / Denials</option>
+              <option>Charge Entry / Billing</option>
+              <option>Front Office / Pre-Auth</option>
+              <option>QA / Auditor</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">📍 Work Location *</label>
+            <input type="text" placeholder="e.g. Hyderabad · Onsite" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">📅 Joining Date *</label>
+            <input type="text" placeholder="25 / 09 / 2026" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">💰 Base CTC (₹ LPA) *</label>
+            <input type="text" placeholder="6.8" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">🏢 Employment Type *</label>
+            <select style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)">
+              <option>Full Time · Permanent</option>
+              <option>Trainee (6-month contract)</option>
+              <option>Contract</option>
+              <option>Internship</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">📄 Upload Offer Letter *</label>
+            <div style="border:2px dashed var(--gold);background:var(--white);border-radius:9px;padding:16px 14px;text-align:center;cursor:pointer" onclick="toast('File picker opened')">
+              <div style="font-size:24px;margin-bottom:4px">📎</div>
+              <div style="font-size:12px;color:var(--navy);font-weight:800">Click to upload PDF</div>
+              <div style="font-size:10.5px;color:var(--gray-mute);margin-top:2px">Auto-extracts CTC, date, role</div>
+            </div>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">🆔 UAN Number (auto-verify monthly)</label>
+            <input type="text" placeholder="12-digit UAN" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white);margin-bottom:8px"/>
+            <div style="font-size:10.5px;color:var(--gray-mute);font-style:italic">Talentera syncs monthly with EPFO to confirm you're still employed. Ensures your record stays live and verified.</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">👤 Reporting Manager (optional)</label>
+            <input type="text" placeholder="Manager name" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+          <div>
+            <label style="display:block;font-size:11.5px;font-weight:800;color:var(--navy);margin-bottom:6px;letter-spacing:.5px">📋 Project / Client (optional)</label>
+            <input type="text" placeholder="e.g. UnitedHealthcare · HCC Risk Adj." style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:9px;font-size:13.5px;background:var(--white)"/>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:20px;justify-content:flex-end">
+          <button onclick="toggleAddJob()" style="background:transparent;color:var(--gray-txt);padding:12px 22px;border-radius:10px;font-size:13px;font-weight:700;border:1.5px solid var(--border);cursor:pointer">Cancel</button>
+          <button onclick="saveJob()" style="background:var(--gold);color:var(--navy);padding:12px 26px;border-radius:10px;font-size:13px;font-weight:800;border:none;cursor:pointer">✓ Save &amp; Activate Career Loop</button>
+        </div>
+
+        <div style="background:var(--blue-soft);border-left:3px solid var(--blue);padding:10px 14px;border-radius:0 8px 8px 0;margin-top:16px;font-size:11.5px;color:var(--navy);line-height:1.5">
+          🔒 <b>DPDP-compliant:</b> Your offer letter is stored in My Documents (encrypted, DPDP-Act-verified). Talentera never shares raw offer letters with anyone — only extracted metadata (CTC, date, role) appears on your public profile.
+        </div>
+      </div>
+
+      
+      <div class="card" style="background:linear-gradient(135deg,var(--green-soft),#F5FDF9);border:2px solid var(--green);padding:22px 26px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:16px">
+            <div class="co-logo clr-optum" style="width:64px;height:64px;border-radius:16px;font-size:22px">O</div>
+            <div>
+              <div style="color:var(--green);font-size:11px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase">🟢 CURRENT EMPLOYMENT · UAN VERIFIED</div>
+              <div style="font-size:20px;font-weight:800;color:var(--navy);margin-top:4px">Optum India · HCC Medical Coder</div>
+              <div style="font-size:13px;color:var(--gray-txt);margin-top:4px">Hyderabad · Full Time · UnitedHealthcare project</div>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="background:var(--green);color:var(--white);padding:6px 14px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:.4px">🟢 ACTIVE · 3 MONTHS</div>
+            <button class="btn-secondary" style="margin-top:8px" onclick="toast('Opening edit form')">✎ Edit</button>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+          <div class="field" style="background:var(--white)"><div class="k">Joining Date</div><div class="v">25 Sep 2026</div></div>
+          <div class="field" style="background:var(--white)"><div class="k">Base CTC</div><div class="v">₹6.8 LPA</div></div>
+          <div class="field" style="background:var(--white)"><div class="k">Department</div><div class="v">HCC Risk Adj.</div></div>
+          <div class="field" style="background:var(--white)"><div class="k">Manager</div><div class="v">Ravi K.</div></div>
+          <div class="field" style="background:var(--white)"><div class="k">UAN Status</div><div class="v" style="color:var(--green)">🟢 Synced Dec 2026</div></div>
+        </div>
+        <div style="background:var(--white);border-radius:10px;padding:12px 16px;margin-top:12px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:12.5px;color:var(--gray-txt);line-height:1.5">
+            <b style="color:var(--navy)">📎 Documents on file:</b> Offer Letter (25 Sep 2026) · Signed Contract · Payslip Sep-Dec
+          </div>
+          <button class="btn-secondary" onclick="showPage('documents')">Open Vault →</button>
+        </div>
+      </div>
+
+      
+      <div class="card" style="margin-top:16px;background:#FAFAF7">
+        <div style="display:flex;gap:16px;align-items:center">
+          <div style="font-size:38px">💡</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:800;color:var(--navy)">When you join your next company — click "Add New Employment" above</div>
+            <div style="font-size:12px;color:var(--gray-txt);margin-top:4px;line-height:1.6">
+              Each new job you add becomes part of your lifetime career passport. Talentera captures: <b>offer letter · joining date · base CTC · department · manager</b>. When you leave, upload the <b>relieving letter</b> — Talentera auto-parses your exit date, final CTC and tenure.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      
+      <div style="margin-top:24px">
+        <h3 style="font-size:16px;font-weight:800;color:var(--navy);margin:0 0 14px;display:flex;align-items:center;gap:10px"><div class="mod-ico">📅</div>Your Lifetime Employment Preview · 30-year career passport</h3>
+        <div style="background:var(--white);border:1px solid var(--border);border-radius:14px;padding:22px 26px">
+          <div style="position:relative;padding-left:28px">
+            <div style="position:absolute;left:12px;top:14px;bottom:14px;width:2px;background:var(--gold-pale)"></div>
+
+            <div style="position:relative;padding:14px 0 18px">
+              <div style="position:absolute;left:-19px;top:20px;width:14px;height:14px;background:var(--green);border:3px solid var(--white);border-radius:50%;box-shadow:0 0 0 2px var(--green-soft)"></div>
+              <div style="font-size:11px;color:var(--green);font-weight:800;letter-spacing:.4px">Sep 2026 · Present · Job 1 · 🟢 ACTIVE</div>
+              <div style="font-size:14px;color:var(--navy);font-weight:800;margin-top:3px">Optum India · HCC Medical Coder</div>
+              <div style="font-size:12px;color:var(--gray-txt);margin-top:4px">₹6.8 LPA · Hyderabad · Fresher → Junior transition at Sep 2027</div>
+            </div>
+
+            <div style="position:relative;padding:14px 0 18px;opacity:.55">
+              <div style="position:absolute;left:-19px;top:20px;width:14px;height:14px;background:var(--gold);border:3px solid var(--white);border-radius:50%;box-shadow:0 0 0 2px var(--gold-pale)"></div>
+              <div style="font-size:11px;color:var(--gold-deep);font-weight:800;letter-spacing:.4px">FUTURE · Job 2 · Est. Sep 2028</div>
+              <div style="font-size:14px;color:var(--navy);font-weight:800;margin-top:3px">Add when you switch to next company</div>
+              <div style="font-size:12px;color:var(--gray-txt);margin-top:4px">Ex-Optum + 2 yrs HCC → target Senior HCC roles at ₹9-12 LPA</div>
+            </div>
+
+            <div style="position:relative;padding:14px 0 18px;opacity:.35">
+              <div style="position:absolute;left:-19px;top:20px;width:14px;height:14px;background:var(--gray-mute);border:3px solid var(--white);border-radius:50%"></div>
+              <div style="font-size:11px;color:var(--gray-mute);font-weight:800;letter-spacing:.4px">FUTURE · Job 3+ · Est. 2030+</div>
+              <div style="font-size:14px;color:var(--navy);font-weight:800;margin-top:3px">Mid-level → Senior HCC · Team Lead</div>
+              <div style="font-size:12px;color:var(--gray-txt);margin-top:4px">Every job you add builds a verified, filterable career story</div>
+            </div>
+          </div>
+          <div style="background:var(--blue-soft);border-left:3px solid var(--blue);padding:12px 16px;border-radius:0 10px 10px 0;margin-top:8px;font-size:12px;color:var(--navy);line-height:1.6">
+            🎯 <b>Same Talentera account · Same Career Passport · For 30-40 years.</b> Every job you add, every promotion, every salary hike — verified and captured. When you apply for your 10th job in 2040, the hiring manager sees your entire verified journey from Fresher (2026) to Senior (2040). No re-registration. No lost data. Ever.
+          </div>
+        </div>
+      </div>
+    </div>

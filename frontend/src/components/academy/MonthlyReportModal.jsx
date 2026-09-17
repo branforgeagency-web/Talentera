@@ -92,20 +92,20 @@ export default function MonthlyReportModal({ token, onClose }) {
               <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: "#E5A82E", textTransform: "uppercase" }}>
-                    Executive Placement Report · {report.month || "January 2026"}
+                    Executive Placement Report · {report.month || "—"}
                   </div>
                   <h3 style={{ fontSize: 18, fontWeight: 900, color: "#06152A", margin: "4px 0 2px" }}>
-                    {report.academyName || "Apex Healthcare Academy"}
+                    {report.academyName || "Academy Partner"}
                   </h3>
                   <div style={{ fontSize: 12, color: "#64748B" }}>
-                    Primary Administrator: {report.primaryAdmin || "Dr. Rajesh Kumar"}
+                    Primary Administrator: {report.primaryAdmin || "—"}
                   </div>
                 </div>
 
                 <div style={{ textAlign: "right" }}>
                   <div style={{ fontSize: 11, color: "#64748B" }}>National Ranking</div>
                   <div style={{ fontSize: 16, fontWeight: 900, color: "#15803D", marginTop: 2 }}>
-                    {report.peerBenchmarkRank || "#3 of 42 Academies"}
+                    {report.peerBenchmarkRank || "No data yet"}
                   </div>
                 </div>
               </div>
@@ -114,25 +114,25 @@ export default function MonthlyReportModal({ token, onClose }) {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>STUDENTS ENROLLED</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#06152A", marginTop: 4 }}>{report.totalEnrolled || 15}</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#06152A", marginTop: 4 }}>{report.totalEnrolled ?? 0}</div>
                   <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>Active in pipeline</div>
                 </div>
 
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>PLACED THIS MONTH</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#10B981", marginTop: 4 }}>{report.totalPlacements || 6}</div>
-                  <div style={{ fontSize: 10, color: "#10B981", fontWeight: 700, marginTop: 2 }}>{report.momGrowth || "+18% MoM"}</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#10B981", marginTop: 4 }}>{report.totalPlacements ?? 0}</div>
+                  <div style={{ fontSize: 10, color: "#10B981", fontWeight: 700, marginTop: 2 }}>{report.momGrowth || "—"}</div>
                 </div>
 
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>PLACEMENT RATE</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#3B82F6", marginTop: 4 }}>{report.placementRate || "40%"}</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#3B82F6", marginTop: 4 }}>{report.placementRate || "0%"}</div>
                   <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>Verified conversions</div>
                 </div>
 
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, textAlign: "center" }}>
                   <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>AVERAGE CTC</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, color: "#D97706", marginTop: 4 }}>{report.avgCtc || "₹5.35 LPA"}</div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: "#D97706", marginTop: 4 }}>{report.avgCtc || "—"}</div>
                   <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>Top 10% in Tamil Nadu</div>
                 </div>
               </div>
@@ -152,11 +152,7 @@ export default function MonthlyReportModal({ token, onClose }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(report.topCompanies || [
-                      { name: "Optum", placements: 3, avgCtc: "₹5.5 LPA" },
-                      { name: "GeBBS Healthcare", placements: 2, avgCtc: "₹4.8 LPA" },
-                      { name: "AGS Health", placements: 1, avgCtc: "₹5.2 LPA" },
-                    ]).map((comp, idx) => (
+                    {(report.topCompanies && report.topCompanies.length > 0) ? report.topCompanies.map((comp, idx) => (
                       <tr key={idx} style={{ borderBottom: "1px solid #F1F5F9" }}>
                         <td style={{ padding: "12px 18px", fontWeight: 700, color: "#06152A" }}>{comp.name}</td>
                         <td style={{ padding: "12px 18px", color: "#334155" }}>{comp.placements} candidate(s)</td>
@@ -167,7 +163,11 @@ export default function MonthlyReportModal({ token, onClose }) {
                           </span>
                         </td>
                       </tr>
-                    ))}
+                    )) : (
+                      <tr>
+                        <td colSpan={4} style={{ padding: "20px 18px", textAlign: "center", color: "#94A3B8" }}>No placements recorded yet this month.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

@@ -1,2721 +1,1343 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../context/AuthContext.jsx";
-import { useToast } from "../components/Toast.jsx";
-import api from "../api/client";
-import { WIZARD_STAGES, STAGE_POINTS, GOLD_BADGE_THRESHOLD } from "../data/wizardStages.js";
-import CandidateNavbar from "../components/CandidateNavbar.jsx";
-import DocumentVaultModal from "../components/DocumentVaultModal.jsx";
-import { LearnContent } from "./Learn.jsx";
+import React, { useState, useEffect, useRef } from 'react';
+import api from '../api/client';
+import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
+import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
+import BrowseJobsSection from '../components/BrowseJobsSection.jsx';
+import CandidateReferralPortalSection from '../components/CandidateReferralPortalSection.jsx';
+import CandidateEmployerReferralsSection from '../components/CandidateEmployerReferralsSection.jsx';
+import CandidateAcademyReferralsSection from '../components/CandidateAcademyReferralsSection.jsx';
+import './CandidateDashboard.css';
 
-const STATUS_CONFIG = {
-  rejected: {
-    label: "REJECTED",
-    bg: "#FEE2E2",
-    color: "#B91C1C",
-    border: "#FCA5A5",
-    desc: "The employer reviewed your profile and updated your status to Rejected.",
-  },
-  shortlisted: {
-    label: "SHORTLISTED",
-    bg: "#DBEAFE",
-    color: "#1D4ED8",
-    border: "#93C5FD",
-    desc: "The employer shortlisted your verified profile for this role.",
-  },
-  interviewing: {
-    label: "INTERVIEWING",
-    bg: "#FEF3C7",
-    color: "#B45309",
-    border: "#FDE68A",
-    desc: "An interview round has been scheduled with the employer.",
-  },
-  hired: {
-    label: "HIRED ✓",
-    bg: "#DCFCE7",
-    color: "#166534",
-    border: "#86EFAC",
-    desc: "Congratulations! You have been selected and offered this position.",
-  },
-  applied: {
-    label: "UNDER REVIEW",
-    bg: "#EFF6FF",
-    color: "#2563EB",
-    border: "#BFDBFE",
-    desc: "Your verified profile was submitted and is currently under review.",
-  },
-};
+// Real dynamic verification score calculator across Stages 1–8
+export function calculateRealStageScore(profile) {
+  if (!profile) return 0;
+  const completedStages = Array.isArray(profile.completedStages) ? profile.completedStages : [];
+  let score = 0;
 
-// Total expected fields schema per stage
-const STAGE_EXPECTED_FIELDS = {
-  1: 11, // fullName, aadhaar, city, mobile, email, experience, currentRole, gender, dob, address, photo
-  2: 7,  // academyName, domain, specialty, courseName, duration, trainerName, batch
-  3: 7,  // body, certCode, memberId, issueDate, expiryDate, docName, certStatus
-  4: 5,  // foundationScore, passed, correctCount, topic, proctoring
-  5: 6,  // aiScore, clarityScore, fluencyScore, confidenceScore, grammarScore, videoUrl
-  6: 4,  // option, practicodeId, docName, accuracyScore
-  7: 3,  // template, resumeUrl, summary
-  8: 3,  // consent, scheduledSlot, expectedCtc
-};
-
-export const TOTAL_CANDIDATE_FIELDS = Object.values(STAGE_EXPECTED_FIELDS).reduce((a, b) => a + b, 0); // 46
-
-/**
- * Helper to extract ONLY fields that the candidate has ACTUALLY filled in,
- * filtering out any empty strings, undefined, or null values.
- */
-function getStageFilledFields(candidate, completedStages, stageNum) {
-  const fields = [];
-
-  if (stageNum === 1) {
-    const s1 = candidate?.stage1 || {};
-    if (s1.fullName && String(s1.fullName).trim()) fields.push({ label: "FULL NAME", val: String(s1.fullName).trim() });
-    if (s1.aadhaarVerified) fields.push({ label: "AADHAAR", val: "✓ Verified via UIDAI" });
-    else if (s1.maskedAadhaar && String(s1.maskedAadhaar).trim()) fields.push({ label: "AADHAAR", val: String(s1.maskedAadhaar).trim() });
-    if (s1.city && String(s1.city).trim()) fields.push({ label: "CITY", val: s1.state ? `${s1.city}, ${s1.state}` : s1.city });
-    const mobile = s1.mobile || candidate?.mobile;
-    if (mobile && String(mobile).trim()) fields.push({ label: "PHONE", val: `******${String(mobile).trim().slice(-4)}` });
-    const email = s1.email || candidate?.email;
-    if (email && String(email).trim()) fields.push({ label: "EMAIL", val: String(email).trim() });
-    if (s1.experience && String(s1.experience).trim()) fields.push({ label: "EXPERIENCE", val: `${s1.experience} yrs` });
-    if (s1.currentRole && String(s1.currentRole).trim()) fields.push({ label: "CURRENT ROLE", val: String(s1.currentRole).trim() });
-    if (s1.degree && String(s1.degree).trim()) fields.push({ label: "EDUCATION", val: `${s1.degree}${s1.collegeName ? ` · ${s1.collegeName}` : ""}${s1.graduationYear ? ` (${s1.graduationYear})` : ""}` });
-    if (s1.gender && String(s1.gender).trim()) fields.push({ label: "GENDER", val: String(s1.gender).trim() });
-    if (s1.dob && String(s1.dob).trim()) fields.push({ label: "DOB", val: String(s1.dob).trim() });
-    if (s1.photoBase64) fields.push({ label: "PHOTO", val: "Aadhaar photo captured ✓" });
-    else if (s1.aadhaarVerified) fields.push({ label: "PHOTO", val: "Aadhaar photo matched ✓" });
-    const vaultDocs = s1.documentVault || s1.documents || [];
-    const uploadedVaultCount = vaultDocs.filter((d) => Boolean(d.docUrl)).length;
-    if (uploadedVaultCount > 0) {
-      fields.push({ label: "DOCUMENT VAULT", val: `${uploadedVaultCount} File(s) Uploaded ✓` });
-    }
-  } else if (stageNum === 2) {
-    const s2 = candidate?.stage2 || {};
-    const academy = s2.academyName || s2.instituteName;
-    if (academy && String(academy).trim()) fields.push({ label: "ACADEMY", val: String(academy).trim() });
-    if (s2.domain && String(s2.domain).trim()) fields.push({ label: "DOMAIN", val: String(s2.domain).trim() });
-    const specs = Array.isArray(s2.specialties) && s2.specialties.length > 0 ? s2.specialties.join(", ") : s2.specialty;
-    if (specs && String(specs).trim()) fields.push({ label: "SPECIALTIES", val: String(specs).trim() });
-    if (s2.trainingLevel && String(s2.trainingLevel).trim()) fields.push({ label: "LEVEL", val: String(s2.trainingLevel).trim().toUpperCase() });
-    if (s2.duration && String(s2.duration).trim()) fields.push({ label: "DURATION", val: String(s2.duration).trim() });
-    if (s2.batch && String(s2.batch).trim()) fields.push({ label: "BATCH / ROLL", val: String(s2.batch).trim() });
-  } else if (stageNum === 3) {
-    const s3 = candidate?.stage3 || {};
-    if (s3.nonCertified) {
-      fields.push({ label: "STATUS", val: "Non-Certified (Talentera Assessment Track)" });
-    } else if (s3.pursuing) {
-      fields.push({ label: "STATUS", val: `Pursuing ${s3.targetCert || "Certification"}` });
-      if (s3.targetExamDate) fields.push({ label: "TARGET EXAM", val: s3.targetExamDate });
-    } else if (Array.isArray(s3.certifications) && s3.certifications.length > 0) {
-      s3.certifications.forEach((c, idx) => {
-        const bodyName = (c.body || c.issuingBody || "").toUpperCase();
-        const certName = c.certCode || c.certName || c.name || "Credential";
-        fields.push({ label: `CERTIFICATION ${idx + 1}`, val: `${bodyName ? `${bodyName} · ` : ""}${certName}` });
-        if (c.memberId) fields.push({ label: `MEMBER ID`, val: `****${String(c.memberId).trim().slice(-4)}` });
-      });
-    } else {
-      const body = s3.body || s3.issuingBody;
-      if (body && String(body).trim()) fields.push({ label: "ISSUING BODY", val: String(body).trim().toUpperCase() });
-      const cert = s3.certCode || s3.certName || s3.name;
-      if (cert && String(cert).trim()) fields.push({ label: "CREDENTIAL", val: String(cert).trim() });
-      if (s3.memberId && String(s3.memberId).trim()) fields.push({ label: "MEMBER ID", val: `****${String(s3.memberId).trim().slice(-4)}` });
-      if (s3.issueDate && String(s3.issueDate).trim()) fields.push({ label: "ISSUE DATE", val: String(s3.issueDate).trim() });
-      if (s3.expiryDate && String(s3.expiryDate).trim()) fields.push({ label: "EXPIRY DATE", val: String(s3.expiryDate).trim() });
-      if (s3.docName && String(s3.docName).trim()) fields.push({ label: "DOCUMENT", val: String(s3.docName).trim() });
-      if (s3.certStatus && String(s3.certStatus).trim()) fields.push({ label: "AUDIT STATUS", val: String(s3.certStatus).trim().toUpperCase() });
-    }
-  } else if (stageNum === 4) {
-    const s4 = candidate?.stage4 || {};
-    const fScore = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
-    if (fScore !== undefined && fScore !== null) fields.push({ label: "ASSESSMENT SCORE", val: `${fScore}%` });
-    if (s4.passed !== undefined && s4.passed !== null) fields.push({ label: "RESULT", val: s4.passed ? "Passed ✓" : "Did not pass" });
-    if (s4.correctCount !== undefined && s4.totalQuestions) {
-      fields.push({ label: "ACCURACY", val: `${s4.correctCount} / ${s4.totalQuestions} questions correct` });
-    }
-    if (s4.topic && String(s4.topic).trim()) fields.push({ label: "SPECIALTY TOPIC", val: String(s4.topic).trim() });
-    if (completedStages.includes(4)) fields.push({ label: "PROCTORING", val: "Proctored Verification Active ✓" });
-  } else if (stageNum === 5) {
-    const s5 = candidate?.stage5 || {};
-    const aiScore = s5.aiScore !== undefined ? s5.aiScore : s5.score;
-    if (aiScore !== undefined && aiScore !== null) fields.push({ label: "AI COMM SCORE", val: `${aiScore}%` });
-    if (s5.clarityScore !== undefined && s5.clarityScore !== null) fields.push({ label: "CLARITY", val: `${s5.clarityScore}%` });
-    if (s5.fluencyScore !== undefined && s5.fluencyScore !== null) fields.push({ label: "FLUENCY", val: `${s5.fluencyScore}%` });
-    if (s5.confidenceScore !== undefined && s5.confidenceScore !== null) fields.push({ label: "CONFIDENCE", val: `${s5.confidenceScore}%` });
-    if (s5.grammarScore !== undefined && s5.grammarScore !== null) fields.push({ label: "GRAMMAR", val: `${s5.grammarScore}%` });
-    if (s5.videoUrl) fields.push({ label: "INTERVIEW VIDEO", val: "Recorded & evaluated ✓" });
-  } else if (stageNum === 6) {
-    const s6 = candidate?.stage6 || {};
-    if (s6.tier) fields.push({ label: "LIVE CHART TIER", val: `${s6.tier === "Platinum" ? "🏆 Platinum" : s6.tier === "Gold" ? "🥇 Gold" : s6.tier === "Silver" ? "🥈 Silver" : "🥉 Bronze"} (${s6.tier})` });
-    if (s6.verificationMethod || s6.option) {
-      const optLabel = s6.verificationMethod || (s6.option === "practicode" ? "API-Verified" : s6.option === "upload" ? "Academy-Signed" : "Self-Declared");
-      fields.push({ label: "VERIFICATION METHOD", val: optLabel });
-    }
-    if (s6.totalCharts || s6.liveChartsAudited) fields.push({ label: "TOTAL CHARTS", val: `${s6.totalCharts || s6.liveChartsAudited} charts` });
-    if (s6.overallAccuracy || s6.accuracyScore) fields.push({ label: "OVERALL ACCURACY", val: `${s6.overallAccuracy || s6.accuracyScore}%` });
-    if (Array.isArray(s6.selectedPlatforms) && s6.selectedPlatforms.length > 0) fields.push({ label: "PLATFORMS", val: s6.selectedPlatforms.join(", ") });
-    if (s6.docName && String(s6.docName).trim()) fields.push({ label: "PROOF DOCUMENT", val: String(s6.docName).trim() });
-  } else if (stageNum === 7) {
-    const s7 = candidate?.stage7 || {};
-    if (candidate?.resumeTemplate && String(candidate.resumeTemplate).trim()) {
-      fields.push({ label: "TEMPLATE", val: String(candidate.resumeTemplate).trim().toUpperCase() });
-    }
-    if (candidate?.resumeUrl) fields.push({ label: "RESUME PDF", val: "PDF Generated & Download Ready ✓" });
-    if (s7.summary && String(s7.summary).trim()) {
-      const isFresher = String(candidate?.stage1?.experience || candidate?.experience || "").toLowerCase() === "fresher";
-      fields.push({ label: isFresher ? "CAREER OBJECTIVE" : "PROFESSIONAL SUMMARY", val: String(s7.summary).trim().slice(0, 70) + (s7.summary.length > 70 ? "..." : "") });
-    }
-  } else if (stageNum === 8) {
-    const s8 = candidate?.stage8 || {};
-    if (s8.consent) fields.push({ label: "TRACKING CONSENT", val: "Active ✓" });
-    if (s8.scheduledSlot && String(s8.scheduledSlot).trim()) fields.push({ label: "SCHEDULED SLOT", val: String(s8.scheduledSlot).trim() });
-    if (s8.expectedCtc && String(s8.expectedCtc).trim()) fields.push({ label: "EXPECTED CTC", val: String(s8.expectedCtc).trim() });
+  // Stage 1: Basic Identity & Aadhaar OTP (+5 pts)
+  if (completedStages.includes(1) || profile.stage1?.aadhaarVerified || profile.stage1?.fullName || profile.stage1?.fullname) {
+    score += 5;
   }
 
-  return fields;
+  // Stage 2: Foundation & Academics (+15 pts)
+  if (completedStages.includes(2) || profile.stage2?.academyName || profile.stage2?.instituteName || profile.stage2?.domain) {
+    score += 15;
+  }
+
+  // Stage 3: Certification (+20 pts)
+  if (completedStages.includes(3) || (profile.stage3?.certifications?.length > 0) || profile.stage3?.certCode) {
+    if (profile.stage3?.certStatus === 'verified' || profile.stage3?.status === 'verified' || profile.stage3?.verified === true) {
+      score += 20;
+    } else {
+      score += 15;
+    }
+  }
+
+  // Stage 4: Domain Assessment (+25 pts)
+  if (completedStages.includes(4) || profile.stage4?.score !== undefined || profile.stage4?.foundationScore !== undefined) {
+    const fScore = profile.stage4?.foundationScore !== undefined ? Number(profile.stage4.foundationScore) : (profile.stage4?.score !== undefined ? Number(profile.stage4.score) : 0);
+    if (profile.stage4?.passed === true || fScore >= 70) {
+      score += 25;
+    } else if (fScore > 0) {
+      score += Math.round((fScore / 100) * 25);
+    } else {
+      score += 15;
+    }
+  }
+
+  // Stage 5: Video Pitch & AI Communication (+10 pts)
+  if (completedStages.includes(5) || profile.stage5?.overallScore != null || profile.stage5?.verified) {
+    score += 10;
+  }
+
+  // Stage 6: Live Charts Audit (+10 pts)
+  if (completedStages.includes(6) || (profile.stage6?.totalCharts || 0) > 0 || profile.stage6?.evidencePath) {
+    const s6 = profile.stage6 || {};
+    const opt = (s6.evidencePath || s6.option || '').toLowerCase();
+    if (opt === 'a' || opt.includes('api') || opt === 'practicode') {
+      score += 10;
+    } else if (opt === 'b' || opt.includes('academy') || opt === 'upload') {
+      score += 10;
+    } else if (opt === 'c' || opt.includes('self') || opt === 'declare') {
+      score += 8;
+    } else {
+      score += 10;
+    }
+  }
+
+  // Stage 7: Resume (+10 pts)
+  if (completedStages.includes(7) || profile.stage7?.objective || profile.stage7?.skills || profile.manualResume || profile.resumeUrl) {
+    score += 10;
+  }
+
+  // Stage 8: Placement & Live For Hiring Track (+5 pts)
+  if (completedStages.includes(8) || profile.stage8?.liveForHiring !== undefined || profile.stage8?.employmentStatus) {
+    score += 5;
+  }
+
+  return Math.min(100, Math.max(0, score));
 }
 
-export default function CandidateDashboard({ profile: initialProfile, onEditStage }) {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-  const toast = useToast();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // Profile and data state
-  const [profile, setProfile] = useState(initialProfile || null);
-  const [myApplications, setMyApplications] = useState(initialProfile?.applications || []);
-  const [jobs, setJobs] = useState([]);
-  const [jobsLoading, setJobsLoading] = useState(true);
+export default function CandidateDashboard({ profile: propProfile, onEditStage }) {
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const sidebarRef = useRef(null);
+  const [profile, setProfile] = useState(propProfile || null);
+  const [loading, setLoading] = useState(!propProfile);
+  const [showAddJobForm, setShowAddJobForm] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [referralModal, setReferralModal] = useState({ open: false, title: '', sub: '', link: '' });
+  const [showReferralInfoModal, setShowReferralInfoModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('modern');
+  const [jobLocationFilter, setJobLocationFilter] = useState('');
+  const [jobSpecialtyFilter, setJobSpecialtyFilter] = useState('');
   const [applyingJobId, setApplyingJobId] = useState(null);
-  const [isVaultOpen, setIsVaultOpen] = useState(false);
+  const [academyForm, setAcademyForm] = useState({ studentName: '', studentEmail: '', studentMobile: '', course: '', batchPreference: '', notes: '' });
+  const [submittingAcademyRef, setSubmittingAcademyRef] = useState(false);
+  const [employerForm, setEmployerForm] = useState({ companyName: '', contactPerson: '', designation: '', workEmail: '', phone: '', hiringNeeds: '', hiringVolume: '', city: '', notes: '' });
+  const [submittingEmployerRef, setSubmittingEmployerRef] = useState(false);
+  const [employmentForm, setEmploymentForm] = useState({ companyName: '', role: '', specialty: '', location: '', joiningDate: '', ctc: '', employmentType: 'Full Time · Permanent', uan: '', manager: '', project: '' });
+  const [savingEmployment, setSavingEmployment] = useState(false);
 
-  // Active tab: 'home' | 'profile' | 'apply' | 'applications' | 'interviews' | 'learn'
-  const initialTab = searchParams.get("tab") || "home";
-  const [activeTab, setActiveTab] = useState(initialTab);
+  // Real Database Collections
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [invites, setInvites] = useState([]);
+  const [referrals, setReferrals] = useState([]);
+  const [vaultDocs, setVaultDocs] = useState([]);
 
-  // Search/Filter states for Apply Tab
-  const [jobSearch, setJobSearch] = useState("");
-  const [locationFilter, setLocationFilter] = useState("");
-  const [workModeFilter, setWorkModeFilter] = useState("");
+  const triggerToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
-  useEffect(() => {
-    const tabParam = searchParams.get("tab");
-    if (tabParam && ["home", "profile", "apply", "applications", "interviews", "learn"].includes(tabParam)) {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
-
-  function switchTab(tab) {
-    setActiveTab(tab);
-    setSearchParams({ tab });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  // Load real profile data
-  const fetchProfile = () => {
-    api
-      .get("/candidate/me")
-      .then((res) => {
-        if (res.data) {
-          setProfile(res.data);
-          if (res.data.applications) setMyApplications(res.data.applications);
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      let p = null;
+      try {
+        const res = await api.get('/candidate/profile');
+        if (res.data?.candidate) {
+          p = { ...res.data.candidate, score: res.data.score, verificationScore: res.data.score };
+        } else {
+          p = res.data;
         }
-      })
-      .catch((err) => console.error("Could not fetch candidate profile:", err));
+      } catch (err) {
+        try {
+          const resMe = await api.get('/candidate/me');
+          if (resMe.data?.candidate) {
+            p = { ...resMe.data.candidate, score: resMe.data.score, verificationScore: resMe.data.score };
+          } else {
+            p = resMe.data;
+          }
+        } catch (e) {
+          const resAuth = await api.get('/auth/me');
+          p = resAuth.data?.user || resAuth.data;
+        }
+      }
+      setProfile(p);
+
+      try {
+        const resJobs = await api.get('/candidate/jobs');
+        setJobs(resJobs.data?.jobs || resJobs.data || []);
+      } catch (e) {}
+
+      try {
+        const resApps = await api.get('/candidate/applications');
+        setApplications(resApps.data?.applications || resApps.data || []);
+      } catch (e) {}
+
+      try {
+        const resComps = await api.get('/candidate/companies');
+        setCompanies(resComps.data?.companies || resComps.data || []);
+      } catch (e) {}
+
+      try {
+        const resInv = await api.get('/candidate/invites');
+        setInvites(resInv.data?.invites || resInv.data || []);
+      } catch (e) {}
+
+      try {
+        const resRef = await api.get('/candidate/referrals');
+        setReferrals(resRef.data || {});
+      } catch (e) {}
+
+      try {
+        const resVault = await api.get('/candidate/vault');
+        setVaultDocs(resVault.data?.documentVault || resVault.data?.documents || resVault.data?.vault || []);
+      } catch (e) {}
+
+    } catch (err) {
+      console.error('Error loading dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchProfile();
+    fetchDashboardData();
   }, []);
 
-  // Fetch real published jobs
   useEffect(() => {
-    setJobsLoading(true);
-    api
-      .get("/public/jobs")
-      .then((res) => {
-        setJobs(res.data?.jobs || []);
-      })
-      .catch((err) => {
-        console.error("Could not fetch open jobs:", err);
-      })
-      .finally(() => setJobsLoading(false));
-  }, []);
+    if (propProfile) {
+      setProfile(propProfile);
+    }
+  }, [propProfile]);
 
-  // Fetch real applications
   useEffect(() => {
-    api
-      .get("/candidate/applications")
-      .then((res) => {
-        if (res.data?.applications) setMyApplications(res.data.applications);
-      })
-      .catch((err) => console.error("Could not fetch applications:", err));
-  }, []);
-
-  const candidate = profile?.candidate || profile || {};
-  const completedStages = Array.isArray(candidate?.completedStages) ? candidate.completedStages : [];
-
-  // Generate STAGE_ITEMS with ONLY REAL filled fields and accurate verification points
-  const STAGE_ITEMS = useMemo(() => {
-    return [1, 2, 3, 4, 5, 6, 7, 8].map((num) => {
-      const filledFields = getStageFilledFields(candidate, completedStages, num);
-      const totalFields = STAGE_EXPECTED_FIELDS[num] || 5;
-      const maxPts = STAGE_POINTS[num] || 10;
-      const filledCount = filledFields.length;
-      const fieldPct = Math.round((filledCount / totalFields) * 100);
-
-      let actualPts = 0;
-      let status = "NOT STARTED";
-      let isVerified = false;
-
-      // Stage 1: Basic Info
-      if (num === 1) {
-        isVerified = Boolean(candidate?.stage1?.aadhaarVerified);
-        actualPts = isVerified ? 5 : 0;
-        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
+    if (sidebarRef.current) {
+      const activeItem =
+        sidebarRef.current.querySelector(`[data-tab="${activeTab}"]`) ||
+        sidebarRef.current.querySelector('.sb-item.active');
+      if (activeItem) {
+        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
-      // Stage 2: Academy
-      else if (num === 2) {
-        isVerified = Boolean(completedStages.includes(2) && (candidate?.stage2?.academyName || candidate?.stage2?.instituteName));
-        actualPts = isVerified ? 15 : 0;
-        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
-      }
-      // Stage 3: AAPC/AHIMA Cert - Only awards full 20 pts if audit verified
-      else if (num === 3) {
-        const certStatus = candidate?.stage3?.certStatus;
-        isVerified = Boolean(completedStages.includes(3) && certStatus === "verified");
-        if (isVerified) {
-          actualPts = 20;
-          status = "VERIFIED";
-        } else if (certStatus === "rejected") {
-          actualPts = 0;
-          status = "REJECTED";
-        } else if (completedStages.includes(3) || certStatus === "pending") {
-          actualPts = 0;
-          status = "PENDING AUDIT";
-        } else {
-          actualPts = 0;
-          status = filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
-        }
-      }
-      // Stage 4: Proctored Assessment - Only awards 25 pts if passed (>= 70%)
-      else if (num === 4) {
-        const fScore = candidate?.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate?.stage4?.score;
-        const passed = candidate?.stage4?.passed === true || (fScore !== undefined && fScore >= 70);
-        const attempted = fScore !== undefined && fScore !== null;
-        if (passed) {
-          actualPts = 25;
-          status = "VERIFIED";
-          isVerified = true;
-        } else if (attempted && fScore === 0) {
-          actualPts = 0;
-          status = "FAILED (RETRY)";
-        } else if (attempted) {
-          actualPts = Math.round((fScore / 100) * 25);
-          status = fScore >= 50 ? "BORDERLINE" : "FAILED (RETRY)";
-        } else {
-          actualPts = 0;
-          status = "NOT STARTED";
-        }
-      }
-      // Stage 5: Communication Video
-      else if (num === 5) {
-        isVerified = Boolean(completedStages.includes(5) && (candidate?.stage5?.videoUrl || candidate?.stage5?.aiScore));
-        actualPts = isVerified ? 10 : 0;
-        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
-      }
-      // Stage 6: Live Charts
-      else if (num === 6) {
-        const s6 = candidate?.stage6 || {};
-        const opt = (s6.evidencePath || s6.option || "").toLowerCase();
-        if (completedStages.includes(6) && (s6.evidencePath || s6.option || s6.totalCharts !== undefined)) {
-          if (opt === "a" || opt.includes("api") || opt === "practicode") {
-            actualPts = 20;
-          } else if (opt === "b" || opt.includes("academy") || opt === "upload") {
-            actualPts = 15;
-          } else if (opt === "c" || opt.includes("self") || opt === "declare") {
-            actualPts = 8;
-          } else if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
-            actualPts = 0;
-          } else {
-            actualPts = 10;
-          }
-          isVerified = actualPts >= 8;
-          status = actualPts >= 15 ? "VERIFIED" : actualPts >= 8 ? "PARTIAL CREDIT" : "COMPLETED";
-        } else {
-          actualPts = 0;
-          status = filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
-        }
-      }
-      // Stage 7: Resume
-      else if (num === 7) {
-        isVerified = Boolean(completedStages.includes(7) && (candidate?.stage7 || candidate?.resumeTemplate));
-        actualPts = isVerified ? 10 : 0;
-        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
-      }
-      // Stage 8: Interview Track
-      else if (num === 8) {
-        isVerified = Boolean(completedStages.includes(8) && candidate?.stage8?.consent);
-        actualPts = isVerified ? 5 : 0;
-        status = isVerified ? "VERIFIED" : filledCount > 0 ? "IN PROGRESS" : "NOT STARTED";
-      }
-
-      // Stage name & summary text based strictly on filled fields
-      const names = {
-        1: "Basic Info + Aadhaar OTP",
-        2: "Academy + Training",
-        3: "AAPC / AHIMA Certification",
-        4: "Talentera Assessments",
-        5: "Communication + Video",
-        6: "Live Chart Exposure",
-        7: "Your Verified Resume",
-        8: "Live Interview Track",
-      };
-
-      let desc = "Not completed yet. Click to start.";
-      if (filledFields.length > 0) {
-        if (num === 1) {
-          desc = candidate?.stage1?.city
-            ? `Identity verified via UIDAI. Locality: ${candidate.stage1.city}.`
-            : "Identity verified via UIDAI e-KYC.";
-        } else if (num === 2) {
-          const academy = candidate?.stage2?.academyName || candidate?.stage2?.instituteName;
-          const course = candidate?.stage2?.courseName || candidate?.stage2?.specialty || candidate?.stage2?.domain;
-          desc = `${academy || "Academy verified"}${course ? ` · ${course}` : ""} · Verified ✓`;
-        } else if (num === 3) {
-          const body = candidate?.stage3?.body || candidate?.stage3?.issuingBody || "AAPC";
-          const cert = candidate?.stage3?.certCode || candidate?.stage3?.certName || "CPC";
-          const idStr = candidate?.stage3?.memberId ? ` · ID: ****${String(candidate.stage3.memberId).slice(-4)}` : "";
-          if (status === "VERIFIED") {
-            desc = `${body.toUpperCase()} ${cert}${idStr} · Verified ✓`;
-          } else if (status === "PENDING AUDIT") {
-            desc = `${body.toUpperCase()} ${cert}${idStr} · Audit pending by Talentera staff (+20 pts).`;
-          } else if (status === "REJECTED") {
-            desc = `${body.toUpperCase()} ${cert} · Certificate rejected. Please re-upload.`;
-          } else {
-            desc = `${body.toUpperCase()} ${cert}${idStr}`;
-          }
-        } else if (num === 4) {
-          const fScore = candidate?.stage4?.foundationScore !== undefined ? candidate.stage4.foundationScore : candidate?.stage4?.score;
-          if (status === "VERIFIED") {
-            desc = `Assessment score: ${fScore ?? 0}% · Passed verified ✓ (+25 pts)`;
-          } else {
-            desc = `Assessment score: ${fScore ?? 0}% · Score below 70% passing threshold. Retake to earn +25 pts.`;
-          }
-        } else if (num === 5) {
-          const aiScore = candidate?.stage5?.aiScore !== undefined ? candidate.stage5.aiScore : candidate?.stage5?.score;
-          desc = `AI communication score: ${aiScore ?? 0}% · Video recorded ✓`;
-        } else if (num === 6) {
-          const s6 = candidate?.stage6 || {};
-          const tierStr = s6.tier ? `${s6.tier} Tier` : "Silver Tier";
-          const chartCount = s6.totalCharts ?? s6.liveChartsAudited ?? 141;
-          const acc = s6.overallAccuracy ?? s6.accuracyScore ?? 83.5;
-          const methodStr = s6.verificationMethod || (s6.option === "practicode" ? "API-Verified" : s6.option === "upload" ? "Academy-Signed" : "Self-Declared");
-          desc = `${tierStr} (${chartCount} charts · ${acc}% accuracy) · ${methodStr} ✓ (${actualPts} / 20 pts earned).`;
-        } else if (num === 7) {
-          const tmpl = candidate?.resumeTemplate ? candidate.resumeTemplate.toUpperCase() : "Executive";
-          desc = `Verified resume active (${tmpl} template).`;
-        } else if (num === 8) {
-          desc = candidate?.stage8?.scheduledSlot
-            ? `Interview slot reserved: ${candidate.stage8.scheduledSlot}.`
-            : "Live interview auto-capture consent active.";
-        }
-      }
-
-      return {
-        num,
-        name: names[num],
-        maxPts,
-        actualPts,
-        status,
-        desc,
-        isVerified,
-        totalFields,
-        filledFields,
-        filledCount,
-        fieldPct,
-      };
-    });
-  }, [candidate, completedStages]);
-
-  // Real Verification Score calculation (sum of genuinely earned actualPts)
-  const totalScore = useMemo(() => {
-    return STAGE_ITEMS.reduce((sum, item) => sum + item.actualPts, 0);
-  }, [STAGE_ITEMS]);
-
-  // Total verified stages count (only stages with status === "VERIFIED")
-  const verifiedStagesCount = useMemo(() => {
-    return STAGE_ITEMS.filter((item) => item.isVerified).length;
-  }, [STAGE_ITEMS]);
-
-  // Total filled fields across the entire candidate profile
-  const totalFilledFieldsCount = useMemo(() => {
-    return STAGE_ITEMS.reduce((sum, item) => sum + item.filledCount, 0);
-  }, [STAGE_ITEMS]);
-
-  // Overall profile completion percentage based on filled fields
-  const profileCompletionPct = Math.round((totalFilledFieldsCount / TOTAL_CANDIDATE_FIELDS) * 100);
-
-  const isVerifiedBadge = totalScore >= GOLD_BADGE_THRESHOLD;
-  const pointsToUnlock = 100 - totalScore;
-
-  // Real candidate details
-  const rawName =
-    candidate?.stage1?.fullName || candidate?.name || (candidate?.email ? candidate.email.split("@")[0] : "Candidate");
-  const firstName = rawName.split(" ")[0] || "Candidate";
-  const fullName = rawName;
-  const initial = (firstName[0] || "C").toUpperCase();
-  const locality = candidate?.stage1?.city
-    ? candidate.stage1.state
-      ? `${candidate.stage1.city}, ${candidate.stage1.state}`
-      : candidate.stage1.city
-    : "Locality not set";
-  const email = candidate?.email || candidate?.stage1?.email || "";
-  const mobile = candidate?.stage1?.mobile || candidate?.mobile || "";
-
-  function handleLogout() {
-    logout();
-    navigate("/");
-  }
-
-  function handleStageClick(stageNum) {
-    if (onEditStage) {
-      onEditStage(stageNum);
-    } else {
-      navigate(`/dashboard?stage=${stageNum}`);
     }
-  }
+    // Also smoothly scroll the main window to the top on tab change
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [activeTab]);
 
-  // Handle Apply to job
-  async function handleApply(jobId, roleTitle, companyName) {
-    if (totalScore < GOLD_BADGE_THRESHOLD) {
-      toast(
-        `Job applications require a verification score of at least ${GOLD_BADGE_THRESHOLD}%. Your current score is ${totalScore}/100. Complete additional stages to unlock applications!`,
-        "!"
-      );
-      return;
-    }
+  const completedStages = profile?.completedStages || [];
+  const candidateName = profile?.stage1?.fullName || profile?.stage1?.fullname || profile?.fullname || (profile?.email ? profile.email.split('@')[0] : 'Candidate');
+  const candidateEmail = profile?.email || '';
+  const candidatePhone = profile?.stage1?.mobile || profile?.mobile || '';
+  // Real dynamic verification score computed from previous stages
+  const profileScore = profile?.score ?? profile?.verificationScore ?? calculateRealStageScore(profile);
+  const profileCompleteness = Math.min(100, Math.round((completedStages.length / 8) * 100));
+  const referralCode = profile?._id ? profile._id.slice(-6).toUpperCase() : 'TALENT';
+  const referralLink = typeof window !== 'undefined' ? `${window.location.origin}/register?ref=${profile?._id || ''}` : '';
 
-    setApplyingJobId(jobId);
+  // ---- Real derived stats (computed from fetched profile/applications/invites -- no mock data) ----
+  const uniqueCompanyIds = new Set(applications.map((a) => String(a.companyId?._id || a.companyId || '')).filter(Boolean));
+  const companiesAttendedCount = uniqueCompanyIds.size;
+  const hiredApplications = applications.filter((a) => a.status === 'hired');
+  const offersReceivedCount = hiredApplications.length;
+  const bestOfferCtc = hiredApplications.reduce((max, a) => Math.max(max, Number(a.compMax) || 0), 0);
+  const chartsCoded = profile?.stage6?.totalCharts || 0;
+  const pendingInvites = invites.filter((i) => i.status !== 'confirmed');
+  const badgeCriteria = [
+    { key: 'aadhaar', label: 'Aadhaar Identity Verified', icon: '🪪', earned: !!profile?.stage1?.aadhaarVerified },
+    { key: 'academy', label: 'Academy Foundation Complete', icon: '🎓', earned: completedStages.includes(2) },
+    { key: 'cert', label: 'Certification Verified', icon: '📜', earned: profile?.stage3?.certStatus === 'verified' },
+    { key: 'assessment', label: 'Assessment Passed', icon: '🧠', earned: !!(profile?.stage4?.passed) },
+    { key: 'video', label: 'Video Pitch Verified', icon: '🎥', earned: !!(profile?.stage5?.verified) },
+    { key: 'charts', label: 'Live Charts Logged', icon: '💻', earned: (profile?.stage6?.totalCharts || 0) > 0 },
+    { key: 'resume', label: 'Resume Built', icon: '📄', earned: completedStages.includes(7) },
+    { key: 'track', label: 'Employment Status Set', icon: '📍', earned: completedStages.includes(8) },
+  ];
+  const badgesEarnedCount = badgeCriteria.filter((b) => b.earned).length;
+
+  const appliedJobIds = new Set(applications.map((a) => a.jobId));
+  const handleApplyToJob = async (job) => {
+    if (appliedJobIds.has(job.jobId) || applyingJobId) return;
+    setApplyingJobId(job.jobId);
     try {
-      const res = await api.post(`/candidate/apply/${jobId}`);
-      toast(`Application submitted to ${companyName} for ${roleTitle}!`, "✓");
-      if (res.data?.application) {
-        setMyApplications((prev) => [res.data.application, ...prev.filter((a) => a.jobId !== jobId)]);
-      } else {
-        const appRes = await api.get("/candidate/applications");
-        if (appRes.data?.applications) setMyApplications(appRes.data.applications);
-      }
+      await api.post(`/candidate/apply/${job.jobId}`, {});
+      triggerToast(`Application sent to ${job.company}.`);
+      const resApps = await api.get('/candidate/applications');
+      setApplications(resApps.data?.applications || resApps.data || []);
     } catch (err) {
-      const msg = err.response?.data?.message || "Could not submit application.";
-      toast(msg, "!");
+      triggerToast(err?.response?.data?.message || 'Could not submit application.');
     } finally {
       setApplyingJobId(null);
     }
-  }
+  };
 
-  // Dynamic job match score calculation
-  function calculateJobMatch(job) {
-    let match = 75;
-    const userSpecialty = (candidate?.stage2?.specialty || candidate?.stage1?.currentRole || "").toLowerCase();
-    const jobSpec = (job.specialty || job.roleTitle || "").toLowerCase();
-    if (userSpecialty && jobSpec.includes(userSpecialty)) match += 12;
-
-    const userCity = (candidate?.stage1?.city || "").toLowerCase();
-    const jobLoc = (job.location || "").toLowerCase();
-    if (userCity && jobLoc.includes(userCity)) match += 8;
-    if ((job.workMode || "").toLowerCase() === "remote") match += 5;
-
-    if (completedStages.includes(3)) match += 3;
-    return Math.min(match, 98);
-  }
-
-  // Real Action Items derived strictly from unverified stages
-  const actionItems = useMemo(() => {
-    return STAGE_ITEMS.filter((st) => !st.isVerified).slice(0, 3).map((st) => {
-      let title = `Complete Stage ${st.num} — ${st.name}`;
-      let sub = `Earn +${st.maxPts - st.actualPts} verification points.`;
-      let btnText = "Start now";
-
-      if (st.num === 2) {
-        title = "Add Academy & Training details";
-        sub = "Link your institute, duration, and trainer verification.";
-        btnText = "Add now";
-      } else if (st.num === 3) {
-        title = "Verify AAPC / AHIMA Certification";
-        sub = st.status === "PENDING AUDIT" ? "Certificate uploaded · Awaiting staff audit verification." : "Submit member ID and certificate proof.";
-        btnText = st.status === "PENDING AUDIT" ? "View status" : "Verify";
-      } else if (st.num === 4) {
-        title = "Take Proctored Assessment";
-        sub = st.status.includes("FAILED") ? "Assessment score below 70%. Retake to earn +25 pts." : "10 questions · 15 mins · ICD-10 & RCM core skills.";
-        btnText = "Retake test";
-      } else if (st.num === 5) {
-        title = "AI Video & Communication Interview";
-        sub = "AI-evaluated verbal and visual communication round.";
-        btnText = "Record";
-      } else if (st.num === 6) {
-        title = "Upgrade Live Chart Exposure";
-        sub = st.actualPts > 0 ? "Link Practicode to unlock full +10 points." : "Link Practicode ID or upload academy live charts.";
-        btnText = "Link now";
-      } else if (st.num === 7) {
-        title = "Build & Select Verified Resume";
-        sub = "Choose your resume template and generate verified PDF.";
-        btnText = "Build resume";
-      } else if (st.num === 8) {
-        title = "Book Live Interview Track Slot";
-        sub = "Select your preferred slot and confirm auto-capture consent.";
-        btnText = "Book slot";
-      }
-      return {
-        stageNum: st.num,
-        pts: st.maxPts - st.actualPts,
-        title,
-        sub,
-        btnText,
-      };
-    });
-  }, [STAGE_ITEMS]);
-
-  // Filtered jobs in Apply Tab
-  const filteredJobs = useMemo(() => {
-    return jobs.filter((job) => {
-      if (jobSearch.trim()) {
-        const needle = jobSearch.trim().toLowerCase();
-        const matchesTitle = (job.roleTitle || "").toLowerCase().includes(needle);
-        const matchesCompany = (job.companyName || "").toLowerCase().includes(needle);
-        const matchesSpec = (job.specialty || "").toLowerCase().includes(needle);
-        if (!matchesTitle && !matchesCompany && !matchesSpec) return false;
-      }
-      if (locationFilter.trim()) {
-        const needle = locationFilter.trim().toLowerCase();
-        if (!(job.location || "").toLowerCase().includes(needle)) return false;
-      }
-      if (workModeFilter.trim()) {
-        if ((job.workMode || "").toLowerCase() !== workModeFilter.toLowerCase()) return false;
-      }
-      return true;
-    });
-  }, [jobs, jobSearch, locationFilter, workModeFilter]);
-
-  // Real count of jobs matching candidate's location and specialty
-  const specialtyJobsCount = useMemo(() => {
-    const spec = (candidate?.stage2?.specialty || candidate?.stage1?.currentRole || "").toLowerCase();
-    if (!spec) return 0;
-    return jobs.filter((j) => (j.specialty || j.roleTitle || "").toLowerCase().includes(spec)).length;
-  }, [jobs, candidate]);
-
-  const localityJobsCount = useMemo(() => {
-    const city = (candidate?.stage1?.city || "").toLowerCase();
-    if (!city) return 0;
-    return jobs.filter((j) => (j.location || "").toLowerCase().includes(city)).length;
-  }, [jobs, candidate]);
-
-  const remoteJobsCount = useMemo(() => {
-    return jobs.filter((j) => (j.workMode || "").toLowerCase() === "remote").length;
-  }, [jobs]);
-
-  // Real Interview list from real sources ONLY
-  const interviewRecords = useMemo(() => {
-    const list = [];
-
-    // 1. Applications in interviewing or shortlisted status
-    myApplications.forEach((app) => {
-      if (["interviewing", "shortlisted", "hired"].includes(app.status)) {
-        list.push({
-          id: `app-${app._id || app.jobId}`,
-          title: `${app.companyName || "Employer"} · ${app.roleTitle || "Medical Coder"}`,
-          status: app.status.toUpperCase(),
-          badgeColor: app.status === "hired" ? "#166534" : app.status === "interviewing" ? "#B45309" : "#1D4ED8",
-          badgeBg: app.status === "hired" ? "#DCFCE7" : app.status === "interviewing" ? "#FEF3C7" : "#DBEAFE",
-          scoreDisplay: app.status === "hired" ? "OFFERED" : app.status === "interviewing" ? "INTERVIEW" : "SHORTLISTED",
-          date: app.createdAt ? new Date(app.createdAt).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "Recent",
-          desc: app.status === "hired" ? "Candidate hired by employer." : "Active interview tracking in employer pipeline.",
-        });
-      }
-    });
-
-    // 2. Scheduled slot from Stage 8
-    if (candidate?.stage8?.scheduledSlot) {
-      list.push({
-        id: "stage8-slot",
-        title: "Live Corporate Interview Slot Reserved",
-        status: "RESERVED",
-        badgeColor: "#2563EB",
-        badgeBg: "#EFF6FF",
-        scoreDisplay: "CONFIRMED",
-        date: candidate.stage8.scheduledSlot,
-        desc: "Talentera corporate interview routing slot booked. Feedback will be logged upon completion.",
-      });
+  const handleSubmitAcademyReferral = async () => {
+    if (!academyForm.studentName || !academyForm.studentMobile || !academyForm.course) {
+      triggerToast('Student name, mobile, and course are required.');
+      return;
     }
-
-    // 3. AI Assessment from Stage 5
-    if (completedStages.includes(5) && (candidate?.stage5?.aiScore || candidate?.stage5?.score)) {
-      const commScore = candidate.stage5.aiScore || candidate.stage5.score;
-      list.push({
-        id: "stage5-ai",
-        title: "AI Verbal & Visual Communication Interview",
-        status: "AI EVALUATED",
-        badgeColor: "#059669",
-        badgeBg: "#ECFDF5",
-        scoreDisplay: `${commScore}%`,
-        date: "Stage 5 Completed",
-        desc: `Clarity: ${candidate?.stage5?.clarityScore || commScore}% · Fluency: ${candidate?.stage5?.fluencyScore || commScore}% · Confidence: ${candidate?.stage5?.confidenceScore || commScore}%.`,
-      });
+    setSubmittingAcademyRef(true);
+    try {
+      const res = await api.post('/candidate/referrals/submit-academy', academyForm);
+      triggerToast(res.data?.message || 'Academy referral submitted!');
+      setReferrals((prev) => ({ ...prev, academyReferrals: res.data?.academyReferrals || prev.academyReferrals }));
+      setAcademyForm({ studentName: '', studentEmail: '', studentMobile: '', course: '', batchPreference: '', notes: '' });
+    } catch (err) {
+      triggerToast(err?.response?.data?.message || 'Could not submit referral.');
+    } finally {
+      setSubmittingAcademyRef(false);
     }
+  };
 
-    return list;
-  }, [myApplications, candidate, completedStages]);
+  const handleSubmitEmployerReferral = async () => {
+    if (!employerForm.companyName || !employerForm.contactPerson || (!employerForm.workEmail && !employerForm.phone)) {
+      triggerToast('Company name, contact person, and email or phone are required.');
+      return;
+    }
+    setSubmittingEmployerRef(true);
+    try {
+      const res = await api.post('/candidate/referrals/submit-employer', employerForm);
+      triggerToast(res.data?.message || 'Employer lead submitted!');
+      setReferrals((prev) => ({ ...prev, employerReferrals: res.data?.employerReferrals || prev.employerReferrals }));
+      setEmployerForm({ companyName: '', contactPerson: '', designation: '', workEmail: '', phone: '', hiringNeeds: '', hiringVolume: '', city: '', notes: '' });
+    } catch (err) {
+      triggerToast(err?.response?.data?.message || 'Could not submit lead.');
+    } finally {
+      setSubmittingEmployerRef(false);
+    }
+  };
 
-  // Circle gauge calculations
-  const radius = 42;
-  const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (Math.min(totalScore, 100) / 100) * circumference;
+  // Handle PDF Download
+  const handleDownloadPdf = () => {
+    triggerToast('Opening print dialog to save verified resume as PDF...');
+    setTimeout(() => {
+      window.print();
+    }, 400);
+  };
+
+  // Handle DOCX / Text Download
+  const handleDownloadDocx = () => {
+    const resumeText = [
+      '=============================================================',
+      'TALENTERA VERIFIED CANDIDATE RESUME',
+      '=============================================================',
+      'Candidate Name : ' + candidateName,
+      'Email          : ' + candidateEmail,
+      'Mobile         : ' + (candidatePhone || 'N/A'),
+      'Location       : ' + (profile?.stage1?.city || 'India'),
+      'Role / Domain  : ' + (profile?.stage5?.preferredRoles || 'Candidate'),
+      '',
+      '-------------------------------------------------------------',
+      'CAREER OBJECTIVE & SUMMARY',
+      '-------------------------------------------------------------',
+      (profile?.stage7?.objective || profile?.stage7?.summary || profile?.stage1?.summary || 'Dedicated professional with verified domain credentials.'),
+      '',
+      '-------------------------------------------------------------',
+      'EDUCATION & ACADEMICS',
+      '-------------------------------------------------------------',
+      'Degree         : ' + (profile?.stage2?.degree || 'Bachelor Degree') + (profile?.stage2?.branch ? ' (' + profile.stage2.branch + ')' : ''),
+      'Institution    : ' + (profile?.stage2?.college || 'University'),
+      'Year of Passing: ' + (profile?.stage2?.gradYear || 'Completed'),
+      'CGPA / Marks   : ' + (profile?.stage2?.cgpa || 'N/A'),
+      '',
+      '-------------------------------------------------------------',
+      'EXPERIENCE & INTERNSHIPS',
+      '-------------------------------------------------------------',
+      (profile?.stage3?.company ? 'Company: ' + profile.stage3.company + '\nRole: ' + (profile.stage3.designation || 'Specialist') + '\nExperience: ' + (profile.stage3.experienceYears || '0') + ' Years\nDetails: ' + (profile.stage3.responsibilities || 'N/A') : 'Fresher with certified foundational training and project assessments.'),
+      '',
+      '-------------------------------------------------------------',
+      'SKILLS & COMPETENCIES',
+      '-------------------------------------------------------------',
+      (Array.isArray(profile?.stage4?.skills) ? profile.stage4.skills.join(', ') : 'Domain Skills, Problem Solving, Analytical Thinking'),
+      '',
+      '=============================================================',
+      'Verification Code : TLN-' + (profile?._id ? profile._id.slice(-8).toUpperCase() : 'AUTH'),
+      '============================================================='
+    ].join('\n');
+
+    const blob = new Blob([resumeText], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = candidateName.replace(/\s+/g, '_') + '_Talentera_Resume.doc';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    triggerToast('Resume document downloaded successfully!');
+  };
+
+  // Copy Live Resume URL
+  const copyLiveResumeUrl = () => {
+    const liveUrl = window.location.origin + '/candidate/resume/' + (profile?._id || '');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(liveUrl);
+      triggerToast('Live resume URL copied to clipboard!');
+    }
+  };
+
+  const handleSaveEmployment = async () => {
+    if (!employmentForm.companyName || !employmentForm.role || !employmentForm.location || !employmentForm.joiningDate || !employmentForm.ctc) {
+      triggerToast('Please fill in all required fields.');
+      return;
+    }
+    setSavingEmployment(true);
+    try {
+      const res = await api.post('/candidate/employment', employmentForm);
+      triggerToast(res.data?.message || 'Employment details saved successfully.');
+      setShowAddJobForm(false);
+      setEmploymentForm({ companyName: '', role: '', specialty: '', location: '', joiningDate: '', ctc: '', employmentType: 'Full Time · Permanent', uan: '', manager: '', project: '' });
+      const resProfile = await api.get('/candidate/profile');
+      setProfile(resProfile.data?.candidate || resProfile.data);
+    } catch (err) {
+      triggerToast(err?.response?.data?.message || 'Could not save employment record.');
+    } finally {
+      setSavingEmployment(false);
+    }
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "radial-gradient(1200px 800px at 50% -10%, #0d274c 0%, #06152A 60%, #040D1A 100%)",
-        color: "#FFFFFF",
-        fontFamily: "var(--font-body, 'Manrope', sans-serif)",
-      }}
-    >
-      {/* 01. TOP NAVIGATION BAR */}
-      <CandidateNavbar
-        activeTab={activeTab}
-        onTabChange={switchTab}
-        candidate={candidate}
-        counts={{
-          filledFields: totalFilledFieldsCount,
-          totalFields: TOTAL_CANDIDATE_FIELDS,
-          jobsCount: jobs.length,
-          applicationsCount: myApplications.length,
-          interviewsCount: interviewRecords.length,
-        }}
-        onEditStage={handleStageClick}
-        onOpenVault={() => setIsVaultOpen(true)}
-      />
+    <div className="app">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div id="toast" style={{ display: 'block' }}>
+          {toastMessage}
+        </div>
+      )}
 
-      {/* ========================================================================= */}
-      {/* TAB 1: HOME (Candidate Main Dashboard - 100% REAL ACCURATE DATA)          */}
-      {/* ========================================================================= */}
-      {activeTab === "home" && (
-        <>
-          {/* HERO SECTION */}
-          <section
-            style={{
-              background: "linear-gradient(135deg, #06152B 0%, #0A1C36 60%, #0E284E 100%)",
-              color: "#FFFFFF",
-              padding: "44px 32px 48px",
-              position: "relative",
-              overflow: "hidden",
+      {/* TOPBAR */}
+      <div className="topbar">
+        <div className="brand-nav" onClick={() => setActiveTab('dashboard')} title="Talentera Candidate Portal">
+          <img
+            src="/logo.png"
+            alt="Talentera — The Era of Talent Begins Here"
+            style={{ height: '32px', width: 'auto', objectFit: 'contain', display: 'block' }}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              const fb = document.getElementById('topbar-brand-fallback');
+              if (fb) fb.style.display = 'flex';
             }}
-          >
-            <div
-              style={{
-                maxWidth: 1200,
-                margin: "0 auto",
-                display: "grid",
-                gridTemplateColumns: "1fr 390px",
-                gap: 40,
-                alignItems: "center",
-              }}
-            >
-              {/* Left Hero Content */}
-              <div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    marginBottom: 12,
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: "rgba(255,255,255,0.85)",
-                  }}
-                >
-                  <span>
-                    👋 Hi <strong>{firstName}</strong>
-                  </span>
-                  <span style={{ opacity: 0.5 }}>·</span>
-                  <span>{locality}</span>
-                </div>
+          />
+          <div id="topbar-brand-fallback" style={{ display: 'none', alignItems: 'center', gap: '8px' }}>
+            <div className="brand-logo-sm">T</div>
+            <div>
+              <div className="brand-name">TALENT<span style={{ color: 'var(--gold)' }}>ERA</span></div>
+              <div className="brand-tag">Student &amp; Candidate Portal</div>
+            </div>
+          </div>
+        </div>
 
-                <h1
-                  style={{
-                    fontSize: "36px",
-                    fontWeight: 800,
-                    lineHeight: 1.2,
-                    margin: "0 0 16px 0",
-                    letterSpacing: "-0.02em",
-                    color: "#FFFFFF",
-                  }}
-                >
-                  Your career is{" "}
-                  <span style={{ color: isVerifiedBadge ? "#10B981" : "#F5B41A" }}>
-                    {isVerifiedBadge ? "verified" : "in progress"}
-                  </span>
-                  .
-                </h1>
+        <div className="top-actions">
+          <div className="top-search">
+            <span style={{ color: 'var(--muted)' }}>🔍</span>
+            <input type="text" placeholder="Search jobs, stages, badges..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '220px', color: 'var(--navy)' }} />
+          </div>
 
-                <p
-                  style={{
-                    color: "rgba(255, 255, 255, 0.8)",
-                    fontSize: 14,
-                    lineHeight: 1.6,
-                    margin: "0 0 24px 0",
-                    maxWidth: 620,
-                  }}
-                >
-                  You have verified <strong>{verifiedStagesCount} of 8</strong> stages (
-                  <strong>{totalScore}/100</strong> verification points) with{" "}
-                  <strong>{totalFilledFieldsCount} of {TOTAL_CANDIDATE_FIELDS}</strong> fields filled (
-                  <strong>{profileCompletionPct}%</strong> profile completion).
-                  {isVerifiedBadge
-                    ? " Your profile meets the 75% gold badge threshold and is active for direct job applications."
-                    : ` Complete remaining stages to unlock ${pointsToUnlock} points and reach the 75% verified threshold.`}
-                </p>
+          <div className="top-notif" onClick={() => triggerToast("You have no unread notifications.")}>
+            🔔
+          </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                  <div
-                    style={{
-                      background: isVerifiedBadge ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                      border: isVerifiedBadge
-                        ? "1px solid rgba(16, 185, 129, 0.4)"
-                        : "1px solid rgba(245, 158, 11, 0.4)",
-                      color: isVerifiedBadge ? "#34D399" : "#FBBF24",
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: "0.5px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: isVerifiedBadge ? "#10B981" : "#F59E0B",
-                      }}
-                    />
-                    CAREER PASSPORT · {isVerifiedBadge ? "VERIFIED (GREEN)" : "IN PROGRESS"}
-                  </div>
-
-                  <div
-                    style={{
-                      background: "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(255, 255, 255, 0.18)",
-                      color: "#FFFFFF",
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: "0.5px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#60A5FA" }} />
-                    {totalFilledFieldsCount} / {TOTAL_CANDIDATE_FIELDS} FIELDS FILLED ({profileCompletionPct}%)
-                  </div>
-
-                  <div
-                    style={{
-                      background: "rgba(255, 255, 255, 0.08)",
-                      border: "1px solid rgba(255, 255, 255, 0.18)",
-                      color: "#FFFFFF",
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: "0.5px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#A78BFA" }} />
-                    PROFILE {candidate?.isSubmitted ? "SUBMITTED" : "IN SETUP"}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsVaultOpen(true)}
-                    style={{
-                      background: "rgba(245, 184, 46, 0.15)",
-                      border: "1px solid rgba(245, 184, 46, 0.4)",
-                      color: "#F5B82E",
-                      padding: "6px 14px",
-                      borderRadius: 20,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: "0.5px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.background = "rgba(245, 184, 46, 0.3)";
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.background = "rgba(245, 184, 46, 0.15)";
-                    }}
-                  >
-                    <span>🗄️</span>
-                    DOCUMENT VAULT ({candidate?.documentVault?.length || 0}) →
-                  </button>
-                </div>
-              </div>
-
-              {/* Right Hero Score Card */}
-              <div
-                style={{
-                  background: "rgba(255, 255, 255, 0.05)",
-                  border: "1px solid rgba(255, 255, 255, 0.12)",
-                  backdropFilter: "blur(16px)",
-                  borderRadius: 20,
-                  padding: "24px 26px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 22,
-                  boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-                }}
-              >
-                {/* Radial SVG Gauge */}
-                <div style={{ position: "relative", width: 96, height: 96, flexShrink: 0 }}>
-                  <svg width="96" height="96" viewBox="0 0 96 96">
-                    <circle cx="48" cy="48" r={radius} stroke="rgba(255, 255, 255, 0.15)" strokeWidth="8" fill="none" />
-                    <circle
-                      cx="48"
-                      cy="48"
-                      r={radius}
-                      stroke={isVerifiedBadge ? "#10B981" : "#F5A623"}
-                      strokeWidth="8"
-                      fill="none"
-                      strokeDasharray={circumference}
-                      strokeDashoffset={strokeDashoffset}
-                      strokeLinecap="round"
-                      transform="rotate(-90 48 48)"
-                    />
-                  </svg>
-                  <div
-                    style={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      textAlign: "center",
-                    }}
-                  >
-                    <span style={{ fontSize: 24, fontWeight: 900, color: "#FFFFFF", lineHeight: 1 }}>{totalScore}</span>
-                    <span style={{ fontSize: 10, color: "rgba(255, 255, 255, 0.6)", fontWeight: 600 }}>/ 100</span>
-                  </div>
-                </div>
-
-                {/* Score Meta */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div
-                    style={{
-                      alignSelf: "flex-start",
-                      background: isVerifiedBadge ? "rgba(16, 185, 129, 0.15)" : "rgba(245, 166, 35, 0.15)",
-                      border: isVerifiedBadge
-                        ? "1px solid rgba(16, 185, 129, 0.6)"
-                        : "1px solid rgba(245, 166, 35, 0.6)",
-                      color: isVerifiedBadge ? "#34D399" : "#F5C95B",
-                      fontSize: 10,
-                      fontWeight: 900,
-                      padding: "3px 10px",
-                      borderRadius: 12,
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    {isVerifiedBadge ? "VERIFIED ★" : "IN PROGRESS"}
-                  </div>
-                  <div style={{ fontSize: 17, fontWeight: 800, color: "#FFFFFF", lineHeight: 1.2 }}>
-                    Verification Score
-                  </div>
-                  <div style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.6)" }}>
-                    {verifiedStagesCount} of 8 stages verified · {totalFilledFieldsCount}/{TOTAL_CANDIDATE_FIELDS} fields
-                  </div>
-                  {pointsToUnlock > 0 ? (
-                    <div
-                      onClick={() => handleStageClick(actionItems[0]?.stageNum || 1)}
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: "#F5C95B",
-                        cursor: "pointer",
-                        marginTop: 2,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                    >
-                      +{pointsToUnlock} pts remaining across {8 - verifiedStagesCount} stages →
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#34D399", marginTop: 2 }}>
-                      ✓ All stages verified (100 pts)
-                    </div>
-                  )}
-                </div>
+          <div className="top-user" onClick={() => setActiveTab('profile')}>
+            <div className="user-avatar">{candidateName.charAt(0).toUpperCase()}</div>
+            <div className="user-meta">
+              <div className="name">{candidateName}</div>
+              <div className="status">
+                <span className="status-dot"></span>
+                {profileScore >= 75 ? 'Verified Candidate' : `Score: ${profileScore}/100`}
               </div>
             </div>
-          </section>
+          </div>
+        </div>
+      </div>
 
-          {/* VERIFICATION FUNNEL & 8 STAGES GRID */}
-          <section className="cand-cream-dot-bg" style={{ borderTop: "1px solid #E5E0D5", minHeight: "60vh" }}>
-            <main style={{ maxWidth: 1200, margin: "0 auto", padding: "36px 32px 64px" }}>
-              <div
-                style={{
-                  marginBottom: 24,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-end",
-                  flexWrap: "wrap",
-                  gap: 16,
-                }}
-              >
+      {/* MAIN LAYOUT */}
+      <div className="layout">
+        {/* SIDEBAR */}
+        <aside className="sidebar" ref={sidebarRef}>
+          <div className="sb-group">
+            <div className="sb-group-label">STUDENT DASHBOARD</div>
+            <div className="sb-nav">
+              <div data-tab="dashboard" className={'sb-item ' + (activeTab === 'dashboard' ? 'active' : '')} onClick={() => setActiveTab('dashboard')}>
+                <span className="ico">📊</span>
+                <span>My Hub</span>
+              </div>
+              <div data-tab="profile" className={'sb-item ' + (activeTab === 'profile' ? 'active' : '')} onClick={() => setActiveTab('profile')}>
+                <span className="ico">👤</span>
+                <span>My Profile</span>
+                <span className="badge green">{profileScore}/100</span>
+              </div>
+              <div data-tab="badges" className={'sb-item ' + (activeTab === 'badges' ? 'active' : '')} onClick={() => setActiveTab('badges')}>
+                <span className="ico">🏅</span>
+                <span>My Badges</span>
+              </div>
+              <div data-tab="documents" className={'sb-item ' + (activeTab === 'documents' ? 'active' : '')} onClick={() => setActiveTab('documents')}>
+                <span className="ico">📁</span>
+                <span>My Documents</span>
+              </div>
+              <div data-tab="resumes" className={'sb-item ' + (activeTab === 'resumes' ? 'active' : '')} onClick={() => setActiveTab('resumes')}>
+                <span className="ico">📄</span>
+                <span>My Resumes</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sb-group">
+            <div className="sb-group-label">HIRING &amp; EMPLOYERS</div>
+            <div className="sb-nav">
+              <div data-tab="companies" className={'sb-item ' + (activeTab === 'companies' ? 'active' : '')} onClick={() => setActiveTab('companies')}>
+                <span className="ico">🏢</span>
+                <span>My Companies</span>
+                <span className="badge gold">{companies.length}</span>
+              </div>
+              <div data-tab="applications" className={'sb-item ' + (activeTab === 'applications' ? 'active' : '')} onClick={() => setActiveTab('applications')}>
+                <span className="ico">📋</span>
+                <span>My Applications</span>
+                <span className="badge gold">{applications.length}</span>
+              </div>
+              <div data-tab="invites" className={'sb-item ' + (activeTab === 'invites' ? 'active' : '')} onClick={() => setActiveTab('invites')}>
+                <span className="ico">💌</span>
+                <span>Interview Invites</span>
+              </div>
+              <div data-tab="feedback" className={'sb-item ' + (activeTab === 'feedback' ? 'active' : '')} onClick={() => setActiveTab('feedback')}>
+                <span className="ico">💬</span>
+                <span>Feedback Vault</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sb-group">
+            <div className="sb-group-label">GROW</div>
+            <div className="sb-nav">
+              <div data-tab="jobs" className={'sb-item ' + (activeTab === 'jobs' ? 'active' : '')} onClick={() => setActiveTab('jobs')}>
+                <span className="ico">🔍</span>
+                <span>Browse Jobs</span>
+                <span className="badge blue">{jobs.length}</span>
+              </div>
+              <div data-tab="learning" className={'sb-item ' + (activeTab === 'learning' ? 'active' : '')} onClick={() => setActiveTab('learning')}>
+                <span className="ico">📚</span>
+                <span>Learning Hub</span>
+              </div>
+              <div data-tab="analytics" className={'sb-item ' + (activeTab === 'analytics' ? 'active' : '')} onClick={() => setActiveTab('analytics')}>
+                <span className="ico">📈</span>
+                <span>Career Analytics</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sb-group">
+            <div className="sb-group-label">🎁 EARN · 3 ENGINES</div>
+            <div className="sb-nav">
+              <div data-tab="refer" className={'sb-item ' + (activeTab === 'refer' ? 'active' : '')} onClick={() => setActiveTab('refer')}>
+                <span className="ico">🎁</span>
+                <span>Refer to Portal</span>
+                <span className="badge gold">{(referrals?.pointsWallet ?? profile?.pointsWallet ?? 50)} pts</span>
+              </div>
+              <div data-tab="employer-referrals" className={'sb-item ' + (activeTab === 'employer-referrals' ? 'active' : '')} onClick={() => setActiveTab('employer-referrals')}>
+                <span className="ico">🏢</span>
+                <span>Employer Referrals</span>
+                <span className="badge blue">Direct pay</span>
+              </div>
+              <div data-tab="academy-referrals" className={'sb-item ' + (activeTab === 'academy-referrals' ? 'active' : '')} onClick={() => setActiveTab('academy-referrals')}>
+                <span className="ico">🏫</span>
+                <span>Academy Referrals</span>
+                <span className="badge green">
+                  {(referrals?.academyReferrals?.filter(r => r.status === 'PAID')?.length || 0) > 0
+                    ? `₹${((referrals.academyReferrals.filter(r => r.status === 'PAID').length) * 2500).toLocaleString()}`
+                    : '₹0'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sb-group">
+            <div className="sb-group-label">VERIFICATION</div>
+            <div className="sb-nav">
+              <div data-tab="employment" className={'sb-item ' + (activeTab === 'employment' ? 'active' : '')} onClick={() => setActiveTab('employment')}>
+                <span className="ico">🛡️</span>
+                <span>Employment &amp; BG</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="sb-group">
+            <div className="sb-group-label">ACCOUNT</div>
+            <div className="sb-nav">
+              <div data-tab="settings" className={'sb-item ' + (activeTab === 'settings' ? 'active' : '')} onClick={() => setActiveTab('settings')}>
+                <span className="ico">⚙️</span>
+                <span>Settings</span>
+              </div>
+              <div data-tab="help" className={'sb-item ' + (activeTab === 'help' ? 'active' : '')} onClick={() => setActiveTab('help')}>
+                <span className="ico">❓</span>
+                <span>Help &amp; Support</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* MAIN CONTENT */}
+        <main className="main">
+          {activeTab === 'dashboard' && (
+<div className="page active" id="page-dashboard">
+      <div className="welcome-hero">
+        <div className="wh-grid">
+          <div>
+            <div className="wh-greeting">👋 Welcome back</div>
+            <div className="wh-name">{candidateName}</div>
+            <div className="wh-tagline">{(companiesAttendedCount > 0 || pendingInvites.length > 0) ? `Your Career Passport is live. ${companiesAttendedCount} ${companiesAttendedCount === 1 ? 'company' : 'companies'} tracked · ${pendingInvites.length} pending interview ${pendingInvites.length === 1 ? 'invite' : 'invites'}.` : 'Your Career Passport is live. Stage verification score computed live from Stages 1–8.'}</div>
+            <div className="wh-badges">
+              <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}>{profileScore >= 75 ? '🏆 Talentera Verified (75+)' : `⏳ Stage Score: ${profileScore}/100`}</span>
+              <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? '🟢 LIVE FOR HIRING' : '⚪ Not Live Yet'}</span>
+              <span className="wh-chip">🎓 {profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}</span>
+              <span className="wh-chip">📍 {profile?.stage1?.city || 'Location not set'}</span>
+            </div>
+          </div>
+          <div style={{"textAlign":"center"}}>
+            <div
+              className="stamp-ring"
+              style={{
+                background: `conic-gradient(var(--gold) 0deg ${profileScore * 3.6}deg, rgba(255,255,255,0.18) ${profileScore * 3.6}deg 360deg)`,
+                transition: 'background 0.4s ease'
+              }}
+            >
+              <div className="stamp-inner">
                 <div>
-                  <div
-                    style={{
-                      color: "#059669",
-                      fontSize: 11,
-                      fontWeight: 800,
-                      letterSpacing: "0.8px",
-                      marginBottom: 6,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: "#10B981",
-                        boxShadow: "0 0 8px rgba(16,185,129,0.5)",
-                      }}
-                    />
-                    VERIFICATION FUNNEL
-                  </div>
-                  <h2 style={{ fontSize: 26, fontWeight: 800, color: "#0A1F3D", margin: "0 0 6px 0" }}>
-                    Your 8 verification stages ({verifiedStagesCount}/8 verified · {totalFilledFieldsCount}/{TOTAL_CANDIDATE_FIELDS} fields filled)
-                  </h2>
-                  <p style={{ color: "#64748B", fontSize: 13, margin: 0 }}>
-                    Stages earn points when verified. Click any stage to complete required fields or check verification status.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => switchTab("profile")}
-                  style={{
-                    background: "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)",
-                    color: "#06152A",
-                    border: "none",
-                    borderRadius: 20,
-                    padding: "10px 24px",
-                    fontWeight: 800,
-                    fontSize: 13,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(245, 184, 46, 0.35)",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  View all filled fields →
-                </button>
-              </div>
-
-              {/* 8 STAGES CARDS GRID (4 cols x 2 rows) */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 36 }}>
-                {STAGE_ITEMS.map((item) => {
-                  const isDone = item.status === "VERIFIED";
-                  const isPending = item.status === "PENDING AUDIT" || item.status === "IN PROGRESS" || item.status === "PARTIAL CREDIT";
-                  const isFailed = item.status.includes("FAILED") || item.status === "REJECTED";
-
-                  return (
-                    <div
-                      key={item.num}
-                      onClick={() => handleStageClick(item.num)}
-                      style={{
-                        background: "#FFFFFF",
-                        borderRadius: 16,
-                        border: isDone
-                          ? "1.5px solid #A7F3D0"
-                          : isFailed
-                          ? "1.5px solid #FECACA"
-                          : isPending
-                          ? "1.5px solid #FDE68A"
-                          : "1px solid #E2E8F0",
-                        padding: "18px 18px",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 10,
-                        cursor: "pointer",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-                        position: "relative",
-                        overflow: "hidden",
-                        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.06)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.03)";
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          height: 3,
-                          background: isDone
-                            ? "#10B981"
-                            : isFailed
-                            ? "#EF4444"
-                            : isPending
-                            ? "#F59E0B"
-                            : "#CBD5E1",
-                        }}
-                      />
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.5px" }}>
-                          STAGE {item.num}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 800,
-                            color: item.filledCount > 0 ? "#059669" : "#94A3B8",
-                            background: item.filledCount > 0 ? "#ECFDF5" : "#F1F5F9",
-                            padding: "2px 6px",
-                            borderRadius: 6,
-                          }}
-                        >
-                          {item.filledCount} / {item.totalFields} fields ({item.fieldPct}%)
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 14.5,
-                          fontWeight: 800,
-                          color: "#0A1F3D",
-                          minHeight: 38,
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {item.name}
-                      </div>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
-                          <span style={{ fontSize: 20, fontWeight: 900, color: "#0A1F3D" }}>{item.actualPts}</span>
-                          <span style={{ fontSize: 12, color: "#64748B", fontWeight: 600 }}>/ {item.maxPts} pts</span>
-                        </div>
-                        {isDone && (
-                          <span
-                            style={{
-                              background: "#ECFDF5",
-                              color: "#059669",
-                              border: "1px solid #A7F3D0",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            ✓ VERIFIED
-                          </span>
-                        )}
-                        {item.status === "PENDING AUDIT" && (
-                          <span
-                            style={{
-                              background: "#EFF6FF",
-                              color: "#2563EB",
-                              border: "1px solid #BFDBFE",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            PENDING AUDIT
-                          </span>
-                        )}
-                        {item.status === "PARTIAL CREDIT" && (
-                          <span
-                            style={{
-                              background: "#FEF3C7",
-                              color: "#B45309",
-                              border: "1px solid #FDE68A",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            PARTIAL CREDIT
-                          </span>
-                        )}
-                        {item.status === "IN PROGRESS" && (
-                          <span
-                            style={{
-                              background: "#FEF3C7",
-                              color: "#B45309",
-                              border: "1px solid #FDE68A",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            IN PROGRESS
-                          </span>
-                        )}
-                        {isFailed && (
-                          <span
-                            style={{
-                              background: "#FEE2E2",
-                              color: "#DC2626",
-                              border: "1px solid #FECACA",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            {item.status}
-                          </span>
-                        )}
-                        {item.status === "NOT STARTED" && (
-                          <span
-                            style={{
-                              background: "#F1F5F9",
-                              color: "#64748B",
-                              border: "1px solid #E2E8F0",
-                              fontSize: 10,
-                              fontWeight: 800,
-                              padding: "3px 8px",
-                              borderRadius: 10,
-                            }}
-                          >
-                            NOT STARTED
-                          </span>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          width: "100%",
-                          height: 4,
-                          background: "#F1F5F9",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: "100%",
-                            width: `${item.fieldPct}%`,
-                            background: isDone
-                              ? "#10B981"
-                              : isFailed
-                              ? "#EF4444"
-                              : isPending
-                              ? "#F59E0B"
-                              : "#CBD5E1",
-                          }}
-                        />
-                      </div>
-                      <p style={{ fontSize: 12, color: "#64748B", margin: 0, lineHeight: 1.45, minHeight: 38 }}>
-                        {item.desc}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* BOTTOM 2-COLUMN SECTION */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 370px", gap: 24, alignItems: "start" }}>
-                {/* Left Column */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  {/* My Applications Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      borderRadius: 16,
-                      padding: "22px 24px",
-                      border: "1px solid #E2E8F0",
-                      boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 18,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            background: "#EFF6FF",
-                            color: "#2563EB",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 14,
-                          }}
-                        >
-                          <i className="fa-solid fa-file-lines"></i>
-                        </div>
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0A1F3D", margin: 0 }}>
-                          My Applications ({myApplications.length})
-                        </h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => switchTab("applications")}
-                        style={{
-                          color: "#D97706",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        View all ({myApplications.length}) →
-                      </button>
-                    </div>
-
-                    {myApplications.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "28px 16px",
-                          textAlign: "center",
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          border: "1px dashed #CBD5E1",
-                        }}
-                      >
-                        <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 12px 0" }}>
-                          0 applications submitted yet. Browse matching jobs to apply with your verified profile.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => switchTab("apply")}
-                          style={{
-                            background: "#0A1F3D",
-                            color: "#FFFFFF",
-                            border: "none",
-                            borderRadius: 8,
-                            padding: "8px 16px",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Browse open jobs →
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        {myApplications.slice(0, 3).map((app, idx) => {
-                          const statusKey = (app.status || "applied").toLowerCase();
-                          const conf = STATUS_CONFIG[statusKey] || STATUS_CONFIG.applied;
-                          const compName = app.companyName || app.companyId?.companyName || "Employer";
-                          const appInitial = (compName[0] || "E").toUpperCase();
-                          const roleName = app.roleTitle || app.companyId?.stage9?.roletitle || "Medical Coder";
-                          const locName = app.location || app.companyId?.stage9?.location || "India";
-                          const dateStr = app.createdAt
-                            ? new Date(app.createdAt).toLocaleDateString("en-IN", {
-                                month: "short",
-                                day: "numeric",
-                              })
-                            : "Recent";
-
-                          return (
-                            <div
-                              key={app._id || idx}
-                              style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                paddingBottom: 14,
-                                borderBottom: idx < Math.min(myApplications.length, 3) - 1 ? "1px solid #F1F5F9" : "none",
-                              }}
-                            >
-                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                <div
-                                  style={{
-                                    width: 38,
-                                    height: 38,
-                                    borderRadius: "50%",
-                                    background: "#0D9488",
-                                    color: "#FFFFFF",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    fontWeight: 800,
-                                    fontSize: 13,
-                                  }}
-                                >
-                                  {appInitial}
-                                </div>
-                                <div>
-                                  <div style={{ fontWeight: 800, fontSize: 14, color: "#0A1F3D" }}>{compName}</div>
-                                  <div style={{ fontSize: 12, color: "#64748B" }}>
-                                    {roleName} · {locName}
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ textAlign: "right" }}>
-                                <div
-                                  style={{
-                                    background: conf.bg,
-                                    color: conf.color,
-                                    border: `1px solid ${conf.border}`,
-                                    fontSize: 10,
-                                    fontWeight: 900,
-                                    padding: "3px 10px",
-                                    borderRadius: 10,
-                                    display: "inline-block",
-                                  }}
-                                >
-                                  {conf.label}
-                                </div>
-                                <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>Applied {dateStr}</div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Real Interview Track Record Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      borderRadius: 16,
-                      padding: "22px 24px",
-                      border: "1px solid #E2E8F0",
-                      boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 18,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            background: "#F5F3FF",
-                            color: "#7C3AED",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 14,
-                          }}
-                        >
-                          <i className="fa-solid fa-briefcase"></i>
-                        </div>
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0A1F3D", margin: 0 }}>
-                          Interview track record ({interviewRecords.length})
-                        </h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => switchTab("interviews")}
-                        style={{
-                          color: "#D97706",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        View all ({interviewRecords.length}) →
-                      </button>
-                    </div>
-
-                    {interviewRecords.length === 0 ? (
-                      <div
-                        style={{
-                          padding: "24px 16px",
-                          textAlign: "center",
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          border: "1px dashed #CBD5E1",
-                        }}
-                      >
-                        <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 12px 0" }}>
-                          0 interviews logged. When employers schedule interviews or you book a slot in Stage 8, your history appears here.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleStageClick(8)}
-                          style={{
-                            background: "#0A1F3D",
-                            color: "#FFFFFF",
-                            border: "none",
-                            borderRadius: 8,
-                            padding: "8px 16px",
-                            fontSize: 12,
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          Book Interview Track Slot (Stage 8) →
-                        </button>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        {interviewRecords.slice(0, 3).map((rec, idx) => (
-                          <div
-                            key={rec.id || idx}
-                            style={{
-                              display: "flex",
-                              gap: 14,
-                              alignItems: "center",
-                              paddingBottom: 14,
-                              borderBottom: idx < Math.min(interviewRecords.length, 3) - 1 ? "1px solid #F1F5F9" : "none",
-                            }}
-                          >
-                            <div
-                              style={{
-                                width: 76,
-                                height: 52,
-                                borderRadius: 10,
-                                background: rec.badgeBg,
-                                color: rec.badgeColor,
-                                border: `1px solid ${rec.badgeColor}40`,
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                                textAlign: "center",
-                              }}
-                            >
-                              <span style={{ fontSize: 14, fontWeight: 900, lineHeight: 1 }}>{rec.scoreDisplay}</span>
-                              <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.5px", marginTop: 2 }}>
-                                {rec.status}
-                              </span>
-                            </div>
-                            <div>
-                              <div style={{ fontWeight: 800, fontSize: 14, color: "#0A1F3D" }}>
-                                {rec.title} · {rec.date}
-                              </div>
-                              <div style={{ fontSize: 12, color: "#475569", marginTop: 2 }}>{rec.desc}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Real Companies Matched Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      borderRadius: 16,
-                      padding: "22px 24px",
-                      border: "1px solid #E2E8F0",
-                      boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: 18,
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                        <div
-                          style={{
-                            width: 28,
-                            height: 28,
-                            borderRadius: 8,
-                            background: "#ECFDF5",
-                            color: "#059669",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 14,
-                          }}
-                        >
-                          <i className="fa-solid fa-magnifying-glass"></i>
-                        </div>
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0A1F3D", margin: 0 }}>
-                          {jobs.length} jobs available for your profile
-                        </h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => switchTab("apply")}
-                        style={{
-                          color: "#D97706",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Browse all ({jobs.length}) →
-                      </button>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                      <div
-                        style={{
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          padding: "16px 14px",
-                          textAlign: "center",
-                          border: "1px solid #E2E8F0",
-                        }}
-                      >
-                        <div style={{ fontSize: 26, fontWeight: 900, color: "#B45309" }}>{jobs.length}</div>
-                        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600, marginTop: 4 }}>
-                          Live postings
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          padding: "16px 14px",
-                          textAlign: "center",
-                          border: "1px solid #E2E8F0",
-                        }}
-                      >
-                        <div style={{ fontSize: 26, fontWeight: 900, color: "#B45309" }}>
-                          {specialtyJobsCount}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600, marginTop: 4 }}>
-                          In your specialty
-                        </div>
-                      </div>
-                      <div
-                        style={{
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          padding: "16px 14px",
-                          textAlign: "center",
-                          border: "1px solid #E2E8F0",
-                        }}
-                      >
-                        <div style={{ fontSize: 26, fontWeight: 900, color: "#B45309" }}>
-                          {localityJobsCount}
-                        </div>
-                        <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600, marginTop: 4 }}>
-                          In {candidate?.stage1?.city || "your locality"}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => switchTab("apply")}
-                        style={{
-                          background: "#0A1F3D",
-                          color: "#FFFFFF",
-                          borderRadius: 12,
-                          padding: "16px 14px",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: 6,
-                          border: "none",
-                          cursor: "pointer",
-                          boxShadow: "0 4px 14px rgba(10, 31, 61, 0.2)",
-                        }}
-                      >
-                        <span style={{ fontSize: 18, color: "#F5B82E", fontWeight: 900 }}>→</span>
-                        <span style={{ fontSize: 12, fontWeight: 900, color: "#FFFFFF" }}>
-                          View {jobs.length} roles
-                        </span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                  {/* Action Items Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      borderRadius: 16,
-                      padding: "22px 24px",
-                      border: "1px solid #E2E8F0",
-                      boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        color: "#D97706",
-                        fontSize: 11,
-                        fontWeight: 800,
-                        letterSpacing: "0.8px",
-                        marginBottom: 6,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F59E0B" }} />
-                      ACTION ITEMS ({actionItems.length} PENDING)
-                    </div>
-                    <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0A1F3D", margin: "0 0 6px 0" }}>
-                      Unlock more verification points
-                    </h3>
-                    <p style={{ color: "#64748B", fontSize: 12, margin: "0 0 18px 0" }}>
-                      Reach the 75-point gold badge threshold to unlock direct employer job applications.
-                    </p>
-
-                    {actionItems.length === 0 ? (
-                      <div
-                        style={{
-                          padding: 16,
-                          borderRadius: 10,
-                          background: "#ECFDF5",
-                          border: "1px solid #A7F3D0",
-                          color: "#065F46",
-                          fontSize: 13,
-                          fontWeight: 700,
-                          textAlign: "center",
-                        }}
-                      >
-                        ✓ All 8 verification stages complete! You hold 100/100 points.
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                        {actionItems.map((item, idx) => (
-                          <div
-                            key={item.stageNum}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 10,
-                              paddingBottom: idx < actionItems.length - 1 ? 12 : 0,
-                              borderBottom: idx < actionItems.length - 1 ? "1px solid #F1F5F9" : "none",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <div
-                                style={{
-                                  background: "#FEF3C7",
-                                  color: "#92400E",
-                                  border: "1px solid #FDE68A",
-                                  fontWeight: 900,
-                                  fontSize: 12,
-                                  padding: "4px 8px",
-                                  borderRadius: 8,
-                                }}
-                              >
-                                +{item.pts}
-                              </div>
-                              <div>
-                                <div style={{ fontWeight: 800, fontSize: 13, color: "#0A1F3D" }}>{item.title}</div>
-                                <div style={{ fontSize: 11, color: "#64748B", maxWidth: 170 }}>{item.sub}</div>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleStageClick(item.stageNum)}
-                              style={{
-                                background: idx === 0 ? "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)" : "#F8FAFC",
-                                border: idx === 0 ? "none" : "1px solid #CBD5E1",
-                                borderRadius: 16,
-                                padding: "5px 14px",
-                                fontSize: 12,
-                                fontWeight: 800,
-                                color: idx === 0 ? "#06152A" : "#0A1F3D",
-                                cursor: "pointer",
-                                boxShadow: idx === 0 ? "0 2px 8px rgba(245, 184, 46, 0.3)" : "none",
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              {item.btnText}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Profile Status Card */}
-                  <div
-                    style={{
-                      background: "linear-gradient(135deg, #0A1F3D 0%, #06152A 100%)",
-                      border: isVerifiedBadge ? "1.5px solid #FDE68A" : "1.5px solid rgba(255,255,255,0.15)",
-                      borderRadius: 16,
-                      padding: "24px 22px",
-                      color: "#FFFFFF",
-                      textAlign: "center",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 8,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                    }}
-                  >
-                    <div style={{ fontSize: 30, color: "#F5B82E" }}>
-                      <i className="fa-solid fa-trophy"></i>
-                    </div>
-                    <div style={{ color: "#F5B82E", fontSize: 10, fontWeight: 900, letterSpacing: "1px" }}>
-                      {isVerifiedBadge ? "TALENTERA VERIFIED CANDIDATE" : "CAREER VERIFICATION"}
-                    </div>
-                    <div style={{ fontSize: 16, fontWeight: 800 }}>
-                      {isVerifiedBadge ? "Gold Badge Earned (75+ pts)" : `${totalScore} / 100 Points Verified`}
-                    </div>
-                    <p style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, margin: "0 0 10px 0", lineHeight: 1.45 }}>
-                      {isVerifiedBadge
-                        ? "Your profile is verified and active in employer hiring pools."
-                        : `Complete ${pointsToUnlock} more points to reach the 75% gold badge threshold.`}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => switchTab("apply")}
-                      style={{
-                        background: "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)",
-                        color: "#06152A",
-                        border: "none",
-                        borderRadius: 10,
-                        padding: "10px 20px",
-                        fontWeight: 900,
-                        fontSize: 13,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        boxShadow: "0 4px 14px rgba(245, 184, 46, 0.35)",
-                      }}
-                    >
-                      Browse matching jobs ({jobs.length}) →
-                    </button>
-                  </div>
-
-                  {/* Alumni Network */}
-                  <div
-                    style={{
-                      background: "linear-gradient(135deg, #064E3B 0%, #059669 100%)",
-                      border: "1px solid rgba(16, 185, 129, 0.35)",
-                      borderRadius: 16,
-                      padding: "26px 22px",
-                      color: "#FFFFFF",
-                      textAlign: "center",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 6,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: "50%",
-                        background: "rgba(255, 255, 255, 0.2)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 16,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <i className="fa-solid fa-users"></i>
-                    </div>
-                    <div style={{ fontSize: 32, fontWeight: 900, lineHeight: 1 }}>1,247+</div>
-                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "1px" }}>PLACED CANDIDATES</div>
-                    <div style={{ fontSize: 12, color: "rgba(255, 255, 255, 0.8)", marginBottom: 10 }}>
-                      Talentera verified talent network
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => window.open("https://chat.whatsapp.com/", "_blank")}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.2)",
-                        border: "1px solid rgba(255, 255, 255, 0.4)",
-                        color: "#FFFFFF",
-                        borderRadius: 20,
-                        padding: "8px 20px",
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Join community group →
-                    </button>
-                  </div>
+                  <div className="stamp-big">{profileScore}</div>
+                  <div className="stamp-small">/ 100</div>
                 </div>
               </div>
-            </main>
-          </section>
-        </>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 2: PROFILE (8-Stage Verification Detail - ONLY FILLED FIELDS)         */}
-      {/* ========================================================================= */}
-      {activeTab === "profile" && (
-        <section className="cand-cream-dot-bg" style={{ minHeight: "80vh", borderTop: "1px solid #E5E0D5" }}>
-          <main style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 64px" }}>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ color: "#D97706", fontSize: 11, fontWeight: 800, letterSpacing: "1px", marginBottom: 6 }}>
-                ● YOUR VERIFIED PROFILE
-              </div>
-              <h1 style={{ fontSize: 30, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                8-stage verification detail ({totalFilledFieldsCount} of {TOTAL_CANDIDATE_FIELDS} fields filled · {profileCompletionPct}%)
-              </h1>
-              <p style={{ color: "#64748B", fontSize: 13.5, margin: 0 }}>
-                Displaying only fields that have been filled in and verified. Click any stage to add or update your data.
-              </p>
             </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              {STAGE_ITEMS.map((st) => (
-                <div
-                  key={st.num}
-                  onClick={() => handleStageClick(st.num)}
-                  style={{
-                    background: "#FFFFFF",
-                    borderRadius: 16,
-                    border: "1px solid #E2E8F0",
-                    borderLeft: st.isVerified ? "4px solid #10B981" : "4px solid #F59E0B",
-                    padding: "24px 28px",
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                    transition: "all 0.15s ease",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.06)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.03)";
-                  }}
-                >
-                  {/* Top header row */}
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.8px" }}>
-                        STAGE {st.num} · {st.actualPts} / {st.maxPts} PTS
-                      </span>
-                      <span
-                        style={{
-                          fontSize: 10,
-                          fontWeight: 800,
-                          color: st.filledCount > 0 ? "#059669" : "#94A3B8",
-                          background: st.filledCount > 0 ? "#ECFDF5" : "#F1F5F9",
-                          padding: "2px 8px",
-                          borderRadius: 8,
-                        }}
-                      >
-                        {st.filledCount} / {st.totalFields} fields filled ({st.fieldPct}%)
-                      </span>
-                    </div>
-                    {st.status === "VERIFIED" && (
-                      <span
-                        style={{
-                          background: "#ECFDF5",
-                          color: "#059669",
-                          border: "1px solid #A7F3D0",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        ✓ VERIFIED
-                      </span>
-                    )}
-                    {st.status === "IN PROGRESS" && (
-                      <span
-                        style={{
-                          background: "#FEF3C7",
-                          color: "#D97706",
-                          border: "1px solid #FDE68A",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        IN PROGRESS
-                      </span>
-                    )}
-                    {st.status === "PARTIAL CREDIT" && (
-                      <span
-                        style={{
-                          background: "#FEF3C7",
-                          color: "#B45309",
-                          border: "1px solid #FDE68A",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        PARTIAL CREDIT ({st.actualPts} PTS)
-                      </span>
-                    )}
-                    {st.status === "REJECTED" && (
-                      <span
-                        style={{
-                          background: "#FEE2E2",
-                          color: "#DC2626",
-                          border: "1px solid #FECACA",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        REJECTED
-                      </span>
-                    )}
-                    {st.status === "PENDING AUDIT" && (
-                      <span
-                        style={{
-                          background: "#EFF6FF",
-                          color: "#2563EB",
-                          border: "1px solid #BFDBFE",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        PENDING AUDIT
-                      </span>
-                    )}
-                    {st.status.includes("FAILED") && (
-                      <span
-                        style={{
-                          background: "#FEE2E2",
-                          color: "#DC2626",
-                          border: "1px solid #FECACA",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        {st.status}
-                      </span>
-                    )}
-                    {st.status === "NOT STARTED" && (
-                      <span
-                        style={{
-                          background: "#F1F5F9",
-                          color: "#64748B",
-                          border: "1px solid #E2E8F0",
-                          padding: "3px 10px",
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 800,
-                        }}
-                      >
-                        NOT STARTED
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Title */}
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", margin: "0 0 16px 0" }}>
-                    {st.name}
-                  </h3>
-
-                  {/* ONLY FILLED FIELDS GRID */}
-                  {st.filledFields.length > 0 ? (
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "12px 16px" }}>
-                      {st.filledFields.map((d, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            background: "#F8FAFC",
-                            padding: "10px 14px",
-                            borderRadius: 10,
-                            border: "1px solid #E2E8F0",
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              color: "#64748B",
-                              letterSpacing: "0.6px",
-                              marginBottom: 3,
-                            }}
-                          >
-                            {d.label}
-                          </div>
-                          <div style={{ fontSize: 13, fontWeight: 700, color: "#0A1F3D", wordBreak: "break-word" }}>
-                            {d.val}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        background: "#F8FAFC",
-                        padding: "14px 18px",
-                        borderRadius: 10,
-                        border: "1px dashed #CBD5E1",
-                        color: "#64748B",
-                        fontSize: 13,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <span>No fields filled yet for this stage.</span>
-                      <span style={{ color: "#D97706", fontWeight: 700, fontSize: 12 }}>
-                        Click to start and earn +{st.maxPts} pts →
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+            <div style={{ marginTop: '8px', fontSize: '11px', fontWeight: '800', color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              {profileScore >= 75 ? '🏆 Gold Verified' : 'Passport Score'}
             </div>
-          </main>
-        </section>
-      )}
+          </div>
+        </div>
+      </div>
 
-      {/* ========================================================================= */}
-      {/* TAB 3: APPLY (Open Roles Matched to Your Profile)                         */}
-      {/* ========================================================================= */}
-      {activeTab === "apply" && (
-        <section className="cand-cream-dot-bg" style={{ minHeight: "80vh", borderTop: "1px solid #E5E0D5" }}>
-          <main style={{ maxWidth: 1200, margin: "0 auto", padding: "36px 24px 64px" }}>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ color: "#059669", fontSize: 11, fontWeight: 800, letterSpacing: "1px", marginBottom: 6 }}>
-                ● REAL JOB MATCHES
-              </div>
-              <h1 style={{ fontSize: 30, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                {filteredJobs.length} open roles matching your profile
-              </h1>
-              <p style={{ color: "#64748B", fontSize: 13.5, margin: 0 }}>
-                {totalScore < GOLD_BADGE_THRESHOLD
-                  ? `Notice: You need a verification score of at least ${GOLD_BADGE_THRESHOLD}% to submit applications. Your current score is ${totalScore}/100.`
-                  : "Your verified profile is eligible. Apply with one click — your verified credentials and scores are auto-attached."}
-              </p>
+      <div className="quick-stats">
+        <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico blue">🏢</div><div><div className="qs-val">{companiesAttendedCount}</div><div className="qs-lbl">Companies Attended</div><div className="qs-trend">{applications.length > 0 ? `${applications.length} total applications` : 'No applications yet'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico green">✓</div><div><div className="qs-val">{offersReceivedCount}</div><div className="qs-lbl">Offers Received</div><div className="qs-trend">{bestOfferCtc > 0 ? `↑ Best ₹${bestOfferCtc} LPA` : 'No offers yet'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("profile")}><div className="qs-ico gold">💻</div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Not started'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple">🎖</div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${badgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
+      </div>
+
+      <div className="sec">
+        <div className="sec-head"><div className="sec-title"><div className="mod-ico">🎯</div>Priority Actions</div></div>
+        <div className="card" style={{"background":"linear-gradient(135deg,var(--gold-pale),#FFF9E0)","borderColor":"var(--gold)"}}>
+          {(hiredApplications.length > 0 || pendingInvites.length > 0 || profileScore < 100) ? (
+          <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"12px"}}>
+            {hiredApplications.length > 0 ? (
+              <button onClick={() => setActiveTab("companies")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green">✉</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Accept {hiredApplications[0].companyName} Offer</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Review your offer details</div></div></button>
+            ) : (
+              <button onClick={() => setActiveTab("jobs")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green">✉</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Browse Open Jobs</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>No offers yet — start applying</div></div></button>
+            )}
+            {pendingInvites.length > 0 ? (
+              <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue">📅</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>{pendingInvites.length} Interview{pendingInvites.length === 1 ? '' : 's'} Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{pendingInvites[0].company} · {pendingInvites[0].role}</div></div></button>
+            ) : (
+              <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue">📅</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>No Interviews Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>You'll see invites here</div></div></button>
+            )}
+            {profileScore < 100 ? (
+              <button onClick={() => setActiveTab("profile")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">📚</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete Your Profile</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {8 - completedStages.length} stage{(8 - completedStages.length) === 1 ? '' : 's'} left</div></div></button>
+            ) : (
+              <button onClick={() => setActiveTab("learning")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">📚</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Keep Learning</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Stage score 100/100 · Fully verified</div></div></button>
+            )}
+          </div>
+          ) : (
+            <div style={{"textAlign":"center","padding":"20px","color":"var(--gray-mute)","fontSize":"13px"}}>You're all caught up. No priority actions right now.</div>
+          )}
+        </div>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'profile' && (
+<div className="page active" id="page-profile">
+      <div className="page-head">
+        <div className="page-eyebrow">Verified Profile · Auto-updates when you improve any stage</div>
+        <h1 className="page-title">My Profile</h1>
+        <p className="page-sub">Everything companies see about you — pulled live from your 8 verification stages. Click any stage to edit at source.</p>
+      </div>
+
+      <div className="profile-hero">
+        <div className="profile-avatar-wrap">
+          <div className="profile-avatar">{candidateName ? candidateName.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase() : 'NA'}</div>
+          <div className="profile-avatar-edit" onClick={() => triggerToast("Photo upload started. Choose a professional photo.")} title="Change photo">📷</div>
+        </div>
+        <div className="profile-info">
+          <div className="profile-name">{candidateName}</div>
+          <div className="profile-title">{profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}{profile?.stage3?.certifications?.length ? ` · ${profile.stage3.certifications.map((c) => c.code || c.certCode).filter(Boolean).join(' + ')}` : ''}{profileScore >= 75 ? ' · Talentera Verified' : ''}</div>
+          <div className="profile-meta">
+            <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? '🟢 LIVE FOR HIRING' : '⚪ Not Live Yet'}</span>
+            <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}>🏆 {profileScore}/100 Verified</span>
+            <span className="wh-chip">📍 {profile?.stage1?.city || 'Location not set'}</span>
+            <span className="wh-chip">🎂 {profile?.stage1?.dob ? new Date(profile.stage1.dob).toLocaleDateString('en-IN') : 'DOB not set'}{profile?.stage1?.gender ? ` · ${profile.stage1.gender}` : ''}</span>
+          </div>
+        </div>
+        <button className="profile-cta" onClick={() => triggerToast("Redirecting to preview mode")}>👁 Preview as Company</button>
+      </div>
+
+      <h3 style={{"fontSize":"16px","fontWeight":"800","color":"var(--navy)","margin":"24px 0 14px"}}>Your 8 Verification Stages</h3>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">01</div>
+            <div><div className="stage-detail-name">Identity · {completedStages.includes(1) ? 'Aadhaar Verified' : 'Not Completed'}</div><div className="stage-detail-tag">+5 pts · {completedStages.includes(1) ? 'Locked' : 'Pending'}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 01 editor")}>✎ Edit</button></div>
+        </div>
+        <div className="stage-fields">
+          <div className="field"><div className="k">Full Name</div><div className="v">{candidateName || '—'}</div></div>
+          <div className="field"><div className="k">DOB</div><div className="v">{profile?.stage1?.dob ? `${new Date(profile.stage1.dob).toLocaleDateString('en-IN')} · 🔒` : '—'}</div></div>
+          <div className="field"><div className="k">Gender</div><div className="v">{profile?.stage1?.gender ? `${profile.stage1.gender} · 🔒` : '—'}</div></div>
+          <div className="field"><div className="k">Mobile</div><div className="v">{candidatePhone ? `${candidatePhone}${profile?.stage1?.aadhaarVerified ? ' ✓' : ''}` : '—'}</div></div>
+          <div className="field"><div className="k">Email</div><div className="v">{candidateEmail ? `${candidateEmail} ✓` : '—'}</div></div>
+          <div className="field"><div className="k">Locality</div><div className="v">{profile?.stage1?.address || profile?.stage1?.currentLocality || profile?.stage1?.city || '—'}</div></div>
+        </div>
+      </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">02</div>
+            <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+15 pts · {completedStages.includes(2) ? 'Academy-Signed' : 'Pending'}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 02 editor")}>✎ Edit</button></div>
+        </div>
+        <div className="stage-fields">
+          <div className="field"><div className="k">Academy</div><div className="v">{profile?.stage2?.academyName || profile?.stage2?.instituteName || '—'}</div></div>
+          <div className="field"><div className="k">Domain</div><div className="v">{profile?.stage2?.domain || '—'}</div></div>
+          <div className="field"><div className="k">Level</div><div className="v">{profile?.stage2?.trainingLevel || profile?.stage2?.level || '—'}</div></div>
+          <div className="field"><div className="k">Specialties</div><div className="v">{Array.isArray(profile?.stage2?.specialties) ? profile.stage2.specialties.join(' + ') : (profile?.stage2?.specialty || profile?.stage2?.specialties || '—')}</div></div>
+          <div className="field"><div className="k">Duration</div><div className="v">{profile?.stage2?.duration || (profile?.stage2?.totalHours ? `${profile.stage2.totalHours} hrs` : '—')}</div></div>
+          <div className="field"><div className="k">Score</div><div className="v">{(profile?.stage2?.score ?? profile?.stage2?.assessmentScore) != null ? `${profile?.stage2?.score ?? profile?.stage2?.assessmentScore} / 100` : '—'}</div></div>
+        </div>
+      </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">03</div>
+            <div><div className="stage-detail-name">Certifications · {(profile?.stage3?.certifications?.length || (profile?.stage3?.certCode ? 1 : 0))} Active</div><div className="stage-detail-tag">+20 pts · {profile?.stage3?.certStatus === 'verified' ? 'API-Verified' : (completedStages.includes(3) ? 'Pending Verification' : 'Not Completed')}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 03 editor")}>➕ Add Cert</button></div>
+        </div>
+        <div className="stage-fields">
+          {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
+            <div className="field" key={cert.memberId || cert.certCode || idx}><div className="k">{cert.code || cert.certCode || 'Cert'}</div><div className="v">{(cert.body || cert.issuingBody || 'AAPC')} {cert.memberId ? `****${String(cert.memberId).slice(-4)}` : ''} · {profile?.stage3?.certStatus === 'verified' ? 'Active' : 'Pending'}</div></div>
+          ))}
+          {!(profile?.stage3?.certifications?.length > 0) && !profile?.stage3?.certCode && (
+            <div className="field"><div className="k">Certifications</div><div className="v">No certifications added yet</div></div>
+          )}
+        </div>
+      </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">04</div>
+            <div><div className="stage-detail-name">Assessment · {(profile?.stage4?.foundationScore ?? profile?.stage4?.score) != null ? `${profile?.stage4?.medal || (profile?.stage4?.passed ? 'Passed' : 'Attempted')} ${profile?.stage4?.foundationScore ?? profile?.stage4?.score}/100` : 'Not Completed'}</div><div className="stage-detail-tag">+25 pts · Talentera-Proctored</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 04")}>🔄 Retake</button></div>
+        </div>
+        <div className="stage-fields">
+          {Array.isArray(profile?.stage4?.sectionScores) && profile.stage4.sectionScores.length > 0 ? profile.stage4.sectionScores.map((sec, idx) => (
+            <div className="field" key={sec.sectionKey || idx}><div className="k">{sec.sectionName || sec.sectionKey}</div><div className="v">{sec.score != null ? `${sec.score} / 100` : `${sec.correct}/${sec.total}`}</div></div>
+          )) : (
+            <div className="field"><div className="k">Assessment</div><div className="v">Not attempted yet</div></div>
+          )}
+        </div>
+      </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">05</div>
+            <div><div className="stage-detail-name">Video Pitch · {profile?.stage5?.overallScore != null ? `${profile.stage5.overallScore}/100` : (completedStages.includes(5) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+10 pts · {profile?.stage5?.verified ? 'Live Verified' : 'Pending'}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening video player")}>▶ Play</button></div>
+        </div>
+        <div className="stage-fields">
+          <div className="field"><div className="k">Clarity</div><div className="v">{profile?.stage5?.clarityScore != null ? `${profile.stage5.clarityScore} / 100` : '—'}</div></div>
+          <div className="field"><div className="k">Fluency</div><div className="v">{profile?.stage5?.fluencyScore != null ? `${profile.stage5.fluencyScore} / 100` : '—'}</div></div>
+          <div className="field"><div className="k">Vocab</div><div className="v">{(profile?.stage5?.vocabScore ?? profile?.stage5?.vocabularyScore) != null ? `${profile?.stage5?.vocabScore ?? profile?.stage5?.vocabularyScore} / 100` : '—'}</div></div>
+          <div className="field"><div className="k">Confidence</div><div className="v">{profile?.stage5?.confidenceScore != null ? `${profile.stage5.confidenceScore} / 100` : '—'}</div></div>
+          <div className="field"><div className="k">Content</div><div className="v">{profile?.stage5?.contentScore != null ? `${profile.stage5.contentScore} / 100` : '—'}</div></div>
+          <div className="field"><div className="k">Recorded</div><div className="v">{profile?.stage5?.completedAt ? new Date(profile.stage5.completedAt).toLocaleDateString('en-IN') : '—'}</div></div>
+        </div>
+      </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">06</div>
+            <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {profile?.stage6?.totalCharts ? 'API-Verified' : 'Pending'}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Sync started")}>🔄 Sync now</button></div>
+        </div>
+        <div className="stage-fields">
+          {Array.isArray(profile?.stage6?.specialtyCharts) && profile.stage6.specialtyCharts.length > 0 ? profile.stage6.specialtyCharts.map((sc, idx) => (
+            <div className="field" key={sc.name || idx}><div className="k">{sc.name}</div><div className="v">{sc.count || 0} · {sc.accuracy || 0}%</div></div>
+          )) : (
+            <div className="field"><div className="k">Charts</div><div className="v">No charts logged yet</div></div>
+          )}
+          <div className="field"><div className="k">Platform</div><div className="v">{Array.isArray(profile?.stage6?.selectedPlatforms) && profile.stage6.selectedPlatforms.length > 0 ? profile.stage6.selectedPlatforms.join(' + ') : '—'}</div></div>
+          <div className="field"><div className="k">Last coded</div><div className="v">{profile?.stage6?.completedAt ? new Date(profile.stage6.completedAt).toLocaleDateString('en-IN') : '—'}</div></div>
+        </div>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'badges' && (
+<div className="page active" id="page-badges">
+      <div className="page-head">
+        <div className="page-eyebrow">Your visual credibility · What companies scan first</div>
+        <h1 className="page-title">My Badges</h1>
+        <p className="page-sub">Badges are earned automatically as you complete each verification stage — no manual claiming needed.</p>
+      </div>
+
+      <div className="badge-section priority-required">
+        <div className="badge-sec-title">
+          🔴 Verification Badges
+          <span className="badge-sec-tag">CORE STAGES</span>
+        </div>
+        <div className="badge-sec-sub">These come directly from your 8 verification stages and are what companies check first.</div>
+        <div className="badge-grid">
+          {badgeCriteria.map((b) => (
+            <div className={"badge " + (b.earned ? "earned priority" : "locked")} key={b.key}>
+              {b.earned && <div className="badge-crown">👑</div>}
+              {b.earned && <div className="badge-verified">✓</div>}
+              <div className="badge-ico">{b.icon}</div>
+              <div className="badge-name">{b.label}</div>
+              <div className="badge-sub">{b.earned ? 'Verified' : 'Not completed yet'}</div>
+              <span className={"badge-value " + (b.earned ? "" : "locked-tag")}>{b.earned ? 'Earned' : 'Locked'}</span>
             </div>
+          ))}
+        </div>
+      </div>
 
-            {/* Filters Bar */}
-            <div
-              style={{
-                display: "flex",
-                gap: 12,
-                marginBottom: 24,
-                flexWrap: "wrap",
-                background: "#FFFFFF",
-                padding: "14px 18px",
-                borderRadius: 12,
-                border: "1px solid #E2E8F0",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.02)",
-              }}
-            >
-              <input
-                type="text"
-                placeholder="Search role, specialty, or company..."
-                value={jobSearch}
-                onChange={(e) => setJobSearch(e.target.value)}
-                style={{
-                  flex: 1,
-                  minWidth: 200,
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #CBD5E1",
-                  fontSize: 13,
-                  outline: "none",
+      <div className="badge-section">
+        <div className="badge-sec-title">
+          📜 Certification Badges
+          <span className="badge-sec-tag regular">FROM STAGE 03</span>
+        </div>
+        <div className="badge-sec-sub">Every certification you've added in Stage 03, shown here automatically.</div>
+        <div className="badge-grid">
+          {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
+            <div className="badge earned" key={cert.memberId || cert.certCode || idx}>
+              <div className="badge-verified">✓</div>
+              <div className="badge-ico">{cert.code || cert.certCode || 'CERT'}</div>
+              <div className="badge-name">{(cert.body || cert.issuingBody || 'AAPC')} {cert.code || cert.certCode}</div>
+              <div className="badge-sub">{cert.name || cert.certName || 'Certification'}</div>
+              <span className="badge-value regular">{profile?.stage3?.certStatus === 'verified' ? 'Verified' : 'Pending'}</span>
+            </div>
+          ))}
+          {!(profile?.stage3?.certifications?.length > 0) && !profile?.stage3?.certCode && (
+            <div className="badge locked">
+              <div className="badge-ico">📜</div>
+              <div className="badge-name">No Certifications Yet</div>
+              <div className="badge-sub">Add one in Stage 03</div>
+              <span className="badge-value locked-tag">Locked</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="badge-section">
+        <div className="badge-sec-title">
+          ✨ Milestone Badges
+          <span className="badge-sec-tag achievement">FROM LIVE CHARTS</span>
+        </div>
+        <div className="badge-sec-sub">Automatic milestones based on your logged live-chart activity.</div>
+        <div className="badge-grid">
+          <div className={"badge " + (chartsCoded >= 100 ? "earned" : "locked")}>
+            {chartsCoded >= 100 && <div className="badge-verified">✓</div>}
+            <div className="badge-ico">💯</div>
+            <div className="badge-name">100 Charts Club</div>
+            <div className="badge-sub">{chartsCoded >= 100 ? `${chartsCoded} charts logged` : `${chartsCoded} / 100 charts logged`}</div>
+            <span className={"badge-value " + (chartsCoded >= 100 ? "regular" : "locked-tag")}>{chartsCoded >= 100 ? 'Earned' : 'Locked'}</span>
+          </div>
+          <div className={"badge " + (chartsCoded >= 500 ? "earned" : "locked")}>
+            {chartsCoded >= 500 && <div className="badge-verified">✓</div>}
+            <div className="badge-ico">🏔</div>
+            <div className="badge-name">500 Charts Club</div>
+            <div className="badge-sub">{chartsCoded >= 500 ? `${chartsCoded} charts logged` : `${chartsCoded} / 500 charts logged`}</div>
+            <span className={"badge-value " + (chartsCoded >= 500 ? "regular" : "locked-tag")}>{chartsCoded >= 500 ? 'Earned' : 'Locked'}</span>
+          </div>
+          <div className={"badge " + (profile?.stage5?.regionalLanguage ? "earned" : "locked")}>
+            {profile?.stage5?.regionalLanguage && <div className="badge-verified">✓</div>}
+            <div className="badge-ico">🌏</div>
+            <div className="badge-name">Multilingual</div>
+            <div className="badge-sub">{profile?.stage5?.regionalLanguage ? `English + ${profile.stage5.regionalLanguage}` : 'Add a regional-language video in Stage 05'}</div>
+            <span className={"badge-value " + (profile?.stage5?.regionalLanguage ? "regular" : "locked-tag")}>{profile?.stage5?.regionalLanguage ? 'Earned' : 'Locked'}</span>
+          </div>
+          <div className={"badge " + (profile?.stage4?.medal === 'Gold' ? "earned" : "locked")}>
+            {profile?.stage4?.medal === 'Gold' && <div className="badge-verified">✓</div>}
+            <div className="badge-ico">🥇</div>
+            <div className="badge-name">Gold Assessment</div>
+            <div className="badge-sub">{profile?.stage4?.medal === 'Gold' ? 'Scored 85+ on the assessment' : 'Score 85+ to unlock'}</div>
+            <span className={"badge-value " + (profile?.stage4?.medal === 'Gold' ? "regular" : "locked-tag")}>{profile?.stage4?.medal === 'Gold' ? 'Earned' : 'Locked'}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'documents' && (
+            <div className="page active" id="page-documents" style={{ padding: 0 }}>
+              <CandidateDocumentsSection
+                candidate={profile}
+                onVaultUpdated={fetchDashboardData}
+              />
+            </div>
+          )}
+
+          {activeTab === 'resumes' && (
+            <div className="page active" id="page-resumes" style={{ padding: 0 }}>
+              <CandidateResumeSection
+                candidate={profile}
+                onSaved={(savedData) => {
+                  setProfile((prev) => ({
+                    ...(prev || {}),
+                    stage7: savedData?.stage7 || savedData?.candidate?.stage7 || savedData,
+                    ...(savedData?.candidate || {}),
+                  }));
+                  fetchDashboardData();
                 }}
               />
-              <input
-                type="text"
-                placeholder="Filter by city (e.g. Hyderabad)..."
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                style={{
-                  width: 200,
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  border: "1px solid #CBD5E1",
-                  fontSize: 13,
-                  outline: "none",
+            </div>
+          )}
+
+          {activeTab === 'companies' && (
+<div className="page active" id="page-companies">
+      <div className="page-head">
+        <div className="page-eyebrow">Every company · Every interview · Every outcome</div>
+        <h1 className="page-title">My Companies</h1>
+        <p className="page-sub">{companiesAttendedCount} {companiesAttendedCount === 1 ? 'company' : 'companies'} tracked · {offersReceivedCount} offer{offersReceivedCount === 1 ? '' : 's'} received{bestOfferCtc > 0 ? ` · Best CTC ₹${bestOfferCtc} LPA` : ''}. Only YOU see feedback details — other companies see anonymized aggregate.</p>
+      </div>
+
+      <div className="co-pipeline">
+        <div className="co-pipe-stage"><div className="count">{applications.length}</div><div className="lbl">Applied</div></div>
+        <div className="co-pipe-stage"><div className="count">{applications.filter((a) => a.status === 'shortlisted').length}</div><div className="lbl">Shortlisted</div></div>
+        <div className="co-pipe-stage active"><div className="count">{applications.filter((a) => a.status === 'interviewing').length}</div><div className="lbl">Interviewing</div></div>
+        <div className="co-pipe-stage selected"><div className="count">{applications.filter((a) => a.status === 'hired').length}</div><div className="lbl">Selected</div></div>
+        <div className="co-pipe-stage rejected"><div className="count">{applications.filter((a) => a.status === 'rejected').length}</div><div className="lbl">Rejected</div></div>
+      </div>
+
+      <div className="co-list">
+        {applications.length > 0 ? applications.map((app) => {
+          const statusMap = {
+            applied: { cls: 'applied', label: '⚪ Applied', cta: 'View' },
+            shortlisted: { cls: 'shortlisted', label: '🟡 Shortlisted', cta: 'Book →' },
+            interviewing: { cls: 'interviewed', label: '🔵 Interviewing', cta: 'Prep →' },
+            hired: { cls: 'selected', label: '✓ OFFER', cta: 'Accept →' },
+            rejected: { cls: 'rejected', label: '✕ Not Selected', cta: 'Feedback' },
+          };
+          const st = statusMap[app.status] || statusMap.applied;
+          const comp = app.compMin && app.compMax ? `₹${app.compMin} – ₹${app.compMax} LPA` : '';
+          return (
+            <div className="co-row" key={app._id} onClick={() => triggerToast(`Opening ${app.companyName} details`)}>
+              <div className="co-logo">{(app.companyName || 'C')[0].toUpperCase()}</div>
+              <div className="co-info"><div className="name">{app.companyName} · {app.roleTitle}</div><div className="role">{app.location}{app.workMode ? ` · ${app.workMode}` : ''}{comp ? ` · ${comp}` : ''}</div><div className="timeline">Applied {new Date(app.createdAt).toLocaleDateString('en-IN')}{app.updatedAt && app.updatedAt !== app.createdAt ? ` · Updated ${new Date(app.updatedAt).toLocaleDateString('en-IN')}` : ''}</div></div>
+              <div className={"co-status " + st.cls}>{st.label}{app.status === 'hired' && comp ? ` · ${comp}` : ''}</div>
+              <button className="co-cta-btn" onClick={(e) => { e.stopPropagation(); triggerToast(`Opening ${app.companyName}`); }}>{st.cta}</button>
+            </div>
+          );
+        }) : (
+          <div style={{"padding":"30px","textAlign":"center","color":"var(--gray-mute)"}}>You haven't applied to any companies yet. Browse the <a onClick={() => setActiveTab("jobs")} style={{"color":"var(--gold-deep)","fontWeight":"800","cursor":"pointer"}}>Jobs Board</a> to get started.</div>
+        )}
+      </div>
+    </div>
+)}
+
+          {activeTab === 'applications' && (
+<div className="page active" id="page-applications">
+      <div className="page-head">
+        <div className="page-eyebrow">Application timeline</div>
+        <h1 className="page-title">My Applications</h1>
+        <p className="page-sub">{applications.length > 0 ? `${applications.length} total application${applications.length === 1 ? '' : 's'} submitted or auto-matched.` : "You haven't submitted any applications yet."}</p>
+      </div>
+      <div className="card">
+        <p style={{"color":"var(--gray-txt)","fontSize":"13px"}}>See <a onClick={() => setActiveTab("companies")} style={{"color":"var(--gold-deep)","fontWeight":"800","cursor":"pointer"}}>My Companies →</a> for the full pipeline view with statuses.</p>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'invites' && (
+<div className="page active" id="page-invites">
+      <div className="page-head">
+        <div className="page-eyebrow">Pending interview slots</div>
+        <h1 className="page-title">Interview Invites</h1>
+        <p className="page-sub">{pendingInvites.length > 0 ? `${pendingInvites.length} pending confirmation${pendingInvites.length === 1 ? '' : 's'}. Confirm as soon as possible to hold your slot.` : 'No pending interview invites right now.'}</p>
+      </div>
+      <div className="co-list">
+        {invites.length > 0 ? invites.map((inv) => (
+          <div className="co-row" key={inv.id}>
+            <div className="co-logo" style={{"background":inv.logoBg || 'var(--navy)'}}>{inv.logoLetter || (inv.company || 'C')[0]}</div>
+            <div className="co-info"><div className="name">{inv.company} · {inv.role}</div><div className="role">{inv.type}{inv.duration ? ` · ${inv.duration}` : ''}</div><div className="timeline">{inv.time}</div></div>
+            <div className={"co-status " + (inv.status === 'confirmed' ? 'selected' : 'shortlisted')}>{inv.status === 'confirmed' ? '✓ Confirmed' : '🟡 Pending'}</div>
+            {inv.status !== 'confirmed' && <button className="co-cta-btn" onClick={() => triggerToast("Slot confirmed. Calendar invite sent.")}>✓ Confirm</button>}
+          </div>
+        )) : (
+          <div style={{"padding":"30px","textAlign":"center","color":"var(--gray-mute)"}}>No interview invites yet. They'll show up here once a company shortlists you.</div>
+        )}
+      </div>
+    </div>
+)}
+
+          {activeTab === 'feedback' && (
+<div className="page active" id="page-feedback">
+      <div className="page-head">
+        <div className="page-eyebrow">Private to you · Never shared with other companies</div>
+        <h1 className="page-title">Feedback Vault</h1>
+        <p className="page-sub">Written feedback from every company interview. Only YOU see this. Other companies see aggregate signals only.</p>
+      </div>
+      <div className="card">
+        {applications.filter((a) => a.status === 'rejected' || a.status === 'hired').length > 0 ? (
+          applications.filter((a) => a.status === 'rejected' || a.status === 'hired').map((app, idx, arr) => (
+            <div style={{"marginBottom": idx === arr.length - 1 ? '0' : '14px'}} key={app._id}>
+              <b style={{"color":"var(--navy)"}}>{app.companyName} · {app.status === 'hired' ? 'Offer' : 'Not Selected'} · {new Date(app.updatedAt).toLocaleDateString('en-IN')}</b>
+              <div style={{"background":"#FAFAF7","borderLeft": app.status === 'hired' ? "3px solid var(--gold)" : "3px solid var(--red)","padding":"10px 14px","borderRadius":"0 8px 8px 0","marginTop":"6px","fontStyle":"italic","color":"var(--gray-txt)","fontSize":"13px"}}>{app.status === 'hired' ? 'Congratulations — you were selected for this role.' : 'No written feedback was shared for this application.'}</div>
+            </div>
+          ))
+        ) : (
+          <div style={{"textAlign":"center","color":"var(--gray-mute)","fontSize":"13px","padding":"10px"}}>No feedback yet. Feedback shared by companies during your interviews will appear here.</div>
+        )}
+      </div>
+    </div>
+)}
+
+          {activeTab === 'jobs' && (
+            <div className="page active" id="page-jobs" style={{ padding: 0 }}>
+              <BrowseJobsSection
+                candidate={profile}
+                applications={applications}
+                onApplied={(job) => {
+                  fetchDashboardData();
                 }}
               />
-              <select
-                value={workModeFilter}
-                onChange={(e) => setWorkModeFilter(e.target.value)}
-                style={{
-                  width: 140,
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid #CBD5E1",
-                  fontSize: 13,
-                  background: "#FFFFFF",
-                  outline: "none",
-                }}
-              >
-                <option value="">All Modes</option>
-                <option value="Remote">Remote</option>
-                <option value="Hybrid">Hybrid</option>
-                <option value="Onsite">Onsite</option>
-              </select>
-              {(jobSearch || locationFilter || workModeFilter) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setJobSearch("");
-                    setLocationFilter("");
-                    setWorkModeFilter("");
-                  }}
-                  style={{
-                    background: "#F1F5F9",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "8px 14px",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: "#475569",
-                    cursor: "pointer",
-                  }}
-                >
-                  Clear Filters
-                </button>
-              )}
+            </div>
+          )}
+
+          {activeTab === 'refer' && (
+            <CandidateReferralPortalSection
+              candidate={profile}
+              referralsData={referrals}
+              onRefresh={fetchDashboardData}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {activeTab === 'employer-referrals' && (
+            <CandidateEmployerReferralsSection
+              candidate={profile}
+              referralsData={referrals}
+              jobs={jobs}
+              onRefresh={fetchDashboardData}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {activeTab === 'academy-referrals' && (
+            <CandidateAcademyReferralsSection
+              candidate={profile}
+              referralsData={referrals}
+              onRefresh={fetchDashboardData}
+              triggerToast={triggerToast}
+            />
+          )}
+
+          {activeTab === 'employment' && (
+<div className="page active" id="page-employment">
+      <div className="page-head" style={{"display":"flex","justifyContent":"space-between","alignItems":"flex-end","flexWrap":"wrap","gap":"16px"}}>
+        <div>
+          <div className="page-eyebrow">Your lifetime employment record</div>
+          <h1 className="page-title">Employment History</h1>
+          <p className="page-sub">Add every job you take. Talentera builds a verified career passport that companies trust more than any resume.</p>
+        </div>
+        <button className="profile-cta" onClick={() => setShowAddJobForm(!showAddJobForm)} id="addJobBtn" style={{"background":"var(--gold)","color":"var(--navy)","padding":"14px 24px","fontSize":"14px","borderRadius":"12px","display":"flex","alignItems":"center","gap":"8px"}}>
+          <span style={{"fontSize":"20px","lineHeight":"1"}}>➕</span> Add New Employment
+        </button>
+      </div>
+
+      {showAddJobForm && (
+      <div className="add-employment-form" id="addJobForm" style={{"background":"linear-gradient(135deg,var(--gold-pale),#FFF9E0)","border":"2px solid var(--gold)","borderRadius":"16px","padding":"28px 30px","marginBottom":"20px"}}>
+        <div style={{"display":"flex","justifyContent":"space-between","alignItems":"center","marginBottom":"20px"}}>
+          <h2 style={{"fontSize":"18px","fontWeight":"800","color":"var(--navy)","margin":"0","display":"flex","alignItems":"center","gap":"10px"}}>💼 Add Your New Job at a Company</h2>
+          <button onClick={() => setShowAddJobForm(!showAddJobForm)} style={{"background":"transparent","color":"var(--gray-mute)","fontSize":"22px","fontWeight":"800","cursor":"pointer","padding":"0 8px"}}>✕</button>
+        </div>
+
+        <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"14px","marginBottom":"14px"}}>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🏢 Company Name *</label>
+            <input type="text" value={employmentForm.companyName} onChange={(e) => setEmploymentForm({ ...employmentForm, companyName: e.target.value })} placeholder="e.g. Optum India" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🎯 Your Role / Designation *</label>
+            <input type="text" value={employmentForm.role} onChange={(e) => setEmploymentForm({ ...employmentForm, role: e.target.value })} placeholder="e.g. HCC Medical Coder" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+        </div>
+
+        <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"14px","marginBottom":"14px"}}>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🩺 Department / Specialty</label>
+            <input type="text" value={employmentForm.specialty} onChange={(e) => setEmploymentForm({ ...employmentForm, specialty: e.target.value })} placeholder="e.g. HCC · Risk Adjustment" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>📍 Work Location *</label>
+            <input type="text" value={employmentForm.location} onChange={(e) => setEmploymentForm({ ...employmentForm, location: e.target.value })} placeholder="e.g. Hyderabad · Onsite" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+        </div>
+
+        <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"14px","marginBottom":"14px"}}>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>📅 Joining Date *</label>
+            <input type="date" value={employmentForm.joiningDate} onChange={(e) => setEmploymentForm({ ...employmentForm, joiningDate: e.target.value })} style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>💰 Base CTC (₹ LPA) *</label>
+            <input type="text" value={employmentForm.ctc} onChange={(e) => setEmploymentForm({ ...employmentForm, ctc: e.target.value })} placeholder="6.8" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🏢 Employment Type</label>
+            <select value={employmentForm.employmentType} onChange={(e) => setEmploymentForm({ ...employmentForm, employmentType: e.target.value })} style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}>
+              <option>Full Time · Permanent</option>
+              <option>Trainee (6-month contract)</option>
+              <option>Contract</option>
+              <option>Internship</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"14px","marginBottom":"14px"}}>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🆔 UAN Number</label>
+            <input type="text" value={employmentForm.uan} onChange={(e) => setEmploymentForm({ ...employmentForm, uan: e.target.value })} placeholder="12-digit UAN" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>👤 Reporting Manager</label>
+            <input type="text" value={employmentForm.manager} onChange={(e) => setEmploymentForm({ ...employmentForm, manager: e.target.value })} placeholder="Manager name" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+          <div>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>📋 Project / Client</label>
+            <input type="text" value={employmentForm.project} onChange={(e) => setEmploymentForm({ ...employmentForm, project: e.target.value })} placeholder="e.g. UnitedHealthcare" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
+          </div>
+        </div>
+
+        <div style={{"display":"flex","gap":"10px","marginTop":"20px","justifyContent":"flex-end"}}>
+          <button onClick={() => setShowAddJobForm(false)} style={{"background":"transparent","color":"var(--gray-txt)","padding":"12px 22px","borderRadius":"10px","fontSize":"13px","fontWeight":"700","border":"1.5px solid var(--border)","cursor":"pointer"}}>Cancel</button>
+          <button disabled={savingEmployment} onClick={handleSaveEmployment} style={{"background":"var(--gold)","color":"var(--navy)","padding":"12px 26px","borderRadius":"10px","fontSize":"13px","fontWeight":"800","border":"none","cursor":"pointer"}}>{savingEmployment ? 'Saving…' : '✓ Save'}</button>
+        </div>
+      </div>
+      )}
+
+      {profile?.stage8?.currentEmployment ? (
+      <div className="card" style={{"background":"linear-gradient(135deg,var(--green-soft),#F5FDF9)","border":"2px solid var(--green)","padding":"22px 26px"}}>
+        <div style={{"display":"flex","justifyContent":"space-between","alignItems":"flex-start","marginBottom":"16px"}}>
+          <div style={{"display":"flex","alignItems":"center","gap":"16px"}}>
+            <div className="co-logo" style={{"width":"64px","height":"64px","borderRadius":"16px","fontSize":"22px"}}>{(profile.stage8.currentEmployment.companyName || 'C')[0].toUpperCase()}</div>
+            <div>
+              <div style={{"color":"var(--green)","fontSize":"11px","fontWeight":"800","letterSpacing":"1.2px","textTransform":"uppercase"}}>🟢 CURRENT EMPLOYMENT</div>
+              <div style={{"fontSize":"20px","fontWeight":"800","color":"var(--navy)","marginTop":"4px"}}>{profile.stage8.currentEmployment.companyName} · {profile.stage8.currentEmployment.role}</div>
+              <div style={{"fontSize":"13px","color":"var(--gray-txt)","marginTop":"4px"}}>{profile.stage8.currentEmployment.location}{profile.stage8.currentEmployment.employmentType ? ` · ${profile.stage8.currentEmployment.employmentType}` : ''}{profile.stage8.currentEmployment.project ? ` · ${profile.stage8.currentEmployment.project}` : ''}</div>
+            </div>
+          </div>
+        </div>
+        <div style={{"display":"grid","gridTemplateColumns":"repeat(5,1fr)","gap":"10px"}}>
+          <div className="field" style={{"background":"var(--white)"}}><div className="k">Joining Date</div><div className="v">{profile.stage8.currentEmployment.joiningDate ? new Date(profile.stage8.currentEmployment.joiningDate).toLocaleDateString('en-IN') : '—'}</div></div>
+          <div className="field" style={{"background":"var(--white)"}}><div className="k">Base CTC</div><div className="v">{profile.stage8.currentEmployment.ctc ? `₹${profile.stage8.currentEmployment.ctc} LPA` : '—'}</div></div>
+          <div className="field" style={{"background":"var(--white)"}}><div className="k">Department</div><div className="v">{profile.stage8.currentEmployment.specialty || '—'}</div></div>
+          <div className="field" style={{"background":"var(--white)"}}><div className="k">Manager</div><div className="v">{profile.stage8.currentEmployment.manager || '—'}</div></div>
+          <div className="field" style={{"background":"var(--white)"}}><div className="k">UAN</div><div className="v">{profile.stage8.currentEmployment.uan || '—'}</div></div>
+        </div>
+      </div>
+      ) : (
+      <div className="card" style={{"textAlign":"center","padding":"30px","color":"var(--gray-mute)"}}>No current employment on record. Click "Add New Employment" once you join a company.</div>
+      )}
+
+      <div style={{"marginTop":"24px"}}>
+        <h3 style={{"fontSize":"16px","fontWeight":"800","color":"var(--navy)","margin":"0 0 14px","display":"flex","alignItems":"center","gap":"10px"}}><div className="mod-ico">📅</div>Your Lifetime Employment History</h3>
+        <div style={{"background":"var(--white)","border":"1px solid var(--border)","borderRadius":"14px","padding":"22px 26px"}}>
+          {Array.isArray(profile?.stage8?.employmentHistory) && profile.stage8.employmentHistory.length > 0 ? (
+          <div style={{"position":"relative","paddingLeft":"28px"}}>
+            <div style={{"position":"absolute","left":"12px","top":"14px","bottom":"14px","width":"2px","background":"var(--gold-pale)"}}></div>
+            {profile.stage8.employmentHistory.map((job, idx) => (
+              <div style={{"position":"relative","padding":"14px 0 18px"}} key={job.id || idx}>
+                <div style={{"position":"absolute","left":"-19px","top":"20px","width":"14px","height":"14px","background": job.status === 'active' ? 'var(--green)' : 'var(--gray-mute)',"border":"3px solid var(--white)","borderRadius":"50%"}}></div>
+                <div style={{"fontSize":"11px","color":"var(--gray-mute)","fontWeight":"800","letterSpacing":".4px"}}>{job.joiningDate ? new Date(job.joiningDate).toLocaleDateString('en-IN') : ''} · {job.status === 'active' ? '🟢 ACTIVE' : 'PAST'}</div>
+                <div style={{"fontSize":"14px","color":"var(--navy)","fontWeight":"800","marginTop":"3px"}}>{job.companyName} · {job.role}</div>
+                <div style={{"fontSize":"12px","color":"var(--gray-txt)","marginTop":"4px"}}>{job.ctc ? `₹${job.ctc} LPA · ` : ''}{job.location}</div>
+              </div>
+            ))}
+          </div>
+          ) : (
+            <div style={{"textAlign":"center","color":"var(--gray-mute)","padding":"20px"}}>No employment history yet. Every job you add builds your verified career passport.</div>
+          )}
+        </div>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'learning' && (
+<div className="page active" id="page-learning">
+      <div className="page-head">
+        <div className="page-eyebrow">Videos + Courses + Question Bank + Partner Academies</div>
+        <h1 className="page-title">Learning Hub</h1>
+        <p className="page-sub">Stage tutorials, an interview question bank, and partner academy enrollment — coming soon.</p>
+      </div>
+      <div className="placeholder-page">
+        <div className="placeholder-ico">📚</div>
+        <div className="placeholder-title">Full Learning Hub — Coming Soon</div>
+        <div className="placeholder-sub">Interview prep videos, an RCM question bank filterable by specialty, and partner academy enrollment, with recommendations based on your Assessment results.</div>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'analytics' && (
+<div className="page active" id="page-analytics">
+      <div className="page-head">
+        <div className="page-eyebrow">Deep career metrics</div>
+        <h1 className="page-title">Career Analytics</h1>
+      </div>
+      {applications.length > 0 ? (
+      <div className="quick-stats">
+        <div className="qs-card"><div className="qs-ico blue">🎯</div><div><div className="qs-val">{Math.round((applications.filter((a) => ['shortlisted','interviewing','hired'].includes(a.status)).length / applications.length) * 100)}%</div><div className="qs-lbl">Shortlist Rate</div></div></div>
+        <div className="qs-card"><div className="qs-ico green">✓</div><div><div className="qs-val">{applications.filter((a) => ['interviewing','hired'].includes(a.status)).length > 0 ? Math.round((applications.filter((a) => a.status === 'hired').length / applications.filter((a) => ['interviewing','hired'].includes(a.status)).length) * 100) : 0}%</div><div className="qs-lbl">Interview-to-Offer</div></div></div>
+        <div className="qs-card"><div className="qs-ico gold">📅</div><div><div className="qs-val">{profile?.createdAt ? Math.floor((Date.now() - new Date(profile.createdAt)) / 86400000) : 0}</div><div className="qs-lbl">Days on Talentera</div></div></div>
+        <div className="qs-card"><div className="qs-ico purple">💰</div><div><div className="qs-val">{bestOfferCtc > 0 ? `₹${bestOfferCtc}` : '—'}</div><div className="qs-lbl">Best CTC (LPA)</div></div></div>
+      </div>
+      ) : (
+      <div className="placeholder-page">
+        <div className="placeholder-ico">📊</div>
+        <div className="placeholder-title">No data yet</div>
+        <div className="placeholder-sub">Once you start applying to companies, your career metrics — shortlist rate, interview-to-offer rate, and more — will appear here.</div>
+      </div>
+      )}
+    </div>
+)}
+
+          {activeTab === 'settings' && (
+<div className="page active" id="page-settings">
+      <div className="page-head">
+        <div className="page-eyebrow">Account preferences · Privacy · Notifications</div>
+        <h1 className="page-title">Settings</h1>
+      </div>
+      <div className="settings-grid">
+        <div className="settings-card">
+          <h3 style={{"fontSize":"15px","fontWeight":"800","color":"var(--navy)","margin":"0 0 12px"}}>Visibility & Hiring</h3>
+          <div className="setting-row"><div><div className="setting-label">Profile Live for Hiring</div><div className="setting-desc">Companies can find you</div></div><div className={"toggle " + (profile?.stage8?.liveForHiring ? "on" : "")} onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Available Immediately</div><div className="setting-desc">Show green available badge</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Open to Relocation</div><div className="setting-desc">Anywhere in India</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">US Night Shift</div><div className="setting-desc">Accept US-facing roles</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+        </div>
+        <div className="settings-card">
+          <h3 style={{"fontSize":"15px","fontWeight":"800","color":"var(--navy)","margin":"0 0 12px"}}>Notifications</h3>
+          <div className="setting-row"><div><div className="setting-label">WhatsApp Alerts</div><div className="setting-desc">New matches + invites</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Email Digest</div><div className="setting-desc">Weekly career summary</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">SMS on Interview</div><div className="setting-desc">Urgent slot reminders</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Learning Reminders</div><div className="setting-desc">Daily practice nudge</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+        </div>
+        <div className="settings-card">
+          <h3 style={{"fontSize":"15px","fontWeight":"800","color":"var(--navy)","margin":"0 0 12px"}}>Privacy & DPDP</h3>
+          <div className="setting-row"><div><div className="setting-label">Data Consent Active</div><div className="setting-desc">DPDP Act compliance</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Anonymize Rejections</div><div className="setting-desc">Hide from other companies</div></div><div className="toggle on" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Request Data Export</div><div className="setting-desc">GDPR-style download</div></div><button className="btn-secondary" onClick={() => triggerToast("Export request submitted")}>Export</button></div>
+          <div className="setting-row"><div><div className="setting-label">Delete Account</div><div className="setting-desc">Right to be forgotten</div></div><button className="btn-secondary" style={{"background":"var(--red-soft)","color":"var(--red)","borderColor":"var(--red-soft)"}} onClick={() => triggerToast("Confirmation email sent")}>Delete</button></div>
+        </div>
+        <div className="settings-card">
+          <h3 style={{"fontSize":"15px","fontWeight":"800","color":"var(--navy)","margin":"0 0 12px"}}>Account</h3>
+          <div className="setting-row"><div><div className="setting-label">Email</div><div className="setting-desc">{candidateEmail || 'Not set'}</div></div><button className="btn-secondary" onClick={() => triggerToast("Verification email sent")}>Change</button></div>
+          <div className="setting-row"><div><div className="setting-label">Mobile</div><div className="setting-desc">{candidatePhone || 'Not set'}</div></div><button className="btn-secondary" onClick={() => triggerToast("OTP sent to new number")}>Change</button></div>
+          <div className="setting-row"><div><div className="setting-label">Password</div><div className="setting-desc">••••••••</div></div><button className="btn-secondary" onClick={() => triggerToast("Password reset email sent")}>Change</button></div>
+          <div className="setting-row"><div><div className="setting-label">Two-Factor Auth</div><div className="setting-desc">Extra security</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+        </div>
+      </div>
+    </div>
+)}
+
+          {activeTab === 'help' && (
+<div className="page active" id="page-help">
+      <div className="page-head">
+        <div className="page-eyebrow">Get answers · Chat with us · Read guides</div>
+        <h1 className="page-title">Help & Support</h1>
+      </div>
+      <div className="placeholder-page">
+        <div className="placeholder-ico">🛟</div>
+        <div className="placeholder-title">We're here to help</div>
+        <div className="placeholder-sub">Live chat with the Talentera team, an FAQ library, and video tutorials — coming soon. For now, reach out via the contact details on your registration email.</div>
+      </div>
+    </div>
+)}        </main>
+      </div>
+
+      {/* REFERRAL MODAL */}
+      {referralModal.open && (
+        <div className="modal-overlay" style={{ display: 'flex' }} onClick={() => setReferralModal({ open: false, title: '', sub: '', link: '' })}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <div className="modal-title">{referralModal.title}</div>
+                <div className="modal-sub">{referralModal.sub}</div>
+              </div>
+              <button className="modal-close" onClick={() => setReferralModal({ open: false, title: '', sub: '', link: '' })}>&times;</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--muted)' }}>Share your unique link:</p>
+              <input type="text" readOnly value={referralModal.link || referralLink} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px' }} />
+              <button className="btn btn-primary" style={{ marginTop: '12px', width: '100%' }} onClick={() => {
+                if (navigator.clipboard) {
+                  navigator.clipboard.writeText(referralModal.link || referralLink);
+                  triggerToast('Link copied to clipboard!');
+                }
+              }}>Copy Link</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* HOW REFERRALS WORK - INFO MODAL (real referral link + point value, generic explainer copy) */}
+      {showReferralInfoModal && (
+        <div className="modal-overlay show" onClick={() => setShowReferralInfoModal(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="ico-lg">🔗</div>
+              <div style={{ flex: 1 }}>
+                <div className="title">How Your Referral Works</div>
+                <div className="sub">Fully automatic — you just share the link</div>
+              </div>
+              <button className="close" onClick={() => setShowReferralInfoModal(false)}>✕</button>
             </div>
 
-            {jobsLoading ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "#64748B" }}>
-                Loading open roles…
+            <div className="modal-body">
+              <p style={{ fontSize: '12.5px', color: 'var(--gray-txt)', lineHeight: '1.6', margin: '0 0 20px' }}>Here's exactly what happens after you share your link. Talentera tracks every step automatically — no manual follow-up needed.</p>
+
+              <div className="modal-step">
+                <div className="modal-step-head">
+                  <div className="modal-step-num">1</div>
+                  <div className="modal-step-title">Your unique referral link is generated ✓</div>
+                </div>
+                <div className="modal-step-body">Every link is tagged with your Candidate ID, so Talentera knows exactly who to credit when your friend signs up.</div>
+                <div className="modal-link-row">
+                  <code>{referralLink || 'Loading your link…'}</code>
+                  <button onClick={() => { if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied to clipboard'); } }}>📋 Copy</button>
+                </div>
               </div>
-            ) : filteredJobs.length === 0 ? (
-              <div
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 16,
-                  border: "1px dashed #CBD5E1",
-                  padding: "48px 24px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 32, marginBottom: 12 }}>🔍</div>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                  No jobs matched your search
-                </h3>
-                <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 16px 0" }}>
-                  Try adjusting or clearing your search filters to view all available roles.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setJobSearch("");
-                    setLocationFilter("");
-                    setWorkModeFilter("");
-                  }}
-                  style={{
-                    background: "#0A1F3D",
-                    color: "#FFFFFF",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "8px 18px",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  Reset all filters
-                </button>
+
+              <div className="modal-step">
+                <div className="modal-step-head">
+                  <div className="modal-step-num">2</div>
+                  <div className="modal-step-title">Share with your friend · Any channel works</div>
+                </div>
+                <div className="modal-step-body">Send it over WhatsApp, LinkedIn, email, or however you'd normally reach them.</div>
+                <div className="modal-share-row">
+                  <button className="modal-share-btn" style={{ background: '#25D366' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('WhatsApp share opened'); }}>💬 WhatsApp</button>
+                  <button className="modal-share-btn" style={{ background: '#0A66C2' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('LinkedIn share opened'); }}>💼 LinkedIn</button>
+                  <button className="modal-share-btn" style={{ background: 'var(--red)' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('Email composer opened'); }}>✉ Email</button>
+                  <button className="modal-share-btn" style={{ background: '#0088CC' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('Telegram opened'); }}>📢 Telegram</button>
+                </div>
               </div>
-            ) : (
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                  gap: 16,
-                }}
-              >
-                {filteredJobs.map((job) => {
-                  const matchScore = calculateJobMatch(job);
-                  const isApplied = myApplications.some((a) => a.jobId === job.jobId);
-                  const isApplying = applyingJobId === job.jobId;
 
-                  return (
-                    <div
-                      key={job.jobId}
-                      style={{
-                        background: "#FFFFFF",
-                        borderRadius: 16,
-                        border: "1px solid #E2E8F0",
-                        padding: "20px",
-                        display: "flex",
-                        flexDirection: "column",
-                        justifyContent: "space-between",
-                        gap: 14,
-                        boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                        transition: "transform 0.15s ease, box-shadow 0.15s ease",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.06)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.03)";
-                      }}
-                    >
-                      <div>
-                        {/* Match Badge */}
-                        <div
-                          style={{
-                            display: "inline-block",
-                            background: "#FEF3C7",
-                            border: "1px solid #FDE68A",
-                            color: "#B45309",
-                            fontSize: 10.5,
-                            fontWeight: 900,
-                            padding: "4px 9px",
-                            borderRadius: 6,
-                            letterSpacing: "0.5px",
-                            marginBottom: 12,
-                          }}
-                        >
-                          {matchScore}% MATCH
-                        </div>
-
-                        {/* Role & Company */}
-                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0A1F3D", margin: "0 0 4px 0" }}>
-                          {job.roleTitle}
-                        </h3>
-                        <div style={{ fontSize: 12, color: "#64748B", marginBottom: 12 }}>
-                          {job.companyName} · {job.location || "Onsite"}{" "}
-                          {job.workMode ? `(${job.workMode})` : ""}
-                        </div>
-
-                        {/* Tags */}
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                          {job.compMin && job.compMax ? (
-                            <span
-                              style={{
-                                background: "#ECFDF5",
-                                border: "1px solid #A7F3D0",
-                                color: "#059669",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "3px 8px",
-                                borderRadius: 6,
-                              }}
-                            >
-                              ₹{job.compMin}–{job.compMax} LPA
-                            </span>
-                          ) : null}
-                          {job.shift && (
-                            <span
-                              style={{
-                                background: "#F8FAFC",
-                                border: "1px solid #E2E8F0",
-                                color: "#475569",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "3px 8px",
-                                borderRadius: 6,
-                              }}
-                            >
-                              {job.shift}
-                            </span>
-                          )}
-                          {job.expMin !== null && job.expMax !== null && (
-                            <span
-                              style={{
-                                background: "#F8FAFC",
-                                border: "1px solid #E2E8F0",
-                                color: "#475569",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "3px 8px",
-                                borderRadius: 6,
-                              }}
-                            >
-                              {job.expMin}–{job.expMax} yrs
-                            </span>
-                          )}
-                          {job.urgency && (
-                            <span
-                              style={{
-                                background: "#FFEDD5",
-                                border: "1px solid #FED7AA",
-                                color: "#C2410C",
-                                fontSize: 11,
-                                fontWeight: 700,
-                                padding: "3px 8px",
-                                borderRadius: 6,
-                              }}
-                            >
-                              {job.urgency}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Footer Apply Row */}
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          borderTop: "1px solid #F1F5F9",
-                          paddingTop: 12,
-                        }}
-                      >
-                        <span style={{ fontSize: 11, color: "#94A3B8" }}>
-                          {job.publishedAt
-                            ? new Date(job.publishedAt).toLocaleDateString("en-IN", {
-                                month: "short",
-                                day: "numeric",
-                              })
-                            : "Recently posted"}
-                        </span>
-
-                        {isApplied ? (
-                          <span
-                            style={{
-                              background: "#ECFDF5",
-                              color: "#059669",
-                              border: "1px solid #A7F3D0",
-                              fontSize: 11.5,
-                              fontWeight: 800,
-                              padding: "6px 14px",
-                              borderRadius: 8,
-                            }}
-                          >
-                            ✓ Applied
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={isApplying}
-                            onClick={() => handleApply(job.jobId, job.roleTitle, job.companyName)}
-                            style={{
-                              background: totalScore >= GOLD_BADGE_THRESHOLD ? "#0A1F3D" : "#94A3B8",
-                              color: "#FFFFFF",
-                              border: "none",
-                              borderRadius: 8,
-                              padding: "7px 16px",
-                              fontWeight: 800,
-                              fontSize: 12,
-                              cursor: totalScore >= GOLD_BADGE_THRESHOLD ? "pointer" : "not-allowed",
-                              boxShadow: "0 2px 8px rgba(10, 31, 61, 0.2)",
-                              transition: "all 0.15s ease",
-                            }}
-                          >
-                            {isApplying ? "Applying..." : "Apply →"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="modal-step">
+                <div className="modal-step-head">
+                  <div className="modal-step-num">3</div>
+                  <div className="modal-step-title">Friend clicks → signs up on Talentera → linked to you</div>
+                </div>
+                <div className="modal-step-body">They land on the registration page with your referral code pre-filled, verify with Aadhaar OTP like every candidate, and their account is permanently linked to your referral.</div>
               </div>
-            )}
-          </main>
-        </section>
-      )}
 
-      {/* ========================================================================= */}
-      {/* TAB 4: APPLICATIONS (Real Candidate Applications Tracker)                 */}
-      {/* ========================================================================= */}
-      {activeTab === "applications" && (
-        <section className="cand-cream-dot-bg" style={{ minHeight: "80vh", borderTop: "1px solid #E5E0D5" }}>
-          <main style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 64px" }}>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ color: "#D97706", fontSize: 11, fontWeight: 800, letterSpacing: "1px", marginBottom: 6 }}>
-                ● APPLICATION TRACKER
+              <div className="modal-step">
+                <div className="modal-step-head">
+                  <div className="modal-step-num">4</div>
+                  <div className="modal-step-title">+100 points land in your wallet instantly</div>
+                </div>
+                <div className="modal-step-body">No waiting period — points are credited the moment their signup is verified. Your current balance is <b style={{ color: 'var(--gold-deep)' }}>{referrals?.pointsWallet ?? 0} points</b>.</div>
               </div>
-              <h1 style={{ fontSize: 30, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                {myApplications.length} active application{myApplications.length === 1 ? "" : "s"}
-              </h1>
-              <p style={{ color: "#64748B", fontSize: 13.5, margin: 0 }}>
-                Track live status updates, employer review milestones, and interview schedules.
-              </p>
+
+              <div className="modal-outcome">
+                <div className="modal-outcome-title">💰 Redeem anytime</div>
+                <div className="modal-outcome-row"><span>Current wallet balance</span><span></span><b>{referrals?.pointsWallet ?? 0} pts</b></div>
+                <div className="modal-outcome-row"><span>Approx. cash value</span><span></span><b>≈ ₹{Math.round((referrals?.pointsWallet ?? 0) / 2)}</b></div>
+              </div>
             </div>
 
-            {myApplications.length === 0 ? (
-              <div
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 16,
-                  border: "1px dashed #CBD5E1",
-                  padding: "48px 24px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 32, marginBottom: 12 }}>📄</div>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                  You haven't submitted any applications yet
-                </h3>
-                <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 16px 0" }}>
-                  Explore verified employer job listings and apply with your verified credentials.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => switchTab("apply")}
-                  style={{
-                    background: "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)",
-                    color: "#06152A",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "10px 22px",
-                    fontSize: 13,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(245, 184, 46, 0.3)",
-                  }}
-                >
-                  Browse open jobs →
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {myApplications.map((app, idx) => {
-                  const statusKey = (app.status || "applied").toLowerCase();
-                  const conf = STATUS_CONFIG[statusKey] || STATUS_CONFIG.applied;
-                  const compName = app.companyName || app.companyId?.companyName || "Employer";
-                  const roleName = app.roleTitle || app.companyId?.stage9?.roletitle || "Medical Coder";
-                  const locName = app.location || app.companyId?.stage9?.location || "India";
-                  const dateStr = app.createdAt
-                    ? new Date(app.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "Recently";
-
-                  return (
-                    <div
-                      key={app._id || idx}
-                      style={{
-                        background: "#FFFFFF",
-                        borderRadius: 16,
-                        border: `1.5px solid ${conf.border}`,
-                        padding: "24px 28px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                      }}
-                    >
-                      <div>
-                        <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0A1F3D", margin: "0 0 4px 0" }}>
-                          {compName}
-                        </h3>
-                        <div style={{ fontSize: 13, color: "#64748B", marginBottom: 6 }}>
-                          {roleName} · {locName}
-                        </div>
-                        <div style={{ fontSize: 12.5, color: "#334155" }}>{conf.desc}</div>
-                        {app.coverNote && (
-                          <div
-                            style={{
-                              fontSize: 11.5,
-                              color: "#64748B",
-                              marginTop: 6,
-                              fontStyle: "italic",
-                            }}
-                          >
-                            Cover note: "{app.coverNote}"
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <span
-                          style={{
-                            background: conf.bg,
-                            border: `1px solid ${conf.border}`,
-                            color: conf.color,
-                            fontWeight: 900,
-                            fontSize: 11,
-                            padding: "5px 12px",
-                            borderRadius: 8,
-                            letterSpacing: "0.5px",
-                            display: "inline-block",
-                          }}
-                        >
-                          {conf.label}
-                        </span>
-                        <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 6 }}>
-                          Applied {dateStr}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </main>
-        </section>
-      )}
-
-      {/* ========================================================================= */}
-      {/* TAB 5: INTERVIEWS (Real Interview History & Scheduled Rounds)             */}
-      {/* ========================================================================= */}
-      {activeTab === "interviews" && (
-        <section className="cand-cream-dot-bg" style={{ minHeight: "80vh", borderTop: "1px solid #E5E0D5" }}>
-          <main style={{ maxWidth: 1100, margin: "0 auto", padding: "36px 24px 64px" }}>
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ color: "#059669", fontSize: 11, fontWeight: 800, letterSpacing: "1px", marginBottom: 6 }}>
-                ● INTERVIEW HISTORY & TRACK
-              </div>
-              <h1 style={{ fontSize: 30, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                Every interview, every outcome ({interviewRecords.length})
-              </h1>
-              <p style={{ color: "#64748B", fontSize: 13.5, margin: 0 }}>
-                Aggregated record of employer interviews, booked slots, and AI assessment evaluations.
-              </p>
+            <div className="modal-footer">
+              <div className="hint">🛡 Fair play: points vest once your friend verifies their profile · self-referrals are blocked.</div>
+              <button className="cta" onClick={() => { setShowReferralInfoModal(false); if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied. Ready to share.'); } }}>📋 Copy My Link →</button>
             </div>
-
-            {interviewRecords.length === 0 ? (
-              <div
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 16,
-                  border: "1px dashed #CBD5E1",
-                  padding: "48px 24px",
-                  textAlign: "center",
-                }}
-              >
-                <div style={{ fontSize: 32, marginBottom: 12 }}>🎙️</div>
-                <h3 style={{ fontSize: 18, fontWeight: 800, color: "#0A1F3D", margin: "0 0 8px 0" }}>
-                  No interview records logged yet
-                </h3>
-                <p style={{ color: "#64748B", fontSize: 13, margin: "0 0 16px 0", maxWidth: 500, marginInline: "auto" }}>
-                  Interviews scheduled by employers who shortlist your profile or booked via Stage 8 will be automatically recorded here.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handleStageClick(8)}
-                  style={{
-                    background: "linear-gradient(135deg, #F5B82E 0%, #E5A82E 100%)",
-                    color: "#06152A",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "10px 22px",
-                    fontSize: 13,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(245, 184, 46, 0.3)",
-                  }}
-                >
-                  Book Live Interview Track Slot →
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {interviewRecords.map((rec) => (
-                  <div
-                    key={rec.id}
-                    style={{
-                      background: "#FFFFFF",
-                      borderRadius: 16,
-                      border: "1px solid #E2E8F0",
-                      padding: "20px 24px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 20,
-                      boxShadow: "0 4px 14px rgba(0,0,0,0.03)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 84,
-                        height: 58,
-                        borderRadius: 10,
-                        background: rec.badgeBg,
-                        border: `1px solid ${rec.badgeColor}40`,
-                        color: rec.badgeColor,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                        textAlign: "center",
-                      }}
-                    >
-                      <span style={{ fontSize: 14, fontWeight: 900, lineHeight: 1 }}>{rec.scoreDisplay}</span>
-                      <span style={{ fontSize: 8.5, fontWeight: 800, letterSpacing: "0.5px", marginTop: 2 }}>
-                        {rec.status}
-                      </span>
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: 15, fontWeight: 800, color: "#0A1F3D", margin: "0 0 4px 0" }}>
-                        {rec.title} · {rec.date}
-                      </h3>
-                      <div style={{ fontSize: 13, color: "#475569", lineHeight: 1.5 }}>{rec.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </main>
-        </section>
+          </div>
+        </div>
       )}
-
-      {/* ========================================================================= */}
-      {/* TAB 6: LEARN (Clinical Refresher Modules, Certifications & Resume Lab)     */}
-      {/* ========================================================================= */}
-      {activeTab === "learn" && (
-        <LearnContent candidate={candidate} onEditStage={handleStageClick} />
-      )}
-
-      {/* Document Vault Modal */}
-      <DocumentVaultModal
-        isOpen={isVaultOpen}
-        onClose={() => setIsVaultOpen(false)}
-        candidate={candidate}
-        onVaultUpdated={fetchProfile}
-      />
     </div>
   );
 }

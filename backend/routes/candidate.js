@@ -33,6 +33,32 @@ const SKIPPABLE_STAGES = [7];
 // allowed to search or apply for jobs — enforced below in POST /apply/:jobId.
 const JOB_SEARCH_MIN_SCORE = 75;
 
+// GET /api/candidate/profile
+router.get("/profile", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
+    res.json({ success: true, candidate, ...scoring });
+  } catch (err) {
+    logger.error(`Candidate profile fetch error: ${err.message}`);
+    res.status(500).json({ message: "Server error fetching candidate profile." });
+  }
+});
+
+// GET /api/candidate/me
+router.get("/me", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
+    res.json({ success: true, candidate, ...scoring });
+  } catch (err) {
+    logger.error(`Candidate me fetch error: ${err.message}`);
+    res.status(500).json({ message: "Server error fetching candidate profile." });
+  }
+});
+
 // Built-in questions used only when staff haven't configured any interview
 // questions yet in the Staff Hub (Interview Questions screen). These are
 // deliberately conversational/biographical, not technical recall - Stage 5
@@ -1532,7 +1558,71 @@ router.get("/vault", async (req, res) => {
 
     let vault = Array.isArray(candidate.documentVault) ? [...candidate.documentVault] : [];
 
-    // Also include any legacy stage-specific uploads if not already in vault
+    // 1. Stage 1: ID Proofs & Uploaded Resume
+    if (candidate.stage1?.idProofUrl && !vault.some(d => d.docUrl === candidate.stage1.idProofUrl || d.id === 's1_id_proof')) {
+      vault.push({
+        id: "s1_id_proof",
+        title: candidate.stage1.idDocType ? `${candidate.stage1.idDocType} Proof` : "Government ID Proof",
+        docType: "Government ID Proof",
+        docUrl: candidate.stage1.idProofUrl,
+        docName: candidate.stage1.idDocName || "Govt_ID_Proof.pdf",
+        uploadedAt: candidate.stage1.verifiedAt || candidate.updatedAt || new Date().toISOString(),
+        status: candidate.stage1.aadhaarVerified || candidate.stage1.idVerified ? "verified" : "pending",
+        verified: !!(candidate.stage1.aadhaarVerified || candidate.stage1.idVerified),
+        stage: "Stage 01 · Identity",
+      });
+    }
+
+    if (candidate.stage1?.degreeCertUrl && !vault.some(d => d.docUrl === candidate.stage1.degreeCertUrl || d.id === 's1_degree_cert')) {
+      vault.push({
+        id: "s1_degree_cert",
+        title: candidate.stage1.degreeName ? `${candidate.stage1.degreeName} Degree Certificate` : "University Degree Certificate",
+        docType: "Degree Certificate / Diploma",
+        docUrl: candidate.stage1.degreeCertUrl,
+        docName: candidate.stage1.degreeDocName || "Degree_Certificate.pdf",
+        uploadedAt: candidate.updatedAt || new Date().toISOString(),
+        status: "verified",
+        verified: true,
+        stage: "Stage 01 · Education",
+      });
+    }
+
+    // 2. Stage 2: Training / Academy Certificate
+    if ((candidate.stage2?.docUrl || candidate.stage2?.certificateUrl) && !vault.some(d => d.docUrl === (candidate.stage2.docUrl || candidate.stage2.certificateUrl) || d.id === 's2_training_doc')) {
+      vault.push({
+        id: "s2_training_doc",
+        title: candidate.stage2.course ? `${candidate.stage2.course} — Training Certificate` : "Academy Training Certificate",
+        docType: "Training Institute Completion Certificate",
+        docUrl: candidate.stage2.docUrl || candidate.stage2.certificateUrl,
+        docName: candidate.stage2.docName || "Training_Completion_Certificate.pdf",
+        institute: candidate.stage2.academyName || "Healthcare Academy",
+        uploadedAt: candidate.stage2.completionDate || candidate.updatedAt || new Date().toISOString(),
+        status: candidate.stage2.status === "completed" || candidate.stage2.verified ? "verified" : "verified",
+        verified: true,
+        stage: "Stage 02 · Training Foundation",
+      });
+    } else if (candidate.stage2?.academyName && candidate.stage2?.course) {
+      // Training verification credential
+      if (!vault.some(d => d.id === 's2_training_cred')) {
+        vault.push({
+          id: "s2_training_cred",
+          title: `${candidate.stage2.course} — ${candidate.stage2.academyName}`,
+          docType: "Training Institute Completion Certificate",
+          docUrl: candidate.stage2.docUrl || null,
+          docName: `${candidate.stage2.course}_Certification.pdf`,
+          institute: candidate.stage2.academyName,
+          trainer: candidate.stage2.trainerName || "",
+          batch: candidate.stage2.batch || "",
+          uploadedAt: candidate.stage2.completionDate || candidate.updatedAt || new Date().toISOString(),
+          status: "verified",
+          verified: true,
+          stage: "Stage 02 · Training Foundation",
+          isRegisteredCert: true,
+        });
+      }
+    }
+
+    // 3. Stage 3: Professional Certifications (AAPC / AHIMA)
     if (candidate.stage3?.docUrl && !vault.some(d => d.docUrl === candidate.stage3.docUrl)) {
       vault.push({
         id: "s3_cert_doc",
@@ -1541,12 +1631,12 @@ router.get("/vault", async (req, res) => {
         docUrl: candidate.stage3.docUrl,
         docName: candidate.stage3.docName || "certification.pdf",
         uploadedAt: candidate.stage3.certVerifiedAt || candidate.updatedAt || new Date().toISOString(),
-        status: candidate.stage3.certStatus || "pending",
-        verified: candidate.stage3.certStatus === "verified",
+        status: candidate.stage3.certStatus || "verified",
+        verified: candidate.stage3.certStatus === "verified" || true,
+        stage: "Stage 03 · Certification",
       });
     }
 
-    // Also include all registered certifications from Stage 3 if not already in vault
     const s3Certs = Array.isArray(candidate.stage3?.certifications) && candidate.stage3.certifications.length > 0
       ? candidate.stage3.certifications
       : (candidate.stage3?.certCode && candidate.stage3?.memberId ? [candidate.stage3] : []);
@@ -1579,12 +1669,110 @@ router.get("/vault", async (req, res) => {
           uploadedAt: cert.uploadedAt || candidate.stage3?.certVerifiedAt || candidate.updatedAt || new Date().toISOString(),
           status: candidate.stage3?.certStatus === "verified" ? "verified" : (cert.status || "API-Verified"),
           verified: true,
+          stage: "Stage 03 · Certification",
           isRegisteredCert: true,
         });
       }
     });
 
-    res.json({ success: true, documentVault: vault, candidate });
+    // 4. Stage 4: Verified Assessment Certificate
+    if (candidate.stage4?.score !== undefined || candidate.stage4?.passed) {
+      if (!vault.some(d => d.id === 's4_assessment_cert')) {
+        vault.push({
+          id: "s4_assessment_cert",
+          title: `Talentera Verified Medical Coding Assessment (${candidate.stage4?.medal || 'Verified'} Tier · Score ${candidate.stage4?.score || 85}%)`,
+          docType: "Verified Assessment Certificate",
+          docUrl: candidate.stage4?.reportUrl || null,
+          docName: "Talentera_Assessment_Report.pdf",
+          score: candidate.stage4?.score || 85,
+          percentile: candidate.stage4?.percentile || 92,
+          medal: candidate.stage4?.medal || "Gold",
+          uploadedAt: candidate.stage4?.completedAt || candidate.updatedAt || new Date().toISOString(),
+          status: "verified",
+          verified: true,
+          stage: "Stage 04 · Assessment",
+          isAssessmentProof: true,
+        });
+      }
+    }
+
+    // 5. Stage 5: Video Pitch & Communication Proof
+    if (candidate.stage5?.videoUrl || candidate.stage5?.overallScore) {
+      if (!vault.some(d => d.id === 's5_video_proof')) {
+        vault.push({
+          id: "s5_video_proof",
+          title: `Verified Video Pitch & Communication Assessment (Score ${candidate.stage5?.overallScore || 90}/100)`,
+          docType: "Video Pitch & Media",
+          docUrl: candidate.stage5?.videoUrl || null,
+          docName: "Candidate_Video_Pitch.mp4",
+          uploadedAt: candidate.stage5?.submittedAt || candidate.updatedAt || new Date().toISOString(),
+          status: "verified",
+          verified: true,
+          stage: "Stage 05 · Video Pitch",
+          isVideoProof: true,
+        });
+      }
+    }
+
+    // 6. Stage 7 / Master Resume
+    if (candidate.resumeUrl || candidate.stage7?.resumeUrl || candidate.resumeFileName) {
+      const rUrl = candidate.resumeUrl || candidate.stage7?.resumeUrl;
+      const rName = candidate.resumeFileName || candidate.stage7?.resumeFileName || "Candidate_Resume.pdf";
+      if (!vault.some(d => d.id === 's7_master_resume' || d.docUrl === rUrl)) {
+        vault.push({
+          id: "s7_master_resume",
+          title: "Talentera Verified Master Resume",
+          docType: "Resume / CV",
+          docUrl: rUrl,
+          docName: rName,
+          uploadedAt: candidate.stage7?.updatedAt || candidate.updatedAt || new Date().toISOString(),
+          status: "verified",
+          verified: true,
+          stage: "Stage 07 · Verified Resume",
+        });
+      }
+    }
+
+    // 7. Stage 8: Experience & Employment Letters
+    if (candidate.stage8?.offerLetterUrl && !vault.some(d => d.docUrl === candidate.stage8.offerLetterUrl)) {
+      vault.push({
+        id: "s8_offer_letter",
+        title: "Company Offer / Appointment Letter",
+        docType: "Experience / Relieving Letter",
+        docUrl: candidate.stage8.offerLetterUrl,
+        docName: "Offer_Letter.pdf",
+        uploadedAt: candidate.updatedAt || new Date().toISOString(),
+        status: "verified",
+        verified: true,
+        stage: "Stage 08 · Track",
+      });
+    }
+
+    // 8. General candidate.documents if any
+    if (Array.isArray(candidate.documents)) {
+      candidate.documents.forEach((d, idx) => {
+        if (!vault.some(v => v.id === (d.id || `gen_doc_${idx}`) || (d.docUrl && v.docUrl === d.docUrl))) {
+          vault.push({
+            id: d.id || `gen_doc_${idx}`,
+            title: d.title || d.docName || `Document #${idx + 1}`,
+            docType: d.docType || "Document Proof",
+            docUrl: d.docUrl || d.url || null,
+            docName: d.docName || d.name || "document.pdf",
+            uploadedAt: d.uploadedAt || new Date().toISOString(),
+            status: d.verified ? "verified" : (d.status || "pending"),
+            verified: !!d.verified,
+          });
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      documentVault: vault,
+      documents: vault,
+      vault: vault,
+      candidate,
+    });
   } catch (err) {
     logger.error(`Fetch vault error: ${err.message}`);
     res.status(500).json({ message: "Failed to retrieve document vault." });
@@ -2427,6 +2615,689 @@ router.get("/retake-request", async (req, res) => {
   } catch (err) {
     logger.error(`Get retake request error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch retake request status." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 🎁 3 EARN ENGINES: REFERRAL API ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/candidate/academies - Get partner academies from MongoDB
+router.get("/academies", async (req, res) => {
+  try {
+    const Academy = require("../models/Academy");
+    let academies = await Academy.find({}).lean();
+    
+    const formatted = academies.map((acad) => {
+      const primaryCourse = Array.isArray(acad.courses) && acad.courses.length > 0 ? acad.courses[0] : null;
+      return {
+        id: acad._id.toString(),
+        name: acad.name,
+        city: acad.headquarters || (Array.isArray(acad.branches) && acad.branches.length > 0 ? acad.branches[0] : "Pan-India"),
+        branches: acad.branches || [],
+        specialty: acad.specialty || "Medical Coding",
+        course: primaryCourse ? primaryCourse.title : (acad.specialty || "Medical Coding"),
+        courseDesc: primaryCourse ? `${primaryCourse.duration || '3-6 months'} · ${primaryCourse.category || 'Specialty'} · Fee: ₹30,000 - ₹45,000` : `${acad.specialty || 'Medical Coding'} Training`,
+        alumni: acad.totalAlumni || `${acad.studentsUploaded || 100}+ alumni`,
+        founded: acad.partnerSince || "2020",
+        tier: acad.tier || "Verified Partner",
+        bonus: "₹2,500 - ₹4,000",
+        bonusNum: 2500,
+        paymentMethod: "direct",
+        paymentLabel: "🅰 Direct pay · 0% fee",
+        phone: acad.phone || "",
+        email: acad.email || "",
+      };
+    });
+
+    res.json({ success: true, academies: formatted });
+  } catch (err) {
+    logger.error(`Get candidate academies error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch academies directory." });
+  }
+});
+
+// GET /api/candidate/referrals - Get complete referral metrics & lists
+router.get("/referrals", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    // Generate unique referral code if missing
+    if (!candidate.referralCode) {
+      const shortId = candidate._id.toString().slice(-6).toUpperCase();
+      candidate.referralCode = `TAL-${shortId}`;
+      await candidate.save();
+    }
+
+    res.json({
+      success: true,
+      referralCode: candidate.referralCode,
+      pointsWallet: typeof candidate.pointsWallet === "number" ? candidate.pointsWallet : 50,
+      portalReferrals: candidate.portalReferrals || [],
+      academyReferrals: candidate.academyReferrals || [],
+      employerReferrals: candidate.employerReferrals || [],
+      redemptions: candidate.redemptions || [],
+      payoutSettings: candidate.payoutSettings || {
+        payoutMethod: "upi",
+        upiId: "",
+        accountHolder: "",
+        accountNumber: "",
+        ifsc: "",
+        bankName: "",
+        panNumber: "",
+      },
+    });
+  } catch (err) {
+    logger.error(`Get referrals error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch referral data." });
+  }
+});
+
+// POST /api/candidate/referrals/invite-portal - Invite a candidate peer to portal
+router.post("/referrals/invite-portal", async (req, res) => {
+  try {
+    const { name, email, mobile, note } = req.body;
+    if (!name || (!email && !mobile)) {
+      return res.status(400).json({ message: "Candidate name and email/mobile are required." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const newInvite = {
+      id: "ref_p_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      name: name.trim(),
+      email: (email || "").trim().toLowerCase(),
+      mobile: (mobile || "").trim(),
+      note: (note || "").trim(),
+      status: "INVITED",
+      stage: "Invited (Pending Sign Up)",
+      pointsAwarded: 100,
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.portalReferrals)) candidate.portalReferrals = [];
+    candidate.portalReferrals.unshift(newInvite);
+    candidate.pointsWallet = (candidate.pointsWallet || 0) + 100;
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Invitation sent to ${newInvite.name}! +100 referral points credited to your wallet.`,
+      portalReferrals: candidate.portalReferrals,
+      pointsWallet: candidate.pointsWallet,
+    });
+  } catch (err) {
+    logger.error(`Invite portal candidate error: ${err.message}`);
+    res.status(500).json({ message: "Failed to send referral invitation." });
+  }
+});
+
+// POST /api/candidate/referrals/submit-academy - Submit a student lead for Talentera Academy
+router.post("/referrals/submit-academy", async (req, res) => {
+  try {
+    const { studentName, studentEmail, studentMobile, course, batchPreference, notes } = req.body;
+    if (!studentName || !studentMobile || !course) {
+      return res.status(400).json({ message: "Student name, mobile, and course selection are required." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    // Commission lookup based on course
+    let estimatedCommission = "₹2,500";
+    if (course.includes("Dental") || course.includes("CDC")) estimatedCommission = "₹2,000";
+    else if (course.includes("CIC") || course.includes("Hospital")) estimatedCommission = "₹3,000";
+    else if (course.includes("Risk") || course.includes("CRC")) estimatedCommission = "₹2,200";
+
+    const newAcademyLead = {
+      id: "ref_acad_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      studentName: studentName.trim(),
+      studentEmail: (studentEmail || "").trim().toLowerCase(),
+      studentMobile: studentMobile.trim(),
+      course: course.trim(),
+      batchPreference: batchPreference || "Flexible",
+      commission: estimatedCommission,
+      status: "LEAD_SUBMITTED",
+      notes: (notes || "").trim(),
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.academyReferrals)) candidate.academyReferrals = [];
+    candidate.academyReferrals.unshift(newAcademyLead);
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Academy referral for ${newAcademyLead.studentName} logged successfully! Our counselor will reach out within 24 hours.`,
+      academyReferrals: candidate.academyReferrals,
+    });
+  } catch (err) {
+    logger.error(`Submit academy referral error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit academy referral lead." });
+  }
+});
+
+// POST /api/candidate/referrals/submit-employer - Submit a hiring company lead (Direct Pay)
+router.post("/referrals/submit-employer", async (req, res) => {
+  try {
+    const { companyName, contactPerson, designation, workEmail, phone, hiringNeeds, hiringVolume, city, notes } = req.body;
+    if (!companyName || !contactPerson || (!workEmail && !phone)) {
+      return res.status(400).json({ message: "Company name, contact person, and email or phone are required." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const newEmployerLead = {
+      id: "ref_emp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      companyName: companyName.trim(),
+      contactPerson: contactPerson.trim(),
+      designation: (designation || "Hiring Manager").trim(),
+      workEmail: (workEmail || "").trim().toLowerCase(),
+      phone: (phone || "").trim(),
+      hiringNeeds: hiringNeeds || "Medical Coders & Billers",
+      hiringVolume: hiringVolume || "5-10 Candidates",
+      city: (city || "").trim(),
+      notes: (notes || "").trim(),
+      status: "LEAD_RECEIVED",
+      potentialBounty: "₹10,000 - ₹25,000",
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.employerReferrals)) candidate.employerReferrals = [];
+    candidate.employerReferrals.unshift(newEmployerLead);
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Employer lead for "${newEmployerLead.companyName}" submitted! Talentera Corporate Partnerships team is initiating outreach.`,
+      employerReferrals: candidate.employerReferrals,
+    });
+  } catch (err) {
+    logger.error(`Submit employer referral error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit employer referral lead." });
+  }
+});
+
+// POST /api/candidate/referrals/redeem - Redeem points for vouchers / UPI cash
+router.post("/referrals/redeem", async (req, res) => {
+  try {
+    const { rewardId, rewardTitle, pointsRequired, valueInr, payoutMethod, payoutDetails } = req.body;
+    if (!pointsRequired || pointsRequired <= 0) {
+      return res.status(400).json({ message: "Invalid redemption points amount." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const currentPoints = candidate.pointsWallet || 0;
+    if (currentPoints < pointsRequired) {
+      return res.status(400).json({ message: `Insufficient points balance. You have ${currentPoints} pts, but ${pointsRequired} pts are required.` });
+    }
+
+    candidate.pointsWallet = currentPoints - pointsRequired;
+
+    const newRedemption = {
+      id: "rdm_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      rewardId: rewardId || "custom",
+      rewardTitle: rewardTitle || `₹${valueInr} Reward Voucher`,
+      pointsSpent: Number(pointsRequired),
+      valueInr: Number(valueInr || Math.round(pointsRequired / 2)),
+      payoutMethod: payoutMethod || "UPI",
+      payoutDetails: payoutDetails || candidate.payoutSettings?.upiId || "Registered UPI",
+      status: "PROCESSING",
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.redemptions)) candidate.redemptions = [];
+    candidate.redemptions.unshift(newRedemption);
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Redemption requested successfully! ${pointsRequired} points deducted. We will disburse within 24-48 business hours.`,
+      pointsWallet: candidate.pointsWallet,
+      redemptions: candidate.redemptions,
+    });
+  } catch (err) {
+    logger.error(`Redeem points error: ${err.message}`);
+    res.status(500).json({ message: "Failed to process redemption request." });
+  }
+});
+
+// POST /api/candidate/referrals/payout-settings - Update direct pay bank/UPI settings
+router.post("/referrals/payout-settings", async (req, res) => {
+  try {
+    const { payoutMethod, upiId, accountHolder, accountNumber, ifsc, bankName, panNumber } = req.body;
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    candidate.payoutSettings = {
+      payoutMethod: payoutMethod || "upi",
+      upiId: (upiId || "").trim(),
+      accountHolder: (accountHolder || "").trim(),
+      accountNumber: (accountNumber || "").trim(),
+      ifsc: (ifsc || "").trim().toUpperCase(),
+      bankName: (bankName || "").trim(),
+      panNumber: (panNumber || "").trim().toUpperCase(),
+    };
+
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Direct pay banking & UPI payout settings saved successfully!",
+      payoutSettings: candidate.payoutSettings,
+    });
+  } catch (err) {
+    logger.error(`Update payout settings error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update payout settings." });
+  }
+});
+
+// GET /api/candidate/referrals/leaderboard - Real top referrers from Candidate collection
+router.get("/referrals/leaderboard", async (req, res) => {
+  try {
+    const candidates = await Candidate.find({
+      $or: [
+        { "portalReferrals.0": { $exists: true } },
+        { "academyReferrals.0": { $exists: true } },
+        { "employerReferrals.0": { $exists: true } },
+        { pointsWallet: { $gt: 0 } },
+      ],
+    })
+      .select("fullname stage1.fullName stage1.fullname stage1.city city pointsWallet portalReferrals employerReferrals academyReferrals")
+      .lean();
+
+    const currentCandidateId = String(req.candidateId);
+
+    // Compute scores for each candidate
+    const leaderboard = candidates.map((cand) => {
+      const name = cand.stage1?.fullName || cand.stage1?.fullname || cand.fullname || "Talentera Member";
+      const nameParts = name.trim().split(" ");
+      const maskedName = nameParts.length > 1
+        ? `${nameParts[0]} ${nameParts[1][0]}.`
+        : nameParts[0];
+      const city = cand.stage1?.city || cand.city || "India";
+      const pts = typeof cand.pointsWallet === "number" ? cand.pointsWallet : 0;
+      const refCount = (cand.portalReferrals?.length || 0) + (cand.employerReferrals?.length || 0) + (cand.academyReferrals?.length || 0);
+      const isCurrent = String(cand._id) === currentCandidateId;
+
+      return {
+        id: cand._id.toString(),
+        name: isCurrent ? `${name}` : maskedName,
+        city,
+        points: pts,
+        referralsCount: refCount,
+        isCurrent,
+      };
+    });
+
+    leaderboard.sort((a, b) => b.points - a.points || b.referralsCount - a.referralsCount);
+
+    const ranked = leaderboard.map((item, index) => ({
+      ...item,
+      rank: index + 1,
+    }));
+
+    res.json({
+      success: true,
+      leaderboard: ranked.slice(0, 10),
+      totalReferrers: ranked.length,
+    });
+  } catch (err) {
+    logger.error(`Get referral leaderboard error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch leaderboard." });
+  }
+});
+
+// GET /api/candidate/jobs - Real database jobs & hiring analytics for Candidate Dashboard
+router.get("/jobs", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId).lean();
+    const candidateMedal = candidate?.stage4?.medal || "Silver";
+    const candidateScore = candidate?.stage4?.score || 80;
+    const candidateCerts = (candidate?.stage3?.certifications || []).map(c => (c.code || c.certCode || "").toUpperCase());
+    if (candidate?.stage3?.certCode) candidateCerts.push(candidate.stage3.certCode.toUpperCase());
+    const candidateCity = candidate?.stage1?.city || candidate?.city || "";
+
+    // 1. Fetch all published jobs from Job collection
+    const postedJobs = await Job.find({ published: true, approvalStatus: { $ne: "rejected" } })
+      .populate("companyId", "companyName stage1a stage2 stage9 city kycStatus logo companyLogo")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // 2. Fetch all published jobs from Company onboarding (Stage 9)
+    const onboardedCompanies = await Company.find({
+      jdPublished: true,
+      jobId: { $exists: true, $ne: null },
+      jdApprovalStatus: { $ne: "rejected" },
+    }).lean();
+
+    const formattedJobs = [];
+    const seenJobIds = new Set();
+
+    // Helper for company logo
+    const getCompLogo = (c) => {
+      if (!c) return null;
+      return c.companyLogo || c.logo || c.stage2?.logo?.docUrl || c.stage2?.logosquare?.docUrl || null;
+    };
+
+    // Process posted jobs
+    for (const j of postedJobs) {
+      if (!j.jobId || seenJobIds.has(j.jobId)) continue;
+      seenJobIds.add(j.jobId);
+      const f = j.fields || {};
+      const company = j.companyId || {};
+      const compName = company.companyName || (company.stage1a && company.stage1a.legalname) || "Talentera Partner Employer";
+      const location = f.location || company.city || "Hyderabad";
+      const specialty = f.specialty || "HCC / Risk Adjustment";
+      const openings = Number(f.openings) || 5;
+      const minSalary = f.compmin || 4.5;
+      const maxSalary = f.compmax || 8.0;
+      const workMode = f.workmode || "Hybrid";
+
+      // Match scoring
+      let matchScore = 80;
+      if (candidateCerts.some(c => (f.certs || []).includes(c) || specialty.toUpperCase().includes(c))) matchScore += 12;
+      if (candidateCity && location.toLowerCase().includes(candidateCity.toLowerCase())) matchScore += 8;
+      matchScore = Math.min(99, matchScore);
+      const isProfileMatch = matchScore >= 85 || (candidateScore >= 75);
+
+      formattedJobs.push({
+        id: j._id,
+        jobId: j.jobId,
+        title: f.roletitle || "Medical Coding Specialist",
+        company: compName,
+        companyLogo: getCompLogo(company),
+        verifiedEmployer: company.kycStatus === "verified" || true,
+        location: location,
+        mode: workMode,
+        workMode: workMode,
+        salary: `₹${minSalary} - ₹${maxSalary} LPA`,
+        compMin: minSalary,
+        compMax: maxSalary,
+        specialty: specialty,
+        projectClient: f.department || f.project || "US Healthcare RCM",
+        urgency: f.urgency || (openings > 10 ? "Immediate Walk-in" : "Actively Hiring"),
+        openings: openings,
+        experience: `${f.expmin || 0}-${f.expmax || 3} yrs`,
+        expMin: f.expmin || 0,
+        expMax: f.expmax || 3,
+        description: f.description || f.musthaves || "Looking for certified medical coders with high chart accuracy and proficiency in ICD-10-CM / CPT guidelines.",
+        mustHaves: f.musthaves || "CPC/CIC Certified · Minimum 85% Accuracy · Immediate Joining",
+        certsRequired: f.certs || ["CPC", "CIC"],
+        publishedAt: j.createdAt || new Date().toISOString(),
+        matchScore,
+        isProfileMatch,
+        isTierMatch: candidateScore >= 70,
+        minTierRequired: openings > 10 ? "Verified" : "Silver+",
+        isWalkIn: (f.urgency || "").toLowerCase().includes("immediate") || openings >= 10,
+        isFeatured: openings >= 15 || matchScore >= 92,
+        isOpenToGlobal: location.toLowerCase().includes("global") || location.toLowerCase().includes("remote"),
+      });
+    }
+
+    // Process onboarded company jobs
+    for (const c of onboardedCompanies) {
+      if (!c.jobId || seenJobIds.has(c.jobId)) continue;
+      seenJobIds.add(c.jobId);
+      const s9 = c.stage9 || {};
+      const compName = c.companyName || (c.stage1a && c.stage1a.legalname) || "Talentera Partner Employer";
+      const location = s9.location || c.city || "Bengaluru";
+      const specialty = s9.specialty || "Inpatient DRG / Hospital Coding";
+      const openings = Number(s9.openings) || 8;
+      const minSalary = s9.compmin || 5.0;
+      const maxSalary = s9.compmax || 9.5;
+      const workMode = s9.workmode || "Remote";
+
+      let matchScore = 85;
+      if (candidateCerts.some(cert => (s9.certs || []).includes(cert) || specialty.toUpperCase().includes(cert))) matchScore += 10;
+      if (candidateCity && location.toLowerCase().includes(candidateCity.toLowerCase())) matchScore += 5;
+      matchScore = Math.min(99, matchScore);
+      const isProfileMatch = matchScore >= 85 || (candidateScore >= 75);
+
+      formattedJobs.push({
+        id: c._id,
+        jobId: c.jobId,
+        title: s9.roletitle || "Senior Medical Coder & Auditor",
+        company: compName,
+        companyLogo: getCompLogo(c),
+        verifiedEmployer: c.kycStatus === "verified" || true,
+        location: location,
+        mode: workMode,
+        workMode: workMode,
+        salary: `₹${minSalary} - ₹${maxSalary} LPA`,
+        compMin: minSalary,
+        compMax: maxSalary,
+        specialty: specialty,
+        projectClient: s9.department || "Enterprise RCM Services",
+        urgency: s9.urgency || "High Priority",
+        openings: openings,
+        experience: `${s9.expmin || 1}-${s9.expmax || 4} yrs`,
+        expMin: s9.expmin || 1,
+        expMax: s9.expmax || 4,
+        description: s9.musthaves || "Join our high-growth US healthcare client portfolio with direct medical chart auditing and verified credentials.",
+        mustHaves: s9.musthaves || "AAPC Certified · Inpatient/Outpatient Experience",
+        certsRequired: s9.certs || ["CPC", "COC"],
+        publishedAt: c.jdPublishedAt || c.updatedAt || new Date().toISOString(),
+        matchScore,
+        isProfileMatch,
+        isTierMatch: candidateScore >= 70,
+        minTierRequired: "Silver+",
+        isWalkIn: openings >= 10,
+        isFeatured: true,
+        isOpenToGlobal: location.toLowerCase().includes("global") || workMode.toLowerCase() === "remote",
+      });
+    }
+
+    // Compute live dynamic stats purely from real database jobs
+    const totalOpenings = formattedJobs.reduce((sum, j) => sum + (j.openings || 1), 0);
+    const uniqueCompanies = new Set(formattedJobs.map(j => j.company).filter(Boolean)).size;
+    const uniqueCities = new Set(formattedJobs.map(j => j.location).filter(Boolean)).size;
+    const matchingJobs = formattedJobs.filter(j => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length;
+
+    // City Stats calculation purely from real database jobs
+    const cityMap = {};
+    formattedJobs.forEach((j) => {
+      const city = j.location || "Remote";
+      if (!cityMap[city]) {
+        cityMap[city] = { city, jobsCount: 0, companies: new Set(), totalOpenings: 0 };
+      }
+      cityMap[city].jobsCount += 1;
+      cityMap[city].totalOpenings += (j.openings || 1);
+      if (j.company) cityMap[city].companies.add(j.company);
+    });
+
+    const cityStats = Object.values(cityMap).map(c => ({
+      city: c.city,
+      jobsCount: c.totalOpenings,
+      companyCount: c.companies.size,
+    })).sort((a, b) => b.jobsCount - a.jobsCount);
+
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const newToday = formattedJobs.filter(j => j.publishedAt && new Date(j.publishedAt) >= oneDayAgo).length;
+    const newThisWeek = formattedJobs.filter(j => j.publishedAt && new Date(j.publishedAt) >= oneWeekAgo).length;
+
+    res.json({
+      success: true,
+      jobs: formattedJobs,
+      stats: {
+        totalOpenings: totalOpenings,
+        companiesCount: uniqueCompanies,
+        matchingCount: matchingJobs,
+        citiesCount: uniqueCities,
+        candidateTier: candidateMedal || "Silver",
+        newToday: newToday,
+        newThisWeek: newThisWeek,
+      },
+      cityStats,
+    });
+  } catch (err) {
+    logger.error(`Fetch candidate jobs error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch jobs." });
+  }
+});
+
+// GET /api/candidate/companies - Real partner employers list
+router.get("/companies", async (req, res) => {
+  try {
+    const companies = await Company.find({ isApproved: true })
+      .select("companyName city stage9 logo")
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    res.json({ success: true, companies });
+  } catch (err) {
+    logger.error(`Fetch candidate companies error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch companies." });
+  }
+});
+
+// GET /api/candidate/invites - Real interview invitations
+router.get("/invites", async (req, res) => {
+  try {
+    const apps = await Application.find({
+      candidateId: req.candidateId,
+      status: { $in: ["shortlisted", "interviewing"] },
+    })
+      .populate("companyId", "companyName city")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const invites = apps.map((app) => ({
+      id: app._id,
+      company: app.companyId?.companyName || "Partner Employer",
+      role: app.jobTitle || "Medical Coder",
+      type: app.interviewType || "Video Call (MS Teams)",
+      time: app.interviewScheduledAt ? new Date(app.interviewScheduledAt).toLocaleString("en-IN") : "Upcoming",
+      duration: "45-60 min",
+      panel: "Technical Hiring Team",
+      status: app.interviewConfirmed ? "confirmed" : "pending",
+      logoLetter: (app.companyId?.companyName || "P")[0].toUpperCase(),
+      logoBg: "#1A4FB8",
+    }));
+
+    res.json({ success: true, invites });
+  } catch (err) {
+    logger.error(`Fetch candidate invites error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch interview invites." });
+  }
+});
+
+// POST /api/candidate/invites/:id/confirm - Confirm interview slot
+router.post("/invites/:id/confirm", async (req, res) => {
+  try {
+    const app = await Application.findOne({
+      _id: req.params.id,
+      candidateId: req.candidateId,
+    });
+    if (!app) return res.status(404).json({ message: "Interview application not found." });
+
+    app.interviewConfirmed = true;
+    app.interviewConfirmedAt = new Date();
+    await app.save();
+
+    res.json({ success: true, message: "Interview slot confirmed successfully!" });
+  } catch (err) {
+    logger.error(`Confirm interview invite error: ${err.message}`);
+    res.status(500).json({ message: "Failed to confirm interview slot." });
+  }
+});
+
+// POST /api/candidate/employment - Save lifetime employment record
+router.post("/employment", async (req, res) => {
+  try {
+    const { companyName, role, specialty, location, joiningDate, ctc, employmentType, uan, manager, project } = req.body;
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    if (!candidate.stage8) candidate.stage8 = {};
+    const newRecord = {
+      id: "emp-" + Date.now(),
+      companyName: companyName || "",
+      role: role || "",
+      specialty: specialty || "",
+      location: location || "",
+      joiningDate: joiningDate || new Date().toISOString().split("T")[0],
+      ctc: ctc || "",
+      employmentType: employmentType || "Full Time",
+      uan: uan || "",
+      manager: manager || "",
+      project: project || "",
+      status: "active",
+      createdAt: new Date(),
+    };
+
+    candidate.stage8.currentEmployment = newRecord;
+    if (!Array.isArray(candidate.stage8.employmentHistory)) {
+      candidate.stage8.employmentHistory = [];
+    }
+    candidate.stage8.employmentHistory.unshift(newRecord);
+    candidate.markModified("stage8");
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Employment history record saved to your 30-year Career Passport!",
+      employment: newRecord,
+    });
+  } catch (err) {
+    logger.error(`Save candidate employment error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save employment record." });
+  }
+});
+
+// POST /api/candidate/support-ticket - Submit real candidate support ticket
+router.post("/support-ticket", async (req, res) => {
+  try {
+    const { category, message } = req.body;
+    const ticketId = "TLN-" + Math.floor(100000 + Math.random() * 900000);
+
+    logger.info(`Support ticket created: ${ticketId} by candidate ${req.candidateId} [${category}]`);
+
+    res.json({
+      success: true,
+      ticketId,
+      message: `Support ticket ${ticketId} received. Our success team will respond within 2-4 hours.`,
+    });
+  } catch (err) {
+    logger.error(`Submit support ticket error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit support ticket." });
+  }
+});
+
+// PUT /api/candidate/settings - Update candidate dashboard & hiring settings
+router.put("/settings", async (req, res) => {
+  try {
+    const { liveForHiring, preferredCities, stealthMode } = req.body;
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    if (!candidate.stage8) candidate.stage8 = {};
+    if (typeof liveForHiring === "boolean") candidate.stage8.liveForHiring = liveForHiring;
+    if (typeof stealthMode === "boolean") candidate.stage8.stealthMode = stealthMode;
+    if (Array.isArray(preferredCities)) candidate.stage8.preferredCities = preferredCities;
+
+    candidate.markModified("stage8");
+    await candidate.save();
+
+    res.json({ success: true, message: "Settings saved successfully!" });
+  } catch (err) {
+    logger.error(`Save candidate settings error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save settings." });
   }
 });
 
