@@ -1,9 +1,30 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import html2pdf from "html2pdf.js";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
-// 6 Verified Resume Templates matching the design
+// Color Palettes for Theme Customizer
+export const THEME_PALETTES = [
+  { id: "gold_navy", name: "Talentera Gold", headerBg: "#0F1B3D", accentColor: "#F5B41A" },
+  { id: "sapphire", name: "Sapphire Blue", headerBg: "#1E3A8A", accentColor: "#2563EB" },
+  { id: "emerald", name: "Emerald Forest", headerBg: "#064E3B", accentColor: "#10B981" },
+  { id: "amethyst", name: "Royal Purple", headerBg: "#4C1D95", accentColor: "#7C3AED" },
+  { id: "crimson", name: "Ruby Crimson", headerBg: "#7F1D1D", accentColor: "#DC2626" },
+  { id: "charcoal", name: "Slate Charcoal", headerBg: "#1E293B", accentColor: "#475569" },
+  { id: "onyx_mono", name: "ATS Monochrome", headerBg: "#000000", accentColor: "#000000" },
+  { id: "teal", name: "Deep Teal", headerBg: "#134E4A", accentColor: "#0D9488" },
+];
+
+// Font Families
+export const FONT_OPTIONS = [
+  { id: "sans", name: "Modern Sans (Inter)", fontFamily: "'Inter', sans-serif" },
+  { id: "serif", name: "Classic Editorial (Georgia)", fontFamily: "Georgia, 'Times New Roman', serif" },
+  { id: "grotesk", name: "Tech Grotesk (Space)", fontFamily: "'Space Grotesk', sans-serif" },
+  { id: "arial", name: "ATS Clean (Arial)", fontFamily: "Arial, Helvetica, sans-serif" },
+];
+
+// 7 Verified Resume Templates matching the design
 const RESUME_TEMPLATES = [
   {
     id: "fresher_modern",
@@ -245,6 +266,52 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     return "fresher_modern";
   });
 
+  const baseTemplateObj = useMemo(() => {
+    return RESUME_TEMPLATES.find((t) => t.id === selectedTemplate) || RESUME_TEMPLATES[0];
+  }, [selectedTemplate]);
+
+  // Theme customizer states (Colors, Font, Density)
+  const initialTheme = stage7Data.themeSettings || {};
+  const [customAccent, setCustomAccent] = useState(initialTheme.accentColor || baseTemplateObj.accentColor);
+  const [customHeaderBg, setCustomHeaderBg] = useState(initialTheme.headerBg || baseTemplateObj.headerBg);
+  const [customFont, setCustomFont] = useState(initialTheme.fontFamily || baseTemplateObj.fontFamily);
+  const [layoutDensity, setLayoutDensity] = useState(initialTheme.density || "normal");
+
+  // Synchronize active template styling with overrides
+  const activeTmpl = useMemo(() => {
+    return {
+      ...baseTemplateObj,
+      accentColor: customAccent || baseTemplateObj.accentColor,
+      headerBg: customHeaderBg || baseTemplateObj.headerBg,
+      fontFamily: customFont || baseTemplateObj.fontFamily,
+    };
+  }, [baseTemplateObj, customAccent, customHeaderBg, customFont]);
+
+  // Handle template selection & apply matching palette
+  function handleSelectTemplate(tmpl) {
+    setSelectedTemplate(tmpl.id);
+    setCustomAccent(tmpl.accentColor);
+    setCustomHeaderBg(tmpl.headerBg);
+    setCustomFont(tmpl.fontFamily);
+    toast(`Template switched to ${tmpl.name}`, "✓");
+  }
+
+  // Handle quick color palette selection
+  function handleSelectPalette(palette) {
+    setCustomAccent(palette.accentColor);
+    setCustomHeaderBg(palette.headerBg);
+    toast(`Applied "${palette.name}" color theme!`, "✓");
+  }
+
+  // Reset theme to template defaults
+  function handleResetTheme() {
+    setCustomAccent(baseTemplateObj.accentColor);
+    setCustomHeaderBg(baseTemplateObj.headerBg);
+    setCustomFont(baseTemplateObj.fontFamily);
+    setLayoutDensity("normal");
+    toast("Reset theme to default template styles.", "✓");
+  }
+
   // Dynamic AI Suggestions for Career Objective based strictly on real DB data
   const aiObjectiveOptions = useMemo(() => {
     const certString = certificationsList.length > 0 ? `${certificationsList.map((c) => c.code || c.name).join(" + ")} certified` : (isNonCertified ? "Talentera-validated" : "Medical coding trained");
@@ -310,7 +377,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       {
         version: "v3",
         timestamp: "Live · Current Version",
-        title: `Career Objective active, template = ${selectedTemplate.replace(/_/g, " ")}`,
+        title: `Career Objective active, template = ${selectedTemplate.replace(/_/g, " ")}, accent = ${activeTmpl.accentColor}`,
         current: true,
       },
       {
@@ -326,7 +393,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         current: false,
       },
     ];
-  }, [stage7Data.versionHistory, selectedTemplate, totalCharts]);
+  }, [stage7Data.versionHistory, selectedTemplate, activeTmpl.accentColor, totalCharts]);
 
   // Live Hiring Companies from database API
   const [liveCompanies, setLiveCompanies] = useState([]);
@@ -363,27 +430,28 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     });
   }
 
-  // Real PDF Download
+  // Real PDF Download using html2pdf with print fallback
   async function handleDownloadPdf() {
     setDownloading(true);
-    toast("Preparing verified watermarked PDF...", "i");
+    toast("Preparing high-resolution verified PDF...", "i");
 
     try {
-      if (window.html2pdf && resumePrintRef.current) {
+      const exporter = html2pdf.default || html2pdf || window.html2pdf;
+      if (exporter && resumePrintRef.current) {
         const opt = {
-          margin: 10,
+          margin: [8, 8, 8, 8],
           filename: `${fullName.replace(/\s+/g, "_")}_Talentera_Verified_Resume.pdf`,
           image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         };
-        await window.html2pdf().from(resumePrintRef.current).set(opt).save();
+        await exporter().from(resumePrintRef.current).set(opt).save();
         toast("Verified PDF downloaded successfully!", "✓");
       } else {
         window.print();
       }
     } catch (err) {
-      console.error("PDF generation error:", err);
+      console.error("PDF generation error, opening print fallback:", err);
       window.print();
     } finally {
       setDownloading(false);
@@ -392,29 +460,37 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Word / DOCX Download
   function handleDownloadWord() {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><title>Resume</title><style>body{font-family:Arial,sans-serif;}</style></head><body>";
+    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><title>Resume</title><style>body{font-family:Arial,sans-serif;line-height:1.5;color:#1E293B;}h1{color:#0F1B3D;margin-bottom:4px;}h3{color:#0F1B3D;border-bottom:1.5px solid #0F1B3D;padding-bottom:4px;margin-top:16px;}table{width:100%;border-collapse:collapse;}th,td{padding:6px;border:1px solid #CBD5E1;text-align:left;}</style></head><body>";
     const footer = "</body></html>";
     const certSection = certificationsList.length > 0
-      ? `<h3>CORE CERTIFICATIONS</h3>${certificationsList.map((c) => `<p><b>${c.body} · ${c.code || c.name}</b> (Member ID: ${c.memberId || "Verified"}) - Active</p>`).join("")}<hr/>`
+      ? `<h3>CORE CERTIFICATIONS</h3>${certificationsList.map((c) => `<p><b>${c.body || 'AAPC'} · ${c.code || c.name}</b> (Member ID: ${c.memberId || "Verified"}) - Active Credential</p>`).join("")}`
+      : "";
+
+    const chartSection = specialtyCharts.length > 0
+      ? `<h3>LIVE CHART AUDIT PRACTICE</h3><table><tr><th>Specialty</th><th>Count</th><th>Accuracy</th><th>Time/Chart</th></tr>${specialtyCharts.map((sc) => `<tr><td>${sc.name}</td><td>${sc.count}</td><td>${sc.accuracy}%</td><td>${sc.timePerChart}</td></tr>`).join("")}</table>`
       : "";
 
     const content = `
       <h1>${fullName.toUpperCase()}</h1>
       <p><b>${currentRoleTitle} · ${locality}</b></p>
-      <p>Phone: ${mobile} | Email: ${email} | Live Verification: ${liveResumeUrl}</p>
+      <p>Phone: ${mobile} | Email: ${email} | Verification ID: ${verificationId}</p>
+      <p>Live Verification: <a href="${liveResumeUrl}">${liveResumeUrl}</a></p>
       <hr/>
       <h3>CAREER OBJECTIVE</h3>
       <p>${careerObjective}</p>
-      <hr/>
       <h3>TALENTERA VERIFIED SCORECARD</h3>
-      <p>Verification Score: ${totalPoints}/100 | Assessment: ${assessmentScore !== null ? assessmentScore + "%" : "Verified"} | Video Pitch: ${videoScore !== null ? videoScore + "%" : "Verified"} | Live Charts: ${totalCharts} charts (${overallAccuracy}% accuracy)</p>
-      <hr/>
+      <p><b>Verification Score:</b> ${totalPoints}/100 | <b>Assessment:</b> ${assessmentScore !== null ? assessmentScore + "% (" + assessmentMedal + ")" : "Verified"} | <b>Video Pitch:</b> ${videoScore !== null ? videoScore + "% (" + videoMedal + ")" : "Verified"} | <b>Live Charts:</b> ${totalCharts} charts (${overallAccuracy}% accuracy)</p>
       ${certSection}
       <h3>TRAINING FOUNDATION</h3>
-      <p><b>${academyName}</b> · ${trainingSpecialties} (${trainingDuration}) ${trainingAssessmentScore ? `- Score: ${trainingAssessmentScore}/100` : ""}</p>
-      <hr/>
-      <h3>EDUCATION</h3>
+      <p><b>${academyName}</b> (${academyLocality}) · ${trainingSpecialties} (${trainingDuration}) ${trainingAssessmentScore ? `- Score: ${trainingAssessmentScore}/100` : ""}</p>
+      ${chartSection}
+      <h3>EDUCATION & ACADEMICS</h3>
       <p><b>${degree}</b> - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}</p>
+      ${twelfthSchool ? `<p><b>Class XII:</b> ${twelfthSchool} (${twelfthYear}) ${twelfthScore ? `- ${twelfthScore}` : ""}</p>` : ""}
+      <h3>WORK PREFERENCES</h3>
+      <p>Cities: ${preferredCities} | Relocation: ${relocationPref} | Shifts: ${shiftPreference}</p>
+      <hr/>
+      <p style="font-size:11px;color:#64748B;">Talentera Verified Resume · Cryptographic Verification ID: ${verificationId} · Live at ${liveResumeUrl}</p>
     `;
     const blob = new Blob(["\ufeff", header + content + footer], { type: "application/msword" });
     const url = URL.createObjectURL(blob);
@@ -425,7 +501,76 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    toast("Word document downloaded!", "✓");
+    toast("Word document downloaded successfully!", "✓");
+  }
+
+  // ATS Clean Text Download
+  function handleDownloadTxt() {
+    const textContent = [
+      "==================================================================",
+      "TALENTERA VERIFIED CANDIDATE RESUME",
+      `Verification ID: ${verificationId} | Verification Score: ${totalPoints}/100`,
+      "==================================================================",
+      "",
+      `NAME: ${fullName.toUpperCase()}`,
+      `TITLE: ${currentRoleTitle} (${expLabel})`,
+      `CONTACT: Mobile: ${mobile} | Email: ${email} | Location: ${locality}`,
+      `LIVE VERIFICATION URL: ${liveResumeUrl}`,
+      "",
+      "------------------------------------------------------------------",
+      "CAREER OBJECTIVE",
+      "------------------------------------------------------------------",
+      careerObjective,
+      "",
+      "------------------------------------------------------------------",
+      "TALENTERA VERIFIED CREDENTIALS & SCORECARD",
+      "------------------------------------------------------------------",
+      assessmentScore !== null ? `* Foundation Assessment: ${assessmentMedal} Tier (${assessmentScore}/100)` : "* Foundation Assessment: Verified",
+      videoScore !== null ? `* AI Video Pitch: ${videoMedal} Tier (${videoScore}/100) - Clarity: ${clarityScore}, Fluency: ${fluencyScore}, Confidence: ${confidenceScore}` : "* AI Video Pitch: Verified",
+      totalCharts > 0 ? `* Live Chart Production: ${chartTier} Tier (${totalCharts} charts coded, ${overallAccuracy}% accuracy)` : "* Live Chart: Foundation Track",
+      "",
+      certificationsList.length > 0 ? [
+        "------------------------------------------------------------------",
+        "CORE CERTIFICATIONS",
+        "------------------------------------------------------------------",
+        ...certificationsList.map((c) => `* ${c.body || 'AAPC'} ${c.code || c.name} (Member ID: ${c.memberId || 'Verified'}) - Valid through: ${c.expiryDate || 'Active'}`),
+        ""
+      ].join("\n") : "",
+      "------------------------------------------------------------------",
+      "TRAINING FOUNDATION",
+      "------------------------------------------------------------------",
+      `* Academy: ${academyName} (${academyLocality})`,
+      `* Specialty: ${trainingSpecialties} - ${trainingLevel}`,
+      `* Duration: ${trainingDuration}`,
+      trainingAssessmentScore ? `* Academy Assessment Score: ${trainingAssessmentScore}/100` : "",
+      "",
+      "------------------------------------------------------------------",
+      "ACADEMIC EDUCATION",
+      "------------------------------------------------------------------",
+      `* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}`,
+      twelfthSchool ? `* Class XII: ${twelfthSchool} (${twelfthYear}) ${twelfthScore ? `- ${twelfthScore}` : ""}` : "",
+      "",
+      "------------------------------------------------------------------",
+      "WORK PREFERENCES",
+      "------------------------------------------------------------------",
+      `* Locations: ${preferredCities}`,
+      `* Relocation: ${relocationPref} | Availability: Immediate | Shifts: ${shiftPreference}`,
+      "",
+      "==================================================================",
+      `Verified by Talentera Automated Credential Engine | Live at ${liveResumeUrl}`,
+      "=================================================================="
+    ].filter(Boolean).join("\n");
+
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${fullName.replace(/\s+/g, "_")}_Talentera_Resume.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast("ATS Plain Text resume downloaded!", "✓");
   }
 
   // PNG Export
@@ -446,6 +591,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     try {
       const payload = {
         template: selectedTemplate,
+        themeSettings: {
+          accentColor: activeTmpl.accentColor,
+          headerBg: activeTmpl.headerBg,
+          fontFamily: activeTmpl.fontFamily,
+          density: layoutDensity,
+        },
         objective: careerObjective,
         summary: careerObjective,
         resumeUrl: liveResumeUrl,
@@ -457,7 +608,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       };
 
       const res = await api.put("/candidate/stage/7", payload);
-      toast(advanceToStage8 ? "Stage 07 saved! Proceeding to Stage 08 · Career Passport..." : "Resume draft saved successfully!", "✓");
+      toast(advanceToStage8 ? "Stage 07 saved! Proceeding to Stage 08 · Career Passport..." : "Resume theme & content saved successfully!", "✓");
 
       if (onSaved) {
         onSaved(res.data, { advance: advanceToStage8, nextStage: 8 });
@@ -469,9 +620,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       setSaving(false);
     }
   }
-
-  // Active template styling
-  const activeTmpl = RESUME_TEMPLATES.find((t) => t.id === selectedTemplate) || RESUME_TEMPLATES[0];
 
   return (
     <div className="stage7-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
@@ -1011,21 +1159,21 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 return (
                   <div
                     key={tmpl.id}
-                    onClick={() => setSelectedTemplate(tmpl.id)}
+                    onClick={() => handleSelectTemplate(tmpl)}
                     className={`s7-template-card ${isSelected ? "selected" : ""} ${isAutoPicked ? "recommended" : ""}`}
                   >
                     <div className="s7-template-check">{isSelected ? "✓" : ""}</div>
                     <div className="s7-template-thumb">
-                      <div className="s7-thumb-header" style={{ background: tmpl.headerBg }}>
-                        <div className="s7-thumb-name-bar" style={{ background: tmpl.accentColor }}></div>
+                      <div className="s7-thumb-header" style={{ background: isSelected ? activeTmpl.headerBg : tmpl.headerBg }}>
+                        <div className="s7-thumb-name-bar" style={{ background: isSelected ? activeTmpl.accentColor : tmpl.accentColor }}></div>
                         <div className="s7-thumb-line short"></div>
                         <div className="s7-thumb-line med"></div>
                       </div>
                       <div className="s7-thumb-body">
-                        <div className="s7-thumb-line gold" style={{ background: tmpl.accentColor }}></div>
+                        <div className="s7-thumb-line gold" style={{ background: isSelected ? activeTmpl.accentColor : tmpl.accentColor }}></div>
                         <div className="s7-thumb-line long"></div>
                         <div className="s7-thumb-line long"></div>
-                        <div className="s7-thumb-line gold" style={{ background: tmpl.accentColor, marginTop: 6 }}></div>
+                        <div className="s7-thumb-line gold" style={{ background: isSelected ? activeTmpl.accentColor : tmpl.accentColor, marginTop: 6 }}></div>
                         <div className="s7-thumb-line long"></div>
                         <div className="s7-thumb-line long"></div>
                       </div>
@@ -1035,6 +1183,125 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                   </div>
                 );
               })}
+            </div>
+
+            {/* THEME & STYLE CUSTOMIZER CONTROLS */}
+            <div style={{
+              background: "#FFFFFF",
+              border: "1.5px solid #F5B41A",
+              borderRadius: "12px",
+              padding: "16px 20px",
+              marginTop: "16px",
+              boxShadow: "0 4px 14px rgba(245,180,26,0.1)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "16px" }}>🎨</span>
+                  <span style={{ fontWeight: "800", color: "#0F1B3D", fontSize: "14px" }}>Theme &amp; Style Customizer</span>
+                  <span style={{ fontSize: "10.5px", background: "#FFF6E0", color: "#C99413", padding: "2px 8px", borderRadius: "6px", fontWeight: "800" }}>LIVE PREVIEW</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetTheme}
+                  style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: "6px", padding: "4px 10px", fontSize: "11px", fontWeight: "700", color: "#475569", cursor: "pointer" }}
+                >
+                  ↺ Reset Theme
+                </button>
+              </div>
+
+              {/* Color Palettes */}
+              <div style={{ marginBottom: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                  1-Click Color Palettes
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {THEME_PALETTES.map((pal) => (
+                    <button
+                      key={pal.id}
+                      type="button"
+                      onClick={() => handleSelectPalette(pal)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "5px 10px",
+                        borderRadius: "8px",
+                        border: customAccent === pal.accentColor && customHeaderBg === pal.headerBg ? "2px solid #0F1B3D" : "1px solid #E2E8F0",
+                        background: customAccent === pal.accentColor && customHeaderBg === pal.headerBg ? "#FFF6E0" : "#FAFAFA",
+                        cursor: "pointer",
+                        fontSize: "11.5px",
+                        fontWeight: "700",
+                        color: "#0F1B3D",
+                      }}
+                    >
+                      <span style={{ display: "inline-block", width: "12px", height: "12px", borderRadius: "50%", background: pal.headerBg, border: "1px solid #CBD5E1" }}></span>
+                      <span style={{ display: "inline-block", width: "12px", height: "12px", borderRadius: "50%", background: pal.accentColor, border: "1px solid #CBD5E1" }}></span>
+                      <span>{pal.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Pickers & Font Selector Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", paddingTop: "10px", borderTop: "1px dashed #E2E8F0" }}>
+                {/* Accent Color */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748B", marginBottom: "4px", textTransform: "uppercase" }}>
+                    Accent Highlight
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="color"
+                      value={activeTmpl.accentColor}
+                      onChange={(e) => setCustomAccent(e.target.value)}
+                      style={{ width: "36px", height: "32px", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", padding: "2px", background: "#fff" }}
+                    />
+                    <input
+                      type="text"
+                      value={activeTmpl.accentColor}
+                      onChange={(e) => setCustomAccent(e.target.value)}
+                      style={{ width: "90px", padding: "6px 8px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "12px", fontWeight: "700", fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Header Background */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748B", marginBottom: "4px", textTransform: "uppercase" }}>
+                    Header Background
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="color"
+                      value={activeTmpl.headerBg}
+                      onChange={(e) => setCustomHeaderBg(e.target.value)}
+                      style={{ width: "36px", height: "32px", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", padding: "2px", background: "#fff" }}
+                    />
+                    <input
+                      type="text"
+                      value={activeTmpl.headerBg}
+                      onChange={(e) => setCustomHeaderBg(e.target.value)}
+                      style={{ width: "90px", padding: "6px 8px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "12px", fontWeight: "700", fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Typography Font */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748B", marginBottom: "4px", textTransform: "uppercase" }}>
+                    Typography Font
+                  </label>
+                  <select
+                    value={customFont}
+                    onChange={(e) => setCustomFont(e.target.value)}
+                    style={{ width: "100%", padding: "6px 8px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "12px", fontWeight: "600", color: "#0F1B3D", background: "#fff" }}
+                  >
+                    {FONT_OPTIONS.map((f) => (
+                      <option key={f.id} value={f.fontFamily}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1398,22 +1665,22 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div onClick={handleDownloadPdf} className="s7-dl-card hero">
                 <div className="s7-dl-ico">📄</div>
                 <div className="s7-dl-name">{downloading ? "Exporting..." : "Download PDF"}</div>
-                <div className="s7-dl-sub">Standard, watermarked</div>
+                <div className="s7-dl-sub">High-res, verified watermark</div>
               </div>
               <div onClick={handleDownloadWord} className="s7-dl-card">
                 <div className="s7-dl-ico">📝</div>
                 <div className="s7-dl-name">Word (.docx)</div>
-                <div className="s7-dl-sub">HR-editable</div>
+                <div className="s7-dl-sub">Formatted &amp; structured</div>
+              </div>
+              <div onClick={handleDownloadTxt} className="s7-dl-card">
+                <div className="s7-dl-ico">📄</div>
+                <div className="s7-dl-name">ATS Text (.txt)</div>
+                <div className="s7-dl-sub">100% plain text scan</div>
               </div>
               <div onClick={handleDownloadPng} className="s7-dl-card">
                 <div className="s7-dl-ico">🖼</div>
-                <div className="s7-dl-name">PNG Image</div>
-                <div className="s7-dl-sub">Social sharing</div>
-              </div>
-              <div onClick={handleDownloadRegional} className="s7-dl-card">
-                <div className="s7-dl-ico">🇮🇳</div>
-                <div className="s7-dl-name">{regionalLang || "Regional"} Version</div>
-                <div className="s7-dl-sub">Regional (bonus)</div>
+                <div className="s7-dl-name">Print / Snapshot</div>
+                <div className="s7-dl-sub">Direct print dialog</div>
               </div>
             </div>
 
