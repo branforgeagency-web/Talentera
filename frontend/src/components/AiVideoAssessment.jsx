@@ -110,7 +110,7 @@ export const SINGLE_SELF_INTRO_QUESTION = [
   }
 ];
 
-export default function AiVideoAssessment({ existingData, onSaved, customQuestions }) {
+export default function AiVideoAssessment({ existingData, onSaved, customQuestions, forceRetake = false, onDiscard }) {
   const toast = useToast();
   const videoPreviewRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -136,8 +136,18 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     ];
   }, []);
 
+  const [isRetakeRequested, setIsRetakeRequested] = useState(Boolean(forceRetake));
+
+  useEffect(() => {
+    if (forceRetake) {
+      setIsRetakeRequested(true);
+      setEvaluation(null);
+      setStep("liveness");
+    }
+  }, [forceRetake]);
+
   const isInterviewCompleted = Boolean(
-    existingData && (existingData.completedAt || existingData.videoUrl || typeof existingData.aiScore === "number")
+    !isRetakeRequested && !forceRetake && existingData && (existingData.completedAt || existingData.videoUrl || typeof existingData.aiScore === "number")
   );
 
   // Setup & Camera States
@@ -147,6 +157,29 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const streamRef = useRef(null);
   const autoStartedRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
+
+  function handleRetake() {
+    setIsRetakeRequested(true);
+    setEvaluation(null);
+    setQaTranscripts({});
+    recordedChunksRef.current = [];
+    setUploadedFile(null);
+    setUploadPreviewUrl("");
+    setVideoDuration(0);
+    setUploadError("");
+    setSessionStarted(false);
+    setRecTimeLeft(60);
+    setRecordingSeconds(0);
+    autoStartedRef.current = false;
+    isStartingRef.current = false;
+    isRecordingActiveRef.current = false;
+    try {
+      localStorage.removeItem(PENDING_REPORT_KEY);
+    } catch (e) {}
+    setStep("liveness");
+    toast("Previous recording discarded. Ready for your new take!", "✓");
+    if (onDiscard) onDiscard();
+  }
 
   // Pre-recorded video upload states
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -1232,8 +1265,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   // called from the "Continue to Next Stage" button below, not automatically
   // on save (see the advance:false onSaved calls above).
   function handleContinueToNextStage() {
-    if (onSaved && lastSavedDataRef.current) {
-      onSaved(lastSavedDataRef.current, { advance: true });
+    if (onSaved) {
+      const dataToPass = lastSavedDataRef.current || {
+        videoUrl: existingData?.videoUrl,
+        evaluation,
+      };
+      onSaved(dataToPass, { advance: true });
     }
   }
 
@@ -2045,8 +2082,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
                 <i className="fa-solid fa-circle-check"></i> 60s SELF-INTRODUCTION RECORDED
               </span>
-              <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #F59E0B" }}>
-                <i className="fa-solid fa-lock"></i> Single Attempt Completed
+              <span style={{ background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #BFDBFE" }}>
+                <i className="fa-solid fa-arrows-rotate"></i> Retake Allowed Anytime
               </span>
             </div>
 
@@ -2085,10 +2122,52 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             )}
 
             {evaluation.feedback && (
-              <p style={{ fontSize: 12, color: "#64748B", margin: "0 auto", maxWidth: 460, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
+              <p style={{ fontSize: 12, color: "#64748B", margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
                 {evaluation.feedback}
               </p>
             )}
+
+            {/* ACTION BUTTONS: DISCARD & RETRY OR KEEP & CONTINUE */}
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleRetake}
+                style={{
+                  background: "#FFF",
+                  color: "#B91C1C",
+                  border: "1.5px solid #FCA5A5",
+                  padding: "11px 20px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  boxShadow: "0 2px 6px rgba(185, 28, 28, 0.08)",
+                }}
+              >
+                <i className="fa-solid fa-rotate-left"></i> Discard &amp; Re-record New Take
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-gold"
+                onClick={handleContinueToNextStage}
+                style={{
+                  padding: "11px 22px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <i className="fa-solid fa-arrow-right"></i> Keep &amp; Return to Stage 05 Hub
+              </button>
+            </div>
           </div>
         </div>
       )}

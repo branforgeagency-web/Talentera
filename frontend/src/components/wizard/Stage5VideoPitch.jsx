@@ -480,11 +480,13 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       existingData?.videoUrl ||
       ""
   );
+  const [isRetryingIntro, setIsRetryingIntro] = useState(false);
   const isSelfIntroComplete = Boolean(introVideoUrl || introVideoBlob);
   const [isUploadingIntro, setIsUploadingIntro] = useState(false);
 
   // Sync server video URL if candidate data loads asynchronously
   useEffect(() => {
+    if (isRetryingIntro) return; // Do not re-populate discarded video while candidate is retrying
     const serverUrl =
       stage5?.introVideoUrl ||
       stage5?.selfIntroVideoUrl ||
@@ -497,6 +499,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       setIntroVideoUrl(serverUrl);
     }
   }, [
+    isRetryingIntro,
     stage5?.introVideoUrl,
     stage5?.selfIntroVideoUrl,
     stage5?.videoUrl,
@@ -1125,6 +1128,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
   const handleStartIntroRecording = async () => {
     stopAiVoice();
+    setIsRetryingIntro(true);
     setMode("record_intro");
   };
 
@@ -1158,11 +1162,13 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     setIntroVideoUrl("");
     setIntroRecordingTime(0);
     setIntroTakeCount((prev) => prev + 1);
+    setIsRetryingIntro(true);
     if (introVideoRef.current) {
       introVideoRef.current.src = "";
       introVideoRef.current.srcObject = null;
     }
-    toast("Draft discarded. Ready for Take " + (introTakeCount + 1), "✓");
+    setMode("record_intro");
+    toast("Previous recording discarded. Ready for Take " + (introTakeCount + 1), "✓");
   };
 
   const handleUploadIntroFile = async (e) => {
@@ -1462,8 +1468,27 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           </span>
         </div>
         <AiVideoAssessment
-          existingData={existingData}
+          existingData={
+            isRetryingIntro
+              ? {
+                  ...existingData,
+                  videoUrl: null,
+                  selfIntroVideoUrl: null,
+                  selfIntroCompleted: false,
+                  completedAt: null,
+                  aiScore: null,
+                  rubric: null,
+                }
+              : existingData
+          }
+          forceRetake={isRetryingIntro}
+          onDiscard={() => {
+            setIsRetryingIntro(true);
+            setIntroVideoUrl("");
+            setIntroVideoBlob(null);
+          }}
           onSaved={(data) => {
+            setIsRetryingIntro(false);
             if (data?.videoUrl) setIntroVideoUrl(data.videoUrl);
             if (onSaved) onSaved(data, { advance: false });
             setMode("overview");
