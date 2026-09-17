@@ -1419,15 +1419,58 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               </div>
             )}
 
-            {/* 6 SYSTEM CHECK CARDS */}
+            {/* 6 SYSTEM CHECK CARDS WITH DEDICATED SVG ICONS */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
               {[
-                sysChecks.webcam,
-                sysChecks.mic,
-                sysChecks.internet,
-                sysChecks.browser,
-                sysChecks.monitor,
-                sysChecks.lighting,
+                { ...sysChecks.webcam, key: "webcam", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M23 7l-7 5 7 5V7z" />
+                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                  </svg>
+                )},
+                { ...sysChecks.mic, key: "mic", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                )},
+                { ...sysChecks.internet, key: "internet", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                    <circle cx="12" cy="20" r="1.5" fill="currentColor" />
+                  </svg>
+                )},
+                { ...sysChecks.browser, key: "browser", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <rect x="9" y="11" width="6" height="5" rx="1" />
+                    <path d="M10 11V9a2 2 0 0 1 4 0v2" />
+                  </svg>
+                )},
+                { ...sysChecks.monitor, key: "monitor", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                )},
+                { ...sysChecks.lighting, key: "lighting", icon: (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="4" />
+                    <line x1="12" y1="2" x2="12" y2="4" />
+                    <line x1="12" y1="20" x2="12" y2="22" />
+                    <line x1="4.93" y1="4.93" x2="6.34" y2="6.34" />
+                    <line x1="17.66" y1="17.66" x2="19.07" y2="19.07" />
+                    <line x1="2" y1="12" x2="4" y2="12" />
+                    <line x1="20" y1="12" x2="22" y2="12" />
+                    <line x1="4.93" y1="19.07" x2="6.34" y2="17.66" />
+                    <line x1="17.66" y1="6.34" x2="19.07" y2="4.93" />
+                  </svg>
+                )},
               ].map((item, idx) => {
                 const isPassed = item.status === "passed";
                 const isChecking = item.status === "checking";
@@ -1437,7 +1480,6 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 const borderCard = isPassed ? "#1F7A3C" : isWarn ? "#E08E00" : "#E5E7EB";
                 const badgeBg = isPassed ? "#1F7A3C" : isWarn ? "#E08E00" : "#8A91A3";
                 const statusColor = isPassed ? "#1F7A3C" : isWarn ? "#B85B00" : "#8A91A3";
-                const iconText = isPassed ? "✓" : isChecking ? "⋯" : "!";
 
                 return (
                   <div
@@ -1455,23 +1497,46 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   >
                     <div
                       style={{
-                        width: 32,
-                        height: 32,
+                        width: 34,
+                        height: 34,
                         background: badgeBg,
                         color: "#FFFFFF",
                         borderRadius: 8,
                         display: "grid",
                         placeItems: "center",
-                        fontSize: 14,
-                        fontWeight: 800,
                         flexShrink: 0,
+                        position: "relative",
                       }}
                     >
-                      {iconText}
+                      {item.icon}
+                      {isPassed && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: -3,
+                            right: -3,
+                            width: 13,
+                            height: 13,
+                            background: "#1F7A3C",
+                            color: "#FFFFFF",
+                            border: "1.5px solid #FFFFFF",
+                            borderRadius: "50%",
+                            display: "grid",
+                            placeItems: "center",
+                            fontSize: 8,
+                            fontWeight: 900,
+                          }}
+                        >
+                          ✓
+                        </div>
+                      )}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)" }}>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", display: "flex", alignItems: "center", gap: 6 }}>
                         {item.title}
+                        {isPassed && (
+                          <span style={{ fontSize: 10, color: "#1F7A3C", fontWeight: 800 }}>✓</span>
+                        )}
                       </div>
                       <div
                         style={{

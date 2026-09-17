@@ -104,6 +104,45 @@ const CandidateSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    // 🎁 Referral & 3 Earning Engines
+    referralCode: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    pointsWallet: {
+      type: Number,
+      default: 50,
+    },
+    portalReferrals: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    academyReferrals: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    employerReferrals: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    redemptions: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    payoutSettings: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        payoutMethod: "upi",
+        upiId: "",
+        accountHolder: "",
+        accountNumber: "",
+        ifsc: "",
+        bankName: "",
+        panNumber: "",
+      }),
+    },
   },
   { timestamps: true } // gives createdAt / updatedAt automatically
 );

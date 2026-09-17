@@ -16,6 +16,16 @@ const RESUME_TEMPLATES = [
     type: "modern",
   },
   {
+    id: "plain_bw",
+    name: "⚪ Plain Black & White",
+    sub: "Pure monochrome & high-contrast layout. 100% ATS-compliant, photocopy & print-ready.",
+    badge: "ATS B&W",
+    headerBg: "#000000",
+    accentColor: "#000000",
+    fontFamily: "'Inter', Arial, sans-serif",
+    type: "plain_bw",
+  },
+  {
     id: "fresher_classic",
     name: "📋 Fresher Classic",
     sub: "Traditional layout. ATS-safe. Great for Bronze-tier candidates.",

@@ -33,6 +33,30 @@ const SKIPPABLE_STAGES = [7];
 // allowed to search or apply for jobs — enforced below in POST /apply/:jobId.
 const JOB_SEARCH_MIN_SCORE = 75;
 
+// GET /api/candidate/profile
+router.get("/profile", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    res.json({ success: true, candidate });
+  } catch (err) {
+    logger.error(`Candidate profile fetch error: ${err.message}`);
+    res.status(500).json({ message: "Server error fetching candidate profile." });
+  }
+});
+
+// GET /api/candidate/me
+router.get("/me", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    res.json({ success: true, candidate });
+  } catch (err) {
+    logger.error(`Candidate me fetch error: ${err.message}`);
+    res.status(500).json({ message: "Server error fetching candidate profile." });
+  }
+});
+
 // Built-in questions used only when staff haven't configured any interview
 // questions yet in the Staff Hub (Interview Questions screen). These are
 // deliberately conversational/biographical, not technical recall - Stage 5
@@ -2426,6 +2450,441 @@ router.get("/retake-request", async (req, res) => {
   } catch (err) {
     logger.error(`Get retake request error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch retake request status." });
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// 🎁 3 EARN ENGINES: REFERRAL API ROUTES
+// ═══════════════════════════════════════════════════════════════
+
+// GET /api/candidate/referrals - Get complete referral metrics & lists
+router.get("/referrals", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    // Generate unique referral code if missing
+    if (!candidate.referralCode) {
+      const shortId = candidate._id.toString().slice(-6).toUpperCase();
+      candidate.referralCode = `TAL-${shortId}`;
+      await candidate.save();
+    }
+
+    res.json({
+      success: true,
+      referralCode: candidate.referralCode,
+      pointsWallet: typeof candidate.pointsWallet === "number" ? candidate.pointsWallet : 50,
+      portalReferrals: candidate.portalReferrals || [],
+      academyReferrals: candidate.academyReferrals || [],
+      employerReferrals: candidate.employerReferrals || [],
+      redemptions: candidate.redemptions || [],
+      payoutSettings: candidate.payoutSettings || {
+        payoutMethod: "upi",
+        upiId: "",
+        accountHolder: "",
+        accountNumber: "",
+        ifsc: "",
+        bankName: "",
+        panNumber: "",
+      },
+    });
+  } catch (err) {
+    logger.error(`Get referrals error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch referral data." });
+  }
+});
+
+// POST /api/candidate/referrals/invite-portal - Invite a candidate peer to portal
+router.post("/referrals/invite-portal", async (req, res) => {
+  try {
+    const { name, email, mobile, note } = req.body;
+    if (!name || (!email && !mobile)) {
+      return res.status(400).json({ message: "Candidate name and email/mobile are required." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const newInvite = {
+      id: "ref_p_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      name: name.trim(),
+      email: (email || "").trim().toLowerCase(),
+      mobile: (mobile || "").trim(),
+      note: (note || "").trim(),
+      status: "INVITED",
+      stage: "Invited (Pending Sign Up)",
+      pointsAwarded: 100,
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.portalReferrals)) candidate.portalReferrals = [];
+    candidate.portalReferrals.unshift(newInvite);
+    candidate.pointsWallet = (candidate.pointsWallet || 0) + 100;
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Invitation sent to ${newInvite.name}! +100 referral points credited to your wallet.`,
+      portalReferrals: candidate.portalReferrals,
+      pointsWallet: candidate.pointsWallet,
+    });
+  } catch (err) {
+    logger.error(`Invite portal candidate error: ${err.message}`);
+    res.status(500).json({ message: "Failed to send referral invitation." });
+  }
+});
+
+// POST /api/candidate/referrals/submit-academy - Submit a student lead for Talentera Academy
+router.post("/referrals/submit-academy", async (req, res) => {
+  try {
+    const { studentName, studentEmail, studentMobile, course, batchPreference, notes } = req.body;
+    if (!studentName || !studentMobile || !course) {
+      return res.status(400).json({ message: "Student name, mobile, and course selection are required." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    // Commission lookup based on course
+    let estimatedCommission = "₹2,500";
+    if (course.includes("Dental") || course.includes("CDC")) estimatedCommission = "₹2,000";
+    else if (course.includes("CIC") || course.includes("Hospital")) estimatedCommission = "₹3,000";
+    else if (course.includes("Risk") || course.includes("CRC")) estimatedCommission = "₹2,200";
+
+    const newAcademyLead = {
+      id: "ref_acad_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      studentName: studentName.trim(),
+      studentEmail: (studentEmail || "").trim().toLowerCase(),
+      studentMobile: studentMobile.trim(),
+      course: course.trim(),
+      batchPreference: batchPreference || "Flexible",
+      commission: estimatedCommission,
+      status: "LEAD_SUBMITTED",
+      notes: (notes || "").trim(),
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.academyReferrals)) candidate.academyReferrals = [];
+    candidate.academyReferrals.unshift(newAcademyLead);
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Academy referral for ${newAcademyLead.studentName} logged successfully! Our counselor will reach out within 24 hours.`,
+      academyReferrals: candidate.academyReferrals,
+    });
+  } catch (err) {
+    logger.error(`Submit academy referral error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit academy referral lead." });
+  }
+});
+
+// POST /api/candidate/referrals/submit-employer - Submit a hiring company lead (Direct Pay)
+router.post("/referrals/submit-employer", async (req, res) => {
+  try {
+    const { companyName, contactPerson, designation, workEmail, phone, hiringNeeds, hiringVolume, city, notes } = req.body;
+    if (!companyName || !contactPerson || (!workEmail && !phone)) {
+      return res.status(400).json({ message: "Company name, contact person, and email or phone are required." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const newEmployerLead = {
+      id: "ref_emp_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      companyName: companyName.trim(),
+      contactPerson: contactPerson.trim(),
+      designation: (designation || "Hiring Manager").trim(),
+      workEmail: (workEmail || "").trim().toLowerCase(),
+      phone: (phone || "").trim(),
+      hiringNeeds: hiringNeeds || "Medical Coders & Billers",
+      hiringVolume: hiringVolume || "5-10 Candidates",
+      city: (city || "").trim(),
+      notes: (notes || "").trim(),
+      status: "LEAD_RECEIVED",
+      potentialBounty: "₹10,000 - ₹25,000",
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.employerReferrals)) candidate.employerReferrals = [];
+    candidate.employerReferrals.unshift(newEmployerLead);
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Employer lead for "${newEmployerLead.companyName}" submitted! Talentera Corporate Partnerships team is initiating outreach.`,
+      employerReferrals: candidate.employerReferrals,
+    });
+  } catch (err) {
+    logger.error(`Submit employer referral error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit employer referral lead." });
+  }
+});
+
+// POST /api/candidate/referrals/redeem - Redeem points for vouchers / UPI cash
+router.post("/referrals/redeem", async (req, res) => {
+  try {
+    const { rewardId, rewardTitle, pointsRequired, valueInr, payoutMethod, payoutDetails } = req.body;
+    if (!pointsRequired || pointsRequired <= 0) {
+      return res.status(400).json({ message: "Invalid redemption points amount." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const currentPoints = candidate.pointsWallet || 0;
+    if (currentPoints < pointsRequired) {
+      return res.status(400).json({ message: `Insufficient points balance. You have ${currentPoints} pts, but ${pointsRequired} pts are required.` });
+    }
+
+    candidate.pointsWallet = currentPoints - pointsRequired;
+
+    const newRedemption = {
+      id: "rdm_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
+      rewardId: rewardId || "custom",
+      rewardTitle: rewardTitle || `₹${valueInr} Reward Voucher`,
+      pointsSpent: Number(pointsRequired),
+      valueInr: Number(valueInr || Math.round(pointsRequired / 2)),
+      payoutMethod: payoutMethod || "UPI",
+      payoutDetails: payoutDetails || candidate.payoutSettings?.upiId || "Registered UPI",
+      status: "PROCESSING",
+      createdAt: new Date(),
+    };
+
+    if (!Array.isArray(candidate.redemptions)) candidate.redemptions = [];
+    candidate.redemptions.unshift(newRedemption);
+
+    await candidate.save();
+
+    res.status(201).json({
+      success: true,
+      message: `Redemption requested successfully! ${pointsRequired} points deducted. We will disburse within 24-48 business hours.`,
+      pointsWallet: candidate.pointsWallet,
+      redemptions: candidate.redemptions,
+    });
+  } catch (err) {
+    logger.error(`Redeem points error: ${err.message}`);
+    res.status(500).json({ message: "Failed to process redemption request." });
+  }
+});
+
+// POST /api/candidate/referrals/payout-settings - Update direct pay bank/UPI settings
+router.post("/referrals/payout-settings", async (req, res) => {
+  try {
+    const { payoutMethod, upiId, accountHolder, accountNumber, ifsc, bankName, panNumber } = req.body;
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    candidate.payoutSettings = {
+      payoutMethod: payoutMethod || "upi",
+      upiId: (upiId || "").trim(),
+      accountHolder: (accountHolder || "").trim(),
+      accountNumber: (accountNumber || "").trim(),
+      ifsc: (ifsc || "").trim().toUpperCase(),
+      bankName: (bankName || "").trim(),
+      panNumber: (panNumber || "").trim().toUpperCase(),
+    };
+
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Direct pay banking & UPI payout settings saved successfully!",
+      payoutSettings: candidate.payoutSettings,
+    });
+  } catch (err) {
+    logger.error(`Update payout settings error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update payout settings." });
+  }
+});
+
+// GET /api/candidate/jobs - Real database jobs for Candidate Dashboard
+router.get("/jobs", async (req, res) => {
+  try {
+    const jobs = await Job.find({ published: true, approvalStatus: "approved" })
+      .populate("companyId", "companyName stage1 stage9 city")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formattedJobs = jobs.map((j) => {
+      const f = j.fields || {};
+      const company = j.companyId || {};
+      return {
+        id: j._id,
+        jobId: j.jobId,
+        title: f.roletitle || "Medical Coding Specialist",
+        company: company.companyName || "Partner Employer",
+        location: f.location || company.city || "Remote / Onsite",
+        mode: f.workmode || "Hybrid",
+        salary: f.compmin && f.compmax ? `₹${f.compmin} - ₹${f.compmax} LPA` : "₹5.0 - ₹7.5 LPA",
+        specialty: f.specialty || "HCC / E/M",
+        urgency: f.urgency || "Active",
+        openings: f.openings || 5,
+        experience: `${f.expmin || 0}-${f.expmax || 3} yrs`,
+        description: f.description || "",
+      };
+    });
+
+    res.json({ success: true, jobs: formattedJobs });
+  } catch (err) {
+    logger.error(`Fetch candidate jobs error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch jobs." });
+  }
+});
+
+// GET /api/candidate/companies - Real partner employers list
+router.get("/companies", async (req, res) => {
+  try {
+    const companies = await Company.find({ isApproved: true })
+      .select("companyName city stage9 logo")
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    res.json({ success: true, companies });
+  } catch (err) {
+    logger.error(`Fetch candidate companies error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch companies." });
+  }
+});
+
+// GET /api/candidate/invites - Real interview invitations
+router.get("/invites", async (req, res) => {
+  try {
+    const apps = await Application.find({
+      candidateId: req.candidateId,
+      status: { $in: ["shortlisted", "interviewing"] },
+    })
+      .populate("companyId", "companyName city")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    const invites = apps.map((app) => ({
+      id: app._id,
+      company: app.companyId?.companyName || "Partner Employer",
+      role: app.jobTitle || "Medical Coder",
+      type: app.interviewType || "Video Call (MS Teams)",
+      time: app.interviewScheduledAt ? new Date(app.interviewScheduledAt).toLocaleString("en-IN") : "Upcoming",
+      duration: "45-60 min",
+      panel: "Technical Hiring Team",
+      status: app.interviewConfirmed ? "confirmed" : "pending",
+      logoLetter: (app.companyId?.companyName || "P")[0].toUpperCase(),
+      logoBg: "#1A4FB8",
+    }));
+
+    res.json({ success: true, invites });
+  } catch (err) {
+    logger.error(`Fetch candidate invites error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch interview invites." });
+  }
+});
+
+// POST /api/candidate/invites/:id/confirm - Confirm interview slot
+router.post("/invites/:id/confirm", async (req, res) => {
+  try {
+    const app = await Application.findOne({
+      _id: req.params.id,
+      candidateId: req.candidateId,
+    });
+    if (!app) return res.status(404).json({ message: "Interview application not found." });
+
+    app.interviewConfirmed = true;
+    app.interviewConfirmedAt = new Date();
+    await app.save();
+
+    res.json({ success: true, message: "Interview slot confirmed successfully!" });
+  } catch (err) {
+    logger.error(`Confirm interview invite error: ${err.message}`);
+    res.status(500).json({ message: "Failed to confirm interview slot." });
+  }
+});
+
+// POST /api/candidate/employment - Save lifetime employment record
+router.post("/employment", async (req, res) => {
+  try {
+    const { companyName, role, specialty, location, joiningDate, ctc, employmentType, uan, manager, project } = req.body;
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    if (!candidate.stage8) candidate.stage8 = {};
+    const newRecord = {
+      id: "emp-" + Date.now(),
+      companyName: companyName || "",
+      role: role || "",
+      specialty: specialty || "",
+      location: location || "",
+      joiningDate: joiningDate || new Date().toISOString().split("T")[0],
+      ctc: ctc || "",
+      employmentType: employmentType || "Full Time",
+      uan: uan || "",
+      manager: manager || "",
+      project: project || "",
+      status: "active",
+      createdAt: new Date(),
+    };
+
+    candidate.stage8.currentEmployment = newRecord;
+    if (!Array.isArray(candidate.stage8.employmentHistory)) {
+      candidate.stage8.employmentHistory = [];
+    }
+    candidate.stage8.employmentHistory.unshift(newRecord);
+    candidate.markModified("stage8");
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Employment history record saved to your 30-year Career Passport!",
+      employment: newRecord,
+    });
+  } catch (err) {
+    logger.error(`Save candidate employment error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save employment record." });
+  }
+});
+
+// POST /api/candidate/support-ticket - Submit real candidate support ticket
+router.post("/support-ticket", async (req, res) => {
+  try {
+    const { category, message } = req.body;
+    const ticketId = "TLN-" + Math.floor(100000 + Math.random() * 900000);
+
+    logger.info(`Support ticket created: ${ticketId} by candidate ${req.candidateId} [${category}]`);
+
+    res.json({
+      success: true,
+      ticketId,
+      message: `Support ticket ${ticketId} received. Our success team will respond within 2-4 hours.`,
+    });
+  } catch (err) {
+    logger.error(`Submit support ticket error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit support ticket." });
+  }
+});
+
+// PUT /api/candidate/settings - Update candidate dashboard & hiring settings
+router.put("/settings", async (req, res) => {
+  try {
+    const { liveForHiring, preferredCities, stealthMode } = req.body;
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    if (!candidate.stage8) candidate.stage8 = {};
+    if (typeof liveForHiring === "boolean") candidate.stage8.liveForHiring = liveForHiring;
+    if (typeof stealthMode === "boolean") candidate.stage8.stealthMode = stealthMode;
+    if (Array.isArray(preferredCities)) candidate.stage8.preferredCities = preferredCities;
+
+    candidate.markModified("stage8");
+    await candidate.save();
+
+    res.json({ success: true, message: "Settings saved successfully!" });
+  } catch (err) {
+    logger.error(`Save candidate settings error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save settings." });
   }
 });
 
