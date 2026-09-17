@@ -110,7 +110,7 @@ export const SINGLE_SELF_INTRO_QUESTION = [
   }
 ];
 
-export default function AiVideoAssessment({ existingData, onSaved, customQuestions }) {
+export default function AiVideoAssessment({ existingData, onSaved, customQuestions, forceRetake = false, onDiscard }) {
   const toast = useToast();
   const videoPreviewRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -136,8 +136,18 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     ];
   }, []);
 
+  const [isRetakeRequested, setIsRetakeRequested] = useState(Boolean(forceRetake));
+
+  useEffect(() => {
+    if (forceRetake) {
+      setIsRetakeRequested(true);
+      setEvaluation(null);
+      setStep("liveness");
+    }
+  }, [forceRetake]);
+
   const isInterviewCompleted = Boolean(
-    existingData && (existingData.completedAt || existingData.videoUrl || typeof existingData.aiScore === "number")
+    !isRetakeRequested && !forceRetake && existingData && (existingData.completedAt || existingData.videoUrl || typeof existingData.aiScore === "number")
   );
 
   // Setup & Camera States
@@ -147,6 +157,29 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const streamRef = useRef(null);
   const autoStartedRef = useRef(false);
   const [cameraError, setCameraError] = useState("");
+
+  function handleRetake() {
+    setIsRetakeRequested(true);
+    setEvaluation(null);
+    setQaTranscripts({});
+    recordedChunksRef.current = [];
+    setUploadedFile(null);
+    setUploadPreviewUrl("");
+    setVideoDuration(0);
+    setUploadError("");
+    setSessionStarted(false);
+    setRecTimeLeft(60);
+    setRecordingSeconds(0);
+    autoStartedRef.current = false;
+    isStartingRef.current = false;
+    isRecordingActiveRef.current = false;
+    try {
+      localStorage.removeItem(PENDING_REPORT_KEY);
+    } catch (e) {}
+    setStep("liveness");
+    toast("Previous recording discarded. Ready for your new take!", "✓");
+    if (onDiscard) onDiscard();
+  }
 
   // Pre-recorded video upload states
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -931,9 +964,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       setUploadError("Please upload a valid video file (.mp4, .webm, .mov, .mkv).");
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      setUploadError(`Video file size must be under 20 MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)} MB.`);
-      toast(`Video size must be under 20 MB (Current: ${(file.size / (1024 * 1024)).toFixed(1)} MB).`, "!");
+    if (file.size > 100 * 1024 * 1024) {
+      setUploadError(`Video file size must be under 100 MB. Your file is ${(file.size / (1024 * 1024)).toFixed(2)} MB.`);
+      toast(`Video size must be under 100 MB (Current: ${(file.size / (1024 * 1024)).toFixed(1)} MB).`, "!");
       return;
     }
     setUploadError("");
@@ -962,9 +995,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       toast("Please choose a video file to upload first.", "!");
       return;
     }
-    if (uploadedFile.size > 20 * 1024 * 1024) {
-      setUploadError(`Video file size must be under 20 MB. Your file is ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.`);
-      toast("Video file size must be under 20 MB.", "!");
+    if (uploadedFile.size > 100 * 1024 * 1024) {
+      setUploadError(`Video file size must be under 100 MB. Your file is ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.`);
+      toast("Video file size must be under 100 MB.", "!");
       return;
     }
     if (videoDuration < 60) {
@@ -1232,8 +1265,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   // called from the "Continue to Next Stage" button below, not automatically
   // on save (see the advance:false onSaved calls above).
   function handleContinueToNextStage() {
-    if (onSaved && lastSavedDataRef.current) {
-      onSaved(lastSavedDataRef.current, { advance: true });
+    if (onSaved) {
+      const dataToPass = lastSavedDataRef.current || {
+        videoUrl: existingData?.videoUrl,
+        evaluation,
+      };
+      onSaved(dataToPass, { advance: true });
     }
   }
 
@@ -1410,7 +1447,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               Upload Your 60-Second Self-Introduction Video
             </h4>
             <p style={{ fontSize: 13, color: "#64748B", margin: 0, lineHeight: 1.5 }}>
-              If you have already recorded your professional self-introduction on your phone or camera, you can upload the video file directly here (.mp4, .webm, .mov, max 20MB). Video length must be at least 60 seconds.
+              If you have already recorded your professional self-introduction on your phone or camera, you can upload the video file directly here (.mp4, .webm, .mov, max 100MB). Video length must be at least 60 seconds.
             </p>
           </div>
 
@@ -1460,7 +1497,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 Click to browse or drag and drop your video file
               </div>
               <div style={{ fontSize: 12, color: "#64748B", marginBottom: 16 }}>
-                Supported formats: MP4, WebM, MOV, MKV (Minimum duration: 60s, Maximum file size: 20 MB)
+                Supported formats: MP4, WebM, MOV, MKV (Minimum duration: 60s, Maximum file size: 100 MB)
               </div>
               <button
                 type="button"
@@ -1491,20 +1528,20 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
                   <div>
                     <span style={{
-                      background: videoDuration >= 60 && uploadedFile.size <= 20 * 1024 * 1024 ? "#DCFCE7" : "#FEF3C7",
-                      color: videoDuration >= 60 && uploadedFile.size <= 20 * 1024 * 1024 ? "#15803D" : "#B45309",
+                      background: videoDuration >= 60 && uploadedFile.size <= 100 * 1024 * 1024 ? "#DCFCE7" : "#FEF3C7",
+                      color: videoDuration >= 60 && uploadedFile.size <= 100 * 1024 * 1024 ? "#15803D" : "#B45309",
                       fontSize: 11,
                       fontWeight: 800,
                       padding: "3px 10px",
                       borderRadius: 999
                     }}>
-                      {videoDuration >= 60 && uploadedFile.size <= 20 * 1024 * 1024 ? "✓ VIDEO READY" : "⚠️ VALIDATION NEEDED"}
+                      {videoDuration >= 60 && uploadedFile.size <= 100 * 1024 * 1024 ? "✓ VIDEO READY" : "⚠️ VALIDATION NEEDED"}
                     </span>
                     <h5 style={{ margin: "8px 0 4px", fontSize: 15, fontWeight: 800, color: "var(--navy)", wordBreak: "break-word" }}>
                       {uploadedFile.name}
                     </h5>
-                    <div style={{ fontSize: 12, color: uploadedFile.size > 20 * 1024 * 1024 ? "#DC2626" : "#64748B", fontWeight: uploadedFile.size > 20 * 1024 * 1024 ? 700 : 500 }}>
-                      File Size: {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB {uploadedFile.size > 20 * 1024 * 1024 ? "(Must be under 20 MB)" : "(Max 20 MB)"}
+                    <div style={{ fontSize: 12, color: uploadedFile.size > 100 * 1024 * 1024 ? "#DC2626" : "#64748B", fontWeight: uploadedFile.size > 100 * 1024 * 1024 ? 700 : 500 }}>
+                      File Size: {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB {uploadedFile.size > 100 * 1024 * 1024 ? "(Must be under 100 MB)" : "(Max 100 MB)"}
                     </div>
                   </div>
 
@@ -1545,7 +1582,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                     </div>
                   )}
 
-                  {uploadedFile.size > 20 * 1024 * 1024 && (
+                  {uploadedFile.size > 100 * 1024 * 1024 && (
                     <div style={{
                       background: "#FEF2F2",
                       border: "1px solid #FECACA",
@@ -1560,18 +1597,18 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                       gap: 8
                     }}>
                       <i className="fa-solid fa-circle-exclamation" style={{ marginTop: 2, fontSize: 14 }}></i>
-                      <span>Video file size must be under 20 MB. Your file is {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.</span>
+                      <span>Video file size must be under 100 MB. Your file is {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.</span>
                     </div>
                   )}
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
-                    {videoDuration < 60 || uploadedFile.size > 20 * 1024 * 1024 ? (
+                    {videoDuration < 60 || uploadedFile.size > 100 * 1024 * 1024 ? (
                       <button
                         type="button"
                         onClick={() => {
-                          if (uploadedFile.size > 20 * 1024 * 1024) {
-                            setUploadError(`Video file size must be under 20 MB. Current file size is ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.`);
-                            toast("Video file size must be under 20 MB.", "!");
+                          if (uploadedFile.size > 100 * 1024 * 1024) {
+                            setUploadError(`Video file size must be under 100 MB. Current file size is ${(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB.`);
+                            toast("Video file size must be under 100 MB.", "!");
                           } else {
                             setUploadError(`Video must be 60 seconds in duration. Current video length is ${videoDuration}s.`);
                             toast("Video must be 60 seconds in duration.", "!");
@@ -1595,8 +1632,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                       >
                         <i className="fa-solid fa-lock"></i>
                         <span>
-                          {uploadedFile.size > 20 * 1024 * 1024
-                            ? "File size must be under 20 MB"
+                          {uploadedFile.size > 100 * 1024 * 1024
+                            ? "File size must be under 100 MB"
                             : "Video must be 60 seconds in duration"}
                         </span>
                       </button>
@@ -2045,8 +2082,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>
                 <i className="fa-solid fa-circle-check"></i> 60s SELF-INTRODUCTION RECORDED
               </span>
-              <span style={{ background: "#FEF3C7", color: "#B45309", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #F59E0B" }}>
-                <i className="fa-solid fa-lock"></i> Single Attempt Completed
+              <span style={{ background: "#EFF6FF", color: "#1D4ED8", fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, border: "1px solid #BFDBFE" }}>
+                <i className="fa-solid fa-arrows-rotate"></i> Retake Allowed Anytime
               </span>
             </div>
 
@@ -2085,10 +2122,52 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             )}
 
             {evaluation.feedback && (
-              <p style={{ fontSize: 12, color: "#64748B", margin: "0 auto", maxWidth: 460, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
+              <p style={{ fontSize: 12, color: "#64748B", margin: "0 auto 20px", maxWidth: 460, lineHeight: 1.6, background: "#F8FAFC", borderRadius: 10, padding: "10px 14px" }}>
                 {evaluation.feedback}
               </p>
             )}
+
+            {/* ACTION BUTTONS: DISCARD & RETRY OR KEEP & CONTINUE */}
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 20, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleRetake}
+                style={{
+                  background: "#FFF",
+                  color: "#B91C1C",
+                  border: "1.5px solid #FCA5A5",
+                  padding: "11px 20px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  boxShadow: "0 2px 6px rgba(185, 28, 28, 0.08)",
+                }}
+              >
+                <i className="fa-solid fa-rotate-left"></i> Discard &amp; Re-record New Take
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-gold"
+                onClick={handleContinueToNextStage}
+                style={{
+                  padding: "11px 22px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <i className="fa-solid fa-arrow-right"></i> Keep &amp; Return to Stage 05 Hub
+              </button>
+            </div>
           </div>
         </div>
       )}

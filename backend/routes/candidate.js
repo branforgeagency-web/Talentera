@@ -980,9 +980,10 @@ router.post(
         return res.status(400).json({ message: "No video was received. Please re-record and submit again." });
       }
 
-      if (req.file && req.file.size > 20 * 1024 * 1024) {
+      const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+      if (req.file && req.file.size > MAX_VIDEO_BYTES) {
         return res.status(400).json({
-          message: `Video file size must be under 20 MB. Your file is ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`,
+          message: `Video file size must be under 100 MB. Your file is ${(req.file.size / (1024 * 1024)).toFixed(2)} MB.`,
         });
       }
 
