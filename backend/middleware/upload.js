@@ -79,9 +79,36 @@ function fileFilter(req, file, cb) {
 // Use memory storage so req.file.buffer is available for GCP, Cloudinary, or disk fallback
 const memoryStorage = multer.memoryStorage();
 
+function parseMaxUploadSize(val) {
+  if (!val) return 100 * 1024 * 1024;
+  if (typeof val === "string") {
+    const clean = val.trim().toUpperCase();
+    if (clean.endsWith("GB") || clean.endsWith("G")) {
+      return Math.round(parseFloat(clean) * 1024 * 1024 * 1024);
+    }
+    if (clean.endsWith("MB") || clean.endsWith("M")) {
+      return Math.round(parseFloat(clean) * 1024 * 1024);
+    }
+    if (clean.endsWith("KB") || clean.endsWith("K")) {
+      return Math.round(parseFloat(clean) * 1024);
+    }
+  }
+  const num = Number(val);
+  if (isNaN(num) || num <= 0) return 100 * 1024 * 1024;
+  // If provided as a small number like 20, 50, 100 assume user intended MB
+  if (num < 1024) return num * 1024 * 1024;
+  return num;
+}
+
+// Ensure video upload limit is at least 100 MB
+const MAX_UPLOAD_BYTES = Math.max(parseMaxUploadSize(process.env.MAX_UPLOAD_SIZE), 100 * 1024 * 1024);
+
 const upload = multer({
   storage: memoryStorage,
-  limits: { fileSize: Number(process.env.MAX_UPLOAD_SIZE) || 100 * 1024 * 1024 }, // 100MB limit for video uploads
+  limits: {
+    fileSize: MAX_UPLOAD_BYTES,
+    fieldSize: 25 * 1024 * 1024,
+  },
   fileFilter,
 });
 

@@ -99,13 +99,38 @@ app.use("/api/aadhaar", aadhaarRoutes);
 // routes/vapiInterview.js for how it authenticates the candidate instead.
 app.use("/api/vapi", vapiInterviewRoutes);
 
-app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
+const { isGcpConfigured } = require("./config/gcpStorage");
+
+app.get("/api/health", (_req, res) => {
+  const gcpActive = isGcpConfigured();
+  res.json({
+    status: "ok",
+    storage: gcpActive ? "gcp" : "local",
+    gcpBucket: process.env.GCP_STORAGE_BUCKET || null,
+  });
+});
 
 // Central error handler (e.g. multer file-size errors, CORS rejection)
 app.use((err, req, res, _next) => {
   logger.error(`${req.method} ${req.originalUrl} - ${err.message}`, { stack: err.stack });
+
+  // Handle Multer file-size error specifically
+  if (err.code === "LIMIT_FILE_SIZE") {
+    return res.status(413).json({
+      message: "Uploaded video file is too large. Maximum allowed size is 100 MB.",
+      error: "LIMIT_FILE_SIZE",
+    });
+  }
+
   res.status(err.status || 500).json({ message: err.message || "Server error." });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => logger.info(`Talentera API running on port ${PORT}`));
+app.listen(PORT, () => {
+  logger.info(`Talentera API running on port ${PORT}`);
+  if (isGcpConfigured()) {
+    logger.info(`[GCP STORAGE] Connected: Bucket '${process.env.GCP_STORAGE_BUCKET}'`);
+  } else {
+    logger.warn(`[GCP STORAGE] Not configured. Video uploads will use local disk storage.`);
+  }
+});

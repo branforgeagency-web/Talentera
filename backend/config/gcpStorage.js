@@ -22,14 +22,18 @@ function isGcpConfigured() {
   const bucketName = process.env.GCP_STORAGE_BUCKET;
   if (!bucketName) return false;
 
-  // 1. Direct credentials via env
-  if (process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY) return true;
+  // 1. Base64 encoded JSON credentials
+  if (process.env.GCP_CREDENTIALS_BASE64) {
+    try {
+      const decoded = Buffer.from(process.env.GCP_CREDENTIALS_BASE64, "base64").toString("utf8");
+      JSON.parse(decoded);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
-  // 2. JSON Key file path
-  const keyPath = resolveKeyPath(process.env.GCP_KEY_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS);
-  if (keyPath) return true;
-
-  // 3. Raw JSON credentials string
+  // 2. Raw JSON credentials string
   if (process.env.GCP_CREDENTIALS_JSON) {
     try {
       JSON.parse(process.env.GCP_CREDENTIALS_JSON);
@@ -39,7 +43,14 @@ function isGcpConfigured() {
     }
   }
 
-  // 4. Default Google ADC with project ID
+  // 3. Direct credentials via env
+  if (process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY) return true;
+
+  // 4. JSON Key file path
+  const keyPath = resolveKeyPath(process.env.GCP_KEY_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  if (keyPath) return true;
+
+  // 5. Default Google ADC with project ID
   if (process.env.GCP_PROJECT_ID) return true;
 
   return false;
@@ -62,28 +73,44 @@ function getGcpBucket() {
 
   const keyPath = resolveKeyPath(process.env.GCP_KEY_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
-  if (keyPath) {
-    storageOptions.keyFilename = keyPath;
-  } else if (process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY) {
-    let pKey = process.env.GCP_PRIVATE_KEY;
-    if (pKey.startsWith('"') && pKey.endsWith('"')) {
-      pKey = pKey.slice(1, -1);
+  if (process.env.GCP_CREDENTIALS_BASE64) {
+    try {
+      const decoded = Buffer.from(process.env.GCP_CREDENTIALS_BASE64, "base64").toString("utf8");
+      storageOptions.credentials = JSON.parse(decoded);
+    } catch (e) {
+      console.error("[STORAGE:GCP] Failed to parse GCP_CREDENTIALS_BASE64:", e.message);
     }
-    storageOptions.credentials = {
-      client_email: process.env.GCP_CLIENT_EMAIL,
-      private_key: pKey.replace(/\\n/g, "\n"),
-    };
   } else if (process.env.GCP_CREDENTIALS_JSON) {
     try {
       storageOptions.credentials = JSON.parse(process.env.GCP_CREDENTIALS_JSON);
     } catch (e) {
-      console.error("Failed to parse GCP_CREDENTIALS_JSON:", e.message);
+      console.error("[STORAGE:GCP] Failed to parse GCP_CREDENTIALS_JSON:", e.message);
     }
+  } else if (keyPath) {
+    storageOptions.keyFilename = keyPath;
+  } else if (process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY) {
+    let pKey = process.env.GCP_PRIVATE_KEY.trim();
+    // Strip wrapping single or double quotes if present
+    if ((pKey.startsWith('"') && pKey.endsWith('"')) || (pKey.startsWith("'") && pKey.endsWith("'"))) {
+      pKey = pKey.slice(1, -1);
+    }
+    // Convert escaped literal \n to real newlines and strip \r
+    pKey = pKey.replace(/\\n/g, "\n").replace(/\r/g, "");
+
+    storageOptions.credentials = {
+      client_email: process.env.GCP_CLIENT_EMAIL.trim(),
+      private_key: pKey,
+    };
   }
 
-  storageInstance = new Storage(storageOptions);
-  bucketInstance = storageInstance.bucket(bucketName);
-  return bucketInstance;
+  try {
+    storageInstance = new Storage(storageOptions);
+    bucketInstance = storageInstance.bucket(bucketName);
+    return bucketInstance;
+  } catch (err) {
+    console.error("[STORAGE:GCP] Error creating storage instance:", err.message);
+    return null;
+  }
 }
 
 /**
