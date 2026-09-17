@@ -331,18 +331,47 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
   // Load candidate Stage 5 state
   const stage5 = candidate?.stage5 || existingData || {};
-  // Stage 05 requires BOTH the real, backend-evaluated 60-second
-  // Self-Introduction (stage5.aiScore is only ever set by the validated
-  // /ai-video/assess submission - see AiVideoAssessment.jsx) AND the
-  // 5-question AI Mock Interview (stage5.mockInterviewCompleted, only set
-  // once all 5 questions have been answered - see
-  // finalizeAiInterviewSession in backend/routes/candidate.js). Checking
-  // aiScore alone let a candidate reach "Stage 05 completed" without ever
-  // doing the Mock Interview.
-  const hasRealSelfIntro = Boolean(stage5 && (stage5.aiScore !== undefined || stage5.score !== undefined || stage5.overallScore !== undefined));
+
+  // Individual component verification & scores:
+  // 1. Real 60-second Self-Introduction video pitch
+  const selfIntroVideoUrl = stage5?.selfIntroVideoUrl || stage5?.videoUrl || "";
+  const hasRealSelfIntro = Boolean(
+    stage5?.selfIntroCompleted ||
+    (selfIntroVideoUrl && typeof stage5?.aiScore === "number" && stage5?.rubric)
+  );
+  const selfIntroScore = (hasRealSelfIntro && typeof stage5?.aiScore === "number")
+    ? stage5.aiScore
+    : (hasRealSelfIntro && typeof stage5?.score === "number" && !stage5?.mockInterviewCompleted)
+    ? stage5.score
+    : null;
+
+  // 2. Real 5-question AI Mock Interview
   const hasRealMockInterview = Boolean(stage5?.mockInterviewCompleted);
+  const mockScore = (hasRealMockInterview && typeof stage5?.mockScore === "number")
+    ? stage5.mockScore
+    : (hasRealMockInterview && typeof candidate?.stage8?.aiInterview?.result?.overallScore === "number")
+    ? candidate.stage8.aiInterview.result.overallScore
+    : null;
+
+  // Stage 05 requires BOTH genuine Self-Introduction and AI Mock Interview completed
   const isCompleted = hasRealSelfIntro && hasRealMockInterview;
-  const candidateScore = stage5?.aiScore ?? stage5?.score ?? stage5?.overallScore ?? 78;
+
+  // Correct calculated AI score:
+  // - When both completed: combined score (average of Spoken Communication & Technical Mock)
+  // - When only mock completed: mock score
+  // - When only self-intro completed: self-intro score
+  // - When neither completed: null (strictly never fake 78)
+  const candidateScore = (hasRealSelfIntro && hasRealMockInterview && selfIntroScore !== null && mockScore !== null)
+    ? Math.round((selfIntroScore + mockScore) / 2)
+    : (isCompleted && typeof stage5?.overallScore === "number")
+    ? stage5.overallScore
+    : (isCompleted && typeof stage5?.score === "number")
+    ? stage5.score
+    : (hasRealMockInterview && mockScore !== null)
+    ? mockScore
+    : (hasRealSelfIntro && selfIntroScore !== null)
+    ? selfIntroScore
+    : null;
 
   // Real candidate profile context from previous stages
   const candidateName = candidate?.stage1?.fullName || candidate?.fullName || "Candidate";
@@ -377,23 +406,17 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const s4 = candidate?.stage4 || {};
   const s4Score = s4.foundationScore ?? s4.score ?? null;
   const s4Medal = s4.medal || (s4Score >= 85 ? "Gold" : s4Score >= 70 ? "Silver" : s4Score ? "Bronze" : "");
-  const displayMedal = isCompleted ? (stage5?.medal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : "Bronze")) : "Silver";
-  const medalEmoji = displayMedal === "Gold" ? "🥇" : displayMedal === "Bronze" ? "🥉" : "🥈";
+
+  const displayMedal = candidateScore !== null
+    ? (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : "Bronze")
+    : null;
+  const medalEmoji = displayMedal === "Gold" ? "🥇" : displayMedal === "Bronze" ? "🥉" : displayMedal === "Silver" ? "🥈" : "⏳";
 
   // Real AI-evaluated 5-dimension rubric from the Self-Introduction video
-  // (backend/utils/aiAssessment.js - clarity/fluency/vocabularyGrammar/
-  // confidenceDelivery/contentRelevance, each 0-100). Only present once the
-  // real /ai-video/assess evaluation has actually run - the "Results"
-  // section below falls back to an illustrative sample only in true preview
-  // (not-yet-completed) state, never once isCompleted is true.
+  // (backend/utils/aiAssessment.js - clarity/fluency/vocabularyGrammar/confidenceDelivery/contentRelevance, each 0-100).
+  // Strictly uses the real rubric evaluated by AI; never falls back to fake sample numbers.
   const rubric = stage5?.rubric || null;
-  // Illustrative sample numbers, used ONLY while isCompleted is false (the
-  // "Preview: Video Pitch Results" state, shown before the candidate has
-  // actually submitted anything) so the page can show what the results
-  // section will look like. Once isCompleted is true, the real rubric above
-  // is used instead - these must never be shown as if they were a real score.
-  const SAMPLE_RUBRIC = { clarity: 82, fluency: 75, vocabularyGrammar: 80, confidenceDelivery: 70, contentRelevance: 82 };
-  const displayRubric = isCompleted && rubric ? rubric : SAMPLE_RUBRIC;
+  const displayRubric = rubric;
   const clampDisplayScore = (n) => {
     const v = Number(n);
     return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 0;
@@ -2221,6 +2244,12 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 <h4 style={{ fontSize: 17, fontWeight: 800, color: "var(--navy)", margin: "0 0 6px" }}>
                   AI Mock Interview successfully submitted
                 </h4>
+                {mockScore !== null && (
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#DCFCE7", border: "1px solid #86EFAC", color: "#15803D", padding: "4px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, margin: "6px 0 12px" }}>
+                    <span>Technical Evaluation Score:</span>
+                    <span style={{ fontSize: 16, color: "#166534" }}>{mockScore} / 100</span>
+                  </div>
+                )}
                 <p style={{ fontSize: 13, color: "#475569", maxWidth: 460, margin: "0 auto 16px", lineHeight: 1.6 }}>
                   All 5 questions have been recorded and evaluated. Under Talentera's single-attempt policy you can't
                   re-record this yourself - if you need a retake, contact Talentera staff using the button below.
@@ -2558,38 +2587,87 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           {/* RESULTS & SUBMISSION SECTION                                    */}
           {/* ══════════════════════════════════════════════════════════════ */}
           <div style={{ margin: "32px 0 20px", paddingTop: 24, borderTop: "2px dashed #FFEBB0", textAlign: "center" }}>
-            <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "8px 20px", borderRadius: 20, fontWeight: 800, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", display: "inline-block", marginBottom: 14 }}>
-              {isCompleted ? "✓ Official Video Pitch Recorded" : "↓ Preview · After you submit all videos"}
+            <span style={{ background: isCompleted ? "var(--gold)" : "#FEF3C7", color: isCompleted ? "var(--navy)" : "#92400E", padding: "8px 20px", borderRadius: 20, fontWeight: 800, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", display: "inline-block", marginBottom: 14 }}>
+              {isCompleted ? "✓ Official Video Pitch Recorded" : hasRealSelfIntro ? "⏳ Step 1 of 2 Complete · Mock Interview Required" : "↓ Results · Complete Self-Intro & AI Mock Interview"}
             </span>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-              {isCompleted ? "Your Video Pitch Results" : "Preview: Video Pitch Results"}
+              {isCompleted ? "Your Video Pitch Results" : "AI Video Pitch & Mock Interview Results"}
             </div>
             <div style={{ fontSize: 12, color: "#8A91A3", marginTop: 4, fontStyle: "italic" }}>
-              Exactly what your screen shows the moment scoring completes
+              {isCompleted
+                ? "Official AI-evaluated communication and technical readiness score"
+                : "Your official AI score is calculated live once you complete both the Self-Introduction and AI Mock Interview."}
             </div>
           </div>
 
-          <div style={{ background: "linear-gradient(135deg, #F8FFF9, #F5F7FB)", borderRadius: 16, padding: "24px 26px", border: "1px solid #E5E7EB", marginBottom: 24 }}>
+          <div style={{ background: isCompleted ? "linear-gradient(135deg, #F8FFF9, #F5F7FB)" : "#FAFAF7", borderRadius: 16, padding: "24px 26px", border: "1px solid #E5E7EB", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed #E5E7EB" }}>
-              <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                ✓
+              <div style={{ width: 32, height: 32, background: isCompleted ? "var(--gold)" : "#E2E8F0", color: isCompleted ? "var(--navy)" : "#64748B", borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
+                {isCompleted ? "✓" : "⏳"}
               </div>
               <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                Post-Submission Results (AI Evaluated)
+                {isCompleted ? "Post-Submission Results (AI Evaluated)" : "AI Evaluation Status"}
               </div>
-              <div style={{ background: "#E8F5E9", color: "#1F7A3C", padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
-                {medalEmoji} {displayMedal.toUpperCase()} · {candidateScore} / 100
+              <div style={{ background: isCompleted ? "#E8F5E9" : "#FEF3C7", color: isCompleted ? "#1F7A3C" : "#92400E", padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
+                {isCompleted
+                  ? `${medalEmoji} ${displayMedal?.toUpperCase()} · ${candidateScore} / 100`
+                  : hasRealSelfIntro && !hasRealMockInterview
+                  ? "⏳ SELF-INTRO EVALUATED · MOCK INTERVIEW PENDING"
+                  : !hasRealSelfIntro && hasRealMockInterview
+                  ? "⏳ MOCK EVALUATED · SELF-INTRO PENDING"
+                  : "⏳ PENDING · NOT YET EVALUATED"}
+              </div>
+            </div>
+
+            {/* PROGRESS SUMMARY CARDS: 2 STAGES */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: 12, marginBottom: 20 }}>
+              <div style={{ background: hasRealSelfIntro ? "#F0FDF4" : "#FFFFFF", border: `1.5px solid ${hasRealSelfIntro ? "#86EFAC" : "#E5E7EB"}`, borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: hasRealSelfIntro ? "#166534" : "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Section 2 · Self-Introduction
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: hasRealSelfIntro ? "#15803D" : "var(--navy)", marginTop: 4 }}>
+                  {selfIntroScore !== null ? `${selfIntroScore} / 100` : "Not Recorded"}
+                </div>
+                <div style={{ fontSize: 11, color: hasRealSelfIntro ? "#166534" : "#94A3B8", marginTop: 2 }}>
+                  {hasRealSelfIntro ? "✓ Spoken Communication evaluated" : "⏳ 60-second video required"}
+                </div>
+              </div>
+
+              <div style={{ background: hasRealMockInterview ? "#F0FDF4" : "#FFFFFF", border: `1.5px solid ${hasRealMockInterview ? "#86EFAC" : "#E5E7EB"}`, borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: hasRealMockInterview ? "#166534" : "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Section 3 · AI Mock Interview
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: hasRealMockInterview ? "#15803D" : "var(--navy)", marginTop: 4 }}>
+                  {mockScore !== null ? `${mockScore} / 100` : "Not Started"}
+                </div>
+                <div style={{ fontSize: 11, color: hasRealMockInterview ? "#166534" : "#94A3B8", marginTop: 2 }}>
+                  {hasRealMockInterview ? "✓ Technical Domain readiness evaluated" : "⏳ 5 technical questions required"}
+                </div>
+              </div>
+
+              <div style={{ background: isCompleted ? "linear-gradient(135deg, #FFFBEB, #FEF3C7)" : "#F8FAFC", border: `1.5px solid ${isCompleted ? "var(--gold)" : "#E2E8F0"}`, borderRadius: 12, padding: "12px 14px" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 800, color: isCompleted ? "var(--gold-deep)" : "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                  Overall Calculated AI Score
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: isCompleted ? "var(--navy)" : "#64748B", marginTop: 4 }}>
+                  {candidateScore !== null ? `${candidateScore} / 100` : "— / 100"}
+                </div>
+                <div style={{ fontSize: 11, color: isCompleted ? "#B45309" : "#94A3B8", marginTop: 2 }}>
+                  {isCompleted ? `✓ ${displayMedal} Tier Awarded` : "Calculated after both sections completed"}
+                </div>
               </div>
             </div>
 
             {/* CIRCULAR SCORE + MEDAL ROW */}
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 16, margin: "10px 0 20px" }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 20, margin: "10px 0 20px" }}>
               <div
                 style={{
                   width: 150,
                   height: 150,
                   borderRadius: "50%",
-                  background: `conic-gradient(#8B9199 0deg ${Math.round((candidateScore / 100) * 360)}deg, #F2F3F5 ${Math.round((candidateScore / 100) * 360)}deg 360deg)`,
+                  background: candidateScore !== null
+                    ? `conic-gradient(#15803D 0deg ${Math.round((candidateScore / 100) * 360)}deg, #E2E8F0 ${Math.round((candidateScore / 100) * 360)}deg 360deg)`
+                    : "#E2E8F0",
                   display: "grid",
                   placeItems: "center",
                   position: "relative",
@@ -2598,41 +2676,77 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               >
                 <div style={{ width: 120, height: 120, background: "#FFFFFF", borderRadius: "50%", display: "grid", placeItems: "center", textAlign: "center" }}>
                   <div>
-                    <div style={{ fontSize: 36, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-                      {candidateScore}
+                    <div style={{ fontSize: 34, fontWeight: 800, color: candidateScore !== null ? "var(--navy)" : "#94A3B8", lineHeight: 1 }}>
+                      {candidateScore !== null ? candidateScore : "—"}
                     </div>
-                    <div style={{ fontSize: 11, color: "#8A91A3", marginTop: 2 }}>of 100</div>
+                    <div style={{ fontSize: 11, color: "#8A91A3", marginTop: 4 }}>
+                      {isCompleted ? "of 100" : hasRealSelfIntro ? "Intro Score" : hasRealMockInterview ? "Mock Score" : "of 100 (Pending)"}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div style={{ textAlign: "center" }}>
-                <span
-                  style={{
-                    background: "linear-gradient(135deg, #C0C0C0, #8B9199)",
-                    color: "#FFFFFF",
-                    padding: "8px 16px",
-                    borderRadius: 20,
-                    fontWeight: 800,
-                    fontSize: 14,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    boxShadow: "0 4px 12px rgba(0,0,0,.15)",
-                  }}
-                >
-                  {medalEmoji} {displayMedal} Video Pitch
-                </span>
-                <div style={{ fontSize: 11, color: "#1F7A3C", fontWeight: 700, marginTop: 4, letterSpacing: 0.4 }}>
-                  {isCompleted && recordedDateLabel ? `Recorded ${recordedDateLabel}` : "Not yet recorded"} · 🟢 Live Verified · Face-matched to Aadhaar
+              <div style={{ textAlign: "left" }}>
+                {isCompleted ? (
+                  <span
+                    style={{
+                      background: displayMedal === "Gold"
+                        ? "linear-gradient(135deg, #F59E0B, #D97706)"
+                        : displayMedal === "Silver"
+                        ? "linear-gradient(135deg, #94A3B8, #64748B)"
+                        : "linear-gradient(135deg, #D97706, #B45309)",
+                      color: "#FFFFFF",
+                      padding: "8px 16px",
+                      borderRadius: 20,
+                      fontWeight: 800,
+                      fontSize: 14,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      boxShadow: "0 4px 12px rgba(0,0,0,.15)",
+                    }}
+                  >
+                    {medalEmoji} {displayMedal} Video Pitch
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      background: "#F1F5F9",
+                      color: "#475569",
+                      border: "1px solid #CBD5E1",
+                      padding: "8px 16px",
+                      borderRadius: 20,
+                      fontWeight: 800,
+                      fontSize: 13,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    ⏳ {hasRealSelfIntro ? "Mock Interview Pending" : hasRealMockInterview ? "Self-Intro Pending" : "Evaluation Pending"}
+                  </span>
+                )}
+                <div style={{ fontSize: 11.5, color: isCompleted ? "#1F7A3C" : "#64748B", fontWeight: 700, marginTop: 8, letterSpacing: 0.3, maxWidth: 360, lineHeight: 1.5 }}>
+                  {isCompleted && recordedDateLabel
+                    ? `Recorded ${recordedDateLabel} · 🟢 Live Verified · Face-matched to Aadhaar`
+                    : hasRealSelfIntro && !hasRealMockInterview
+                    ? `✓ Self-Introduction evaluated (${selfIntroScore}/100). Please complete Section 3 AI Mock Interview to calculate your final AI score.`
+                    : !hasRealSelfIntro && hasRealMockInterview
+                    ? `✓ AI Mock Interview evaluated (${mockScore}/100). Please complete Section 2 Self-Intro to calculate your final AI score.`
+                    : "Not yet recorded · Start Section 2 Self-Intro and Section 3 AI Mock Interview above to calculate your AI score."}
                 </div>
               </div>
             </div>
 
             {/* 5-DIMENSION AI BREAKDOWN */}
             <div style={{ background: "#FFFFFF", borderRadius: 12, padding: "18px 20px", border: "1px solid #E5E7EB", marginTop: 14 }}>
-              <div style={{ fontSize: 11, letterSpacing: "1.5px", color: "var(--gold-deep)", textTransform: "uppercase", fontWeight: 700, marginBottom: 12 }}>
-                🎯 Your 5-dimension AI breakdown
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 11, letterSpacing: "1.5px", color: "var(--gold-deep)", textTransform: "uppercase", fontWeight: 700 }}>
+                  🎯 5-dimension AI breakdown
+                </div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: displayRubric ? "#15803D" : "#94A3B8" }}>
+                  {displayRubric ? "✓ Evaluated by AI Model" : "⏳ Awaiting Video Assessment"}
+                </div>
               </div>
 
               {[
@@ -2642,26 +2756,31 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 { key: "confidenceDelivery", label: "💪 Confidence & Delivery", color: "linear-gradient(90deg, var(--amber, #E08E00), #B85B00)" },
                 { key: "contentRelevance", label: "🎯 Content Relevance", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
               ].map((dim, i, arr) => {
-                const score = clampDisplayScore(displayRubric[dim.key]);
+                const hasScore = displayRubric && typeof displayRubric[dim.key] !== "undefined";
+                const score = hasScore ? clampDisplayScore(displayRubric[dim.key]) : null;
                 const isLast = i === arr.length - 1;
-                const passing = score >= 75;
+                const passing = score !== null && score >= 75;
                 return (
                   <div
                     key={dim.key}
-                    style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: isLast ? "none" : "1px dashed #E5E7EB" }}
+                    style={{ display: "grid", gridTemplateColumns: "180px 1fr 70px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: isLast ? "none" : "1px dashed #E5E7EB" }}
                   >
                     <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>{dim.label}</div>
                     <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${score}%`, background: dim.color, borderRadius: 4 }} />
+                      <div style={{ height: "100%", width: score !== null ? `${score}%` : "0%", background: score !== null ? dim.color : "transparent", borderRadius: 4, transition: "width .4s ease" }} />
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>{score} / 100</div>
-                    <div style={{ fontSize: 14, color: passing ? "#1F7A3C" : "#E08E00", fontWeight: 800 }}>{passing ? "✓" : "⚠"}</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: score !== null ? "var(--navy)" : "#94A3B8", textAlign: "right" }}>
+                      {score !== null ? `${score} / 100` : "— / 100"}
+                    </div>
+                    <div style={{ fontSize: 14, color: score === null ? "#94A3B8" : passing ? "#1F7A3C" : "#E08E00", fontWeight: 800 }}>
+                      {score === null ? "⏳" : passing ? "✓" : "⚠"}
+                    </div>
                   </div>
                 );
               })}
-              {isCompleted && !rubric && (
-                <div style={{ fontSize: 11, color: "#8A91A3", marginTop: 10, fontStyle: "italic" }}>
-                  Detailed AI breakdown unavailable for this submission - showing overall score only.
+              {!displayRubric && (
+                <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 12, background: "#F8FAFC", padding: "10px 12px", borderRadius: 8, border: "1px dashed #CBD5E1", lineHeight: 1.5 }}>
+                  ℹ️ <b>No fake preview scores:</b> Your 5-dimension AI breakdown (Clarity, Fluency, Vocab & Grammar, Confidence, Content Relevance) will be evaluated live by the AI model once you submit your Self-Introduction video above.
                 </div>
               )}
             </div>
@@ -2682,15 +2801,23 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </div>
 
               <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={{ background: "linear-gradient(135deg,#C0C0C0,#8B9199)", color: "#FFFFFF", fontSize: 11, padding: "5px 12px", borderRadius: 20, fontWeight: 800 }}>
-                  {medalEmoji} {displayMedal} · {candidateScore}/100
+                {isCompleted ? (
+                  <span style={{ background: "linear-gradient(135deg,#C0C0C0,#8B9199)", color: "#FFFFFF", fontSize: 11, padding: "5px 12px", borderRadius: 20, fontWeight: 800 }}>
+                    {medalEmoji} {displayMedal} · {candidateScore}/100
+                  </span>
+                ) : (
+                  <span style={{ background: "rgba(255,255,255,0.15)", color: "#CBD5E1", fontSize: 11, padding: "5px 12px", borderRadius: 20, fontWeight: 800 }}>
+                    ⏳ Evaluation Pending
+                  </span>
+                )}
+                <span style={{ background: isCompleted ? "rgba(31,122,60,.25)" : "rgba(255,255,255,.1)", color: isCompleted ? "#7ED87E" : "#94A3B8", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
+                  {isCompleted ? "🟢 Live Verified" : "⏳ Verification on Completion"}
                 </span>
-                <span style={{ background: "rgba(31,122,60,.25)", color: "#7ED87E", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
-                  🟢 Live Verified
-                </span>
-                <span style={{ background: "rgba(245,180,26,.2)", color: "var(--gold)", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
-                  🔥 Passion {passionScore || 88}
-                </span>
+                {passionVideoUrl && (
+                  <span style={{ background: "rgba(245,180,26,.2)", color: "var(--gold)", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
+                    🔥 Passion {passionScore || 88}
+                  </span>
+                )}
                 {regionalVideoUrl && (
                   <span style={{ background: "rgba(26,79,184,.25)", color: "#7AB0FF", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
                     🌏 {selectedRegionalLang}
@@ -2699,16 +2826,28 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 12, fontFamily: "'JetBrains Mono', monospace" }}>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Clarity: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.clarity)}</b> {barString(displayRubric.clarity)}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Fluency: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.fluency)}</b> {barString(displayRubric.fluency)}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Vocab: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.vocabularyGrammar)}</b> {barString(displayRubric.vocabularyGrammar)}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Confidence: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.confidenceDelivery)}</b> {barString(displayRubric.confidenceDelivery)}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Content: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.contentRelevance)}</b> {barString(displayRubric.contentRelevance)}</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)", padding: "3px 0" }}>▶ Play 3 videos · 📝 Full captions</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
+                  Clarity: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.clarity) : "—"}</b> {displayRubric ? barString(displayRubric.clarity) : "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
+                  Fluency: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.fluency) : "—"}</b> {displayRubric ? barString(displayRubric.fluency) : "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
+                  Vocab: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.vocabularyGrammar) : "—"}</b> {displayRubric ? barString(displayRubric.vocabularyGrammar) : "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
+                  Confidence: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.confidenceDelivery) : "—"}</b> {displayRubric ? barString(displayRubric.confidenceDelivery) : "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
+                  Content: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.contentRelevance) : "—"}</b> {displayRubric ? barString(displayRubric.contentRelevance) : "—"}
+                </div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)", padding: "3px 0" }}>
+                  {isCompleted ? "▶ Play 3 videos · 📝 Full captions" : "⏳ Submissions pending"}
+                </div>
               </div>
 
               <div style={{ fontSize: 11.5, color: "var(--gold-pale, #FFF6E0)", marginTop: 12 }}>
-                {isCompleted && recordedDateLabel ? `Recorded ${recordedDateLabel}` : "Not yet recorded"} · Updates every 60 days · 5-year retention
+                {isCompleted && recordedDateLabel ? `Recorded ${recordedDateLabel} · Updates every 60 days · 5-year retention` : "Official records published upon completion of all Stage 05 requirements."}
               </div>
             </div>
 
@@ -2729,9 +2868,11 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             >
               <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "12.5px", color: "#64748B" }}>
                 <div style={{ height: 8, width: 180, background: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: isCompleted ? "100%" : "65%", background: "linear-gradient(90deg, #F5B41A, #D97706)", borderRadius: 4 }}></div>
+                  <div style={{ height: "100%", width: isCompleted ? "100%" : hasRealSelfIntro ? "50%" : "20%", background: "linear-gradient(90deg, #F5B41A, #D97706)", borderRadius: 4 }}></div>
                 </div>
-                <div><b>65 / 100</b> · Stage 05 {isCompleted ? "completed" : "in progress"}</div>
+                <div>
+                  <b>{candidateScore !== null ? `${candidateScore} / 100` : "Pending"}</b> · Stage 05 {isCompleted ? "completed" : "in progress"}
+                </div>
               </div>
 
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>

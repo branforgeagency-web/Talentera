@@ -557,19 +557,38 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage4.medal = candidate.stage4.medal || (fScore >= 85 ? "Gold" : fScore >= 70 ? "Silver" : fScore >= 50 ? "Bronze" : "Needs Practice");
       candidate.stage4.completedAt = candidate.stage4.completedAt || new Date();
     } else if (stageNum === 5) {
-      const commScore = req.body.aiScore !== undefined ? req.body.aiScore : (req.body.score !== undefined ? req.body.score : (req.body.overallScore ?? 78));
-      candidate.stage5.aiScore = commScore;
-      candidate.stage5.score = commScore;
-      candidate.stage5.overallScore = commScore;
-      candidate.stage5.clarityScore = req.body.clarityScore || req.body.clarity || 82;
-      candidate.stage5.fluencyScore = req.body.fluencyScore || req.body.fluency || 75;
-      candidate.stage5.vocabScore = req.body.vocabScore || req.body.vocabularyScore || req.body.vocab || 80;
-      candidate.stage5.confidenceScore = req.body.confidenceScore || req.body.confidence || 70;
-      candidate.stage5.contentScore = req.body.contentScore || req.body.relevanceScore || req.body.content || 82;
-      candidate.stage5.medal = candidate.stage5.medal || (commScore >= 85 ? "Gold" : commScore >= 70 ? "Silver" : commScore >= 50 ? "Bronze" : "Needs Practice");
-      candidate.stage5.verified = commScore >= 70;
-      candidate.stage5.completedAt = candidate.stage5.completedAt || new Date();
-      candidate.stage5.status = "completed";
+      const selfIntroScore = typeof req.body.aiScore === "number" ? req.body.aiScore : (typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null);
+      const mockScore = typeof req.body.mockScore === "number" ? req.body.mockScore : (typeof candidate.stage5?.mockScore === "number" ? candidate.stage5.mockScore : null);
+      let calculatedScore = null;
+      if (selfIntroScore !== null && mockScore !== null) {
+        calculatedScore = Math.round((selfIntroScore + mockScore) / 2);
+      } else if (typeof req.body.score === "number") {
+        calculatedScore = req.body.score;
+      } else if (typeof req.body.overallScore === "number") {
+        calculatedScore = req.body.overallScore;
+      } else if (mockScore !== null) {
+        calculatedScore = mockScore;
+      } else if (selfIntroScore !== null) {
+        calculatedScore = selfIntroScore;
+      }
+
+      if (selfIntroScore !== null) candidate.stage5.aiScore = selfIntroScore;
+      if (mockScore !== null) candidate.stage5.mockScore = mockScore;
+      if (calculatedScore !== null) {
+        candidate.stage5.score = calculatedScore;
+        candidate.stage5.overallScore = calculatedScore;
+        candidate.stage5.medal = calculatedScore >= 85 ? "Gold" : calculatedScore >= 70 ? "Silver" : calculatedScore >= 50 ? "Bronze" : "Needs Practice";
+        candidate.stage5.verified = calculatedScore >= 70;
+      }
+      if (req.body.clarityScore || req.body.clarity) candidate.stage5.clarityScore = req.body.clarityScore || req.body.clarity;
+      if (req.body.fluencyScore || req.body.fluency) candidate.stage5.fluencyScore = req.body.fluencyScore || req.body.fluency;
+      if (req.body.vocabScore || req.body.vocabularyScore || req.body.vocab) candidate.stage5.vocabScore = req.body.vocabScore || req.body.vocabularyScore || req.body.vocab;
+      if (req.body.confidenceScore || req.body.confidence) candidate.stage5.confidenceScore = req.body.confidenceScore || req.body.confidence;
+      if (req.body.contentScore || req.body.relevanceScore || req.body.content) candidate.stage5.contentScore = req.body.contentScore || req.body.relevanceScore || req.body.content;
+      if (calculatedScore !== null) {
+        candidate.stage5.completedAt = candidate.stage5.completedAt || new Date();
+        candidate.stage5.status = "completed";
+      }
       candidate.stage5.videoUrl = req.body.videoUrl || req.body.introVideoUrl || candidate.stage5.videoUrl || "";
       candidate.stage5.introVideoUrl = req.body.introVideoUrl || req.body.videoUrl || candidate.stage5.introVideoUrl || "";
       candidate.stage5.mockInterviewVideoUrl = req.body.mockInterviewVideoUrl || candidate.stage5.mockInterviewVideoUrl || "";
@@ -950,7 +969,9 @@ router.post(
       }
 
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
-      const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
+      const selfIntroScore = evaluation.overallScore;
+      const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
+      const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -966,7 +987,10 @@ router.post(
         qaPairs: evaluation.qaPairs || qaPairs,
         // aiScore is now a communication score (clarity/fluency/vocabulary &
         // grammar/confidence, averaged) - not an answer-correctness score.
-        aiScore: evaluation.overallScore,
+        aiScore: selfIntroScore,
+        score: combinedScore,
+        overallScore: combinedScore,
+        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
@@ -1379,6 +1403,9 @@ router.post(
         ? breakdown
         : (req.body?.qaPairs ? (typeof req.body.qaPairs === "string" ? JSON.parse(req.body.qaPairs) : req.body.qaPairs) : []);
 
+      const selfIntroScore = typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null;
+      const combinedScore = selfIntroScore !== null ? Math.round((selfIntroScore + finalScore) / 2) : finalScore;
+
       // 1. Update Candidate Stage 5 record
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -1387,6 +1414,9 @@ router.post(
         endedEarly: status === "STOPPED",
         endedReason: status === "STOPPED" ? "USER_ENDED" : (isTabSwitch ? "TAB_SWITCH" : null),
         mockScore: finalScore,
+        score: combinedScore,
+        overallScore: combinedScore,
+        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
         integrityScore: integrityScore,
         qaPairs: parsedQaPairs.length > 0 ? parsedQaPairs : (candidate.stage5?.qaPairs || []),
         proctorLogs: {

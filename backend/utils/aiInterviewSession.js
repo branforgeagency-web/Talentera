@@ -165,10 +165,17 @@ async function finalizeAiInterviewSession(candidate, session, status) {
     mockScore: result.overallScore,
     mockInterviewCompleted: true,
   };
+  const mockFinalScore = result.overallScore;
+  const selfIntroScore = typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null;
+  const combinedScore = selfIntroScore !== null ? Math.round((selfIntroScore + mockFinalScore) / 2) : mockFinalScore;
+
   candidate.stage5 = {
     ...(candidate.stage5 || {}),
     mockInterviewCompleted: true,
-    mockScore: result.overallScore,
+    mockScore: mockFinalScore,
+    score: combinedScore,
+    overallScore: combinedScore,
+    medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
     status: status,
     endedEarly: status === "STOPPED",
     endedReason: status === "STOPPED" ? "USER_ENDED" : null,
