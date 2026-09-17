@@ -75,7 +75,20 @@ function sendAssistantReply(req, res, content) {
   return res.end();
 }
 
-router.post("/llm", async (req, res) => {
+// Vapi's custom-llm integration talks to this URL through the OpenAI SDK
+// internally, treating whatever `model.url` the assistant is configured
+// with as an OpenAI-compatible "base URL" - it always POSTs to
+// `${model.url}/chat/completions`, never to `model.url` itself. Our
+// assistant's model.url is `.../api/vapi/llm` (see
+// scripts/setupVapiAssistant.js's LLM_URL), so the real inbound path is
+// `/llm/chat/completions`, not `/llm`. Confirmed via a Vapi call log
+// showing "Cannot POST /api/vapi/llm/chat/completions" (404) as the exact
+// cause of every "provider-fault-custom-llm-llm-failed" call ending after
+// ~4-6s with no assistant message ever generated. Registering the handler
+// at both paths means this keeps working even if a future assistant
+// config ever points straight at this URL without the OpenAI-SDK
+// convention appending the suffix.
+router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
   try {
     if (!JWT_SECRET) {
       logger.error("Vapi LLM webhook: JWT_SECRET not configured.");
