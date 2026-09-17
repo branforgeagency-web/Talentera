@@ -187,6 +187,16 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const inactivityIntervalRef = useRef(null);
   const answerStartedRef = useRef(false);
   const isSwitchingCallRef = useRef(false);
+  // Re-entrancy guard for startVapiCall. Without this, two overlapping
+  // invocations (double-clicking "Reconnect Voice", or advanceViaRest's
+  // catch-path racing a still-in-flight call from handleStart) could each
+  // create their own `new Vapi(...)` instance before the other's stop()
+  // finished tearing down its Daily.co WebRTC session - two live call
+  // objects at once, which is exactly what produced the "attempting to use
+  // multiple call instances simultaneously" / "KrispSDK is duplicated" /
+  // "Meeting ended due to ejection" errors. Every call site now funnels
+  // through this single mutex.
+  const isConnectingCallRef = useRef(false);
 
   // loading | setup | interview | report
   const [step, setStep] = useState("loading");
@@ -201,6 +211,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [starting, setStarting] = useState(false);
   const [micDenied, setMicDenied] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [isConnectingCall, setIsConnectingCall] = useState(false);
 
   // Candidate's own camera + mic preview. Per the AI Mock Interview
   // requirements, the candidate's camera and microphone should automatically
@@ -639,36 +650,53 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   async function startVapiCall(authToken) {
-    const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID;
-    const publicKey = import.meta.env.VITE_VAPI_PUBLIC_KEY;
-    if (!assistantId || !publicKey) {
-      toast("The AI interviewer's voice isn't configured yet — please contact support.", "!");
-      return;
-    }
-
-    if (vapiRef.current) {
-      try {
-        vapiRef.current.stop();
-      } catch (e) {}
-      await new Promise((r) => setTimeout(r, 600));
-    }
-
-    const vapi = new Vapi(publicKey);
-    vapiRef.current = vapi;
-    vapiEventsWiredRef.current = false;
-    wireVapiEvents(vapi);
+    // Mutex: never let two calls run this function's body concurrently.
+    // A second caller arriving while one is already connecting is a no-op
+    // rather than a second `new Vapi(...)` instance racing the first one.
+    if (isConnectingCallRef.current) return;
+    isConnectingCallRef.current = true;
+    setIsConnectingCall(true);
 
     try {
-      await vapi.start(assistantId, {
-        variableValues: { authToken: authToken || "" },
-      });
-      setIsCallConnected(true);
-    } catch (err) {
-      console.error("Vapi start error:", err);
-      const errMsg = String(err?.message || "");
-      if (!/meeting has ended|ejection/i.test(errMsg)) {
-        toast("Couldn't connect to the AI interviewer's voice — please try again.", "!");
+      const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID;
+      const publicKey = import.meta.env.VITE_VAPI_PUBLIC_KEY;
+      if (!assistantId || !publicKey) {
+        toast("The AI interviewer's voice isn't configured yet — please contact support.", "!");
+        return;
       }
+
+      if (vapiRef.current) {
+        const previousVapi = vapiRef.current;
+        // Clear the ref before tearing down so nothing else can treat the
+        // dying instance as "the current call" while we wait for it to
+        // actually release its Daily.co WebRTC session and Krisp SDK.
+        vapiRef.current = null;
+        try {
+          previousVapi.stop();
+        } catch (e) {}
+        await new Promise((r) => setTimeout(r, 600));
+      }
+
+      const vapi = new Vapi(publicKey);
+      vapiRef.current = vapi;
+      vapiEventsWiredRef.current = false;
+      wireVapiEvents(vapi);
+
+      try {
+        await vapi.start(assistantId, {
+          variableValues: { authToken: authToken || "" },
+        });
+        setIsCallConnected(true);
+      } catch (err) {
+        console.error("Vapi start error:", err);
+        const errMsg = String(err?.message || "");
+        if (!/meeting has ended|ejection/i.test(errMsg)) {
+          toast("Couldn't connect to the AI interviewer's voice — please try again.", "!");
+        }
+      }
+    } finally {
+      isConnectingCallRef.current = false;
+      setIsConnectingCall(false);
     }
   }
 
@@ -997,7 +1025,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                     <button
                       type="button"
                       onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
-                      disabled={loadingTurn}
+                      disabled={loadingTurn || isConnectingCall}
                       style={{
                         background: "#FEF3C7",
                         color: "#92400E",
@@ -1013,7 +1041,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                       }}
                       title="Click to reconnect the AI interviewer voice call"
                     >
-                      <span>⚡ Reconnect Voice</span>
+                      <span>{isConnectingCall ? "⏳ Connecting…" : "⚡ Reconnect Voice"}</span>
                     </button>
                   )}
                 </div>
@@ -1117,7 +1145,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               <button
                 type="button"
                 onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
-                disabled={loadingTurn}
+                disabled={loadingTurn || isConnectingCall}
                 style={{
                   background: "#FFFBEB",
                   border: "1.5px solid #F59E0B",
@@ -1133,7 +1161,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 }}
                 title="Reconnect voice connection with AI interviewer"
               >
-                🎙️ Reconnect Voice
+                {isConnectingCall ? "⏳ Connecting…" : "🎙️ Reconnect Voice"}
               </button>
             )}
 
