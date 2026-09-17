@@ -7,10 +7,8 @@ const StudentInvite = require("../models/StudentInvite");
 const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
 const Application = require("../models/Application");
-const Company = require("../models/Company");
 const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const { requireAcademyAuth, signToken } = require("../middleware/auth");
 const { upload } = require("../middleware/upload");
@@ -85,7 +83,6 @@ function compute8Stages(candidate) {
   const s5 = candidate.stage5 || {};
   const s6 = candidate.stage6 || {};
   const s7 = candidate.stage7 || {};
-  const s8 = candidate.stage8 || {};
 
   const hasRealAadhaar = !!s1.aadhaarVerified && (!!s1.maskedAadhaar || !!s1.dob || !!s1.gender || !!s1.verificationMethod || !!s1.aadhaarNumber || !!s1.aadhaarDigits || !!s1.verifiedAt);
   const stages = [

@@ -75,9 +75,6 @@ function isEmptyValue(v) {
   return false;
 }
 
-// Helper to sanitize input strings
-const toStr = (val, fallback = "") => (typeof val === "string" ? val.trim() : fallback);
-
 // GET /api/company/me - Fetch logged-in company profile
 router.get("/me", async (req, res) => {
   try {

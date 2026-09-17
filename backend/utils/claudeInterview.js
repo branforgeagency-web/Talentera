@@ -260,7 +260,7 @@ function keywordIsPresent(keyword, lowerCandidate, candidateKeywordSet) {
   if (synonyms.some((syn) => lowerCandidate.includes(syn))) return true;
 
   // Handle "X/Y" or "X, Y" compound keywords - a match on either side counts.
-  const parts = cLower.split(/[\/,]| and /).map((p) => p.trim()).filter(Boolean);
+  const parts = cLower.split(/[/,]| and /).map((p) => p.trim()).filter(Boolean);
   const partsToCheck = parts.length > 1 ? parts : [cLower];
 
   return partsToCheck.some((part) => {

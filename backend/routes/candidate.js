@@ -15,7 +15,6 @@ const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
 const { getMessiTurn, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
 const { buildFreshAiInterviewSession, finalizeAiInterviewSession } = require("../utils/aiInterviewSession");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
-const { verhoeffValidate } = require("../utils/verhoeffBackend");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
 const logger = require("../utils/logger");

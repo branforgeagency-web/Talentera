@@ -21,11 +21,9 @@ jest.mock("../utils/logger", () => ({
 const Academy = require("../models/Academy");
 const AcademyBatch = require("../models/AcademyBatch");
 const Candidate = require("../models/Candidate");
-const StudentUpload = require("../models/StudentUpload");
 const StudentInvite = require("../models/StudentInvite");
 const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
-const Application = require("../models/Application");
 const academyRoutes = require("../routes/academy");
 const { signToken } = require("../middleware/auth");
 
