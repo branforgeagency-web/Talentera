@@ -1,0 +1,14 @@
+# Copy this file to .env and fill in real values. Never commit .env.
+
+# MSG91 OTP Widget - client-safe values, scoped to this widget only
+# (get these from your MSG91 dashboard: Widgets -> your widget -> embed code).
+# The account authkey used to verify tokens server-side stays in backend/.env
+# and must never appear here.
+VITE_MSG91_WIDGET_ID=366872644756313735363130
+VITE_MSG91_TOKEN_AUTH=561692TGY3X1VHQR6a83e517P1
+
+# Vapi (voice AI for the Stage 5 AI Mock Interview "Messi") - mirrors
+# VAPI_PUBLIC_KEY and VAPI_ASSISTANT_ID from backend/.env. Safe to expose in
+# the browser bundle (Vapi public keys are scoped for client-side use).
+VITE_VAPI_PUBLIC_KEY=44ce2929-35a2-4137-958b-431bcc5b4286
+VITE_VAPI_ASSISTANT_ID=e9277bb1-b0e5-4163-bfcd-bc654dbb33b0

@@ -8566,6 +8566,41 @@ export default function StaffHub() {
                           </span>
                         </div>
                       </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Credential Verification Link</div>
+                        <div className="staff-meta-value">
+                          {s3.certUrl ? (
+                            <a
+                              href={s3.certUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: "#2563EB", fontWeight: 700, textDecoration: "underline", wordBreak: "break-all" }}
+                            >
+                              Open Credential Link ↗
+                            </a>
+                          ) : (
+                            <span style={{ color: "#94A3B8" }}>None provided</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Automated Authenticity Check</div>
+                        <div className="staff-meta-value">
+                          {s3.isReal === true || s3.verificationResult?.verdict === "REAL" ? (
+                            <span style={{ color: "#15803D", fontWeight: 800 }}>
+                              🟢 REAL · VERIFIED ({s3.trustScore || s3.verificationResult?.trustScore || 98}% Trust)
+                            </span>
+                          ) : s3.isReal === false || s3.verificationResult?.verdict === "FAKE" ? (
+                            <span style={{ color: "#B91C1C", fontWeight: 800 }}>
+                              🔴 FAKE / SUSPICIOUS (Flagged)
+                            </span>
+                          ) : (
+                            <span style={{ color: "#B45309", fontWeight: 700 }}>
+                              🟡 {s3.verificationResult?.badge || "Pending Live Proof"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* ALL ADDED / STACKED CERTIFICATIONS */}
@@ -8592,8 +8627,8 @@ export default function StaffHub() {
                                 <span style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", background: "#EFF6FF", padding: "2px 8px", borderRadius: 6 }}>
                                   {cert.code || "CERT"}
                                 </span>
-                                <span style={{ fontSize: 10.5, fontWeight: 800, color: cert.status === "Verified" ? "#15803D" : "#B45309" }}>
-                                  {cert.status || "API-Verified"}
+                                <span style={{ fontSize: 10.5, fontWeight: 800, color: cert.status === "Verified" || cert.isReal === true ? "#15803D" : cert.isReal === false ? "#B91C1C" : "#B45309" }}>
+                                  {cert.status || (cert.isReal === true ? "Real · Verified" : cert.isReal === false ? "Fake · Invalid" : "API-Verified")}
                                 </span>
                               </div>
                               <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>
@@ -8602,6 +8637,13 @@ export default function StaffHub() {
                               <div style={{ fontSize: 11, color: "#64748B" }}>
                                 {cert.body || "AAPC"} · Member ID: <strong style={{ fontFamily: "monospace" }}>{cert.memberId || "N/A"}</strong>
                               </div>
+                              {cert.certUrl && (
+                                <div style={{ fontSize: 11 }}>
+                                  <a href={cert.certUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>
+                                    🔗 View Credential Link ↗
+                                  </a>
+                                </div>
+                              )}
                               <div style={{ fontSize: 10.5, color: "#94A3B8" }}>
                                 Issued: {cert.issueDate || cert.issueYear || "N/A"} {cert.expiryDate ? `· Renews: ${cert.expiryDate}` : ""}
                               </div>

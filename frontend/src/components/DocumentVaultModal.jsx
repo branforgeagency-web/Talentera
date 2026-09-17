@@ -78,6 +78,7 @@ export default function DocumentVaultModal({
           title: `${cBody.toUpperCase()} ${cCode} — ${cName}${cMemberId ? ` (ID: ${cMemberId})` : ""}`,
           docType: "AAPC / Professional Certification",
           docUrl: cert.docUrl || candidate?.stage3?.docUrl || null,
+          certUrl: cert.certUrl || candidate?.stage3?.certUrl || null,
           docName: cert.docName || candidate?.stage3?.docName || `${cCode}_Certificate.pdf`,
           memberId: cMemberId,
           code: cCode,
@@ -643,7 +644,21 @@ export default function DocumentVaultModal({
                               ⬇ Download
                             </a>
                           </>
-                        ) : (
+                        ) : null}
+
+                        {doc.certUrl && (
+                          <a
+                            href={doc.certUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="doc-btn secondary"
+                            style={{ color: "#2563EB", borderColor: "#BFDBFE" }}
+                          >
+                            🔗 Verification Link ↗
+                          </a>
+                        )}
+
+                        {!doc.docUrl && (
                           <div style={{ fontSize: 11, color: "#15803D", fontWeight: 700, padding: "4px 8px", background: "#DCFCE7", borderRadius: 6 }}>
                             ✓ Active on Profile
                           </div>

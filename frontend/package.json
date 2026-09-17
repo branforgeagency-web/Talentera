@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
+    "@vapi-ai/web": "^2.7.0",
     "axios": "^1.7.2",
     "html2pdf.js": "^0.14.0",
     "html5-qrcode": "^2.3.8",

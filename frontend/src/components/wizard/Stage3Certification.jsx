@@ -144,12 +144,20 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     existingData.lastCeuYear || (rawLastCeu.includes("/") ? rawLastCeu.split("/")[1] : rawLastCeu)
   );
 
+  // Credential verification URL and Real vs Fake verification state
+  const [certUrl, setCertUrl] = useState(existingData.certUrl || "");
+  const [verificationResult, setVerificationResult] = useState(existingData.verificationResult || null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+
   // Multi-cert stack with robust initialization from existingData
   const initialCertStack = useMemo(() => {
     if (Array.isArray(existingData.certifications) && existingData.certifications.length > 0) {
       return existingData.certifications;
     }
     if (existingData.certCode && existingData.memberId) {
+      const isReal = existingData.isReal !== undefined ? existingData.isReal : (existingData.certStatus === "verified" ? true : null);
+      const verdict = isReal === true ? "REAL" : isReal === false ? "FAKE" : "NEEDS_AUDIT";
       return [
         {
           code: existingData.certCode,
@@ -163,8 +171,12 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           expiryYear: existingData.expiryYear || "",
           expiryDate: existingData.expiryDate || "",
           memberId: existingData.memberId,
-          status: existingData.certStatus === "verified" ? "Verified" : "API-Verified",
-          badgeClass: existingData.certStatus === "verified" ? "green" : "blue",
+          certUrl: existingData.certUrl || "",
+          isReal,
+          trustScore: existingData.trustScore || (isReal ? 98 : 70),
+          verificationResult: existingData.verificationResult || null,
+          status: isReal === true ? "Real · Verified" : (isReal === false ? "Fake · Invalid" : (existingData.certStatus === "verified" ? "Verified" : "Pending Review")),
+          badgeClass: isReal === true || existingData.certStatus === "verified" ? "green" : (isReal === false ? "red" : "yellow"),
           logoClass: existingData.certCode === "CPC" ? "blue" : existingData.certCode === "CDC" ? "purple" : "",
         },
       ];
@@ -181,6 +193,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     } else if (existingData.certCode && existingData.memberId && certStack.length === 0) {
       setCertStack(initialCertStack);
     }
+    if (existingData.certUrl) setCertUrl(existingData.certUrl);
+    if (existingData.verificationResult) setVerificationResult(existingData.verificationResult);
   }, [existingData, initialCertStack]);
 
   // SECTION 3 · PURSUING DETAILS
@@ -253,6 +267,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
     let finalStack = activeStack;
     if (isCertified && finalStack.length === 0 && (memberId.trim() || selectedCertCode)) {
+      const isReal = verificationResult ? verificationResult.isReal : null;
+      const verdict = verificationResult ? verificationResult.verdict : "NEEDS_AUDIT";
+      const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
+      const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "blue");
       finalStack = [
         {
           code: selectedCertCode,
@@ -266,8 +284,12 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           expiryYear,
           expiryDate: formattedExpiry,
           memberId: memberId.trim(),
-          status: "API-Verified",
-          badgeClass: "green",
+          certUrl: certUrl.trim(),
+          isReal,
+          trustScore: verificationResult?.trustScore || 70,
+          verificationResult,
+          status: statusText,
+          badgeClass,
           logoClass: selectedCertCode === "CPC" ? "blue" : selectedCertCode === "CDC" ? "purple" : "",
         },
       ];
@@ -284,6 +306,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       issuingBody: isCertified ? (finalStack[0]?.body || bodyData.name || "AAPC") : isPursuing ? "AAPC" : "None",
       body: isCertified ? (finalStack[0]?.body || bodyData.name || "AAPC") : isPursuing ? "AAPC" : "None",
       memberId: isCertified ? (finalStack[0]?.memberId || memberId.trim()) : "",
+      certUrl: certUrl ? certUrl.trim() : (finalStack[0]?.certUrl || ""),
+      verificationResult: verificationResult || (finalStack[0]?.verificationResult) || null,
+      isReal: verificationResult ? verificationResult.isReal : (finalStack[0]?.isReal !== undefined ? finalStack[0].isReal : null),
+      trustScore: verificationResult ? verificationResult.trustScore : (finalStack[0]?.trustScore !== undefined ? finalStack[0].trustScore : null),
       issueMonth,
       issueYear,
       issueDate: isCertified ? (finalStack[0]?.issueDate || formattedIssue) : "",
@@ -309,6 +335,38 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     };
   }
 
+  async function handleVerifyCredential() {
+    if (!memberId.trim()) {
+      toast("Please enter your Member / Cert ID first.", "!");
+      return;
+    }
+    setIsVerifying(true);
+    setVerifyError("");
+    try {
+      const res = await api.post("/candidate/stage/3/verify-credential", {
+        body: selectedBodyKey,
+        certCode: selectedCertCode,
+        memberId: memberId.trim(),
+        certUrl: certUrl.trim(),
+      });
+      setVerificationResult(res.data);
+      if (res.data.isReal) {
+        toast("✓ Credential authenticity confirmed as REAL!", "✓");
+      } else if (res.data.isFake) {
+        toast("⚠️ Suspicious / fake credential pattern detected.", "!");
+      } else {
+        toast("Format verified! Pending official URL or document proof.", "ℹ");
+      }
+    } catch (err) {
+      console.error("Verification check failed:", err);
+      const msg = err.response?.data?.message || "Could not complete credential verification.";
+      setVerifyError(msg);
+      toast(msg, "!");
+    } finally {
+      setIsVerifying(false);
+    }
+  }
+
   async function handleAddCertToStack() {
     if (!memberId.trim()) {
       toast("Please enter your Member / Cert ID first.", "!");
@@ -316,6 +374,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     }
     const formattedIssue = issueYear ? (issueMonth ? `${issueMonth}/${issueYear}` : issueYear) : "";
     const formattedExpiry = expiryYear ? (expiryMonth ? `${expiryMonth}/${expiryYear}` : expiryYear) : "";
+    const isReal = verificationResult ? verificationResult.isReal : null;
+    const verdict = verificationResult ? verificationResult.verdict : "NEEDS_AUDIT";
+    const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
+    const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "yellow");
     const newCertObj = {
       code: selectedCertCode,
       name: activeCertDetail.name,
@@ -328,8 +390,12 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       expiryYear,
       expiryDate: formattedExpiry,
       memberId: memberId.trim(),
-      status: "API-Verified",
-      badgeClass: "green",
+      certUrl: certUrl.trim(),
+      isReal,
+      trustScore: verificationResult?.trustScore || 70,
+      verificationResult,
+      status: statusText,
+      badgeClass,
       logoClass: selectedCertCode === "CPC" ? "blue" : selectedCertCode === "CDC" ? "purple" : "",
     };
 
@@ -385,6 +451,11 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     if (status === "certified") {
       if (!memberId.trim() && certStack.length === 0) {
         setError("Please enter your Member / Cert ID in Section 2.");
+        window.scrollTo({ top: 400, behavior: "smooth" });
+        return;
+      }
+      if (verificationResult?.isFake) {
+        setError("The entered credential failed authenticity verification (flagged fake/dummy). Please correct your Member ID or verification link.");
         window.scrollTo({ top: 400, behavior: "smooth" });
         return;
       }
@@ -1025,6 +1096,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         }
         .s3-cert-mini-badge.green { background: var(--green-soft); color: var(--green); }
         .s3-cert-mini-badge.yellow { background: var(--amber-soft); color: var(--amber); }
+        .s3-cert-mini-badge.red { background: var(--red-soft); color: var(--red); }
+        .s3-cert-mini-badge.blue { background: var(--blue-soft); color: var(--blue); }
 
         .s3-add-cert-btn {
           background: transparent;
@@ -1121,30 +1194,114 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         .s3-option-item .flag { font-size: 18px; }
         .s3-option-item .tail { margin-left: auto; color: var(--gray-mute); font-size: 11px; font-weight: 500; font-style: italic; }
 
+        /* VERIFY ACTION BAR & REAL/FAKE STRIP */
+        .s3-verify-action-bar {
+          background: #FFFFFF;
+          border: 1.5px solid var(--border);
+          border-radius: 12px;
+          padding: 14px 18px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin: 12px 0;
+          flex-wrap: wrap;
+        }
+        .s3-verify-action-info {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .s3-verify-action-info .badge-ico {
+          font-size: 22px;
+          width: 38px;
+          height: 38px;
+          background: var(--blue-soft);
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+        }
+        .s3-official-link-btn {
+          background: var(--blue-soft);
+          color: var(--blue);
+          border: 1.5px solid var(--blue);
+          padding: 9px 16px;
+          border-radius: 9px;
+          font-size: 12px;
+          font-weight: 700;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          transition: .15s;
+        }
+        .s3-official-link-btn:hover { background: #DBEAFE; }
+        .s3-verify-btn {
+          background: var(--navy);
+          color: var(--gold);
+          border: none;
+          padding: 10px 18px;
+          border-radius: 9px;
+          font-size: 12.5px;
+          font-weight: 800;
+          cursor: pointer;
+          transition: .15s;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .s3-verify-btn:hover:not(:disabled) { background: #1A2A55; }
+        .s3-verify-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
         .s3-verify-strip {
           background: linear-gradient(90deg, var(--green-soft), #F5FDF9);
           border: 1.5px solid var(--green);
           border-radius: 12px;
           padding: 14px 18px;
           display: flex;
-          align-items: center;
-          gap: 12px;
+          align-items: flex-start;
+          gap: 14px;
           margin-top: 14px;
+          transition: .2s;
+        }
+        .s3-verify-strip.real {
+          background: linear-gradient(90deg, #ECFDF5, #F0FDF4);
+          border: 1.5px solid #10B981;
+        }
+        .s3-verify-strip.fake {
+          background: linear-gradient(90deg, #FEF2F2, #FFF1F2);
+          border: 1.5px solid #EF4444;
+        }
+        .s3-verify-strip.pending {
+          background: linear-gradient(90deg, #FFFBEB, #FEF3C7);
+          border: 1.5px solid #F59E0B;
+        }
+        .s3-verify-strip.loading {
+          background: linear-gradient(90deg, #EFF6FF, #F0F9FF);
+          border: 1.5px dashed #3B82F6;
         }
         .s3-verify-strip .badge-dot {
-          width: 32px;
-          height: 32px;
+          width: 34px;
+          height: 34px;
           background: var(--green);
           color: var(--white);
           border-radius: 50%;
           display: grid;
           place-items: center;
-          font-size: 14px;
+          font-size: 15px;
           font-weight: 800;
           flex-shrink: 0;
+          margin-top: 2px;
         }
+        .s3-verify-strip .badge-dot.green { background: #10B981; }
+        .s3-verify-strip .badge-dot.red { background: #EF4444; }
+        .s3-verify-strip .badge-dot.yellow { background: #F59E0B; }
         .s3-verify-strip .title { font-weight: 800; color: var(--navy); font-size: 13.5px; }
-        .s3-verify-strip .body { font-size: 12px; color: var(--gray-txt); margin-top: 2px; }
+        .s3-verify-strip .body { font-size: 12px; color: var(--gray-txt); margin-top: 2px; line-height: 1.5; }
 
         .s3-doclink {
           background: var(--white);
@@ -1597,30 +1754,81 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </div>
               </div>
 
-              {/* Member ID */}
+              {/* Member ID and Verification URL */}
               <div className="s3-row">
                 <div className="s3-field">
-                  <label>Step 4 · Member / Cert ID <span className="req">*</span></label>
+                  <label>Step 4a · Member / Cert ID <span className="req">*</span></label>
                   <input
                     type="text"
                     placeholder="e.g. 01458267 (8 characters)"
                     value={memberId}
-                    onChange={(e) => setMemberId(e.target.value)}
-                    maxLength={10}
+                    onChange={(e) => {
+                      setMemberId(e.target.value);
+                      if (verificationResult) setVerificationResult(null);
+                    }}
+                    maxLength={14}
                   />
-                  <div className="s3-helper">AAPC IDs are 8 characters. Duplicate IDs across profiles are auto-flagged.</div>
+                  <div className="s3-helper">
+                    {bodyData.name || "AAPC"} Member IDs must follow official body formats. Dummy & duplicate IDs are auto-flagged.
+                  </div>
                 </div>
                 <div className="s3-field">
-                  <label>Talentera verification path</label>
-                  <div className="s3-helper-card">
-                    <div className="ico">🔍</div>
-                    <div className="txt">
-                      You can look up your Member ID on the official AAPC registry.<br />
-                      <b>Talentera queries it in real-time</b> the moment you save.
-                    </div>
+                  <label>Step 4b · Credential URL / Digital Badge Link</label>
+                  <input
+                    type="url"
+                    placeholder="e.g. https://www.credly.com/badges/... or registry link"
+                    value={certUrl}
+                    onChange={(e) => {
+                      setCertUrl(e.target.value);
+                      if (verificationResult) setVerificationResult(null);
+                    }}
+                  />
+                  <div className="s3-helper">
+                    Credly / Accredible badge link, public certificate page, or official verify URL.
                   </div>
                 </div>
               </div>
+
+              {/* Official Registry Link & Authenticity Action Bar */}
+              <div className="s3-verify-action-bar">
+                <div className="s3-verify-action-info">
+                  <span className="badge-ico">🏛️</span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy)" }}>
+                      Official {bodyData.name || "AAPC"} Verification Registry
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--gray-mute)" }}>
+                      Check real credential records directly against the issuing authority's registry
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {bodyData.verifyUrl && (
+                    <a
+                      href={bodyData.verifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="s3-official-link-btn"
+                    >
+                      Official {bodyData.name} Registry ↗
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="s3-verify-btn"
+                    disabled={!memberId.trim() || isVerifying}
+                    onClick={handleVerifyCredential}
+                  >
+                    {isVerifying ? "Checking Authenticity…" : "🔍 Verify Credential (Real vs Fake Check)"}
+                  </button>
+                </div>
+              </div>
+
+              {verifyError && (
+                <div style={{ background: "var(--red-soft)", color: "var(--red)", padding: "10px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
+                  ⚠️ {verifyError}
+                </div>
+              )}
 
               {/* Dates */}
               <div className="s3-row-3">
@@ -1743,16 +1951,97 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </span>
               </div>
 
-              {/* Verification Strip */}
-              <div className="s3-verify-strip">
-                <div className="badge-dot">🟢</div>
-                <div>
-                  <div className="title">Verified via AAPC live directory · {issueYear ? `${issueMonth ? `${issueMonth}/` : ""}${issueYear}` : "Current"} issue confirmed</div>
-                  <div className="body">
-                    Member ID {memberId ? `****${memberId.slice(-4)}` : "confirmed"} exists in registry records · name matches profile · credential active.
+              {/* Dynamic Authenticity Verification Strip (Real vs Fake) */}
+              {isVerifying ? (
+                <div className="s3-verify-strip loading">
+                  <div className="badge-dot yellow" style={{ background: "var(--blue)" }}>⏳</div>
+                  <div style={{ flex: 1 }}>
+                    <div className="title" style={{ color: "var(--blue)" }}>Analyzing Credential Authenticity in Real-Time…</div>
+                    <div className="body">Validating ID pattern formatting, checking cross-candidate duplicate registrations, and testing live URL reachability.</div>
                   </div>
                 </div>
-              </div>
+              ) : verificationResult?.verdict === "REAL" ? (
+                <div className="s3-verify-strip real">
+                  <div className="badge-dot green">✓</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                      <div className="title" style={{ color: "var(--green)" }}>
+                        🟢 REAL CREDENTIAL CONFIRMED · {verificationResult.trustScore}% Trust Score
+                      </div>
+                      <span className="s3-cert-tag" style={{ background: "var(--green-soft)", color: "var(--green)" }}>
+                        AUTHENTICATED
+                      </span>
+                    </div>
+                    <div className="body" style={{ marginTop: 4 }}>
+                      Member ID <b>{memberId}</b> conforms to {verificationResult.issuingBody} official standards and is unique in the Talentera registry.
+                      {verificationResult.checks?.url?.reachable && (
+                        <span> · Live verification link confirmed active on <b>{verificationResult.checks.url.domain}</b>.</span>
+                      )}
+                    </div>
+                    {verificationResult.reasons && verificationResult.reasons.length > 0 && (
+                      <div style={{ marginTop: 6, fontSize: 11, color: "var(--green)", display: "flex", flexDirection: "column", gap: 2 }}>
+                        {verificationResult.reasons.map((r, i) => (
+                          <div key={i}>✓ {r}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : verificationResult?.verdict === "FAKE" ? (
+                <div className="s3-verify-strip fake">
+                  <div className="badge-dot red">✕</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                      <div className="title" style={{ color: "var(--red)" }}>
+                        🔴 FAKE / SUSPICIOUS CREDENTIAL DETECTED · 0% Trust Score
+                      </div>
+                      <span className="s3-cert-tag" style={{ background: "var(--red-soft)", color: "var(--red)" }}>
+                        FLAGGED FAKE
+                      </span>
+                    </div>
+                    <div className="body" style={{ marginTop: 4, color: "#991B1B" }}>
+                      This credential failed authenticity verification and cannot be confirmed as genuine:
+                    </div>
+                    {verificationResult.reasons && verificationResult.reasons.length > 0 && (
+                      <div style={{ marginTop: 8, background: "#FFF", padding: "8px 12px", borderRadius: 8, border: "1px solid #FECACA", fontSize: 11.5, color: "#B91C1C", display: "flex", flexDirection: "column", gap: 3 }}>
+                        {verificationResult.reasons.map((r, i) => (
+                          <div key={i} style={{ fontWeight: 600 }}>• {r}</div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, color: "#7F1D1D", marginTop: 6, fontStyle: "italic" }}>
+                      ⚠️ Warning: Submitting falsified credentials or dummy IDs violates Talentera Terms of Service and will trigger profile suspension.
+                    </div>
+                  </div>
+                </div>
+              ) : verificationResult?.verdict === "NEEDS_AUDIT" ? (
+                <div className="s3-verify-strip pending">
+                  <div className="badge-dot yellow">🟡</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                      <div className="title" style={{ color: "var(--amber)" }}>
+                        🟡 FORMAT VALID · PENDING PROOF URL / AUDIT
+                      </div>
+                      <span className="s3-cert-tag" style={{ background: "var(--gold-pale)", color: "var(--gold-deep)" }}>
+                        {verificationResult.trustScore}% Score
+                      </span>
+                    </div>
+                    <div className="body" style={{ marginTop: 4 }}>
+                      Member ID follows valid {verificationResult.issuingBody} standard format and is unique. To complete 100% automated verification, enter your digital credential link above or upload certificate document in the vault.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="s3-verify-strip" style={{ background: "#F8FAFC", border: "1.5px dashed #CBD5E1" }}>
+                  <div className="badge-dot" style={{ background: "#94A3B8" }}>ℹ️</div>
+                  <div style={{ flex: 1 }}>
+                    <div className="title" style={{ color: "#334155" }}>Authenticity Check: Pending Test</div>
+                    <div className="body">
+                      Enter your Member ID and optional Credential URL above, then click <b>"Verify Credential"</b> to run the real vs fake authenticity check.
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Multi-Cert Stack */}
               <div style={{ marginTop: 24 }}>
@@ -1767,14 +2056,26 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                       <div key={idx} className="s3-cert-card-mini">
                         <div className={`s3-cert-mini-logo ${item.logoClass || ""}`}>{item.code}</div>
                         <div className="s3-cert-mini-info">
-                          <div className="title">{item.name}</div>
+                          <div className="title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span>{item.name}</span>
+                            {item.certUrl && (
+                              <a
+                                href={item.certUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ fontSize: 11, color: "var(--blue)", textDecoration: "none", fontWeight: 700 }}
+                              >
+                                🔗 Link ↗
+                              </a>
+                            )}
+                          </div>
                           <div className="meta">
                             {item.body} · {item.region} · Issued {item.issueDate || "—"} · Renews {item.expiryDate || "—"}
                           </div>
                         </div>
                         <div className="s3-cert-mini-id">ID ****{item.memberId ? item.memberId.slice(-4) : "—"}</div>
                         <div className={`s3-cert-mini-badge ${item.badgeClass || "green"}`}>
-                          {item.badgeClass === "yellow" ? "🟡" : "🟢"} {item.status || "API-Verified"}
+                          {item.badgeClass === "green" ? "🟢" : item.badgeClass === "red" ? "🔴" : "🟡"} {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
                         </div>
                         <button
                           type="button"

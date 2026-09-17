@@ -15,6 +15,7 @@ const companyAuthRoutes = require("./routes/companyAuth");
 const companyRoutes = require("./routes/company");
 const otpRoutes = require("./routes/otp");
 const aadhaarRoutes = require("./routes/aadhaar");
+const vapiInterviewRoutes = require("./routes/vapiInterview");
 
 const app = express();
 
@@ -94,6 +95,9 @@ app.use("/api/company/auth", companyAuthRoutes);
 app.use("/api/company", companyRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/aadhaar", aadhaarRoutes);
+// Not behind requireAuth - Vapi calls this server-to-server; see
+// routes/vapiInterview.js for how it authenticates the candidate instead.
+app.use("/api/vapi", vapiInterviewRoutes);
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 

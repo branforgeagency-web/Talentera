@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
+import Vapi from "@vapi-ai/web";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
 const INACTIVITY_TIMEOUT_SECONDS = 5;
-
-// Once candidate starts speaking, how many ms of silence after answering before auto-submitting
-const SILENCE_TIMEOUT_AFTER_ANSWER_MS = 4000;
 
 const TOPIC_CONFIG = [
   { key: "ICD-10-CM", label: "1. ICD-10-CM Coding", icon: "fa-notes-medical" },
@@ -177,17 +175,13 @@ function InterviewerVideoAvatar({ state, size = "large" }) {
 export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const toast = useToast();
   const chatEndRef = useRef(null);
-  const recognitionRef = useRef(null);
-  const recognitionShouldRunRef = useRef(false);
+  const vapiRef = useRef(null);
+  const vapiEventsWiredRef = useRef(false);
   const lastSpeechAtRef = useRef(0);
   const stoppingAnswerRef = useRef(false);
   const startedAtRef = useRef(null);
-  const speechDelayTimerRef = useRef(null);
-  const speechSafetyTimerRef = useRef(null);
-  const speechResumeIntervalRef = useRef(null);
-  const activeUtteranceRef = useRef(null);
-  const accumulatedTranscriptRef = useRef("");
   const liveInterimRef = useRef("");
+  const sessionRef = useRef(null);
 
   // Inactivity countdown refs & state
   const inactivityIntervalRef = useRef(null);
@@ -209,8 +203,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   // Candidate's own camera + mic preview. Per the AI Mock Interview
   // requirements, the candidate's camera and microphone should automatically
   // turn on (after the browser permission prompt) once the interview
-  // starts - this is separate from the browser SpeechRecognition API used
-  // for live transcription below, which needs its own mic access grant.
+  // starts. This is a self-view only, separate from the Vapi call's own
+  // microphone capture used for the actual interview audio below.
   const candidateVideoRef = useRef(null);
   const candidateStreamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
@@ -221,8 +215,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [isWaitingForAnswerStart, setIsWaitingForAnswerStart] = useState(false);
   const [hasStartedAnswering, setHasStartedAnswering] = useState(false);
   const [autoAdvanceNotice, setAutoAdvanceNotice] = useState("");
-
-  const speechSupported = typeof window !== "undefined" && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
 
   const avatarState = isSpeaking
     ? "speaking"
@@ -236,6 +228,13 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [transcript, loadingTurn, liveInterim]);
+
+  // Keep a ref mirror of session so event callbacks registered once on the
+  // Vapi instance (see wireVapiEvents) always see the latest value instead
+  // of a stale closure from whenever they were registered.
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
 
   // Load existing session on mount
   useEffect(() => {
@@ -276,13 +275,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   useEffect(() => {
     return () => {
       clearInactivityTimer();
-      stopListening();
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
-      if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
-      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
-      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
-      activeUtteranceRef.current = null;
-      window.__activeUtterance = null;
+      try {
+        vapiRef.current?.stop();
+      } catch (e) {}
       stopCandidateCamera();
     };
   }, []);
@@ -339,26 +334,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     return () => clearInterval(timer);
   }, [step]);
 
-  // Post-answering silence auto-submit: once the candidate has actually started speaking
-  // and provided words, if they pause for 4s, auto-submit their answer.
-  const handleStopAnswerRef = useRef(() => {});
-  useEffect(() => {
-    handleStopAnswerRef.current = handleStopAnswer;
-  });
-
-  useEffect(() => {
-    if (!isListening || !hasStartedAnswering) return;
-    const timer = setInterval(() => {
-      if (lastSpeechAtRef.current > 0 && Date.now() - lastSpeechAtRef.current >= SILENCE_TIMEOUT_AFTER_ANSWER_MS) {
-        const words = (liveInterimRef.current || liveInterim).trim().split(/\s+/).filter(Boolean);
-        if (words.length >= 3) {
-          handleStopAnswerRef.current();
-        }
-      }
-    }, 400);
-    return () => clearInterval(timer);
-  }, [isListening, hasStartedAnswering, liveInterim]);
-
   function clearInactivityTimer() {
     if (inactivityIntervalRef.current) {
       clearInterval(inactivityIntervalRef.current);
@@ -397,13 +372,12 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     stoppingAnswerRef.current = true;
     setIsWaitingForAnswerStart(false);
     setHasStartedAnswering(false);
-    stopListening();
     setAutoAdvanceNotice("5 seconds of inactivity — moving to the next question...");
     toast("5 seconds of inactivity — moving to next question.", "!");
 
     setTimeout(() => {
       setAutoAdvanceNotice("");
-      submitUtterance("(no answer)");
+      advanceViaRest("(no answer)");
     }, 1200);
   }
 
@@ -418,178 +392,81 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
-  // Text-To-Speech with human-like voice selection & Chromium GC resilience
-  function speakText(text, onEnd) {
-    if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
-    if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
-    if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
-
-    const cleanText = String(text || "")
-      .replace(/[*_#`~[\]]/g, " ")
-      .replace(/Question\s*(\d+)\s*of\s*(\d+):?/gi, "Question $1 of $2. ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (!cleanText) {
-      setIsSpeaking(false);
-      if (onEnd) onEnd();
-      return;
-    }
-
-    let finished = false;
-    const finish = () => {
-      if (finished) return;
-      finished = true;
-      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
-      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
-      activeUtteranceRef.current = null;
-      window.__activeUtterance = null;
-      setIsSpeaking(false);
-      if (onEnd) onEnd();
-    };
-
-    try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-    } catch (e) {}
-
-    speechDelayTimerRef.current = setTimeout(() => {
-      try {
-        window.speechSynthesis.resume();
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        activeUtteranceRef.current = utterance;
-        window.__activeUtterance = utterance; // Prevent GC across turn transitions
-        utterance.lang = "en-US";
-        utterance.rate = 0.96; // warm, natural conversational cadence
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-
-        const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-        const naturalVoice = voices.find(
-          (v) =>
-            v.lang &&
-            v.lang.toLowerCase().startsWith("en") &&
-            /natural|neural|jenny|aria|samantha|serena|google/i.test(v.name)
-        );
-        if (naturalVoice) utterance.voice = naturalVoice;
-
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = finish;
-        utterance.onerror = finish;
-
-        setIsSpeaking(true);
-        window.speechSynthesis.speak(utterance);
-
-        // Periodically ping resume to prevent Chromium from dropping speech pipeline
-        speechResumeIntervalRef.current = setInterval(() => {
-          if (window.speechSynthesis && window.speechSynthesis.speaking) {
-            window.speechSynthesis.resume();
-          }
-        }, 3000);
-
-        const estimatedMs = Math.min(60000, Math.max(5000, cleanText.length * 120));
-        speechSafetyTimerRef.current = setTimeout(finish, estimatedMs);
-      } catch (err) {
-        finish();
-      }
-    }, 60);
-  }
-
+  // Opens the "start answering" window after Messi finishes asking a
+  // question - mirrors the old browser-TTS onEnd() callback, just triggered
+  // from Vapi's speech-end event instead (see wireVapiEvents below).
   function openAnswerWindow() {
-    accumulatedTranscriptRef.current = "";
     liveInterimRef.current = "";
     setLiveInterim("");
     lastSpeechAtRef.current = 0;
     stoppingAnswerRef.current = false;
-
-    // Start 5-second inactivity countdown
+    setLoadingTurn(false);
     startInactivityCountdown();
-
-    if (!micDenied && speechSupported) {
-      recognitionShouldRunRef.current = true;
-      setIsListening(true);
-      startSpeechRecognition();
-    }
   }
 
-  function startSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition || !recognitionShouldRunRef.current) return;
+  // Advances the interview for anything that ISN'T a real spoken answer
+  // Vapi itself picked up: the 5-second-inactivity auto-advance, the manual
+  // Skip button, and the typed-answer fallback. These go through the same
+  // REST /ai-interview/turn endpoint the pre-Vapi version of this component
+  // used (routes/candidate.js - proven reliable), rather than trying to
+  // inject a fake turn into the live Vapi call: an earlier attempt at that
+  // (vapi.send with an "add-message"/triggerResponseEnabled combination)
+  // turned out to not be a real, safe Vapi Web SDK feature - it got the
+  // whole call ejected ("Meeting ended due to ejection") instead of just
+  // skipping one question. Real spoken answers still go straight through
+  // the live call + the Vapi webhook (routes/vapiInterview.js), unaffected
+  // by this - only these three non-voice paths use REST.
+  //
+  // Because the turn is applied server-side outside the live call, the
+  // current Vapi call is stopped and a fresh one started right after so
+  // Messi can voice-ask whatever the (now-advanced) current question is.
+  async function advanceViaRest(text) {
+    if (loadingTurn) return;
+    clearInactivityTimer();
+    setIsWaitingForAnswerStart(false);
+    setHasStartedAnswering(false);
+    stoppingAnswerRef.current = false;
+    setTranscript((prev) => [...prev, { speaker: "you", text: text || "(no answer)" }]);
+    setLoadingTurn(true);
 
     try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-
-      recognition.onresult = (e) => {
-        let interim = "";
-        let finalChunk = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          const tr = e.results[i][0].transcript;
-          if (e.results[i].isFinal) {
-            finalChunk += tr + " ";
-          } else {
-            interim += tr + " ";
-          }
-        }
-        if (finalChunk) {
-          accumulatedTranscriptRef.current += finalChunk;
-        }
-        const fullText = (accumulatedTranscriptRef.current + " " + interim).replace(/\s+/g, " ").trim();
-
-        if (fullText) {
-          lastSpeechAtRef.current = Date.now();
-          markAnswerStarted(); // User started speaking! Cancel 5s timer
-        }
-
-        liveInterimRef.current = fullText;
-        setLiveInterim(fullText);
-      };
-
-      recognition.onerror = (e) => {
-        if (e.error === "not-allowed" || e.error === "service-not-allowed") {
-          setMicDenied(true);
-          recognitionShouldRunRef.current = false;
-          setIsListening(false);
-          toast("Microphone access blocked — you can type your answers below.", "!");
-        }
-      };
-
-      recognition.onend = () => {
-        if (recognitionShouldRunRef.current) {
-          try {
-            recognition.start();
-          } catch (e) {}
-        }
-      };
-
-      recognition.start();
-      recognitionRef.current = recognition;
+      vapiRef.current?.stop();
     } catch (e) {}
-  }
 
-  function stopListening() {
-    recognitionShouldRunRef.current = false;
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {}
+    const authToken = localStorage.getItem("talentera_token");
+
+    try {
+      const res = await api.post("/candidate/ai-interview/turn", { candidateUtterance: text });
+      const messiReply = res.data.messiReply || "Thanks — let's continue.";
+      const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
+      const nextSession = res.data.session;
+      if (nextSession) setSession(nextSession);
+      setTranscript((prev) => [...prev, { speaker: "messi", text: messiReply }]);
+
+      if (interviewEnded) {
+        setStep("report");
+        stopCandidateCamera();
+        const finalResult = res.data.result || nextSession?.result;
+        if (typeof finalResult?.overallScore === "number" && onCompleted) {
+          onCompleted({ score: finalResult.overallScore });
+        }
+        toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
+      } else {
+        await startVapiCall(authToken);
+      }
+    } catch (err) {
+      console.error("AI Interview turn error:", err);
+      toast("Connection issue reaching the AI interviewer — reconnecting…", "!");
+      // Give the candidate another shot at the same question via voice.
+      await startVapiCall(authToken);
+    } finally {
+      setLoadingTurn(false);
     }
-    setIsListening(false);
   }
 
-  function handleStopAnswer() {
-    if (stoppingAnswerRef.current) return;
-    stoppingAnswerRef.current = true;
-    clearInactivityTimer();
-    stopListening();
-    const text = (liveInterimRef.current || liveInterim || inputText).trim();
-    setLiveInterim("");
-    liveInterimRef.current = "";
-    accumulatedTranscriptRef.current = "";
-    setInputText("");
-    submitUtterance(text);
+  function handleManualSkip() {
+    if (loadingTurn) return;
+    advanceViaRest("(no answer)");
   }
 
   function handleTextChange(val) {
@@ -599,84 +476,178 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
+  // Typed-answer fallback for when a candidate's mic isn't cooperating.
+  // Voice (captured automatically by the live Vapi call) is the primary
+  // path - see the note on advanceViaRest above for why this doesn't try
+  // to inject the typed text into the live call.
   function handleTextSubmit(e) {
     if (e) e.preventDefault();
-    const text = (inputText.trim() || liveInterimRef.current || liveInterim).trim();
+    const text = inputText.trim();
     if (!text || loadingTurn) return;
-    stoppingAnswerRef.current = true;
-    clearInactivityTimer();
-    stopListening();
     setInputText("");
     setLiveInterim("");
     liveInterimRef.current = "";
-    accumulatedTranscriptRef.current = "";
-    submitUtterance(text);
+    advanceViaRest(text);
   }
 
-  async function submitUtterance(text) {
-    setTranscript((prev) => [...prev, { speaker: "you", text: text || "(no answer)" }]);
-    setLoadingTurn(true);
-    clearInactivityTimer();
-    setIsWaitingForAnswerStart(false);
-    setHasStartedAnswering(false);
-
+  // Re-pulls the authoritative session (current question index, breadcrumb
+  // progress, status) from the backend after each of Messi's finished
+  // lines, since the actual turn-by-turn grading/advancement now happens
+  // server-side inside the Vapi webhook (routes/vapiInterview.js) rather
+  // than in response to a REST call this component makes directly.
+  async function refreshSessionState() {
     try {
-      // Per the AI Mock Interview requirements, the candidate cannot
-      // manually finish before all 5 questions are answered - even a
-      // "stop the interview" utterance is sent through as a normal turn
-      // (Messi acknowledges it and re-asks the current question) rather
-      // than routed to an early-end endpoint.
-      const res = await api.post("/candidate/ai-interview/turn", { candidateUtterance: text });
-      let acknowledgment = res.data.messiReply || "Thank you for sharing that!";
-      const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
-      const nextSession = res.data.session;
-
-      let speechToPlay = acknowledgment;
-
-      // If next question exists, stitch acknowledgment + next question seamlessly
-      if (!interviewEnded && nextSession) {
-        const nextQIndex = nextSession.currentQuestionIndex;
-        const nextQ = nextSession.questions?.[nextQIndex];
-        if (nextQ?.question) {
-          const nextQHeader = `Question ${nextQIndex + 1} of ${nextSession.questions.length}: ${nextQ.question}`;
-          speechToPlay = `${acknowledgment}\n\n${nextQHeader}`;
+      const res = await api.get("/candidate/ai-interview/state");
+      const s = res.data?.session;
+      if (s) {
+        setSession(s);
+        if (s.status === "COMPLETED" || s.status === "STOPPED") {
+          // Interview is done - stop the call ourselves in case Vapi's
+          // endCallPhrases match didn't fire for some reason. handleVapiCallEnd
+          // (wired to the "call-end" event) takes it from here either way.
+          try {
+            vapiRef.current?.stop();
+          } catch (e) {}
         }
-      }
-
-      setTranscript((prev) => [...prev, { speaker: "messi", text: speechToPlay }]);
-      if (nextSession) setSession(nextSession);
-      stoppingAnswerRef.current = false;
-
-      if (interviewEnded) {
-        speakText(speechToPlay, () => {});
-        setStep("report");
-        stopCandidateCamera();
-        const finalResult = res.data.result || nextSession?.result;
-        if (typeof finalResult?.overallScore === "number" && onCompleted) {
-          onCompleted({ score: finalResult.overallScore });
-        }
-        toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
-      } else {
-        // Speak acknowledgment and next question, then start 5s window
-        speakText(speechToPlay, () => openAnswerWindow());
       }
     } catch (err) {
-      console.error("AI Interview turn error:", err);
-      toast("Connection issue reaching AI interviewer — please try again.", "!");
-      stoppingAnswerRef.current = false;
-      setInputText(text);
-      openAnswerWindow();
-    } finally {
-      setLoadingTurn(false);
+      console.error("Failed to refresh AI interview session state:", err);
+    }
+  }
+
+  async function handleVapiCallEnd() {
+    clearInactivityTimer();
+    setIsListening(false);
+    setIsSpeaking(false);
+    setIsWaitingForAnswerStart(false);
+    setLoadingTurn(false);
+    try {
+      const res = await api.get("/candidate/ai-interview/state");
+      const s = res.data?.session;
+      if (s) {
+        setSession(s);
+        if (s.status === "COMPLETED" || s.status === "STOPPED") {
+          setStep("report");
+          stopCandidateCamera();
+          const finalResult = s.result;
+          if (typeof finalResult?.overallScore === "number" && onCompleted) {
+            onCompleted({ score: finalResult.overallScore });
+          }
+          toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
+        } else {
+          // Call dropped before the interview actually finished (network
+          // blip, candidate closed the tab's mic prompt, etc.) - leave them
+          // on the interview screen; handleStart's "Resume" path picks the
+          // session back up.
+          toast("The AI interviewer's call ended before the interview finished — you can resume below.", "!");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh interview state after call end:", err);
+    }
+  }
+
+  // Registers every Vapi call-lifecycle listener exactly once (on the first
+  // call this component ever starts) rather than per-call, since @vapi-ai/web
+  // keeps a single long-lived client instance across calls.
+  function wireVapiEvents(vapi) {
+    if (vapiEventsWiredRef.current) return;
+    vapiEventsWiredRef.current = true;
+
+    vapi.on("speech-start", () => {
+      // Messi has started speaking.
+      setIsSpeaking(true);
+      clearInactivityTimer();
+      setIsWaitingForAnswerStart(false);
+    });
+
+    vapi.on("speech-end", () => {
+      setIsSpeaking(false);
+      // Messi just finished a line. If the interview is still in progress,
+      // open the 5-second "start answering" window - mirrors the old
+      // browser-TTS onEnd() callback (see speakText in the previous,
+      // browser-Web-Speech-API version of this component).
+      if (sessionRef.current?.status === "IN_PROGRESS") {
+        openAnswerWindow();
+      }
+    });
+
+    vapi.on("message", (msg) => {
+      if (!msg) return;
+
+      if (msg.type === "transcript") {
+        if (msg.role === "user") {
+          if (msg.transcriptType === "final") {
+            if (msg.transcript && msg.transcript.trim()) {
+              markAnswerStarted();
+            }
+            setTranscript((prev) => [...prev, { speaker: "you", text: msg.transcript || "(no answer)" }]);
+            setLiveInterim("");
+            liveInterimRef.current = "";
+          } else {
+            // partial / interim
+            if (msg.transcript && msg.transcript.trim()) {
+              lastSpeechAtRef.current = Date.now();
+              markAnswerStarted();
+            }
+            liveInterimRef.current = msg.transcript || "";
+            setLiveInterim(msg.transcript || "");
+          }
+        } else if (msg.role === "assistant" && msg.transcriptType === "final" && msg.transcript) {
+          setTranscript((prev) => [...prev, { speaker: "messi", text: msg.transcript }]);
+          setLoadingTurn(false);
+          refreshSessionState();
+        }
+      } else if (msg.type === "speech-update" && msg.role === "user") {
+        setIsListening(msg.status === "started");
+      }
+    });
+
+    vapi.on("call-end", () => {
+      handleVapiCallEnd();
+    });
+
+    vapi.on("error", (err) => {
+      console.error("Vapi call error:", err);
+      const message = String(err?.error?.message || err?.message || "");
+      if (/permission|denied|mic/i.test(message)) {
+        setMicDenied(true);
+        toast("Microphone access blocked — please allow microphone access and try again.", "!");
+      } else {
+        toast("Voice connection issue with the AI interviewer — please try again.", "!");
+      }
+    });
+  }
+
+  async function startVapiCall(authToken) {
+    const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID;
+    const publicKey = import.meta.env.VITE_VAPI_PUBLIC_KEY;
+    if (!assistantId || !publicKey) {
+      toast("The AI interviewer's voice isn't configured yet — please contact support.", "!");
+      return;
+    }
+
+    if (!vapiRef.current) {
+      vapiRef.current = new Vapi(publicKey);
+    }
+    wireVapiEvents(vapiRef.current);
+
+    try {
+      await vapiRef.current.start(assistantId, {
+        variableValues: { authToken: authToken || "" },
+      });
+    } catch (err) {
+      console.error("Vapi start error:", err);
+      toast("Couldn't connect to the AI interviewer's voice — please try again.", "!");
     }
   }
 
   async function handleStart(retake) {
     setStarting(true);
     try {
-      // Camera + mic turn on automatically as the interview starts (fires
-      // the browser permission prompt if not already granted); this runs
-      // in parallel with starting the session so one slow permission
+      // Camera + mic preview turn on automatically as the interview starts
+      // (fires the browser permission prompt if not already granted); this
+      // runs in parallel with starting the session so one slow permission
       // prompt doesn't stall the other.
       startCandidateCamera();
       const res = await api.post("/candidate/ai-interview/start", retake ? { retake: true } : {});
@@ -684,10 +655,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       setSession(nextSession);
       startedAtRef.current = Date.now();
       setElapsedSeconds(0);
-      const messiReply = res.data.messiReply || "Welcome! Let's begin.";
-      setTranscript(retake ? [{ speaker: "messi", text: messiReply }] : [...hydrateTranscript(nextSession), { speaker: "messi", text: messiReply }]);
+      setTranscript(retake ? [] : hydrateTranscript(nextSession));
       setStep("interview");
-      speakText(messiReply, () => openAnswerWindow());
+
+      // Messi's actual opening line is spoken by the live Vapi call itself
+      // (dynamically generated server-side by the Custom LLM webhook - see
+      // routes/vapiInterview.js), not synthesized here.
+      const authToken = localStorage.getItem("talentera_token");
+      await startVapiCall(authToken);
     } catch (err) {
       console.error("AI Interview start error:", err);
       toast(err.response?.data?.message || "Couldn't start the AI Interview — please try again.", "!");
@@ -1051,40 +1026,13 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               flexWrap: "wrap",
             }}
           >
-            {speechSupported && !micDenied && (
-              <button
-                type="button"
-                onClick={() => (isListening ? handleStopAnswer() : openAnswerWindow())}
-                disabled={loadingTurn || isSpeaking}
-                style={{
-                  background: isListening ? "#DC2626" : "#F1F5F9",
-                  color: isListening ? "#FFFFFF" : "#0A1F3D",
-                  border: isListening ? "none" : "1.5px solid #CBD5E1",
-                  borderRadius: 10,
-                  padding: "10px 16px",
-                  cursor: loadingTurn || isSpeaking ? "not-allowed" : "pointer",
-                  fontSize: 13,
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  opacity: loadingTurn || isSpeaking ? 0.6 : 1,
-                  boxShadow: isListening ? "0 3px 10px rgba(220,38,38,0.3)" : "none",
-                }}
-                title={isListening ? "Submit your spoken answer" : "Answer by voice"}
-              >
-                <i className={`fa-solid ${isListening ? "fa-check" : "fa-microphone"}`}></i>
-                <span>{isListening ? "Done Answering" : "Voice"}</span>
-              </button>
-            )}
-
             <input
               type="text"
               value={inputText}
               onChange={(e) => handleTextChange(e.target.value)}
               placeholder={
                 isWaitingForAnswerStart
-                  ? "Speak into your mic or start typing to answer (5s timeout)…"
+                  ? "Speak into your mic, or type here to answer (5s timeout)…"
                   : isListening
                   ? "Speaking… (you can also type here)"
                   : "Type your response, or speak into your microphone…"
@@ -1105,7 +1053,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             <button
               type="submit"
               className="btn btn-gold"
-              disabled={(!inputText.trim() && !liveInterim.trim()) || loadingTurn}
+              disabled={!inputText.trim() || loadingTurn}
               style={{ padding: "11px 22px", fontSize: 13, fontWeight: 800, borderRadius: 10 }}
             >
               Send Answer <i className="fa-solid fa-paper-plane" style={{ marginLeft: 6 }}></i>
@@ -1114,7 +1062,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             {/* Skip button for quick manual skip if candidate chooses */}
             <button
               type="button"
-              onClick={() => submitUtterance("(no answer)")}
+              onClick={handleManualSkip}
               disabled={loadingTurn || isSpeaking}
               style={{
                 background: "none",

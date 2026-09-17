@@ -6,6 +6,13 @@ import AiVideoAssessment from "../AiVideoAssessment.jsx";
 import ClaudeMockInterviewBot from "../ClaudeMockInterviewBot.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
+function getAssetUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
+  return `${base}${url.startsWith("/") ? url : "/" + url}`;
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // PROFILE-ADAPTIVE 5-QUESTION AI MOCK INTERVIEW SETS
 // ══════════════════════════════════════════════════════════════════════════
@@ -371,6 +378,36 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const s4Score = s4.foundationScore ?? s4.score ?? null;
   const s4Medal = s4.medal || (s4Score >= 85 ? "Gold" : s4Score >= 70 ? "Silver" : s4Score ? "Bronze" : "");
   const displayMedal = isCompleted ? (stage5?.medal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : "Bronze")) : "Silver";
+  const medalEmoji = displayMedal === "Gold" ? "🥇" : displayMedal === "Bronze" ? "🥉" : "🥈";
+
+  // Real AI-evaluated 5-dimension rubric from the Self-Introduction video
+  // (backend/utils/aiAssessment.js - clarity/fluency/vocabularyGrammar/
+  // confidenceDelivery/contentRelevance, each 0-100). Only present once the
+  // real /ai-video/assess evaluation has actually run - the "Results"
+  // section below falls back to an illustrative sample only in true preview
+  // (not-yet-completed) state, never once isCompleted is true.
+  const rubric = stage5?.rubric || null;
+  // Illustrative sample numbers, used ONLY while isCompleted is false (the
+  // "Preview: Video Pitch Results" state, shown before the candidate has
+  // actually submitted anything) so the page can show what the results
+  // section will look like. Once isCompleted is true, the real rubric above
+  // is used instead - these must never be shown as if they were a real score.
+  const SAMPLE_RUBRIC = { clarity: 82, fluency: 75, vocabularyGrammar: 80, confidenceDelivery: 70, contentRelevance: 82 };
+  const displayRubric = isCompleted && rubric ? rubric : SAMPLE_RUBRIC;
+  const clampDisplayScore = (n) => {
+    const v = Number(n);
+    return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 0;
+  };
+  const barString = (n) => "█".repeat(Math.max(1, Math.round(clampDisplayScore(n) / 10)));
+  const recordedDateLabel = (() => {
+    const raw = stage5?.completedAt || stage5?.updatedAt;
+    if (!raw) return null;
+    try {
+      return new Date(raw).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    } catch (e) {
+      return null;
+    }
+  })();
 
   // ══════════════════════════════════════════════════════════════════════════
   // UI & RECORDING STATE
@@ -388,6 +425,18 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
   // AI Voice Assistant State
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
+  // Voice reliability refs (see speakAiVoice below): the selected voice is
+  // resolved once and pinned for the lifetime of this mount instead of being
+  // recomputed on every speakAiVoice() call, so it can never drift to a
+  // different (often male, default) voice mid-session. The active utterance
+  // is kept alive on a ref/window global to prevent Chrome from garbage
+  // collecting it mid-speech (a well-documented Chrome speechSynthesis bug).
+  const pinnedVoiceRef = useRef(null);
+  const voicesReadyRef = useRef(false);
+  const activeUtteranceRef = useRef(null);
+  const speechDelayTimerRef = useRef(null);
+  const speechSafetyTimerRef = useRef(null);
+  const speechResumeIntervalRef = useRef(null);
   const [isIntroPrompting, setIsIntroPrompting] = useState(false);
   const [isMockPrompting, setIsMockPrompting] = useState(false);
 
@@ -398,9 +447,41 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const [introRecordingTime, setIntroRecordingTime] = useState(0);
   const [introTakeCount, setIntroTakeCount] = useState(1);
   const [introVideoBlob, setIntroVideoBlob] = useState(null);
-  const [introVideoUrl, setIntroVideoUrl] = useState(stage5?.introVideoUrl || stage5?.videoUrl || "");
+  const [introVideoUrl, setIntroVideoUrl] = useState(
+    stage5?.introVideoUrl ||
+      stage5?.selfIntroVideoUrl ||
+      stage5?.videoUrl ||
+      candidate?.videoUrl ||
+      existingData?.introVideoUrl ||
+      existingData?.selfIntroVideoUrl ||
+      existingData?.videoUrl ||
+      ""
+  );
   const isSelfIntroComplete = Boolean(introVideoUrl || introVideoBlob);
   const [isUploadingIntro, setIsUploadingIntro] = useState(false);
+
+  // Sync server video URL if candidate data loads asynchronously
+  useEffect(() => {
+    const serverUrl =
+      stage5?.introVideoUrl ||
+      stage5?.selfIntroVideoUrl ||
+      stage5?.videoUrl ||
+      candidate?.videoUrl ||
+      existingData?.introVideoUrl ||
+      existingData?.selfIntroVideoUrl ||
+      existingData?.videoUrl;
+    if (serverUrl && !introVideoUrl) {
+      setIntroVideoUrl(serverUrl);
+    }
+  }, [
+    stage5?.introVideoUrl,
+    stage5?.selfIntroVideoUrl,
+    stage5?.videoUrl,
+    candidate?.videoUrl,
+    existingData?.introVideoUrl,
+    existingData?.selfIntroVideoUrl,
+    existingData?.videoUrl,
+  ]);
 
   // Section 3: AI Mock Interview State
   const [currentMockIndex, setCurrentMockIndex] = useState(0);
@@ -434,6 +515,28 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const mockMediaRecorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const recognitionRef = useRef(null);
+
+  // Ensure that when introVideoUrl is set and recording is inactive, the video element loads and plays the recorded file
+  useEffect(() => {
+    const videoEl = introVideoRef.current;
+    if (!videoEl) return;
+
+    if (!isIntroRecording && introVideoUrl) {
+      if (videoEl.srcObject) {
+        try {
+          videoEl.srcObject.getTracks?.().forEach((t) => t.stop());
+        } catch (e) {}
+        videoEl.srcObject = null;
+      }
+      const targetSrc = getAssetUrl(introVideoUrl);
+      if (videoEl.src !== targetSrc) {
+        videoEl.src = targetSrc;
+      }
+      try {
+        videoEl.load();
+      } catch (e) {}
+    }
+  }, [introVideoUrl, isIntroRecording]);
 
   // Submitting final Stage 5 results
   const [isSubmittingStage5, setIsSubmittingStage5] = useState(false);
@@ -700,46 +803,44 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // AI VOICE ASSISTANT (SPEECH SYNTHESIS)
   // ══════════════════════════════════════════════════════════════════════════
 
-  const stopAiVoice = () => {
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-    }
-    setIsAiSpeaking(false);
+  // Wait for the browser's async voice list to finish loading (Chrome/Edge
+  // populate speechSynthesis.getVoices() asynchronously - calling it before
+  // the "voiceschanged" event fires returns [], which silently falls back to
+  // the OS default voice, very often a male one on Windows. This is the
+  // documented root cause of "the AI's voice changed to a man's voice" -
+  // resolves once, at most after a short timeout, and never throws.
+  const ensureVoicesReady = () => {
+    return new Promise((resolve) => {
+      try {
+        if (typeof window === "undefined" || !window.speechSynthesis) return resolve();
+        const existing = window.speechSynthesis.getVoices();
+        if (existing && existing.length > 0) {
+          voicesReadyRef.current = true;
+          return resolve();
+        }
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          voicesReadyRef.current = true;
+          resolve();
+        };
+        window.speechSynthesis.onvoiceschanged = done;
+        setTimeout(done, 400);
+      } catch (e) {
+        resolve();
+      }
+    });
   };
 
-  const speakAiVoice = (text, onEnd) => {
-    if (typeof window === "undefined" || !window.speechSynthesis) {
-      setIsAiSpeaking(false);
-      if (onEnd) onEnd();
-      return;
-    }
-
+  // Resolve the voice ONCE per mount and cache it in pinnedVoiceRef - every
+  // subsequent speakAiVoice() call reuses the same cached voice instead of
+  // re-running getVoices().find(...), which is what let the voice drift
+  // between a good match and the male default across a single session.
+  const pickInterviewerVoice = () => {
     try {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.resume();
-
-      const cleanText = String(text || "")
-        .replace(/[*_#`~[\]]/g, " ")
-        .replace(/\bE\/M\b/gi, "E and M")
-        .replace(/\bICD-10-CM\b/gi, "I C D 10 C M")
-        .replace(/\bICD-10-PCS\b/gi, "I C D 10 P C S")
-        .replace(/\bICD-10\b/gi, "I C D 10")
-        .replace(/\bCPT\b/g, "C P T")
-        .replace(/\bMDM\b/g, "M D M")
-        .replace(/\bHIPAA\b/gi, "Hippa")
-        .replace(/\bPHI\b/g, "P H I")
-        .replace(/\bRAF\b/g, "R A F")
-        .replace(/\bMEAT\b/g, "Meat")
-        .replace(/\bvs\.?\b/gi, "versus")
-        .replace(/\s+/g, " ")
-        .trim();
-
-      const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = "en-US";
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-
+      if (pinnedVoiceRef.current) return pinnedVoiceRef.current;
+      if (typeof window === "undefined" || !window.speechSynthesis) return null;
       const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
       const realHumanVoicePatterns = [
         /microsoft.*(jenny|aria|ava|emma|sonia|libby|michelle).*natural/i,
@@ -776,26 +877,151 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
         );
       }
 
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
-      }
-
-      setIsAiSpeaking(true);
-      const finish = () => {
-        setIsAiSpeaking(false);
-        if (onEnd) onEnd();
-      };
-
-      utterance.onend = finish;
-      utterance.onerror = finish;
-      window.speechSynthesis.speak(utterance);
+      // Cache whatever we found (even null) so we don't keep re-scanning on
+      // every call - null just means "use the browser default," which is at
+      // least now a STABLE choice for the rest of this session.
+      pinnedVoiceRef.current = selectedVoice || null;
+      return pinnedVoiceRef.current;
     } catch (e) {
-      console.warn("AI Voice synthesis error:", e);
-      setIsAiSpeaking(false);
-      if (onEnd) onEnd();
+      return null;
     }
   };
+
+  const stopAiVoice = () => {
+    if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
+    if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+    if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (e) {}
+    }
+    activeUtteranceRef.current = null;
+    window.__stage5ActiveUtterance = null;
+    setIsAiSpeaking(false);
+  };
+
+  const speakAiVoice = async (text, onEnd) => {
+    if (typeof window === "undefined" || !window.speechSynthesis) {
+      setIsAiSpeaking(false);
+      if (onEnd) onEnd();
+      return;
+    }
+
+    const cleanText = String(text || "")
+      .replace(/[*_#`~[\]]/g, " ")
+      .replace(/\bE\/M\b/gi, "E and M")
+      .replace(/\bICD-10-CM\b/gi, "I C D 10 C M")
+      .replace(/\bICD-10-PCS\b/gi, "I C D 10 P C S")
+      .replace(/\bICD-10\b/gi, "I C D 10")
+      .replace(/\bCPT\b/g, "C P T")
+      .replace(/\bMDM\b/g, "M D M")
+      .replace(/\bHIPAA\b/gi, "Hippa")
+      .replace(/\bPHI\b/g, "P H I")
+      .replace(/\bRAF\b/g, "R A F")
+      .replace(/\bMEAT\b/g, "Meat")
+      .replace(/\bvs\.?\b/gi, "versus")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!cleanText) {
+      setIsAiSpeaking(false);
+      if (onEnd) onEnd();
+      return;
+    }
+
+    if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
+    if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+    if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      activeUtteranceRef.current = null;
+      window.__stage5ActiveUtterance = null;
+      setIsAiSpeaking(false);
+      if (onEnd) onEnd();
+    };
+
+    try {
+      // Wait for the async voice list once (cheap no-op after the first
+      // successful resolution) before ever calling getVoices().find(...).
+      if (!voicesReadyRef.current) {
+        await ensureVoicesReady();
+      }
+
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.resume();
+
+      // Small delay between cancel() and the new speak() - calling both in
+      // the same tick can silently drop the new utterance in Chrome.
+      speechDelayTimerRef.current = setTimeout(() => {
+        try {
+          window.speechSynthesis.resume();
+          const utterance = new SpeechSynthesisUtterance(cleanText);
+          // Keep a strong reference alive for the duration of speech - a
+          // local-only utterance can be garbage collected mid-speech in
+          // Chrome specifically, which silently kills playback.
+          activeUtteranceRef.current = utterance;
+          window.__stage5ActiveUtterance = utterance;
+          utterance.lang = "en-US";
+          utterance.rate = 0.95;
+          utterance.pitch = 1.0;
+          utterance.volume = 1.0;
+
+          const selectedVoice = pickInterviewerVoice();
+          if (selectedVoice) {
+            utterance.voice = selectedVoice;
+            if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
+          }
+
+          utterance.onstart = () => setIsAiSpeaking(true);
+          utterance.onend = finish;
+          utterance.onerror = finish;
+
+          setIsAiSpeaking(true);
+          window.speechSynthesis.speak(utterance);
+
+          // Chromium can silently pause the speech pipeline (e.g. tab
+          // backgrounded) - periodically nudge resume() so it doesn't hang.
+          speechResumeIntervalRef.current = setInterval(() => {
+            if (window.speechSynthesis && window.speechSynthesis.speaking) {
+              window.speechSynthesis.resume();
+            }
+          }, 3000);
+
+          // Length-scaled safety net: if the browser never fires
+          // onend/onerror at all (no OS TTS voices installed, etc.), force
+          // completion instead of hanging the UI forever waiting on the mic.
+          const estimatedMs = Math.min(60000, Math.max(4000, cleanText.length * 110));
+          speechSafetyTimerRef.current = setTimeout(finish, estimatedMs);
+        } catch (err) {
+          finish();
+        }
+      }, 60);
+    } catch (e) {
+      console.warn("AI Voice synthesis error:", e);
+      finish();
+    }
+  };
+
+  // Stop any in-flight speech and clear its timers on unmount (navigating
+  // away mid-prompt shouldn't leave a dangling interval/timeout behind).
+  useEffect(() => {
+    return () => {
+      if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
+      if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
+      if (speechResumeIntervalRef.current) clearInterval(speechResumeIntervalRef.current);
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        try {
+          window.speechSynthesis.cancel();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   const playSelfIntroVoicePrompt = () => {
     if (isAiSpeaking) {
@@ -1801,12 +2027,18 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 <>
                   <div style={{ background: "#000", aspectRatio: "16/9", minHeight: 440, borderRadius: 12, position: "relative", overflow: "hidden", display: "grid", placeItems: "center", border: "2px solid rgba(255,255,255,.08)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)" }}>
                     <video
+                      key={introVideoUrl ? `intro-vid-${introVideoUrl}` : "intro-vid-live"}
                       ref={introVideoRef}
-                      autoPlay
+                      autoPlay={isIntroRecording}
                       playsInline
                       muted={isIntroRecording}
                       controls={!isIntroRecording && Boolean(introVideoUrl)}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      src={!isIntroRecording && introVideoUrl ? getAssetUrl(introVideoUrl) : undefined}
+                      preload="auto"
+                      style={{ width: "100%", height: "100%", objectFit: "contain", background: "#000" }}
+                      onError={(e) => {
+                        console.warn("Self-introduction video failed to load:", introVideoUrl, e);
+                      }}
                     />
 
                     {isIntroPrompting && (
@@ -1918,22 +2150,42 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     )}
 
                     {introVideoUrl && !isIntroRecording && (
-                      <button
-                        type="button"
-                        onClick={handleDiscardIntro}
-                        style={{
-                          background: "transparent",
-                          color: "var(--gold-pale, #FFF6E0)",
-                          border: "1px solid rgba(255,255,255,.15)",
-                          padding: "11px 18px",
-                          borderRadius: 10,
-                          fontSize: 12.5,
-                          fontWeight: 700,
-                          cursor: "pointer",
-                        }}
-                      >
-                        🗑 Discard & retry
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleDiscardIntro}
+                          style={{
+                            background: "transparent",
+                            color: "var(--gold-pale, #FFF6E0)",
+                            border: "1px solid rgba(255,255,255,.15)",
+                            padding: "11px 18px",
+                            borderRadius: 10,
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          🗑 Discard & retry
+                        </button>
+                        <a
+                          href={getAssetUrl(introVideoUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            color: "var(--gold)",
+                            fontSize: 12,
+                            fontWeight: 700,
+                            textDecoration: "underline",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                            marginLeft: 4,
+                          }}
+                          title="Open or download recorded video file in new tab"
+                        >
+                          ↗ Open video in new tab
+                        </a>
+                      </>
                     )}
 
                     <div style={{ marginLeft: "auto", fontSize: 11, color: "rgba(255,255,255,.7)" }}>
@@ -2086,11 +2338,15 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
                 <div style={{ background: "#000", aspectRatio: "16/9", borderRadius: 10, position: "relative", overflow: "hidden", display: "grid", placeItems: "center", border: "2px solid rgba(255,255,255,.06)" }}>
                   <video
+                    key={mockVideos[currentQ?.id] || mockAnswers[currentQ?.id]?.videoUrl ? `mock-vid-${currentQ?.id}` : `mock-live-${currentQ?.id}`}
                     ref={mockVideoRef}
-                    autoPlay
+                    autoPlay={isMockRecording}
                     playsInline
-                    muted
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    muted={isMockRecording}
+                    controls={!isMockRecording && Boolean(mockVideos[currentQ?.id] || mockAnswers[currentQ?.id]?.videoUrl)}
+                    src={!isMockRecording && (mockVideos[currentQ?.id] || mockAnswers[currentQ?.id]?.videoUrl) ? getAssetUrl(mockVideos[currentQ?.id] || mockAnswers[currentQ?.id]?.videoUrl) : undefined}
+                    preload="auto"
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
                   />
 
                   {isMockPrompting && (
@@ -2127,7 +2383,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     </div>
                   )}
 
-                  {!isMockRecording && !isMockPrompting && (
+                  {!isMockRecording && !isMockPrompting && !(mockVideos[currentQ?.id] || mockAnswers[currentQ?.id]?.videoUrl) && (
                     <div style={{ position: "absolute", color: "rgba(255,255,255,.4)", fontSize: 13, textAlign: "center", pointerEvents: "none" }}>
                       <span style={{ fontSize: 44, marginBottom: 8, display: "block" }}>🎤</span>
                       <div>Answering Question {currentMockIndex + 1}</div>
@@ -2324,7 +2580,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 Post-Submission Results (AI Evaluated)
               </div>
               <div style={{ background: "#E8F5E9", color: "#1F7A3C", padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
-                🥈 {displayMedal.toUpperCase()} · {candidateScore} / 100
+                {medalEmoji} {displayMedal.toUpperCase()} · {candidateScore} / 100
               </div>
             </div>
 
@@ -2367,10 +2623,10 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     boxShadow: "0 4px 12px rgba(0,0,0,.15)",
                   }}
                 >
-                  🥈 {displayMedal} Video Pitch
+                  {medalEmoji} {displayMedal} Video Pitch
                 </span>
                 <div style={{ fontSize: 11, color: "#1F7A3C", fontWeight: 700, marginTop: 4, letterSpacing: 0.4 }}>
-                  Recorded 16 Sep 2026 · 🟢 Live Verified · Face-matched to Aadhaar
+                  {isCompleted && recordedDateLabel ? `Recorded ${recordedDateLabel}` : "Not yet recorded"} · 🟢 Live Verified · Face-matched to Aadhaar
                 </div>
               </div>
             </div>
@@ -2381,50 +2637,35 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 🎯 Your 5-dimension AI breakdown
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px dashed #E5E7EB" }}>
-                <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>🎙 Clarity</div>
-                <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "82%", background: "linear-gradient(90deg, #43A047, #1F7A3C)", borderRadius: 4 }} />
+              {[
+                { key: "clarity", label: "🎙 Clarity", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
+                { key: "fluency", label: "🌊 Fluency", color: "linear-gradient(90deg, var(--gold), var(--gold-deep))" },
+                { key: "vocabularyGrammar", label: "📚 Vocab & Grammar", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
+                { key: "confidenceDelivery", label: "💪 Confidence & Delivery", color: "linear-gradient(90deg, var(--amber, #E08E00), #B85B00)" },
+                { key: "contentRelevance", label: "🎯 Content Relevance", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
+              ].map((dim, i, arr) => {
+                const score = clampDisplayScore(displayRubric[dim.key]);
+                const isLast = i === arr.length - 1;
+                const passing = score >= 75;
+                return (
+                  <div
+                    key={dim.key}
+                    style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: isLast ? "none" : "1px dashed #E5E7EB" }}
+                  >
+                    <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>{dim.label}</div>
+                    <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${score}%`, background: dim.color, borderRadius: 4 }} />
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>{score} / 100</div>
+                    <div style={{ fontSize: 14, color: passing ? "#1F7A3C" : "#E08E00", fontWeight: 800 }}>{passing ? "✓" : "⚠"}</div>
+                  </div>
+                );
+              })}
+              {isCompleted && !rubric && (
+                <div style={{ fontSize: 11, color: "#8A91A3", marginTop: 10, fontStyle: "italic" }}>
+                  Detailed AI breakdown unavailable for this submission - showing overall score only.
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>82 / 100</div>
-                <div style={{ fontSize: 14, color: "#1F7A3C", fontWeight: 800 }}>✓</div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px dashed #E5E7EB" }}>
-                <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>🌊 Fluency</div>
-                <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "75%", background: "linear-gradient(90deg, var(--gold), var(--gold-deep))", borderRadius: 4 }} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>75 / 100</div>
-                <div style={{ fontSize: 14, color: "#1F7A3C", fontWeight: 800 }}>✓</div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px dashed #E5E7EB" }}>
-                <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>📚 Vocab & Grammar</div>
-                <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "80%", background: "linear-gradient(90deg, #43A047, #1F7A3C)", borderRadius: 4 }} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>80 / 100</div>
-                <div style={{ fontSize: 14, color: "#1F7A3C", fontWeight: 800 }}>✓</div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0", borderBottom: "1px dashed #E5E7EB" }}>
-                <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>💪 Confidence & Delivery</div>
-                <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "70%", background: "linear-gradient(90deg, var(--amber, #E08E00), #B85B00)", borderRadius: 4 }} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>70 / 100</div>
-                <div style={{ fontSize: 14, color: "#E08E00", fontWeight: 800 }}>⚠</div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "180px 1fr 60px 24px", gap: 12, alignItems: "center", padding: "8px 0" }}>
-                <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>🎯 Content Relevance</div>
-                <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: "82%", background: "linear-gradient(90deg, #43A047, #1F7A3C)", borderRadius: 4 }} />
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", textAlign: "right" }}>82 / 100</div>
-                <div style={{ fontSize: 14, color: "#1F7A3C", fontWeight: 800 }}>✓</div>
-              </div>
+              )}
             </div>
 
             {/* PREVIEW · WHAT COMPANIES SEE */}
@@ -2444,7 +2685,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
               <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
                 <span style={{ background: "linear-gradient(135deg,#C0C0C0,#8B9199)", color: "#FFFFFF", fontSize: 11, padding: "5px 12px", borderRadius: 20, fontWeight: 800 }}>
-                  🥈 Silver · {candidateScore}/100
+                  {medalEmoji} {displayMedal} · {candidateScore}/100
                 </span>
                 <span style={{ background: "rgba(31,122,60,.25)", color: "#7ED87E", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
                   🟢 Live Verified
@@ -2460,16 +2701,16 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 12, fontFamily: "'JetBrains Mono', monospace" }}>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Clarity: <b style={{ color: "var(--gold)" }}>82</b> ████████</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Fluency: <b style={{ color: "var(--gold)" }}>75</b> ███████</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Vocab: <b style={{ color: "var(--gold)" }}>80</b> ████████</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Confidence: <b style={{ color: "var(--gold)" }}>70</b> ███████</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Content: <b style={{ color: "var(--gold)" }}>82</b> ████████</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Clarity: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.clarity)}</b> {barString(displayRubric.clarity)}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Fluency: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.fluency)}</b> {barString(displayRubric.fluency)}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Vocab: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.vocabularyGrammar)}</b> {barString(displayRubric.vocabularyGrammar)}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Confidence: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.confidenceDelivery)}</b> {barString(displayRubric.confidenceDelivery)}</div>
+                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>Content: <b style={{ color: "var(--gold)" }}>{clampDisplayScore(displayRubric.contentRelevance)}</b> {barString(displayRubric.contentRelevance)}</div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)", padding: "3px 0" }}>▶ Play 3 videos · 📝 Full captions</div>
               </div>
 
               <div style={{ fontSize: 11.5, color: "var(--gold-pale, #FFF6E0)", marginTop: 12 }}>
-                Recorded 16 Sep 2026 · Updates every 60 days · 5-year retention
+                {isCompleted && recordedDateLabel ? `Recorded ${recordedDateLabel}` : "Not yet recorded"} · Updates every 60 days · 5-year retention
               </div>
             </div>
 

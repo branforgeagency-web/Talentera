@@ -15,15 +15,19 @@ const axios = require("axios");
  * background, motivation) rather than technical recall - there is nothing
  * to get right or wrong, only how well it was communicated.
  *
- * Output is a single overall 0-100 Communication Score plus a four-part
- * rubric breakdown:
+ * Output is a single overall 0-100 Communication Score plus a five-part
+ * rubric breakdown (matches the "5 dimensions x 20% each" scoring shown to
+ * candidates on the Stage 5 hub - Clarity, Fluency, Vocabulary & Grammar,
+ * Confidence & Delivery, Content Relevance):
  *   - clarity            Clarity & pronunciation (is the speech easy to
  *                         follow / did it transcribe cleanly, or is it full
  *                         of garbled, incoherent fragments?)
  *   - fluency             Fluency & pace (natural sentence flow, minimal
  *                         filler words / false starts / repetition)
  *   - vocabularyGrammar   Range and correctness of spoken English
- *   - confidenceDelivery  Structured, complete, on-topic, professional tone
+ *   - confidenceDelivery  Structured, complete, professional tone/delivery
+ *   - contentRelevance    Did the answer actually address what was asked -
+ *                         on-topic, substantive, not generic/evasive
  *
  * Scored by an LLM (scoreCommunicationLlm, used whenever ANTHROPIC_API_KEY
  * or OPENAI_API_KEY is configured), reasoning over the transcripts the way
@@ -89,7 +93,12 @@ async function evaluateAiVideoAssessment(qaPairs = [], proctorLogs = {}) {
   }
 
   const rawOverall = clampScore(
-    (communication.rubric.clarity + communication.rubric.fluency + communication.rubric.vocabularyGrammar + communication.rubric.confidenceDelivery) / 4
+    (communication.rubric.clarity +
+      communication.rubric.fluency +
+      communication.rubric.vocabularyGrammar +
+      communication.rubric.confidenceDelivery +
+      communication.rubric.contentRelevance) /
+      5
   );
 
   // Deduct proctoring penalty if candidate switched tabs during recording
@@ -211,12 +220,13 @@ async function scoreCommunicationLlm(qaPairs) {
 
 DO NOT grade whether the content of an answer is factually or technically correct - these are open conversational/biographical questions (introduce yourself, your training, your background) and there is no "right answer" to check against. Your ONLY job is to judge HOW WELL each answer was communicated, based on the transcript of what was spoken.
 
-Score these four dimensions, each 0-100, for the interview as a whole (weigh all answered questions together, and let unanswered/near-empty answers pull the relevant scores down since they show nothing to evaluate):
+Score these five dimensions, each 0-100, for the interview as a whole (weigh all answered questions together, and let unanswered/near-empty answers pull the relevant scores down since they show nothing to evaluate):
 
 1. clarity - Clarity & pronunciation. Judge this from how clean and coherent the transcript reads: a clear, well-enunciated speaker produces a transcript that reads as coherent sentences; heavy mumbling or unclear speech tends to produce garbled, fragmented, or nonsensical transcript text. Do not penalize normal speech-to-text quirks (missing punctuation, occasional misheard word) - look for genuine incoherence.
 2. fluency - Fluency & pace. Judge natural flow: minimal filler words ("um", "uh", "like", "you know"), minimal false starts/self-corrections/repetition, complete sentences rather than fragmented ones.
 3. vocabularyGrammar - Range and correctness of spoken English: sentence construction, tense agreement, word choice, grammatical correctness.
-4. confidenceDelivery - Structured, complete, on-topic, professional-sounding responses vs. very short, rambling, evasive, or off-topic ones. A candidate who answers fully and directly, in a organized way, scores high here regardless of whether the content happens to be interesting.
+4. confidenceDelivery - Structured, complete, professional-sounding delivery vs. very short, rambling, or hesitant responses. A candidate who answers fully and directly, in an organized way, scores high here regardless of whether the content happens to be interesting.
+5. contentRelevance - Did the answer actually address what was asked? Score this on topical relevance and substance: a direct, on-topic, substantive answer to the specific question scores high; a generic, evasive, off-topic, or non-responsive answer (even if fluently delivered) scores low here.
 
 Handling non-English answers: if a candidate answered in a language other than English (see "Detected language" per answer below), score clarity/fluency/vocabularyGrammar conservatively for THIS role's spoken-English requirement (they cannot be judged as fluent English communicators from a non-English answer) - but you may still credit confidenceDelivery based on the English translation if the answer was clearly well-structured and complete in their own language.
 
@@ -234,7 +244,7 @@ English translation (meaning reference only - do not use this text to judge Engl
   )
   .join("\n")}
 
-Return strictly JSON: {"clarity": <0-100 integer>, "fluency": <0-100 integer>, "vocabularyGrammar": <0-100 integer>, "confidenceDelivery": <0-100 integer>, "overallFeedback": "<2-3 sentence summary of the candidate's communication strengths/weaknesses>", "answerNotes": [{"note": "<one short sentence on this specific answer's delivery, not its content correctness>"}, ...]} with exactly ${qaPairs.length} entries in "answerNotes", in the same order as the questions above.`;
+Return strictly JSON: {"clarity": <0-100 integer>, "fluency": <0-100 integer>, "vocabularyGrammar": <0-100 integer>, "confidenceDelivery": <0-100 integer>, "contentRelevance": <0-100 integer>, "overallFeedback": "<2-3 sentence summary of the candidate's communication strengths/weaknesses>", "answerNotes": [{"note": "<one short sentence on this specific answer's delivery and relevance>"}, ...]} with exactly ${qaPairs.length} entries in "answerNotes", in the same order as the questions above.`;
 
   let parsed = {};
 
@@ -284,6 +294,7 @@ Return strictly JSON: {"clarity": <0-100 integer>, "fluency": <0-100 integer>, "
     fluency: clampScore(parsed.fluency, 50),
     vocabularyGrammar: clampScore(parsed.vocabularyGrammar, 50),
     confidenceDelivery: clampScore(parsed.confidenceDelivery, 50),
+    contentRelevance: clampScore(parsed.contentRelevance, 50),
   };
 
   const notes = Array.isArray(parsed.answerNotes) ? parsed.answerNotes : [];
@@ -323,6 +334,12 @@ Return strictly JSON: {"clarity": <0-100 integer>, "fluency": <0-100 integer>, "
  * stage still produces a usable score offline - the LLM path above is the
  * primary grader whenever a key is configured.
  */
+const HEURISTIC_STOPWORDS = new Set([
+  "what", "when", "where", "which", "while", "with", "your", "yours", "tell", "about",
+  "have", "having", "been", "were", "would", "could", "should", "this", "that", "these",
+  "those", "from", "into", "than", "then", "them", "they", "their", "there", "here",
+]);
+
 function computeHeuristicCommunicationScore(qaPairs) {
   const fillerWords = ["um", "uh", "umm", "uhh", "like", "you know", "i mean", "basically", "actually", "sort of", "kind of", "so yeah"];
 
@@ -339,7 +356,7 @@ function computeHeuristicCommunicationScore(qaPairs) {
         transcript: originalText,
         translatedTranscript: pair.translatedTranscript || originalText,
         detectedLanguage: pair.detectedLanguage || "none",
-        scores: { clarity: 0, fluency: 0, vocabularyGrammar: 0, confidenceDelivery: 0 },
+        scores: { clarity: 0, fluency: 0, vocabularyGrammar: 0, confidenceDelivery: 0, contentRelevance: 0 },
       };
     }
 
@@ -384,6 +401,27 @@ function computeHeuristicCommunicationScore(qaPairs) {
     confidenceDelivery -= fillerRatio * 100;
     confidenceDelivery = clampScore(confidenceDelivery);
 
+    // Content relevance: no real language understanding here, so approximate
+    // topical on-topic-ness by how much of the QUESTION's own meaningful
+    // words reappear in the answer (a candidate who actually engages with
+    // what was asked tends to echo/paraphrase its key terms), blended with
+    // a length floor so a substantial-but-generic answer isn't zeroed out.
+    const questionWords = new Set(
+      String(pair.question || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((w) => w.length > 3 && !HEURISTIC_STOPWORDS.has(w))
+    );
+    const answerWordSet = new Set(words.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, "")));
+    let overlapCount = 0;
+    questionWords.forEach((qw) => {
+      if (answerWordSet.has(qw)) overlapCount += 1;
+    });
+    const overlapRatio = questionWords.size > 0 ? overlapCount / questionWords.size : 0.5;
+    let contentRelevance = 35 + overlapRatio * 45 + Math.min(20, wordCount * 0.3);
+    contentRelevance = clampScore(contentRelevance);
+
     return {
       answered: true,
       questionId: pair.questionId,
@@ -392,7 +430,7 @@ function computeHeuristicCommunicationScore(qaPairs) {
       transcript: originalText,
       translatedTranscript: pair.translatedTranscript || originalText,
       detectedLanguage: pair.detectedLanguage || "unknown",
-      scores: { clarity, fluency, vocabularyGrammar, confidenceDelivery },
+      scores: { clarity, fluency, vocabularyGrammar, confidenceDelivery, contentRelevance },
     };
   });
 
@@ -404,6 +442,7 @@ function computeHeuristicCommunicationScore(qaPairs) {
     fluency: clampScore(avg("fluency")),
     vocabularyGrammar: clampScore(avg("vocabularyGrammar")),
     confidenceDelivery: clampScore(avg("confidenceDelivery")),
+    contentRelevance: clampScore(avg("contentRelevance")),
   };
 
   const answerNotes = perAnswer.map(({ scores, ...rest }) => rest);

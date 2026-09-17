@@ -12,10 +12,12 @@ const { calculateVerificationScore } = require("../utils/verificationScore");
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
-const { generateInterviewQuestions, getMessiTurn, generateFinalReport, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
+const { getMessiTurn, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
+const { buildFreshAiInterviewSession, finalizeAiInterviewSession } = require("../utils/aiInterviewSession");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { verhoeffValidate } = require("../utils/verhoeffBackend");
 const { emitAcademyEvent } = require("../utils/academyEvents");
+const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
 const logger = require("../utils/logger");
 
 const router = express.Router();
@@ -199,24 +201,26 @@ router.post("/qr/verify", async (req, res) => {
   }
 });
 
-// NOTE (2026-08-27): a "/stage/3/auto-verify" route used to live here. It claimed to
-// verify a candidate's Member ID live against the real AAPC/AHIMA website and then
-// auto-download the official certificate, but it never actually did either: the "check"
-// was a regex/dummy-number heuristic that defaulted to verified=true even when the real
-// HTTP request to the issuing body failed, and the "downloaded certificate" was a PDF
-// fabricated locally (see the now-deleted backend/utils/certVerifier.js) stamped as an
-// "OFFICIAL VERIFIED CREDENTIAL CERTIFICATE" — a counterfeit-looking document, auto-set
-// to certStatus "verified" with no staff involved at all, bypassing the mandatory
-// staff-review pipeline enforced below in PUT /stage/:num for stage 3.
-//
-// Removed rather than "fixed" because there is no reliable way to replace it: AAPC's
-// real verification page (aapc.com/certification/credential-verification.aspx) is
-// reCAPTCHA-protected, so it cannot be queried by server-side code or headless-browser
-// automation — only a human clicking through it themselves can pass that check. The
-// honest version of this feature is a "Verify on official site ↗" link surfaced to the
-// candidate and to staff (see CERT_LIBRARY[body].verifyUrl on the frontend and the
-// Certification Document Audit Queue in routes/staff.js) — a human completes the real
-// lookup; Talentera staff still make the final verified/rejected call.
+// POST /api/candidate/stage/3/verify-credential - Live Real vs Fake verification
+// Runs format checks, dummy pattern detection, duplicate collision checks across candidate
+// profiles, and verifies the candidate's real credential verification URL / link.
+router.post("/stage/3/verify-credential", async (req, res) => {
+  try {
+    const { body, certCode, memberId, certUrl } = req.body;
+    const report = await verifyCertAuthenticity({
+      body,
+      certCode,
+      memberId,
+      certUrl,
+      candidateId: req.candidateId,
+      CandidateModel: Candidate,
+    });
+    res.json(report);
+  } catch (err) {
+    logger.error(`Cert verification error: ${err.message}`);
+    res.status(500).json({ message: "Failed to verify credential authenticity." });
+  }
+});
 
 async function enrichApplications(applications) {
   if (!applications || applications.length === 0) return [];
@@ -471,6 +475,10 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage3.memberId = req.body.memberId || firstCert.memberId || "";
       candidate.stage3.issueDate = req.body.issueDate || firstCert.issueDate || (firstCert.issueYear ? `${firstCert.issueMonth ? firstCert.issueMonth + "/" : ""}${firstCert.issueYear}` : "");
       candidate.stage3.expiryDate = req.body.expiryDate || firstCert.expiryDate || (firstCert.expiryYear ? `${firstCert.expiryMonth ? firstCert.expiryMonth + "/" : ""}${firstCert.expiryYear}` : "");
+      candidate.stage3.certUrl = req.body.certUrl || firstCert.certUrl || "";
+      candidate.stage3.verificationResult = req.body.verificationResult || firstCert.verificationResult || candidate.stage3.verificationResult || null;
+      candidate.stage3.isReal = req.body.isReal !== undefined ? req.body.isReal : (firstCert.isReal !== undefined ? firstCert.isReal : candidate.stage3.isReal);
+      candidate.stage3.trustScore = req.body.trustScore !== undefined ? req.body.trustScore : (firstCert.trustScore !== undefined ? firstCert.trustScore : candidate.stage3.trustScore);
 
       candidate.markModified("stage3");
 
@@ -500,6 +508,7 @@ router.put("/stage/:n", async (req, res) => {
           title: `${cBody.toUpperCase()} ${cCode} — ${cName}${cMemberId ? ` (ID: ${cMemberId})` : ""}`,
           docType: "AAPC / Professional Certification",
           docUrl: cert.docUrl || candidate.stage3.docUrl || null,
+          certUrl: cert.certUrl || candidate.stage3.certUrl || null,
           docName: cert.docName || candidate.stage3.docName || `${cCode}_Certificate.pdf`,
           memberId: cMemberId,
           code: cCode,
@@ -507,8 +516,10 @@ router.put("/stage/:n", async (req, res) => {
           issueDate: cert.issueDate || cert.issueYear || "",
           expiryDate: cert.expiryDate || cert.expiryYear || "",
           uploadedAt: cert.uploadedAt || new Date().toISOString(),
-          verified: candidate.stage3.certStatus === "verified",
-          status: candidate.stage3.certStatus === "verified" ? "Verified" : "Pending Review",
+          verified: candidate.stage3.certStatus === "verified" || cert.isReal === true,
+          status: candidate.stage3.certStatus === "verified" ? "Verified" : (cert.isReal ? "Real · Verified" : (cert.isReal === false ? "Fake · Invalid" : "Pending Review")),
+          isReal: cert.isReal !== undefined ? cert.isReal : candidate.stage3.isReal,
+          trustScore: cert.trustScore !== undefined ? cert.trustScore : candidate.stage3.trustScore,
           updatedAt: new Date(),
           isRegisteredCert: true,
         };
@@ -1076,101 +1087,10 @@ router.post(
 // existing submit payload keeps working exactly as it does today.
 // ---------------------------------------------------------------------------
 
-async function buildFreshAiInterviewSession(candidate) {
-  const candidateName = candidate.stage1?.fullName || "Candidate";
-  const role = candidate.stage1?.currentRole || "Medical Coder";
-  const experienceYears = candidate.stage1?.experience ?? null;
-
-  // Retrieve staff-configured active interview questions bank (capped to exactly 5 questions)
-  const activeBankQuestions = await InterviewQuestion.find({ active: true })
-    .sort({ order: 1, createdAt: 1 })
-    .limit(5)
-    .lean();
-
-  let questions;
-  if (activeBankQuestions && activeBankQuestions.length > 0) {
-    questions = activeBankQuestions.slice(0, 5).map((q, idx) => {
-      const expectedConcepts = q.correctAnswer
-        ? q.correctAnswer
-            .replace(/[^\w\s]/g, " ")
-            .split(/\s+/)
-            .filter((w) => w.length > 3)
-        : [];
-      // Exactly 3 keywords per the Answer Evaluation / Keyword Matching
-      // requirement - prefer staff-configured InterviewQuestion.keywords,
-      // otherwise derive 3 from the correct answer / expected concepts.
-      const keywords =
-        Array.isArray(q.keywords) && q.keywords.length === 3
-          ? q.keywords
-          : expectedConcepts.slice(0, 3).length === 3
-          ? expectedConcepts.slice(0, 3)
-          : [expectedConcepts[0], expectedConcepts[1], expectedConcepts[2]].filter(Boolean);
-      return {
-        index: idx,
-        id: String(q._id),
-        topic: q.mode === "both" ? "Core Assessment" : (q.mode === "video" ? "Video Technical" : "Audio Interview"),
-        topicLabel: `Question ${idx + 1}`,
-        question: q.text,
-        correctAnswer: q.correctAnswer || "",
-        expectedConcepts,
-        keywords: keywords.length === 3 ? keywords : keywords.concat(["concept", "detail", "accuracy"]).slice(0, 3),
-      };
-    });
-  } else {
-    questions = await generateInterviewQuestions({ candidateName, role, experienceYears });
-    if (Array.isArray(questions) && questions.length > 5) {
-      questions = questions.slice(0, 5);
-    }
-  }
-
-  return {
-    status: "IN_PROGRESS",
-    candidateName,
-    role,
-    experienceYears,
-    questions,
-    turns: [],
-    questionRecords: [],
-    currentQuestionIndex: 0,
-    followUpCountForCurrent: 0,
-    proctorLogs: { tabSwitches: 0, focusLosses: 0 },
-    startedAt: new Date(),
-    endedAt: null,
-    result: null,
-  };
-}
-
-// Shared by the natural end-of-interview path (last question answered, or
-// the candidate says "stop the interview") and the explicit End Interview
-// button - both need the exact same finalize behavior.
-async function finalizeAiInterviewSession(candidate, session, status) {
-  const result = await generateFinalReport({
-    candidateName: session.candidateName,
-    role: session.role,
-    questionRecords: session.questionRecords,
-  });
-  session.status = status; // "COMPLETED" | "STOPPED"
-  session.endedAt = new Date();
-  session.result = result;
-
-  candidate.stage8 = {
-    ...(candidate.stage8 || {}),
-    aiInterview: session,
-    mockScore: result.overallScore,
-    mockInterviewCompleted: true,
-  };
-  candidate.stage5 = {
-    ...(candidate.stage5 || {}),
-    mockInterviewCompleted: true,
-    mockScore: result.overallScore,
-    status: status,
-    endedEarly: status === "STOPPED",
-    endedReason: status === "STOPPED" ? "USER_ENDED" : null,
-  };
-  candidate.markModified("stage8");
-  candidate.markModified("stage5");
-  return result;
-}
+// buildFreshAiInterviewSession / finalizeAiInterviewSession now live in
+// ../utils/aiInterviewSession.js (imported above) so the Vapi Custom LLM
+// webhook route (routes/vapiInterview.js) can build/finalize sessions the
+// exact same way as the routes below, instead of duplicating this logic.
 
 // GET /api/candidate/ai-interview/state - current/last AI Interview session,
 // for resume-on-refresh and for the Stage 8 "Interview Completed" card.
