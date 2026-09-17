@@ -2,25 +2,7 @@ import React, { useState, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
-
-// Pre-mapped top RCM training academies
-const ACADEMY_SUGGESTIONS = [
-  "Apex Medical Coding Institute",
-  "ThoughtFlows Academy",
-  "Practicode Training Center",
-  "Medesun Healthcare Academy",
-  "Omega Healthcare Training Academy",
-  "Access Healthcare Learning Academy",
-  "Optum RCM Academy",
-  "Cigma Medical Coding Academy",
-  "Apex Global Solutions Academy",
-  "Transorze Solutions",
-  "Avontix Healthcare Training",
-  "Northeastern Institute of Medical Coding",
-  "National Healthcareer Association Partner",
-  "Medusind Training Institute",
-  "Episource Training Academy",
-];
+import { ACADEMIES_DATA, ACADEMY_NAMES, ACADEMY_LOCATIONS } from "../../data/academiesData.js";
 
 const DOMAINS = [
   {
@@ -156,9 +138,39 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   const [trainingPath, setTrainingPath] = useState(existingData.trainingPath || "academy");
 
-  // Path A / C Details
+  // Path A / C Details - Academy Name & Academy Location
   const [academyName, setAcademyName] = useState(existingData.academyName || "");
+  const [academyLocation, setAcademyLocation] = useState(
+    existingData.academyLocation || existingData.academyCity || existingData.instituteCity || existingData.location || ""
+  );
+  const [registeredAcademies, setRegisteredAcademies] = useState([]);
   const [batch, setBatch] = useState(existingData.batch || existingData.batchNumber || existingData.rollNumber || "");
+
+  // Load registered partner academies from backend API
+  useEffect(() => {
+    api
+      .get("/candidate/academies")
+      .then((res) => {
+        if (res.data?.academies && Array.isArray(res.data.academies)) {
+          setRegisteredAcademies(res.data.academies);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Merge registered academies with mapped directory
+  const allAcademiesList = [
+    ...registeredAcademies.map((a) => ({
+      name: a.name,
+      location: a.city || (Array.isArray(a.branches) && a.branches.length > 0 ? a.branches[0] : "Coimbatore, Tamil Nadu"),
+      branches: a.branches || [],
+      state: a.state || "Tamil Nadu",
+      verified: true,
+    })),
+    ...ACADEMIES_DATA.filter(
+      (a) => !registeredAcademies.some((ra) => ra.name.toLowerCase() === a.name.toLowerCase())
+    ),
+  ];
 
   const rawStart = String(existingData.startDate || "").trim();
   const [startMonth, setStartMonth] = useState(
@@ -179,10 +191,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [modeOfTraining, setModeOfTraining] = useState(existingData.modeOfTraining || "");
   const [certificateId, setCertificateId] = useState(existingData.certificateId || "");
   const [academyScore] = useState(existingData.academyAssessmentScore || "—");
-
-  // Autocomplete UI state
-  const [filteredAcademies, setFilteredAcademies] = useState([]);
-  const [showAcademyDropdown, setShowAcademyDropdown] = useState(false);
 
   // Section 4 · Practical Exposure
   const [practicedCharts, setPracticedCharts] = useState(
@@ -224,23 +232,14 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [savedBadge, setSavedBadge] = useState("✓ Saved just now");
   const [error, setError] = useState("");
 
-  // Handle Academy typing & autocomplete
-  function handleAcademyChange(val) {
-    setAcademyName(val);
-    if (!val || val.trim().length < 2) {
-      setFilteredAcademies([]);
-      setShowAcademyDropdown(false);
-    } else {
-      const q = val.toLowerCase();
-      const matches = ACADEMY_SUGGESTIONS.filter((a) => a.toLowerCase().includes(q));
-      setFilteredAcademies(matches);
-      setShowAcademyDropdown(matches.length > 0);
-    }
-  }
-
   function handleSelectAcademy(name) {
     setAcademyName(name);
-    setShowAcademyDropdown(false);
+    const found = allAcademiesList.find((a) => a.name.toLowerCase() === name.toLowerCase());
+    if (found) {
+      if (!academyLocation || academyLocation.trim() === "" || academyLocation === "—") {
+        setAcademyLocation(found.location || (found.branches && found.branches[0]) || "");
+      }
+    }
   }
 
   // Handle Tag Picker (Max 3)
@@ -296,6 +295,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       course: domain,
       trainingPath,
       academyName: academyName.trim(),
+      academyLocation: academyLocation.trim(),
+      academyCity: academyLocation.trim(),
+      instituteCity: academyLocation.trim(),
+      location: academyLocation.trim(),
       batch: batch.trim(),
       batchNumber: batch.trim(),
       rollNumber: batch.trim(),
@@ -1524,47 +1527,85 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div className="s2-status-chip pending">PENDING · +5</div>
             </div>
 
+            {/* Row 1: Academy Name (Dropdown List) & Academy Location (Input with Dropdown List) */}
             <div className="s2-row">
               <div className="s2-field">
                 <label>
                   {trainingPath === "self" ? "Primary Learning Source / Platform" : "Academy Name"}{" "}
                   <span className="req">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   value={academyName}
-                  onChange={(e) => handleAcademyChange(e.target.value)}
-                  placeholder="Start typing your academy or learning platform name…"
-                />
-                {showAcademyDropdown && (
-                  <div className="s2-autocomplete-dropdown">
-                    {filteredAcademies.map((item) => (
-                      <div
-                        key={item}
-                        className="s2-autocomplete-item"
-                        onClick={() => handleSelectAcademy(item)}
-                      >
-                        🏛 {item}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="s2-autocomplete-hint">
-                  🔍 Autocompletes from 400+ Talentera-mapped RCM academies. Prevents typos and fraud.
+                  onChange={(e) => handleSelectAcademy(e.target.value)}
+                  style={{
+                    background: "var(--white)",
+                    border: "1.5px solid var(--border)",
+                    borderRadius: "9px",
+                    padding: "11px 14px",
+                    fontSize: "13.5px",
+                    color: "var(--navy)",
+                    fontWeight: "600",
+                  }}
+                >
+                  <option value="">-- Select Academy from List --</option>
+                  {allAcademiesList.map((a) => (
+                    <option key={a.name} value={a.name}>
+                      {a.name} ({a.location || "Pan-India"})
+                    </option>
+                  ))}
+                </select>
+                <div className="s2-helper">
+                  Select your training academy from the list.
                 </div>
               </div>
+
+              <div className="s2-field">
+                <label>
+                  Academy Location / Branch <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  list="academy-locations-datalist"
+                  value={academyLocation}
+                  onChange={(e) => setAcademyLocation(e.target.value)}
+                  placeholder="Select from dropdown or type location (e.g. Coimbatore, Tamil Nadu)"
+                />
+                <datalist id="academy-locations-datalist">
+                  {ACADEMY_LOCATIONS.map((loc) => (
+                    <option key={loc} value={loc} />
+                  ))}
+                </datalist>
+                <div className="s2-helper">
+                  Select your academy location from the list or type your specific branch.
+                </div>
+              </div>
+            </div>
+
+            {/* Row 2: Batch / Roll Number & Certificate ID */}
+            <div className="s2-row">
               <div className="s2-field">
                 <label>Batch / Roll Number <span className="req">*</span></label>
                 <input
                   type="text"
                   value={batch}
                   onChange={(e) => setBatch(e.target.value)}
-                  placeholder="e.g. APX-2601-012"
+                  placeholder="e.g. APX-2601-012 / Roll No"
                 />
-                <div className="s2-helper">Your academy cross-checks this against their student list.</div>
+                <div className="s2-helper">Your academy cross-checks this against their student roster.</div>
+              </div>
+              <div className="s2-field">
+                <label>Certificate ID <span className="req">*</span></label>
+                <input
+                  type="text"
+                  value={certificateId}
+                  onChange={(e) => setCertificateId(e.target.value)}
+                  placeholder="e.g. CERT-2026-HCC-0187"
+                />
+                <div className="s2-helper">Unique ID from your academy. Duplicate IDs are auto-flagged.</div>
               </div>
             </div>
 
+            {/* Row 3: Start Month/Year, End Month/Year, Total Training Hours */}
             <div className="s2-row-3">
               <div className="s2-field">
                 <label>Start Month & Year <span className="req">*</span></label>
@@ -1623,6 +1664,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div className="s2-field">
                 <label>Total Training Hours <span className="req">*</span></label>
                 <select value={totalHours} onChange={(e) => setTotalHours(e.target.value)}>
+                  <option value="">Select hours…</option>
                   {TOTAL_HOURS_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>{opt}</option>
                   ))}
@@ -1630,30 +1672,19 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
             </div>
 
-            <div className="s2-row">
-              <div className="s2-field">
-                <label>Mode of Training <span className="req">*</span></label>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {TRAINING_MODES.map((mode) => (
-                    <span
-                      key={mode}
-                      className={`s2-tag-pill ${modeOfTraining === mode ? "selected" : ""}`}
-                      onClick={() => setModeOfTraining(mode)}
-                    >
-                      {mode}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div className="s2-field">
-                <label>Certificate ID <span className="req">*</span></label>
-                <input
-                  type="text"
-                  value={certificateId}
-                  onChange={(e) => setCertificateId(e.target.value)}
-                  placeholder="e.g. CERT-2026-HCC-0187"
-                />
-                <div className="s2-helper">Unique ID from your academy. Duplicate IDs are auto-flagged.</div>
+            {/* Row 4: Mode of Training */}
+            <div className="s2-field">
+              <label>Mode of Training <span className="req">*</span></label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {TRAINING_MODES.map((mode) => (
+                  <span
+                    key={mode}
+                    className={`s2-tag-pill ${modeOfTraining === mode ? "selected" : ""}`}
+                    onClick={() => setModeOfTraining(mode)}
+                  >
+                    {mode}
+                  </span>
+                ))}
               </div>
             </div>
 
