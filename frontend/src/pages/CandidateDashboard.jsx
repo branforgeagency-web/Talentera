@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
 import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
@@ -79,8 +81,30 @@ export function calculateRealStageScore(profile) {
 }
 
 export default function CandidateDashboard({ profile: propProfile, onEditStage }) {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const sidebarRef = useRef(null);
+
+  // Sign out and redirect to homepage
+  const handleSignOut = () => {
+    try {
+      if (typeof logout === 'function') logout();
+    } catch {
+      localStorage.removeItem('talentera_token');
+      localStorage.removeItem('talentera_candidate_info');
+    }
+    navigate('/');
+  };
+
+  // Helper to open the Candidate 8 Stages Dashboard / Wizard at any specific stage
+  const handleOpenStagesWizard = (stageNum = 1) => {
+    if (typeof onEditStage === 'function') {
+      onEditStage(stageNum);
+    } else {
+      navigate(`/dashboard?stage=${stageNum}`);
+    }
+  };
   const [profile, setProfile] = useState(propProfile || null);
   const [loading, setLoading] = useState(!propProfile);
   const [showAddJobForm, setShowAddJobForm] = useState(false);
@@ -379,30 +403,43 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
       {/* TOPBAR */}
       <div className="topbar">
-        <div className="brand-nav" onClick={() => setActiveTab('dashboard')} title="Talentera Candidate Portal">
-          <img
-            src="/logo.png"
-            alt="Talentera — The Era of Talent Begins Here"
-            style={{ height: '32px', width: 'auto', objectFit: 'contain', display: 'block' }}
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-              const fb = document.getElementById('topbar-brand-fallback');
-              if (fb) fb.style.display = 'flex';
-            }}
-          />
+        <div className="brand-nav" onClick={() => setActiveTab('dashboard')} title="Talentera Candidate Portal" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: '#FFFFFF', padding: '4px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.18)' }}>
+            <img
+              src="/logo.png"
+              alt="Talentera — The Era of Talent Begins Here"
+              style={{ height: '26px', width: 'auto', objectFit: 'contain', display: 'block' }}
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                const fb = document.getElementById('topbar-brand-fallback');
+                if (fb) fb.style.display = 'flex';
+              }}
+            />
+          </div>
           <div id="topbar-brand-fallback" style={{ display: 'none', alignItems: 'center', gap: '8px' }}>
             <div className="brand-logo-sm">T</div>
             <div>
-              <div className="brand-name">TALENT<span style={{ color: 'var(--gold)' }}>ERA</span></div>
-              <div className="brand-tag">Student &amp; Candidate Portal</div>
+              <div className="brand-name" style={{ color: '#FFFFFF' }}>TALENT<span style={{ color: 'var(--gold)' }}>ERA</span></div>
+              <div className="brand-tag" style={{ color: 'var(--gold)' }}>Student &amp; Candidate Portal</div>
             </div>
           </div>
         </div>
 
         <div className="top-actions">
-          <div className="top-search">
-            <span style={{ color: 'var(--muted)' }}>🔍</span>
-            <input type="text" placeholder="Search jobs, stages, badges..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '220px', color: 'var(--navy)' }} />
+          {/* ⚡ 8 Stages Verification Dashboard Topbar Action */}
+          <button
+            type="button"
+            onClick={() => handleOpenStagesWizard(1)}
+            className="btn-open-stages-topbar"
+            title="Open Candidate 8 Stages Verification Wizard"
+          >
+            <span className="stages-icon-pulse">⚡</span>
+            <span>8 Stages Dashboard</span>
+            <span className="stages-count-pill">{completedStages.length}/8 Done</span>
+          </button>
+
+          <div className="top-search" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="text" placeholder="Search jobs, stages, badges..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '200px', color: '#FFFFFF' }} />
           </div>
 
           <div className="top-notif" onClick={() => triggerToast("You have no unread notifications.")}>
@@ -419,6 +456,21 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               </div>
             </div>
           </div>
+
+          {/* 🚪 Sign Out Button -> redirects to Homepage */}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="btn-signout-topbar"
+            title="Sign out of Candidate Portal and return to Homepage"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign Out</span>
+          </button>
         </div>
       </div>
 
@@ -426,6 +478,28 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="layout">
         {/* SIDEBAR */}
         <aside className="sidebar" ref={sidebarRef}>
+          {/* ⚡ Quick Launch 8 Stages Wizard Banner */}
+          <div
+            className="sb-stage-wizard-banner"
+            onClick={() => handleOpenStagesWizard(1)}
+            title="Click to open Candidate 8 Stages Verification Dashboard"
+          >
+            <div className="sb-swb-top">
+              <div className="sb-swb-icon-wrap">⚡</div>
+              <div className="sb-swb-text">
+                <div className="sb-swb-title">8 Stages Dashboard</div>
+                <div className="sb-swb-sub">{completedStages.length}/8 Completed · {profileScore} pts</div>
+              </div>
+            </div>
+            <div className="sb-swb-bar">
+              <div className="sb-swb-bar-fill" style={{ width: `${Math.round((completedStages.length / 8) * 100)}%` }}></div>
+            </div>
+            <div className="sb-swb-action">
+              <span>{completedStages.length === 8 ? 'Review / Edit 8 Stages' : 'Complete 8 Stages'}</span>
+              <span className="sb-swb-arrow">→</span>
+            </div>
+          </div>
+
           <div className="sb-group">
             <div className="sb-group-label">STUDENT DASHBOARD</div>
             <div className="sb-nav">
@@ -542,6 +616,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 <span className="ico">❓</span>
                 <span>Help &amp; Support</span>
               </div>
+              <div className="sb-item sb-signout-item" onClick={handleSignOut} title="Sign out and return to Homepage">
+                <span className="ico">🚪</span>
+                <span>Sign Out</span>
+              </div>
             </div>
           </div>
         </aside>
@@ -561,6 +639,28 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? '🟢 LIVE FOR HIRING' : '⚪ Not Live Yet'}</span>
               <span className="wh-chip">🎓 {profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}</span>
               <span className="wh-chip">📍 {profile?.stage1?.city || 'Location not set'}</span>
+            </div>
+
+            {/* ⚡ Prominent Hero Action Buttons to Open 8 Stages Dashboard */}
+            <div style={{ marginTop: '18px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => handleOpenStagesWizard(1)}
+                className="btn-open-stages-hero"
+                title="Launch the Candidate 8 Stages Verification Dashboard"
+              >
+                <span>⚡ Open 8 Stages Dashboard</span>
+                <span className="hero-btn-pill">{completedStages.length}/8 Done</span>
+                <span style={{ fontSize: '15px' }}>→</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="btn-view-profile-hero"
+                title="View individual stage completion breakdowns"
+              >
+                👤 View Stage Breakdown
+              </button>
             </div>
           </div>
           <div style={{"textAlign":"center"}}>
@@ -588,8 +688,62 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="quick-stats">
         <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico blue">🏢</div><div><div className="qs-val">{companiesAttendedCount}</div><div className="qs-lbl">Companies Attended</div><div className="qs-trend">{applications.length > 0 ? `${applications.length} total applications` : 'No applications yet'}</div></div></div>
         <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico green">✓</div><div><div className="qs-val">{offersReceivedCount}</div><div className="qs-lbl">Offers Received</div><div className="qs-trend">{bestOfferCtc > 0 ? `↑ Best ₹${bestOfferCtc} LPA` : 'No offers yet'}</div></div></div>
-        <div className="qs-card" onClick={() => setActiveTab("profile")}><div className="qs-ico gold">💻</div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Not started'}</div></div></div>
+        <div className="qs-card" onClick={() => handleOpenStagesWizard(6)}><div className="qs-ico gold">💻</div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Open Stage 06'}</div></div></div>
         <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple">🎖</div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${badgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
+      </div>
+
+      {/* ⚡ Candidate 8 Stages Interactive Verification Grid */}
+      <div className="sec">
+        <div className="sec-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="sec-title"><div className="mod-ico">⚡</div>Candidate 8 Stages Verification</div>
+          <button
+            type="button"
+            onClick={() => handleOpenStagesWizard(1)}
+            style={{
+              fontSize: '12px',
+              fontWeight: '800',
+              color: 'var(--navy-deep)',
+              background: 'var(--grad-gold)',
+              padding: '6px 14px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 2px 8px rgba(245, 166, 35, 0.35)',
+            }}
+          >
+            <span>Open 8 Stages Wizard</span>
+            <span>→</span>
+          </button>
+        </div>
+        <div className="stages-overview-grid">
+          {[
+            { num: 1, name: 'Identity & Aadhaar', pts: '+5 pts', icon: '🪪', done: completedStages.includes(1) },
+            { num: 2, name: 'Training Foundation', pts: '+15 pts', icon: '🎓', done: completedStages.includes(2) },
+            { num: 3, name: 'Certifications', pts: '+20 pts', icon: '📜', done: completedStages.includes(3) },
+            { num: 4, name: 'Assessment', pts: '+25 pts', icon: '🧠', done: completedStages.includes(4) },
+            { num: 5, name: 'Video Pitch AI', pts: '+10 pts', icon: '🎥', done: completedStages.includes(5) },
+            { num: 6, name: 'Live Charts Audit', pts: '+10 pts', icon: '💻', done: completedStages.includes(6) },
+            { num: 7, name: 'Resume Studio', pts: '+10 pts', icon: '📄', done: completedStages.includes(7) },
+            { num: 8, name: 'Placement & Hiring', pts: '+5 pts', icon: '📍', done: completedStages.includes(8) },
+          ].map((stg) => (
+            <div
+              key={stg.num}
+              className={"stage-overview-card " + (stg.done ? "done" : "pending")}
+              onClick={() => handleOpenStagesWizard(stg.num)}
+              title={`Click to open Stage 0${stg.num}: ${stg.name}`}
+            >
+              <div className="soc-top">
+                <span className="soc-badge">0{stg.num}</span>
+                <span className="soc-status">{stg.done ? '✓ Done' : 'Pending'}</span>
+              </div>
+              <div className="soc-icon">{stg.icon}</div>
+              <div className="soc-name">{stg.name}</div>
+              <div className="soc-pts">{stg.pts}</div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="sec">
@@ -608,7 +762,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue">📅</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>No Interviews Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>You'll see invites here</div></div></button>
             )}
             {profileScore < 100 ? (
-              <button onClick={() => setActiveTab("profile")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">📚</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete Your Profile</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {8 - completedStages.length} stage{(8 - completedStages.length) === 1 ? '' : 's'} left</div></div></button>
+              <button onClick={() => handleOpenStagesWizard(1)} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">⚡</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete 8 Stages</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {8 - completedStages.length} stage{(8 - completedStages.length) === 1 ? '' : 's'} left</div></div></button>
             ) : (
               <button onClick={() => setActiveTab("learning")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">📚</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Keep Learning</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Stage score 100/100 · Fully verified</div></div></button>
             )}
@@ -623,16 +777,29 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
           {activeTab === 'profile' && (
 <div className="page active" id="page-profile">
-      <div className="page-head">
-        <div className="page-eyebrow">Verified Profile · Auto-updates when you improve any stage</div>
-        <h1 className="page-title">My Profile</h1>
-        <p className="page-sub">Everything companies see about you — pulled live from your 8 verification stages. Click any stage to edit at source.</p>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+        <div>
+          <div className="page-eyebrow">Verified Profile · Auto-updates when you improve any stage</div>
+          <h1 className="page-title">My Profile</h1>
+          <p className="page-sub">Everything companies see about you — pulled live from your 8 verification stages. Click any stage to edit directly in the 8 stages wizard.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleOpenStagesWizard(1)}
+          className="btn-open-stages-hero"
+          style={{ background: 'var(--grad-navy-dark)', color: '#FFFFFF', border: '1.5px solid var(--gold)', boxShadow: '0 4px 14px rgba(10, 37, 64, 0.3)' }}
+          title="Open Candidate 8 Stages Verification Wizard"
+        >
+          <span style={{ color: 'var(--gold-lite)' }}>⚡</span>
+          <span>Open 8 Stages Dashboard</span>
+          <span className="hero-btn-pill">{completedStages.length}/8 Completed</span>
+        </button>
       </div>
 
       <div className="profile-hero">
         <div className="profile-avatar-wrap">
           <div className="profile-avatar">{candidateName ? candidateName.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase() : 'NA'}</div>
-          <div className="profile-avatar-edit" onClick={() => triggerToast("Photo upload started. Choose a professional photo.")} title="Change photo">📷</div>
+          <div className="profile-avatar-edit" onClick={() => handleOpenStagesWizard(1)} title="Change photo in Stage 1">📷</div>
         </div>
         <div className="profile-info">
           <div className="profile-name">{candidateName}</div>
@@ -644,18 +811,28 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <span className="wh-chip">🎂 {profile?.stage1?.dob ? new Date(profile.stage1.dob).toLocaleDateString('en-IN') : 'DOB not set'}{profile?.stage1?.gender ? ` · ${profile.stage1.gender}` : ''}</span>
           </div>
         </div>
-        <button className="profile-cta" onClick={() => triggerToast("Redirecting to preview mode")}>👁 Preview as Company</button>
+        <button className="profile-cta" onClick={() => handleOpenStagesWizard(1)}>⚡ Edit All Stages</button>
       </div>
 
-      <h3 style={{"fontSize":"16px","fontWeight":"800","color":"var(--navy)","margin":"24px 0 14px"}}>Your 8 Verification Stages</h3>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 0 14px' }}>
+        <h3 style={{"fontSize":"16px","fontWeight":"800","color":"var(--navy)","margin":0}}>Your 8 Verification Stages</h3>
+        <button
+          type="button"
+          onClick={() => handleOpenStagesWizard(1)}
+          style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--navy)', background: 'var(--grad-gold-soft)', border: '1px solid var(--gold)', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+        >
+          <span>⚡ Launch 8-Stage Wizard</span>
+          <span>→</span>
+        </button>
+      </div>
 
       <div className="stage-detail">
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">01</div>
-            <div><div className="stage-detail-name">Identity · {completedStages.includes(1) ? 'Aadhaar Verified' : 'Not Completed'}</div><div className="stage-detail-tag">+5 pts · {completedStages.includes(1) ? 'Locked' : 'Pending'}</div></div>
+            <div><div className="stage-detail-name">Identity · {completedStages.includes(1) ? 'Aadhaar Verified' : 'Not Completed'}</div><div className="stage-detail-tag">+5 pts · {completedStages.includes(1) ? 'Verified' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 01 editor")}>✎ Edit</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(1)}>✎ Edit Stage 01</button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Full Name</div><div className="v">{candidateName || '—'}</div></div>
@@ -673,7 +850,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">02</div>
             <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+15 pts · {completedStages.includes(2) ? 'Academy-Signed' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 02 editor")}>✎ Edit</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(2)}>✎ Edit Stage 02</button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Academy</div><div className="v">{profile?.stage2?.academyName || profile?.stage2?.instituteName || '—'}</div></div>
@@ -691,7 +868,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">03</div>
             <div><div className="stage-detail-name">Certifications · {(profile?.stage3?.certifications?.length || (profile?.stage3?.certCode ? 1 : 0))} Active</div><div className="stage-detail-tag">+20 pts · {profile?.stage3?.certStatus === 'verified' ? 'API-Verified' : (completedStages.includes(3) ? 'Pending Verification' : 'Not Completed')}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 03 editor")}>➕ Add Cert</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(3)}>➕ Add / Edit Cert (Stage 03)</button></div>
         </div>
         <div className="stage-fields">
           {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
@@ -709,7 +886,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">04</div>
             <div><div className="stage-detail-name">Assessment · {(profile?.stage4?.foundationScore ?? profile?.stage4?.score) != null ? `${profile?.stage4?.medal || (profile?.stage4?.passed ? 'Passed' : 'Attempted')} ${profile?.stage4?.foundationScore ?? profile?.stage4?.score}/100` : 'Not Completed'}</div><div className="stage-detail-tag">+25 pts · Talentera-Proctored</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening Stage 04")}>🔄 Retake</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(4)}>🔄 Take Stage 04 Assessment</button></div>
         </div>
         <div className="stage-fields">
           {Array.isArray(profile?.stage4?.sectionScores) && profile.stage4.sectionScores.length > 0 ? profile.stage4.sectionScores.map((sec, idx) => (
@@ -726,7 +903,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">05</div>
             <div><div className="stage-detail-name">Video Pitch · {profile?.stage5?.overallScore != null ? `${profile.stage5.overallScore}/100` : (completedStages.includes(5) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+10 pts · {profile?.stage5?.verified ? 'Live Verified' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Opening video player")}>▶ Play</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(5)}>🎥 Open Stage 05 Pitch</button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Clarity</div><div className="v">{profile?.stage5?.clarityScore != null ? `${profile.stage5.clarityScore} / 100` : '—'}</div></div>
@@ -744,7 +921,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">06</div>
             <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {profile?.stage6?.totalCharts ? 'API-Verified' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => triggerToast("Sync started")}>🔄 Sync now</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(6)}>💻 Open Stage 06 Charts</button></div>
         </div>
         <div className="stage-fields">
           {Array.isArray(profile?.stage6?.specialtyCharts) && profile.stage6.specialtyCharts.length > 0 ? profile.stage6.specialtyCharts.map((sc, idx) => (
@@ -756,15 +933,59 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="field"><div className="k">Last coded</div><div className="v">{profile?.stage6?.completedAt ? new Date(profile.stage6.completedAt).toLocaleDateString('en-IN') : '—'}</div></div>
         </div>
       </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">07</div>
+            <div><div className="stage-detail-name">Resume Studio · {completedStages.includes(7) ? 'Resume Built & Verified' : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {completedStages.includes(7) ? 'Built' : 'Pending'}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(7)}>📄 Open Stage 07 Resume</button></div>
+        </div>
+        <div className="stage-fields">
+          <div className="field"><div className="k">Objective</div><div className="v">{profile?.stage7?.objective ? `${profile.stage7.objective.slice(0, 50)}...` : 'Not set'}</div></div>
+          <div className="field"><div className="k">Core Skills</div><div className="v">{Array.isArray(profile?.stage7?.skills) ? profile.stage7.skills.slice(0, 4).join(', ') : 'Not set'}</div></div>
+          <div className="field"><div className="k">Template</div><div className="v">{profile?.stage7?.themeSettings?.template || 'Fresher Modern'}</div></div>
+          <div className="field"><div className="k">PDF Export</div><div className="v">Ready in Stage 07</div></div>
+        </div>
+      </div>
+
+      <div className="stage-detail">
+        <div className="stage-detail-head">
+          <div className="stage-detail-title">
+            <div className="stage-detail-num">08</div>
+            <div><div className="stage-detail-name">Placement &amp; Hiring · {profile?.stage8?.liveForHiring ? 'Live For Hiring' : (completedStages.includes(8) ? 'Preferences Configured' : 'Not Completed')}</div><div className="stage-detail-tag">+5 pts · {completedStages.includes(8) ? 'Ready' : 'Pending'}</div></div>
+          </div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(8)}>📍 Open Stage 08 Track</button></div>
+        </div>
+        <div className="stage-fields">
+          <div className="field"><div className="k">Status</div><div className="v">{profile?.stage8?.liveForHiring ? '🟢 Live For Hiring' : '⚪ Not Live'}</div></div>
+          <div className="field"><div className="k">Employment</div><div className="v">{profile?.stage8?.employmentStatus || 'Actively Looking'}</div></div>
+          <div className="field"><div className="k">Work Mode</div><div className="v">{profile?.stage8?.workMode || 'Hybrid / Remote / Onsite'}</div></div>
+          <div className="field"><div className="k">Preferred Cities</div><div className="v">{Array.isArray(profile?.stage8?.preferredCities) ? profile.stage8.preferredCities.join(', ') : 'All locations'}</div></div>
+        </div>
+      </div>
     </div>
 )}
 
           {activeTab === 'badges' && (
 <div className="page active" id="page-badges">
-      <div className="page-head">
-        <div className="page-eyebrow">Your visual credibility · What companies scan first</div>
-        <h1 className="page-title">My Badges</h1>
-        <p className="page-sub">Badges are earned automatically as you complete each verification stage — no manual claiming needed.</p>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '14px' }}>
+        <div>
+          <div className="page-eyebrow">Your visual credibility · What companies scan first</div>
+          <h1 className="page-title">My Badges</h1>
+          <p className="page-sub">Badges are earned automatically as you complete each verification stage — no manual claiming needed.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleOpenStagesWizard(1)}
+          className="btn-open-stages-hero"
+          style={{ background: 'var(--grad-navy-dark)', color: '#FFFFFF', border: '1.5px solid var(--gold)' }}
+          title="Open 8 Stages Wizard to unlock badges"
+        >
+          <span style={{ color: 'var(--gold-lite)' }}>⚡</span>
+          <span>Open 8 Stages Dashboard</span>
+        </button>
       </div>
 
       <div className="badge-section priority-required">
@@ -804,11 +1025,11 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             </div>
           ))}
           {!(profile?.stage3?.certifications?.length > 0) && !profile?.stage3?.certCode && (
-            <div className="badge locked">
+            <div className="badge locked" onClick={() => handleOpenStagesWizard(3)} style={{ cursor: 'pointer' }}>
               <div className="badge-ico">📜</div>
               <div className="badge-name">No Certifications Yet</div>
               <div className="badge-sub">Add one in Stage 03</div>
-              <span className="badge-value locked-tag">Locked</span>
+              <span className="badge-value locked-tag">Locked · Click to Add</span>
             </div>
           )}
         </div>
@@ -850,6 +1071,21 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <span className={"badge-value " + (profile?.stage4?.medal === 'Gold' ? "regular" : "locked-tag")}>{profile?.stage4?.medal === 'Gold' ? 'Earned' : 'Locked'}</span>
           </div>
         </div>
+      </div>
+
+      {/* ⚡ Unlock remaining badges banner */}
+      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: 'var(--grad-hero)', color: '#FFFFFF', borderRadius: '16px', marginTop: '24px', border: '1.5px solid rgba(245, 166, 35, 0.45)', flexWrap: 'wrap', gap: '14px' }}>
+        <div>
+          <div style={{ fontWeight: 800, fontSize: '15.5px' }}>🚀 Unlock All 8 Verification Badges</div>
+          <div style={{ fontSize: '12.5px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '4px' }}>Complete or improve your scores in the candidate 8 stages verification dashboard.</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleOpenStagesWizard(1)}
+          className="btn-open-stages-hero"
+        >
+          ⚡ Open 8 Stages Dashboard
+        </button>
       </div>
     </div>
 )}
