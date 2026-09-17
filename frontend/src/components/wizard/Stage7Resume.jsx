@@ -1,8 +1,27 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import html2pdf from "html2pdf.js";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
+import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
+
+// Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
+const QrIconSvg = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v3h-3v-3zm-5 0h3v3h-3v-3zm2 5h3v3h-3v-3zm3 0h3v3h-3v-3zm-5-3h3v3h-3v-3zm5-2h3v2h-3v-2z" />
+  </svg>
+);
+
+const PlayIconSvg = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);
+
+const CheckListIconSvg = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 17h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2v-2H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7zM3 7v2h2V7H3z" />
+  </svg>
+);
 
 // Color Palettes for Theme Customizer
 export const THEME_PALETTES = [
@@ -430,78 +449,78 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     });
   }
 
-  // Real PDF Download using html2pdf with print fallback
+  // Direct PDF Download using html2canvas + jsPDF (No window.print popup)
   async function handleDownloadPdf() {
     setDownloading(true);
-    toast("Preparing high-resolution verified PDF...", "i");
+    toast("Generating verified high-resolution PDF...", "i");
 
     try {
-      const exporter = html2pdf.default || html2pdf || window.html2pdf;
-      if (exporter && resumePrintRef.current) {
-        const opt = {
-          margin: [8, 8, 8, 8],
-          filename: `${fullName.replace(/\s+/g, "_")}_Talentera_Verified_Resume.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        };
-        await exporter().from(resumePrintRef.current).set(opt).save();
-        toast("Verified PDF downloaded successfully!", "✓");
-      } else {
-        window.print();
+      if (!resumePrintRef.current) {
+        throw new Error("Resume container is not ready.");
       }
+      await exportResumePdf(resumePrintRef.current, fullName);
+      toast("Verified PDF downloaded successfully!", "✓");
     } catch (err) {
-      console.error("PDF generation error, opening print fallback:", err);
-      window.print();
+      console.error("PDF generation error:", err);
+      toast("PDF export failed: " + (err.message || "Unknown error"), "!");
     } finally {
       setDownloading(false);
     }
   }
 
-  // Word / DOCX Download
+  // Word / DOCX Download with Rich Word XML Styling
   function handleDownloadWord() {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><title>Resume</title><style>body{font-family:Arial,sans-serif;line-height:1.5;color:#1E293B;}h1{color:#0F1B3D;margin-bottom:4px;}h3{color:#0F1B3D;border-bottom:1.5px solid #0F1B3D;padding-bottom:4px;margin-top:16px;}table{width:100%;border-collapse:collapse;}th,td{padding:6px;border:1px solid #CBD5E1;text-align:left;}</style></head><body>";
-    const footer = "</body></html>";
-    const certSection = certificationsList.length > 0
-      ? `<h3>CORE CERTIFICATIONS</h3>${certificationsList.map((c) => `<p><b>${c.body || 'AAPC'} · ${c.code || c.name}</b> (Member ID: ${c.memberId || "Verified"}) - Active Credential</p>`).join("")}`
-      : "";
-
-    const chartSection = specialtyCharts.length > 0
-      ? `<h3>LIVE CHART AUDIT PRACTICE</h3><table><tr><th>Specialty</th><th>Count</th><th>Accuracy</th><th>Time/Chart</th></tr>${specialtyCharts.map((sc) => `<tr><td>${sc.name}</td><td>${sc.count}</td><td>${sc.accuracy}%</td><td>${sc.timePerChart}</td></tr>`).join("")}</table>`
-      : "";
-
-    const content = `
-      <h1>${fullName.toUpperCase()}</h1>
-      <p><b>${currentRoleTitle} · ${locality}</b></p>
-      <p>Phone: ${mobile} | Email: ${email} | Verification ID: ${verificationId}</p>
-      <p>Live Verification: <a href="${liveResumeUrl}">${liveResumeUrl}</a></p>
-      <hr/>
-      <h3>CAREER OBJECTIVE</h3>
-      <p>${careerObjective}</p>
-      <h3>TALENTERA VERIFIED SCORECARD</h3>
-      <p><b>Verification Score:</b> ${totalPoints}/100 | <b>Assessment:</b> ${assessmentScore !== null ? assessmentScore + "% (" + assessmentMedal + ")" : "Verified"} | <b>Video Pitch:</b> ${videoScore !== null ? videoScore + "% (" + videoMedal + ")" : "Verified"} | <b>Live Charts:</b> ${totalCharts} charts (${overallAccuracy}% accuracy)</p>
-      ${certSection}
-      <h3>TRAINING FOUNDATION</h3>
-      <p><b>${academyName}</b> (${academyLocality}) · ${trainingSpecialties} (${trainingDuration}) ${trainingAssessmentScore ? `- Score: ${trainingAssessmentScore}/100` : ""}</p>
-      ${chartSection}
-      <h3>EDUCATION & ACADEMICS</h3>
-      <p><b>${degree}</b> - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}</p>
-      ${twelfthSchool ? `<p><b>Class XII:</b> ${twelfthSchool} (${twelfthYear}) ${twelfthScore ? `- ${twelfthScore}` : ""}</p>` : ""}
-      <h3>WORK PREFERENCES</h3>
-      <p>Cities: ${preferredCities} | Relocation: ${relocationPref} | Shifts: ${shiftPreference}</p>
-      <hr/>
-      <p style="font-size:11px;color:#64748B;">Talentera Verified Resume · Cryptographic Verification ID: ${verificationId} · Live at ${liveResumeUrl}</p>
-    `;
-    const blob = new Blob(["\ufeff", header + content + footer], { type: "application/msword" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${fullName.replace(/\s+/g, "_")}_Talentera_Resume.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast("Word document downloaded successfully!", "✓");
+    try {
+      exportResumeWord({
+        fullName,
+        currentRoleTitle,
+        expLabel,
+        locality,
+        mobile,
+        email,
+        verificationId,
+        liveResumeUrl,
+        careerObjective,
+        totalPoints,
+        assessmentScore,
+        assessmentMedal,
+        videoScore,
+        videoMedal,
+        clarityScore,
+        fluencyScore,
+        confidenceScore,
+        totalCharts,
+        overallAccuracy,
+        chartTier,
+        certificationsList,
+        academyName,
+        academyLocality,
+        domainName,
+        trainingLevel,
+        trainingSpecialties,
+        trainingDuration,
+        trainingAssessmentScore,
+        specialtyCharts,
+        selectedPlatforms,
+        degree,
+        collegeName,
+        graduationYear,
+        cgpa,
+        twelfthSchool,
+        twelfthYear,
+        twelfthScore,
+        preferredCities,
+        relocationPref,
+        shiftPreference,
+        templateId: selectedTemplate,
+        headerBg: activeTmpl.headerBg,
+        accentColor: activeTmpl.accentColor,
+      });
+      toast("Word document (.doc) downloaded with verified formatting!", "✓");
+    } catch (err) {
+      console.error("Word export error:", err);
+      toast("Word export failed: " + (err.message || "Unknown error"), "!");
+    }
   }
 
   // ATS Clean Text Download
@@ -895,32 +914,235 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         .s7-edit-stage-btn:hover { background: #F5B41A; color: #0F1B3D; }
         .s7-verified-tag { background: #E8F5E9; color: #1F7A3C; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: .3px; }
 
-        /* RESUME PREVIEW PAPER */
+        /* RESUME PREVIEW PAPER & DYNAMIC TEMPLATES */
         .s7-resume-preview {
           background: #FFFFFF;
           border-radius: 14px;
           padding: 30px 36px;
-          border: 2px solid #F5B41A;
           box-shadow: 0 8px 30px rgba(15,27,61,.08);
           color: #222222;
           position: relative;
           overflow: hidden;
+          transition: all 0.2s ease;
         }
-        .s7-resume-preview::before { content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: #F5B41A; }
-        .s7-resume-header { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid #0F1B3D; align-items: end; }
-        .s7-resume-name { font-size: 30px; font-weight: 800; color: #0F1B3D; letter-spacing: -.5px; line-height: 1; margin-bottom: 6px; }
+
+        /* Default / Fresher Modern */
+        .s7-resume-preview.tmpl-fresher_modern {
+          border: 2px solid var(--accent, #F5B41A);
+        }
+        .s7-resume-preview.tmpl-fresher_modern::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: var(--accent, #F5B41A);
+        }
+
+        /* Plain B&W Template (Strict Monochrome ATS) */
+        .s7-resume-preview.tmpl-plain_bw {
+          border: 2px solid #000000;
+          box-shadow: none;
+          background: #FFFFFF;
+        }
+        .s7-resume-preview.tmpl-plain_bw::before { display: none; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-header { border-bottom: 2px solid #000000; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-name { color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-title { color: #374151 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-contact { color: #4B5563 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-contact a,
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-contact span { color: #111827 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-verified-stamp { border: 2px solid #000000 !important; background: #FFFFFF !important; color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-verified-stamp .top,
+        .s7-resume-preview.tmpl-plain_bw .s7-verified-stamp .id { color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-qr-box { background: #000000 !important; color: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-sec-title { color: #000000 !important; border-bottom: 2px solid #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-score-strip { background: #F9FAFB !important; border: 1.5px solid #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-score-badge { background: #000000 !important; color: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-r-block { border: 1px solid #000000 !important; background: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-r-block .v { color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-charts-table-mini th { background: #000000 !important; color: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-charts-table-mini tr.total td { background: #F3F4F6 !important; color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-qr-mini { background: #000000 !important; color: #FFFFFF !important; }
+
+        /* Fresher Classic Template (Editorial Serif, Academic) */
+        .s7-resume-preview.tmpl-fresher_classic {
+          border: 1.5px solid #CBD5E1;
+          font-family: Georgia, 'Times New Roman', serif;
+        }
+        .s7-resume-preview.tmpl-fresher_classic::before { display: none; }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          border-bottom: 3px double #333333;
+          padding-bottom: 14px;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-name {
+          font-family: Georgia, serif;
+          font-size: 28px;
+          color: #1F2937;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-contact {
+          justify-content: center;
+          margin-top: 6px;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-verified-stamp {
+          margin: 10px auto 0;
+          max-width: 240px;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-sec-title {
+          font-family: Georgia, serif;
+          text-align: left;
+          color: #1F2937;
+          border-bottom: 1.5px solid #4B5563;
+        }
+
+        /* Executive Template (Executive Banner, Leadership) */
+        .s7-resume-preview.tmpl-executive {
+          border: 2px solid var(--accent, #7C3AED);
+        }
+        .s7-resume-preview.tmpl-executive::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 8px; height: 100%; background: var(--hdr-bg, #4C1D95);
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-header {
+          background: var(--hdr-bg, #4C1D95);
+          margin: -30px -36px 20px -36px;
+          padding: 24px 36px 20px 44px;
+          border-bottom: 3.5px solid var(--accent, #F5B41A);
+          color: #FFFFFF;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-name {
+          color: #FFFFFF !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-title {
+          color: var(--accent, #F5B41A) !important;
+          font-weight: 700;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-contact,
+        .s7-resume-preview.tmpl-executive .s7-resume-contact span {
+          color: #E2E8F0 !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-verified-stamp {
+          background: rgba(255,255,255,0.15) !important;
+          border: 1.5px solid var(--accent, #F5B41A) !important;
+          color: #FFFFFF !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-verified-stamp .top,
+        .s7-resume-preview.tmpl-executive .s7-verified-stamp .id {
+          color: #FFFFFF !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-qr-box {
+          background: #FFFFFF !important;
+          color: var(--hdr-bg, #4C1D95) !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-sec-title {
+          color: var(--hdr-bg, #4C1D95);
+          border-bottom: 2px solid var(--accent, #7C3AED);
+        }
+
+        /* Global Template (US/UK International Format) */
+        .s7-resume-preview.tmpl-global {
+          border: 1.5px solid #E2E8F0;
+          box-shadow: 0 4px 20px rgba(6,95,70,0.06);
+        }
+        .s7-resume-preview.tmpl-global::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: #10B981;
+        }
+        .s7-resume-preview.tmpl-global .s7-resume-sec-title {
+          color: #064E3B;
+          border-bottom: 2px solid #10B981;
+        }
+        .s7-resume-preview.tmpl-global .s7-verified-stamp {
+          border-color: #064E3B;
+          background: #ECFDF5;
+        }
+        .s7-resume-preview.tmpl-global .s7-qr-box {
+          background: #064E3B;
+          color: #10B981;
+        }
+        .s7-resume-preview.tmpl-global .s7-charts-table-mini th {
+          background: #064E3B;
+          color: #A7F3D0;
+        }
+
+        /* Compact ATS Template (Dense 1-Page Format) */
+        .s7-resume-preview.tmpl-compact_ats {
+          padding: 18px 22px;
+          border: 1.5px solid #334155;
+          font-size: 11px;
+        }
+        .s7-resume-preview.tmpl-compact_ats::before {
+          width: 4px;
+          background: #334155;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-name {
+          font-size: 22px;
+          margin-bottom: 2px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-title {
+          font-size: 11.5px;
+          margin-bottom: 4px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-sec-title {
+          margin: 12px 0 4px;
+          padding-bottom: 2px;
+          font-size: 10.5px;
+          border-bottom: 1.5px solid #334155;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-score-strip {
+          padding: 8px 10px;
+          margin-top: 8px;
+          gap: 6px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-score-badge {
+          font-size: 10px;
+          padding: 2px 6px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-r-block {
+          padding: 6px 10px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-charts-table-mini th,
+        .s7-resume-preview.tmpl-compact_ats .s7-charts-table-mini td {
+          padding: 3px 6px;
+          font-size: 10.5px;
+        }
+
+        /* Specialty Dental Template */
+        .s7-resume-preview.tmpl-specialty_dental {
+          border: 2px solid #7C3AED;
+        }
+        .s7-resume-preview.tmpl-specialty_dental::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: #7C3AED;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-resume-sec-title {
+          color: #4C1D95;
+          border-bottom: 2px solid #7C3AED;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-verified-stamp {
+          border-color: #7C3AED;
+          background: #F5F3FF;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-qr-box {
+          background: #7C3AED;
+          color: #F5B41A;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-charts-table-mini th {
+          background: #7C3AED;
+          color: #FFFFFF;
+        }
+
+        /* Common Elements within Resume */
+        .s7-resume-header { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--hdr-bg, #0F1B3D); align-items: end; }
+        .s7-resume-name { font-size: 30px; font-weight: 800; color: var(--hdr-bg, #0F1B3D); letter-spacing: -.5px; line-height: 1; margin-bottom: 6px; }
         .s7-resume-title { font-size: 14px; color: #3A425A; font-weight: 600; margin-bottom: 8px; }
         .s7-resume-contact { font-size: 11.5px; color: #3A425A; display: flex; gap: 14px; flex-wrap: wrap; }
-        .s7-verified-stamp { border: 2px solid #0F1B3D; border-radius: 8px; padding: 10px 14px; text-align: center; background: #FFF6E0; }
-        .s7-verified-stamp .top { font-size: 9.5px; color: #0F1B3D; font-weight: 800; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; justify-content: center; }
+        .s7-verified-stamp { border: 2px solid var(--hdr-bg, #0F1B3D); border-radius: 8px; padding: 10px 14px; text-align: center; background: #FFF6E0; }
+        .s7-verified-stamp .top { font-size: 9.5px; color: var(--hdr-bg, #0F1B3D); font-weight: 800; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; justify-content: center; }
         .s7-verified-stamp .id { font-size: 10px; color: #3A425A; margin-top: 4px; font-family: monospace; }
-        .s7-qr-box { width: 60px; height: 60px; background: #0F1B3D; margin: 8px auto 0; border-radius: 4px; display: grid; place-items: center; color: #F5B41A; font-size: 24px; cursor: pointer; }
+        .s7-qr-box { width: 56px; height: 56px; background: var(--hdr-bg, #0F1B3D); margin: 8px auto 0; border-radius: 4px; display: grid; place-items: center; color: var(--accent, #F5B41A); font-size: 24px; cursor: pointer; }
 
-        .s7-resume-sec-title { font-size: 12px; color: #0F1B3D; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #0F1B3D; }
+        .s7-resume-sec-title { font-size: 12px; color: var(--hdr-bg, #0F1B3D); font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1.5px solid var(--accent, #F5B41A); }
         .s7-resume-obj { font-size: 13px; color: #333333; line-height: 1.6; font-style: italic; }
         .s7-resume-score-strip {
           background: linear-gradient(135deg, #FFF6E0, #FFF9E0);
-          border: 1.5px solid #F5B41A;
+          border: 1.5px solid var(--accent, #F5B41A);
           border-radius: 10px;
           padding: 12px 16px;
           margin-top: 12px;
@@ -929,19 +1151,19 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           gap: 12px;
           align-items: center;
         }
-        .s7-score-badge { background: #0F1B3D; color: #F5B41A; padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 11.5px; }
+        .s7-score-badge { background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 11.5px; }
         .s7-score-badge.silver { background: linear-gradient(135deg, #C0C0C0, #8B9199); color: #FFFFFF; }
-        .s7-score-badge.gold { background: linear-gradient(135deg, #F5B41A, #DAA520); color: #0F1B3D; }
+        .s7-score-badge.gold { background: linear-gradient(135deg, var(--accent, #F5B41A), #DAA520); color: var(--hdr-bg, #0F1B3D); }
         .s7-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
         @media (max-width: 700px) { .s7-grid-2 { grid-template-columns: 1fr; } }
         .s7-r-block { background: #FAFAF7; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px 14px; }
         .s7-r-block .k { font-size: 10px; color: #8A91A3; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; margin-bottom: 4px; }
-        .s7-r-block .v { font-size: 13px; color: #0F1B3D; font-weight: 800; }
+        .s7-r-block .v { font-size: 13px; color: var(--hdr-bg, #0F1B3D); font-weight: 800; }
         .s7-r-block .details { font-size: 11.5px; color: #3A425A; margin-top: 3px; line-height: 1.5; }
-        .s7-qr-mini { width: 38px; height: 38px; background: #0F1B3D; color: #F5B41A; border-radius: 4px; float: right; margin-left: 8px; display: grid; place-items: center; font-size: 16px; }
+        .s7-qr-mini { width: 34px; height: 34px; background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); border-radius: 4px; float: right; margin-left: 8px; display: grid; place-items: center; font-size: 14px; }
 
         .s7-charts-table-mini { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        .s7-charts-table-mini th { background: #0F1B3D; color: #F5B41A; padding: 6px 10px; font-size: 10px; letter-spacing: .5px; text-align: left; font-weight: 800; }
+        .s7-charts-table-mini th { background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); padding: 6px 10px; font-size: 10px; letter-spacing: .5px; text-align: left; font-weight: 800; }
         .s7-charts-table-mini td { padding: 6px 10px; border-bottom: 1px dashed #E5E7EB; font-size: 11.5px; color: #0F1B3D; }
         .s7-charts-table-mini tr.total td { background: #FFF6E0; font-weight: 800; border-bottom: none; }
 
@@ -1483,11 +1705,19 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             </div>
 
             {/* Rendered Resume Paper */}
-            <div ref={resumePrintRef} className="s7-resume-preview" style={{ fontFamily: activeTmpl.fontFamily }}>
+            <div
+              ref={resumePrintRef}
+              className={`s7-resume-preview tmpl-${selectedTemplate}`}
+              style={{
+                fontFamily: activeTmpl.fontFamily,
+                "--hdr-bg": activeTmpl.headerBg,
+                "--accent": activeTmpl.accentColor,
+              }}
+            >
               {/* Paper Header */}
               <div className="s7-resume-header">
                 <div>
-                  <div className="s7-resume-name" style={{ color: activeTmpl.headerBg }}>{fullName.toUpperCase()}</div>
+                  <div className="s7-resume-name">{fullName.toUpperCase()}</div>
                   <div className="s7-resume-title">{currentRoleTitle} · {expLabel}{locality ? ` · ${locality}` : ""}</div>
                   <div className="s7-resume-contact">
                     {mobile && <span>📞 {mobile}</span>}
@@ -1499,7 +1729,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                   <div className="top">🛡 TALENTERA<br />VERIFIED</div>
                   <div className="id">ID: {verificationId}</div>
                   <div onClick={() => setShowQrModal(true)} className="s7-qr-box" title="Click to view QR details">
-                    <i className="fa-solid fa-qrcode"></i>
+                    <QrIconSvg />
                   </div>
                 </div>
               </div>
@@ -1603,13 +1833,13 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-sec-title">🎤 Video Pitch Scorecard</div>
               <div className="s7-grid-2">
                 <div className="s7-r-block">
-                  <div className="s7-qr-mini"><i className="fa-solid fa-play"></i></div>
+                  <div className="s7-qr-mini"><PlayIconSvg /></div>
                   <div className="k">Self-Introduction (60 sec)</div>
                   <div className="v">{videoScore !== null ? `${videoMedal} · ${videoScore}/100` : "Verified Pitch"}</div>
                   <div className="details">Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · 🟢 Live Verified · Scan to play</div>
                 </div>
                 <div className="s7-r-block">
-                  <div className="s7-qr-mini"><i className="fa-solid fa-list-check"></i></div>
+                  <div className="s7-qr-mini"><CheckListIconSvg /></div>
                   <div className="k">5-question AI Mock</div>
                   <div className="v">{videoScore !== null ? `Avg ${videoScore}/100` : "Completed"}</div>
                   <div className="details">Auto-transcribed · Searchable · Scan to review answers</div>
@@ -1814,10 +2044,17 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             </div>
 
             {/* Embedded Resume View */}
-            <div className="s7-resume-preview" style={{ fontFamily: activeTmpl.fontFamily }}>
+            <div
+              className={`s7-resume-preview tmpl-${selectedTemplate}`}
+              style={{
+                fontFamily: activeTmpl.fontFamily,
+                "--hdr-bg": activeTmpl.headerBg,
+                "--accent": activeTmpl.accentColor,
+              }}
+            >
               <div className="s7-resume-header">
                 <div>
-                  <div className="s7-resume-name" style={{ color: activeTmpl.headerBg }}>{fullName.toUpperCase()}</div>
+                  <div className="s7-resume-name">{fullName.toUpperCase()}</div>
                   <div className="s7-resume-title">{currentRoleTitle} · {expLabel}{locality ? ` · ${locality}` : ""}</div>
                   <div className="s7-resume-contact">
                     {mobile && <span>📞 {mobile}</span>}
@@ -1829,7 +2066,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                   <div className="top">🛡 TALENTERA<br />VERIFIED</div>
                   <div className="id">ID: {verificationId}</div>
                   <div className="s7-qr-box">
-                    <i className="fa-solid fa-qrcode"></i>
+                    <QrIconSvg />
                   </div>
                 </div>
               </div>

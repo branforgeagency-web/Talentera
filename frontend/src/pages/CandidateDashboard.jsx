@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
+import { exportResumeWord } from '../utils/resumeExport.js';
 import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
 import BrowseJobsSection from '../components/BrowseJobsSection.jsx';
 import CandidateReferralPortalSection from '../components/CandidateReferralPortalSection.jsx';
@@ -305,62 +306,34 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
   // Handle PDF Download
   const handleDownloadPdf = () => {
-    triggerToast('Opening print dialog to save verified resume as PDF...');
-    setTimeout(() => {
-      window.print();
-    }, 400);
+    // Switch to the Resume tab where full interactive PDF exporter is available
+    setActiveTab('resume');
+    triggerToast('Switched to Verified Resume tab — ready to download verified PDF!');
   };
 
-  // Handle DOCX / Text Download
+  // Handle DOCX / Word Download
   const handleDownloadDocx = () => {
-    const resumeText = [
-      '=============================================================',
-      'TALENTERA VERIFIED CANDIDATE RESUME',
-      '=============================================================',
-      'Candidate Name : ' + candidateName,
-      'Email          : ' + candidateEmail,
-      'Mobile         : ' + (candidatePhone || 'N/A'),
-      'Location       : ' + (profile?.stage1?.city || 'India'),
-      'Role / Domain  : ' + (profile?.stage5?.preferredRoles || 'Candidate'),
-      '',
-      '-------------------------------------------------------------',
-      'CAREER OBJECTIVE & SUMMARY',
-      '-------------------------------------------------------------',
-      (profile?.stage7?.objective || profile?.stage7?.summary || profile?.stage1?.summary || 'Dedicated professional with verified domain credentials.'),
-      '',
-      '-------------------------------------------------------------',
-      'EDUCATION & ACADEMICS',
-      '-------------------------------------------------------------',
-      'Degree         : ' + (profile?.stage2?.degree || 'Bachelor Degree') + (profile?.stage2?.branch ? ' (' + profile.stage2.branch + ')' : ''),
-      'Institution    : ' + (profile?.stage2?.college || 'University'),
-      'Year of Passing: ' + (profile?.stage2?.gradYear || 'Completed'),
-      'CGPA / Marks   : ' + (profile?.stage2?.cgpa || 'N/A'),
-      '',
-      '-------------------------------------------------------------',
-      'EXPERIENCE & INTERNSHIPS',
-      '-------------------------------------------------------------',
-      (profile?.stage3?.company ? 'Company: ' + profile.stage3.company + '\nRole: ' + (profile.stage3.designation || 'Specialist') + '\nExperience: ' + (profile.stage3.experienceYears || '0') + ' Years\nDetails: ' + (profile.stage3.responsibilities || 'N/A') : 'Fresher with certified foundational training and project assessments.'),
-      '',
-      '-------------------------------------------------------------',
-      'SKILLS & COMPETENCIES',
-      '-------------------------------------------------------------',
-      (Array.isArray(profile?.stage4?.skills) ? profile.stage4.skills.join(', ') : 'Domain Skills, Problem Solving, Analytical Thinking'),
-      '',
-      '=============================================================',
-      'Verification Code : TLN-' + (profile?._id ? profile._id.slice(-8).toUpperCase() : 'AUTH'),
-      '============================================================='
-    ].join('\n');
-
-    const blob = new Blob([resumeText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = candidateName.replace(/\s+/g, '_') + '_Talentera_Resume.doc';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    triggerToast('Resume document downloaded successfully!');
+    try {
+      exportResumeWord({
+        fullName: candidateName,
+        email: candidateEmail,
+        mobile: candidatePhone,
+        locality: profile?.stage1?.city ? `${profile?.stage1?.city}, India` : 'India',
+        currentRoleTitle: profile?.stage1?.currentRole || 'Medical Coding Specialist',
+        careerObjective: profile?.stage7?.objective || profile?.stage7?.summary || profile?.stage1?.summary || 'Dedicated healthcare documentation specialist.',
+        degree: profile?.stage1?.degree || profile?.stage2?.degree || "Bachelor's Degree",
+        collegeName: profile?.stage1?.collegeName || profile?.stage2?.college || 'University',
+        graduationYear: profile?.stage1?.graduationYear || profile?.stage2?.gradYear || '',
+        cgpa: profile?.stage1?.cgpa || profile?.stage2?.cgpa || '',
+        totalPoints: profile?.score || 85,
+        verificationId: profile?.verificationId || (profile?._id ? `TLR-2026-${String(profile._id).slice(-6).toUpperCase()}` : 'TLR-2026-VERIFIED'),
+        liveResumeUrl: window.location.origin + '/candidate/resume/' + (profile?._id || ''),
+      });
+      triggerToast('Resume Word document (.doc) downloaded with verified formatting!');
+    } catch (err) {
+      console.error('Word export error:', err);
+      triggerToast('Failed to generate Word document: ' + err.message);
+    }
   };
 
   // Copy Live Resume URL

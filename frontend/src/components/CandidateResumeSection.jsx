@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
-import html2pdf from "html2pdf.js";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
+import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
 
 // 7 Verified Resume Templates matching Talentera standards
 export const RESUME_TEMPLATES = [
@@ -387,67 +387,71 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     }
   }
 
-  // Download PDF
+  // Download PDF directly without print pop-up
   async function handleDownloadPdf() {
     setDownloading(true);
-    toast("Preparing verified PDF with custom styling...", "i");
+    toast("Generating verified high-resolution PDF...", "i");
 
     try {
-      const exporter = html2pdf.default || html2pdf || window.html2pdf;
-      if (exporter && resumePrintRef.current) {
-        const opt = {
-          margin: [6, 6, 6, 6],
-          filename: `${fullName.replace(/\s+/g, "_")}_Talentera_Verified_Resume.pdf`,
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        };
-        await exporter().from(resumePrintRef.current).set(opt).save();
-        toast("Verified PDF downloaded successfully!", "✓");
-      } else {
-        window.print();
+      if (!resumePrintRef.current) {
+        throw new Error("Resume sheet is not ready.");
       }
+      await exportResumePdf(resumePrintRef.current, fullName);
+      toast("Verified PDF downloaded successfully!", "✓");
     } catch (err) {
-      console.error("PDF generation fallback:", err);
-      window.print();
+      console.error("PDF generation error:", err);
+      toast("PDF export failed: " + (err.message || "Unknown error"), "!");
     } finally {
       setDownloading(false);
     }
   }
 
-  // Download Word DOC
+  // Download Word DOC with Full XML Formatting
   function handleDownloadWord() {
-    const header = "<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><title>Resume</title><style>body{font-family:Arial,sans-serif;line-height:1.5;color:#1E293B;}h1{color:#0F1B3D;margin-bottom:2px;}h3{color:#0F1B3D;border-bottom:1.5px solid #0F1B3D;padding-bottom:3px;margin-top:14px;}table{width:100%;border-collapse:collapse;}th,td{padding:5px;border:1px solid #CBD5E1;font-size:12px;}</style></head><body>";
-    const footer = "</body></html>";
-    const certSection = (visibleSections.certifications && certificationsList.length > 0)
-      ? `<h3>CORE CERTIFICATIONS</h3>${certificationsList.map((c) => `<p><b>${c.body || 'AAPC'} · ${c.code || c.name}</b> (Member ID: ${c.memberId || "Verified"})</p>`).join("")}`
-      : "";
-
-    const content = `
-      <h1>${fullName.toUpperCase()}</h1>
-      <p><b>${currentRoleTitle} · ${locality}</b></p>
-      <p>Phone: ${mobile} | Email: ${email} | ID: ${verificationId} | Live: ${liveResumeUrl}</p>
-      <hr/>
-      ${visibleSections.objective ? `<h3>CAREER OBJECTIVE</h3><p>${careerObjective}</p>` : ""}
-      ${visibleSections.scorecard ? `<h3>TALENTERA VERIFIED SCORECARD</h3><p>Score: ${totalPoints}/100 | Assessment: ${assessmentScore}% (${assessmentMedal}) | Video Pitch: ${videoScore}% | Live Charts: ${totalCharts} charts (${overallAccuracy}% acc)</p>` : ""}
-      ${certSection}
-      ${visibleSections.training ? `<h3>TRAINING FOUNDATION</h3><p><b>${academyName}</b> (${academyLocality}) · ${trainingSpecialties} (${trainingDuration})</p>` : ""}
-      ${visibleSections.liveCharts ? `<h3>LIVE CHART PRACTICE</h3><p>${specialtyCharts.map((sc) => `${sc.name}: ${sc.count} charts (${sc.accuracy}%)`).join(" | ")}</p>` : ""}
-      ${visibleSections.education ? `<h3>EDUCATION & ACADEMICS</h3><p><b>${degree}</b> - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}</p>` : ""}
-      ${visibleSections.preferences ? `<h3>WORK PREFERENCES</h3><p>Cities: ${preferredCities} | Relocation: ${relocationPref} | Shifts: ${shiftPreference}</p>` : ""}
-      <hr/>
-      <p style="font-size:11px;color:#64748B;">Verified by Talentera · ID ${verificationId} · Live at ${liveResumeUrl}</p>
-    `;
-    const blob = new Blob(["\ufeff", header + content + footer], { type: "application/msword" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${fullName.replace(/\s+/g, "_")}_Talentera_Resume.doc`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    toast("Word document downloaded!", "✓");
+    try {
+      exportResumeWord({
+        fullName,
+        currentRoleTitle,
+        expLabel,
+        locality,
+        mobile,
+        email,
+        verificationId,
+        liveResumeUrl,
+        careerObjective,
+        totalPoints,
+        assessmentScore,
+        assessmentMedal,
+        videoScore,
+        videoMedal,
+        clarityScore,
+        fluencyScore,
+        confidenceScore,
+        totalCharts,
+        overallAccuracy,
+        certificationsList,
+        academyName,
+        academyLocality,
+        domainName,
+        trainingSpecialties,
+        trainingDuration,
+        specialtyCharts,
+        degree,
+        collegeName,
+        graduationYear,
+        cgpa,
+        preferredCities,
+        relocationPref,
+        shiftPreference,
+        templateId: selectedTemplate,
+        headerBg: activeTmpl.headerBg,
+        accentColor: activeTmpl.accentColor,
+      });
+      toast("Word document (.doc) downloaded with verified formatting!", "✓");
+    } catch (err) {
+      console.error("Word export error:", err);
+      toast("Word export failed: " + (err.message || "Unknown error"), "!");
+    }
   }
 
   // ATS Plain Text

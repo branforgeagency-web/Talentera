@@ -161,7 +161,7 @@ router.post(
 
       await candidate.save();
 
-      const scoring = calculateVerificationScore(candidate.completedStages);
+      const scoring = calculateVerificationScore(candidate.completedStages, candidate);
       res.json({
         success: true,
         message: "Offline e-KYC ZIP verified successfully!",
@@ -212,7 +212,7 @@ router.post("/qr/verify", async (req, res) => {
 
     await candidate.save();
 
-    const scoring = calculateVerificationScore(candidate.completedStages);
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
     res.json({
       success: true,
       message: `Aadhaar QR Code verified successfully (${decoded.format})`,
@@ -784,7 +784,7 @@ router.put("/stage/:n", async (req, res) => {
     }
     await candidate.save();
 
-    const scoring = calculateVerificationScore(candidate.completedStages);
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
     res.json({ candidate, ...scoring });
   } catch (err) {
     logger.error(`Error saving stage ${req.params.n}: ${err.message}`);
@@ -812,7 +812,7 @@ router.post("/stage/:n/skip", async (req, res) => {
   }
   await candidate.save();
 
-  const scoring = calculateVerificationScore(candidate.completedStages);
+  const scoring = calculateVerificationScore(candidate.completedStages, candidate);
   res.json({ candidate, ...scoring });
 });
 
@@ -881,7 +881,7 @@ router.post("/video-platform/sync", async (req, res) => {
 
     await candidate.save();
 
-    const scoring = calculateVerificationScore(candidate.completedStages);
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
     res.json({
       success: true,
       message: `Assessment results synced successfully from ${platformName || "Talview"}!`,
@@ -1036,7 +1036,7 @@ router.post(
 
       await candidate.save();
 
-      const scoring = calculateVerificationScore(candidate.completedStages);
+      const scoring = calculateVerificationScore(candidate.completedStages, candidate);
       res.json({
         success: true,
         message: `AI Video Interview submitted! Communication Score: ${evaluation.overallScore}%`,
@@ -1133,7 +1133,7 @@ router.post(
 
       await candidate.save();
 
-      const scoring = calculateVerificationScore(candidate.completedStages);
+      const scoring = calculateVerificationScore(candidate.completedStages, candidate);
       res.json({
         success: true,
         message: `AI Audio Interview submitted! Communication Score: ${evaluation.overallScore}%`,
@@ -1897,7 +1897,7 @@ router.get("/resume-data", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
 
-  const scoring = calculateVerificationScore(candidate.completedStages);
+  const scoring = calculateVerificationScore(candidate.completedStages, candidate);
 
   res.json({
     id: candidate._id,
@@ -1930,7 +1930,7 @@ router.put("/manual-resume", async (req, res) => {
 
     await candidate.save();
 
-    const scoring = calculateVerificationScore(candidate.completedStages);
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
     logger.error(`Save manual resume error: ${err.message}`);
@@ -1978,7 +1978,7 @@ router.post("/apply/:jobId", async (req, res) => {
 
   // Job search / apply eligibility gate: the overall verification score must be
   // at least 75% (JOB_SEARCH_MIN_SCORE = 75). Mirrors the check in frontend/src/pages/Jobs.jsx.
-  const eligibility = calculateVerificationScore(candidate.completedStages);
+  const eligibility = calculateVerificationScore(candidate.completedStages, candidate);
   if (eligibility.score < JOB_SEARCH_MIN_SCORE) {
     return res.status(403).json({
       message: `Job applications are open to verified candidates with a score of at least ${JOB_SEARCH_MIN_SCORE}%. Your current score is ${eligibility.score}/100 — complete additional verification stages in your dashboard to reach 75% and unlock job search.`,
