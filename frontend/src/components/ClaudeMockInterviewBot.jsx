@@ -4,7 +4,7 @@ import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
-const INACTIVITY_TIMEOUT_SECONDS = 5;
+const INACTIVITY_TIMEOUT_SECONDS = 30;
 
 const TOPIC_CONFIG = [
   { key: "ICD-10-CM", label: "1. ICD-10-CM Coding", icon: "fa-notes-medical" },
@@ -18,7 +18,7 @@ const EVAL_LABELS = {
   correct: { label: "Strong Answer", color: "#15803D", bg: "#DCFCE7" },
   partial: { label: "Good Foundation", color: "#B45309", bg: "#FEF3C7" },
   incorrect: { label: "Needs Practice", color: "#B91C1C", bg: "#FEE2E2" },
-  no_answer: { label: "No Response (5s)", color: "#64748B", bg: "#F1F5F9" },
+  no_answer: { label: "No Response (30s)", color: "#64748B", bg: "#F1F5F9" },
 };
 
 function formatDuration(totalSeconds) {
@@ -186,6 +186,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   // Inactivity countdown refs & state
   const inactivityIntervalRef = useRef(null);
   const answerStartedRef = useRef(false);
+  const isSwitchingCallRef = useRef(false);
 
   // loading | setup | interview | report
   const [step, setStep] = useState("loading");
@@ -194,6 +195,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [inputText, setInputText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isCallConnected, setIsCallConnected] = useState(false);
   const [liveInterim, setLiveInterim] = useState("");
   const [loadingTurn, setLoadingTurn] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -366,14 +368,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }, 1000);
   }
 
-  // Triggered when 5 seconds pass with no speech or typing
+  // Triggered when 30 seconds pass with no speech or typing
   function handleInactivityTimeout() {
     if (answerStartedRef.current || stoppingAnswerRef.current) return;
     stoppingAnswerRef.current = true;
     setIsWaitingForAnswerStart(false);
     setHasStartedAnswering(false);
-    setAutoAdvanceNotice("5 seconds of inactivity — moving to the next question...");
-    toast("5 seconds of inactivity — moving to next question.", "!");
+    setAutoAdvanceNotice("30 seconds of inactivity — moving to the next question...");
+    toast("30 seconds of inactivity — moving to next question.", "!");
 
     setTimeout(() => {
       setAutoAdvanceNotice("");
@@ -426,12 +428,18 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     setIsWaitingForAnswerStart(false);
     setHasStartedAnswering(false);
     stoppingAnswerRef.current = false;
+    isSwitchingCallRef.current = true;
     setTranscript((prev) => [...prev, { speaker: "you", text: text || "(no answer)" }]);
     setLoadingTurn(true);
 
     try {
-      vapiRef.current?.stop();
+      if (vapiRef.current) {
+        vapiRef.current.stop();
+      }
     } catch (e) {}
+
+    // Allow Daily.co WebRTC peer connections and audio tracks to cleanly release
+    await new Promise((resolve) => setTimeout(resolve, 800));
 
     const authToken = localStorage.getItem("talentera_token");
 
@@ -460,6 +468,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       // Give the candidate another shot at the same question via voice.
       await startVapiCall(authToken);
     } finally {
+      isSwitchingCallRef.current = false;
       setLoadingTurn(false);
     }
   }
@@ -472,7 +481,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   function handleTextChange(val) {
     setInputText(val);
     if (val.trim()) {
-      markAnswerStarted(); // User started typing! Cancel 5s timer
+      markAnswerStarted(); // User started typing! Cancel 30s timer
     }
   }
 
@@ -516,11 +525,18 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   async function handleVapiCallEnd() {
+    setIsCallConnected(false);
     clearInactivityTimer();
     setIsListening(false);
     setIsSpeaking(false);
     setIsWaitingForAnswerStart(false);
     setLoadingTurn(false);
+
+    if (isSwitchingCallRef.current) {
+      // Normal internal transition to the next question - do not treat as a drop
+      return;
+    }
+
     try {
       const res = await api.get("/candidate/ai-interview/state");
       const s = res.data?.session;
@@ -535,11 +551,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           }
           toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
         } else {
-          // Call dropped before the interview actually finished (network
-          // blip, candidate closed the tab's mic prompt, etc.) - leave them
-          // on the interview screen; handleStart's "Resume" path picks the
-          // session back up.
-          toast("The AI interviewer's call ended before the interview finished — you can resume below.", "!");
+          toast("The AI voice call was disconnected — you can continue typing or click Reconnect Voice Call.", "!");
         }
       }
     } catch (err) {
@@ -547,12 +559,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
-  // Registers every Vapi call-lifecycle listener exactly once (on the first
-  // call this component ever starts) rather than per-call, since @vapi-ai/web
-  // keeps a single long-lived client instance across calls.
+  // Registers every Vapi call-lifecycle listener on the active Vapi client.
   function wireVapiEvents(vapi) {
     if (vapiEventsWiredRef.current) return;
     vapiEventsWiredRef.current = true;
+
+    vapi.on("call-start", () => {
+      setIsCallConnected(true);
+    });
 
     vapi.on("speech-start", () => {
       // Messi has started speaking.
@@ -564,9 +578,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     vapi.on("speech-end", () => {
       setIsSpeaking(false);
       // Messi just finished a line. If the interview is still in progress,
-      // open the 5-second "start answering" window - mirrors the old
-      // browser-TTS onEnd() callback (see speakText in the previous,
-      // browser-Web-Speech-API version of this component).
+      // open the 30-second "start answering" window.
       if (sessionRef.current?.status === "IN_PROGRESS") {
         openAnswerWindow();
       }
@@ -600,6 +612,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         }
       } else if (msg.type === "speech-update" && msg.role === "user") {
         setIsListening(msg.status === "started");
+        if (msg.status === "started") {
+          markAnswerStarted();
+        }
       }
     });
 
@@ -608,9 +623,13 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     });
 
     vapi.on("error", (err) => {
-      console.error("Vapi call error:", err);
-      const message = String(err?.error?.message || err?.message || "");
-      if (/permission|denied|mic/i.test(message)) {
+      const errorMsg = String(err?.errorMsg || err?.error?.message || err?.message || "");
+      console.warn("Vapi call event:", err);
+      // Normal Daily.co meeting end / ejection event - do not alarm user with error toast
+      if (/meeting has ended|ejection/i.test(errorMsg)) {
+        return;
+      }
+      if (/permission|denied|mic/i.test(errorMsg)) {
         setMicDenied(true);
         toast("Microphone access blocked — please allow microphone access and try again.", "!");
       } else {
@@ -627,18 +646,29 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       return;
     }
 
-    if (!vapiRef.current) {
-      vapiRef.current = new Vapi(publicKey);
+    if (vapiRef.current) {
+      try {
+        vapiRef.current.stop();
+      } catch (e) {}
+      await new Promise((r) => setTimeout(r, 600));
     }
-    wireVapiEvents(vapiRef.current);
+
+    const vapi = new Vapi(publicKey);
+    vapiRef.current = vapi;
+    vapiEventsWiredRef.current = false;
+    wireVapiEvents(vapi);
 
     try {
-      await vapiRef.current.start(assistantId, {
+      await vapi.start(assistantId, {
         variableValues: { authToken: authToken || "" },
       });
+      setIsCallConnected(true);
     } catch (err) {
       console.error("Vapi start error:", err);
-      toast("Couldn't connect to the AI interviewer's voice — please try again.", "!");
+      const errMsg = String(err?.message || "");
+      if (!/meeting has ended|ejection/i.test(errMsg)) {
+        toast("Couldn't connect to the AI interviewer's voice — please try again.", "!");
+      }
     }
   }
 
@@ -781,8 +811,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 <strong><i className="fa-solid fa-circle-info" style={{ marginRight: 6 }}></i>How It Works:</strong>
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                   <li>The AI asks each question out loud with natural voice speech.</li>
-                  <li>You have up to <strong>5 seconds of inactivity</strong> to start answering (speak into mic or type).</li>
-                  <li>If no response starts within 5s, the interview automatically moves to the next question.</li>
+                  <li>You have up to <strong>30 seconds</strong> to start answering (speak into mic or type).</li>
+                  <li>If no response starts within 30s, the interview automatically moves to the next question.</li>
                   <li>The AI briefly acknowledges your response before presenting the next question.</li>
                 </ul>
               </div>
@@ -955,14 +985,38 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
             {/* Right: Live Transcript Console */}
             <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 14, minHeight: 140, maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A1F3D", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, display: "flex", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A1F3D", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>Conversation Thread</span>
-                {isListening && (
-                  <span style={{ color: "#16A34A", display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#16A34A", animation: "pulse 1s infinite" }}></span>
-                    Mic Active
-                  </span>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {isCallConnected ? (
+                    <span style={{ color: isListening ? "#16A34A" : "#0284C7", display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700 }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: isListening ? "#16A34A" : "#0284C7", animation: isListening ? "pulse 1s infinite" : "none" }}></span>
+                      {isListening ? "Listening…" : "Voice Live ✓"}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
+                      disabled={loadingTurn}
+                      style={{
+                        background: "#FEF3C7",
+                        color: "#92400E",
+                        border: "1px solid #FCD34D",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                      title="Click to reconnect the AI interviewer voice call"
+                    >
+                      <span>⚡ Reconnect Voice</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
               {transcript.map((line, idx) => {
@@ -1032,7 +1086,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               onChange={(e) => handleTextChange(e.target.value)}
               placeholder={
                 isWaitingForAnswerStart
-                  ? "Speak into your mic, or type here to answer (5s timeout)…"
+                  ? "Speak into your mic, or type here to answer (30s timeout)…"
                   : isListening
                   ? "Speaking… (you can also type here)"
                   : "Type your response, or speak into your microphone…"
@@ -1058,6 +1112,30 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             >
               Send Answer <i className="fa-solid fa-paper-plane" style={{ marginLeft: 6 }}></i>
             </button>
+
+            {!isCallConnected && (
+              <button
+                type="button"
+                onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
+                disabled={loadingTurn}
+                style={{
+                  background: "#FFFBEB",
+                  border: "1.5px solid #F59E0B",
+                  color: "#B45309",
+                  borderRadius: 10,
+                  padding: "10px 14px",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                title="Reconnect voice connection with AI interviewer"
+              >
+                🎙️ Reconnect Voice
+              </button>
+            )}
 
             {/* Skip button for quick manual skip if candidate chooses */}
             <button
@@ -1171,7 +1249,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                     </div>
                   </div>
                   <div style={{ color: "#475569", marginBottom: 6 }}>
-                    <strong>Your Response:</strong> {q.candidateAnswer || "(No response within 5s window)"}
+                    <strong>Your Response:</strong> {q.candidateAnswer || "(No response within 30s window)"}
                   </div>
                   {Array.isArray(q.matchedKeywords) && q.matchedKeywords.length > 0 && (
                     <div style={{ color: "#166534", marginBottom: 6, fontSize: 11.5 }}>
