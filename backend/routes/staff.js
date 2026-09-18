@@ -1631,6 +1631,38 @@ router.get("/candidates/:id", requireStaffAuth, async (req, res) => {
   }
 });
 
+// PUT /api/staff/candidates/:id/reset-password - Reset a candidate's password (Protected)
+router.put("/candidates/:id/reset-password", requireStaffAuth, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+
+    const candidate = await Candidate.findById(req.params.id);
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found." });
+    }
+
+    candidate.passwordHash = await bcrypt.hash(newPassword, 10);
+    await candidate.save();
+
+    await recordAudit(req, {
+      action: "reset_candidate_password",
+      targetType: "candidate",
+      targetId: candidate._id,
+      summary: `Password was reset for candidate account "${candidate.fullName || candidate.email}" (${candidate.email}).`,
+    });
+
+    res.json({
+      message: `Password for "${candidate.fullName || candidate.email}" reset successfully.`,
+    });
+  } catch (err) {
+    logger.error(`Reset candidate password error: ${err.message}`);
+    res.status(500).json({ message: "Failed to reset candidate password." });
+  }
+});
+
 // GET /api/staff/companies - Full Company Directory with plan, KYC & job post details
 router.get("/companies", requireStaffAuth, async (req, res) => {
   try {

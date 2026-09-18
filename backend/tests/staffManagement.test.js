@@ -17,6 +17,7 @@ jest.mock("../models/Notification");
 jest.mock("../models/InterviewQuestion");
 
 const Staff = require("../models/Staff");
+const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
 const AuditLog = require("../models/AuditLog");
 const staffRoutes = require("../routes/staff");
@@ -292,6 +293,59 @@ describe("Staff & Employee Account Management", () => {
           action: "reset_company_password",
           targetType: "company",
           targetId: "60d0fe4f5311236168a109cc",
+        })
+      );
+    });
+  });
+
+  describe("PUT /api/staff/candidates/:id/reset-password", () => {
+    test("rejects candidate password shorter than 6 characters", async () => {
+      const res = await request(app)
+        .put("/api/staff/candidates/60d0fe4f5311236168a109cd/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "123" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/at least 6 characters/i);
+    });
+
+    test("returns 404 if candidate is not found", async () => {
+      Candidate.findById = jest.fn().mockResolvedValue(null);
+
+      const res = await request(app)
+        .put("/api/staff/candidates/60d0fe4f5311236168a109cd/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "ValidPassword123" });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toMatch(/candidate not found/i);
+    });
+
+    test("resets candidate password successfully with bcrypt hash and audit log", async () => {
+      const mockCandidate = {
+        _id: "60d0fe4f5311236168a109cd",
+        fullName: "Rahul Sharma",
+        email: "rahul@example.com",
+        passwordHash: "old_candidate_hash",
+        save: jest.fn().mockResolvedValue({}),
+      };
+      Candidate.findById = jest.fn().mockResolvedValue(mockCandidate);
+
+      const res = await request(app)
+        .put("/api/staff/candidates/60d0fe4f5311236168a109cd/reset-password")
+        .set("Authorization", `Bearer ${validToken}`)
+        .send({ newPassword: "RahulNewPassword2026!" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.message).toMatch(/reset successfully/i);
+      expect(mockCandidate.save).toHaveBeenCalled();
+      const isMatch = await bcrypt.compare("RahulNewPassword2026!", mockCandidate.passwordHash);
+      expect(isMatch).toBe(true);
+      expect(AuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "reset_candidate_password",
+          targetType: "candidate",
+          targetId: "60d0fe4f5311236168a109cd",
         })
       );
     });

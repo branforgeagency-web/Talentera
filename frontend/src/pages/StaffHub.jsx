@@ -789,6 +789,13 @@ export default function StaffHub() {
   const [resetCompanyPasswordSubmitting, setResetCompanyPasswordSubmitting] = useState(false);
   const [resetCompanyPasswordError, setResetCompanyPasswordError] = useState("");
 
+  // --- CANDIDATE PASSWORD RESET STATE ---
+  const [resetPasswordCandidate, setResetPasswordCandidate] = useState(null);
+  const [newCandidatePasswordForReset, setNewCandidatePasswordForReset] = useState("");
+  const [showCandidatePassword, setShowCandidatePassword] = useState(false);
+  const [resetCandidatePasswordSubmitting, setResetCandidatePasswordSubmitting] = useState(false);
+  const [resetCandidatePasswordError, setResetCandidatePasswordError] = useState("");
+
   // --- ASSESSMENT RETAKES STATE ---
   const [retakeRequestsList, setRetakeRequestsList] = useState([]);
   const [retakeRequestsLoading, setRetakeRequestsLoading] = useState(false);
@@ -1347,6 +1354,37 @@ export default function StaffHub() {
       setResetCompanyPasswordError("Network error resetting company password.");
     } finally {
       setResetCompanyPasswordSubmitting(false);
+    }
+  };
+
+  const handleResetCandidatePassword = async (e) => {
+    e.preventDefault();
+    if (!newCandidatePasswordForReset || newCandidatePasswordForReset.length < 6) {
+      setResetCandidatePasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    setResetCandidatePasswordError("");
+    setResetCandidatePasswordSubmitting(true);
+    try {
+      const cid = resetPasswordCandidate._id || resetPasswordCandidate.id;
+      const res = await fetch(`/api/staff/candidates/${cid}/reset-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ newPassword: newCandidatePasswordForReset }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setResetCandidatePasswordError(data.message || "Failed to reset candidate password.");
+        return;
+      }
+      showToast(`Password reset successfully for ${resetPasswordCandidate.fullName || resetPasswordCandidate.email}! 🔑`);
+      setActiveModal(null);
+      setResetPasswordCandidate(null);
+      setNewCandidatePasswordForReset("");
+    } catch (err) {
+      setResetCandidatePasswordError("Network error resetting candidate password.");
+    } finally {
+      setResetCandidatePasswordSubmitting(false);
     }
   };
 
@@ -2992,6 +3030,21 @@ export default function StaffHub() {
                                         ✓ Verify
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn"
+                                      style={{ background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", fontWeight: 700 }}
+                                      onClick={() => {
+                                        setResetPasswordCandidate(c);
+                                        setNewCandidatePasswordForReset("");
+                                        setResetCandidatePasswordError("");
+                                        setShowCandidatePassword(false);
+                                        setActiveModal("reset_candidate_password");
+                                      }}
+                                      title={`Reset login password for ${c.fullName || c.email}`}
+                                    >
+                                      🔑 Reset PW
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -3229,6 +3282,21 @@ export default function StaffHub() {
                                 ✓ Verify
                               </button>
                             )}
+                            <button
+                              type="button"
+                              className="sf-action-btn"
+                              style={{ background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", fontWeight: 700 }}
+                              onClick={() => {
+                                setResetPasswordCandidate(c);
+                                setNewCandidatePasswordForReset("");
+                                setResetCandidatePasswordError("");
+                                setShowCandidatePassword(false);
+                                setActiveModal("reset_candidate_password");
+                              }}
+                              title={`Reset login password for ${c.fullName || c.email}`}
+                            >
+                              🔑
+                            </button>
                           </div>
                         </div>
                       );
@@ -7626,6 +7694,7 @@ export default function StaffHub() {
                 {activeModal === "create_employee" && "🛡️ Create New Employee Account"}
                 {activeModal === "reset_employee_password" && "🔑 Reset Employee Password"}
                 {activeModal === "reset_company_password" && "🔑 Reset Company Account Password"}
+                {activeModal === "reset_candidate_password" && "🔑 Reset Candidate Account Password"}
               </h2>
               <button
                 type="button"
@@ -8345,6 +8414,133 @@ export default function StaffHub() {
                     }}
                   >
                     {resetCompanyPasswordSubmitting ? "Resetting Password..." : "Reset Company Password"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* RESET CANDIDATE PASSWORD MODAL */}
+            {activeModal === "reset_candidate_password" && resetPasswordCandidate && (
+              <form onSubmit={handleResetCandidatePassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Target Candidate Account
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginTop: 2 }}>
+                    {resetPasswordCandidate.fullName || "Candidate"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span>✉️ {resetPasswordCandidate.email}</span>
+                    {resetPasswordCandidate.mobile && <span>📞 {resetPasswordCandidate.mobile}</span>}
+                    {(resetPasswordCandidate.city || resetPasswordCandidate.stage1?.city) && (
+                      <span>📍 {resetPasswordCandidate.city || resetPasswordCandidate.stage1?.city}</span>
+                    )}
+                    {(resetPasswordCandidate.currentRole || resetPasswordCandidate.stage1?.currentRole) && (
+                      <span style={{ fontSize: 11, background: "#EFF6FF", color: "#2563EB", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                        {resetPasswordCandidate.currentRole || resetPasswordCandidate.stage1?.currentRole}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <p style={{ margin: "2px 0 6px", fontSize: 12.5, color: "#64748B", lineHeight: 1.5 }}>
+                  Set a new password for this candidate account. Once updated, the candidate can immediately sign in with this password.
+                </p>
+
+                {resetCandidatePasswordError && (
+                  <div className="emp-modal-alert">
+                    <span>⚠️</span>
+                    <span>{resetCandidatePasswordError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", fontFamily: "var(--font-mono, monospace)" }}>
+                      NEW PASSWORD *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$";
+                        let pass = "";
+                        for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setNewCandidatePasswordForReset(pass);
+                        setShowCandidatePassword(true);
+                      }}
+                      style={{
+                        background: "#F1F5F9",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: "var(--navy, #0A1F3D)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      🎲 Auto-Generate
+                    </button>
+                  </div>
+                  <div className="emp-pw-input-wrapper">
+                    <input
+                      type={showCandidatePassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                      value={newCandidatePasswordForReset}
+                      onChange={(e) => setNewCandidatePasswordForReset(e.target.value)}
+                      style={{ width: "100%", padding: "10px 38px 10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", fontFamily: showCandidatePassword ? "var(--font-mono, monospace)" : "inherit", boxSizing: "border-box" }}
+                    />
+                    <button
+                      type="button"
+                      className="emp-pw-toggle-btn"
+                      onClick={() => setShowCandidatePassword(!showCandidatePassword)}
+                      title={showCandidatePassword ? "Hide password" : "Show password"}
+                    >
+                      {showCandidatePassword ? "🙈" : "👁️"}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveModal(null);
+                      setResetPasswordCandidate(null);
+                      setNewCandidatePasswordForReset("");
+                      setResetCandidatePasswordError("");
+                    }}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      background: "#fff",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetCandidatePasswordSubmitting}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "linear-gradient(135deg, var(--navy, #0A1F3D) 0%, #15325B 100%)",
+                      color: "var(--gold, #E5A82E)",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: resetCandidatePasswordSubmitting ? "not-allowed" : "pointer",
+                      opacity: resetCandidatePasswordSubmitting ? 0.7 : 1,
+                    }}
+                  >
+                    {resetCandidatePasswordSubmitting ? "Resetting Password..." : "Reset Candidate Password"}
                   </button>
                 </div>
               </form>
@@ -9267,8 +9463,8 @@ export default function StaffHub() {
             </div>
 
             {/* MODAL FOOTER */}
-            <div style={{ padding: "16px 28px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
+            <div style={{ padding: "16px 28px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                 {!selectedCandidate.isVerified && (
                   <button
                     type="button"
@@ -9279,6 +9475,32 @@ export default function StaffHub() {
                     ✓ Verify & Gold-Badge Entire Profile
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetPasswordCandidate(selectedCandidate);
+                    setNewCandidatePasswordForReset("");
+                    setResetCandidatePasswordError("");
+                    setShowCandidatePassword(false);
+                    setActiveModal("reset_candidate_password");
+                  }}
+                  style={{
+                    background: "#EDE9FE",
+                    color: "#6D28D9",
+                    border: "1px solid #DDD6FE",
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                  title={`Reset login password for ${selectedCandidate.fullName || selectedCandidate.email}`}
+                >
+                  🔑 Reset Password
+                </button>
               </div>
               <button
                 type="button"
