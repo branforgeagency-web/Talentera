@@ -11,7 +11,7 @@
  * the backend (see backend/routes/company.js) — keep them stable once used.
  */
 
-const CITY_OPTIONS = [
+export const CITY_OPTIONS = [
   "Chennai", "Hyderabad", "Bangalore", "Coimbatore", "Pune", "Mumbai", "Noida",
   "Trichy", "Kerala", "Vizag", "Ahmedabad", "Jaipur", "Delhi NCR", "Kolkata", "Other",
 ];

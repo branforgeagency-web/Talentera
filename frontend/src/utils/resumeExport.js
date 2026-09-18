@@ -56,14 +56,14 @@ export async function exportResumePdf(element, candidateName = "Candidate") {
 
   // Add first page
   pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-  heightLeft -= pdfPageHeight;
+  heightLeft -= pdfHeight;
 
   // Handle multi-page resumes if height exceeds 1 A4 page
   while (heightLeft > 2) {
     position = -(imgHeight - heightLeft);
     pdf.addPage();
     pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-    heightLeft -= pdfPageHeight;
+    heightLeft -= pdfHeight;
   }
 
   pdf.save(filename);
@@ -338,7 +338,7 @@ export function exportResumeWord(data) {
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
               ${videoMedal} Tier ${videoScore !== null ? `(${videoScore}/100)` : ""}
             </div>
-            <div style="color: #475569; font-size: 8pt;">Clarity ${clarityScore} · Fluency ${fluencyScore}</div>
+            <div style="color: #475569; font-size: 8pt;">Clarity ${clarityScore} · Fluency ${fluencyScore} · Confidence ${confidenceScore}</div>
           </td>
           <td style="padding: 6pt 8pt; border: 1pt solid ${borderColor}; background-color: ${lightBg}; width: 25%;">
             <div style="color: #64748B; font-size: 8pt; text-transform: uppercase; font-weight: bold;">Live Chart Audit</div>
