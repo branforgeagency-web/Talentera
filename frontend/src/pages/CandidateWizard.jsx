@@ -13,7 +13,6 @@ import Stage5VideoPitch from "../components/wizard/Stage5VideoPitch.jsx";
 import Stage6LiveCharts from "../components/wizard/Stage6LiveCharts.jsx";
 import Stage7Resume from "../components/wizard/Stage7Resume.jsx";
 import Stage8Track from "../components/wizard/Stage8Track.jsx";
-import VideoUploadStage from "../components/VideoUploadStage.jsx";
 import Step9Verified from "./Step9Verified.jsx";
 import CandidateDashboard from "./CandidateDashboard.jsx";
 
