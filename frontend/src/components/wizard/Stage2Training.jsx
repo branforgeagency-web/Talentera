@@ -1442,14 +1442,17 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             </div>
 
             <div className="s2-field">
-              <label>1.2 · Training Level <span className="req">*</span></label>
+              <label>
+                1.2 · Training Level
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (Optional)</span>
+              </label>
               <div className="s2-helper" style={{ marginBottom: 8 }}>Different levels signal different depth to companies.</div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {TRAINING_LEVELS.map((lvl) => (
                   <span
                     key={lvl}
                     className={`s2-tag-pill ${trainingLevel === lvl ? "selected" : ""}`}
-                    onClick={() => setTrainingLevel(lvl)}
+                    onClick={() => setTrainingLevel(trainingLevel === lvl ? "" : lvl)}
                   >
                     {lvl}
                   </span>
