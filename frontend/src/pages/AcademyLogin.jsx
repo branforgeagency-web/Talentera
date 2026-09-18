@@ -1,115 +1,136 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { startOtpWidget } from "../utils/msg91Widget.js";
 import { safeJson } from "../utils/safeJson.js";
 
 export default function AcademyLogin() {
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [academyName, setAcademyName] = useState("");
+  const [searchParams] = useSearchParams();
+  const initialMode = searchParams.get("mode") === "login" ? "login" : "signup";
+
+  const [authMode, setAuthMode] = useState(initialMode); // "login" | "signup"
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mobile, setMobile] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  const handleLogin = async (e) => {
+  useEffect(() => {
+    document.title = authMode === "signup" ? "Academy Sign Up | Talentera" : "Academy Login | Talentera";
+  }, [authMode]);
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!fullName || !academyName || !email) {
-      setError("Please fill in all required fields including work email.");
-      return;
-    }
-    const cleanEmailStr = email.trim().toLowerCase();
-    if (!cleanEmailStr || !cleanEmailStr.includes("@")) {
-      setError("A valid email address is required for OTP verification.");
-      return;
-    }
     setError("");
+    setSuccessMsg("");
     setLoading(true);
+
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-      const accessToken = await startOtpWidget(cleanEmailStr);
-      const res = await fetch("/api/academy/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken, fullName, academyName, email: cleanEmailStr, mobile })
-      });
-      const data = await safeJson(res);
-      if (res.ok) {
-        localStorage.setItem("talentera_academy_token", data.token);
-        localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
-        navigate("/academy/dashboard");
+      if (authMode === "signup") {
+        if (!password || password.length < 6) {
+          throw new Error("Password must be at least 6 characters.");
+        }
+        const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
+        if (!cleanMobile || !/^[6-9]\d{9}$/.test(cleanMobile)) {
+          throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+        }
+
+        const accessToken = await startOtpWidget(cleanEmail, {
+          email: cleanEmail,
+          title: "Academy Account Verification",
+          submitLabel: "Verify & Create Account →",
+        });
+
+        const res = await fetch("/api/academy/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken,
+            email: cleanEmail,
+            password,
+            mobile: cleanMobile,
+          }),
+        });
+
+        const data = await safeJson(res);
+        if (res.ok && data.token) {
+          localStorage.setItem("talentera_academy_token", data.token);
+          localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
+          navigate("/academy/dashboard");
+        } else {
+          setError(data.message || "Academy registration failed. Please try again.");
+        }
       } else {
-        setError(data.message || "Login failed.");
+        // Log in flow
+        if (!cleanEmail || !password) {
+          throw new Error("Please enter your email and password.");
+        }
+
+        const res = await fetch("/api/academy/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: cleanEmail,
+            password,
+          }),
+        });
+
+        const data = await safeJson(res);
+        if (res.ok && data.token) {
+          localStorage.setItem("talentera_academy_token", data.token);
+          localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
+          navigate("/academy/dashboard");
+        } else {
+          setError(data.message || "Login failed. Please check your email and password.");
+        }
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || "OTP verification failed or was cancelled.");
+      setError(err.message || "Authentication failed. Please try again.");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoAcademyLogin = async (e) => {
-    if (e) e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/academy/demo-login", { method: "POST" });
-      const data = await safeJson(res);
-      if (res.ok && data.token) {
-        localStorage.setItem("talentera_academy_token", data.token);
-        localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
-        navigate("/academy/dashboard");
-      } else {
-        setError(data.message || "Demo login failed.");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Demo login error: " + (err.message || "Failed to log in"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Reusable input wrapper style
-  const inputWrapStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    background: "rgba(255, 255, 255, 0.06)",
-    border: "1.5px solid rgba(255, 255, 255, 0.15)",
-    borderRadius: 12,
-    padding: "0 16px",
-    width: "100%",
-    boxSizing: "border-box",
-    transition: "all 0.2s"
-  };
-
-  const inputElementStyle = {
-    flex: 1,
-    width: "100%",
-    background: "transparent",
-    border: "none",
-    outline: "none",
-    boxShadow: "none",
-    padding: "14px 0",
-    color: "#ffffff",
-    fontFamily: "inherit",
-    fontSize: 15,
-    fontWeight: 500
-  };
+  }
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "linear-gradient(135deg, #06152A 0%, #0A1F3D 50%, #1A3358 100%)",
-        color: "#fff",
+        background: "linear-gradient(135deg, #06152A 0%, #0A1F3D 60%, #152A4A 100%)",
         display: "flex",
-        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
         position: "relative",
-        overflow: "hidden"
+        overflow: "hidden",
       }}
     >
+      {/* Top Left Home Link */}
+      <div style={{ position: "absolute", top: 24, left: 24, zIndex: 20 }}>
+        <Link
+          to="/"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            background: "rgba(255,255,255,0.06)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            color: "#fff",
+            padding: "8px 18px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            textDecoration: "none",
+            transition: "all 0.2s ease",
+          }}
+        >
+          ← Back to Home
+        </Link>
+      </div>
+
       {/* Background Orbs */}
       <div
         style={{
@@ -119,8 +140,8 @@ export default function AcademyLogin() {
           width: 380,
           height: 380,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(229,168,46,0.25) 0%, transparent 60%)",
-          pointerEvents: "none"
+          background: "radial-gradient(circle, rgba(229,168,46,0.2) 0%, transparent 60%)",
+          pointerEvents: "none",
         }}
       />
       <div
@@ -131,361 +152,327 @@ export default function AcademyLogin() {
           width: 460,
           height: 460,
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(168,85,247,0.2) 0%, transparent 60%)",
-          pointerEvents: "none"
+          background: "radial-gradient(circle, rgba(14,165,233,0.15) 0%, transparent 60%)",
+          pointerEvents: "none",
         }}
       />
 
-      {/* TOP HEADER BAR */}
-      <header className="acad-login-header">
-        <div style={{ display: "flex", alignItems: "center", cursor: "pointer" }} onClick={() => navigate("/")}>
-          <div>
-            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
-            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold-light)", marginTop: 4 }}>
-              ACADEMY PARTNER PORTAL
-            </div>
-          </div>
-        </div>
-
-        <Link to="/" className="acad-login-exit-btn">
-          ← Exit
-        </Link>
-      </header>
-
-      {/* MAIN SPLIT CONTENT */}
-      <main className="acad-login-main">
-        {/* LEFT BRAND PANEL */}
-        <div className="acad-login-left">
-          <div style={{ color: "var(--gold)", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", marginBottom: 16 }}>
-            TALENTERA · MEDICAL CODING INSTITUTE PARTNERSHIP
-          </div>
-
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(32px, 4.5vw, 52px)",
-              fontWeight: 800,
-              lineHeight: 1.08,
-              letterSpacing: "-0.02em",
-              marginBottom: 20,
-              color: "#ffffff"
-            }}
-          >
-            Your Students. <br />
-            <span style={{ color: "var(--gold)" }}>Their Careers.</span> <br />
-            One Powerful Medical Coding Institute Partnership.
-          </h1>
-
-          <p style={{ fontSize: 15, color: "rgba(255,255,255,0.75)", lineHeight: 1.55, maxWidth: 500, marginBottom: 36 }}>
-            Partner with India's #1 RCM talent platform. Upload student batches, verify AAPC/AHIMA credentials, assess candidate readiness, and connect qualified graduates with 342+ verified hiring companies.
-          </p>
-
-          {/* Feature Points */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, marginBottom: 36 }}>
-            {/* Feature 1 */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(34,197,94,0.18)",
-                  color: "#22C55E",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  flexShrink: 0
-                }}
-              >
-                📁
-              </div>
-              <div>
-                <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  1-Click Batch Upload
-                </h4>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  Upload 50+ student profiles via Excel/CSV in seconds without manual entry.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 2 */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(229,168,46,0.2)",
-                  color: "var(--gold)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  flexShrink: 0
-                }}
-              >
-                🛡️
-              </div>
-              <div>
-                <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  Instant AAPC & AHIMA Verification
-                </h4>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  Automated verification validates credentials so healthcare employers hire with confidence.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 3 */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(59,130,246,0.18)",
-                  color: "#3B82F6",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  flexShrink: 0
-                }}
-              >
-                🏢
-              </div>
-              <div>
-                <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  Direct Recruiter Access
-                </h4>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  Connect your academy with verified employers actively hiring RCM professionals.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 4 */}
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  background: "rgba(168,85,247,0.18)",
-                  color: "#A855F7",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  flexShrink: 0
-                }}
-              >
-                💰
-              </div>
-              <div>
-                <h4 style={{ fontSize: 15, fontWeight: 700, color: "#fff", marginBottom: 2 }}>
-                  ₹2,500 Placement Reward
-                </h4>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>
-                  Strengthen your placement program and earn ₹2,500 for every eligible hire.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Trust Banner */}
+      {/* Main Centered Auth Modal Card */}
+      <div
+        style={{
+          background: "linear-gradient(135deg, #0A1F3D 0%, #1A2F4D 100%)",
+          border: "1px solid rgba(255,255,255,0.12)",
+          borderRadius: 20,
+          padding: "40px 36px",
+          maxWidth: 440,
+          width: "100%",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          position: "relative",
+          zIndex: 5,
+          textAlign: "left",
+        }}
+      >
+        {/* Top Academy Login Title & Logo */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
           <div
             style={{
-              padding: "16px 20px",
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 12,
-              display: "flex",
-              alignItems: "center",
-              gap: 14,
-              maxWidth: 480
+              color: "#E5A82E",
+              fontSize: 18,
+              fontWeight: 800,
+              letterSpacing: "0.06em",
+              textTransform: "uppercase",
+              marginBottom: 12,
             }}
           >
-            <div style={{ color: "var(--gold)", fontSize: 16, letterSpacing: 2 }}>★★★★★</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>
-              177 verified academies trust Talentera · 35,000+ candidates placed
-            </div>
+            🎓 Academy Login
+          </div>
+          <div style={{ cursor: "pointer" }} onClick={() => navigate("/")}>
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
           </div>
         </div>
 
-        {/* RIGHT FORM CARD */}
-        <div className="acad-login-card">
-          <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <div>
-              <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, color: "#fff", marginBottom: 6 }}>
-                Sign in to your portal
-              </h2>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", lineHeight: 1.45 }}>
-                Access your academy partner dashboard and student placements.
-              </p>
-            </div>
+        {/* Title & Subtitle */}
+        <h2
+          style={{
+            fontFamily: "var(--font-display, inherit)",
+            fontWeight: 800,
+            fontSize: 22,
+            color: "#FAF7F0",
+            textAlign: "center",
+            marginBottom: 6,
+            letterSpacing: "-0.01em",
+          }}
+        >
+          Start your verification journey
+        </h2>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: 24 }}>
+          Create your account or log in to begin.
+        </p>
 
-            {error && (
-              <div style={{ background: "rgba(248,113,113,0.12)", border: "1px solid rgba(248,113,113,0.35)", borderRadius: 10, padding: 14, fontSize: 13, color: "#F87171" }}>
-                {error}
-              </div>
-            )}
+        {/* Tab Pill Switcher */}
+        <div
+          style={{
+            display: "flex",
+            gap: 4,
+            background: "rgba(0,0,0,0.25)",
+            padding: 4,
+            borderRadius: 10,
+            marginBottom: 20,
+          }}
+        >
+          <div
+            onClick={() => {
+              setAuthMode("login");
+              setError("");
+            }}
+            style={{
+              flex: 1,
+              padding: "10px",
+              textAlign: "center",
+              cursor: "pointer",
+              borderRadius: 7,
+              fontWeight: 700,
+              fontSize: 14,
+              color: authMode === "login" ? "#FAF7F0" : "rgba(255,255,255,0.55)",
+              background: authMode === "login" ? "#1A2F4D" : "transparent",
+              transition: "all 0.2s",
+            }}
+          >
+            Log in
+          </div>
+          <div
+            onClick={() => {
+              setAuthMode("signup");
+              setError("");
+            }}
+            style={{
+              flex: 1,
+              padding: "10px",
+              textAlign: "center",
+              cursor: "pointer",
+              borderRadius: 7,
+              fontWeight: 700,
+              fontSize: 14,
+              color: authMode === "signup" ? "#FAF7F0" : "rgba(255,255,255,0.55)",
+              background: authMode === "signup" ? "#1A2F4D" : "transparent",
+              transition: "all 0.2s",
+            }}
+          >
+            Sign up
+          </div>
+        </div>
 
-            {/* Full Name */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                YOUR FULL NAME
+        {/* Success Message */}
+        {successMsg && (
+          <div
+            style={{
+              background: "rgba(34,197,94,0.15)",
+              border: "1px solid rgba(34,197,94,0.3)",
+              color: "#4ADE80",
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 13,
+              marginBottom: 14,
+            }}
+          >
+            {successMsg}
+          </div>
+        )}
+
+        {/* Error Message */}
+        {error && (
+          <div
+            style={{
+              background: "rgba(248,113,113,0.1)",
+              border: "1px solid rgba(248,113,113,0.3)",
+              color: "#F87171",
+              padding: 12,
+              borderRadius: 8,
+              fontSize: 13,
+              marginBottom: 14,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Auth Form */}
+        <form onSubmit={handleSubmit}>
+          {/* EMAIL */}
+          <div style={{ marginBottom: 16 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.55)",
+                marginBottom: 6,
+              }}
+            >
+              EMAIL
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="name@example.com"
+              required
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 10,
+                color: "#FAF7F0",
+                fontFamily: "inherit",
+                fontSize: 14,
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* PASSWORD */}
+          <div style={{ marginBottom: authMode === "signup" ? 16 : 20 }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.55)",
+                marginBottom: 6,
+              }}
+            >
+              PASSWORD {authMode === "signup" && <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "rgba(255,255,255,0.4)" }}>(min 6 chars)</span>}
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              minLength={6}
+              placeholder="••••••••"
+              required
+              style={{
+                width: "100%",
+                padding: "12px 14px",
+                background: "rgba(0,0,0,0.3)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 10,
+                color: "#FAF7F0",
+                fontFamily: "inherit",
+                fontSize: 14,
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* MOBILE (signup only) */}
+          {authMode === "signup" && (
+            <div style={{ marginBottom: 20 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.55)",
+                  marginBottom: 6,
+                }}
+              >
+                MOBILE (10 DIGITS) <span style={{ color: "#E5A82E" }}>*</span>
               </label>
-              <div style={inputWrapStyle}>
-                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>👤</span>
-                <input
-                  type="text"
-                  style={inputElementStyle}
-                  placeholder="e.g., Karthik Subramanian"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Academy Name */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                ACADEMY NAME
-              </label>
-              <div style={inputWrapStyle}>
-                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>🎓</span>
-                <input
-                  type="text"
-                  style={inputElementStyle}
-                  placeholder="e.g., Apex Medical Coding Institute"
-                  value={academyName}
-                  onChange={(e) => setAcademyName(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Work Email */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                WORK EMAIL
-              </label>
-              <div style={inputWrapStyle}>
-                <span style={{ fontSize: 16, color: "rgba(255,255,255,0.6)", flexShrink: 0 }}>✉</span>
-                <input
-                  type="email"
-                  style={inputElementStyle}
-                  placeholder="director@academy.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Mobile Number */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.55)" }}>
-                MOBILE NUMBER
-              </label>
-              <div style={inputWrapStyle}>
-                <span
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: "rgba(255, 255, 255, 0.8)",
-                    paddingRight: 10,
-                    borderRight: "1px solid rgba(255, 255, 255, 0.15)",
-                    flexShrink: 0
-                  }}
-                >
-                  +91
-                </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  background: "rgba(0,0,0,0.3)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 10,
+                  padding: "0 14px",
+                }}
+              >
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>+91</span>
                 <input
                   type="tel"
-                  style={inputElementStyle}
-                  placeholder="98765 43210"
+                  required
+                  maxLength={10}
                   value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
+                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="98765 43210"
+                  style={{
+                    flex: 1,
+                    padding: "12px 0",
+                    background: "transparent",
+                    border: "none",
+                    color: "#FAF7F0",
+                    fontFamily: "inherit",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
                 />
               </div>
             </div>
+          )}
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "var(--gold)",
-                color: "var(--navy-deep)",
-                fontSize: 14.5,
-                fontWeight: 800,
-                border: 0,
-                borderRadius: 12,
-                padding: "14px 18px",
-                cursor: "pointer",
-                marginTop: 6,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8
-              }}
-            >
-              {loading ? "Opening OTP..." : "Verify OTP & Sign In →"}
-            </button>
-
-            {/* Quick Developer Demo Login Button */}
-            <button
-              type="button"
-              onClick={handleDemoAcademyLogin}
-              disabled={loading}
-              style={{
-                width: "100%",
-                background: "rgba(229,168,46,0.12)",
-                color: "var(--gold)",
-                fontSize: 13,
-                fontWeight: 800,
-                border: "1.5px dashed var(--gold)",
-                borderRadius: 12,
-                padding: "12px 18px",
-                cursor: "pointer",
-                marginTop: 4,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8
-              }}
-            >
-              ⚡ Quick Developer Demo Login →
-            </button>
-          </form>
-
-          {/* Footer Note */}
-          <div
+          {/* SUBMIT BUTTON */}
+          <button
+            type="submit"
+            disabled={loading}
             style={{
+              width: "100%",
+              padding: 14,
+              background: "#E5A82E",
+              color: "#0A1F3D",
+              border: "none",
+              borderRadius: 10,
+              fontWeight: 800,
+              fontSize: 15,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              marginTop: 4,
+              transition: "all 0.2s",
+              opacity: loading ? 0.6 : 1,
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
-              marginTop: 22,
-              paddingTop: 20,
-              borderTop: "1px solid rgba(255,255,255,0.08)",
-              fontSize: 12.5,
-              color: "rgba(255,255,255,0.55)"
+              justifyContent: "center",
+              gap: 8,
             }}
           >
-            <span>Partner Academy Portal</span>
-            <Link to="/" style={{ color: "rgba(255,255,255,0.85)", textDecoration: "none" }}>
-              ← Back to home
-            </Link>
-          </div>
+            {loading
+              ? "Processing..."
+              : authMode === "signup"
+              ? "Verify Email & Create Account →"
+              : "Log In"}
+          </button>
+        </form>
+
+        {/* Back to landing */}
+        <div style={{ textAlign: "center", marginTop: 18 }}>
+          <button
+            type="button"
+            onClick={() => navigate("/")}
+            style={{
+              background: "none",
+              border: "none",
+              color: "rgba(255,255,255,0.5)",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              textDecoration: "underline",
+            }}
+          >
+            Back to landing
+          </button>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

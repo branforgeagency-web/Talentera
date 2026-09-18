@@ -94,6 +94,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     } catch {
       localStorage.removeItem('talentera_token');
       localStorage.removeItem('talentera_candidate_info');
+      localStorage.removeItem('talentera_active_stage');
     }
     navigate('/');
   };

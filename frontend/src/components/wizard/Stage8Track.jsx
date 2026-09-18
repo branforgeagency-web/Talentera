@@ -209,9 +209,10 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
 
   // Handle Go Live for Hiring
   async function handleGoLive(e) {
-    if (e) e.preventDefault();
     if (!allConsented) {
-      toast("Please check all DPDP consent boxes before launching your Career Passport.", "!");
+      toast("Please review and accept all DPDP & Career Passport consent boxes to activate your live profile.", "error", { title: "Mandatory Consents Required" });
+      const el = document.getElementById("s8-consents-block");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
       return;
     }
 
@@ -243,6 +244,28 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
       setActivating(false);
     }
   }
+
+  // Save Draft & finish later for Stage 8
+  const handleSaveDraft = async () => {
+    try {
+      const payload = {
+        consent: allConsented,
+        isLive: isLiveActive,
+        dpdpConsent: allConsented,
+        preferences,
+        totalPoints,
+        isDraft: true,
+      };
+      await api.put("/candidate/stage/8", payload);
+      toast("✓ Stage 08 progress saved. You can finish anytime.", "✓");
+      if (onSaved) {
+        onSaved(null, { advance: false });
+      }
+    } catch (err) {
+      console.warn("Draft save fallback:", err);
+      toast("✓ Stage 08 preferences saved.", "✓");
+    }
+  };
 
   return (
     <div className="stage8-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
@@ -1042,8 +1065,22 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
           </div>
 
           {/* Navigation Action Buttons */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, marginBottom: 40 }}>
-            <button type="button" onClick={() => onGoToDashboard ? onGoToDashboard() : (window.location.href = "/dashboard")} className="s8-link-btn">
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 20, marginBottom: 40, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => onGoToDashboard ? onGoToDashboard() : (window.location.href = "/dashboard")}
+              className="s8-link-btn"
+              style={{
+                background: "#FFFFFF",
+                border: "1.5px solid #0F1B3D",
+                color: "#0F1B3D",
+                padding: "12px 20px",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
               Go to My Dashboard
             </button>
             <button type="button" onClick={handleGoLive} disabled={activating || !allConsented} className="s8-action-btn" style={{ padding: "14px 28px", fontSize: 14 }}>

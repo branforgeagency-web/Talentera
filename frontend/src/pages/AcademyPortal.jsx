@@ -188,6 +188,11 @@ export default function AcademyPortal() {
   const [setSpecialtyName, setSetSpecialtyName] = useState("");
   const [setHQ, setSetHQ] = useState("");
 
+  // Edit & Delete Candidate State
+  const [actionDropdownCandId, setActionDropdownCandId] = useState(null);
+  const [editCandidateModal, setEditCandidateModal] = useState(null);
+  const [editCandidateSaving, setEditCandidateSaving] = useState(false);
+
   const token = localStorage.getItem("talentera_academy_token") || "";
 
   const getAuthHeader = () => {
@@ -197,6 +202,58 @@ export default function AcademyPortal() {
   const showToast = (msg, type = "success") => {
     setToastMsg({ msg, type });
     setTimeout(() => setToastMsg(null), 4000);
+  };
+
+  const handleDeleteCandidate = async (candidateId, candidateName) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to remove ${candidateName || "this candidate"} from your academy dashboard? This will delete associated invites.`
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/academy/students/${candidateId}`, {
+        method: "DELETE",
+        headers: { ...getAuthHeader() },
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(data?.message || "Candidate removed successfully.", "success");
+        fetchDashboardData();
+      } else {
+        showToast(data?.message || "Failed to remove candidate.", "error");
+      }
+    } catch (err) {
+      console.error("Delete candidate error:", err);
+      showToast("Error removing candidate.", "error");
+    }
+  };
+
+  const handleSaveCandidateEdit = async (e) => {
+    e.preventDefault();
+    if (!editCandidateModal) return;
+    setEditCandidateSaving(true);
+    try {
+      const res = await fetch(`/api/academy/students/${editCandidateModal.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify(editCandidateModal),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(data?.message || "Candidate details updated successfully!", "success");
+        setEditCandidateModal(null);
+        fetchDashboardData();
+      } else {
+        showToast(data?.message || "Failed to update candidate.", "error");
+      }
+    } catch (err) {
+      console.error("Update candidate error:", err);
+      showToast("Error updating candidate.", "error");
+    } finally {
+      setEditCandidateSaving(false);
+    }
   };
 
   const fetchDashboardData = async () => {
@@ -212,12 +269,12 @@ export default function AcademyPortal() {
       if (data) {
         setDashData(data);
         if (data.academy) {
-          setSetAcademyName(data.academy.name || "Apex Healthcare Academy");
-          setSetAdminName(data.academy.primaryAdmin || "Dr. Rajesh Kumar");
-          setSetEmailAddr(data.academy.email || "admin@apexacademy.com");
-          setSetPhoneNum(data.academy.phone || "+91 9765435676");
+          setSetAcademyName(data.academy.name || "");
+          setSetAdminName(data.academy.primaryAdmin || "");
+          setSetEmailAddr(data.academy.email || "");
+          setSetPhoneNum(data.academy.phone || "");
           setSetSpecialtyName(data.academy.specialty || "Medical Coding");
-          setSetHQ(data.academy.headquarters || "Coimbatore");
+          setSetHQ(data.academy.headquarters || "");
         }
       }
     } catch (err) {
@@ -321,8 +378,8 @@ export default function AcademyPortal() {
     fetchPlacementConfirmations();
   }, [token]);
 
-  // Bulk WhatsApp / Nudge Action
-  const handleBulkNudge = async (channel = "whatsapp") => {
+  // Bulk Reminder Action (WhatsApp, SMS, Email)
+  const handleBulkNudge = async (channel = "all", reminderType = "general") => {
     try {
       const res = await fetch("/api/academy/students/bulk-nudge", {
         method: "POST",
@@ -330,35 +387,36 @@ export default function AcademyPortal() {
         body: JSON.stringify({
           studentIds: stuckStudents.map((s) => s.id),
           channel,
+          reminderType,
         }),
       });
       const data = await safeJson(res);
       if (res.ok) {
-        showToast(data.message || `Bulk ${channel.toUpperCase()} nudge sent successfully!`);
+        showToast(data.message || "Bulk reminder sent successfully via WhatsApp, SMS, and Email!");
       } else {
-        showToast(data.message || "Failed to send bulk nudge.", "error");
+        showToast(data.message || "Failed to send bulk reminder.", "error");
       }
     } catch (err) {
       showToast("Error sending bulk reminder.", "error");
     }
   };
 
-  // Single Nudge
-  const handleSingleNudge = async (candId, name) => {
+  // Single Candidate Reminder (WhatsApp, SMS, Email)
+  const handleSingleNudge = async (candId, name, reminderType = "general") => {
     try {
       const res = await fetch(`/api/academy/students/${candId}/nudge`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ channel: "whatsapp" }),
+        body: JSON.stringify({ channel: "all", reminderType }),
       });
       const data = await safeJson(res);
       if (res.ok) {
-        showToast(data.message || `WhatsApp nudge sent to ${name}!`);
+        showToast(data.message || `Reminder sent to ${name} via WhatsApp, SMS, and Email!`);
       } else {
         showToast(data.message || "Failed to send reminder.", "error");
       }
     } catch (err) {
-      showToast("Error sending nudge.", "error");
+      showToast("Error sending reminder.", "error");
     }
   };
 
@@ -693,7 +751,7 @@ export default function AcademyPortal() {
             <span style={{ width: 22, height: 22, borderRadius: "50%", background: "#E5A82E", color: "#06152A", fontWeight: 800, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {academy.name ? academy.name.slice(0, 2).toUpperCase() : "AC"}
             </span>
-            <span><strong>{academy.name || "Apex Healthcare Academy"}</strong> · {academy.primaryAdmin || "Admin"}</span>
+            <span><strong>{academy.name || "Academy"}</strong>{academy.primaryAdmin ? ` · ${academy.primaryAdmin}` : ""}</span>
           </div>
 
           <button
@@ -806,9 +864,9 @@ export default function AcademyPortal() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
-                <MetricCard title="PROFILES LIVE" val={liveProfilesData.length || 5} sub="Visible to employers" icon="fa-shield-halved" color="#16A34A" onClick={() => handleNavigateMod("profile_live")} />
-                <MetricCard title="ACTIVE INTERVIEWS" val={kpis.interviewsActive || 12} sub="In hiring pipeline" icon="fa-diagram-project" color="#2563EB" onClick={() => handleNavigateMod("interviews")} />
-                <MetricCard title="PLACEMENTS" val={placements.length || 18} sub="Verified retention" icon="fa-briefcase" color="#15803D" onClick={() => handleNavigateMod("placements")} />
+                <MetricCard title="PROFILES LIVE" val={liveProfilesData.length} sub="Visible to employers" icon="fa-shield-halved" color="#16A34A" onClick={() => handleNavigateMod("profile_live")} />
+                <MetricCard title="ACTIVE INTERVIEWS" val={kpis.interviewsActive || 0} sub="In hiring pipeline" icon="fa-diagram-project" color="#2563EB" onClick={() => handleNavigateMod("interviews")} />
+                <MetricCard title="PLACEMENTS" val={placements.length} sub="Verified retention" icon="fa-briefcase" color="#15803D" onClick={() => handleNavigateMod("placements")} />
               </div>
 
               {/* STUCK STUDENTS ALERT PANEL */}
@@ -823,16 +881,16 @@ export default function AcademyPortal() {
                         <strong style={{ fontSize: 14, color: "#991B1B" }}>
                           Students Need Attention ({stuckStudents.length} students haven't progressed in &gt;5 days)
                         </strong>
-                        <div style={{ fontSize: 12, color: "#7F1D1D" }}>Candidates are stalled at their verification stage. Unblock them with a 1-click WhatsApp reminder.</div>
+                        <div style={{ fontSize: 12, color: "#7F1D1D" }}>Candidates are stalled at their verification stage. Unblock them with a 1-click WhatsApp, SMS & Email reminder.</div>
                       </div>
                     </div>
 
                     <button
-                      onClick={() => handleBulkNudge("whatsapp")}
+                      onClick={() => handleBulkNudge("all")}
                       style={{ background: "#15803D", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                     >
-                      <MessageCircle style={{ width: 14, height: 14 }} />
-                      Send Bulk WhatsApp Nudge ({stuckStudents.length})
+                      <Send style={{ width: 14, height: 14 }} />
+                      Send Bulk Reminder (WhatsApp, SMS & Email) ({stuckStudents.length})
                     </button>
                   </div>
 
@@ -847,9 +905,11 @@ export default function AcademyPortal() {
                         </div>
                         <button
                           onClick={() => handleSingleNudge(s.id, s.name)}
-                          style={{ background: "#15803D", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          style={{ background: "#15803D", color: "#fff", border: "none", padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                          title="Dispatches reminder via WhatsApp, SMS & Email"
                         >
-                          Send Nudge
+                          <Send style={{ width: 11, height: 11 }} />
+                          Remind
                         </button>
                       </div>
                     ))}
@@ -924,9 +984,9 @@ export default function AcademyPortal() {
                     <UploadCloud style={{ width: 13, height: 13, marginRight: 4 }} />
                     Bulk Upload CSV
                   </button>
-                  <button className="btn btn-outline" style={{ fontSize: 12 }} onClick={() => handleBulkNudge("whatsapp")}>
-                    <MessageCircle style={{ width: 13, height: 13, marginRight: 4 }} />
-                    Bulk WhatsApp Nudge
+                  <button className="btn btn-outline" style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => handleBulkNudge("all")}>
+                    <Send style={{ width: 13, height: 13 }} />
+                    Bulk Reminder (All Channels)
                   </button>
                 </div>
               </div>
@@ -1114,16 +1174,16 @@ export default function AcademyPortal() {
                             {/* Match & Interview */}
                             <td style={{ padding: "12px 14px" }}>
                               <div style={{ fontSize: 11, color: "#0F172A", fontWeight: 700 }}>
-                                {c.status === "placed" ? "Placed @ Optum" : (c.interviewStage || "3 Company Views")}
+                                {c.placementStatus || (c.status === "placed" ? "Placed" : isLive ? "In Matchmaking Pool" : "In Verification")}
                               </div>
                               <div style={{ fontSize: 10, color: "#64748B" }}>
-                                {c.status === "placed" ? "CTC: ₹5.5 LPA" : "Matched to 4 JDs"}
+                                {c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Stage ${c.completion || "0%"}`)}
                               </div>
                             </td>
 
                             {/* Actions */}
-                            <td style={{ padding: "12px 14px", textAlign: "right" }}>
-                              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                            <td style={{ padding: "12px 14px", textAlign: "right", position: "relative" }}>
+                              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>
                                 <button
                                   onClick={() => setSelectedStudentForDetail(c)}
                                   style={{ background: "#06152A", color: "#fff", border: "none", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
@@ -1132,10 +1192,120 @@ export default function AcademyPortal() {
                                 </button>
                                 <button
                                   onClick={() => handleSingleNudge(c.id || c._id, c.name)}
-                                  style={{ background: "rgba(21, 128, 61, 0.1)", color: "#15803D", border: "1px solid rgba(21, 128, 61, 0.3)", padding: "5px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                                  style={{ background: "rgba(21, 128, 61, 0.1)", color: "#15803D", border: "1px solid rgba(21, 128, 61, 0.3)", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4 }}
+                                  title="Send reminder via WhatsApp, SMS, and Email"
                                 >
-                                  Nudge
+                                  <Send style={{ width: 11, height: 11 }} />
+                                  Remind
                                 </button>
+
+                                <div style={{ position: "relative" }}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const curId = c.id || c._id;
+                                      setActionDropdownCandId(actionDropdownCandId === curId ? null : curId);
+                                    }}
+                                    title="Edit / Delete"
+                                    style={{
+                                      background: "#F8FAFC",
+                                      color: "#475569",
+                                      border: "1px solid #CBD5E1",
+                                      padding: "5px 8px",
+                                      borderRadius: 6,
+                                      fontSize: 12,
+                                      cursor: "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-pen-to-square"></i>
+                                  </button>
+
+                                  {actionDropdownCandId === (c.id || c._id) && (
+                                    <div
+                                      onClick={(e) => e.stopPropagation()}
+                                      style={{
+                                        position: "absolute",
+                                        right: 0,
+                                        top: "100%",
+                                        marginTop: 4,
+                                        background: "#FFFFFF",
+                                        border: "1px solid #E2E8F0",
+                                        borderRadius: 8,
+                                        boxShadow: "0 10px 25px -5px rgba(0,0,0,0.15)",
+                                        zIndex: 100,
+                                        minWidth: 160,
+                                        textAlign: "left",
+                                        overflow: "hidden",
+                                      }}
+                                    >
+                                      <button
+                                        onClick={() => {
+                                          setActionDropdownCandId(null);
+                                          setEditCandidateModal({
+                                            id: c.id || c._id,
+                                            name: c.name || "",
+                                            email: c.email || "",
+                                            mobile: (c.mobile || c.phone || "").replace(/\D/g, "").slice(-10),
+                                            batchCode: c.month || c.batch || batches[0]?.code || "JAN-HCC-01",
+                                            course: c.course || c.specialty || courses[0]?.title || "HCC Coding Specialization",
+                                            experience: c.type || c.experience || "Fresher",
+                                            city: c.city || "Coimbatore",
+                                            specialty: c.specialty || "HCC",
+                                          });
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          textAlign: "left",
+                                          padding: "9px 12px",
+                                          background: "none",
+                                          border: "none",
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          color: "#0F172A",
+                                          cursor: "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 8,
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                                      >
+                                        <i className="fa-solid fa-pen" style={{ color: "#2563EB", width: 14 }}></i>
+                                        Edit Candidate
+                                      </button>
+
+                                      <button
+                                        onClick={() => {
+                                          setActionDropdownCandId(null);
+                                          handleDeleteCandidate(c.id || c._id, c.name);
+                                        }}
+                                        style={{
+                                          width: "100%",
+                                          textAlign: "left",
+                                          padding: "9px 12px",
+                                          background: "none",
+                                          border: "none",
+                                          borderTop: "1px solid #F1F5F9",
+                                          fontSize: 12,
+                                          fontWeight: 600,
+                                          color: "#DC2626",
+                                          cursor: "pointer",
+                                          display: "flex",
+                                          alignItems: "center",
+                                          gap: 8,
+                                        }}
+                                        onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
+                                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                                      >
+                                        <i className="fa-solid fa-trash-can" style={{ color: "#DC2626", width: 14 }}></i>
+                                        Delete Candidate
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -1252,11 +1422,11 @@ export default function AcademyPortal() {
 
               {/* Scoring KPI Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-                <MetricCard title="AVG TALENTERA SCORE" val={`${scoresData?.avgScore || 89}%`} sub="Cohort Average" icon="fa-award" color="#E5A82E" />
-                <MetricCard title="HIGHEST SCORE" val={`${scoresData?.highestScore || 96}%`} sub="Top Performer" icon="fa-trophy" color="#15803D" />
-                <MetricCard title="CANDIDATES >80%" val={scoresData?.above80Count || 18} sub="Top Quartile" icon="fa-chart-line" color="#2563EB" />
-                <MetricCard title="CANDIDATES >90%" val={scoresData?.above90Count || 6} sub="Elite Coders" icon="fa-star" color="#8B5CF6" />
-                <MetricCard title="READY FOR PLACEMENT" val={scoresData?.readyForPlacementCount || 14} sub="Verified & Scored" icon="fa-circle-check" color="#16A34A" />
+                <MetricCard title="AVG TALENTERA SCORE" val={scoresData?.avgScore ? `${scoresData.avgScore}%` : "—"} sub="Cohort Average" icon="fa-award" color="#E5A82E" />
+                <MetricCard title="HIGHEST SCORE" val={scoresData?.highestScore ? `${scoresData.highestScore}%` : "—"} sub="Top Performer" icon="fa-trophy" color="#15803D" />
+                <MetricCard title="CANDIDATES >80%" val={scoresData?.above80Count || 0} sub="Top Quartile" icon="fa-chart-line" color="#2563EB" />
+                <MetricCard title="CANDIDATES >90%" val={scoresData?.above90Count || 0} sub="Elite Coders" icon="fa-star" color="#8B5CF6" />
+                <MetricCard title="READY FOR PLACEMENT" val={scoresData?.readyForPlacementCount || 0} sub="Verified & Scored" icon="fa-circle-check" color="#16A34A" />
               </div>
 
               {/* Scored Candidate Ranking Table */}
@@ -1277,34 +1447,48 @@ export default function AcademyPortal() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(scoresData?.candidates || students).slice(0, 10).map((c, idx) => (
-                      <tr key={c.id || idx} style={{ borderBottom: "1px solid #F1F5F9" }}>
-                        <td style={{ padding: "10px 12px", fontWeight: 800, color: idx < 3 ? "#E5A82E" : "#64748B" }}>
-                          #{c.rank || idx + 1}
-                        </td>
-                        <td style={{ padding: "10px 12px" }}>
-                          <strong style={{ color: "#0F172A", cursor: "pointer" }} onClick={() => setSelectedStudentForDetail(c)}>
-                            {c.name}
-                          </strong>
-                          <div style={{ fontSize: 10, color: "#64748B" }}>{c.email}</div>
-                        </td>
-                        <td style={{ padding: "10px 12px", color: "#64748B" }}>{c.batch || "JAN-HCC-01"}</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.foundationScore || 88}%</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.specialtyScore || 92}%</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.chartAccuracy || 89}%</td>
-                        <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.videoAiScore || 8.5}/10</td>
-                        <td style={{ padding: "10px 12px" }}>
-                          <span style={{ background: "#DCFCE7", color: "#15803D", padding: "3px 8px", borderRadius: 6, fontWeight: 800 }}>
-                            {c.finalTalenteraScore || 89}%
-                          </span>
-                        </td>
-                        <td style={{ padding: "10px 12px" }}>
-                          <span style={{ background: "rgba(16, 185, 129, 0.12)", color: "#15803D", padding: "3px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
-                            Ready for Placement ✓
-                          </span>
+                    {(!scoresData?.candidates || scoresData.candidates.length === 0) ? (
+                      <tr>
+                        <td colSpan={9} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
+                          No scored candidates yet. Student scores will appear here once candidates complete Stage 4 assessment.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      scoresData.candidates.slice(0, 10).map((c, idx) => (
+                        <tr key={c.id || idx} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                          <td style={{ padding: "10px 12px", fontWeight: 800, color: idx < 3 ? "#E5A82E" : "#64748B" }}>
+                            #{c.rank || idx + 1}
+                          </td>
+                          <td style={{ padding: "10px 12px" }}>
+                            <strong style={{ color: "#0F172A", cursor: "pointer" }} onClick={() => setSelectedStudentForDetail(c)}>
+                              {c.name}
+                            </strong>
+                            <div style={{ fontSize: 10, color: "#64748B" }}>{c.email}</div>
+                          </td>
+                          <td style={{ padding: "10px 12px", color: "#64748B" }}>{c.batch || "—"}</td>
+                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.foundationScore !== null ? `${c.foundationScore}%` : "—"}</td>
+                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.specialtyScore !== null ? `${c.specialtyScore}%` : "—"}</td>
+                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.chartAccuracy !== null ? `${c.chartAccuracy}%` : "—"}</td>
+                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.videoAiScore !== null ? `${c.videoAiScore}/10` : "—"}</td>
+                          <td style={{ padding: "10px 12px" }}>
+                            <span style={{ background: c.finalTalenteraScore ? "#DCFCE7" : "#FEF3C7", color: c.finalTalenteraScore ? "#15803D" : "#B45309", padding: "3px 8px", borderRadius: 6, fontWeight: 800 }}>
+                              {c.finalTalenteraScore ? `${c.finalTalenteraScore}%` : "Pending"}
+                            </span>
+                          </td>
+                          <td style={{ padding: "10px 12px" }}>
+                            {c.readyForPlacement ? (
+                              <span style={{ background: "rgba(16, 185, 129, 0.12)", color: "#15803D", padding: "3px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                                Ready for Placement ✓
+                              </span>
+                            ) : (
+                              <span style={{ background: "#F1F5F9", color: "#64748B", padding: "3px 8px", borderRadius: 4, fontWeight: 600, fontSize: 11 }}>
+                                {c.status || "In Progress"}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1325,55 +1509,61 @@ export default function AcademyPortal() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
-                {liveProfilesData.map((p) => (
-                  <div key={p.id} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <div style={{ width: 36, height: 36, borderRadius: 8, background: "#06152A", color: "#E5A82E", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
-                          {p.name?.slice(0, 2).toUpperCase()}
+              {liveProfilesData.length === 0 ? (
+                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 40, textAlign: "center", color: "#64748B" }}>
+                  No candidate profiles are published live yet. Profiles will automatically appear here once candidates complete 75%+ verification or get verified.
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 14 }}>
+                  {liveProfilesData.map((p) => (
+                    <div key={p.id} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 8, background: "#06152A", color: "#E5A82E", fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}>
+                            {p.name?.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <strong style={{ fontSize: 14, color: "#0F172A", cursor: "pointer" }} onClick={() => setSelectedStudentForDetail(p)}>
+                              {p.name}
+                            </strong>
+                            <div style={{ fontSize: 11, color: "#64748B" }}>{p.specialty} · {p.batch}</div>
+                          </div>
+                        </div>
+                        <span style={{ background: "#DCFCE7", color: "#15803D", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>
+                          Live ✓
+                        </span>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, background: "#F8FAFC", padding: 10, borderRadius: 8, textAlign: "center", fontSize: 11, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ color: "#64748B" }}>VIEWS</div>
+                          <strong style={{ color: "#0F172A", fontSize: 13 }}>{p.companyViews || 0}</strong>
                         </div>
                         <div>
-                          <strong style={{ fontSize: 14, color: "#0F172A", cursor: "pointer" }} onClick={() => setSelectedStudentForDetail(p)}>
-                            {p.name}
-                          </strong>
-                          <div style={{ fontSize: 11, color: "#64748B" }}>{p.specialty} · {p.batch}</div>
+                          <div style={{ color: "#64748B" }}>APPLICATIONS</div>
+                          <strong style={{ color: "#0F172A", fontSize: 13 }}>{p.jobApplications || 0}</strong>
+                        </div>
+                        <div>
+                          <div style={{ color: "#64748B" }}>SCORE</div>
+                          <strong style={{ color: "#15803D", fontSize: 13 }}>{p.talenteraScore}</strong>
                         </div>
                       </div>
-                      <span style={{ background: "#DCFCE7", color: "#15803D", padding: "2px 8px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>
-                        Live ✓
-                      </span>
-                    </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, background: "#F8FAFC", padding: 10, borderRadius: 8, textAlign: "center", fontSize: 11, marginBottom: 12 }}>
-                      <div>
-                        <div style={{ color: "#64748B" }}>VIEWS</div>
-                        <strong style={{ color: "#0F172A", fontSize: 13 }}>{p.companyViews}</strong>
-                      </div>
-                      <div>
-                        <div style={{ color: "#64748B" }}>APPLICATIONS</div>
-                        <strong style={{ color: "#0F172A", fontSize: 13 }}>{p.jobApplications}</strong>
-                      </div>
-                      <div>
-                        <div style={{ color: "#64748B" }}>SCORE</div>
-                        <strong style={{ color: "#15803D", fontSize: 13 }}>{p.talenteraScore}%</strong>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: 11, color: "#64748B" }}>
+                          {p.isLocked ? `Locked by ${p.lockedBy || "Employer"}` : "Available for Hiring"}
+                        </span>
+                        <button
+                          onClick={() => setSelectedStudentForDetail(p)}
+                          style={{ background: "#06152A", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          View Details
+                        </button>
                       </div>
                     </div>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 11, color: "#64748B" }}>
-                        {p.isLocked ? `Locked by ${p.lockedBy || "Optum"}` : "Available for Hiring"}
-                      </span>
-                      <button
-                        onClick={() => setSelectedStudentForDetail(p)}
-                        style={{ background: "#06152A", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -1396,14 +1586,30 @@ export default function AcademyPortal() {
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 }}>
                   <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "#06152A" }}>Top Interested Employers</h4>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {["Optum", "GeBBS Healthcare", "Omega Healthcare", "AGS Health", "CorroHealth"].map((comp, idx) => (
-                      <div key={comp} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F8FAFC", borderRadius: 8 }}>
-                        <strong style={{ fontSize: 12, color: "#0F172A" }}>{comp}</strong>
-                        <span style={{ fontSize: 11, color: "#2563EB", fontWeight: 700 }}>
-                          {12 - idx * 2} Candidate Views
-                        </span>
-                      </div>
-                    ))}
+                    {(() => {
+                      const employerViewCounts = {};
+                      (dashData?.recentActivity || []).forEach((ev) => {
+                        if (ev.companyName) {
+                          employerViewCounts[ev.companyName] = (employerViewCounts[ev.companyName] || 0) + 1;
+                        }
+                      });
+                      const topEmployers = Object.entries(employerViewCounts).sort((a, b) => b[1] - a[1]);
+                      if (topEmployers.length === 0) {
+                        return (
+                          <div style={{ padding: "16px 8px", color: "#64748B", fontSize: 12, textAlign: "center" }}>
+                            No employer interactions recorded yet. As hiring companies view and shortlist your students, they will appear here.
+                          </div>
+                        );
+                      }
+                      return topEmployers.map(([comp, count]) => (
+                        <div key={comp} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F8FAFC", borderRadius: 8 }}>
+                          <strong style={{ fontSize: 12, color: "#0F172A" }}>{comp}</strong>
+                          <span style={{ fontSize: 11, color: "#2563EB", fontWeight: 700 }}>
+                            {count} Interaction{count === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
@@ -1486,10 +1692,28 @@ export default function AcademyPortal() {
 
               {/* Placement KPIs */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-                <MetricCard title="TOTAL PLACEMENTS" val={placements.length || 18} sub="Verified alumni" icon="fa-briefcase" color="#15803D" />
-                <MetricCard title="PLACEMENT RATE" val="82%" sub="Cohort completion" icon="fa-percent" color="#22C55E" />
-                <MetricCard title="AVERAGE SALARY" val="₹5.4 LPA" sub="Entry-level CTC" icon="fa-indian-rupee-sign" color="#E5A82E" />
-                <MetricCard title="30-DAY RETENTION" val="94%" sub="Verified on-site" icon="fa-shield-check" color="#2563EB" />
+                <MetricCard title="TOTAL PLACEMENTS" val={placements.length} sub="Verified alumni" icon="fa-briefcase" color="#15803D" />
+                <MetricCard title="PLACEMENT RATE" val={students.length > 0 ? `${Math.round((placements.length / students.length) * 100)}%` : "0%"} sub="Cohort completion" icon="fa-percent" color="#22C55E" />
+                <MetricCard
+                  title="AVERAGE SALARY"
+                  val={(() => {
+                    const ctcNums = placements.map((p) => {
+                      const m = String(p.ctc || "").match(/[\d.]+/);
+                      return m ? parseFloat(m[0]) : null;
+                    }).filter((v) => v !== null);
+                    return ctcNums.length > 0 ? `₹${(ctcNums.reduce((a, b) => a + b, 0) / ctcNums.length).toFixed(1)} LPA` : "—";
+                  })()}
+                  sub="Entry-level CTC"
+                  icon="fa-indian-rupee-sign"
+                  color="#E5A82E"
+                />
+                <MetricCard
+                  title="30-DAY RETENTION"
+                  val={placementConfirmations.length > 0 ? `${Math.round((placementConfirmations.filter((c) => c.status === "confirmed").length / placementConfirmations.length) * 100)}%` : (placements.length > 0 ? "100%" : "—")}
+                  sub="Verified on-site"
+                  icon="fa-shield-check"
+                  color="#2563EB"
+                />
               </div>
 
               {/* Placement Records Table */}
@@ -1569,26 +1793,28 @@ export default function AcademyPortal() {
               <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20 }}>
                 <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: "#06152A" }}>Candidate Journey Conversion Funnel</h4>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {[
-                    { step: "1. Uploaded via CSV", count: students.length || 30, pct: 100 },
-                    { step: "2. OTP Invited (Email & SMS)", count: students.length || 30, pct: 100 },
-                    { step: "3. Signed Up & Activated", count: Math.round(students.length * 0.95) || 28, pct: 95 },
-                    { step: "4. Verification Started (Stage 1-3)", count: Math.round(students.length * 0.9) || 27, pct: 90 },
-                    { step: "5. Talentera Assessment & Video (Stage 4-5)", count: Math.round(students.length * 0.8) || 24, pct: 80 },
-                    { step: "6. Profile Published Live", count: liveProfilesData.length || 18, pct: 60 },
-                    { step: "7. Company Shortlist & Interview", count: 12, pct: 40 },
-                    { step: "8. Offer & Final Placement", count: placements.length || 8, pct: 27 },
-                  ].map((fn, idx) => (
-                    <div key={fn.step}>
-                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
-                        <span style={{ color: "#0F172A" }}>{fn.step}</span>
-                        <span style={{ color: "#15803D" }}>{fn.count} candidates ({fn.pct}%)</span>
+                  {(() => {
+                    const totalBase = Math.max(students.length, kpis.invitesTotal || 0, 1);
+                    const funnels = [
+                      { step: "1. Enrolled & Uploaded", count: students.length, pct: students.length > 0 ? 100 : 0 },
+                      { step: "2. Profile Verification Started", count: students.filter((s) => parseInt(s.completion, 10) > 10).length, pct: Math.round((students.filter((s) => parseInt(s.completion, 10) > 10).length / totalBase) * 100) },
+                      { step: "3. Assessment & Video Completed", count: students.filter((s) => s.score && s.score !== "Not Attempted").length, pct: Math.round((students.filter((s) => s.score && s.score !== "Not Attempted").length / totalBase) * 100) },
+                      { step: "4. Profile Published Live", count: liveProfilesData.length, pct: Math.round((liveProfilesData.length / totalBase) * 100) },
+                      { step: "5. Company Interviews", count: kpis.interviewsActive || 0, pct: Math.round(((kpis.interviewsActive || 0) / totalBase) * 100) },
+                      { step: "6. Offer & Final Placement", count: placements.length, pct: Math.round((placements.length / totalBase) * 100) },
+                    ];
+                    return funnels.map((fn, idx) => (
+                      <div key={fn.step}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 700, marginBottom: 4 }}>
+                          <span style={{ color: "#0F172A" }}>{fn.step}</span>
+                          <span style={{ color: "#15803D" }}>{fn.count} candidates ({fn.pct}%)</span>
+                        </div>
+                        <div style={{ height: 8, background: "#F1F5F9", borderRadius: 999, overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${Math.min(100, fn.pct)}%`, background: `hsl(${140 - idx * 15}, 70%, 45%)`, borderRadius: 999 }} />
+                        </div>
                       </div>
-                      <div style={{ height: 8, background: "#F1F5F9", borderRadius: 999, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${fn.pct}%`, background: `hsl(${140 - idx * 12}, 70%, 45%)`, borderRadius: 999 }} />
-                      </div>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
               </div>
             </div>
@@ -1948,6 +2174,139 @@ export default function AcademyPortal() {
                 Submit Dispute
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Edit Candidate Modal */}
+      {editCandidateModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 20 }}
+          onClick={() => setEditCandidateModal(null)}
+        >
+          <div
+            style={{ background: "#FFFFFF", borderRadius: 16, width: "100%", maxWidth: 540, overflow: "hidden", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.2)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "16px 22px", background: "#06152A", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ color: "#fff", fontWeight: 800, fontSize: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-pen-to-square" style={{ color: "#E5A82E" }}></i>
+                Edit Candidate Profile
+              </div>
+              <button
+                onClick={() => setEditCandidateModal(null)}
+                style={{ background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCandidateEdit} style={{ padding: 22 }}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>FULL LEGAL NAME *</label>
+                <input
+                  type="text"
+                  required
+                  value={editCandidateModal.name}
+                  onChange={(e) => setEditCandidateModal({ ...editCandidateModal, name: e.target.value })}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EMAIL ADDRESS *</label>
+                  <input
+                    type="email"
+                    required
+                    value={editCandidateModal.email}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, email: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>MOBILE NUMBER (10 DIGITS) *</label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    value={editCandidateModal.mobile}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>ASSIGNED BATCH</label>
+                  <select
+                    value={editCandidateModal.batchCode}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, batchCode: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  >
+                    {batches.map((b) => (
+                      <option key={b._id || b.code} value={b.code}>
+                        {b.code} {b.course ? `(${b.course})` : ""}
+                      </option>
+                    ))}
+                    <option value="JAN-HCC-01">JAN-HCC-01</option>
+                    <option value="FEB-ED-02">FEB-ED-02</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE TYPE</label>
+                  <select
+                    value={editCandidateModal.experience}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, experience: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  >
+                    <option value="Fresher">Fresher</option>
+                    <option value="Experienced">Experienced (1+ yrs)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>COURSE / SPECIALTY</label>
+                  <input
+                    type="text"
+                    value={editCandidateModal.course}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, course: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>BRANCH / CITY</label>
+                  <input
+                    type="text"
+                    value={editCandidateModal.city}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, city: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setEditCandidateModal(null)}
+                  style={{ background: "#F1F5F9", color: "#475569", border: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editCandidateSaving}
+                  style={{ background: "#06152A", color: "#FFFFFF", border: "none", padding: "8px 18px", borderRadius: 8, fontSize: 12, fontWeight: 800, cursor: "pointer" }}
+                >
+                  {editCandidateSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

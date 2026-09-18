@@ -12,6 +12,51 @@ const logger = require("../utils/logger");
 
 const router = express.Router();
 
+function getMobileQueryVariants(mobiles) {
+  if (!mobiles) return [];
+  const list = Array.isArray(mobiles) ? mobiles : [mobiles];
+  const variants = new Set();
+  for (const m of list) {
+    if (!m) continue;
+    const str = String(m).trim();
+    if (!str) continue;
+    variants.add(str);
+    const digitsOnly = str.replace(/\D/g, "");
+    if (!digitsOnly) continue;
+    variants.add(digitsOnly);
+    if (digitsOnly.length >= 10) {
+      const last10 = digitsOnly.slice(-10);
+      variants.add(last10);
+      variants.add(`+91${last10}`);
+      variants.add(`+91 ${last10}`);
+      variants.add(`91${last10}`);
+      variants.add(`0${last10}`);
+    }
+  }
+  return Array.from(variants);
+}
+
+function buildMobileRegexFilters(mobiles) {
+  if (!mobiles) return [];
+  const list = Array.isArray(mobiles) ? mobiles : [mobiles];
+  const filters = [];
+  const seenLast10 = new Set();
+  for (const m of list) {
+    if (!m) continue;
+    const digitsOnly = String(m).replace(/\D/g, "");
+    if (digitsOnly.length >= 10) {
+      const last10 = digitsOnly.slice(-10);
+      if (!seenLast10.has(last10)) {
+        seenLast10.add(last10);
+        const pattern = new RegExp(last10.split("").join("\\D*"));
+        filters.push({ mobile: pattern });
+        filters.push({ "stage1.mobile": pattern });
+      }
+    }
+  }
+  return filters;
+}
+
 // POST /api/auth/register
 //
 // Two entry paths:
@@ -47,6 +92,9 @@ router.post(
 
     const { email, password, mobile, accessToken, inviteToken } = req.body;
     const cleanEmail = (email || "").toLowerCase().trim();
+    const rawMobile = mobile || "";
+    const mobileVariants = getMobileQueryVariants([rawMobile]);
+    const mobileRegexes = buildMobileRegexFilters([rawMobile]);
 
     try {
       if (inviteToken) {
@@ -58,8 +106,23 @@ router.post(
           return res.status(409).json({ message: "This invite has already been used. Please log in instead." });
         }
 
+        const inviteMobileVariants = getMobileQueryVariants([invite.mobile, rawMobile]);
+        const inviteMobileRegexes = buildMobileRegexFilters([invite.mobile, rawMobile]);
+
         let candidate = invite.candidateId ? await Candidate.findById(invite.candidateId) : null;
-        if (!candidate) candidate = await Candidate.findOne({ email: invite.email.toLowerCase().trim() });
+        if (!candidate) {
+          candidate = await Candidate.findOne({
+            $or: [
+              { email: invite.email.toLowerCase().trim() },
+              ...(cleanEmail ? [{ email: cleanEmail }] : []),
+              ...(inviteMobileVariants.length > 0 ? [
+                { mobile: { $in: inviteMobileVariants } },
+                { "stage1.mobile": { $in: inviteMobileVariants } },
+              ] : []),
+              ...inviteMobileRegexes,
+            ],
+          });
+        }
         if (!candidate) {
           return res.status(404).json({ message: "We couldn't find the profile your academy created for this invite. Please ask them to resend it." });
         }
@@ -68,7 +131,7 @@ router.post(
         }
 
         candidate.passwordHash = await bcrypt.hash(password, 10);
-        candidate.mobile = mobile || candidate.mobile || "";
+        candidate.mobile = rawMobile || candidate.mobile || "";
         candidate.isVerified = true;
         candidate.verifiedAt = new Date();
         await candidate.save();
@@ -76,6 +139,7 @@ router.post(
         invite.status = "signed_up";
         invite.signupCompletedAt = new Date();
         invite.candidateId = candidate._id;
+        if (rawMobile && !invite.mobile) invite.mobile = rawMobile;
         await invite.save();
 
         const token = signToken(candidate._id, "candidate");
@@ -88,16 +152,25 @@ router.post(
 
       await verifyWidgetAccessToken(accessToken);
 
-      const existing = await Candidate.findOne({ email: cleanEmail });
+      const findCandOr = [
+        { email: cleanEmail },
+        ...(mobileVariants.length > 0 ? [
+          { mobile: { $in: mobileVariants } },
+          { "stage1.mobile": { $in: mobileVariants } },
+        ] : []),
+        ...mobileRegexes,
+      ];
+
+      const existing = await Candidate.findOne({ $or: findCandOr });
       if (existing && existing.isVerified) {
-        return res.status(409).json({ message: "An account with this email already exists." });
+        return res.status(409).json({ message: "An account with this email or mobile number already exists." });
       }
 
       const passwordHash = await bcrypt.hash(password, 10);
       let candidate;
       if (existing && !existing.isVerified) {
         existing.passwordHash = passwordHash;
-        existing.mobile = mobile || existing.mobile || "";
+        existing.mobile = rawMobile || existing.mobile || "";
         existing.isVerified = true;
         existing.verifiedAt = new Date();
         candidate = await existing.save();
@@ -105,20 +178,26 @@ router.post(
         candidate = await Candidate.create({
           email: cleanEmail,
           passwordHash,
-          mobile: mobile || "",
+          mobile: rawMobile || "",
           isVerified: true,
           verifiedAt: new Date(),
           completedStages: [],
         });
       }
 
-      // Link any existing StudentInvite for this email
-      const matchingInvite = await StudentInvite.findOne({ email: cleanEmail });
-      if (matchingInvite) {
-        matchingInvite.status = "signed_up";
-        matchingInvite.signupCompletedAt = new Date();
-        matchingInvite.candidateId = candidate._id;
-        await matchingInvite.save();
+      // Link any existing StudentInvite for this email OR mobile
+      const inviteFindOr = [
+        { email: cleanEmail },
+        ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+        ...mobileRegexes,
+      ];
+      const matchingInvites = await StudentInvite.find({ $or: inviteFindOr });
+      for (const inv of matchingInvites) {
+        inv.status = "signed_up";
+        inv.signupCompletedAt = new Date();
+        inv.candidateId = candidate._id;
+        if (rawMobile && !inv.mobile) inv.mobile = rawMobile;
+        await inv.save();
       }
 
       const token = signToken(candidate._id, "candidate");

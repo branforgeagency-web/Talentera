@@ -117,7 +117,7 @@ export default function PlacementCertModal({ certData, onClose }) {
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#E5A82E", letterSpacing: "0.08em" }}>HEALTHCARE TALENT OS</div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 14, fontWeight: 800, color: "#06152A" }}>{certData.academyName || "Apex Healthcare Academy"}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#06152A" }}>{certData.academyName || "Healthcare Academy"}</div>
                 <div style={{ fontSize: 10, color: "#64748B" }}>Authorized Training Partner</div>
               </div>
             </div>

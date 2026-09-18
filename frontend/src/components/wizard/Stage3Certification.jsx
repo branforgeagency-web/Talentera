@@ -450,12 +450,16 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     setError("");
     if (status === "certified") {
       if (!memberId.trim() && certStack.length === 0) {
-        setError("Please enter your Member / Cert ID in Section 2.");
+        const msg = "Please enter your Member / Certification ID in Section 2.";
+        setError(msg);
+        toast(msg, "error", { title: "Mandatory Fields Required" });
         window.scrollTo({ top: 400, behavior: "smooth" });
         return;
       }
       if (verificationResult?.isFake) {
-        setError("The entered credential failed authenticity verification (flagged fake/dummy). Please correct your Member ID or verification link.");
+        const msg = "The entered credential failed authenticity verification (flagged fake/dummy). Please correct your Member ID or verification link.";
+        setError(msg);
+        toast(msg, "error", { title: "Invalid Credential" });
         window.scrollTo({ top: 400, behavior: "smooth" });
         return;
       }
@@ -2252,14 +2256,6 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               <div><b>50 / 100</b> · Stage 03 in progress</div>
             </div>
             <div className="s3-sticky-actions">
-              <button
-                type="button"
-                className="s3-link-btn"
-                onClick={handleSaveDraft}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save & finish later"}
-              </button>
               <button
                 type="button"
                 className="s3-action-btn"

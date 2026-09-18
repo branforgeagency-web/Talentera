@@ -767,24 +767,56 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     const resolvedCity = currentCity || lockedDistrict || "Chennai";
 
     if (advance) {
-      // Aadhaar verification is strictly mandatory.
+      const missingFields = [];
+
+      // Aadhaar verification is strictly mandatory
       if (!isAadhaarVerified) {
-        toast("Aadhaar verification is mandatory. Please verify via DigiLocker.", "!");
-        document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth" });
-        return;
+        missingFields.push("Aadhaar Verification (DigiLocker)");
       }
-      // Full name is always required — either auto-filled from Aadhaar or manually entered
+      // Full name is required
       if (!lockedFullName || lockedFullName.trim().length < 2) {
-        toast("Full legal name is required. Please enter your name in the 'Full Legal Name' field.", "!");
-        document.querySelector("input[placeholder='e.g. Ramkumar S']")?.focus();
-        return;
+        missingFields.push("Full Legal Name");
       }
-      if (cleanMobile && !isValidIndianMobile(cleanMobile)) {
-        toast("Please enter a valid 10-digit Indian mobile number.", "!");
-        return;
+      // Mobile validation
+      if (!cleanMobile || !isValidIndianMobile(cleanMobile)) {
+        missingFields.push("Valid 10-Digit Mobile Number");
       }
-      if (email && !email.includes("@")) {
-        toast("Please enter a valid email address.", "!");
+      // Email validation
+      if (!email || !email.includes("@")) {
+        missingFields.push("Valid Email Address");
+      }
+      // Basic education validation
+      if (!educationStream) {
+        missingFields.push("Academic Stream");
+      }
+      if (!degree || degree.trim().length === 0) {
+        missingFields.push("Course Name");
+      }
+      if (!collegeName || collegeName.trim().length < 2) {
+        missingFields.push("University / College Name");
+      }
+      if (!educationStatus) {
+        missingFields.push("Education Status");
+      }
+      if (!graduationMonth || !graduationYear) {
+        missingFields.push("Passing Month & Year");
+      }
+      if (!cgpa || cgpa.trim().length === 0) {
+        missingFields.push("CGPA / Percentage");
+      }
+
+      if (missingFields.length > 0) {
+        const errorMsg = `Please fill all mandatory fields: ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? ` and ${missingFields.length - 3} more` : ""}.`;
+        toast(errorMsg, "error", { title: "Mandatory Fields Required" });
+
+        // Smooth scroll to the first missing section
+        if (!isAadhaarVerified) {
+          document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth" });
+        } else if (!cleanMobile || !email) {
+          document.getElementById("section-2")?.scrollIntoView({ behavior: "smooth" });
+        } else {
+          document.getElementById("section-5")?.scrollIntoView({ behavior: "smooth" });
+        }
         return;
       }
     }
@@ -2705,14 +2737,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               <div><b>15 / 100</b> · Stage 01 in progress</div>
             </div>
             <div className="sticky-actions">
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => handleSaveStage(false)}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save & finish later"}
-              </button>
               <button
                 type="button"
                 className="action-btn"

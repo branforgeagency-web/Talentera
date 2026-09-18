@@ -27,6 +27,16 @@ const STAGE_COMPONENTS = {
   8: Stage8Track,
 };
 
+export function isStageUnlocked(stageNum, completedStages = []) {
+  if (stageNum <= 1) return true;
+  for (let i = 1; i < stageNum; i++) {
+    if (!completedStages.includes(i)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export default function CandidateWizard() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -44,7 +54,6 @@ export default function CandidateWizard() {
         setProfile(res.data);
         const candidateObj = res.data?.candidate || res.data || {};
         const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
-        const isStage1Done = completed.includes(1);
         const stageParam = Number(searchParams.get("stage"));
         const viewParam = searchParams.get("view");
 
@@ -57,25 +66,38 @@ export default function CandidateWizard() {
           setShowDashboard(true);
         }
 
+        // Determine the earliest incomplete stage in sequential order
+        let firstIncompleteStage = 1;
+        for (let i = 1; i <= 8; i++) {
+          if (!completed.includes(i)) {
+            firstIncompleteStage = i;
+            break;
+          }
+        }
+        if (completed.length >= 8) firstIncompleteStage = 8;
+
         const savedActiveStage = Number(localStorage.getItem("talentera_active_stage"));
-        if (stageParam >= 1 && stageParam <= 8) {
+
+        if (
+          stageParam >= 1 &&
+          stageParam <= 8 &&
+          (isStageUnlocked(stageParam, completed) || completed.includes(stageParam))
+        ) {
           setActiveStageId(stageParam);
           localStorage.setItem("talentera_active_stage", String(stageParam));
           if (!viewParam) {
             setShowDashboard(false);
             setShowVerifiedPool(false);
           }
-        } else if (savedActiveStage >= 1 && savedActiveStage <= 8) {
+        } else if (
+          savedActiveStage >= 1 &&
+          savedActiveStage <= 8 &&
+          (isStageUnlocked(savedActiveStage, completed) || completed.includes(savedActiveStage))
+        ) {
           setActiveStageId(savedActiveStage);
-        } else if (!isStage1Done) {
-          setActiveStageId(1);
-          localStorage.setItem("talentera_active_stage", "1");
         } else {
-          const nextIncomplete = WIZARD_STAGES.find((s) => !completed.includes(s.num));
-          if (nextIncomplete) {
-            setActiveStageId(nextIncomplete.num);
-            localStorage.setItem("talentera_active_stage", String(nextIncomplete.num));
-          }
+          setActiveStageId(firstIncompleteStage);
+          localStorage.setItem("talentera_active_stage", String(firstIncompleteStage));
         }
       })
       .catch((err) => {
@@ -87,11 +109,22 @@ export default function CandidateWizard() {
   function handleSelectStage(stageNum) {
     const candidateObj = profile?.candidate || profile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
-    const isStage1Done = completed.includes(1);
-    if (stageNum > 1 && !isStage1Done) {
-      toast("Please complete and save Stage 1 (Identity & Basics) first before moving to higher stages.", "!");
-      setActiveStageId(1);
-      localStorage.setItem("talentera_active_stage", "1");
+
+    const isUnlocked = isStageUnlocked(stageNum, completed) || completed.includes(stageNum);
+    if (!isUnlocked) {
+      let firstMissing = 1;
+      for (let i = 1; i < stageNum; i++) {
+        if (!completed.includes(i)) {
+          firstMissing = i;
+          break;
+        }
+      }
+      const missingStageMeta = WIZARD_STAGES.find((s) => s.num === firstMissing);
+      const targetStageMeta = WIZARD_STAGES.find((s) => s.num === stageNum);
+      toast(
+        `Stage 0${stageNum} (${targetStageMeta?.short || "Locked"}) is locked. Please complete Stage 0${firstMissing} (${missingStageMeta?.short || "Previous"}) first.`,
+        "!"
+      );
       return;
     }
     setActiveStageId(stageNum);
@@ -106,7 +139,7 @@ export default function CandidateWizard() {
   // with advance left at its default true once the candidate is ready).
   function handleStageSaved(data, opts = {}) {
     const { advance = true, nextStage } = opts;
-    
+
     let mergedProfile = profile;
     if (data?.candidate) {
       mergedProfile = data;
@@ -132,22 +165,23 @@ export default function CandidateWizard() {
 
     if (!advance) return;
 
-    if (nextStage) {
+    if (nextStage && (isStageUnlocked(nextStage, completed) || completed.includes(nextStage))) {
       setActiveStageId(nextStage);
       localStorage.setItem("talentera_active_stage", String(nextStage));
       return;
     }
 
-    const nextIncomplete =
-      WIZARD_STAGES.find((s) => !completed.includes(s.num) && s.num > activeStageId) ||
-      WIZARD_STAGES.find((s) => !completed.includes(s.num));
+    let nextIncomplete = 1;
+    for (let i = 1; i <= 8; i++) {
+      if (!completed.includes(i)) {
+        nextIncomplete = i;
+        break;
+      }
+    }
 
-    if (nextIncomplete) {
-      setActiveStageId(nextIncomplete.num);
-      localStorage.setItem("talentera_active_stage", String(nextIncomplete.num));
-    } else if (activeStageId < 8) {
-      setActiveStageId(activeStageId + 1);
-      localStorage.setItem("talentera_active_stage", String(activeStageId + 1));
+    if (completed.length < 8) {
+      setActiveStageId(nextIncomplete);
+      localStorage.setItem("talentera_active_stage", String(nextIncomplete));
     }
   }
 
@@ -176,7 +210,8 @@ export default function CandidateWizard() {
   }
 
   function handleSaveExit() {
-    navigate("/");
+    toast("✓ Progress saved. Returning to your dashboard...", "✓");
+    setShowDashboard(true);
   }
 
   const candidateObj = profile?.candidate || profile;

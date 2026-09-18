@@ -710,6 +710,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     });
   }
 
+  const handleSaveAndFinishLater = async () => {
+    try {
+      await api.put("/candidate/stage/4", { isDraft: true });
+    } catch (e) {
+      console.warn("Draft save fallback:", e);
+    }
+    toast("✓ Stage 04 progress saved. You can finish your assessment later.", "✓");
+    if (onSaved) {
+      onSaved(null, { advance: false });
+    }
+  };
+
   // 20-minute Test Timer Effect
   useEffect(() => {
     let timer = null;
@@ -1935,29 +1947,30 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 </div>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleStartRealTest}
-                    style={{
-                      background: isSystemReady && allRulesChecked ? "var(--gold)" : "rgba(245,180,26,0.3)",
-                      color: isSystemReady && allRulesChecked ? "var(--navy)" : "rgba(15,27,61,0.5)",
-                      padding: "14px 36px",
-                      borderRadius: 12,
-                      fontSize: 15,
-                      fontWeight: 800,
-                      border: "none",
-                      cursor: "pointer",
-                      letterSpacing: 0.5,
-                      marginTop: 16,
-                      boxShadow: isSystemReady && allRulesChecked ? "0 6px 16px rgba(245,180,26,0.35)" : "none",
-                    }}
-                  >
-                    {!isSystemReady
-                      ? "🔒 Allow Camera & Mic in System Check to Unlock"
-                      : !allRulesChecked
-                      ? `🔒 Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
-                      : "Launch Proctored Assessment 🚀"}
-                  </button>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={handleStartRealTest}
+                      style={{
+                        background: isSystemReady && allRulesChecked ? "var(--gold)" : "rgba(245,180,26,0.3)",
+                        color: isSystemReady && allRulesChecked ? "var(--navy)" : "rgba(15,27,61,0.5)",
+                        padding: "14px 36px",
+                        borderRadius: 12,
+                        fontSize: 15,
+                        fontWeight: 800,
+                        border: "none",
+                        cursor: isSystemReady && allRulesChecked ? "pointer" : "not-allowed",
+                        letterSpacing: 0.5,
+                        boxShadow: isSystemReady && allRulesChecked ? "0 6px 16px rgba(245,180,26,0.35)" : "none",
+                      }}
+                    >
+                      {!isSystemReady
+                        ? "🔒 Allow Camera & Mic in System Check to Unlock"
+                        : !allRulesChecked
+                        ? `🔒 Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
+                        : "Launch Proctored Assessment 🚀"}
+                    </button>
+                  </div>
                   <div style={{ marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
                     Once you click Start, the test locks you in. No pauses. No exits without submission.
                   </div>
@@ -2194,7 +2207,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
 
             {/* ACTION BUTTONS */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
               <button
                 type="button"
                 onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}

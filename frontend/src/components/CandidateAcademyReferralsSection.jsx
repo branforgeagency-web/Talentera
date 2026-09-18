@@ -553,9 +553,10 @@ export default function CandidateAcademyReferralsSection({
                 <input
                   type="tel"
                   required
-                  placeholder="Student Mobile *"
+                  maxLength={10}
+                  placeholder="Student Mobile (10 digits) *"
                   value={academyForm.studentMobile}
-                  onChange={(e) => setAcademyForm({ ...academyForm, studentMobile: e.target.value })}
+                  onChange={(e) => setAcademyForm({ ...academyForm, studentMobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                   style={{ padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '13px' }}
                 />
                 <input

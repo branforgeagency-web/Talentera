@@ -313,15 +313,60 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
     }
   };
 
+  // Save & Finish Later for Stage 6
+  const handleSaveAndFinishLater = async () => {
+    setSaving(true);
+    try {
+      const payload = {
+        evidencePath,
+        option: evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none",
+        selectedPlatforms,
+        primaryPlatform,
+        specialtyCharts: evidencePath === "D" ? [] : specialtyCharts,
+        totalCharts,
+        overallAccuracy,
+        tier,
+        timePracticedHours,
+        chartsPerHour,
+        docName: uploadedDocName || (evidencePath === "A" ? "Practicode_Codivia_Confirmation.pdf" : "Academy_Chart_Log.pdf"),
+        docUrl: uploadedDocUrl,
+        proofDocName: uploadedDocName || "Practicode_Codivia_Confirmation.pdf",
+        proofDocUrl: uploadedDocUrl,
+        verified: evidencePath === "A" || evidencePath === "B",
+        verificationMethod: evidencePath === "A" ? "API-Verified" : evidencePath === "B" ? "Academy-Signed" : evidencePath === "C" ? "Self-Declared" : "No Charts",
+        completedAt: new Date(),
+      };
+
+      const res = await api.put(`/candidate/stage/6`, payload);
+      setSavedSuccess(true);
+      toast("✓ Stage 06 Live Chart saved successfully. You can finish later.", "✓");
+      if (onSaved) {
+        onSaved(res.data, { advance: false });
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || "Failed to save Stage 06.", "!");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleContinueToStage7 = async () => {
+    if (!evidencePath) {
+      toast("Please select your Live Chart evidence method in Section 1 to continue.", "error", { title: "Mandatory Selection Required" });
+      window.scrollTo({ top: 300, behavior: "smooth" });
+      return;
+    }
     if (!savedSuccess) {
       await handleSaveStage6();
     }
-    // Navigate to Stage 7 Build Resume
-    const url = new URL(window.location.href);
-    url.searchParams.set("stage", "7");
-    window.history.pushState({}, "", url.toString());
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    if (onSaved) {
+      onSaved(null, { advance: true, nextStage: 7 });
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.set("stage", "7");
+      window.history.pushState({}, "", url.toString());
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
   };
 
   return (
@@ -1470,19 +1515,22 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
               View my chart history
             </button>
 
-            <button
-              type="button"
-              className="btn btn-gold"
-              onClick={handleContinueToStage7}
-              style={{
-                padding: "12px 26px",
-                fontSize: 14,
-                fontWeight: 800,
-                boxShadow: "0 4px 14px rgba(245,158,11,0.3)",
-              }}
-            >
-              Continue to Stage 07 · Resume →
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <button
+                type="button"
+                className="btn btn-gold"
+                onClick={handleContinueToStage7}
+                disabled={saving}
+                style={{
+                  padding: "12px 26px",
+                  fontSize: 14,
+                  fontWeight: 800,
+                  boxShadow: "0 4px 14px rgba(245,158,11,0.3)",
+                }}
+              >
+                Continue to Stage 07 · Resume →
+              </button>
+            </div>
           </div>
         </div>
       </div>

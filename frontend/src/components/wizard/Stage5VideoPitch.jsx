@@ -1405,7 +1405,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // keyword-matched interview answers.
   const handleSubmitAllVideos = async (advance = true) => {
     if (!hasRealSelfIntro) {
-      toast("Please complete your 60-second Self-Introduction first (Section 2).", "!");
+      toast("Please record and complete your 60-second Self-Introduction video first (Section 2).", "error", { title: "Mandatory Video Required" });
       const el = document.getElementById("stage5-intro-section");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
@@ -1415,7 +1415,9 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     // persisted its own result the moment it completed), so it doesn't
     // need to block on the Mock Interview too.
     if (advance && !hasRealMockInterview) {
-      toast("Please complete all 5 questions of the AI Mock Interview first (Section 3).", "!");
+      toast("Please complete all 5 questions of the AI Mock Interview first (Section 3).", "error", { title: "Mandatory Interview Required" });
+      const el = document.getElementById("stage5-mock-section");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
 
@@ -2942,23 +2944,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   <>
                     <button
                       type="button"
-                      onClick={() => handleSubmitAllVideos(false)}
-                      disabled={isSubmittingStage5}
-                      style={{
-                        background: "transparent",
-                        color: "var(--gray-txt)",
-                        padding: "11px 20px",
-                        borderRadius: 10,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        border: "1.5px solid #E5E7EB",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Save &amp; finish later
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => handleSubmitAllVideos(true)}
                       disabled={isSubmittingStage5}
                       style={{
@@ -2974,7 +2959,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                         boxShadow: "0 4px 12px rgba(245,180,26,.35)",
                       }}
                     >
-                      {isSubmittingStage5 ? "Saving…" : "Save & continue to Stage 06 →"}
+                      {isSubmittingStage5 ? "Saving..." : "Save & continue to Stage 06 →"}
                     </button>
                   </>
                 )}

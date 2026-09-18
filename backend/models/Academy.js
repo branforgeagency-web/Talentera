@@ -94,11 +94,27 @@ const AcademySchema = new mongoose.Schema(
       type: Number,
       default: 94,
     },
+    passwordHash: {
+      type: String,
+      default: null,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
     courses: [CourseSubSchema],
     questions: [QuestionSubSchema],
     placements: [PlacementSubSchema],
   },
   { timestamps: true }
 );
+
+// Never leak passwordHash in JSON responses
+AcademySchema.set("toJSON", {
+  transform: (_doc, ret) => {
+    delete ret.passwordHash;
+    return ret;
+  },
+});
 
 module.exports = mongoose.model("Academy", AcademySchema);

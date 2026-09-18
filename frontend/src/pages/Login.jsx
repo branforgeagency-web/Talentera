@@ -6,7 +6,7 @@ import AuthLayout from "../components/AuthLayout.jsx";
 import { safeJson } from "../utils/safeJson.js";
 
 export default function Login() {
-  const { login, demoLogin } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectUrl = searchParams.get("redirect") || "/dashboard";
@@ -16,7 +16,6 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [demoSubmitting, setDemoSubmitting] = useState(false);
 
   useEffect(() => {
     if (emailParam && !email) {
@@ -38,78 +37,11 @@ export default function Login() {
     }
   }
 
-  async function handleDemoLogin(e) {
-    if (e) e.preventDefault();
-    setError("");
-    setDemoSubmitting(true);
-    try {
-      await demoLogin();
-      navigate(redirectUrl);
-    } catch (err) {
-      console.error(err);
-      setError(err.response?.data?.message || err.message || "Demo login failed.");
-    } finally {
-      setDemoSubmitting(false);
-    }
-  }
-
-  function fillDemoCreds() {
-    setEmail("demo.candidate@talentera.in");
-    setPassword("DemoCandidate2026");
-  }
-
   return (
     <AuthLayout
       title="Welcome back"
       subtitle="Enter your credentials to access your candidate portal."
     >
-      {/* DEVELOPER DEMO LOGIN BOX */}
-      <div style={{
-        background: "rgba(229, 168, 46, 0.1)",
-        border: "1px solid rgba(229, 168, 46, 0.35)",
-        borderRadius: 12,
-        padding: "14px 16px",
-        marginBottom: 20,
-        textAlign: "center"
-      }}>
-        <div style={{ fontSize: 11, fontWeight: 800, color: "#F5C95B", letterSpacing: "0.08em", marginBottom: 6 }}>
-          ⚡ DEVELOPER / DEMO ACCESS
-        </div>
-        <button
-          type="button"
-          onClick={handleDemoLogin}
-          disabled={demoSubmitting}
-          style={{
-            width: "100%",
-            background: "linear-gradient(135deg, #F5B41A 0%, #E5A82E 100%)",
-            color: "#06152A",
-            border: "none",
-            borderRadius: 8,
-            padding: "10px 14px",
-            fontWeight: 800,
-            fontSize: 13.5,
-            cursor: "pointer",
-            marginBottom: 8
-          }}
-        >
-          {demoSubmitting ? "Logging in Demo Candidate..." : "⚡ 1-Click Demo Candidate Login"}
-        </button>
-        <button
-          type="button"
-          onClick={fillDemoCreds}
-          style={{
-            background: "transparent",
-            color: "rgba(255,255,255,0.7)",
-            border: "none",
-            fontSize: 11.5,
-            cursor: "pointer",
-            textDecoration: "underline"
-          }}
-        >
-          Auto-fill Demo Credentials (demo.candidate@talentera.in)
-        </button>
-      </div>
-
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label>EMAIL ADDRESS</label>
@@ -134,31 +66,6 @@ export default function Login() {
         {error && <div className="error-text">{error}</div>}
         <button type="submit" className="btn btn-gold" style={{ width: "100%", justifyContent: "center", marginTop: 8 }} disabled={submitting}>
           {submitting ? "Logging in…" : "Log In"}
-        </button>
-
-        {/* Quick Developer Demo Login Button */}
-        <button
-          type="button"
-          onClick={handleDemoLogin}
-          disabled={demoSubmitting || submitting}
-          style={{
-            width: "100%",
-            background: "rgba(229,168,46,0.15)",
-            color: "#E5A82E",
-            fontSize: 13,
-            fontWeight: 800,
-            border: "1.5px dashed #E5A82E",
-            borderRadius: 8,
-            padding: "12px 18px",
-            cursor: "pointer",
-            marginTop: 10,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8
-          }}
-        >
-          ⚡ Quick Developer Demo Login →
         </button>
       </form>
       <p style={{ textAlign: "center", marginTop: 16, fontSize: "0.85rem" }}>

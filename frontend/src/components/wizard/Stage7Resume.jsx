@@ -606,6 +606,11 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Save Stage 7 Data to MongoDB
   async function handleSaveAndAdvance(advanceToStage8 = true) {
+    if (advanceToStage8 && (!careerObjective || careerObjective.trim().length < 5)) {
+      toast("Please provide or select a Career Objective in Section 2 to continue.", "error", { title: "Mandatory Field Required" });
+      window.scrollTo({ top: 400, behavior: "smooth" });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -1969,9 +1974,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <button type="button" onClick={() => setShowFullPreviewModal(true)} className="s7-link-btn">
                 Preview full page
-              </button>
-              <button type="button" onClick={() => handleSaveAndAdvance(false)} disabled={saving} className="s7-link-btn">
-                Save &amp; finish later
               </button>
               <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
                 {saving ? "Saving..." : "Continue to Stage 08 · Career Passport →"}

@@ -349,19 +349,26 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   // Final Submit & Advance to Stage 3
   async function handleSaveAndContinue() {
     setError("");
+    const missing = [];
     if (!domain) {
-      setError("Please choose your Primary Domain.");
-      window.scrollTo({ top: 300, behavior: "smooth" });
-      return;
+      missing.push("Primary Domain (Section 1.1)");
     }
     if (specialties.length === 0) {
-      setError("Please select at least 1 specialty in Section 1.3.");
-      window.scrollTo({ top: 300, behavior: "smooth" });
-      return;
+      missing.push("Primary Specialty (Section 1.3)");
     }
     if (trainingPath === "academy" && (!academyName || academyName.trim().length < 2)) {
-      setError("Please provide your Academy Name in Section 3.");
-      window.scrollTo({ top: 600, behavior: "smooth" });
+      missing.push("Academy Name (Section 3)");
+    }
+
+    if (missing.length > 0) {
+      const msg = `Please fill mandatory fields: ${missing.join(", ")}.`;
+      setError(msg);
+      toast(msg, "error", { title: "Mandatory Fields Required" });
+      if (!domain || specialties.length === 0) {
+        window.scrollTo({ top: 300, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 600, behavior: "smooth" });
+      }
       return;
     }
 
@@ -1937,14 +1944,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div><b>25 / 100</b> · Stage 02 in progress</div>
             </div>
             <div className="s2-sticky-actions">
-              <button
-                type="button"
-                className="s2-link-btn"
-                onClick={handleSaveDraft}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save & finish later"}
-              </button>
               <button
                 type="button"
                 className="s2-action-btn"

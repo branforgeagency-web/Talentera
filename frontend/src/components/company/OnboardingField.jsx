@@ -259,7 +259,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             value={text}
             placeholder="10-digit mobile"
             maxLength={10}
-            onChange={(e) => setText(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setText(e.target.value.replace(/\D/g, "").slice(0, 10))}
             onBlur={handleTextBlur}
           />
         </div>
