@@ -168,7 +168,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setVideoDuration(0);
     setUploadError("");
     setSessionStarted(false);
-    setRecTimeLeft(60);
+    setRecTimeLeft(180);
     setRecordingSeconds(0);
     autoStartedRef.current = false;
     isStartingRef.current = false;
@@ -207,7 +207,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
-  const [recTimeLeft, setRecTimeLeft] = useState(60);
+  const [recTimeLeft, setRecTimeLeft] = useState(180);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [silenceTimeLeft, setSilenceTimeLeft] = useState(SILENCE_TIMEOUT_SECONDS);
   const lastSpeechTimeRef = useRef(Date.now());
@@ -490,35 +490,31 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   }, [stream, step]);
 
   // Handle Question Time Limit Timer. Only ticks while isRecording is true and not paused
+  // Does not auto-submit at 60s; candidate can speak beyond 60s (up to 180s) and manually click Stop & Submit.
   useEffect(() => {
     if (!isRecording || isPaused) return;
-    if (recTimeLeft <= 0) {
-      advanceToNextQuestion();
+    if (recordingSeconds >= 180) {
+      toast("Maximum recording duration (3 minutes) reached. Submitting video...", "i");
+      handleFinishSingleTakeInterview(true);
       return;
     }
     const timer = setTimeout(() => {
-      setRecTimeLeft((prev) => Math.max(0, prev - 1));
       setRecordingSeconds((prev) => prev + 1);
+      setRecTimeLeft((prev) => Math.max(0, prev - 1));
     }, 1000);
     return () => clearTimeout(timer);
-  }, [isRecording, isPaused, recTimeLeft]);
+  }, [isRecording, isPaused, recordingSeconds]);
 
-  // Silence Detection Monitor: after 60s minimum duration is met, auto-advances if prolonged silence is detected
+  // Silence Detection Monitor: tracks user speech presence
   useEffect(() => {
     if (!isRecording || isPaused) return;
     const silenceTimer = setInterval(() => {
       const elapsedSilence = Math.floor((Date.now() - lastSpeechTimeRef.current) / 1000);
       const remainingSilence = Math.max(0, SILENCE_TIMEOUT_SECONDS - elapsedSilence);
       setSilenceTimeLeft(remainingSilence);
-
-      if (elapsedSilence >= SILENCE_TIMEOUT_SECONDS && recordingSeconds >= 60) {
-        clearInterval(silenceTimer);
-        toast(`No speech detected for ${SILENCE_TIMEOUT_SECONDS} seconds. Auto-submitting...`, "!");
-        advanceToNextQuestion();
-      }
     }, 1000);
     return () => clearInterval(silenceTimer);
-  }, [isRecording, isPaused, recordingSeconds]);
+  }, [isRecording, isPaused]);
 
   // Anti-Cheat Tab Switch & Window Focus Loss Listener during recording: Immediately stops & terminates interview
   useEffect(() => {
@@ -688,8 +684,20 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   // --- Step 3: Single-Take AI Video Interview Recording ---
   async function handleStartSingleTakeInterview() {
-    if (isStartingRef.current || isRecordingActiveRef.current) return;
+    if (isStartingRef.current) return;
     isStartingRef.current = true;
+
+    // Clean up any previous active recorder instance
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {}
+      mediaRecorderRef.current = null;
+    }
+    isRecordingActiveRef.current = false;
+    advancingRef.current = false;
 
     let activeStream = streamRef.current || stream;
     const hasLiveVideo = activeStream && activeStream.getVideoTracks().some((t) => t.readyState === "live");
@@ -710,7 +718,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     recordedChunksRef.current = [];
     setQIdx(0);
     qIdxRef.current = 0;
-    setRecTimeLeft(60);
+    setRecTimeLeft(180);
     setRecordingSeconds(0);
     setIsPaused(false);
     setQaTranscripts({});
@@ -902,6 +910,12 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
   }
 
   async function handleResetRecording() {
+    isStartingRef.current = false;
+    isRecordingActiveRef.current = false;
+    advancingRef.current = false;
+    autoStartedRef.current = false;
+    recognitionShouldRunRef.current = false;
+
     // 1. Cancel any active speech synthesis
     if (window.speechSynthesis) {
       try {
@@ -913,10 +927,9 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setIsRecording(false);
     setSessionStarted(false);
     setRecordingSeconds(0);
-    setRecTimeLeft(60);
+    setRecTimeLeft(180);
     setQaTranscripts({});
     recordedChunksRef.current = [];
-    autoStartedRef.current = false;
 
     // 2. Stop media recorder safely
     if (mediaRecorderRef.current) {
@@ -929,7 +942,6 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
 
     // 3. Stop speech recognition safely
-    recognitionShouldRunRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.onresult = null;
@@ -940,11 +952,13 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       recognitionRef.current = null;
     }
 
-    toast("Recording reset! Starting from 0s...", "i");
+    toast("Recording reset! Starting fresh from 0s...", "i");
 
     // 4. Ensure webcam stream is active and preview connected
-    let activeStream = stream;
-    if (!activeStream || activeStream.getAudioTracks().length === 0) {
+    let activeStream = streamRef.current || stream;
+    const hasLiveVideo = activeStream && activeStream.getVideoTracks().some((t) => t.readyState === "live");
+    const hasLiveAudio = activeStream && activeStream.getAudioTracks().some((t) => t.readyState === "live");
+    if (!hasLiveVideo || !hasLiveAudio) {
       activeStream = await startWebcam(true);
     } else if (videoPreviewRef.current && videoPreviewRef.current.srcObject !== activeStream) {
       videoPreviewRef.current.srcObject = activeStream;
@@ -954,7 +968,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setTimeout(() => {
       autoStartedRef.current = true;
       handleStartSingleTakeInterview();
-    }, 300);
+    }, 200);
   }
 
   function handleVideoFileSelect(file) {
@@ -1016,7 +1030,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         {
           questionId: 1,
           question: "60-Second Self-Introduction",
-          transcript: "Pre-recorded self-introduction video uploaded by candidate.",
+          transcript: (qaTranscripts[1] || "").trim(),
         },
       ])
     );
@@ -1308,7 +1322,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     const formattedQaPairs = questionsList.map((q) => ({
       questionId: q.id,
       question: q.question,
-      transcript: qaTranscripts[q.id] || "Candidate completed 60-second video self-introduction.",
+      transcript: (qaTranscripts[q.id] || "").trim(),
     }));
 
     const formData = new FormData();
@@ -1850,11 +1864,11 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                   {isRecording && (
                     <>
                       <div style={{ background: "#F59E0B", color: "#fff", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
-                        <i className="fa-solid fa-clock" style={{ marginRight: 4 }}></i> {recordingSeconds}s / 60s
+                        <i className="fa-solid fa-clock" style={{ marginRight: 4 }}></i> {recordingSeconds}s
                       </div>
                       <div style={{ background: recordingSeconds >= 60 ? "#16A34A" : "#6366F1", color: "#fff", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 800 }}>
                         <i className={`fa-solid ${recordingSeconds >= 60 ? "fa-circle-check" : "fa-hourglass-half"}`} style={{ marginRight: 4 }}></i>
-                        {recordingSeconds >= 60 ? "Min 60s Met" : `Min: ${60 - recordingSeconds}s remaining`}
+                        {recordingSeconds >= 60 ? "Min 60s Met · Stop Ready" : `Min: ${60 - recordingSeconds}s remaining`}
                       </div>
                     </>
                   )}
@@ -1880,7 +1894,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
             <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 800, color: "var(--gold)" }}>
-                  {currentQ?.title || "60-Second Self-Introduction"}
+                  {currentQ?.title || "Self-Introduction Video (Min 60s)"}
                 </div>
                 <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "6px 0 12px", lineHeight: 1.5 }}>
                   {currentQ?.question}
@@ -1894,7 +1908,8 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: "#475569", lineHeight: 1.6 }}>
                     <li>Speak naturally and introduce your education & healthcare background</li>
                     <li>State your interest in US Healthcare RCM & Medical Coding</li>
-                    <li>Ensure clear audio and steady camera framing (min 60 sec)</li>
+                    <li>Ensure clear audio and steady camera framing (minimum 60 seconds)</li>
+                    <li>Once you reach 60 seconds, click <strong>Stop Recording &amp; Submit Video</strong> whenever you finish speaking</li>
                   </ul>
                 </div>
               </div>
@@ -1902,14 +1917,19 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
               <div>
                 {!sessionStarted ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "12px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 700, color: "var(--navy)" }}>
+                    <div style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderLeft: "4px solid var(--gold)", borderRadius: 8, padding: "12px 16px", textAlign: "center", fontSize: 12.5, fontWeight: 700, color: "var(--navy)" }}>
                       <i className="fa-solid fa-rotate" style={{ marginRight: 6, color: "var(--gold)", animation: "spin 2s linear infinite" }}></i>
-                      Starting your 60-second self-introduction recording…
+                      Starting your self-introduction recording (minimum 60s)…
                     </div>
                     <button
                       type="button"
                       className="btn btn-gold"
-                      onClick={() => handleStartSingleTakeInterview()}
+                      onClick={() => {
+                        isStartingRef.current = false;
+                        isRecordingActiveRef.current = false;
+                        advancingRef.current = false;
+                        handleStartSingleTakeInterview();
+                      }}
                       style={{ width: "100%", justifyContent: "center", padding: "12px 18px", fontSize: 13.5, fontWeight: 800 }}
                     >
                       <i className="fa-solid fa-circle-play" style={{ marginRight: 6 }}></i> Start Recording Immediately →
@@ -1918,17 +1938,17 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 ) : (
                   <div>
                     {/* Real-time Guidance Message */}
-                    <div style={{ background: isPaused ? "#FEF3C7" : "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 12px", textAlign: "center", fontSize: 11, fontWeight: 700, color: isPaused ? "#B45309" : "var(--navy)", marginBottom: 10 }}>
+                    <div style={{ background: isPaused ? "#FEF3C7" : recordingSeconds >= 60 ? "#DCFCE7" : "#F1F5F9", border: `1px solid ${isPaused ? "#FDE68A" : recordingSeconds >= 60 ? "#86EFAC" : "#CBD5E1"}`, borderRadius: 8, padding: "9px 12px", textAlign: "center", fontSize: 11.5, fontWeight: 700, color: isPaused ? "#B45309" : recordingSeconds >= 60 ? "#166534" : "var(--navy)", marginBottom: 10 }}>
                       {isSpeaking
                         ? "AI is asking you to introduce yourself..."
                         : isPaused
                         ? "⏸️ Recording is paused. Click Resume Recording when ready."
                         : recordingSeconds < 60
-                        ? `Speak clearly. Minimum duration is 60 seconds (${60 - recordingSeconds}s remaining).`
-                        : `Minimum 60s duration met! Submit whenever you are ready or recording will auto-finish in ${recTimeLeft}s.`}
+                        ? `🎙️ Recording in progress... Minimum duration is 60s (${60 - recordingSeconds}s left until Stop Recording unlocks).`
+                        : `✅ Minimum 60s met (${recordingSeconds}s recorded)! Click "Stop Recording & Submit" when you finish speaking.`}
                     </div>
 
-                    {/* Action Bar: Pause/Resume + Submit */}
+                    {/* Action Bar: Pause/Resume + Stop Recording & Submit */}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {isRecording && (
                         <button
@@ -1948,7 +1968,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                             background: isPaused ? "#16A34A" : "#0F172A",
                             color: "#FFFFFF",
                             boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                            flex: "1 1 40%",
+                            flex: "1 1 35%",
                           }}
                         >
                           <i className={`fa-solid ${isPaused ? "fa-play" : "fa-pause"}`}></i>
@@ -1958,26 +1978,36 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
                       <button
                         type="button"
-                        className="btn btn-gold"
                         style={{
-                          flex: "1 1 55%",
+                          flex: "1 1 60%",
                           justifyContent: "center",
-                          padding: "12px 14px",
+                          padding: "12px 16px",
                           fontWeight: 800,
-                          fontSize: 12.5,
-                          opacity: recordingSeconds < 60 ? 0.65 : 1,
+                          fontSize: 13,
+                          borderRadius: 10,
+                          border: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: recordingSeconds >= 60 ? "var(--gold)" : "#94A3B8",
+                          color: recordingSeconds >= 60 ? "var(--navy)" : "#FFFFFF",
+                          opacity: recordingSeconds < 60 ? 0.7 : 1,
                           cursor: recordingSeconds < 60 ? "not-allowed" : "pointer",
+                          boxShadow: recordingSeconds >= 60 ? "0 4px 14px rgba(245,180,26,0.35)" : "none",
+                          transition: "all 0.2s ease",
                         }}
                         disabled={recordingSeconds < 60}
                         onClick={() => handleFinishSingleTakeInterview(false)}
                       >
                         {recordingSeconds < 60 ? (
                           <>
-                            <i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> 60s Min ({60 - recordingSeconds}s left)
+                            <i className="fa-solid fa-lock" style={{ fontSize: 13 }}></i>
+                            <span>Stop Recording (Min 60s · {60 - recordingSeconds}s left)</span>
                           </>
                         ) : (
                           <>
-                            <i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Submit 60s Video →
+                            <i className="fa-solid fa-circle-stop" style={{ fontSize: 14 }}></i>
+                            <span>Stop Recording &amp; Submit Video ({recordingSeconds}s) →</span>
                           </>
                         )}
                       </button>

@@ -63,12 +63,18 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
   // Real Stage 2 specialties declared in database
   const stage2Specialties = useMemo(() => {
     if (Array.isArray(stage2.specialties) && stage2.specialties.length > 0) {
-      return stage2.specialties;
+      return stage2.specialties.filter(Boolean);
     }
     if (stage2.specialty && String(stage2.specialty).trim()) {
       return [String(stage2.specialty).trim()];
     }
-    return ["HCC (Risk Adjustment)", "E/M (Evaluation)", "ED (Emergency)", "Surgery"];
+    if (stage2.domain && String(stage2.domain).trim()) {
+      return [String(stage2.domain).trim()];
+    }
+    if (stage2.courseName && String(stage2.courseName).trim()) {
+      return [String(stage2.courseName).trim()];
+    }
+    return [];
   }, [stage2]);
 
   // Certifications, Assessment medal, and Video pitch medal from database
@@ -79,10 +85,11 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
   // Evidence Path: "A" | "B" | "C" | "D" (from database stage6)
   const [evidencePath, setEvidencePath] = useState(() => {
     if (stage6Data.evidencePath) return stage6Data.evidencePath;
+    if (stage6Data.option === "practicode") return "A";
     if (stage6Data.option === "upload") return "B";
     if (stage6Data.option === "declare") return "C";
     if (stage6Data.option === "none") return "D";
-    return "A";
+    return "C";
   });
 
   // Selected Platforms (from database stage6)
@@ -90,47 +97,86 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
     if (Array.isArray(stage6Data.selectedPlatforms) && stage6Data.selectedPlatforms.length > 0) {
       return stage6Data.selectedPlatforms;
     }
-    return ["Practicode", "Codivia", "3M 360 Encompass"];
+    if (stage6Data.primaryPlatform) return [stage6Data.primaryPlatform];
+    return [];
   });
 
   // Primary Platform (from database stage6)
   const [primaryPlatform, setPrimaryPlatform] = useState(() => {
-    return stage6Data.primaryPlatform || "Practicode";
+    return stage6Data.primaryPlatform || "";
   });
+
+  // Check if saved stage6 data was the old hardcoded mock fallback (141 charts or 4 legacy mock specialties)
+  const isLegacyMock = useMemo(() => {
+    if (!Array.isArray(stage6Data.specialtyCharts) || stage6Data.specialtyCharts.length === 0) return false;
+    const legacyNames = ["HCC (Risk Adjustment)", "E/M (Evaluation)", "ED (Emergency)", "Surgery"];
+    const isExactLegacyList = stage6Data.specialtyCharts.length === 4 && stage6Data.specialtyCharts.every(s => legacyNames.includes(s.name));
+    if (isExactLegacyList && stage2Specialties.length > 0 && !stage2Specialties.every(s => legacyNames.includes(s))) {
+      return true;
+    }
+    return false;
+  }, [stage6Data.specialtyCharts, stage2Specialties]);
 
   // Specialty Charts dynamically seeded from database Stage 2 declared specialties or saved Stage 6 records
   const [specialtyCharts, setSpecialtyCharts] = useState(() => {
-    if (Array.isArray(stage6Data.specialtyCharts) && stage6Data.specialtyCharts.length > 0) {
+    if (Array.isArray(stage6Data.specialtyCharts) && stage6Data.specialtyCharts.length > 0 && !isLegacyMock) {
       return stage6Data.specialtyCharts;
     }
-    // Dynamically build from candidate's Stage 2 specialties in database
+    // Dynamically build exclusively from candidate's real Stage 2 specialties in database
     return stage2Specialties.map((spec, idx) => {
       const isHCC = spec.toLowerCase().includes("hcc");
       const isEM = spec.toLowerCase().includes("e/m") || spec.toLowerCase().includes("eval");
       const isED = spec.toLowerCase().includes("ed") || spec.toLowerCase().includes("emerg");
       const isSurg = spec.toLowerCase().includes("surg");
-
-      const count = isHCC ? 65 : isEM ? 48 : isED ? 20 : isSurg ? 8 : (idx === 0 ? 50 : 25);
-      const accuracy = isHCC ? 87 : isEM ? 82 : isED ? 78 : isSurg ? 85 : 82;
-      const time = isHCC ? "5.2 min" : isEM ? "4.1 min" : isED ? "6.8 min" : isSurg ? "8.4 min" : "5.5 min";
-      const recency = idx === 0 ? "2 days ago" : idx === 1 ? "5 days ago" : idx === 2 ? "12 days ago" : "20 days ago";
+      const isHomeHealth = spec.toLowerCase().includes("home");
 
       return {
         id: idx + 1,
         name: spec,
-        icon: isHCC ? "🩺" : isEM ? "📋" : isED ? "🚑" : isSurg ? "🔬" : "📑",
-        count,
-        accuracy,
-        timePerChart: time,
-        lastCoded: recency,
+        icon: isHCC ? "🩺" : isEM ? "📋" : isED ? "🚑" : isSurg ? "🔬" : isHomeHealth ? "🏠" : "📑",
+        count: 0,
+        accuracy: 0,
+        timePerChart: "5.0 min",
+        lastCoded: "Recently",
         active: true,
       };
     });
   });
 
+  // Synchronize specialty rows when candidate stage2 data loads asynchronously
+  useEffect(() => {
+    if (Array.isArray(stage6Data.specialtyCharts) && stage6Data.specialtyCharts.length > 0 && !isLegacyMock) {
+      return;
+    }
+    if (stage2Specialties.length > 0) {
+      setSpecialtyCharts((prev) => {
+        // If already populated with matching names, keep user edits
+        const hasMatching = prev.some((p) => stage2Specialties.includes(p.name));
+        if (hasMatching && prev.length === stage2Specialties.length && !isLegacyMock) return prev;
+        return stage2Specialties.map((spec, idx) => {
+          const isHCC = spec.toLowerCase().includes("hcc");
+          const isEM = spec.toLowerCase().includes("e/m") || spec.toLowerCase().includes("eval");
+          const isED = spec.toLowerCase().includes("ed") || spec.toLowerCase().includes("emerg");
+          const isSurg = spec.toLowerCase().includes("surg");
+          const isHomeHealth = spec.toLowerCase().includes("home");
+          return {
+            id: idx + 1,
+            name: spec,
+            icon: isHCC ? "🩺" : isEM ? "📋" : isED ? "🚑" : isSurg ? "🔬" : isHomeHealth ? "🏠" : "📑",
+            count: 0,
+            accuracy: 0,
+            timePerChart: "5.0 min",
+            lastCoded: "Recently",
+            active: true,
+          };
+        });
+      });
+    }
+  }, [stage2Specialties, stage6Data.specialtyCharts, isLegacyMock]);
+
   // Time Practiced & Charts Per Hour (from database stage6)
-  const [timePracticedHours, setTimePracticedHours] = useState(() => stage6Data.timePracticedHours || 48);
-  const [chartsPerHour, setChartsPerHour] = useState(() => stage6Data.chartsPerHour || 2.9);
+  const [timePracticedHours, setTimePracticedHours] = useState(() => Number(stage6Data.timePracticedHours) || 0);
+  const [chartsPerHour, setChartsPerHour] = useState(() => Number(stage6Data.chartsPerHour) || 0);
 
   // UI Modals & State
   const [showOAuthModal, setShowOAuthModal] = useState(false);
@@ -242,8 +288,8 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
       id: nextId,
       name: `Specialty ${nextId}`,
       icon: "📑",
-      count: 10,
-      accuracy: 85,
+      count: 0,
+      accuracy: 0,
       timePerChart: "5.0 min",
       lastCoded: "Recently",
       active: true,
@@ -1075,22 +1121,37 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
                     </div>
 
                     <div>
-                      <span
-                        style={{
-                          background: row.id <= 2 ? "#DCFCE7" : row.id === 3 ? "#FEF3C7" : "#FFEDD5",
-                          color: row.id <= 2 ? "#166534" : row.id === 3 ? "#B45309" : "#9A3412",
-                          padding: "4px 10px",
-                          borderRadius: 999,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <span>{row.id <= 2 ? "🟢" : row.id === 3 ? "🟡" : "🟠"}</span>
-                        <span>{row.lastCoded}</span>
-                      </span>
+                      {Number(row.count) > 0 ? (
+                        <span
+                          style={{
+                            background: "#DCFCE7",
+                            color: "#166534",
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            fontSize: 11,
+                            fontWeight: 800,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <span>🟢</span>
+                          <span>{row.lastCodedDate ? new Date(row.lastCodedDate).toLocaleDateString() : "Active"}</span>
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            background: "#F1F5F9",
+                            color: "#64748B",
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            fontSize: 11,
+                            fontWeight: 700,
+                          }}
+                        >
+                          —
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1113,7 +1174,7 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
                     {totalCharts} charts
                   </div>
                   <div>
-                    <span style={{ background: "#DCFCE7", color: "#166534", padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 900 }}>
+                    <span style={{ background: totalCharts > 0 ? "#DCFCE7" : "#F1F5F9", color: totalCharts > 0 ? "#166534" : "#64748B", padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 900 }}>
                       {overallAccuracy}%
                     </span>
                   </div>
@@ -1121,9 +1182,15 @@ export default function Stage6LiveCharts({ stage, existingData, candidate, onSav
                     {avgTimePerChart}
                   </div>
                   <div>
-                    <span style={{ background: "#DCFCE7", color: "#166534", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                      <span>🟢</span> Active
-                    </span>
+                    {totalCharts > 0 ? (
+                      <span style={{ background: "#DCFCE7", color: "#166534", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <span>🟢</span> Active
+                      </span>
+                    ) : (
+                      <span style={{ background: "#F1F5F9", color: "#64748B", padding: "4px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>
+                        —
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

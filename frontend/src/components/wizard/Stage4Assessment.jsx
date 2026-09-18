@@ -342,10 +342,13 @@ const PRACTICE_QUESTIONS = [
 export default function Stage4Assessment({ stage, existingData, candidate, onSaved }) {
   const toast = useToast();
 
+  const [localResult, setLocalResult] = useState(null);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
   // Load candidate stage 4 state
-  const stage4 = candidate?.stage4 || existingData || null;
-  const isCompleted = Boolean(stage4 && (stage4.foundationScore !== undefined || stage4.score !== undefined));
-  const candidateScore = stage4?.foundationScore ?? stage4?.score ?? 0;
+  const stage4 = localResult || candidate?.stage4 || existingData || null;
+  const isCompleted = Boolean(stage4 && (stage4.foundationScore !== undefined || stage4.score !== undefined || stage4.passed !== undefined));
+  const candidateScore = Number(stage4?.foundationScore ?? stage4?.score ?? 0);
 
   // Derive candidate profile details strictly from previous stage inputs
   const candidateName = candidate?.stage1?.fullName || "Candidate";
@@ -984,6 +987,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       };
 
       const res = await api.put("/candidate/stage/4", payload);
+      setLocalResult(payload);
+      setShowCompletionModal(true);
       setIsTestRunning(false);
       toast(`Assessment Submitted! Score: ${overallPct}% (${medalTier})`, "✓");
 
@@ -1184,6 +1189,92 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               🔒 LOCKED
             </div>
           </div>
+
+          {/* COMPLETED ASSESSMENT PROMINENT TOP SCORECARD BANNER */}
+          {isCompleted && (
+            <div
+              style={{
+                background: "linear-gradient(135deg, #0F1B3D 0%, #1A2A55 100%)",
+                border: "2px solid var(--gold)",
+                borderRadius: 16,
+                padding: "22px 26px",
+                color: "#FFFFFF",
+                marginBottom: 20,
+                boxShadow: "0 8px 24px rgba(15,27,61,0.18)",
+                display: "grid",
+                gridTemplateColumns: "110px 1fr auto",
+                gap: 22,
+                alignItems: "center",
+              }}
+            >
+              {/* CIRCULAR GAUGE */}
+              <div
+                style={{
+                  width: 105,
+                  height: 105,
+                  borderRadius: "50%",
+                  background: `conic-gradient(var(--gold) 0deg ${Math.round((candidateScore / 100) * 360)}deg, rgba(255,255,255,0.15) ${Math.round((candidateScore / 100) * 360)}deg 360deg)`,
+                  display: "grid",
+                  placeItems: "center",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                }}
+              >
+                <div style={{ width: 82, height: 82, background: "#0F1B3D", borderRadius: "50%", display: "grid", placeItems: "center", textAlign: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--gold)", lineHeight: 1 }}>
+                      {candidateScore}
+                    </div>
+                    <div style={{ fontSize: 9.5, color: "#8A91A3", marginTop: 2 }}>of 100</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* DETAILS */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                  <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
+                    {currentMedal.toUpperCase()} MEDAL
+                  </span>
+                  <span style={{ background: candidateScore >= 70 ? "rgba(46,204,113,0.25)" : "rgba(230,126,34,0.25)", color: candidateScore >= 70 ? "#2ECC71" : "#F39C12", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
+                    {candidateScore >= 70 ? "✓ TALENTERA VERIFIED" : "ATTEMPT RECORDED"}
+                  </span>
+                  {displayPercentile && (
+                    <span style={{ background: "rgba(255,255,255,0.15)", color: "#FFFFFF", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
+                      Top {Math.max(1, 100 - displayPercentile)}% Cohort
+                    </span>
+                  )}
+                </div>
+                <h3 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 4px", color: "#FFFFFF" }}>
+                  Assessment Score Recorded: {candidateScore}/100
+                </h3>
+                <div style={{ fontSize: 12, color: "#FFF6E0", lineHeight: 1.5 }}>
+                  {displaySections.map((s) => `${s.sectionName}: ${s.score}%`).join(" · ")}
+                </div>
+              </div>
+
+              {/* ACTION BUTTON */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
+                  style={{
+                    background: "var(--gold)",
+                    color: "var(--navy)",
+                    padding: "12px 20px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Continue to Stage 05 →
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ACTIVE RETAKE NOTIFICATION BANNER (ON CANDIDATE DETAIL / STAGE 4) */}
           {retakeRequest && retakeRequest.status === "PENDING" && (
@@ -2011,7 +2102,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   width: 140,
                   height: 140,
                   borderRadius: "50%",
-                  background: isCompleted ? `conic-gradient(#8B9199 0deg ${Math.round((candidateScore / 100) * 360)}deg, #F2F3F5 ${Math.round((candidateScore / 100) * 360)}deg 360deg)` : "#F2F3F5",
+                  background: isCompleted ? `conic-gradient(${candidateScore >= 70 ? "#1F7A3C" : "var(--gold)"} 0deg ${Math.round((candidateScore / 100) * 360)}deg, #F2F3F5 ${Math.round((candidateScore / 100) * 360)}deg 360deg)` : "#F2F3F5",
                   display: "grid",
                   placeItems: "center",
                   position: "relative",
@@ -2752,6 +2843,133 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
           candidate={candidate}
           onClose={() => setShowVaultModal(false)}
         />
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* POST-SUBMISSION SCORE REPORT CELEBRATION MODAL                    */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {showCompletionModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(8, 18, 42, 0.88)",
+            backdropFilter: "blur(8px)",
+            zIndex: 10000,
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 20,
+              maxWidth: 580,
+              width: "100%",
+              padding: "32px 36px",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+              textAlign: "center",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                width: 70,
+                height: 70,
+                borderRadius: "50%",
+                background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6",
+                color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00",
+                display: "grid",
+                placeItems: "center",
+                fontSize: 34,
+                margin: "0 auto 16px",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+              }}
+            >
+              {candidateScore >= 85 ? "🥇" : candidateScore >= 70 ? "🥈" : candidateScore >= 50 ? "🥉" : "📋"}
+            </div>
+
+            <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
+              STAGE 04 · PROCTORED ASSESSMENT COMPLETE
+            </div>
+            <h2 style={{ fontSize: 30, fontWeight: 900, color: "var(--navy)", margin: "6px 0 10px" }}>
+              Score: {candidateScore} / 100
+            </h2>
+
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6", color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00", padding: "6px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
+              <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "⚠️ Attempt Saved"}</span>
+              <span>·</span>
+              <span>{currentMedal} Medal Tier</span>
+              {displayPercentile && (
+                <>
+                  <span>·</span>
+                  <span>Top {Math.max(1, 100 - displayPercentile)}% Cohort</span>
+                </>
+              )}
+            </div>
+
+            {/* SECTION SCORES SUMMARY */}
+            <div style={{ background: "#F5F7FB", borderRadius: 14, padding: "16px 20px", marginBottom: 24, textAlign: "left", border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--navy)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
+                Topic Breakdown ({displaySections.length} Sections)
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {displaySections.map((sec, idx) => (
+                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--navy)" }}>
+                    <span style={{ fontWeight: 600 }}>{sec.icon} {sec.sectionName}</span>
+                    <span style={{ fontWeight: 800, color: sec.score >= 70 ? "#1F7A3C" : "#E08E00" }}>
+                      {sec.score}% {sec.score >= 70 ? "✓" : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setShowCompletionModal(false)}
+                style={{
+                  background: "#F2F3F5",
+                  color: "var(--navy)",
+                  border: "none",
+                  padding: "12px 20px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Review Scorecard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompletionModal(false);
+                  if (onSaved) onSaved(null, { advance: true, nextStage: 5 });
+                }}
+                style={{
+                  background: "var(--gold)",
+                  color: "var(--navy)",
+                  border: "none",
+                  padding: "12px 26px",
+                  borderRadius: 10,
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
+                }}
+              >
+                Continue to Stage 05 · Video Pitch →
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

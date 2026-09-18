@@ -165,16 +165,91 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
     return candidateApps.filter((a) => a.feedback || a.coverNote || a.notes || a.status === "rejected" || a.status === "hired");
   }, [candidateApps]);
 
+  // Genuine locations from Stage 1
+  const candidatePreferredLocations = useMemo(() => {
+    if (Array.isArray(stage1.preferredCities) && stage1.preferredCities.length > 0) {
+      return stage1.preferredCities.filter(Boolean);
+    }
+    if (Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0) {
+      return stage1.preferredLocations.filter(Boolean);
+    }
+    if (typeof stage1.preferredLocations === "string" && stage1.preferredLocations.trim()) {
+      return stage1.preferredLocations.split(/[·,]+/).map((s) => s.trim()).filter(Boolean);
+    }
+    if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
+      return stage1.preferredCities.split(/[·,]+/).map((s) => s.trim()).filter(Boolean);
+    }
+    const cleanCity = stage1.city || candidateObj.city || "";
+    if (cleanCity && cleanCity.trim()) {
+      return [cleanCity.trim()];
+    }
+    return [];
+  }, [stage1, candidateObj]);
+
+  const rawSavedWilling = stage8Data.preferences?.willingToWorkIn || stage8Data.willingToWorkIn;
+  const isLegacyLocationString = Boolean(
+    rawSavedWilling &&
+    rawSavedWilling.includes("· Bengaluru · Hyderabad · Chennai") &&
+    !candidatePreferredLocations.includes("Kochi") &&
+    !candidatePreferredLocations.includes("Hyderabad")
+  );
+
+  const initialWillingToWorkIn = useMemo(() => {
+    if (rawSavedWilling && !isLegacyLocationString) return rawSavedWilling;
+    if (candidatePreferredLocations.length > 0) return candidatePreferredLocations.join(" · ");
+    return city ? city : "Open to all locations";
+  }, [rawSavedWilling, isLegacyLocationString, candidatePreferredLocations, city]);
+
+  const initialGlobalMarkets = useMemo(() => {
+    if (stage8Data.preferences?.globalMarkets) return stage8Data.preferences.globalMarkets;
+    if (stage8Data.globalMarkets) return stage8Data.globalMarkets;
+    if (Array.isArray(stage1.globalOpportunities) && stage1.globalOpportunities.length > 0) {
+      return stage1.globalOpportunities.join(" · ");
+    }
+    if (typeof stage1.globalOpportunities === "string" && stage1.globalOpportunities.trim()) {
+      return stage1.globalOpportunities;
+    }
+    return "India (Domestic)";
+  }, [stage8Data, stage1]);
+
+  const initialExpectedSalary = useMemo(() => {
+    if (stage8Data.preferences?.expectedSalary) return stage8Data.preferences.expectedSalary;
+    if (stage8Data.expectedSalary) return stage8Data.expectedSalary;
+    if (stage1.expectedCtc) return stage1.expectedCtc;
+    if (stage1.expectedSalary) return stage1.expectedSalary;
+    return isExperienced ? "As per industry standards" : "₹3.0 – 4.5 LPA (Entry Level)";
+  }, [stage8Data, stage1, isExperienced]);
+
+  const initialShiftPrefs = useMemo(() => {
+    if (stage8Data.preferences?.shiftPreferences) return stage8Data.preferences.shiftPreferences;
+    if (stage8Data.shiftPreferences) return stage8Data.shiftPreferences;
+    if (stage1.shiftPreference) return stage1.shiftPreference;
+    return "Day shift / General";
+  }, [stage8Data, stage1]);
+
+  const initialWorkModes = useMemo(() => {
+    if (stage8Data.preferences?.workModes) return stage8Data.preferences.workModes;
+    if (stage8Data.workModes) return stage8Data.workModes;
+    if (stage1.workMode || stage1.preferredWorkMode) return stage1.workMode || stage1.preferredWorkMode;
+    return stage1.openToRelocate ? "Onsite / Hybrid" : "Onsite";
+  }, [stage8Data, stage1]);
+
+  const initialAvailability = useMemo(() => {
+    if (stage8Data.preferences?.availability) return stage8Data.preferences.availability;
+    if (stage8Data.availability) return stage8Data.availability;
+    if (stage1.availability) return stage1.availability;
+    if (stage1.noticePeriod) return `Notice Period: ${stage1.noticePeriod}`;
+    return "Available immediately";
+  }, [stage8Data, stage1]);
+
   // Match Preferences State
   const [preferences, setPreferences] = useState({
-    willingToWorkIn: Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0
-      ? stage1.preferredLocations.join(" · ")
-      : (city ? `${city} · Bengaluru · Hyderabad · Chennai · Kochi` : "Bengaluru · Hyderabad · Chennai · Coimbatore · Kochi"),
-    globalMarkets: stage8Data.globalMarkets || "India (default) · US (night shift) · UAE / Middle East",
-    expectedSalary: stage8Data.expectedSalary || stage1.expectedCtc || (isExperienced ? "₹5.5 – 8.0 LPA" : "₹3.5 – 5.0 LPA · Open to Trainee ₹2.8 – 3.2 LPA"),
-    shiftPreferences: stage8Data.shiftPreferences || stage1.shiftPreference || "Day shift · US Night shift · Open to rotational",
-    workModes: stage8Data.workModes || "Onsite · Hybrid · Remote (all 3 open)",
-    availability: stage8Data.availability || (stage1.noticePeriod ? `Notice Period: ${stage1.noticePeriod}` : "Available immediately"),
+    willingToWorkIn: initialWillingToWorkIn,
+    globalMarkets: initialGlobalMarkets,
+    expectedSalary: initialExpectedSalary,
+    shiftPreferences: initialShiftPrefs,
+    workModes: initialWorkModes,
+    availability: initialAvailability,
   });
 
   // Modal for editing preferences

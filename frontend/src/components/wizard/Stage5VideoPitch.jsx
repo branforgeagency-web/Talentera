@@ -354,23 +354,15 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     : null;
 
   // Stage 05 requires BOTH genuine Self-Introduction and AI Mock Interview completed
-  const isCompleted = hasRealSelfIntro && hasRealMockInterview;
+  const isCompleted = Boolean(hasRealSelfIntro && hasRealMockInterview && selfIntroScore !== null && mockScore !== null);
 
   // Correct calculated AI score:
-  // - When both completed: combined score (average of Spoken Communication & Technical Mock)
-  // - When only mock completed: mock score
-  // - When only self-intro completed: self-intro score
-  // - When neither completed: null (strictly never fake 78)
-  const candidateScore = (hasRealSelfIntro && hasRealMockInterview && selfIntroScore !== null && mockScore !== null)
+  // - When BOTH completed: combined score (average of Spoken Communication & Technical Mock)
+  // - Otherwise: null (strictly never dummy or partial as final score)
+  const candidateScore = isCompleted
     ? Math.round((selfIntroScore + mockScore) / 2)
-    : (isCompleted && typeof stage5?.overallScore === "number")
+    : (hasRealSelfIntro && hasRealMockInterview && typeof stage5?.overallScore === "number")
     ? stage5.overallScore
-    : (isCompleted && typeof stage5?.score === "number")
-    ? stage5.score
-    : (hasRealMockInterview && mockScore !== null)
-    ? mockScore
-    : (hasRealSelfIntro && selfIntroScore !== null)
-    ? selfIntroScore
     : null;
 
   // Real candidate profile context from previous stages
@@ -1268,8 +1260,8 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             questionId: q.id,
             completed: true,
             videoUrl: url,
-            transcript: mockLiveTranscript || "Spoken answer recorded successfully.",
-            duration: mockRecordingTime || 30,
+            transcript: mockLiveTranscript || "",
+            duration: mockRecordingTime || 0,
           },
         }));
 

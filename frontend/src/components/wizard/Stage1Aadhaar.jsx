@@ -2317,7 +2317,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             <div className="section-header">
               <div className="section-num">4</div>
               <div className="section-title">Location</div>
-              <div className="status-chip pending">PENDING · +3</div>
             </div>
 
             {/* Block A: Permanent */}

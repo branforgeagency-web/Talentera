@@ -2435,7 +2435,7 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
     }
 
     // 3. Generate direct login & retake redirect URL
-    const retakeUrl = `${frontendUrl}/login?redirect=${encodeURIComponent(retakeRedirectPath)}&email=${encodeURIComponent(candidate.email)}`;
+    const retakeUrl = "https://talentera-nine.vercel.app/dashboard";
 
     // 4. Send Approval Email to candidate's logged-in email
     try {

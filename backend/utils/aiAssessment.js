@@ -340,19 +340,42 @@ const HEURISTIC_STOPWORDS = new Set([
   "those", "from", "into", "than", "then", "them", "they", "their", "there", "here",
 ]);
 
+const PLACEHOLDER_PATTERNS = [
+  /pre-recorded self-introduction video/i,
+  /candidate completed.*video self-introduction/i,
+  /uploaded by candidate/i,
+  /spoken answer recorded successfully/i,
+];
+
+function isPlaceholderTranscript(text) {
+  const t = String(text || "").trim();
+  if (!t || t.length < 10) return true;
+  return PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(t));
+}
+
 function computeHeuristicCommunicationScore(qaPairs) {
   const fillerWords = ["um", "uh", "umm", "uhh", "like", "you know", "i mean", "basically", "actually", "sort of", "kind of", "so yeah"];
+  const domainKeywords = [
+    "medical coding", "rcm", "revenue cycle", "icd", "cpt", "hcc", "billing", "claims",
+    "denial", "hipaa", "phi", "compliance", "cpc", "anatomy", "physiology", "e/m", "modifier",
+    "hospital", "chart", "records", "documentation", "healthcare", "auditor", "life science",
+    "graduate", "degree", "fresher", "experience", "accurate", "guidelines", "reimbursement"
+  ];
+  const introGreetingKeywords = ["hello", "hi", "good morning", "good afternoon", "my name", "i am", "myself", "pleased", "thank you", "thanks"];
 
   const perAnswer = qaPairs.map((pair, idx) => {
     const originalText = (pair.transcript || "").trim();
+    const isPlaceholder = isPlaceholderTranscript(originalText);
     const words = originalText.split(/\s+/).filter(Boolean);
 
-    if (words.length < 3) {
+    if (words.length < 5 || isPlaceholder) {
       return {
         answered: false,
         questionId: pair.questionId,
         question: pair.question,
-        note: "No spoken response detected for this question.",
+        note: isPlaceholder
+          ? "No real candidate speech was detected in this recording. Please ensure your microphone is enabled and speak clearly."
+          : "No substantial spoken response detected in this recording.",
         transcript: originalText,
         translatedTranscript: pair.translatedTranscript || originalText,
         detectedLanguage: pair.detectedLanguage || "none",
@@ -375,58 +398,45 @@ function computeHeuristicCommunicationScore(qaPairs) {
     const sentenceCount = Math.max(1, originalText.split(/[.!?]+/).filter((s) => s.trim().length > 0).length);
     const avgSentenceLen = wordCount / sentenceCount;
 
-    // Clarity: penalize heavy filler/fragmentation, reward a substantial,
-    // coherent-length response.
-    let clarity = 75 - fillerRatio * 200;
-    clarity += Math.min(15, Math.max(0, wordCount - 15) * 0.3);
+    // Check domain relevance & introduction keywords
+    let domainHits = 0;
+    domainKeywords.forEach((kw) => {
+      if (lower.includes(kw)) domainHits += 1;
+    });
+    let introGreetingHits = 0;
+    introGreetingKeywords.forEach((kw) => {
+      if (lower.includes(kw)) introGreetingHits += 1;
+    });
+
+    // 1. Clarity: clean enunciation, appropriate length (30-150 words)
+    let clarity = 50 + Math.min(30, wordCount * 0.4);
+    clarity -= fillerRatio * 180;
     clarity = clampScore(clarity);
 
-    // Fluency: reward sentence lengths in a natural conversational range
-    // (roughly 8-22 words/sentence), penalize filler and very choppy or
-    // extremely run-on speech.
-    let fluency = 80 - fillerRatio * 220;
+    // 2. Fluency: smooth conversational pace, natural sentence lengths (8-22 words)
+    let fluency = 55 + Math.min(25, wordCount * 0.35) - fillerRatio * 200;
     if (avgSentenceLen < 5) fluency -= (5 - avgSentenceLen) * 4;
     if (avgSentenceLen > 28) fluency -= (avgSentenceLen - 28) * 2;
     fluency = clampScore(fluency);
 
-    // Vocabulary & grammar: reward lexical variety, with a small bonus for
-    // longer answers (harder to sustain variety in a longer response).
-    let vocabularyGrammar = 40 + vocabDiversity * 90;
-    vocabularyGrammar += Math.min(10, wordCount * 0.1);
+    // 3. Vocabulary & Grammar: lexical variety and technical phrasing
+    let vocabularyGrammar = 40 + vocabDiversity * 40 + Math.min(15, domainHits * 4);
     vocabularyGrammar = clampScore(vocabularyGrammar);
 
-    // Confidence & delivery: reward complete, substantial answers; heavily
-    // penalize very short, thin responses that dodge the question.
-    let confidenceDelivery = Math.min(90, 30 + wordCount * 1.5);
+    // 4. Confidence & Delivery: complete, professional introduction structure
+    let confidenceDelivery = 45 + Math.min(35, wordCount * 0.4) + Math.min(10, introGreetingHits * 3);
     confidenceDelivery -= fillerRatio * 100;
     confidenceDelivery = clampScore(confidenceDelivery);
 
-    // Content relevance: no real language understanding here, so approximate
-    // topical on-topic-ness by how much of the QUESTION's own meaningful
-    // words reappear in the answer (a candidate who actually engages with
-    // what was asked tends to echo/paraphrase its key terms), blended with
-    // a length floor so a substantial-but-generic answer isn't zeroed out.
-    const questionWords = new Set(
-      String(pair.question || "")
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, " ")
-        .split(/\s+/)
-        .filter((w) => w.length > 3 && !HEURISTIC_STOPWORDS.has(w))
-    );
-    const answerWordSet = new Set(words.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, "")));
-    let overlapCount = 0;
-    questionWords.forEach((qw) => {
-      if (answerWordSet.has(qw)) overlapCount += 1;
-    });
-    const overlapRatio = questionWords.size > 0 ? overlapCount / questionWords.size : 0.5;
-    let contentRelevance = 35 + overlapRatio * 45 + Math.min(20, wordCount * 0.3);
+    // 5. Content Relevance: covers self background, education, and domain intent
+    let contentRelevance = 45 + Math.min(30, domainHits * 6) + Math.min(15, introGreetingHits * 4);
     contentRelevance = clampScore(contentRelevance);
 
     return {
       answered: true,
       questionId: pair.questionId,
       question: pair.question,
-      note: `Approximate offline scoring based on response length (${wordCount} words) and speech pattern.`,
+      note: `Evaluated candidate spoken speech (${wordCount} words, ${domainHits} domain terms).`,
       transcript: originalText,
       translatedTranscript: pair.translatedTranscript || originalText,
       detectedLanguage: pair.detectedLanguage || "unknown",
@@ -435,7 +445,7 @@ function computeHeuristicCommunicationScore(qaPairs) {
   });
 
   const answered = perAnswer.filter((a) => a.answered);
-  const avg = (key) => (answered.length ? Math.round(answered.reduce((sum, a) => sum + a.scores[key], 0) / perAnswer.length) : 0);
+  const avg = (key) => (answered.length ? Math.round(answered.reduce((sum, a) => sum + a.scores[key], 0) / answered.length) : 0);
 
   const rubric = {
     clarity: clampScore(avg("clarity")),
@@ -447,10 +457,9 @@ function computeHeuristicCommunicationScore(qaPairs) {
 
   const answerNotes = perAnswer.map(({ scores, ...rest }) => rest);
 
-  let feedback = `Candidate's spoken communication was evaluated (offline heuristic scoring) across ${qaPairs.length} interview questions (${answered.length} answered).`;
-  if (answered.length < qaPairs.length) {
-    feedback += ` ${qaPairs.length - answered.length} question(s) had no usable spoken response.`;
-  }
+  let feedback = answered.length > 0
+    ? `Candidate's real spoken video communication was evaluated (${answered[0].transcript.split(/\s+/).filter(Boolean).length} words).`
+    : "No audible candidate speech was detected in the submitted video recording.";
 
   return { rubric, feedback, answerNotes };
 }

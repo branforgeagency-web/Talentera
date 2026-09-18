@@ -219,10 +219,22 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   const cgpa = stage1.cgpa ? `CGPA ${stage1.cgpa}` : (stage1.percentage ? `${stage1.percentage}%` : "CGPA 44");
 
   // Work Preferences
-  const preferredCities = Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0
-    ? stage1.preferredLocations.join(" · ")
-    : (city ? `${city} · Bengaluru · Hyderabad · Chennai` : "Chennai · Bengaluru · Hyderabad · Chennai");
-  const shiftPreference = stage1.shiftPreference || "Day + US Night";
+  const preferredCities = useMemo(() => {
+    if (Array.isArray(stage1.preferredCities) && stage1.preferredCities.length > 0) {
+      return stage1.preferredCities.filter(Boolean).join(" · ");
+    }
+    if (Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0) {
+      return stage1.preferredLocations.filter(Boolean).join(" · ");
+    }
+    if (typeof stage1.preferredLocations === "string" && stage1.preferredLocations.trim()) {
+      return stage1.preferredLocations.trim();
+    }
+    if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
+      return stage1.preferredCities.trim();
+    }
+    return city ? city : "Open to Relocation";
+  }, [stage1, city]);
+  const shiftPreference = stage1.shiftPreference || "Day shift";
   const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
 
   // Score Calculation
@@ -292,9 +304,16 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   }, [baseTemplateObj, customAccent, customHeaderBg, customFont]);
 
   // Career Objective
-  const defaultObjective = `Talentera-validated fresher with ${totalCharts} verified live charts (${overallAccuracy}% accuracy) across Inpatient Coding — seeking an entry-level healthcare RCM coder role at a growth-stage firm serving US healthcare accounts.`;
+  const defaultObjective = `Qualified fresher with ${totalCharts} verified live charts (${overallAccuracy}% accuracy) across Inpatient Coding — seeking an entry-level healthcare RCM coder role at a growth-stage firm serving US healthcare accounts.`;
   const [careerObjective, setCareerObjective] = useState(() => {
-    return stage7Data.objective || stage7Data.summary || defaultObjective;
+    const raw = stage7Data.objective || stage7Data.summary || defaultObjective;
+    return raw
+      .replace(/Talentera[- ]verified/gi, "Qualified")
+      .replace(/Talentera[- ]validated/gi, "Qualified")
+      .replace(/Talentera skillset/gi, "skillset")
+      .replace(/Talentera/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
   });
   const [isEditingObjective, setIsEditingObjective] = useState(false);
   const [showThemeDrawer, setShowThemeDrawer] = useState(false);
@@ -1672,15 +1691,19 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.count}</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.accuracy}%</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.timePerChart}</td>
-                    <td style={{ padding: "8px 12px", color: "#16A34A", fontWeight: 600 }}>🟢 {sc.lastCoded}</td>
+                    <td style={{ padding: "8px 12px", color: Number(sc.count) > 0 ? "#16A34A" : "#64748B", fontWeight: 600 }}>
+                      {Number(sc.count) > 0 ? (sc.lastCodedDate ? `🟢 ${new Date(sc.lastCodedDate).toLocaleDateString()}` : "🟢 Active") : "—"}
+                    </td>
                   </tr>
                 ))}
                 <tr style={{ background: "#FFFDF5", fontWeight: 800, color: "#0F1B3D" }}>
                   <td style={{ padding: "8px 12px" }}>TOTAL</td>
                   <td style={{ padding: "8px 12px" }}>{totalCharts}</td>
                   <td style={{ padding: "8px 12px" }}>{overallAccuracy}%</td>
-                  <td style={{ padding: "8px 12px" }}>5.8 min avg</td>
-                  <td style={{ padding: "8px 12px", color: "#16A34A" }}>🟢 Active</td>
+                  <td style={{ padding: "8px 12px" }}>{totalCharts > 0 ? "5.0 min avg" : "—"}</td>
+                  <td style={{ padding: "8px 12px", color: totalCharts > 0 ? "#16A34A" : "#64748B" }}>
+                    {totalCharts > 0 ? "🟢 Active" : "—"}
+                  </td>
                 </tr>
               </tbody>
             </table>

@@ -626,11 +626,12 @@ router.put("/stage/:n", async (req, res) => {
     } else if (stageNum === 6) {
       const s6 = candidate.stage6 || {};
       const evidencePath = req.body.evidencePath || s6.evidencePath || (req.body.option === "upload" ? "B" : req.body.option === "declare" ? "C" : req.body.option === "none" ? "D" : "A");
-      const totalCharts = typeof req.body.totalCharts === "number" ? req.body.totalCharts : (typeof s6.totalCharts === "number" ? s6.totalCharts : 141);
-      const overallAccuracy = typeof req.body.overallAccuracy === "number" ? req.body.overallAccuracy : (typeof s6.overallAccuracy === "number" ? s6.overallAccuracy : 83.5);
+      const totalCharts = typeof req.body.totalCharts === "number" ? req.body.totalCharts : (typeof s6.totalCharts === "number" ? s6.totalCharts : 0);
+      const overallAccuracy = typeof req.body.overallAccuracy === "number" ? req.body.overallAccuracy : (typeof s6.overallAccuracy === "number" ? s6.overallAccuracy : 0);
       
       let tier = "Bronze";
-      if (totalCharts >= 500 && overallAccuracy >= 90) tier = "Platinum";
+      if (totalCharts === 0 || evidencePath === "D") tier = "None";
+      else if (totalCharts >= 500 && overallAccuracy >= 90) tier = "Platinum";
       else if (totalCharts >= 201 && overallAccuracy >= 85) tier = "Gold";
       else if (totalCharts >= 51 && overallAccuracy >= 75) tier = "Silver";
       else tier = "Bronze";
@@ -646,17 +647,12 @@ router.put("/stage/:n", async (req, res) => {
         liveChartsAudited: totalCharts,
         accuracyScore: overallAccuracy,
         accuracy: overallAccuracy,
-        timePracticedHours: req.body.timePracticedHours || s6.timePracticedHours || 48,
-        chartsPerHour: req.body.chartsPerHour || s6.chartsPerHour || 2.9,
+        timePracticedHours: typeof req.body.timePracticedHours === "number" ? req.body.timePracticedHours : (typeof s6.timePracticedHours === "number" ? s6.timePracticedHours : 0),
+        chartsPerHour: typeof req.body.chartsPerHour === "number" ? req.body.chartsPerHour : (typeof s6.chartsPerHour === "number" ? s6.chartsPerHour : 0),
         verified: evidencePath === "A" || evidencePath === "B",
         verificationMethod: evidencePath === "A" ? "API-Verified" : evidencePath === "B" ? "Academy-Signed" : evidencePath === "C" ? "Self-Declared" : "No Charts",
-        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || ["Practicode", "Codivia", "3M 360 Encompass"]),
-        specialtyCharts: Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || [
-          { id: 1, name: "HCC (Risk Adjustment)", icon: "stethoscope", count: 65, accuracy: 87, timePerChart: "5.2 min", lastCoded: "2 days ago", active: true },
-          { id: 2, name: "E/M (Evaluation)", icon: "clipboard-list", count: 48, accuracy: 82, timePerChart: "4.1 min", lastCoded: "5 days ago", active: true },
-          { id: 3, name: "ED (Emergency)", icon: "truck-medical", count: 20, accuracy: 78, timePerChart: "6.8 min", lastCoded: "12 days ago", active: true },
-          { id: 4, name: "Surgery", icon: "flask", count: 8, accuracy: 85, timePerChart: "8.4 min", lastCoded: "20 days ago", active: true },
-        ]),
+        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || []),
+        specialtyCharts: Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || []),
         completedAt: candidate.stage6?.completedAt || new Date(),
       };
 
@@ -691,9 +687,12 @@ router.put("/stage/:n", async (req, res) => {
       const versionHistory = Array.isArray(req.body.versionHistory) && req.body.versionHistory.length > 0
         ? req.body.versionHistory
         : (s7.versionHistory || [
-            { version: "v3", timestamp: "16 Sep 2026 · 14:22", title: `Career Objective updated, template = ${template.replace(/_/g, " ")}`, current: true },
-            { version: "v2", timestamp: "12 Sep 2026", title: "Added Live Chart entries (HCC + E/M)", current: false },
-            { version: "v1", timestamp: "04 Sep 2026", title: "Initial resume generated after Stage 06 completion", current: false }
+            {
+              version: "v1",
+              timestamp: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+              title: `Resume generated (${template.replace(/_/g, " ")})`,
+              current: true,
+            }
           ]);
 
       candidate.stage7 = {
@@ -998,8 +997,12 @@ router.post(
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
       const selfIntroScore = evaluation.overallScore;
-      const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
-      const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
+      const hasRealMock = Boolean(
+        candidate.stage5?.mockInterviewCompleted && typeof candidate.stage5?.mockScore === "number"
+      );
+      const mockScore = hasRealMock ? candidate.stage5.mockScore : null;
+      const isBothCompleted = hasRealMock && mockScore !== null;
+      const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null;
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -1007,31 +1010,28 @@ router.post(
         videoUrl: fileUrl,
         selfIntroVideoUrl: fileUrl,
         selfIntroCompleted: true,
-        // evaluation.qaPairs carries the original transcript PLUS
-        // translatedTranscript/detectedLanguage per question (see
-        // evaluateAiVideoAssessment) - persisting that instead of the raw
-        // browser qaPairs is what makes the translation survive page
-        // reloads/report re-views, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
-        // aiScore is now a communication score (clarity/fluency/vocabulary &
-        // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: selfIntroScore,
         selfIntroScore: selfIntroScore,
+        mockInterviewCompleted: hasRealMock,
+        mockScore: mockScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
+        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
-        completedAt: new Date(),
+        completedAt: isBothCompleted ? new Date() : (candidate.stage5?.completedAt || null),
       };
       candidate.videoUrl = fileUrl;
       candidate.markModified("stage5");
 
-      if (!candidate.completedStages.includes(5)) {
-        candidate.completedStages.push(5);
+      if (isBothCompleted) {
+        if (!candidate.completedStages.includes(5)) {
+          candidate.completedStages.push(5);
+        }
       }
 
       await candidate.save();
@@ -1098,8 +1098,12 @@ router.post(
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
       const selfIntroScore = evaluation.overallScore;
-      const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
-      const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
+      const hasRealMock = Boolean(
+        candidate.stage5?.mockInterviewCompleted && typeof candidate.stage5?.mockScore === "number"
+      );
+      const mockScore = hasRealMock ? candidate.stage5.mockScore : null;
+      const isBothCompleted = hasRealMock && mockScore !== null;
+      const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null;
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -1107,28 +1111,27 @@ router.post(
         videoUrl: fileUrl,
         selfIntroVideoUrl: fileUrl,
         selfIntroCompleted: true,
-        // See the matching comment in /ai-video/assess above - this carries
-        // translatedTranscript/detectedLanguage per question so it survives
-        // page reloads, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
-        // aiScore is now a communication score (clarity/fluency/vocabulary &
-        // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: selfIntroScore,
         selfIntroScore: selfIntroScore,
+        mockInterviewCompleted: hasRealMock,
+        mockScore: mockScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
+        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
-        completedAt: new Date(),
+        completedAt: isBothCompleted ? new Date() : (candidate.stage5?.completedAt || null),
       };
       candidate.markModified("stage5");
 
-      if (!candidate.completedStages.includes(5)) {
-        candidate.completedStages.push(5);
+      if (isBothCompleted) {
+        if (!candidate.completedStages.includes(5)) {
+          candidate.completedStages.push(5);
+        }
       }
 
       await candidate.save();
