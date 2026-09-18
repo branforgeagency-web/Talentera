@@ -1168,8 +1168,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         .s7-charts-table-mini tr.total td { background: #FFF6E0; font-weight: 800; border-bottom: none; }
 
         /* DOWNLOAD GRID */
-        .s7-download-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
-        @media (max-width: 700px) { .s7-download-grid { grid-template-columns: 1fr 1fr; } }
+        .s7-download-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        @media (max-width: 600px) { .s7-download-grid { grid-template-columns: 1fr; } }
         .s7-dl-card { background: #FFFFFF; border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 14px; text-align: center; cursor: pointer; transition: .15s; }
         .s7-dl-card:hover { border-color: #F5B41A; background: #FFF6E0; }
         .s7-dl-card.hero { background: #F5B41A; border-color: #C99413; color: #0F1B3D; }
@@ -1888,7 +1888,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             <div className="s7-section-header">
               <div className="s7-section-num">5</div>
               <div className="s7-section-title">Download &amp; Share</div>
-              <div className="s7-no-pts-chip">4 FORMATS AVAILABLE</div>
+              <div className="s7-no-pts-chip">2 FORMATS AVAILABLE</div>
             </div>
 
             <div className="s7-download-grid">
@@ -1901,16 +1901,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 <div className="s7-dl-ico">📝</div>
                 <div className="s7-dl-name">Word (.docx)</div>
                 <div className="s7-dl-sub">Formatted &amp; structured</div>
-              </div>
-              <div onClick={handleDownloadTxt} className="s7-dl-card">
-                <div className="s7-dl-ico">📄</div>
-                <div className="s7-dl-name">ATS Text (.txt)</div>
-                <div className="s7-dl-sub">100% plain text scan</div>
-              </div>
-              <div onClick={handleDownloadPng} className="s7-dl-card">
-                <div className="s7-dl-ico">🖼</div>
-                <div className="s7-dl-name">Print / Snapshot</div>
-                <div className="s7-dl-sub">Direct print dialog</div>
               </div>
             </div>
 
