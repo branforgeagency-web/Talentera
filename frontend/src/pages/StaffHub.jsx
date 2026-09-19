@@ -4999,15 +4999,17 @@ export default function StaffHub() {
             const compPocPct = totalComps > 0 ? Math.round((companiesList.filter((c) => c.pocName || c.contactName || c.stage1b?.pocname).length / Math.max(companiesList.length, 1)) * 100) : 0;
             const compJobsPct = totalComps > 0 ? Math.round((companiesList.filter((c) => (c.jobsCount || 0) > 0).length / Math.max(companiesList.length, 1)) * 100) : 0;
 
-            // Pipeline stages
+            // Pipeline stages - real per-stage counts come from the backend (dashData.pipeline).
+            // If that response hasn't arrived yet, show honest zeros rather than a fabricated
+            // funnel shape guessed from arbitrary percentages of totalCands.
             const pipelineStages = dashData?.pipeline || [
-              { stage: "Basic Info", count: totalCands },
-              { stage: "Training Claim", count: Math.round(totalCands * 0.85) },
-              { stage: "Certification", count: Math.round(totalCands * 0.7) },
-              { stage: "Assessment", count: Math.round(totalCands * 0.55) },
-              { stage: "Video Intro", count: Math.round(totalCands * 0.45) },
-              { stage: "Live Charts", count: Math.round(totalCands * 0.35) },
-              { stage: "Placed", count: verifiedCands, isPlaced: true },
+              { stage: "Basic Info", count: 0 },
+              { stage: "Training Claim", count: 0 },
+              { stage: "Certification", count: 0 },
+              { stage: "Assessment", count: 0 },
+              { stage: "Video Intro", count: 0 },
+              { stage: "Live Charts", count: 0 },
+              { stage: "Placed", count: 0, isPlaced: true },
             ];
 
             // Filtered audit activity entries
@@ -9054,28 +9056,39 @@ export default function StaffHub() {
                 );
               })()}
 
-              {/* TAB 6: LIVE CHARTS */}
+              {/* TAB 6: LIVE CHARTS - real data only, honest zero/empty states, tier shown as the rating */}
               {candidateModalTab === "charts" && (() => {
                 const s6 = selectedCandidate.stage6 || {};
+                const totalCharts = s6.liveChartsAudited ?? s6.totalCharts ?? 0;
+                const accuracy = s6.accuracyScore ?? s6.accuracy ?? s6.overallAccuracy ?? 0;
+                const specialtyNames = Array.isArray(s6.specialtyCharts) && s6.specialtyCharts.length > 0
+                  ? s6.specialtyCharts.map((sp) => sp.name).filter(Boolean).join(", ")
+                  : "";
+                const tier = s6.tier || (totalCharts === 0 ? "None" : null);
+                const tierColors = { Platinum: "#7C3AED", Gold: "#B45309", Silver: "#475569", Bronze: "#92400E", None: "#94A3B8" };
                 return (
                   <div>
                     <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 6: Live Medical Charts Audited</h3>
                     <div className="staff-meta-grid">
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Charts Audited</div>
-                        <div className="staff-meta-value">{s6.liveChartsAudited || s6.chartsAudited || 45} Patient Charts</div>
+                        <div className="staff-meta-value">{totalCharts > 0 ? `${totalCharts} Patient Charts` : "No charts reported yet"}</div>
                       </div>
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Coding Accuracy Score</div>
-                        <div className="staff-meta-value" style={{ color: "#15803D", fontSize: 18 }}>{s6.accuracyScore || 96}%</div>
+                        <div className="staff-meta-value" style={{ color: accuracy > 0 ? "#15803D" : "var(--navy)", fontSize: 18 }}>{accuracy > 0 ? `${accuracy}%` : "—"}</div>
                       </div>
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Chart Specialties</div>
-                        <div className="staff-meta-value">{s6.specialties ? s6.specialties.join(", ") : "Inpatient, Outpatient, ED, Surgery"}</div>
+                        <div className="staff-meta-value">{specialtyNames || "Not reported yet"}</div>
                       </div>
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">Verified Status</div>
-                        <div className="staff-meta-value" style={{ color: "#15803D", fontWeight: 800 }}>✓ Live Charts Passed</div>
+                        <div className="staff-meta-label">Rating (Tier)</div>
+                        <div className="staff-meta-value" style={{ color: tier ? (tierColors[tier] || "var(--navy)") : "var(--navy)", fontWeight: 800 }}>{tier ? `${tier} Tier` : "Not yet rated"}</div>
+                      </div>
+                      <div className="staff-meta-item">
+                        <div className="staff-meta-label">Verification Status</div>
+                        <div className="staff-meta-value" style={{ color: s6.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>{s6.verified ? "✓ Verified" : (s6.verificationMethod || (totalCharts > 0 ? "Self-Reported" : "Not started"))}</div>
                       </div>
                     </div>
                   </div>

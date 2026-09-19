@@ -96,6 +96,11 @@ const CandidateSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Set to false to stop "new job posted" emails (utils/jobAlerts.js). Default: on.
+    jobAlertEmails: {
+      type: Boolean,
+      default: true,
+    },
     notificationsLastReadAt: {
       type: Date,
       default: null,

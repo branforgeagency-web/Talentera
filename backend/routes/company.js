@@ -14,6 +14,7 @@ const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { cashfreeVerificationService } = require("../utils/cashfreeVerificationService");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const logger = require("../utils/logger");
+const { announcePostedJob, announceOnboardingJd } = require("../utils/jobAlerts");
 
 const router = express.Router();
 router.use(requireCompanyAuth); // every route below requires a valid company JWT
@@ -435,6 +436,8 @@ router.post("/publish-jd", async (req, res) => {
     company.jdRejectionReason = "";
     if (!company.completedStages.includes("9")) company.completedStages.push("9");
     await company.save();
+    // Job is now live in candidates' Browse Jobs - email them (once, in the background)
+    announceOnboardingJd(company._id);
   }
 
   res.json({ company });
@@ -583,6 +586,9 @@ router.post("/jobs", async (req, res) => {
       rejectionReason: "",
       fields,
     });
+
+    // Job is now live in candidates' Browse Jobs - email them (once, in the background)
+    announcePostedJob(job);
 
     res.status(201).json({
       message: "Job posted and published live! Candidates can discover and apply now.",

@@ -2,6 +2,8 @@ import React, { useState, useMemo, useRef } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
+import { joinUnique } from "../utils/resumeSubtitle.js";
+import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
 // 7 Verified Resume Templates matching Talentera standards
 export const RESUME_TEMPLATES = [
@@ -303,10 +305,28 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     };
   }, [baseTemplateObj, customAccent, customHeaderBg, customFont]);
 
-  // Career Objective
-  const defaultObjective = `Qualified fresher with ${totalCharts} verified live charts (${overallAccuracy}% accuracy) across Inpatient Coding — seeking an entry-level healthcare RCM coder role at a growth-stage firm serving US healthcare accounts.`;
+  // Career Objective - tailored to experience level + Stage 3 certification status (utils/careerObjective.js)
+  const defaultObjective = useMemo(() => {
+    const { level, years } = getExperienceLevel(stage1, candidateObj);
+    return buildCareerObjectives({
+      level,
+      years,
+      status: getCertStatus(stage3, certificationsList),
+      certCodes: certificationsList.map((c) => c.code || c.name),
+      pursuingCert: stage3.pursuingDetails?.cert || stage3.pursuingCert || "",
+      expectedExam: stage3.pursuingDetails?.expectedDate || "",
+      totalCharts,
+      accuracy: overallAccuracy,
+      specialties: specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName,
+      roleTitle: stage1.currentRole || "",
+      academyName,
+      assessmentScore,
+    }).options[0].text;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore]);
   const [careerObjective, setCareerObjective] = useState(() => {
-    const raw = stage7Data.objective || stage7Data.summary || defaultObjective;
+    const saved = stage7Data.objective || stage7Data.summary;
+    const raw = saved && !isLegacyAutoObjective(saved) ? saved : defaultObjective;
     return raw
       .replace(/Talentera[- ]verified/gi, "Qualified")
       .replace(/Talentera[- ]validated/gi, "Qualified")
@@ -1287,7 +1307,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {fullName.toUpperCase()}
               </h1>
               <div style={{ fontSize: scale.sub, fontWeight: 700, color: activeTmpl.accentColor || "#F5B41A", marginBottom: 6 }}>
-                {currentRoleTitle} · {expLabel} · {locality}
+                {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{ fontSize: scale.base, color: "#E2E8F0", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 {mobile && <span>📞 {mobile}</span>}
@@ -1353,7 +1373,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               {fullName.toUpperCase()}
             </h1>
             <div style={{ fontSize: scale.sub, fontWeight: 700, color: activeTmpl.headerBg || "#0F1B3D", marginBottom: 6 }}>
-              {currentRoleTitle} · {expLabel} · {locality}
+              {joinUnique(currentRoleTitle, expLabel)}
             </div>
             <div style={{
               fontSize: scale.base,
@@ -1407,7 +1427,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {fullName.toUpperCase()}
               </h1>
               <div style={{ fontSize: scale.sub, fontWeight: 600, color: "#475569", marginBottom: 6 }}>
-                {currentRoleTitle} · {expLabel} · {locality}
+                {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{ fontSize: scale.base, color: "#334155", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 {mobile && <span>📞 {mobile}</span>}
@@ -1476,7 +1496,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {fullName.toUpperCase()}
               </h1>
               <div style={{ fontSize: scale.sub, fontWeight: 600, color: "#475569", marginBottom: 8 }}>
-                {currentRoleTitle} · {expLabel} · {locality}
+                {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{
                 fontSize: scale.base,
@@ -1724,7 +1744,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   ▶
                 </div>
                 <div style={{ fontSize: 10.5, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>SELF-INTRODUCTION (60 SEC)</div>
-                <div style={{ fontSize: scale.base + 1.5, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>{videoMedal} · {videoScore}/100</div>
+                <div style={{ fontSize: scale.base + 1.5, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>Video Pitch Score · {videoScore}/100</div>
                 <div style={{ fontSize: scale.base - 0.5, color: "#475569", marginTop: 3 }}>
                   Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Live Verified</span> · Scan to play
                 </div>

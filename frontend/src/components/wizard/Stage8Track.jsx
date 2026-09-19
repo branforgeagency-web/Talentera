@@ -186,31 +186,23 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
     return [];
   }, [stage1, candidateObj]);
 
-  const rawSavedWilling = stage8Data.preferences?.willingToWorkIn || stage8Data.willingToWorkIn;
-  const isLegacyLocationString = Boolean(
-    rawSavedWilling &&
-    rawSavedWilling.includes("· Bengaluru · Hyderabad · Chennai") &&
-    !candidatePreferredLocations.includes("Kochi") &&
-    !candidatePreferredLocations.includes("Hyderabad")
-  );
-
+  // "Willing to work in" always comes from the Stage 1 "Willing to Work In" field
+  // (stage1.preferredCities), not from any older saved Stage 8 value.
   const initialWillingToWorkIn = useMemo(() => {
-    if (rawSavedWilling && !isLegacyLocationString) return rawSavedWilling;
     if (candidatePreferredLocations.length > 0) return candidatePreferredLocations.join(" · ");
     return city ? city : "Open to all locations";
-  }, [rawSavedWilling, isLegacyLocationString, candidatePreferredLocations, city]);
+  }, [candidatePreferredLocations, city]);
 
+  // Global markets come from the Stage 1 "Open to Global Opportunities" field (stage1.globalOpportunities).
   const initialGlobalMarkets = useMemo(() => {
-    if (stage8Data.preferences?.globalMarkets) return stage8Data.preferences.globalMarkets;
-    if (stage8Data.globalMarkets) return stage8Data.globalMarkets;
-    if (Array.isArray(stage1.globalOpportunities) && stage1.globalOpportunities.length > 0) {
-      return stage1.globalOpportunities.join(" · ");
-    }
-    if (typeof stage1.globalOpportunities === "string" && stage1.globalOpportunities.trim()) {
-      return stage1.globalOpportunities;
-    }
-    return "India (Domestic)";
-  }, [stage8Data, stage1]);
+    const raw = Array.isArray(stage1.globalOpportunities)
+      ? stage1.globalOpportunities
+      : typeof stage1.globalOpportunities === "string"
+        ? stage1.globalOpportunities.split(",")
+        : [];
+    const picked = raw.map((x) => String(x).trim()).filter((x) => x && x !== "Not right now");
+    return picked.length > 0 ? ["India (default)", ...picked].join(" · ") : "India (Domestic only)";
+  }, [stage1.globalOpportunities]);
 
   const initialExpectedSalary = useMemo(() => {
     if (stage8Data.preferences?.expectedSalary) return stage8Data.preferences.expectedSalary;
@@ -251,6 +243,16 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
     workModes: initialWorkModes,
     availability: initialAvailability,
   });
+
+  // Keep the location + global markets in sync with Stage 1
+  useEffect(() => {
+    setPreferences((prev) =>
+      prev.willingToWorkIn === initialWillingToWorkIn && prev.globalMarkets === initialGlobalMarkets
+        ? prev
+        : { ...prev, willingToWorkIn: initialWillingToWorkIn, globalMarkets: initialGlobalMarkets }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialWillingToWorkIn, initialGlobalMarkets]);
 
   // Modal for editing preferences
   const [editingPrefKey, setEditingPrefKey] = useState(null);

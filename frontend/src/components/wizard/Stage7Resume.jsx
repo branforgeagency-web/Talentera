@@ -3,6 +3,8 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
+import { joinUnique } from "../../utils/resumeSubtitle.js";
+import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
 // Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
 const QrIconSvg = () => (
@@ -353,33 +355,31 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     toast("Reset theme to default template styles.", "✓");
   }
 
-  // Dynamic AI Suggestions for Career Objective based strictly on real DB data
-  const aiObjectiveOptions = useMemo(() => {
-    const certString = certificationsList.length > 0 ? `${certificationsList.map((c) => c.code || c.name).join(" + ")} certified` : "Medical coding trained";
-    const chartInfo = totalCharts > 0 ? `with ${totalCharts} verified live charts (${overallAccuracy ? Math.round(overallAccuracy) + "% accuracy" : "audited"})` : `with verified foundation in ${trainingSpecialties}`;
-    const targetSpecialty = specialtyCharts.length > 0 ? specialtyCharts.map((s) => s.name).slice(0, 3).join(", ") : domainName;
+  // Career objectives tailored to experience level (fresher / experienced) and Stage 3 certification
+  // status (certified / pursuing / non-certified) - see utils/careerObjective.js
+  const objectiveSet = useMemo(() => {
+    const { level, years } = getExperienceLevel(stage1, candidateObj);
+    return buildCareerObjectives({
+      level,
+      years,
+      status: getCertStatus(stage3, certificationsList),
+      certCodes: certificationsList.map((c) => c.code || c.name),
+      pursuingCert: stage3.pursuingDetails?.cert || stage3.pursuingCert || "",
+      expectedExam: stage3.pursuingDetails?.expectedDate || "",
+      totalCharts,
+      accuracy: overallAccuracy,
+      specialties: specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName,
+      roleTitle: stage1.currentRole || "",
+      academyName,
+      assessmentScore,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore]);
 
-    return [
-      {
-        id: 1,
-        tag: "Data-forward · US-facing tone",
-        label: "🤖 AI Option 1",
-        text: `${certString} ${expLabel.toLowerCase()} ${chartInfo} across ${targetSpecialty} — seeking an entry-level healthcare RCM coder role at a growth-stage firm serving US healthcare accounts.`,
-      },
-      {
-        id: 2,
-        tag: "Passion-first · story tone",
-        label: "🤖 AI Option 2",
-        text: `Passionate ${targetSpecialty} specialist trained at ${academyName}, seeking to apply my ${assessmentMedal !== "Pending" ? assessmentMedal + "-tier" : "specialized"} skillset in a production RCM setting where precision and continuous learning are valued.`,
-      },
-      {
-        id: 3,
-        tag: "Concise · outcome-focused",
-        label: "🤖 AI Option 3",
-        text: `Qualified ${expLabel.toLowerCase()} coder with demonstrated proficiency in ${targetSpecialty} targeting an entry-level position on a US payer account. Available immediately and open to shifts.`,
-      },
-    ];
-  }, [certificationsList, expLabel, totalCharts, overallAccuracy, trainingSpecialties, specialtyCharts, domainName, academyName, assessmentMedal]);
+  const aiObjectiveOptions = useMemo(
+    () => objectiveSet.options.map((o, i) => ({ id: i + 1, tag: o.tag, label: `🤖 AI Option ${i + 1}`, text: o.text })),
+    [objectiveSet]
+  );
 
   const cleanObjectiveString = (str) => {
     if (!str) return "";
@@ -394,8 +394,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   const [selectedAiIdx, setSelectedAiIdx] = useState(0);
   const [careerObjective, setCareerObjective] = useState(() => {
-    if (stage7Data.objective) return cleanObjectiveString(stage7Data.objective);
-    if (stage7Data.summary) return cleanObjectiveString(stage7Data.summary);
+    const saved = stage7Data.objective || stage7Data.summary;
+    if (saved && !isLegacyAutoObjective(saved)) return cleanObjectiveString(saved);
     return aiObjectiveOptions[0].text;
   });
 
@@ -404,12 +404,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   function handleRegenerateAi() {
     setAiGenSeed((prev) => prev + 1);
-    const certString = certificationsList.length > 0 ? `${certificationsList.map((c) => c.code || c.name).join(" + ")} credentialed` : "Medical coding credentialed";
-    const newOptions = [
-      `${certString} professional with ${totalCharts > 0 ? totalCharts + " audited charts" : "verified training from " + academyName} aiming to contribute precision medical coding expertise to high-volume healthcare operations.`,
-      `Detail-oriented ${domainName} specialist with verified training at ${academyName} and ${chartTier}-tier proficiency seeking an impactful role with immediate availability.`,
-      `Results-driven ${expLabel.toLowerCase()} coder with ${videoScore !== null ? videoScore + "% AI communication score" : "strong communication skills"} and ${assessmentScore !== null ? assessmentScore + "% foundation rating" : "solid foundation"} eager to join a clinical documentation team.`,
-    ];
+    const newOptions = objectiveSet.alternates;
     const picked = newOptions[aiGenSeed % newOptions.length];
     setCareerObjective(picked);
     toast("Generated fresh AI objective variation based on your database record!", "✓");
@@ -565,7 +560,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       "==================================================================",
       "",
       `NAME: ${fullName.toUpperCase()}`,
-      `TITLE: ${currentRoleTitle} (${expLabel})`,
+      `TITLE: ${joinUnique(currentRoleTitle, expLabel)}`,
       `CONTACT: Mobile: ${mobile} | Email: ${email} | Location: ${locality}`,
       `LIVE VERIFICATION URL: ${liveResumeUrl}`,
       "",
@@ -578,7 +573,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       "TALENTERA VERIFIED CREDENTIALS & SCORECARD",
       "------------------------------------------------------------------",
       assessmentScore !== null ? `* Foundation Assessment: ${assessmentMedal} Tier (${assessmentScore}/100)` : "* Foundation Assessment: Verified",
-      videoScore !== null ? `* AI Video Pitch: ${videoMedal} Tier (${videoScore}/100) - Clarity: ${clarityScore}, Fluency: ${fluencyScore}, Confidence: ${confidenceScore}` : "* AI Video Pitch: Verified",
+      videoScore !== null ? `* Video Pitch Score: ${videoScore}/100 - Clarity: ${clarityScore}, Fluency: ${fluencyScore}, Confidence: ${confidenceScore}` : "* AI Video Pitch: Verified",
       totalCharts > 0 ? `* Live Chart Production: ${chartTier} Tier (${totalCharts} charts coded, ${overallAccuracy}% accuracy)` : "* Live Chart: Foundation Track",
       "",
       certificationsList.length > 0 ? [
@@ -1756,7 +1751,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-header">
                 <div>
                   <div className="s7-resume-name">{fullName.toUpperCase()}</div>
-                  <div className="s7-resume-title">{currentRoleTitle} · {expLabel}{locality ? ` · ${locality}` : ""}</div>
+                  <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
                   <div className="s7-resume-contact">
                     {mobile && <span>📞 {mobile}</span>}
                     {email && <span>✉ {email}</span>}
@@ -1873,7 +1868,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 <div className="s7-r-block">
                   <div className="s7-qr-mini"><PlayIconSvg /></div>
                   <div className="k">Self-Introduction (60 sec)</div>
-                  <div className="v">{videoScore !== null ? `${videoMedal} · ${videoScore}/100` : "Verified Pitch"}</div>
+                  <div className="v">{videoScore !== null ? `Video Pitch Score · ${videoScore}/100` : "Verified Pitch"}</div>
                   <div className="details">Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · 🟢 Live Verified · Scan to play</div>
                 </div>
                 <div className="s7-r-block">
@@ -2080,7 +2075,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-header">
                 <div>
                   <div className="s7-resume-name">{fullName.toUpperCase()}</div>
-                  <div className="s7-resume-title">{currentRoleTitle} · {expLabel}{locality ? ` · ${locality}` : ""}</div>
+                  <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
                   <div className="s7-resume-contact">
                     {mobile && <span>📞 {mobile}</span>}
                     {email && <span>✉ {email}</span>}

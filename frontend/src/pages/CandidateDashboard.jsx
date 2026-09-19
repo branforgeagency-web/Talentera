@@ -893,7 +893,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">06</div>
-            <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {profile?.stage6?.totalCharts ? 'API-Verified' : 'Pending'}</div></div>
+            <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {profile?.stage6?.totalCharts ? (profile?.stage6?.verificationMethod || (profile?.stage6?.verified ? 'Verified' : 'Self-Reported')) : 'Pending'}</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(6)}>💻 Open Stage 06 Charts</button></div>
         </div>

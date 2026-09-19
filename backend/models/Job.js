@@ -56,6 +56,10 @@ const JobSchema = new mongoose.Schema(
     approvedBy: { type: String, default: "" }, // staff username, for the audit trail
     rejectionReason: { type: String, default: "" },
 
+    // Set once the "new job" email alert has gone out to candidates (utils/jobAlerts.js),
+    // so approving / reopening / re-verifying never sends the same alert twice.
+    candidateAlertSentAt: { type: Date, default: null },
+
     // Same shape as a Stage 9 item set: roletitle, specialty, location,
     // compmin/compmax, etc. Kept as Mixed for the same reason
     // Company.stage9 is - the field list can evolve in

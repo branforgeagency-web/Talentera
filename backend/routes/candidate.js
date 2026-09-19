@@ -18,6 +18,7 @@ const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
 const logger = require("../utils/logger");
+const { computeStage6Result } = require("../utils/stage6Score");
 
 const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
@@ -624,59 +625,116 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage5.isLiveVerified = req.body.isLiveVerified !== undefined ? req.body.isLiveVerified : true;
       candidate.stage5.faceMatched = req.body.faceMatched !== undefined ? req.body.faceMatched : true;
     } else if (stageNum === 6) {
+      // Stage 6 is scored ONLY from what the candidate entered on Stage 6 itself. The server
+      // recomputes totals, tier, score and points from the raw inputs - client-sent aggregates
+      // are never trusted.
       const s6 = candidate.stage6 || {};
-      const evidencePath = req.body.evidencePath || s6.evidencePath || (req.body.option === "upload" ? "B" : req.body.option === "declare" ? "C" : req.body.option === "none" ? "D" : "A");
-      const totalCharts = typeof req.body.totalCharts === "number" ? req.body.totalCharts : (typeof s6.totalCharts === "number" ? s6.totalCharts : 0);
-      const overallAccuracy = typeof req.body.overallAccuracy === "number" ? req.body.overallAccuracy : (typeof s6.overallAccuracy === "number" ? s6.overallAccuracy : 0);
-      
-      let tier = "Bronze";
-      if (totalCharts === 0 || evidencePath === "D") tier = "None";
-      else if (totalCharts >= 500 && overallAccuracy >= 90) tier = "Platinum";
-      else if (totalCharts >= 201 && overallAccuracy >= 85) tier = "Gold";
-      else if (totalCharts >= 51 && overallAccuracy >= 75) tier = "Silver";
-      else tier = "Bronze";
+      const evidencePath = ["A", "B", "C", "D"].includes(req.body.evidencePath)
+        ? req.body.evidencePath
+        : (["A", "B", "C", "D"].includes(s6.evidencePath) ? s6.evidencePath : (req.body.option === "upload" ? "B" : req.body.option === "declare" ? "C" : req.body.option === "none" ? "D" : "A"));
+
+      const rawRows = Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || []);
+      const specialtyCharts = evidencePath === "D" ? [] : rawRows.slice(0, 30).map((r, i) => ({
+        id: r.id || i + 1,
+        name: String(r.name || "").trim().slice(0, 60),
+        icon: r.icon || "📑",
+        count: Math.max(0, Math.floor(Number(r.count) || 0)),
+        accuracy: Math.min(100, Math.max(0, Number(r.accuracy) || 0)),
+        // kept as "N min" text because the resume + academy views render it directly
+        timePerChart: `${Math.max(0, parseFloat(r.timePerChart) || 0)} min`,
+        timePerChartMin: Math.max(0, parseFloat(r.timePerChart) || 0),
+        lastCodedDate: r.lastCodedDate || null,
+        active: true,
+      }));
+
+      const numOr = (v, fallback) => (v !== undefined && v !== null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : fallback);
+      const timePracticedHours = Math.max(0, numOr(req.body.timePracticedHours, numOr(s6.timePracticedHours, 0)));
+      const practicePeriodDays = Math.max(0, Math.floor(numOr(req.body.practicePeriodDays, numOr(s6.practicePeriodDays, 0))));
+
+      // Honest verification status: Talentera has no live OAuth/API integration with
+      // Practicode/Codivia today, so path "A" is self-reported, not API-verified. Path "B"
+      // is only "verified" once a real proof document has actually been uploaded - simply
+      // choosing that path does not itself constitute evidence.
+      const realDocUrl = req.body.docUrl || req.body.proofDocUrl || s6.docUrl || null;
+      let verified = false;
+      let verificationMethod = "No Charts";
+      if (evidencePath === "A") {
+        verificationMethod = "Self-Reported (Platform)";
+        verified = false;
+      } else if (evidencePath === "B") {
+        verified = !!realDocUrl;
+        verificationMethod = realDocUrl ? "Academy-Signed" : "Pending Upload";
+      } else if (evidencePath === "C") {
+        verificationMethod = "Self-Declared";
+        verified = false;
+      }
+
+      const result = computeStage6Result({
+        evidencePath,
+        specialtyCharts,
+        timePracticedHours,
+        practicePeriodDays,
+        hasProofDoc: !!realDocUrl,
+      });
+      const { totalCharts, overallAccuracy, tier } = result;
 
       candidate.stage6 = {
         ...s6,
         ...req.body,
         evidencePath,
-        option: req.body.option || (evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none"),
+        option: evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none",
+        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || []),
+        specialtyCharts,
+        timePracticedHours,
+        practicePeriodDays,
+        chartsPerHour: result.chartsPerHour,
         totalCharts,
         overallAccuracy,
+        avgTimePerChart: result.avgTimePerChart,
         tier,
         liveChartsAudited: totalCharts,
         accuracyScore: overallAccuracy,
         accuracy: overallAccuracy,
-        timePracticedHours: typeof req.body.timePracticedHours === "number" ? req.body.timePracticedHours : (typeof s6.timePracticedHours === "number" ? s6.timePracticedHours : 0),
-        chartsPerHour: typeof req.body.chartsPerHour === "number" ? req.body.chartsPerHour : (typeof s6.chartsPerHour === "number" ? s6.chartsPerHour : 0),
-        verified: evidencePath === "A" || evidencePath === "B",
-        verificationMethod: evidencePath === "A" ? "API-Verified" : evidencePath === "B" ? "Academy-Signed" : evidencePath === "C" ? "Self-Declared" : "No Charts",
-        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || []),
-        specialtyCharts: Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || []),
+        stageScore: result.stageScore,
+        scoreBreakdown: result.breakdown,
+        evidenceMultiplier: result.multiplier,
+        verificationPoints: result.points,
+        needsReview: result.needsReview,
+        verified,
+        verificationMethod,
         completedAt: candidate.stage6?.completedAt || new Date(),
       };
 
+      // Only add a Document Vault entry when a real file was actually uploaded (path B).
+      // Self-reported (A) and self-declared (C) numbers are not documents, and a "no
+      // charts" (D) submission has no proof at all - fabricating a vault record for any
+      // of those would misrepresent evidence that was never provided.
       if (!Array.isArray(candidate.documentVault)) {
         candidate.documentVault = [];
       }
       const docVaultId = "live_chart_proof_stage6";
       const existingDocIdx = candidate.documentVault.findIndex((d) => d.id === docVaultId);
-      const proofVaultItem = {
-        id: docVaultId,
-        title: `Live Chart Proof — ${tier} Tier (${totalCharts} Charts)`,
-        docType: "Live Chart Proof",
-        docUrl: req.body.docUrl || req.body.proofDocUrl || null,
-        docName: req.body.docName || req.body.proofDocName || (evidencePath === "B" ? (req.body.docName || "Academy_Chart_Log.pdf") : "Practicode_Codivia_Confirmation.pdf"),
-        uploadedAt: new Date(),
-        verified: evidencePath === "A" || evidencePath === "B",
-        tier,
-        totalCharts,
-        overallAccuracy,
-      };
-      if (existingDocIdx >= 0) {
-        candidate.documentVault[existingDocIdx] = { ...candidate.documentVault[existingDocIdx], ...proofVaultItem };
-      } else {
-        candidate.documentVault.push(proofVaultItem);
+      if (evidencePath === "B" && realDocUrl) {
+        const proofVaultItem = {
+          id: docVaultId,
+          title: `Live Chart Proof — ${tier} Tier (${totalCharts} Charts)`,
+          docType: "Live Chart Proof",
+          docUrl: realDocUrl,
+          docName: req.body.docName || req.body.proofDocName || "Academy_Chart_Log.pdf",
+          uploadedAt: new Date(),
+          verified: true,
+          tier,
+          totalCharts,
+          overallAccuracy,
+        };
+        if (existingDocIdx >= 0) {
+          candidate.documentVault[existingDocIdx] = { ...candidate.documentVault[existingDocIdx], ...proofVaultItem };
+        } else {
+          candidate.documentVault.push(proofVaultItem);
+        }
+      } else if (existingDocIdx >= 0) {
+        // Evidence path changed away from an uploaded document - remove the stale vault entry.
+        candidate.documentVault.splice(existingDocIdx, 1);
       }
       candidate.markModified("documentVault");
       candidate.markModified("stage6");

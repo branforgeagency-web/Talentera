@@ -138,7 +138,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const candidateExp = s1.experienceLevel || s1.experience || candidate.experience || "Fresher";
 
   // FORM STATES (Initialized from existingData or empty)
-  const [domain, setDomain] = useState(existingData.domain || "Medical Coding");
+  const [domain, setDomain] = useState(existingData.domain || "");
   const [trainingLevel, setTrainingLevel] = useState(existingData.trainingLevel || "");
   const [specialties, setSpecialties] = useState(
     Array.isArray(existingData.specialties) && existingData.specialties.length > 0
@@ -303,7 +303,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       trainingLevel,
       specialties,
       specialty: specialties[0] || "HCC",
-      courseName: `${domain} - ${specialties.join(", ") || trainingLevel}`,
+      courseName: domain ? `${domain} - ${specialties.join(", ") || trainingLevel}` : (specialties.join(", ") || trainingLevel),
       course: domain,
       trainingPath,
       academyName: academyName.trim(),
@@ -362,9 +362,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   async function handleSaveAndContinue() {
     setError("");
     const missing = [];
-    if (!domain) {
-      missing.push("Primary Domain (Section 1.1)");
-    }
     if (specialties.length === 0) {
       missing.push("Primary Specialty (Section 1.3)");
     }
@@ -379,7 +376,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       const msg = `Please fill mandatory fields: ${missing.join(", ")}.`;
       setError(msg);
       toast(msg, "error", { title: "Mandatory Fields Required" });
-      if (!domain || specialties.length === 0) {
+      if (specialties.length === 0) {
         window.scrollTo({ top: 300, behavior: "smooth" });
       } else {
         window.scrollTo({ top: 600, behavior: "smooth" });
@@ -1445,14 +1442,17 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             </div>
 
             <div className="s2-field">
-              <label>1.1 · Primary Domain <span className="req">*</span></label>
-              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the RCM function you trained on.</div>
+              <label>
+                1.1 · Primary Domain
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (Optional)</span>
+              </label>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the RCM function you trained on, if any. Tap again to clear.</div>
               <div className="s2-choice-grid-4">
                 {DOMAINS.map((d) => (
                   <div
                     key={d.id}
                     className={`s2-choice ${domain === d.id ? "selected" : ""}`}
-                    onClick={() => setDomain(d.id)}
+                    onClick={() => setDomain(domain === d.id ? "" : d.id)}
                   >
                     <div className="s2-choice-check">{domain === d.id ? "✓" : ""}</div>
                     <div className="s2-choice-icon">{d.icon}</div>

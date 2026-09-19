@@ -52,16 +52,16 @@ export default function CompanyPortal() {
     fullName: "",
     email: "",
     mobile: "",
-    city: "Bengaluru",
+    city: "",
     experience: "1-3",
-    currentRole: "Medical Coder",
-    academyName: "Apex Medical Coding Institute",
-    certificationName: "CPC Certified (AAPC)",
-    assessmentScore: 90,
-    accuracyScore: 96,
+    currentRole: "",
+    academyName: "",
+    certificationName: "",
+    assessmentScore: "",
+    accuracyScore: "",
     summary: "",
-    noticePeriod: "Immediate Joiner",
-    expectedCtc: "5.0 LPA",
+    noticePeriod: "",
+    expectedCtc: "",
   });
 
   useEffect(() => {
@@ -157,16 +157,16 @@ export default function CompanyPortal() {
         fullName: "",
         email: "",
         mobile: "",
-        city: "Bengaluru",
+        city: "",
         experience: "1-3",
-        currentRole: "Medical Coder",
-        academyName: "Apex Medical Coding Institute",
-        certificationName: "CPC Certified (AAPC)",
-        assessmentScore: 90,
-        accuracyScore: 96,
+        currentRole: "",
+        academyName: "",
+        certificationName: "",
+        assessmentScore: "",
+        accuracyScore: "",
         summary: "",
-        noticePeriod: "Immediate Joiner",
-        expectedCtc: "5.0 LPA",
+        noticePeriod: "",
+        expectedCtc: "",
       });
       fetchCandidates();
     } catch (err) {
@@ -971,7 +971,10 @@ export default function CompanyPortal() {
                   <div>{selectedCandidate.aadhaarVerified ? (<>✓ Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
                   <div>✓ Academy Claim: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : (selectedCandidate.academyName || "Not claimed")}</strong></div>
                   <div>✓ Proctored Test: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.assessmentScore != null ? `${selectedCandidate.assessmentScore}% Score` : "Not yet completed"}</strong></div>
-                  <div>✓ Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited} Charts)` : "Not yet completed"}</strong></div>
+                  <div>✓ Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited ?? 0} Charts)` : "Not yet completed"}</strong></div>
+                  {companyPlan !== "free" && selectedCandidate.chartTier && (
+                    <div>Chart Rating: <strong style={{ color: "#15803D" }}>{selectedCandidate.chartTier} Tier</strong> <span style={{ color: "#94A3B8", fontWeight: 600 }}>({selectedCandidate.chartsVerified ? (selectedCandidate.chartsVerificationMethod || "Verified") : "Self-Reported, pending review"})</span></div>
+                  )}
                 </div>
               </div>
 

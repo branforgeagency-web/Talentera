@@ -675,9 +675,11 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
               {/* Stage 6 Live Chart Practice */}
               <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 16, background: "#F8FAFC" }}>
                 <div style={{ fontWeight: 800, fontSize: 14, color: "#06152A" }}>Live Chart Practice (Stage 6)</div>
-                {stage6.chartsCompleted || stage6.accuracy ? (
+                {(stage6.totalCharts || stage6.liveChartsAudited || stage6.accuracy) ? (
                   <div style={{ fontSize: 12, color: "#334155", marginTop: 4 }}>
-                    Charts Audited: <strong>{stage6.chartsCompleted || 0}</strong> · Average Coding Accuracy: <strong>{stage6.accuracy || "—"}%</strong>
+                    Charts Audited: <strong>{stage6.totalCharts || stage6.liveChartsAudited || 0}</strong> · Average Coding Accuracy: <strong>{stage6.accuracy || stage6.overallAccuracy || 0}%</strong>
+                    {stage6.tier && <> · Rating: <strong>{stage6.tier} Tier</strong></>}
+                    {" · "}<span style={{ color: stage6.verified ? "#15803D" : "#B45309" }}>{stage6.verified ? "Verified" : (stage6.verificationMethod || "Self-Reported")}</span>
                   </div>
                 ) : (
                   <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
