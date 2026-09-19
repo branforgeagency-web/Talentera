@@ -378,6 +378,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const certName = s3.certCode || s3.certName || (Array.isArray(s3.certifications) && s3.certifications.length > 0 ? (s3.certifications[0].code || s3.certifications[0].name) : "") || "CPC";
   const certStatus = s3.certStatus === "verified" ? "verified" : s3.certStatus === "non-certified" ? "non-certified" : "registered";
 
+  // Human-readable certification label that follows the candidate's Stage 3 status
+  const s3Status = String(s3.status || s3.certType || (s3.nonCertified ? "non-certified" : s3.isCertified ? "certified" : "")).toLowerCase();
+  const s3CertCode = s3.certCode && s3.certCode !== "NON-CERT" ? s3.certCode : (s3.pursuingDetails?.cert || "");
+  let certLabel = "Certification pending";
+  if (s3Status === "non-certified") {
+    certLabel = "Non-Certified";
+  } else if (s3Status === "pursuing") {
+    certLabel = `Pursuing ${s3.pursuingDetails?.cert || s3CertCode}`.trim();
+  } else if (s3Status === "certified") {
+    certLabel = `${s3CertCode || certName} Certified${certStatus === "verified" ? " · Verified" : ""}`;
+  }
+
   // Build full 10-question test bank (5 sections x 2 questions)
   const fullTestQuestions = React.useMemo(() => {
     const list = [];
@@ -665,6 +677,15 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   // Modals & Runners
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [isPracticeRunning, setIsPracticeRunning] = useState(false);
+  // Set once the candidate finishes the 3-question warm-up (remembered for this browser session)
+  const practiceStorageKey = `talentera_s4_practice_done_${candidate?._id || candidate?.email || "me"}`;
+  const [practiceCompleted, setPracticeCompleted] = useState(() => {
+    try {
+      return sessionStorage.getItem(practiceStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [showVaultModal, setShowVaultModal] = useState(false);
   const [showRetakeModal, setShowRetakeModal] = useState(false);
   const [retakeReason, setRetakeReason] = useState("");
@@ -1179,7 +1200,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 FROM YOUR STAGE 01-03 · IDENTITY + FOUNDATION + CERTIFICATION
               </div>
               <div style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 800, marginTop: 2 }}>
-                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {s2Domain} · {adaptiveBank.domainName} · {certName} ({certStatus})
+                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {s2Domain} · {adaptiveBank.domainName} · {certLabel}
               </div>
               <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 1, fontStyle: "italic" }}>
                 Talentera has configured your personalized assessment domain based on your previous stage inputs.
@@ -1818,9 +1839,15 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
                 Practice Test — 5 minute warm-up (optional but recommended)
               </div>
-              <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700 }}>
-                NOT TAKEN
-              </div>
+              {practiceCompleted ? (
+                <div style={{ background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span>✓</span> COMPLETED
+                </div>
+              ) : (
+                <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700 }}>
+                  NOT TAKEN
+                </div>
+              )}
             </div>
 
             <div style={{ background: "linear-gradient(135deg, #EEF2FF, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 20px", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 16, alignItems: "center" }}>
@@ -1852,7 +1879,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   cursor: "pointer",
                 }}
               >
-                Start Practice →
+                {practiceCompleted ? "Practice Again →" : "Start Practice →"}
               </button>
             </div>
           </div>
@@ -2282,7 +2309,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   {isCompleted ? "🟢 Proctored" : "⚪ Unassessed"}
                 </span>
                 <span style={{ background: "rgba(245,180,26,0.2)", color: "var(--gold)", padding: "4px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>
-                  {certName} + {adaptiveBank.domainName}
+                  {certLabel} + {adaptiveBank.domainName}
                 </span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 10, fontFamily: "monospace", fontSize: 11, color: "rgba(255,255,255,0.85)" }}>
@@ -2768,6 +2795,12 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   type="button"
                   onClick={() => {
                     setIsPracticeRunning(false);
+                    setPracticeCompleted(true);
+                    try {
+                      sessionStorage.setItem(practiceStorageKey, "1");
+                    } catch {
+                      /* storage unavailable - completed state still shows for this visit */
+                    }
                     toast("Practice session finished! Ready for the real test.", "✓");
                   }}
                   style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}

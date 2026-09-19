@@ -325,7 +325,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       lastCeuYear,
       lastCeu: formattedLastCeu,
       certifications: finalStack,
-      targetMarkets: selectedMarkets,
+      targetMarkets: isNonCert ? [] : selectedMarkets,
       pursuingDetails: isPursuing
         ? {
             cert: pursuingCert,
@@ -2221,7 +2221,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             </div>
           )}
 
-          {/* SECTION 5 · GLOBAL MARKETS */}
+          {/* SECTION 5 · GLOBAL MARKETS (hidden for non-certified candidates) */}
+          {status !== "non-certified" && (
           <div className="s3-section">
             <div className="s3-section-header">
               <div className="s3-section-num">5</div>
@@ -2254,6 +2255,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
             </div>
           </div>
+          )}
 
           {/* STICKY BOTTOM BAR */}
           <div className="s3-sticky-bar">

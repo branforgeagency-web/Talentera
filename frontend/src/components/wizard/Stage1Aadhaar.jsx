@@ -2381,6 +2381,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div>Same as permanent address</div>
                 </div>
               </div>
+              {!isSameAddress && (
               <div className="row-3">
                 <div className="field">
                   <select
@@ -2423,6 +2424,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="helper">Locality (optional)</div>
                 </div>
               </div>
+              )}
             </div>
 
             {/* Block C: Preferences */}

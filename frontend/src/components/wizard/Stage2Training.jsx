@@ -67,6 +67,20 @@ const ALL_SPECIALTIES = [
   "Outpatient Coding",
 ];
 
+// Foundation topics for freshers (shown first in the Readiness Check)
+const FRESHER_TOPICS = [
+  "Anatomy",
+  "Physiology",
+  "Medical Terminology",
+  "Pharmacology",
+  "Pathology Basics",
+  "ICD-10-CM Basics",
+  "CPT / HCPCS Basics",
+  "Medical Billing Basics",
+  "Healthcare Insurance Basics",
+  "Coding Guidelines",
+];
+
 const TRAINING_PATHS = [
   {
     id: "academy",
@@ -139,7 +153,12 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   // FORM STATES (Initialized from existingData or empty)
   const [domain, setDomain] = useState(existingData.domain || "");
-  const [trainingLevel, setTrainingLevel] = useState(existingData.trainingLevel || "");
+  // A saved level that isn't one of the preset pills was typed in under "Others"
+  const savedLevelIsCustom = Boolean(existingData.trainingLevel) && !TRAINING_LEVELS.includes(existingData.trainingLevel);
+  const [trainingLevel, setTrainingLevel] = useState(savedLevelIsCustom ? "" : existingData.trainingLevel || "");
+  const [levelOtherSelected, setLevelOtherSelected] = useState(savedLevelIsCustom);
+  const [levelOtherText, setLevelOtherText] = useState(savedLevelIsCustom ? existingData.trainingLevel : "");
+  const effectiveTrainingLevel = levelOtherSelected ? levelOtherText.trim() : trainingLevel;
   const [specialties, setSpecialties] = useState(
     Array.isArray(existingData.specialties) && existingData.specialties.length > 0
       ? existingData.specialties
@@ -147,6 +166,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       ? [existingData.specialty]
       : []
   );
+  // "Others" lets a candidate add their own specialty (e.g. Billing, AR Calling) as a tag
+  const [specialtyOtherOpen, setSpecialtyOtherOpen] = useState(false);
+  const [specialtyOtherText, setSpecialtyOtherText] = useState("");
 
   const [trainingPath, setTrainingPath] = useState(existingData.trainingPath || "academy");
 
@@ -267,6 +289,46 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     }
   }
 
+  function handleAddCustomSpecialty() {
+    const name = specialtyOtherText.replace(/\s+/g, " ").trim();
+    if (name.length < 2) {
+      toast("Type your specialty (at least 2 characters).", "!");
+      return;
+    }
+    if (specialties.some((s) => s.toLowerCase() === name.toLowerCase())) {
+      toast("That specialty is already added.", "!");
+      return;
+    }
+    if (specialties.length >= 3) {
+      toast("You can select up to 3 specialties for your primary focus.", "!");
+      return;
+    }
+    setSpecialties([...specialties, name]);
+    setSpecialtyOtherText("");
+    setSpecialtyOtherOpen(false);
+  }
+
+  // Readiness Check pills: freshers see foundation topics (Anatomy, Physiology…)
+  // first, then the specialties they picked in 1.3 (relevant match), then the
+  // usual specialty list. Anything already selected always stays visible.
+  const isFresherCandidate = /fresher|student|^0\b|no experience|trainee/i.test(String(candidateExp || ""));
+  const readinessOptions = (() => {
+    const seen = new Set();
+    const out = [];
+    const add = (name) => {
+      const key = String(name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(String(name).trim());
+    };
+    if (isFresherCandidate) FRESHER_TOPICS.forEach(add);
+    specialties.forEach(add);
+    ALL_SPECIALTIES.slice(0, 9).forEach(add);
+    confidentSpecs.forEach(add);
+    learningSpecs.forEach(add);
+    return out;
+  })();
+
   function handleToggleConfident(spec) {
     if (confidentSpecs.includes(spec)) {
       setConfidentSpecs(confidentSpecs.filter((s) => s !== spec));
@@ -300,10 +362,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     return {
       isDraft,
       domain,
-      trainingLevel,
+      trainingLevel: effectiveTrainingLevel,
       specialties,
       specialty: specialties[0] || "HCC",
-      courseName: domain ? `${domain} - ${specialties.join(", ") || trainingLevel}` : (specialties.join(", ") || trainingLevel),
+      courseName: domain ? `${domain} - ${specialties.join(", ") || effectiveTrainingLevel}` : (specialties.join(", ") || effectiveTrainingLevel),
       course: domain,
       trainingPath,
       academyName: academyName.trim(),
@@ -362,6 +424,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   async function handleSaveAndContinue() {
     setError("");
     const missing = [];
+    if (levelOtherSelected && !levelOtherText.trim()) {
+      missing.push("Training Level - type your level under Others, or unselect it (Section 1.2)");
+    }
     if (specialties.length === 0) {
       missing.push("Primary Specialty (Section 1.3)");
     }
@@ -1473,13 +1538,37 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 {TRAINING_LEVELS.map((lvl) => (
                   <span
                     key={lvl}
-                    className={`s2-tag-pill ${trainingLevel === lvl ? "selected" : ""}`}
-                    onClick={() => setTrainingLevel(trainingLevel === lvl ? "" : lvl)}
+                    className={`s2-tag-pill ${!levelOtherSelected && trainingLevel === lvl ? "selected" : ""}`}
+                    onClick={() => {
+                      setLevelOtherSelected(false);
+                      setTrainingLevel(!levelOtherSelected && trainingLevel === lvl ? "" : lvl);
+                    }}
                   >
                     {lvl}
                   </span>
                 ))}
+                <span
+                  className={`s2-tag-pill ${levelOtherSelected ? "selected" : ""}`}
+                  onClick={() => {
+                    setTrainingLevel("");
+                    setLevelOtherSelected(!levelOtherSelected);
+                  }}
+                >
+                  Others
+                </span>
               </div>
+              {levelOtherSelected && (
+                <div style={{ marginTop: 10, maxWidth: 420 }}>
+                  <input
+                    type="text"
+                    value={levelOtherText}
+                    maxLength={60}
+                    autoFocus
+                    onChange={(e) => setLevelOtherText(e.target.value)}
+                    placeholder="Type your training level (e.g. Certificate in Medical Billing)"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="s2-field">
@@ -1507,6 +1596,36 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     {spec}
                   </span>
                 ))}
+                <span
+                  className={`s2-tag-pill ${specialtyOtherOpen ? "selected" : ""}`}
+                  onClick={() => setSpecialtyOtherOpen(!specialtyOtherOpen)}
+                >
+                  Others
+                </span>
+              </div>
+              {specialtyOtherOpen && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, maxWidth: 460, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={specialtyOtherText}
+                    maxLength={40}
+                    autoFocus
+                    onChange={(e) => setSpecialtyOtherText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomSpecialty();
+                      }
+                    }}
+                    placeholder="Type your specialty (e.g. Medical Billing, AR Calling)"
+                  />
+                  <button type="button" className="s2-action-btn" onClick={handleAddCustomSpecialty} style={{ whiteSpace: "nowrap", padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, cursor: "pointer" }}>
+                    Add
+                  </button>
+                </div>
+              )}
+              <div className="s2-helper" style={{ marginTop: 6 }}>
+                Not in the list — e.g. Billing, AR Calling, Denial Management? Choose Others and add your own.
               </div>
               <div className="s2-helper" style={{ marginTop: 6 }}>
                 Available for Coding: E/M · HCC · ED · Surgery · IP-DRG · Home Health · ObGyn · Radiology · Pediatrics · Anesthesia · Pathology
@@ -1896,9 +2015,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
             <div className="s2-field">
               <label>I'm confident in <span className="req">*</span></label>
-              <div className="s2-helper" style={{ marginBottom: 6 }}>Companies match you to these specialties first.</div>
+              <div className="s2-helper" style={{ marginBottom: 6 }}>Companies match you to these specialties first.{isFresherCandidate ? " As a fresher, pick the foundation topics you know well." : ""}</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {ALL_SPECIALTIES.slice(0, 9).map((spec) => (
+                {readinessOptions.map((spec) => (
                   <span
                     key={spec}
                     className={`s2-tag-pill ${confidentSpecs.includes(spec) ? "selected" : ""}`}
@@ -1914,7 +2033,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <label>I'd like more practice in</label>
               <div className="s2-helper" style={{ marginBottom: 6 }}>Our Learning Hub will recommend content on these.</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {ALL_SPECIALTIES.slice(0, 8).map((spec) => (
+                {readinessOptions.map((spec) => (
                   <span
                     key={spec}
                     className={`s2-tag-pill ${learningSpecs.includes(spec) ? "selected" : ""}`}

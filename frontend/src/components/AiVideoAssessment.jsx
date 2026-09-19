@@ -578,7 +578,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }
 
-    function initAudioMeter(mediaStream) {
+  function initAudioMeter(mediaStream) {
     if (!mediaStream) return;
     try {
       const audioTracks = mediaStream.getAudioTracks();
@@ -587,35 +587,51 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
 
+      // Tear down any previous meter (loop + context) so an old loop can't
+      // keep overwriting the level with zeros from a closed context.
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
       if (audioCtxRef.current) {
-        try { audioCtxRef.current.close(); } catch(e) {}
+        try { audioCtxRef.current.close(); } catch (e) { /* ignore */ }
       }
 
       const ctx = new AudioCtx();
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
       audioCtxRef.current = ctx;
-      const src = ctx.createMediaStreamSource(mediaStream);
+      // Browsers may start the context suspended (autoplay policy) -> no data.
+      const resumeCtx = () => {
+        if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      };
+      resumeCtx();
+      ["click", "keydown", "touchstart", "pointerdown"].forEach((evt) =>
+        window.addEventListener(evt, resumeCtx, { once: true, passive: true })
+      );
+
+      // Analyse a audio-only clone so the meter isn't affected by the video track
+      const src = ctx.createMediaStreamSource(new MediaStream(audioTracks));
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.4;
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.3;
       src.connect(analyser);
       analyserRef.current = analyser;
 
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const dataArray = new Uint8Array(analyser.fftSize);
       const checkAudio = () => {
-        if (!analyserRef.current) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
+        if (analyserRef.current !== analyser) return; // superseded or stopped
+        resumeCtx();
+        analyser.getByteTimeDomainData(dataArray);
+        // RMS of the waveform (128 = silence)
+        let sumSq = 0;
         for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i];
+          const v = (dataArray[i] - 128) / 128;
+          sumSq += v * v;
         }
-        const avg = sum / dataArray.length;
-        // Sensitivity curve: standard speaking decibels mapped smoothly to 0-100%
-        const level = Math.min(100, Math.round((avg / 60) * 100));
+        const rms = Math.sqrt(sumSq / dataArray.length);
+        // Normal speech RMS is ~0.02-0.2 -> map to 0-100 with good sensitivity
+        const level = Math.min(100, Math.round(rms * 500));
         setAudioLevel(level);
-        if (avg > 4) {
+        if (level > 4) {
           lastSpeechTimeRef.current = Date.now();
         }
         animFrameRef.current = requestAnimationFrame(checkAudio);
