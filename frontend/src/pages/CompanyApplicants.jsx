@@ -29,12 +29,12 @@ function getAssetUrl(url) {
 export default function CompanyApplicants() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { company, logout } = useCompanyAuth();
+  const { company, logout, refreshCompany } = useCompanyAuth();
 
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [isKycVerified, setIsKycVerified] = useState(false);
+  const [isKycVerified, setIsKycVerified] = useState(() => company?.kycStatus === "verified" || Boolean(company?.kycVerifiedAt));
   const [canViewScoresAndCerts, setCanViewScoresAndCerts] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
   const [jobFilter, setJobFilter] = useState("all");
@@ -43,7 +43,20 @@ export default function CompanyApplicants() {
 
   useEffect(() => {
     fetchApplications();
+    if (refreshCompany) {
+      refreshCompany().then((c) => {
+        if (c && (c.kycStatus === "verified" || c.kycVerifiedAt)) {
+          setIsKycVerified(true);
+        }
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    if (company?.kycStatus === "verified" || company?.kycVerifiedAt) {
+      setIsKycVerified(true);
+    }
+  }, [company]);
 
   async function fetchApplications() {
     setLoading(true);
@@ -51,7 +64,8 @@ export default function CompanyApplicants() {
     try {
       const res = await companyApi.get("/company/applications");
       setApplications(res.data?.applications || []);
-      setIsKycVerified(Boolean(res.data?.isKycVerified));
+      const verified = Boolean(res.data?.isKycVerified || company?.kycStatus === "verified" || company?.kycVerifiedAt);
+      setIsKycVerified(verified);
       setCanViewScoresAndCerts(res.data?.canViewScoresAndCerts ?? (company?.plan !== "free"));
     } catch (err) {
       console.error(err);
@@ -380,7 +394,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </div>
           )}
 
-          {!application.isKycVerified && (
+          {!isKycVerified && !application.isKycVerified && (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, marginBottom: 20 }}>
               🔒 Contact details are masked until your company completes Account &amp; KYC verification.
             </div>

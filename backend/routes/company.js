@@ -345,6 +345,21 @@ router.post("/verify-kyc", async (req, res) => {
     logger.warn(`Cashfree auto-verification note: ${cfErr.message}`);
   }
 
+  // If company is already KYC-verified, never revert to under_review automatically
+  if (company.kycStatus === "verified" || company.kycVerifiedAt) {
+    if (company.kycStatus !== "verified") {
+      company.kycStatus = "verified";
+      company.isVerified = true;
+      await company.save();
+    }
+    return res.json({
+      message: "Account & KYC details are already verified by Staff Auditor ✓",
+      company,
+      panVerification: company.docVerifications?.panVerification || null,
+      gstinVerification: company.docVerifications?.gstinVerification || null,
+    });
+  }
+
   company.kycStatus = "under_review";
   company.kycSubmittedAt = new Date();
   company.kycRejectionReason = "";
@@ -401,7 +416,7 @@ router.post("/publish-jd", async (req, res) => {
     return res.status(400).json({ message: "Some required JD fields are missing.", missing });
   }
 
-  const isVerified = company.kycStatus === "verified";
+  const isVerified = company.kycStatus === "verified" || Boolean(company.kycVerifiedAt);
   if (!isVerified) {
     return res.status(403).json({
       message: "Account & KYC approval required. Only KYC-approved companies can post jobs on Talentera.",
@@ -435,7 +450,7 @@ router.get("/jobs", async (req, res) => {
     const company = await Company.findById(req.companyId);
     if (!company) return res.status(404).json({ message: "Not found." });
 
-    const isCompanyVerified = company.kycStatus === "verified";
+    const isCompanyVerified = company.kycStatus === "verified" || Boolean(company.kycVerifiedAt);
 
     // Verified companies do not need employee approval — their jobs are auto-approved immediately
     if (isCompanyVerified) {
@@ -528,7 +543,7 @@ router.post("/jobs", async (req, res) => {
     const company = await Company.findById(req.companyId);
     if (!company) return res.status(404).json({ message: "Not found." });
 
-    const isVerified = company.kycStatus === "verified";
+    const isVerified = company.kycStatus === "verified" || Boolean(company.kycVerifiedAt);
     if (!isVerified) {
       return res.status(403).json({
         message: "Account & KYC approval required. Only KYC-approved companies can post jobs on Talentera.",
@@ -630,7 +645,7 @@ router.put("/jobs/:id", async (req, res) => {
 // pagination on list endpoints."
 router.get("/applications", async (req, res) => {
   const company = await Company.findById(req.companyId);
-  const isKycVerified = Boolean(company && company.kycStatus === "verified");
+  const isKycVerified = Boolean(company && (company.kycStatus === "verified" || company.kycVerifiedAt));
   const plan = getPlan(company?.plan);
 
   const hasPaging = req.query.page !== undefined || req.query.limit !== undefined;
