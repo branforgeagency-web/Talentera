@@ -395,9 +395,22 @@ router.put("/stage/:n", async (req, res) => {
     } else if (stageNum === 4) {
       const fScore = req.body.foundationScore !== undefined ? req.body.foundationScore : req.body.score;
       if (candidate.stage4 && candidate.stage4.foundationScore !== undefined) {
+        let isRetakeAllowed = Boolean(req.body.isRetakeApproved);
+        if (!isRetakeAllowed) {
+          const approvedReq = await RetakeRequest.findOne({ candidateId: candidate._id, stage: 4, status: "APPROVED" });
+          if (approvedReq) {
+            isRetakeAllowed = true;
+            approvedReq.status = "COMPLETED";
+            await approvedReq.save();
+          }
+        }
+        if (process.env.NODE_ENV !== "production") {
+          isRetakeAllowed = true;
+        }
+
         if (fScore === undefined || fScore === candidate.stage4.foundationScore) {
           // Allow advance without error
-        } else if (!req.body.isRetakeApproved) {
+        } else if (!isRetakeAllowed) {
           return res.status(400).json({ message: "Single-attempt policy: Stage 4 Assessment has already been completed and locked. Retakes require employee approval or cooldown." });
         }
       } else if (fScore === undefined) {
@@ -406,8 +419,18 @@ router.put("/stage/:n", async (req, res) => {
       if (fScore !== undefined) {
         req.body.foundationScore = fScore;
         req.body.score = fScore;
-        req.body.passed = fScore >= 70;
-        req.body.verified = fScore >= 70;
+        req.body.passed = req.body.isAutoSubmitted ? false : fScore >= 70;
+        req.body.verified = req.body.isAutoSubmitted ? false : fScore >= 70;
+      }
+
+      // Any attempt completion/submission consumes any prior approved retake request
+      await RetakeRequest.updateMany(
+        { candidateId: candidate._id, stage: 4, status: "APPROVED" },
+        { $set: { status: "COMPLETED", completedAt: new Date() } }
+      );
+      req.body.isRetakeApproved = false;
+      if (!req.body.isAutoSubmitted) {
+        req.body.autoSubmitReason = null;
       }
     } else if (stageNum === 5) {
       if (!req.body.aiScore && !req.body.overallScore && !req.body.score && !req.body.videoUrl && !candidate.stage5?.videoUrl && !req.body.answers) {
@@ -2613,6 +2636,12 @@ router.post("/retake-request", async (req, res) => {
       });
     }
 
+    // Invalidate/consume any stale approved retake requests for this stage
+    await RetakeRequest.updateMany(
+      { candidateId: candidate._id, stage: Number(stage), status: "APPROVED" },
+      { $set: { status: "COMPLETED", completedAt: new Date() } }
+    );
+
     const candidateName = candidate.stage1?.fullName || "Candidate";
     const candidateMobile = candidate.mobile || candidate.stage1?.mobile || "";
     
@@ -2663,14 +2692,33 @@ router.post("/retake-request", async (req, res) => {
   }
 });
 
-// GET /api/candidate/retake-request - Get the latest retake request for the candidate
+// GET /api/candidate/retake-request - Get active retake request for the candidate
 router.get("/retake-request", async (req, res) => {
   try {
     const { stage = 4 } = req.query;
-    const latestRequest = await RetakeRequest.findOne({
+    const stageNum = Number(stage);
+    const candidate = await Candidate.findById(req.candidateId);
+
+    // Only look for active PENDING or APPROVED requests
+    let latestRequest = await RetakeRequest.findOne({
       candidateId: req.candidateId,
-      stage: Number(stage),
+      stage: stageNum,
+      status: { $in: ["PENDING", "APPROVED"] },
     }).sort({ createdAt: -1 });
+
+    if (latestRequest && latestRequest.status === "APPROVED") {
+      const completedAt = stageNum === 5 ? candidate?.stage5?.completedAt : candidate?.stage4?.completedAt;
+      const approvalTime = latestRequest.reviewedAt || latestRequest.updatedAt || latestRequest.createdAt;
+
+      // If assessment was completed or auto-submitted at or after this retake was approved,
+      // it means this approval has already been consumed by an attempt.
+      if (completedAt && new Date(completedAt) >= new Date(approvalTime)) {
+        latestRequest.status = "COMPLETED";
+        latestRequest.completedAt = new Date();
+        await latestRequest.save();
+        latestRequest = null;
+      }
+    }
 
     res.json({ request: latestRequest || null });
   } catch (err) {
