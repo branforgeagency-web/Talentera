@@ -244,12 +244,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [hasStartedAnswering, setHasStartedAnswering] = useState(false);
   const [autoAdvanceNotice, setAutoAdvanceNotice] = useState("");
 
-  // Live Continuous Speech Recognition Engine Refs
-  const recognitionRef = useRef(null);
-  const recognitionActiveRef = useRef(false);
-  const spokenTranscriptRef = useRef("");
-  const silenceTimerRef = useRef(null);
-
   const avatarState = isSpeaking
     ? "speaking"
     : isListening
@@ -309,7 +303,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   useEffect(() => {
     return () => {
       clearInactivityTimer();
-      stopSpeechRecognition();
       try {
         vapiRef.current?.stop();
       } catch (e) {}
@@ -357,87 +350,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       candidateVideoRef.current.srcObject = null;
     }
     setCameraReady(false);
-  }
-
-  function startSpeechRecognition() {
-    stopSpeechRecognition();
-    const SpeechRecognition = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
-    if (!SpeechRecognition) return;
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-      recognition.maxAlternatives = 1;
-
-      recognitionActiveRef.current = true;
-      spokenTranscriptRef.current = "";
-
-      recognition.onresult = (e) => {
-        let interim = "";
-        let finalStr = "";
-        for (let i = 0; i < e.results.length; i++) {
-          if (e.results[i].isFinal) {
-            finalStr += e.results[i][0].transcript + " ";
-          } else {
-            interim += e.results[i][0].transcript + " ";
-          }
-        }
-        const combined = (finalStr + " " + interim).trim();
-        if (combined) {
-          markAnswerStarted();
-          spokenTranscriptRef.current = combined;
-          liveInterimRef.current = combined;
-          setLiveInterim(combined);
-          lastSpeechAtRef.current = Date.now();
-
-          // Reset silence timer on every spoken word; after 3.5 seconds of silence, auto-advance with answer
-          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-          silenceTimerRef.current = setTimeout(() => {
-            if (spokenTranscriptRef.current && spokenTranscriptRef.current.trim().length > 2 && !loadingTurn) {
-              const answerToSend = spokenTranscriptRef.current.trim();
-              stopSpeechRecognition();
-              advanceViaRest(answerToSend);
-            }
-          }, 3500);
-        }
-      };
-
-      recognition.onerror = (err) => {
-        console.debug("Speech recognition event:", err?.error);
-      };
-
-      recognition.onend = () => {
-        if (recognitionActiveRef.current) {
-          try {
-            recognition.start();
-          } catch (e) {}
-        }
-      };
-
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch (e) {
-      console.warn("SpeechRecognition start error:", e);
-    }
-  }
-
-  function stopSpeechRecognition() {
-    recognitionActiveRef.current = false;
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.onresult = null;
-        recognitionRef.current.onerror = null;
-        recognitionRef.current.onend = null;
-        recognitionRef.current.stop();
-      } catch (e) {}
-      recognitionRef.current = null;
-    }
   }
 
   // Continuous MediaPipe FaceLandmarker Proctoring Monitor Loop:
@@ -731,33 +643,29 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   // Opens the "start answering" window after Messi finishes asking a
-  // question - starts both the 30s inactivity timer and continuous SpeechRecognition
+  // question - starts the 30s inactivity countdown
   function openAnswerWindow() {
     liveInterimRef.current = "";
     setLiveInterim("");
-    spokenTranscriptRef.current = "";
     lastSpeechAtRef.current = 0;
     stoppingAnswerRef.current = false;
     setLoadingTurn(false);
     startInactivityCountdown();
-    startSpeechRecognition();
   }
 
-  // Advances the interview for spoken, typed, and auto-advance turns
+  // Advances the interview for typed, skipped, and auto-advance turns
   async function advanceViaRest(text) {
     if (loadingTurn) return;
-    stopSpeechRecognition();
     clearInactivityTimer();
     setIsWaitingForAnswerStart(false);
     setHasStartedAnswering(false);
     stoppingAnswerRef.current = false;
     isSwitchingCallRef.current = true;
 
-    const finalAnswer = (text || "").trim() || (spokenTranscriptRef.current || "").trim() || (inputText || "").trim() || "(no answer)";
+    const finalAnswer = (text || "").trim() || (inputText || "").trim() || "(no answer)";
     setTranscript((prev) => [...prev, { speaker: "you", text: finalAnswer }]);
     setLiveInterim("");
     liveInterimRef.current = "";
-    spokenTranscriptRef.current = "";
     setLoadingTurn(true);
 
     try {
@@ -770,9 +678,13 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     await new Promise((resolve) => setTimeout(resolve, 800));
 
     const authToken = localStorage.getItem("talentera_token");
+    const currentQIdx = sessionRef.current?.currentQuestionIndex ?? session?.currentQuestionIndex ?? 0;
 
     try {
-      const res = await api.post("/candidate/ai-interview/turn", { candidateUtterance: finalAnswer });
+      const res = await api.post("/candidate/ai-interview/turn", {
+        candidateUtterance: finalAnswer,
+        expectedQuestionIndex: currentQIdx,
+      });
       const messiReply = res.data.messiReply || "Thanks — let's continue.";
       const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
       const nextSession = res.data.session;
@@ -782,7 +694,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (interviewEnded) {
         setStep("report");
         stopCandidateCamera();
-        stopSpeechRecognition();
         const finalResult = res.data.result || nextSession?.result;
         if (typeof finalResult?.overallScore === "number" && onCompleted) {
           onCompleted({ score: finalResult.overallScore });
@@ -804,7 +715,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
   function handleManualSkip() {
     if (loadingTurn) return;
-    const answer = (spokenTranscriptRef.current || "").trim() || (inputText || "").trim() || "(no answer)";
+    const answer = (inputText || "").trim() || "(no answer)";
     advanceViaRest(answer);
   }
 
@@ -818,12 +729,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   // Typed-answer fallback for when a candidate's mic isn't cooperating.
   function handleTextSubmit(e) {
     if (e) e.preventDefault();
-    const text = (inputText || "").trim() || (spokenTranscriptRef.current || "").trim();
+    const text = (inputText || "").trim();
     if (!text || loadingTurn) return;
     setInputText("");
     setLiveInterim("");
     liveInterimRef.current = "";
-    spokenTranscriptRef.current = "";
     advanceViaRest(text);
   }
 
@@ -924,6 +834,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             setTranscript((prev) => [...prev, { speaker: "you", text: msg.transcript || "(no answer)" }]);
             setLiveInterim("");
             liveInterimRef.current = "";
+            setLoadingTurn(true);
           } else {
             // partial / interim
             if (msg.transcript && msg.transcript.trim()) {

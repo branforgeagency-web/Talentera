@@ -153,6 +153,26 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
       return sendAssistantReply(req, res, opening);
     }
 
+    if (session.status === "COMPLETED") {
+      const score = session.result?.overallScore ?? 80;
+      return sendAssistantReply(req, res, `You have completed this interview. Your overall score is ${score} out of 100. ${CLOSING_PHRASE}.`);
+    }
+
+    // Idempotency check: if this user utterance was already processed for this question or session was already advanced,
+    // prompt current question without double-advancing.
+    const lastTurn = session.turns?.[session.turns.length - 1];
+    if (
+      lastTurn &&
+      lastTurn.candidateAnswer === utterance &&
+      (lastTurn.questionIndex === session.currentQuestionIndex || lastTurn.questionIndex === session.currentQuestionIndex - 1)
+    ) {
+      const currentQ = session.questions[session.currentQuestionIndex];
+      const reply = currentQ
+        ? `Question ${session.currentQuestionIndex + 1} of ${session.questions.length}: ${currentQ.question}`
+        : `Thank you. ${CLOSING_PHRASE}.`;
+      return sendAssistantReply(req, res, reply);
+    }
+
     // A normal answered turn.
     const turnResult = await getMessiTurn({ session, candidateUtterance: utterance });
     const currentIndex = session.currentQuestionIndex;
@@ -177,6 +197,14 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
     if (["hint", "repeat", "clarify", "stop"].includes(turnResult.intent)) {
       // Repeat/hint/clarify/stop current question - no advance, no end.
     } else {
+      if (session.questionRecords?.some((r) => r.index === currentIndex)) {
+        const currentQ = session.questions[session.currentQuestionIndex];
+        const reply = currentQ
+          ? `Question ${session.currentQuestionIndex + 1} of ${session.questions.length}: ${currentQ.question}`
+          : `Thank you. ${CLOSING_PHRASE}.`;
+        return sendAssistantReply(req, res, reply);
+      }
+
       session.questionRecords.push({
         index: currentIndex,
         topic: currentQuestion.topic || `Topic ${currentIndex + 1}`,

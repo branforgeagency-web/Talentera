@@ -1305,6 +1305,37 @@ router.post("/ai-interview/turn", async (req, res) => {
     }
 
     const utterance = String(req.body?.candidateUtterance || "").trim();
+
+    // Guard against stale turn submissions (e.g., if voice already advanced this question)
+    if (
+      req.body?.expectedQuestionIndex !== undefined &&
+      Number(req.body.expectedQuestionIndex) !== session.currentQuestionIndex
+    ) {
+      const interviewEnded = session.status === "COMPLETED";
+      return res.json({
+        messiReply: "Question already answered — continuing.",
+        nextQuestion: interviewEnded ? null : session.questions[session.currentQuestionIndex],
+        progress: { index: session.currentQuestionIndex, total: session.questions.length },
+        interviewEnded,
+        result: session.result || null,
+        session,
+      });
+    }
+
+    // Guard against duplicate question records
+    const alreadyRecorded = session.questionRecords?.some((r) => r.index === session.currentQuestionIndex);
+    if (alreadyRecorded) {
+      const interviewEnded = session.status === "COMPLETED";
+      return res.json({
+        messiReply: "Question already recorded — continuing.",
+        nextQuestion: interviewEnded ? null : session.questions[session.currentQuestionIndex],
+        progress: { index: session.currentQuestionIndex, total: session.questions.length },
+        interviewEnded,
+        result: session.result || null,
+        session,
+      });
+    }
+
     const currentIndex = session.currentQuestionIndex;
     const currentQuestion = session.questions[currentIndex];
 

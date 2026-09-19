@@ -42,6 +42,28 @@ export default function CompanyLogin() {
     }
   }
 
+  const handleDemoCompanyLogin = async (e) => {
+    if (e) e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/company/auth/demo-login", { method: "POST" });
+      const data = await safeJson(res);
+      if (res.ok && data.token) {
+        localStorage.setItem("talentera_company_token", data.token);
+        localStorage.setItem("talentera_company_info", JSON.stringify(data.company));
+        navigate(isFullyOnboarded(data.company) ? "/companies/jobs" : "/companies/dashboard");
+      } else {
+        setError(data.message || "Developer demo login failed.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Developer demo login error: " + (err.message || "Failed to log in"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
 
   const handleRequestForgot = async (e) => {
     e.preventDefault();
@@ -201,6 +223,38 @@ export default function CompanyLogin() {
             style={{ width: "100%", padding: 14, background: "#E5A82E", color: "#0A1F3D", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer", fontFamily: "inherit", marginTop: 8 }}
           >
             {submitting ? "Logging in..." : "Log In →"}
+          </button>
+
+          {/* Quick Developer Employer Login */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "10px 0 4px" }}>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.12)" }} />
+            <span style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.4)", letterSpacing: "0.08em" }}>OR</span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.12)" }} />
+          </div>
+
+          <button
+            type="button"
+            onClick={handleDemoCompanyLogin}
+            disabled={submitting}
+            style={{
+              width: "100%",
+              padding: 13,
+              background: "rgba(229,168,46,0.12)",
+              color: "var(--gold)",
+              border: "1.5px dashed var(--gold)",
+              borderRadius: 10,
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: submitting ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+            title="1-Click Developer Demo login as Verified Employer (Access RCM Solutions)"
+          >
+            ⚡ Quick Developer Employer Login →
           </button>
         </form>
 
