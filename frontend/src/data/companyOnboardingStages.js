@@ -275,7 +275,7 @@ export const TOTAL_FIELDS = ONBOARDING_STAGES.reduce((sum, s) => sum + s.items.l
 // back into the wizard. Centralized here since it's the same "done" math
 // stageDoneFields/TOTAL_FIELDS already do per-stage.
 export function isFullyOnboarded(company) {
-  if (!company || company.kycStatus !== "verified") return false;
+  if (!company || (company.kycStatus !== "verified" && !company.kycVerifiedAt)) return false;
   const totalDone = ONBOARDING_STAGES.reduce((sum, s) => sum + stageDoneFields(s.id, company[`stage${s.id}`]), 0);
   return totalDone >= TOTAL_FIELDS;
 }

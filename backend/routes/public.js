@@ -47,7 +47,7 @@ async function attachVerifiedCompanyStatus(req, _res, next) {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.role !== "company") return next();
     const company = await Company.findById(decoded.id).lean();
-    req.isVerifiedCompany = !!company && company.kycStatus === "verified";
+    req.isVerifiedCompany = !!company && (company.kycStatus === "verified" || Boolean(company.kycVerifiedAt));
     req.companyPlan = getPlan(company?.plan);
     req.companyId = company?._id;
   } catch (err) {

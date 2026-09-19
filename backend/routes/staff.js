@@ -659,6 +659,7 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
 
     if (action === "verify") {
       company.kycStatus = "verified";
+      company.isVerified = true;
       company.kycVerifiedAt = new Date();
       company.kycNotes = notes || "Account & KYC documents audited and verified by Staff Auditor.";
       company.kycRejectionReason = "";

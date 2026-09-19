@@ -76,6 +76,22 @@ export function CompanyAuthProvider({ children }) {
     setCompany(null);
   }
 
+  async function refreshCompany() {
+    try {
+      const token = localStorage.getItem("talentera_company_token");
+      if (!token) return null;
+      const res = await companyApi.get("/company/auth/me");
+      if (res.data?.company) {
+        setCompany(res.data.company);
+        localStorage.setItem("talentera_company_info", JSON.stringify(res.data.company));
+        return res.data.company;
+      }
+    } catch (err) {
+      console.warn("Could not refresh company session:", err?.message);
+    }
+    return null;
+  }
+
   return (
     <CompanyAuthContext.Provider
       value={{
@@ -87,6 +103,7 @@ export function CompanyAuthProvider({ children }) {
         verifyLoginOtp,
         login,
         logout,
+        refreshCompany,
       }}
     >
       {children}

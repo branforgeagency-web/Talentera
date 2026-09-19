@@ -16,7 +16,7 @@ import OnboardingField from "../components/company/OnboardingField.jsx";
 
 export default function CompanyDashboardSetup() {
   const navigate = useNavigate();
-  const { company: authCompany, logout } = useCompanyAuth();
+  const { company: authCompany, logout, refreshCompany } = useCompanyAuth();
   const toast = useToast();
 
   const [company, setCompany] = useState(null);
@@ -38,7 +38,10 @@ export default function CompanyDashboardSetup() {
   const fetchCompany = () => {
     companyApi
       .get("/company/me")
-      .then((res) => setCompany(res.data.company))
+      .then((res) => {
+        setCompany(res.data.company);
+        if (refreshCompany) refreshCompany();
+      })
       .finally(() => setLoading(false));
   };
 
@@ -81,6 +84,15 @@ export default function CompanyDashboardSetup() {
   }
 
   async function handleVerifyKyc() {
+    if (company?.kycStatus === "verified" || company?.kycVerifiedAt) {
+      toast("Your Account & KYC details are already verified by Staff Auditor ✓", "✓");
+      return;
+    }
+    if (company?.kycStatus === "under_review") {
+      toast("Your Account & KYC details are currently under review by Staff Auditor.", "!");
+      return;
+    }
+
     const missing = checkMustFields("1a");
     if (missing.length > 0) {
       setStageErrors((prev) => ({ ...prev, "1a": missing.map((i) => i.name) }));
@@ -92,6 +104,7 @@ export default function CompanyDashboardSetup() {
     try {
       const res = await companyApi.post("/company/verify-kyc");
       setCompany(res.data.company);
+      if (refreshCompany) refreshCompany();
       setStageErrors((prev) => ({ ...prev, "1a": null }));
       toast(res.data.message || "Account & KYC submitted for verification!", "✓");
     } catch (err) {
@@ -155,11 +168,14 @@ export default function CompanyDashboardSetup() {
       }
 
       // If completing Stage 1 (1a or 1b), automatically submit KYC details to employee / staff verification queue
-      if (activeStageId === "1a" || activeStageId === "1b") {
+      // DO NOT submit if already verified, already approved, or already under review!
+      const isAlreadyVerifiedOrReview = company?.kycStatus === "verified" || company?.kycStatus === "under_review" || Boolean(company?.kycVerifiedAt);
+      if ((activeStageId === "1a" || activeStageId === "1b") && !isAlreadyVerifiedOrReview) {
         try {
           const res = await companyApi.post("/company/verify-kyc");
           if (res.data?.company) {
             setCompany(res.data.company);
+            if (refreshCompany) refreshCompany();
           }
           toast("Stage 1 details submitted for Employee KYC verification ✓", "✓");
         } catch (err) {
@@ -498,7 +514,7 @@ export default function CompanyDashboardSetup() {
           {(() => {
             let score = 25;
             if (company.stage1a && Object.keys(company.stage1a).length > 2) score += 20;
-            if (company.kycStatus === "verified") score += 35;
+            if (company.kycStatus === "verified" || company.kycVerifiedAt) score += 35;
             else if (company.kycStatus === "under_review") score += 15;
             if (company.stage2 && Object.keys(company.stage2).length > 2) score += 10;
             if (company.jdPublished) score += 10;
@@ -531,7 +547,7 @@ export default function CompanyDashboardSetup() {
                 </div>
                 <div>
                   <div className="conb-hero-stat-val">
-                    {company.kycStatus === "verified" ? "VERIFIED ✓" : company.kycStatus === "under_review" ? "REVIEW" : company.kycStatus === "rejected" ? "REVISION" : "PENDING"}
+                    {(company.kycStatus === "verified" || company.kycVerifiedAt) ? "VERIFIED ✓" : company.kycStatus === "under_review" ? "REVIEW" : company.kycStatus === "rejected" ? "REVISION" : "PENDING"}
                   </div>
                   <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
                 </div>
@@ -593,7 +609,7 @@ export default function CompanyDashboardSetup() {
                     <div>
                       <div className="conb-stage-item-title">{st.name}</div>
                       <div className="conb-stage-item-status">
-                        {isKycStage && company.kycStatus === "verified" ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : `${done} of ${total} done`}
+                        {isKycStage && (company.kycStatus === "verified" || company.kycVerifiedAt) ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : `${done} of ${total} done`}
                       </div>
                     </div>
                   </div>

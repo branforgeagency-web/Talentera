@@ -26,7 +26,7 @@ function getAssetUrl(url) {
 
 export default function CompanyPortal() {
   const navigate = useNavigate();
-  const { company, logout } = useCompanyAuth();
+  const { company, logout, refreshCompany } = useCompanyAuth();
 
   const [candidates, setCandidates] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +41,7 @@ export default function CompanyPortal() {
   const [addingCandidate, setAddingCandidate] = useState(false);
 
   // Verification & Access State
-  const [companyKycStatus, setCompanyKycStatus] = useState("pending");
+  const [companyKycStatus, setCompanyKycStatus] = useState(() => (company?.kycStatus === "verified" || company?.kycVerifiedAt) ? "verified" : (company?.kycStatus || "pending"));
   const [companyPlan, setCompanyPlan] = useState(() => company?.plan || "free");
   const [contactCandidateModal, setContactCandidateModal] = useState(null);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
@@ -70,7 +70,9 @@ export default function CompanyPortal() {
   }, []);
 
   useEffect(() => {
-    if (company?.kycStatus) {
+    if (company?.kycStatus === "verified" || company?.kycVerifiedAt) {
+      setCompanyKycStatus("verified");
+    } else if (company?.kycStatus) {
       setCompanyKycStatus(company.kycStatus);
     }
     if (company?.plan) {
@@ -82,8 +84,11 @@ export default function CompanyPortal() {
     try {
       const res = await companyApi.get("/company/me");
       if (res.data?.company) {
-        setCompanyKycStatus(res.data.company.kycStatus || "pending");
-        setCompanyPlan(res.data.company.plan || "free");
+        const c = res.data.company;
+        const verified = c.kycStatus === "verified" || Boolean(c.kycVerifiedAt);
+        setCompanyKycStatus(verified ? "verified" : (c.kycStatus || "pending"));
+        setCompanyPlan(c.plan || "free");
+        if (refreshCompany) refreshCompany();
       }
     } catch (err) {
       console.log("No active company session or error loading profile:", err?.message);
@@ -105,7 +110,7 @@ export default function CompanyPortal() {
     return mobile.replace(/(\+?\d{2,4}\s?\d{2,5})\d{4,5}/, "$1 XXXXX");
   };
 
-  const isVerifiedCompany = companyKycStatus === "verified";
+  const isVerifiedCompany = companyKycStatus === "verified" || company?.kycStatus === "verified" || Boolean(company?.kycVerifiedAt);
 
   const fetchCandidates = async () => {
     setLoadError(null);
@@ -116,6 +121,9 @@ export default function CompanyPortal() {
       // that token, so it has to actually reach the request.
       const res = await companyApi.get("/public/candidates");
       setCandidates(res.data?.candidates || []);
+      if (res.data?.isVerifiedCompany) {
+        setCompanyKycStatus("verified");
+      }
       if (res.data?.plan) {
         setCompanyPlan(res.data.plan);
       }

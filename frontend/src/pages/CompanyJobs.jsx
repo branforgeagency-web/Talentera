@@ -20,12 +20,12 @@ export default function CompanyJobs() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const toast = useToast();
-  const { company: authCompany, logout } = useCompanyAuth();
+  const { company: authCompany, logout, refreshCompany } = useCompanyAuth();
 
   const [jobs, setJobs] = useState([]);
   const [canPostMoreJobs, setCanPostMoreJobs] = useState(true);
-  const [isCompanyVerified, setIsCompanyVerified] = useState(false);
-  const [kycStatus, setKycStatus] = useState("pending");
+  const [isCompanyVerified, setIsCompanyVerified] = useState(() => Boolean(authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt));
+  const [kycStatus, setKycStatus] = useState(() => (authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt) ? "verified" : (authCompany?.kycStatus || "pending"));
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
   const [form, setForm] = useState(emptyFormState);
@@ -34,7 +34,22 @@ export default function CompanyJobs() {
 
   useEffect(() => {
     fetchJobs();
+    if (refreshCompany) {
+      refreshCompany().then((c) => {
+        if (c && (c.kycStatus === "verified" || c.kycVerifiedAt)) {
+          setIsCompanyVerified(true);
+          setKycStatus("verified");
+        }
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    if (authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt) {
+      setIsCompanyVerified(true);
+      setKycStatus("verified");
+    }
+  }, [authCompany]);
 
   async function fetchJobs() {
     setLoading(true);
@@ -42,9 +57,9 @@ export default function CompanyJobs() {
       const res = await companyApi.get("/company/jobs");
       setJobs(res.data?.jobs || []);
       setCanPostMoreJobs(Boolean(res.data?.canPostMoreJobs));
-      const verified = Boolean(res.data?.isVerified || authCompany?.kycStatus === "verified");
+      const verified = Boolean(res.data?.isVerified || authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt);
       setIsCompanyVerified(verified);
-      setKycStatus(res.data?.kycStatus || authCompany?.kycStatus || "pending");
+      setKycStatus(verified ? "verified" : (res.data?.kycStatus || authCompany?.kycStatus || "pending"));
     } catch (err) {
       console.error(err);
       toast("Couldn't load your job posts.", "!");
@@ -342,7 +357,7 @@ export default function CompanyJobs() {
           jobs.map((job) => {
             const f = job.fields || {};
             const isOpen = job.published && !job.closedAt;
-            const isVerifiedEmployer = isCompanyVerified || authCompany?.kycStatus === "verified";
+            const isVerifiedEmployer = isCompanyVerified || authCompany?.kycStatus === "verified" || Boolean(authCompany?.kycVerifiedAt);
             const rawStatus = job.approvalStatus || "pending";
             const approvalStatus = (isVerifiedEmployer && rawStatus !== "rejected") ? "approved" : rawStatus;
 
