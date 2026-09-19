@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 import Vapi from "@vapi-ai/web";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
@@ -56,8 +57,9 @@ function InterviewerVideoAvatar({ state, size = "large" }) {
   }, [isSpeaking]);
 
   const isCompact = size === "compact";
-  const containerWidth = isCompact ? "160px" : "240px";
-  const containerHeight = isCompact ? "140px" : "190px";
+  const isInterview = size === "interview";
+  const containerWidth = isInterview ? "100%" : isCompact ? "160px" : "240px";
+  const containerHeight = isInterview ? "180px" : isCompact ? "140px" : "190px";
 
   return (
     <div
@@ -66,7 +68,7 @@ function InterviewerVideoAvatar({ state, size = "large" }) {
         position: "relative",
         width: containerWidth,
         height: containerHeight,
-        borderRadius: isCompact ? 16 : 20,
+        borderRadius: isCompact ? 14 : 16,
         overflow: "hidden",
         backgroundColor: "#0A1F3D",
         boxShadow: isSpeaking
@@ -213,21 +215,40 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isConnectingCall, setIsConnectingCall] = useState(false);
 
-  // Candidate's own camera + mic preview. Per the AI Mock Interview
-  // requirements, the candidate's camera and microphone should automatically
-  // turn on (after the browser permission prompt) once the interview
-  // starts. This is a self-view only, separate from the Vapi call's own
-  // microphone capture used for the actual interview audio below.
+  // Candidate's own camera + mic preview.
   const candidateVideoRef = useRef(null);
   const candidateStreamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
+
+  // AI Proctoring & Malpractice Detection States
+  const [proctorStatus, setProctorStatus] = useState("ok"); // "ok" | "head_turned" | "looking_away" | "no_face" | "multiple_faces" | "tab_switch"
+  const [proctorAlertMsg, setProctorAlertMsg] = useState("");
+  const [isMalpracticeActive, setIsMalpracticeActive] = useState(false);
+  const [proctorViolationsCount, setProctorViolationsCount] = useState(0);
+  const [attentionWarningsCount, setAttentionWarningsCount] = useState(0);
+  const [yawRatioVal, setYawRatioVal] = useState(1.0);
+  const [pitchRatioVal, setPitchRatioVal] = useState(1.0);
+  const [gazePosture, setGazePosture] = useState("centered"); // "centered" | "turned_left" | "turned_right" | "looking_up" | "looking_down" | "away"
+  const [facialLandmarks, setFacialLandmarks] = useState(null); // { leftCheek, rightCheek, forehead, chin, nose, leftEye, rightEye, mouth }
+  const landmarkerRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const proctorConsecutiveAnomaliesRef = useRef(0);
+  const proctorConsecutiveNormalsRef = useRef(0);
+  const lastToastTimeRef = useRef(0);
+  const audioContextRef = useRef(null);
 
   // Inactivity state
   const [inactivitySecondsLeft, setInactivitySecondsLeft] = useState(INACTIVITY_TIMEOUT_SECONDS);
   const [isWaitingForAnswerStart, setIsWaitingForAnswerStart] = useState(false);
   const [hasStartedAnswering, setHasStartedAnswering] = useState(false);
   const [autoAdvanceNotice, setAutoAdvanceNotice] = useState("");
+
+  // Live Continuous Speech Recognition Engine Refs
+  const recognitionRef = useRef(null);
+  const recognitionActiveRef = useRef(false);
+  const spokenTranscriptRef = useRef("");
+  const silenceTimerRef = useRef(null);
 
   const avatarState = isSpeaking
     ? "speaking"
@@ -288,6 +309,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   useEffect(() => {
     return () => {
       clearInactivityTimer();
+      stopSpeechRecognition();
       try {
         vapiRef.current?.stop();
       } catch (e) {}
@@ -336,6 +358,309 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
     setCameraReady(false);
   }
+
+  function startSpeechRecognition() {
+    stopSpeechRecognition();
+    const SpeechRecognition = typeof window !== "undefined" ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
+    if (!SpeechRecognition) return;
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      recognition.maxAlternatives = 1;
+
+      recognitionActiveRef.current = true;
+      spokenTranscriptRef.current = "";
+
+      recognition.onresult = (e) => {
+        let interim = "";
+        let finalStr = "";
+        for (let i = 0; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            finalStr += e.results[i][0].transcript + " ";
+          } else {
+            interim += e.results[i][0].transcript + " ";
+          }
+        }
+        const combined = (finalStr + " " + interim).trim();
+        if (combined) {
+          markAnswerStarted();
+          spokenTranscriptRef.current = combined;
+          liveInterimRef.current = combined;
+          setLiveInterim(combined);
+          lastSpeechAtRef.current = Date.now();
+
+          // Reset silence timer on every spoken word; after 3.5 seconds of silence, auto-advance with answer
+          if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+          silenceTimerRef.current = setTimeout(() => {
+            if (spokenTranscriptRef.current && spokenTranscriptRef.current.trim().length > 2 && !loadingTurn) {
+              const answerToSend = spokenTranscriptRef.current.trim();
+              stopSpeechRecognition();
+              advanceViaRest(answerToSend);
+            }
+          }, 3500);
+        }
+      };
+
+      recognition.onerror = (err) => {
+        console.debug("Speech recognition event:", err?.error);
+      };
+
+      recognition.onend = () => {
+        if (recognitionActiveRef.current) {
+          try {
+            recognition.start();
+          } catch (e) {}
+        }
+      };
+
+      recognition.start();
+      recognitionRef.current = recognition;
+    } catch (e) {
+      console.warn("SpeechRecognition start error:", e);
+    }
+  }
+
+  function stopSpeechRecognition() {
+    recognitionActiveRef.current = false;
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+  }
+
+  // Continuous MediaPipe FaceLandmarker Proctoring Monitor Loop:
+  // Runs on-device GPU inference using requestAnimationFrame
+  // Detection Logic:
+  // - Head Turn (Yaw): Horizontal distance from nose tip (1) to left cheek (234) vs right cheek (454)
+  //   - Ratio < 0.45 (Turned Right): "⚠️ Please look directly at the screen"
+  //   - Ratio > 2.20 (Turned Left): "⚠️ Please look directly at the screen"
+  // - Head Tilt (Pitch): Distance from nose tip (1) to forehead (10) vs chin (152)
+  //   - Vertical ratio out of [0.50, 2.20]: "⚠️ Keep your gaze centered on the interview"
+  // - Empty Landmarks: "⚠️ Face not detected! Please stay centered in frame"
+  useEffect(() => {
+    if (step !== "interview" || !cameraReady) {
+      setIsMalpracticeActive(false);
+      setProctorStatus("ok");
+      return;
+    }
+
+    let isRunning = true;
+    let faceLandmarkerInstance = null;
+    let lastVideoTime = -1;
+
+    async function initMediaPipe() {
+      try {
+        const filesetResolver = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
+        );
+        let landmarker;
+        try {
+          landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              delegate: "GPU",
+            },
+            runningMode: "VIDEO",
+            numFaces: 1,
+          });
+        } catch (gpuErr) {
+          console.warn("GPU delegate failed, falling back to CPU delegate:", gpuErr);
+          landmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+              delegate: "CPU",
+            },
+            runningMode: "VIDEO",
+            numFaces: 1,
+          });
+        }
+        if (!isRunning) {
+          try { landmarker.close?.(); } catch (e) {}
+          return;
+        }
+        faceLandmarkerInstance = landmarker;
+        landmarkerRef.current = landmarker;
+        startDetectionLoop();
+      } catch (err) {
+        console.error("Failed to initialize MediaPipe FaceLandmarker:", err);
+      }
+    }
+
+    function startDetectionLoop() {
+      function processFrame() {
+        if (!isRunning) return;
+        const video = candidateVideoRef.current;
+        if (video && video.readyState >= 2 && video.videoWidth > 0) {
+          if (video.currentTime !== lastVideoTime && faceLandmarkerInstance) {
+            lastVideoTime = video.currentTime;
+            const startTimeMs = performance.now();
+            try {
+              const result = faceLandmarkerInstance.detectForVideo(video, startTimeMs);
+              const landmarks = result.faceLandmarks?.[0];
+
+              if (!landmarks || landmarks.length === 0) {
+                handleDetectionResult({
+                  issue: "no_face",
+                  alertText: "⚠️ Face not detected! Please stay centered in frame",
+                  posture: "away",
+                  landmarks: null,
+                });
+              } else {
+                const nose = landmarks[1];
+                const forehead = landmarks[10];
+                const chin = landmarks[152];
+                const leftCheek = landmarks[234];
+                const rightCheek = landmarks[454];
+                const leftEye = landmarks[33];
+                const rightEye = landmarks[263];
+                const mouth = landmarks[13];
+
+                const distToLeftCheek = Math.hypot(nose.x - leftCheek.x, nose.y - leftCheek.y);
+                const distToRightCheek = Math.hypot(rightCheek.x - nose.x, rightCheek.y - nose.y);
+                const yawRatio = distToLeftCheek / Math.max(0.0001, distToRightCheek);
+
+                const distToForehead = Math.hypot(nose.x - forehead.x, nose.y - forehead.y);
+                const distToChin = Math.hypot(chin.x - nose.x, chin.y - nose.y);
+                const pitchRatio = distToForehead / Math.max(0.0001, distToChin);
+
+                setYawRatioVal(yawRatio);
+                setPitchRatioVal(pitchRatio);
+
+                let detectedIssue = null;
+                let posture = "centered";
+                let alertText = "";
+
+                if (yawRatio < 0.45) {
+                  detectedIssue = "head_turned";
+                  posture = "turned_right";
+                  alertText = "⚠️ Please look directly at the screen";
+                } else if (yawRatio > 2.20) {
+                  detectedIssue = "head_turned";
+                  posture = "turned_left";
+                  alertText = "⚠️ Please look directly at the screen";
+                } else if (pitchRatio < 0.50 || pitchRatio > 2.20) {
+                  detectedIssue = pitchRatio < 0.50 ? "looking_up" : "looking_down";
+                  posture = detectedIssue;
+                  alertText = "⚠️ Keep your gaze centered on the interview";
+                }
+
+                handleDetectionResult({
+                  issue: detectedIssue,
+                  alertText,
+                  posture,
+                  landmarks: {
+                    nose: { x: (1 - nose.x) * 100, y: nose.y * 100 },
+                    forehead: { x: (1 - forehead.x) * 100, y: forehead.y * 100 },
+                    chin: { x: (1 - chin.x) * 100, y: chin.y * 100 },
+                    leftCheek: { x: (1 - leftCheek.x) * 100, y: leftCheek.y * 100 },
+                    rightCheek: { x: (1 - rightCheek.x) * 100, y: rightCheek.y * 100 },
+                    leftEye: { x: (1 - leftEye.x) * 100, y: leftEye.y * 100 },
+                    rightEye: { x: (1 - rightEye.x) * 100, y: rightEye.y * 100 },
+                    mouth: { x: (1 - mouth.x) * 100, y: mouth.y * 100 },
+                  },
+                });
+              }
+            } catch (evalErr) {
+              console.warn("FaceLandmarker eval error:", evalErr);
+            }
+          }
+        }
+        animFrameRef.current = requestAnimationFrame(processFrame);
+      }
+      animFrameRef.current = requestAnimationFrame(processFrame);
+    }
+
+    function handleDetectionResult({ issue, alertText, posture, landmarks }) {
+      setGazePosture(posture);
+      setFacialLandmarks(landmarks);
+
+      if (issue) {
+        proctorConsecutiveAnomaliesRef.current += 1;
+        proctorConsecutiveNormalsRef.current = 0;
+
+        if (proctorConsecutiveAnomaliesRef.current >= 4) {
+          setIsMalpracticeActive(true);
+          setProctorStatus(issue);
+          setProctorAlertMsg(alertText);
+
+          const now = Date.now();
+          if (now - lastToastTimeRef.current > 4000) {
+            lastToastTimeRef.current = now;
+            setAttentionWarningsCount((c) => c + 1);
+            setProctorViolationsCount((c) => c + 1);
+            toast(alertText, "!");
+          }
+        }
+      } else {
+        proctorConsecutiveNormalsRef.current += 1;
+        if (proctorConsecutiveNormalsRef.current >= 2) {
+          proctorConsecutiveAnomaliesRef.current = 0;
+          setIsMalpracticeActive(false);
+          setProctorStatus("ok");
+          setProctorAlertMsg("");
+        }
+      }
+    }
+
+    initMediaPipe();
+
+    // Anti-Cheat Tab Switching & Window Blur listeners (Silent visual warnings only)
+    function handleVisibilityChange() {
+      if (document.hidden) {
+        setIsMalpracticeActive(true);
+        setProctorStatus("tab_switch");
+        setProctorAlertMsg("🚨 MALPRACTICE VIOLATION: Tab switch detected!");
+        setAttentionWarningsCount((c) => c + 1);
+        setProctorViolationsCount((c) => c + 1);
+        toast("🚨 Malpractice Alert: Tab switching is prohibited!", "!");
+      }
+    }
+
+    function handleWindowBlur() {
+      setIsMalpracticeActive(true);
+      setProctorStatus("tab_switch");
+      setProctorAlertMsg("🚨 MALPRACTICE WARNING: Window focus lost!");
+    }
+
+    function handleWindowFocus() {
+      setTimeout(() => {
+        setIsMalpracticeActive(false);
+        setProctorStatus("ok");
+        setProctorAlertMsg("");
+      }, 1000);
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      isRunning = false;
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+      if (faceLandmarkerInstance) {
+        try {
+          faceLandmarkerInstance.close?.();
+        } catch (e) {}
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [step, cameraReady]);
 
   // Duration timer
   useEffect(() => {
@@ -406,41 +731,33 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   // Opens the "start answering" window after Messi finishes asking a
-  // question - mirrors the old browser-TTS onEnd() callback, just triggered
-  // from Vapi's speech-end event instead (see wireVapiEvents below).
+  // question - starts both the 30s inactivity timer and continuous SpeechRecognition
   function openAnswerWindow() {
     liveInterimRef.current = "";
     setLiveInterim("");
+    spokenTranscriptRef.current = "";
     lastSpeechAtRef.current = 0;
     stoppingAnswerRef.current = false;
     setLoadingTurn(false);
     startInactivityCountdown();
+    startSpeechRecognition();
   }
 
-  // Advances the interview for anything that ISN'T a real spoken answer
-  // Vapi itself picked up: the 5-second-inactivity auto-advance, the manual
-  // Skip button, and the typed-answer fallback. These go through the same
-  // REST /ai-interview/turn endpoint the pre-Vapi version of this component
-  // used (routes/candidate.js - proven reliable), rather than trying to
-  // inject a fake turn into the live Vapi call: an earlier attempt at that
-  // (vapi.send with an "add-message"/triggerResponseEnabled combination)
-  // turned out to not be a real, safe Vapi Web SDK feature - it got the
-  // whole call ejected ("Meeting ended due to ejection") instead of just
-  // skipping one question. Real spoken answers still go straight through
-  // the live call + the Vapi webhook (routes/vapiInterview.js), unaffected
-  // by this - only these three non-voice paths use REST.
-  //
-  // Because the turn is applied server-side outside the live call, the
-  // current Vapi call is stopped and a fresh one started right after so
-  // Messi can voice-ask whatever the (now-advanced) current question is.
+  // Advances the interview for spoken, typed, and auto-advance turns
   async function advanceViaRest(text) {
     if (loadingTurn) return;
+    stopSpeechRecognition();
     clearInactivityTimer();
     setIsWaitingForAnswerStart(false);
     setHasStartedAnswering(false);
     stoppingAnswerRef.current = false;
     isSwitchingCallRef.current = true;
-    setTranscript((prev) => [...prev, { speaker: "you", text: text || "(no answer)" }]);
+
+    const finalAnswer = (text || "").trim() || (spokenTranscriptRef.current || "").trim() || (inputText || "").trim() || "(no answer)";
+    setTranscript((prev) => [...prev, { speaker: "you", text: finalAnswer }]);
+    setLiveInterim("");
+    liveInterimRef.current = "";
+    spokenTranscriptRef.current = "";
     setLoadingTurn(true);
 
     try {
@@ -455,7 +772,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     const authToken = localStorage.getItem("talentera_token");
 
     try {
-      const res = await api.post("/candidate/ai-interview/turn", { candidateUtterance: text });
+      const res = await api.post("/candidate/ai-interview/turn", { candidateUtterance: finalAnswer });
       const messiReply = res.data.messiReply || "Thanks — let's continue.";
       const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
       const nextSession = res.data.session;
@@ -465,6 +782,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (interviewEnded) {
         setStep("report");
         stopCandidateCamera();
+        stopSpeechRecognition();
         const finalResult = res.data.result || nextSession?.result;
         if (typeof finalResult?.overallScore === "number" && onCompleted) {
           onCompleted({ score: finalResult.overallScore });
@@ -486,7 +804,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
   function handleManualSkip() {
     if (loadingTurn) return;
-    advanceViaRest("(no answer)");
+    const answer = (spokenTranscriptRef.current || "").trim() || (inputText || "").trim() || "(no answer)";
+    advanceViaRest(answer);
   }
 
   function handleTextChange(val) {
@@ -497,16 +816,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   // Typed-answer fallback for when a candidate's mic isn't cooperating.
-  // Voice (captured automatically by the live Vapi call) is the primary
-  // path - see the note on advanceViaRest above for why this doesn't try
-  // to inject the typed text into the live call.
   function handleTextSubmit(e) {
     if (e) e.preventDefault();
-    const text = inputText.trim();
+    const text = (inputText || "").trim() || (spokenTranscriptRef.current || "").trim();
     if (!text || loadingTurn) return;
     setInputText("");
     setLiveInterim("");
     liveInterimRef.current = "";
+    spokenTranscriptRef.current = "";
     advanceViaRest(text);
   }
 
@@ -859,18 +1176,17 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         </div>
       )}
 
-      {/* 3. LIVE INTERVIEW SCREEN */}
+      {/* 3. LIVE INTERVIEW SCREEN (70% Candidate Camera & AI Proctor / 30% Interviewer & Telemetry) */}
       {step === "interview" && (
-        <>
-          {/* QUESTION INDICATOR HEADER */}
-          <div style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0", padding: "14px 24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-              {/* Question Number (e.g., 2/5) */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ background: "#0A1F3D", color: "#FFFFFF", fontSize: 12.5, fontWeight: 800, padding: "4px 12px", borderRadius: 8, letterSpacing: "0.02em" }}>
+        <div style={{ width: "100%", background: "#06152A", color: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+          {/* Question Indicator & Breadcrumbs Top Header */}
+          <div style={{ background: "#0B192C", borderBottom: "1px solid #1E293B", padding: "16px 24px" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ background: "#F5B41A", color: "#0A1F3D", fontSize: 12, fontWeight: 900, padding: "4px 12px", borderRadius: 8, textTransform: "uppercase", letterSpacing: "0.04em" }}>
                   Question {currentQNumber} / {totalQuestions}
                 </span>
-                <span style={{ fontSize: 12.5, color: "#475569", fontWeight: 700 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#94A3B8" }}>
                   ({remainingQuestions === 0 ? "Final Question" : `${remainingQuestions} remaining`})
                 </span>
               </div>
@@ -879,34 +1195,34 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               {isWaitingForAnswerStart && (
                 <div
                   style={{
-                    background: inactivitySecondsLeft <= 2 ? "#FEE2E2" : "#FEF3C7",
-                    color: inactivitySecondsLeft <= 2 ? "#B91C1C" : "#92400E",
-                    border: `1.5px solid ${inactivitySecondsLeft <= 2 ? "#FCA5A5" : "#FDE68A"}`,
-                    padding: "4px 12px",
+                    padding: "4px 14px",
                     borderRadius: 999,
                     fontSize: 12,
                     fontWeight: 800,
                     display: "flex",
                     alignItems: "center",
-                    gap: 6,
-                    animation: inactivitySecondsLeft <= 2 ? "pulse 0.8s infinite" : "none",
+                    gap: 8,
+                    transition: "all 0.3s",
+                    background: inactivitySecondsLeft <= 2 ? "rgba(239, 68, 68, 0.2)" : "rgba(245, 180, 26, 0.15)",
+                    color: inactivitySecondsLeft <= 2 ? "#EF4444" : "#F5B41A",
+                    border: `1px solid ${inactivitySecondsLeft <= 2 ? "#EF4444" : "rgba(245, 180, 26, 0.4)"}`,
                   }}
                 >
                   <i className="fa-solid fa-stopwatch"></i>
-                  <span>Start answering within: <strong>{inactivitySecondsLeft}s</strong></span>
+                  <span>Start answering within: <strong style={{ color: "#FFFFFF" }}>{inactivitySecondsLeft}s</strong></span>
                 </div>
               )}
 
               {hasStartedAnswering && (
-                <div style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
-                  <i className="fa-solid fa-microphone"></i>
+                <div style={{ background: "rgba(16, 185, 129, 0.15)", color: "#34D399", border: "1px solid rgba(16, 185, 129, 0.4)", padding: "4px 14px", borderRadius: 999, fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+                  <i className="fa-solid fa-microphone" style={{ color: "#34D399" }}></i>
                   <span>Answering Question {currentQNumber}…</span>
                 </div>
               )}
             </div>
 
             {/* Step Breadcrumbs */}
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(totalQuestions, 8)}, 1fr)`, gap: 8, marginTop: 4 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8 }}>
               {(session?.questions && session.questions.length > 0 ? session.questions : TOPIC_CONFIG).map((topic, idx) => {
                 const isPassed = idx < currentQIndex;
                 const isCurrent = idx === currentQIndex;
@@ -917,274 +1233,333 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   <div
                     key={topic.id || topic.key || idx}
                     style={{
-                      padding: "6px 8px",
+                      padding: "8px 10px",
                       borderRadius: 8,
                       textAlign: "center",
                       fontSize: 11,
-                      fontWeight: isCurrent ? 800 : 700,
-                      background: isCurrent ? "#0A1F3D" : isPassed ? "#DCFCE7" : "#FFFFFF",
-                      color: isCurrent ? "#FFFFFF" : isPassed ? "#15803D" : "#94A3B8",
-                      border: `1.5px solid ${isCurrent ? "#0A1F3D" : isPassed ? "#86EFAC" : "#E2E8F0"}`,
+                      fontWeight: isCurrent ? 900 : 700,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: 4,
+                      gap: 6,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
-                      transition: "all 0.2s ease",
+                      transition: "all 0.2s",
+                      background: isCurrent ? "#F5B41A" : isPassed ? "rgba(16, 185, 129, 0.15)" : "#1E293B",
+                      color: isCurrent ? "#0A1F3D" : isPassed ? "#34D399" : "#64748B",
+                      border: isCurrent ? "1px solid #F5B41A" : isPassed ? "1px solid rgba(16, 185, 129, 0.3)" : "1px solid #334155",
+                      boxShadow: isCurrent ? "0 2px 8px rgba(245, 180, 26, 0.3)" : "none",
                     }}
                     title={label}
                   >
                     {isPassed ? (
                       <i className="fa-solid fa-check" style={{ fontSize: 10 }}></i>
                     ) : (
-                      <span style={{ fontSize: 9.5 }}>{idx + 1}.</span>
+                      <span style={{ fontSize: 10 }}>{idx + 1}.</span>
                     )}
-                    <span>{key}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{key}</span>
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* CURRENT QUESTION SHOWCASE */}
-          {currentQuestionObj && (
-            <div style={{ padding: "20px 24px 12px", background: "#FFFFFF", borderBottom: "1px dashed #E2E8F0" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                <span style={{ background: "#F1F5F9", color: "#0A1F3D", border: "1px solid #CBD5E1", fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 6, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                  {currentQuestionObj.topicLabel || currentQuestionObj.topic || `Topic ${currentQNumber}`}
-                </span>
-                {isSpeaking && (
-                  <span style={{ color: "#F5B41A", fontSize: 11.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 5 }}>
-                    <i className="fa-solid fa-volume-high"></i> Asking out loud…
-                  </span>
-                )}
-              </div>
-              <h3 style={{ margin: 0, fontSize: 17.5, fontWeight: 700, color: "#0F172A", lineHeight: 1.5 }}>
-                {currentQuestionObj.question}
-              </h3>
-            </div>
-          )}
-
           {/* AUTO-ADVANCE NOTICE BANNER */}
           {autoAdvanceNotice && (
-            <div style={{ background: "#FEF2F2", borderBottom: "1px solid #FCA5A5", padding: "10px 24px", color: "#991B1B", fontSize: 12.5, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
-              <i className="fa-solid fa-circle-exclamation"></i>
+            <div style={{ background: "rgba(153, 27, 27, 0.95)", borderBottom: "1px solid #DC2626", padding: "10px 24px", color: "#FCA5A5", fontSize: 12, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+              <i className="fa-solid fa-circle-exclamation" style={{ color: "#F87171" }}></i>
               <span>{autoAdvanceNotice}</span>
             </div>
           )}
 
-          {/* MAIN INTERACTION SPLIT: AVATAR + LIVE CONVERSATION */}
-          <div style={{ display: "grid", gridTemplateColumns: "170px 1fr", gap: 16, padding: "16px 24px 8px", alignItems: "flex-start" }}>
-            {/* Left: Avatar & State */}
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-              <InterviewerVideoAvatar state={avatarState} size="compact" />
+          {/* MAIN SPLIT-SCREEN CONTAINER (70% Candidate Video Proctoring / 30% AI Interviewer & Chat) */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 20, padding: 24, background: "#06152A", alignItems: "stretch" }}>
+            {/* ===================== LEFT PANE: 70% ===================== */}
+            <div style={{ flex: "1 1 580px", minWidth: 320, display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* Candidate Webcam Feed Container */}
+              <div
+                style={{
+                  position: "relative",
+                  width: "100%",
+                  height: 480,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  background: "#0B192C",
+                  border: isMalpracticeActive ? "3px solid #EF4444" : "2px solid #1E293B",
+                  boxShadow: isMalpracticeActive ? "0 0 35px rgba(239, 68, 68, 0.6)" : "0 12px 30px rgba(0,0,0,0.4)",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                {/* Mirrored candidate camera feed */}
+                <video
+                  ref={candidateVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transform: "scaleX(-1)",
+                    display: cameraReady ? "block" : "none",
+                  }}
+                />
 
-              {/* Candidate's own camera self-view - confirms camera+mic are
-                  live for proctoring, per the AI Mock Interview requirements. */}
-              <div style={{ width: 160, height: 110, borderRadius: 12, overflow: "hidden", background: "#0A1F3D", position: "relative", border: "2px solid #E2E8F0" }}>
-                <video ref={candidateVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: cameraReady ? "block" : "none" }} />
                 {!cameraReady && (
-                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,.6)", fontSize: 10, textAlign: "center", padding: 6 }}>
-                    <i className="fa-solid fa-video-slash" style={{ fontSize: 16, marginBottom: 4 }}></i>
-                    {cameraError || "Starting camera…"}
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94A3B8", padding: 24, background: "#0B192C" }}>
+                    <i className="fa-solid fa-video-slash" style={{ fontSize: 32, marginBottom: 12, color: "#64748B" }}></i>
+                    <p style={{ fontSize: 13, fontWeight: 700, margin: 0 }}>{cameraError || "Initializing proctored camera feed…"}</p>
                   </div>
                 )}
+
+                {/* Top-Left Live Proctoring Indicator */}
                 {cameraReady && (
-                  <span style={{ position: "absolute", top: 6, left: 6, background: "#DC2626", color: "#fff", fontSize: 8.5, fontWeight: 800, padding: "2px 6px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#fff" }} />
-                    LIVE
-                  </span>
+                  <div style={{ position: "absolute", top: 14, left: 14, zIndex: 20, display: "flex", alignItems: "center", gap: 6, background: "rgba(220, 38, 38, 0.95)", color: "#FFFFFF", fontSize: 11, fontWeight: 900, padding: "5px 12px", borderRadius: 999, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.2)", letterSpacing: "0.04em" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#FFFFFF", display: "inline-block" }}></span>
+                    <span>LIVE · PROCTORING</span>
+                  </div>
                 )}
+
+                {/* Top-Right Gaze & Posture Status Pill */}
+                {cameraReady && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 14,
+                      right: 14,
+                      zIndex: 20,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: "5px 12px",
+                      borderRadius: 999,
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                      background: isMalpracticeActive ? "rgba(239, 68, 68, 0.95)" : "rgba(15, 23, 42, 0.9)",
+                      color: isMalpracticeActive ? "#FFFFFF" : "#34D399",
+                      border: `1px solid ${isMalpracticeActive ? "#FCA5A5" : "rgba(52, 211, 153, 0.4)"}`,
+                    }}
+                  >
+                    <i className={`fa-solid ${isMalpracticeActive ? "fa-triangle-exclamation" : "fa-shield-halved"}`} style={{ color: isMalpracticeActive ? "#FEF08A" : "#34D399" }}></i>
+                    <span>
+                      {isMalpracticeActive
+                        ? gazePosture === "turned_left"
+                          ? "TURNED LEFT"
+                          : gazePosture === "turned_right"
+                          ? "TURNED RIGHT"
+                          : gazePosture === "looking_up"
+                          ? "LOOKING UP"
+                          : gazePosture === "looking_down"
+                          ? "LOOKING DOWN"
+                          : gazePosture === "away"
+                          ? "NO FACE DETECTED"
+                          : "OFF CENTER"
+                        : "GAZE CENTERED ✓"}
+                    </span>
+                  </div>
+                )}
+
+                {/* Debounced Warning Banner Overlay (Positioned over candidate camera feed) */}
+                {isMalpracticeActive && (
+                  <div style={{ position: "absolute", top: 60, left: 16, right: 16, zIndex: 30, background: "rgba(220, 38, 38, 0.95)", color: "#FFFFFF", padding: "12px 18px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontWeight: 800, fontSize: 13, border: "1px solid #FCA5A5", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#FEF08A", fontSize: 18 }}></i>
+                    <span style={{ letterSpacing: "0.02em" }}>
+                      {proctorAlertMsg || "⚠️ Please look directly at the screen"}
+                    </span>
+                  </div>
+                )}
+
               </div>
 
-              {isWaitingForAnswerStart && (
-                <div style={{ width: "100%", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 8, textAlign: "center" }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 3 }}>
-                    Inactivity Timer
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: inactivitySecondsLeft <= 2 ? "#DC2626" : "#0A1F3D" }}>
-                    {inactivitySecondsLeft}s
-                  </div>
-                </div>
-              )}
             </div>
 
-            {/* Right: Live Transcript Console */}
-            <div style={{ background: "#F8FAFC", border: "1px solid #CBD5E1", borderRadius: 12, padding: 14, minHeight: 140, maxHeight: 240, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "#0A1F3D", textTransform: "uppercase", letterSpacing: "0.04em", borderBottom: "1px solid #E2E8F0", paddingBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span>Conversation Thread</span>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  {isCallConnected ? (
-                    <span style={{ color: isListening ? "#16A34A" : "#0284C7", display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700 }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: isListening ? "#16A34A" : "#0284C7", animation: isListening ? "pulse 1s infinite" : "none" }}></span>
-                      {isListening ? "Listening…" : "Voice Live ✓"}
+            {/* ===================== RIGHT PANE: 30% ===================== */}
+            <div style={{ flex: "0 0 360px", width: 360, maxWidth: "100%", display: "flex", flexDirection: "column", gap: 14 }}>
+              {/* 1. AI Interviewer Card */}
+              <div style={{ width: "100%", background: "#0B192C", border: "1px solid #1E293B", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                <InterviewerVideoAvatar state={avatarState} size="interview" />
+              </div>
+
+              {/* 2. Current Question Block & Dynamic Question State */}
+              <div style={{ background: "#0B192C", border: "1px solid #1E293B", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.04em", padding: "4px 10px", borderRadius: 6, background: "#F5B41A", color: "#0A1F3D" }}>
+                    {currentQuestionObj?.topicLabel || currentQuestionObj?.topic || `Topic ${currentQNumber}`}
+                  </span>
+                  {isSpeaking && (
+                    <span style={{ color: "#F5B41A", fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
+                      <i className="fa-solid fa-volume-high"></i> Asking…
                     </span>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
-                      disabled={loadingTurn || isConnectingCall}
-                      style={{
-                        background: "#FEF3C7",
-                        color: "#92400E",
-                        border: "1px solid #FCD34D",
-                        borderRadius: 6,
-                        padding: "2px 8px",
-                        fontSize: 10,
-                        fontWeight: 800,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 4,
-                      }}
-                      title="Click to reconnect the AI interviewer voice call"
-                    >
-                      <span>{isConnectingCall ? "⏳ Connecting…" : "⚡ Reconnect Voice"}</span>
-                    </button>
                   )}
                 </div>
+                <h4 style={{ fontSize: 13.5, fontWeight: 600, color: "#F1F5F9", lineHeight: 1.55, margin: 0 }}>
+                  {currentQuestionObj?.question || "Please listen carefully to the interviewer's question..."}
+                </h4>
               </div>
 
-              {transcript.map((line, idx) => {
-                const isMessi = line.speaker === "messi";
-                return (
-                  <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: isMessi ? "flex-start" : "flex-end" }}>
-                    <div style={{ fontSize: 10, color: "#94A3B8", fontWeight: 800, marginBottom: 2 }}>
-                      {isMessi ? "AI INTERVIEWER" : "YOU"}
-                    </div>
-                    <div
-                      style={{
-                        maxWidth: "88%",
-                        padding: "8px 12px",
-                        borderRadius: isMessi ? "12px 12px 12px 2px" : "12px 12px 2px 12px",
-                        background: isMessi ? "#FFFFFF" : "#0A1F3D",
-                        color: isMessi ? "#1E293B" : "#FFFFFF",
-                        border: isMessi ? "1px solid #CBD5E1" : "none",
-                        fontSize: 12.5,
-                        lineHeight: 1.5,
-                        whiteSpace: "pre-wrap",
-                      }}
-                    >
-                      {line.text}
-                    </div>
-                  </div>
-                );
-              })}
+              {/* 3. Action Buttons & Real-Time Proctoring Telemetry Pill */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <div style={{ background: "#0B192C", border: "1px solid #1E293B", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#CBD5E1", flex: 1, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
+                  <span style={{ fontSize: 14 }}>🚨</span>
+                  <span>
+                    Warnings: <strong style={{ color: attentionWarningsCount > 0 ? "#F87171" : "#34D399" }}>{attentionWarningsCount}</strong>
+                  </span>
+                </div>
 
-              {/* Real-time interim transcription */}
-              {liveInterim && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-                  <div style={{ fontSize: 9.5, color: "#16A34A", fontWeight: 800, marginBottom: 2 }}>
-                    TRANSCRIBING LIVE…
-                  </div>
-                  <div style={{ maxWidth: "88%", padding: "8px 12px", borderRadius: "12px 12px 2px 12px", background: "rgba(10,31,61,0.06)", border: "1.5px dashed #0A1F3D", color: "#0A1F3D", fontSize: 12.5, fontStyle: "italic" }}>
-                    {liveInterim}
+                {/* Next Question Action Button */}
+                <button
+                  type="button"
+                  onClick={handleManualSkip}
+                  disabled={loadingTurn || isSpeaking}
+                  style={{
+                    background: "#F5B41A",
+                    color: "#0A1F3D",
+                    border: "none",
+                    fontWeight: 800,
+                    padding: "9px 16px",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    cursor: (loadingTurn || isSpeaking) ? "not-allowed" : "pointer",
+                    opacity: (loadingTurn || isSpeaking) ? 0.5 : 1,
+                    boxShadow: "0 4px 12px rgba(245,180,26,0.3)",
+                    transition: "all 0.2s",
+                  }}
+                  title="Move to the next question"
+                >
+                  <span>Next Question</span>
+                  <i className="fa-solid fa-arrow-right" style={{ fontSize: 11 }}></i>
+                </button>
+              </div>
+
+              {/* 4. Live Conversation Thread */}
+              <div style={{ background: "#0B192C", border: "1px solid #1E293B", borderRadius: 16, padding: 14, display: "flex", flexDirection: "column", gap: 10, height: 260, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+                <div style={{ fontSize: 10.5, fontWeight: 900, textTransform: "uppercase", color: "#64748B", letterSpacing: "0.05em", paddingBottom: 8, borderBottom: "1px solid #1E293B", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span>Conversation Thread</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {isCallConnected ? (
+                      <span style={{ color: "#34D399", display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 10 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399", display: "inline-block" }}></span>
+                        Voice Live
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
+                        disabled={loadingTurn || isConnectingCall}
+                        style={{
+                          fontSize: 10,
+                          color: "#F5B41A",
+                          background: "rgba(245, 180, 26, 0.15)",
+                          border: "1px solid rgba(245, 180, 26, 0.4)",
+                          padding: "2px 8px",
+                          borderRadius: 6,
+                          fontWeight: 800,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {isConnectingCall ? "Connecting…" : "🎙️ Reconnect"}
+                      </button>
+                    )}
                   </div>
                 </div>
-              )}
 
-              {loadingTurn && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#0A1F3D", fontSize: 12, fontWeight: 700, padding: 4 }}>
-                  <i className="fa-solid fa-spinner fa-spin" style={{ color: "#F5B41A" }}></i>
-                  AI is acknowledging your response…
-                </div>
-              )}
-              <div ref={chatEndRef} />
+                {transcript.map((line, idx) => {
+                  const isMessi = line.speaker === "messi";
+                  return (
+                    <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: isMessi ? "flex-start" : "flex-end" }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: "#64748B", marginBottom: 2 }}>
+                        {isMessi ? "AI INTERVIEWER" : "YOU"}
+                      </span>
+                      <div
+                        style={{
+                          maxWidth: "90%",
+                          fontSize: 12,
+                          padding: "8px 12px",
+                          borderRadius: 10,
+                          lineHeight: 1.45,
+                          background: isMessi ? "#1E293B" : "#F5B41A",
+                          color: isMessi ? "#E2E8F0" : "#0A1F3D",
+                          border: isMessi ? "1px solid #334155" : "none",
+                          fontWeight: isMessi ? 500 : 600,
+                        }}
+                      >
+                        {line.text}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {liveInterim && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
+                    <span style={{ fontSize: 9, fontWeight: 800, color: "#34D399", marginBottom: 2 }}>TRANSCRIBING LIVE…</span>
+                    <div style={{ maxWidth: "90%", fontSize: 12, padding: "8px 12px", borderRadius: 10, background: "#1E293B", border: "1px dashed #10B981", color: "#34D399", fontStyle: "italic" }}>
+                      {liveInterim}
+                    </div>
+                  </div>
+                )}
+
+                {loadingTurn && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700, color: "#F5B41A", padding: 4 }}>
+                    <i className="fa-solid fa-spinner fa-spin"></i>
+                    <span>AI is acknowledging your response…</span>
+                  </div>
+                )}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Response Input Form */}
+              <form onSubmit={handleTextSubmit} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => handleTextChange(e.target.value)}
+                  placeholder={
+                    isWaitingForAnswerStart
+                      ? "Speak into mic or type here (30s timeout)…"
+                      : isListening
+                      ? "Speaking… (you can also type here)"
+                      : "Type your response, or speak into mic…"
+                  }
+                  disabled={loadingTurn}
+                  style={{
+                    flex: 1,
+                    background: "#0B192C",
+                    border: "1px solid #334155",
+                    color: "#FFFFFF",
+                    fontSize: 12,
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={!inputText.trim() || loadingTurn}
+                  style={{
+                    background: "#F5B41A",
+                    color: "#0A1F3D",
+                    border: "none",
+                    fontWeight: 800,
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    fontSize: 12,
+                    cursor: (!inputText.trim() || loadingTurn) ? "not-allowed" : "pointer",
+                    opacity: (!inputText.trim() || loadingTurn) ? 0.4 : 1,
+                    boxShadow: "0 2px 8px rgba(245,180,26,0.3)",
+                  }}
+                  title="Send answer"
+                >
+                  <i className="fa-solid fa-paper-plane"></i>
+                </button>
+              </form>
             </div>
           </div>
-
-          {/* 4. INPUT & ACTION CONTROLS */}
-          <form
-            onSubmit={handleTextSubmit}
-            style={{
-              padding: "12px 24px 18px",
-              background: "#FFFFFF",
-              borderTop: "1px solid #CBD5E1",
-              display: "flex",
-              gap: 10,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <input
-              type="text"
-              value={inputText}
-              onChange={(e) => handleTextChange(e.target.value)}
-              placeholder={
-                isWaitingForAnswerStart
-                  ? "Speak into your mic, or type here to answer (30s timeout)…"
-                  : isListening
-                  ? "Speaking… (you can also type here)"
-                  : "Type your response, or speak into your microphone…"
-              }
-              disabled={loadingTurn}
-              style={{
-                flex: 1,
-                minWidth: 200,
-                padding: "11px 16px",
-                borderRadius: 10,
-                border: "1.5px solid #CBD5E1",
-                fontSize: 13,
-                outline: "none",
-                background: isWaitingForAnswerStart ? "#FFFBEB" : "#FFFFFF",
-              }}
-            />
-
-            <button
-              type="submit"
-              className="btn btn-gold"
-              disabled={!inputText.trim() || loadingTurn}
-              style={{ padding: "11px 22px", fontSize: 13, fontWeight: 800, borderRadius: 10 }}
-            >
-              Send Answer <i className="fa-solid fa-paper-plane" style={{ marginLeft: 6 }}></i>
-            </button>
-
-            {!isCallConnected && (
-              <button
-                type="button"
-                onClick={() => startVapiCall(localStorage.getItem("talentera_token"))}
-                disabled={loadingTurn || isConnectingCall}
-                style={{
-                  background: "#FFFBEB",
-                  border: "1.5px solid #F59E0B",
-                  color: "#B45309",
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  fontSize: 12,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-                title="Reconnect voice connection with AI interviewer"
-              >
-                {isConnectingCall ? "⏳ Connecting…" : "🎙️ Reconnect Voice"}
-              </button>
-            )}
-
-            {/* Skip button for quick manual skip if candidate chooses */}
-            <button
-              type="button"
-              onClick={handleManualSkip}
-              disabled={loadingTurn || isSpeaking}
-              style={{
-                background: "none",
-                border: "1px solid #CBD5E1",
-                color: "#64748B",
-                borderRadius: 10,
-                padding: "10px 14px",
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: loadingTurn || isSpeaking ? "not-allowed" : "pointer",
-              }}
-            >
-              Skip →
-            </button>
-          </form>
-        </>
+        </div>
       )}
 
       {/* 5. INTERVIEW SUMMARY & FEEDBACK (REPORT) */}

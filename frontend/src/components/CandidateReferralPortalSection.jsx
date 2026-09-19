@@ -546,9 +546,10 @@ export default function CandidateReferralPortalSection({
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: '800', color: 'var(--navy)', marginBottom: '4px', textTransform: 'uppercase' }}>Mobile Number</label>
                 <input
                   type="tel"
-                  placeholder="+91 9876543210"
+                  placeholder="9876543210 (10 digits)"
+                  maxLength={10}
                   value={inviteForm.mobile}
-                  onChange={(e) => setInviteForm({ ...inviteForm, mobile: e.target.value })}
+                  onChange={(e) => setInviteForm({ ...inviteForm, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                   style={{ width: '100%', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '13px' }}
                 />
               </div>

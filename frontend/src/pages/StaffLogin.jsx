@@ -242,49 +242,6 @@ export default function StaffLogin() {
             >
               {loading ? "Authenticating..." : "Sign in to Staff Portal →"}
             </button>
-
-            <button
-              type="button"
-              onClick={async (e) => {
-                if (e) e.preventDefault();
-                setError("");
-                setLoading(true);
-                try {
-                  const res = await fetch("/api/staff/demo-login", { method: "POST" });
-                  const data = await safeJson(res);
-                  if (res.ok && data.token) {
-                    localStorage.setItem("talentera_staff_token", data.token);
-                    localStorage.setItem("talentera_staff_info", JSON.stringify(data.staff));
-                    navigate("/staff/hub");
-                  } else {
-                    setError(data.message || "Demo login failed.");
-                  }
-                } catch (err) {
-                  console.error(err);
-                  setError("Demo login error: " + (err.message || "Failed to log in"));
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              style={{
-                width: "100%",
-                padding: "12px",
-                background: "rgba(10,31,61,0.06)",
-                color: "var(--navy)",
-                fontSize: 13,
-                fontWeight: 800,
-                borderRadius: 10,
-                border: "1.5px dashed var(--navy)",
-                cursor: "pointer",
-                marginTop: 4,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8
-              }}
-            >
-              ⚡ Quick Developer Demo Login →
-            </button>
           </form>
 
           <div style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", marginTop: 28, lineHeight: 1.6 }}>

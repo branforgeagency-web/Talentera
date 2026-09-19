@@ -166,8 +166,12 @@ async function finalizeAiInterviewSession(candidate, session, status) {
     mockInterviewCompleted: true,
   };
   const mockFinalScore = result.overallScore;
-  const selfIntroScore = typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null;
-  const combinedScore = selfIntroScore !== null ? Math.round((selfIntroScore + mockFinalScore) / 2) : mockFinalScore;
+  const hasRealSelfIntro = Boolean(
+    candidate.stage5?.selfIntroCompleted && typeof candidate.stage5?.aiScore === "number"
+  );
+  const selfIntroScore = hasRealSelfIntro ? candidate.stage5.aiScore : null;
+  const isBothCompleted = hasRealSelfIntro && selfIntroScore !== null;
+  const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockFinalScore) / 2) : null;
 
   candidate.stage5 = {
     ...(candidate.stage5 || {}),
@@ -175,11 +179,19 @@ async function finalizeAiInterviewSession(candidate, session, status) {
     mockScore: mockFinalScore,
     score: combinedScore,
     overallScore: combinedScore,
-    medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
-    status: status,
+    medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
+    status: isBothCompleted ? "completed" : "in_progress",
     endedEarly: status === "STOPPED",
     endedReason: status === "STOPPED" ? "USER_ENDED" : null,
+    completedAt: isBothCompleted ? new Date() : (candidate.stage5?.completedAt || null),
   };
+
+  if (isBothCompleted) {
+    if (!candidate.completedStages.includes(5)) {
+      candidate.completedStages.push(5);
+    }
+  }
+
   candidate.markModified("stage8");
   candidate.markModified("stage5");
   return result;

@@ -2,6 +2,8 @@ import React, { useState, useMemo, useRef } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
+import { joinUnique } from "../utils/resumeSubtitle.js";
+import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
 // 7 Verified Resume Templates matching Talentera standards
 export const RESUME_TEMPLATES = [
@@ -219,10 +221,22 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   const cgpa = stage1.cgpa ? `CGPA ${stage1.cgpa}` : (stage1.percentage ? `${stage1.percentage}%` : "CGPA 44");
 
   // Work Preferences
-  const preferredCities = Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0
-    ? stage1.preferredLocations.join(" · ")
-    : (city ? `${city} · Bengaluru · Hyderabad · Chennai` : "Chennai · Bengaluru · Hyderabad · Chennai");
-  const shiftPreference = stage1.shiftPreference || "Day + US Night";
+  const preferredCities = useMemo(() => {
+    if (Array.isArray(stage1.preferredCities) && stage1.preferredCities.length > 0) {
+      return stage1.preferredCities.filter(Boolean).join(" · ");
+    }
+    if (Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0) {
+      return stage1.preferredLocations.filter(Boolean).join(" · ");
+    }
+    if (typeof stage1.preferredLocations === "string" && stage1.preferredLocations.trim()) {
+      return stage1.preferredLocations.trim();
+    }
+    if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
+      return stage1.preferredCities.trim();
+    }
+    return city ? city : "Open to Relocation";
+  }, [stage1, city]);
+  const shiftPreference = stage1.shiftPreference || "Day shift";
   const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
 
   // Score Calculation
@@ -291,10 +305,35 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     };
   }, [baseTemplateObj, customAccent, customHeaderBg, customFont]);
 
-  // Career Objective
-  const defaultObjective = `Talentera-validated fresher with ${totalCharts} verified live charts (${overallAccuracy}% accuracy) across Inpatient Coding — seeking an entry-level healthcare RCM coder role at a growth-stage firm serving US healthcare accounts.`;
+  // Career Objective - tailored to experience level + Stage 3 certification status (utils/careerObjective.js)
+  const defaultObjective = useMemo(() => {
+    const { level, years } = getExperienceLevel(stage1, candidateObj);
+    return buildCareerObjectives({
+      level,
+      years,
+      status: getCertStatus(stage3, certificationsList),
+      certCodes: certificationsList.map((c) => c.code || c.name),
+      pursuingCert: stage3.pursuingDetails?.cert || stage3.pursuingCert || "",
+      expectedExam: stage3.pursuingDetails?.expectedDate || "",
+      totalCharts,
+      accuracy: overallAccuracy,
+      specialties: specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName,
+      roleTitle: stage1.currentRole || "",
+      academyName,
+      assessmentScore,
+    }).options[0].text;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore]);
   const [careerObjective, setCareerObjective] = useState(() => {
-    return stage7Data.objective || stage7Data.summary || defaultObjective;
+    const saved = stage7Data.objective || stage7Data.summary;
+    const raw = saved && !isLegacyAutoObjective(saved) ? saved : defaultObjective;
+    return raw
+      .replace(/Talentera[- ]verified/gi, "Qualified")
+      .replace(/Talentera[- ]validated/gi, "Qualified")
+      .replace(/Talentera skillset/gi, "skillset")
+      .replace(/Talentera/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
   });
   const [isEditingObjective, setIsEditingObjective] = useState(false);
   const [showThemeDrawer, setShowThemeDrawer] = useState(false);
@@ -1268,7 +1307,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {fullName.toUpperCase()}
               </h1>
               <div style={{ fontSize: scale.sub, fontWeight: 700, color: activeTmpl.accentColor || "#F5B41A", marginBottom: 6 }}>
-                {currentRoleTitle} · {expLabel} · {locality}
+                {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{ fontSize: scale.base, color: "#E2E8F0", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                 {mobile && <span>📞 {mobile}</span>}
@@ -1334,7 +1373,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               {fullName.toUpperCase()}
             </h1>
             <div style={{ fontSize: scale.sub, fontWeight: 700, color: activeTmpl.headerBg || "#0F1B3D", marginBottom: 6 }}>
-              {currentRoleTitle} · {expLabel} · {locality}
+              {joinUnique(currentRoleTitle, expLabel)}
             </div>
             <div style={{
               fontSize: scale.base,
@@ -1388,7 +1427,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {fullName.toUpperCase()}
               </h1>
               <div style={{ fontSize: scale.sub, fontWeight: 600, color: "#475569", marginBottom: 6 }}>
-                {currentRoleTitle} · {expLabel} · {locality}
+                {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{ fontSize: scale.base, color: "#334155", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                 {mobile && <span>📞 {mobile}</span>}
@@ -1457,7 +1496,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {fullName.toUpperCase()}
               </h1>
               <div style={{ fontSize: scale.sub, fontWeight: 600, color: "#475569", marginBottom: 8 }}>
-                {currentRoleTitle} · {expLabel} · {locality}
+                {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{
                 fontSize: scale.base,
@@ -1672,15 +1711,19 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.count}</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.accuracy}%</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.timePerChart}</td>
-                    <td style={{ padding: "8px 12px", color: "#16A34A", fontWeight: 600 }}>🟢 {sc.lastCoded}</td>
+                    <td style={{ padding: "8px 12px", color: Number(sc.count) > 0 ? "#16A34A" : "#64748B", fontWeight: 600 }}>
+                      {Number(sc.count) > 0 ? (sc.lastCodedDate ? `🟢 ${new Date(sc.lastCodedDate).toLocaleDateString()}` : "🟢 Active") : "—"}
+                    </td>
                   </tr>
                 ))}
                 <tr style={{ background: "#FFFDF5", fontWeight: 800, color: "#0F1B3D" }}>
                   <td style={{ padding: "8px 12px" }}>TOTAL</td>
                   <td style={{ padding: "8px 12px" }}>{totalCharts}</td>
                   <td style={{ padding: "8px 12px" }}>{overallAccuracy}%</td>
-                  <td style={{ padding: "8px 12px" }}>5.8 min avg</td>
-                  <td style={{ padding: "8px 12px", color: "#16A34A" }}>🟢 Active</td>
+                  <td style={{ padding: "8px 12px" }}>{totalCharts > 0 ? "5.0 min avg" : "—"}</td>
+                  <td style={{ padding: "8px 12px", color: totalCharts > 0 ? "#16A34A" : "#64748B" }}>
+                    {totalCharts > 0 ? "🟢 Active" : "—"}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -1701,7 +1744,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   ▶
                 </div>
                 <div style={{ fontSize: 10.5, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>SELF-INTRODUCTION (60 SEC)</div>
-                <div style={{ fontSize: scale.base + 1.5, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>{videoMedal} · {videoScore}/100</div>
+                <div style={{ fontSize: scale.base + 1.5, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>Video Pitch Score · {videoScore}/100</div>
                 <div style={{ fontSize: scale.base - 0.5, color: "#475569", marginTop: 3 }}>
                   Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Live Verified</span> · Scan to play
                 </div>

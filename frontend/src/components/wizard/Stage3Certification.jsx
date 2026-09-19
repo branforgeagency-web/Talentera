@@ -80,12 +80,16 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   const specialty = s2.specialties?.[0] || s2.specialty || s2.domain || "Medical Coding";
   const candidateCity = s1.city || candidate.city || "—";
 
+  const isPursuingFromStage2 = s2.trainingPath === "pursuing" || candidate?.stage2?.trainingPath === "pursuing" || candidate?.trainingPath === "pursuing";
+
   // SECTION 1 · CERTIFICATION STATUS
   const [status, setStatus] = useState(
     existingData.certType === "non-certified" || existingData.nonCertified || existingData.isCertified === false
       ? "non-certified"
-      : existingData.status || existingData.certType || "certified"
+      : existingData.status || existingData.certType || (isPursuingFromStage2 ? "pursuing" : "certified")
   );
+
+  const isMarketsOptional = status === "pursuing" || status === "non-certified" || isPursuingFromStage2;
 
   // SECTION 2 · CERTIFICATION REGION & BODY
   const [selectedRegion, setSelectedRegion] = useState("us");
@@ -213,7 +217,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   // SECTION 5 · GLOBAL MARKETS
   const [selectedMarkets, setSelectedMarkets] = useState(
-    Array.isArray(existingData.targetMarkets) && existingData.targetMarkets.length > 0
+    Array.isArray(existingData.targetMarkets)
       ? existingData.targetMarkets
       : ["in", "us", "ae", "global"]
   );
@@ -242,7 +246,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   function handleToggleMarket(marketId) {
     if (selectedMarkets.includes(marketId)) {
-      if (selectedMarkets.length === 1) {
+      if (!isMarketsOptional && selectedMarkets.length === 1) {
         toast("Please keep at least one market selected.", "!");
         return;
       }
@@ -321,7 +325,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       lastCeuYear,
       lastCeu: formattedLastCeu,
       certifications: finalStack,
-      targetMarkets: selectedMarkets,
+      targetMarkets: isNonCert ? [] : selectedMarkets,
       pursuingDetails: isPursuing
         ? {
             cert: pursuingCert,
@@ -450,12 +454,16 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     setError("");
     if (status === "certified") {
       if (!memberId.trim() && certStack.length === 0) {
-        setError("Please enter your Member / Cert ID in Section 2.");
+        const msg = "Please enter your Member / Certification ID in Section 2.";
+        setError(msg);
+        toast(msg, "error", { title: "Mandatory Fields Required" });
         window.scrollTo({ top: 400, behavior: "smooth" });
         return;
       }
       if (verificationResult?.isFake) {
-        setError("The entered credential failed authenticity verification (flagged fake/dummy). Please correct your Member ID or verification link.");
+        const msg = "The entered credential failed authenticity verification (flagged fake/dummy). Please correct your Member ID or verification link.";
+        setError(msg);
+        toast(msg, "error", { title: "Invalid Credential" });
         window.scrollTo({ top: 400, behavior: "smooth" });
         return;
       }
@@ -2213,16 +2221,21 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             </div>
           )}
 
-          {/* SECTION 5 · GLOBAL MARKETS */}
+          {/* SECTION 5 · GLOBAL MARKETS (hidden for non-certified candidates) */}
+          {status !== "non-certified" && (
           <div className="s3-section">
             <div className="s3-section-header">
               <div className="s3-section-num">5</div>
               <div className="s3-section-title">Global Markets — where should your certs work?</div>
-              <div className="s3-status-chip">DONE · +3</div>
+              <div className="s3-status-chip">
+                {selectedMarkets.length > 0 ? "DONE · +3" : isMarketsOptional ? "OPTIONAL" : "REQUIRED"}
+              </div>
             </div>
 
             <div className="s3-field">
-              <label>I'd like to be surfaced to companies in <span className="req">*</span></label>
+              <label>
+                I'd like to be surfaced to companies in {isMarketsOptional ? <span className="s3-helper" style={{ fontWeight: 500, fontStyle: "normal" }}>(Optional)</span> : <span className="req">*</span>}
+              </label>
               <div className="s3-helper" style={{ marginBottom: 8 }}>
                 Pick every market where you want to be considered. Your certs get matched to the right regional bodies.
               </div>
@@ -2242,6 +2255,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
             </div>
           </div>
+          )}
 
           {/* STICKY BOTTOM BAR */}
           <div className="s3-sticky-bar">
@@ -2252,14 +2266,6 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               <div><b>50 / 100</b> · Stage 03 in progress</div>
             </div>
             <div className="s3-sticky-actions">
-              <button
-                type="button"
-                className="s3-link-btn"
-                onClick={handleSaveDraft}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save & finish later"}
-              </button>
               <button
                 type="button"
                 className="s3-action-btn"

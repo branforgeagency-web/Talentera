@@ -45,9 +45,10 @@ async function sendEmail({ to, subject, htmlContent, textContent }) {
 /**
  * Sends an assessment retake approval email to the candidate with direct login & retake link.
  */
-async function sendRetakeApprovedEmail({ toEmail, candidateName, retakeUrl, employeeNotes, assessmentType }) {
+async function sendRetakeApprovedEmail({ toEmail, candidateName, retakeUrl = "https://talentera-nine.vercel.app/dashboard", employeeNotes, assessmentType }) {
   const cleanName = candidateName || "Candidate";
   const assessmentTitle = assessmentType || "Talentera AAPC / RCM Proctored Assessment";
+  const finalRetakeUrl = retakeUrl || "https://talentera-nine.vercel.app/dashboard";
   const subject = `Your ${assessmentTitle} Retake Request has been Approved! 🎯`;
 
   const htmlContent = `
@@ -91,7 +92,7 @@ async function sendRetakeApprovedEmail({ toEmail, candidateName, retakeUrl, empl
               Your assessment stage has been unlocked. Click the button below to log in and proceed directly to your assessment section.
             </p>
             <div class="btn-container">
-              <a href="${retakeUrl}" class="retake-btn">Login &amp; Retake Assessment →</a>
+              <a href="${finalRetakeUrl}" class="retake-btn">Login &amp; Retake Assessment →</a>
             </div>
             <p style="font-size: 12px; color: #64748B; line-height: 1.5;">
               <strong>Note:</strong> Ensure you are in a quiet environment with camera permissions enabled and avoid switching browser tabs during your test.
@@ -105,7 +106,7 @@ async function sendRetakeApprovedEmail({ toEmail, candidateName, retakeUrl, empl
     </html>
   `;
 
-  const textContent = `Hello ${cleanName},\n\nYour request to retake the ${assessmentTitle} has been APPROVED.\n\nLogin and retake your test here: ${retakeUrl}\n\n${
+  const textContent = `Hello ${cleanName},\n\nYour request to retake the ${assessmentTitle} has been APPROVED.\n\nLogin and retake your test here: ${finalRetakeUrl}\n\n${
     employeeNotes ? `Review Note: ${employeeNotes}\n\n` : ""
   }Best regards,\nTalentera Assessment Team`;
 

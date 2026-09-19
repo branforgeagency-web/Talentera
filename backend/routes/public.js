@@ -114,6 +114,11 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
         interviewMode: stage5.interviewMode || null,
         accuracyScore: typeof stage6.accuracyScore === "number" ? stage6.accuracyScore : null,
         chartsAudited: typeof stage6.liveChartsAudited === "number" ? stage6.liveChartsAudited : null,
+        // Real Bronze/Silver/Gold/Platinum rating computed from the candidate's own
+        // reported chart count + accuracy in routes/candidate.js - never fabricated here.
+        chartTier: stage6.tier || null,
+        chartsVerified: !!stage6.verified,
+        chartsVerificationMethod: stage6.verificationMethod || null,
         summary: stage7.summary || null,
         noticePeriod: stage8.status || null,
         expectedCtc: stage8.expectedCtc || null,

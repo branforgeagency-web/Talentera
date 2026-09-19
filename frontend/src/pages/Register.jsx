@@ -414,6 +414,7 @@ export default function Register() {
                 <input
                   type="tel"
                   required
+                  maxLength={10}
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                   placeholder="98765 43210"

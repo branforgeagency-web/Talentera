@@ -394,7 +394,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </div>
           )}
 
-          {!isKycVerified && !application.isKycVerified && (
+          {!application.isKycVerified && (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, marginBottom: 20 }}>
               🔒 Contact details are masked until your company completes Account &amp; KYC verification.
             </div>
@@ -529,12 +529,23 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               <Row label="Live Chart Accuracy" value="🔒 Locked (Free Tier)" />
               <Row label="Audit Breakdown" value="Upgrade to Growth Tier to unlock" />
             </Section>
-          ) : (liveCharts.liveChartsAudited !== undefined || liveCharts.totalCharts !== undefined || liveCharts.tier) ? (
+          ) : !(Number(liveCharts.realChartCount ?? liveCharts.totalCharts ?? liveCharts.liveChartsAudited) > 0) ? (
             <Section title="Live chart audit">
-              <Row label="Live Chart Tier" value={liveCharts.tier ? `${liveCharts.tier === "Platinum" ? "🏆 Platinum" : liveCharts.tier === "Gold" ? "🥇 Gold" : liveCharts.tier === "Silver" ? "🥈 Silver" : "🥉 Bronze"} (${liveCharts.tier})` : "🥈 Silver"} />
-              <Row label="Total charts coded" value={liveCharts.totalCharts ?? liveCharts.liveChartsAudited ?? 141} />
-              <Row label="Overall accuracy" value={`${liveCharts.overallAccuracy ?? liveCharts.accuracyScore ?? 83.5}%`} />
-              <Row label="Verification method" value={liveCharts.verificationMethod || (liveCharts.verified ? "API-Verified ✓" : "Self-reported")} />
+              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                No live chart exposure recorded by this candidate
+              </div>
+            </Section>
+          ) : (
+            <Section title="Live chart audit">
+              {liveCharts.tier && (
+                <Row label="Live Chart Tier" value={`${liveCharts.tier === "Platinum" ? "🏆 Platinum" : liveCharts.tier === "Gold" ? "🥇 Gold" : liveCharts.tier === "Silver" ? "🥈 Silver" : "🥉 Bronze"} (${liveCharts.tier})`} />
+              )}
+              <Row label="Total charts coded" value={liveCharts.totalCharts ?? liveCharts.liveChartsAudited} />
+              {(liveCharts.overallAccuracy ?? liveCharts.accuracyScore) != null && (
+                <Row label="Overall accuracy" value={`${liveCharts.overallAccuracy ?? liveCharts.accuracyScore}%`} />
+              )}
+              {liveCharts.timePracticedHours > 0 && <Row label="Time practised" value={`${liveCharts.timePracticedHours} hrs`} />}
+              <Row label="Verification method" value={liveCharts.verificationMethod || (liveCharts.verified ? "Verified ✓" : "Self-reported")} />
               {Array.isArray(liveCharts.selectedPlatforms) && liveCharts.selectedPlatforms.length > 0 && (
                 <Row label="Platforms used" value={liveCharts.selectedPlatforms.join(", ")} />
               )}
@@ -552,7 +563,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
                 </div>
               )}
             </Section>
-          ) : null}
+          )}
 
           {summary.summary && (
             <Section title="Candidate summary">

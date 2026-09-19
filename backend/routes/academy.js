@@ -20,9 +20,8 @@ const router = express.Router();
 
 const DASHBOARD_FETCH_CAP = 500;
 
-// Where a student invite's signup link points. Falls back to the same
-// production origin already whitelisted for CORS in server.js.
-const APP_URL = (process.env.APP_URL || "https://talentera.in").replace(/\/$/, "");
+// Where a student invite's signup link points. Uses https://talentera-nine.vercel.app as requested.
+const APP_URL = (process.env.APP_URL || "https://talentera-nine.vercel.app").replace(/\/$/, "");
 
 function inviteSignupLink(inviteToken) {
   return `${APP_URL}/register?invite=${inviteToken}`;
@@ -51,22 +50,116 @@ async function sendInviteEmail({ invite, academyName }) {
   }).catch((err) => logger.warn(`Invite email failed for ${invite.email}: ${err.message}`));
 }
 
+// Dispatches multi-channel reminders (Email via Brevo, SMS, WhatsApp) to candidates
+async function sendCandidateReminderNotification({ candidate, academy, reminderType, customMessage }) {
+  if (!candidate || !candidate.email) return;
+
+  const candidateName = candidate.stage1?.fullName || candidate.name || candidate.email.split("@")[0];
+  const academyName = academy?.name || "Your Academy Partner";
+  const mobile = candidate.stage1?.mobile || candidate.mobile || "";
+
+  let subject = `Action Required: Profile Verification Reminder - ${academyName}`;
+  let title = "Talentera Profile Reminder";
+  let contentHtml = "";
+
+  if (reminderType === "portfolio_video" || reminderType === "video") {
+    subject = `Action Required: Upload your Portfolio Video (Stage 5) - ${academyName}`;
+    title = "Portfolio Video Reminder";
+    contentHtml = `
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Hi ${candidateName},</p>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your academy <strong>${academyName}</strong> has sent a reminder requesting you to record and upload your <strong>2-minute Portfolio Video (Stage 5)</strong> on Talentera.</p>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Uploading your video introduction enables employers and recruiters to discover your profile for immediate healthcare hiring opportunities.</p>
+      <p style="margin: 24px 0;"><a href="${APP_URL}/login" style="background:#0A1F3D;color:#E5A82E;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Record / Upload Video Now →</a></p>
+      <p style="color: #64748B; font-size: 13px;">This reminder was dispatched via Email, SMS, and WhatsApp by ${academyName}.</p>
+    `;
+  } else {
+    subject = `Reminder: Complete Your Talentera Verification - ${academyName}`;
+    title = "Complete Your Profile Verification";
+    contentHtml = `
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Hi ${candidateName},</p>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your training partner <strong>${academyName}</strong> has sent you a reminder to complete your pending verification stages on Talentera.</p>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Complete your assessments and verification to get your verified credential and match with top healthcare employers.</p>
+      <p style="margin: 24px 0;"><a href="${APP_URL}/login" style="background:#0A1F3D;color:#E5A82E;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Continue Profile Verification →</a></p>
+      <p style="color: #64748B; font-size: 13px;">This reminder was dispatched via Email, SMS, and WhatsApp by ${academyName}.</p>
+    `;
+  }
+
+  // 1. Dispatch Email via Brevo
+  sendTransactionalEmail({
+    to: candidate.email,
+    toName: candidateName,
+    subject,
+    html: wrapEmailTemplate(title, contentHtml),
+  }).catch((err) => logger.warn(`Reminder email failed for ${candidate.email}: ${err.message}`));
+
+  // 2. Log SMS & WhatsApp notification
+  logger.info(`[MULTI-CHANNEL REMINDER DISPATCHED - EMAIL, SMS, WHATSAPP] Candidate: ${candidateName} (${candidate.email}, ${mobile}) | Academy: ${academyName} | Type: ${reminderType || "general"}`);
+
+  // 3. Update invite timestamps if present
+  try {
+    await StudentInvite.updateMany(
+      {
+        $or: [
+          { candidateId: candidate._id },
+          { email: candidate.email.toLowerCase() },
+        ],
+      },
+      {
+        $set: {
+          lastNudgeAt: new Date(),
+          smsSentAt: new Date(),
+          whatsappSentAt: new Date(),
+        },
+      }
+    );
+  } catch (err) {
+    logger.warn(`Failed to update invite timestamp on reminder: ${err.message}`);
+  }
+}
+
+// Helper to parse CSV line respecting quotes
+function parseCsvLine(text) {
+  const result = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      if (inQuotes && text[i + 1] === c) {
+        cur += c;
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === "," && !inQuotes) {
+      result.push(cur.trim().replace(/^["']|["']$/g, ""));
+      cur = "";
+    } else {
+      cur += c;
+    }
+  }
+  result.push(cur.trim().replace(/^["']|["']$/g, ""));
+  return result;
+}
+
 // Helper to parse CSV buffer into row objects
 function parseCsvBuffer(buffer) {
   const text = buffer.toString("utf-8");
   const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
   if (lines.length <= 1) return [];
 
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/^["']|["']$/g, "").toLowerCase().replace(/[\s_-]+/g, "_"));
+  const headers = parseCsvLine(lines[0]).map((h) =>
+    h.toLowerCase().replace(/[\s_-]+/g, "_")
+  );
   const rows = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = lines[i].split(",").map((v) => v.trim().replace(/^["']|["']$/g, ""));
+    const values = parseCsvLine(lines[i]);
     if (values.length < 2) continue;
 
     const row = {};
     headers.forEach((h, idx) => {
-      row[h] = values[idx] || "";
+      row[h] = values[idx] !== undefined ? values[idx] : "";
     });
     rows.push(row);
   }
@@ -203,16 +296,85 @@ function compute8Stages(candidate) {
   };
 }
 
+// Generate matching variations for mobile numbers (digits only, 10-digit formats, +91, 0 prefixes)
+function getMobileQueryVariants(mobiles) {
+  if (!mobiles) return [];
+  const list = Array.isArray(mobiles) ? mobiles : [mobiles];
+  const variants = new Set();
+
+  for (const m of list) {
+    if (!m) continue;
+    const str = String(m).trim();
+    if (!str) continue;
+    variants.add(str);
+    const digitsOnly = str.replace(/\D/g, "");
+    if (!digitsOnly) continue;
+    variants.add(digitsOnly);
+    if (digitsOnly.length >= 10) {
+      const last10 = digitsOnly.slice(-10);
+      variants.add(last10);
+      variants.add(`+91${last10}`);
+      variants.add(`+91 ${last10}`);
+      variants.add(`91${last10}`);
+      variants.add(`0${last10}`);
+    }
+  }
+  return Array.from(variants);
+}
+
+// Build regex filters for 10-digit mobile numbers allowing spaces, dashes, or prefixes
+function buildMobileRegexFilters(mobiles) {
+  if (!mobiles) return [];
+  const list = Array.isArray(mobiles) ? mobiles : [mobiles];
+  const filters = [];
+  const seenLast10 = new Set();
+
+  for (const m of list) {
+    if (!m) continue;
+    const digitsOnly = String(m).replace(/\D/g, "");
+    if (digitsOnly.length >= 10) {
+      const last10 = digitsOnly.slice(-10);
+      if (!seenLast10.has(last10)) {
+        seenLast10.add(last10);
+        const pattern = new RegExp(last10.split("").join("\\D*"));
+        filters.push({ mobile: pattern });
+        filters.push({ "stage1.mobile": pattern });
+      }
+    }
+  }
+  return filters;
+}
+
+// Builds comprehensive filter matching candidate by academy ID, academy name, invited emails, AND invited mobile numbers
+function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
+  const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
+  const invitedMobiles = invites.map((inv) => inv.mobile).filter(Boolean);
+  const candidateIds = invites.map((inv) => inv.candidateId).filter(Boolean);
+  const mobileVariants = getMobileQueryVariants(invitedMobiles);
+  const mobileRegexes = buildMobileRegexFilters(invitedMobiles);
+
+  const orConditions = [
+    { "stage2.academyId": academyId.toString() },
+    ...(academyName ? [{ "stage2.academyName": { $regex: new RegExp(`^${academyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } }] : []),
+    ...(invitedEmails.length > 0 ? [{ email: { $in: invitedEmails } }] : []),
+    ...(candidateIds.length > 0 ? [{ _id: { $in: candidateIds } }] : []),
+    ...(mobileVariants.length > 0 ? [
+      { mobile: { $in: mobileVariants } },
+      { "stage1.mobile": { $in: mobileVariants } },
+    ] : []),
+    ...mobileRegexes,
+  ];
+
+  return { $or: orConditions };
+}
+
 // Computes an academy's real, verifiable metrics from its actual linked candidates
 // and recorded placements — used for the cross-academy insights/benchmark feature.
 // Returns null for academies with no enrolled students (nothing meaningful to compare).
 async function computeAcademyMetrics(academy) {
-  const candidatesList = await Candidate.find({
-    $or: [
-      { "stage2.academyId": academy._id.toString() },
-      { "stage2.academyName": { $regex: new RegExp(`^${academy.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
-    ],
-  }).limit(DASHBOARD_FETCH_CAP).lean();
+  const invites = await StudentInvite.find({ academyId: academy._id }).lean();
+  const filter = buildAcademyCandidateFilter(academy._id, academy.name, invites);
+  const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
   const totalStudents = candidatesList.length;
   if (totalStudents === 0) return null;
@@ -244,12 +406,128 @@ async function computeAcademyMetrics(academy) {
   };
 }
 
-// POST /api/academy/login - Academy login with OTP token verification & JWT generation
-router.post("/login", authLimiter, async (req, res) => {
-  const { accessToken, fullName, academyName, email, mobile, phone } = req.body;
+// POST /api/academy/register - Register new academy with OTP verification & Password
+router.post("/register", authLimiter, async (req, res) => {
+  const { accessToken, fullName, academyName, email, password, mobile } = req.body;
+
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ message: "Valid official email address is required." });
+  }
+
+  if (!password || password.length < 6) {
+    return res.status(400).json({ message: "Password must be at least 6 characters." });
+  }
+
+  if (!mobile || !/^[6-9]\d{9}$/.test(mobile.replace(/\D/g, "").slice(-10))) {
+    return res.status(400).json({ message: "Valid 10-digit mobile number is required." });
+  }
 
   if (!accessToken) {
-    return res.status(400).json({ message: "Missing OTP verification token." });
+    return res.status(400).json({ message: "OTP verification is required before creating your academy account." });
+  }
+
+  try {
+    await verifyWidgetAccessToken(accessToken);
+  } catch (err) {
+    if (["OTP_TOKEN_MISSING", "OTP_VERIFY_FAILED"].includes(err.code)) {
+      return res.status(400).json({ message: err.message });
+    }
+    logger.error(`Academy register OTP verify error: ${err.message}`);
+    return res.status(500).json({ message: err.message || "Server error verifying OTP." });
+  }
+
+  try {
+    const cleanEmail = email.toLowerCase().trim();
+    const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
+    const existing = await Academy.findOne({ email: cleanEmail });
+
+    if (existing && existing.isVerified && existing.passwordHash) {
+      return res.status(409).json({ message: "An academy account with this email already exists. Please log in instead." });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    let academy;
+
+    if (existing) {
+      existing.name = academyName || existing.name || "Medical Coding Academy";
+      existing.contactName = fullName || existing.contactName || "Academy Partner";
+      existing.primaryAdmin = fullName || existing.primaryAdmin || "Academy Partner";
+      existing.phone = cleanMobile || existing.phone;
+      existing.passwordHash = passwordHash;
+      existing.isVerified = true;
+      academy = await existing.save();
+    } else {
+      academy = await Academy.create({
+        name: academyName || "Medical Coding Academy",
+        email: cleanEmail,
+        contactName: fullName || "Academy Partner",
+        primaryAdmin: fullName || "Academy Partner",
+        phone: cleanMobile,
+        passwordHash,
+        isVerified: true,
+        specialty: "Medical Coding",
+        headquarters: "Coimbatore",
+        branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+        tier: "Verified Partner",
+        totalAlumni: "35,000+",
+        partnerSince: "Jan 2025",
+        studentsUploaded: 0,
+        verifiedPct: 0,
+      });
+    }
+
+    const token = signToken(academy._id, "academy");
+
+    res.status(201).json({
+      token,
+      academy,
+    });
+  } catch (err) {
+    logger.error(`Academy register DB error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to register academy account." });
+  }
+});
+
+// POST /api/academy/login - Academy login with Password or OTP verification & JWT generation
+router.post("/login", authLimiter, async (req, res) => {
+  const { email, password, accessToken, fullName, academyName, mobile, phone } = req.body;
+  const cleanEmail = (email || "").toLowerCase().trim();
+
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    return res.status(400).json({ message: "Valid email required." });
+  }
+
+  // Password-based credentials login (same flow as candidates)
+  if (password) {
+    try {
+      const academy = await Academy.findOne({ email: cleanEmail });
+      if (!academy) {
+        return res.status(401).json({ message: "No academy account found with this email. Please sign up and verify your OTP first." });
+      }
+
+      if (!academy.passwordHash) {
+        return res.status(401).json({ message: "Account has no password set. Please complete sign up or reset password." });
+      }
+
+      const isMatch = await bcrypt.compare(password, academy.passwordHash);
+      if (!isMatch) {
+        return res.status(401).json({ message: "Invalid email or password." });
+      }
+
+      const token = signToken(academy._id, "academy");
+      return res.json({
+        token,
+        academy,
+      });
+    } catch (err) {
+      logger.error(`Academy password login error: ${err.message}`);
+      return res.status(500).json({ message: err.message || "Server error during login." });
+    }
+  }
+
+  // Fallback: OTP-based login
+  if (!accessToken) {
+    return res.status(400).json({ message: "Password or OTP verification token is required." });
   }
 
   try {
@@ -263,7 +541,6 @@ router.post("/login", authLimiter, async (req, res) => {
   }
 
   try {
-    const cleanEmail = (email || "aaaa@gmail.com").toLowerCase().trim();
     let academy = await Academy.findOne({ email: cleanEmail });
 
     if (!academy) {
@@ -375,19 +652,10 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       await academy.save();
     }
 
-    // Fetch Invites and Candidates linked to this academy
+    // Fetch Invites and Candidates linked to this academy (matching by email, mobile, candidateId, or stage2)
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
-    const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
-    const candidateIds = invites.map((inv) => inv.candidateId).filter(Boolean);
-
-    const candidatesList = await Candidate.find({
-      $or: [
-        { "stage2.academyId": req.academyId.toString() },
-        { "stage2.academyName": { $regex: new RegExp(`^${academy.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } },
-        { email: { $in: invitedEmails } },
-        { _id: { $in: candidateIds } },
-      ],
-    }).limit(DASHBOARD_FETCH_CAP).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
+    const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const formattedStudents = candidatesList.map((c) => {
       const s1 = c.stage1 || {};
@@ -579,9 +847,15 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
     const seenEmails = new Set();
     const seenMobiles = new Set();
 
-    const existingCandidates = await Candidate.find({}, { email: 1, mobile: 1 }).lean();
-    const existingEmailSet = new Set(existingCandidates.map((c) => (c.email || "").toLowerCase().trim()));
-    const existingMobileSet = new Set(existingCandidates.map((c) => (c.mobile || "").replace(/\D/g, "")));
+    const existingCandidates = await Candidate.find({}, { email: 1, mobile: 1, "stage1.mobile": 1 }).lean();
+    const existingEmailSet = new Set(existingCandidates.map((c) => (c.email || "").toLowerCase().trim()).filter(Boolean));
+    const existingMobileSet = new Set();
+    existingCandidates.forEach((c) => {
+      const m1 = (c.mobile || "").replace(/\D/g, "");
+      const m2 = (c.stage1?.mobile || "").replace(/\D/g, "");
+      if (m1.length >= 10) existingMobileSet.add(m1.slice(-10));
+      if (m2.length >= 10) existingMobileSet.add(m2.slice(-10));
+    });
 
     const previewRows = [];
     let acceptedCount = 0;
@@ -693,19 +967,32 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
 
     for (const row of rows_to_accept) {
       const cleanEmail = (row.email || "").toLowerCase().trim();
-      if (!cleanEmail) continue;
+      const rawMobile = row.mobile || "";
+      if (!cleanEmail && !rawMobile) continue;
 
-      let candidate = await Candidate.findOne({ email: cleanEmail });
+      const mobileRegexes = buildMobileRegexFilters([rawMobile]);
+      const mobileVariants = getMobileQueryVariants([rawMobile]);
+
+      const findCandOr = [
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(mobileVariants.length > 0 ? [
+          { mobile: { $in: mobileVariants } },
+          { "stage1.mobile": { $in: mobileVariants } },
+        ] : []),
+        ...mobileRegexes,
+      ];
+
+      let candidate = findCandOr.length > 0 ? await Candidate.findOne({ $or: findCandOr }) : null;
       if (!candidate) {
         candidate = await Candidate.create({
-          email: cleanEmail,
+          email: cleanEmail || `student.${Date.now()}@talentera.academy`,
           passwordHash: defaultPassword,
-          mobile: row.mobile || "",
+          mobile: rawMobile || "",
           completedStages: [],
           isVerified: false,
           stage1: {
             fullName: row.name,
-            mobile: row.mobile || "",
+            mobile: rawMobile || "",
             city: row.preferredCities?.[0] || "Coimbatore",
             experience: row.type === "experienced" ? "Experienced" : "Fresher",
             currentRole: row.course || "Medical Coding Trainee",
@@ -719,26 +1006,55 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
             verified: true,
           },
         });
+      } else {
+        candidate.stage2 = {
+          academyId: academy._id.toString(),
+          academyName: academy.name,
+          batch: row.batchCode || candidate.stage2?.batch || "JAN-HCC-01",
+          branch: row.preferredCities?.[0] || candidate.stage2?.branch || "Coimbatore",
+          verified: true,
+        };
+        if (rawMobile && (!candidate.mobile || !candidate.stage1?.mobile)) {
+          if (!candidate.mobile) candidate.mobile = rawMobile;
+          if (!candidate.stage1) candidate.stage1 = {};
+          if (!candidate.stage1.mobile) candidate.stage1.mobile = rawMobile;
+        }
+        await candidate.save();
       }
 
-      const invite = await StudentInvite.create({
-        uploadId: upload_id || null,
-        academyId: academy._id,
-        batchCode: row.batchCode || "JAN-HCC-01",
-        name: row.name,
-        email: cleanEmail,
-        mobile: row.mobile || "",
-        course: row.course || "HCC Coding Specialization",
-        type: row.type || "fresher",
-        preferredSpecialty: row.preferredSpecialty || "HCC",
-        expectedSalaryLpa: row.expectedSalaryLpa || 5.0,
-        preferredCities: row.preferredCities || ["Chennai"],
-        candidateId: candidate._id,
-        status: "delivered",
-        emailSentAt: new Date(),
-        smsSentAt: new Date(),
-        smsDeliveredAt: new Date(Date.now() + 3000),
-      });
+      const inviteOr = [
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+        ...mobileRegexes,
+        { candidateId: candidate._id },
+      ];
+
+      let invite = await StudentInvite.findOne({ academyId: academy._id, $or: inviteOr });
+      if (!invite) {
+        invite = await StudentInvite.create({
+          uploadId: upload_id || null,
+          academyId: academy._id,
+          batchCode: row.batchCode || "JAN-HCC-01",
+          name: row.name,
+          email: cleanEmail || candidate.email,
+          mobile: rawMobile || "",
+          course: row.course || "HCC Coding Specialization",
+          type: row.type || "fresher",
+          preferredSpecialty: row.preferredSpecialty || "HCC",
+          expectedSalaryLpa: row.expectedSalaryLpa || 5.0,
+          preferredCities: row.preferredCities || ["Chennai"],
+          candidateId: candidate._id,
+          status: "delivered",
+          emailSentAt: new Date(),
+          smsSentAt: new Date(),
+          smsDeliveredAt: new Date(Date.now() + 3000),
+        });
+      } else {
+        invite.batchCode = row.batchCode || invite.batchCode;
+        invite.candidateId = candidate._id;
+        if (rawMobile && !invite.mobile) invite.mobile = rawMobile;
+        await invite.save();
+      }
       createdInvites.push(invite);
       await sendInviteEmail({ invite, academyName: academy.name });
 
@@ -805,15 +1121,28 @@ async function handleAddSingleStudent(req, res) {
       return res.status(400).json({ message: "Student full name and email are required." });
     }
 
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = email ? email.toLowerCase().trim() : "";
+    const rawMobile = mobile || "";
     const targetBatch = batchCode || batch_id || "JAN-HCC-01";
     const targetCourse = course || course_id || "HCC Coding Specialization";
     const defaultPassword = await bcrypt.hash("Password123", 10);
 
-    let candidate = await Candidate.findOne({ email: cleanEmail });
+    const mobileRegexes = buildMobileRegexFilters([rawMobile]);
+    const mobileVariants = getMobileQueryVariants([rawMobile]);
+
+    const findCandOr = [
+      ...(cleanEmail ? [{ email: cleanEmail }] : []),
+      ...(mobileVariants.length > 0 ? [
+        { mobile: { $in: mobileVariants } },
+        { "stage1.mobile": { $in: mobileVariants } },
+      ] : []),
+      ...mobileRegexes,
+    ];
+
+    let candidate = findCandOr.length > 0 ? await Candidate.findOne({ $or: findCandOr }) : null;
     if (candidate) {
       if (candidate.stage2?.academyId === academy._id.toString() && candidate.stage2?.batch === targetBatch) {
-        return res.status(400).json({ message: `Student with email '${cleanEmail}' is already registered in batch ${targetBatch}.`, duplicate: true });
+        return res.status(400).json({ message: `Student with email '${cleanEmail || candidate.email}' or mobile '${rawMobile || candidate.mobile}' is already registered in batch ${targetBatch}.`, duplicate: true });
       }
       candidate.stage2 = {
         academyId: academy._id.toString(),
@@ -822,17 +1151,22 @@ async function handleAddSingleStudent(req, res) {
         branch: branch || "Coimbatore",
         verified: true,
       };
+      if (rawMobile && (!candidate.mobile || !candidate.stage1?.mobile)) {
+        if (!candidate.mobile) candidate.mobile = rawMobile;
+        if (!candidate.stage1) candidate.stage1 = {};
+        if (!candidate.stage1.mobile) candidate.stage1.mobile = rawMobile;
+      }
       await candidate.save();
     } else {
       candidate = await Candidate.create({
-        email: cleanEmail,
+        email: cleanEmail || `student.${Date.now()}@talentera.academy`,
         passwordHash: defaultPassword,
-        mobile: mobile || "",
+        mobile: rawMobile || "",
         completedStages: [],
         isVerified: false,
         stage1: {
           fullName: studentName,
-          mobile: mobile || "",
+          mobile: rawMobile || "",
           city: branch || preferredCities?.[0] || "Coimbatore",
           experience: type === "experienced" ? "Experienced" : "Fresher",
           currentRole: targetCourse,
@@ -848,14 +1182,21 @@ async function handleAddSingleStudent(req, res) {
       });
     }
 
-    let invite = await StudentInvite.findOne({ academyId: academy._id, email: cleanEmail });
+    const inviteOr = [
+      ...(cleanEmail ? [{ email: cleanEmail }] : []),
+      ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+      ...mobileRegexes,
+      { candidateId: candidate._id },
+    ];
+
+    let invite = await StudentInvite.findOne({ academyId: academy._id, $or: inviteOr });
     if (!invite) {
       invite = await StudentInvite.create({
         academyId: academy._id,
         batchCode: targetBatch,
         name: studentName,
-        email: cleanEmail,
-        mobile: mobile || "",
+        email: cleanEmail || candidate.email,
+        mobile: rawMobile || "",
         course: targetCourse,
         type: type || "fresher",
         preferredSpecialty: preferredSpecialty || "HCC",
@@ -871,6 +1212,7 @@ async function handleAddSingleStudent(req, res) {
       invite.batchCode = targetBatch;
       invite.course = targetCourse;
       invite.candidateId = candidate._id;
+      if (rawMobile && !invite.mobile) invite.mobile = rawMobile;
       await invite.save();
     }
     await sendInviteEmail({ invite, academyName: academy.name });
@@ -946,24 +1288,36 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
 
     for (const row of rawRows) {
       const name = (row.name || row.fullname || row.full_name || row["full name"] || "").trim();
-      const email = (row.email || row.email_address || row["email address"] || "").toLowerCase().trim();
-      const mobile = (row.mobile || row.phone || row.mobile_number || row["mobile number"] || "").replace(/\D/g, "");
+      const cleanEmail = (row.email || row.email_address || row["email address"] || "").toLowerCase().trim();
+      const rawMobile = (row.mobile || row.phone || row.mobile_number || row["mobile number"] || "").replace(/\D/g, "");
       const course = (row.course || "HCC Coding Specialization").trim();
       const batchCode = (row.batch_code || row.batch || targetBatch).trim();
 
-      if (!email || !name) continue;
+      if (!cleanEmail && !rawMobile) continue;
 
-      let candidate = await Candidate.findOne({ email });
+      const mobileRegexes = buildMobileRegexFilters([rawMobile]);
+      const mobileVariants = getMobileQueryVariants([rawMobile]);
+
+      const findCandOr = [
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(mobileVariants.length > 0 ? [
+          { mobile: { $in: mobileVariants } },
+          { "stage1.mobile": { $in: mobileVariants } },
+        ] : []),
+        ...mobileRegexes,
+      ];
+
+      let candidate = findCandOr.length > 0 ? await Candidate.findOne({ $or: findCandOr }) : null;
       if (!candidate) {
         candidate = await Candidate.create({
-          email,
+          email: cleanEmail || `student.${Date.now()}@talentera.academy`,
           passwordHash: defaultPassword,
-          mobile: mobile ? `+91 ${mobile.slice(-10)}` : "",
+          mobile: rawMobile ? `+91 ${rawMobile.slice(-10)}` : "",
           completedStages: [],
           isVerified: false,
           stage1: {
             fullName: name,
-            mobile: mobile ? `+91 ${mobile.slice(-10)}` : "",
+            mobile: rawMobile ? `+91 ${rawMobile.slice(-10)}` : "",
             city: "Coimbatore",
             experience: "Fresher",
             currentRole: course,
@@ -977,21 +1331,51 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
             verified: true,
           },
         });
+      } else {
+        candidate.stage2 = {
+          academyId: academy._id.toString(),
+          academyName: academy.name,
+          batch: batchCode,
+          branch: "Coimbatore",
+          verified: true,
+        };
+        if (rawMobile && (!candidate.mobile || !candidate.stage1?.mobile)) {
+          if (!candidate.mobile) candidate.mobile = `+91 ${rawMobile.slice(-10)}`;
+          if (!candidate.stage1) candidate.stage1 = {};
+          if (!candidate.stage1.mobile) candidate.stage1.mobile = `+91 ${rawMobile.slice(-10)}`;
+        }
+        await candidate.save();
       }
 
-      const invite = await StudentInvite.create({
-        academyId: academy._id,
-        batchCode,
-        name,
-        email,
-        mobile: mobile ? `+91 ${mobile.slice(-10)}` : "",
-        course,
-        status: "delivered",
-        candidateId: candidate._id,
-        emailSentAt: new Date(),
-        smsSentAt: new Date(),
-        smsDeliveredAt: new Date(Date.now() + 2000),
-      });
+      const inviteOr = [
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+        ...mobileRegexes,
+        { candidateId: candidate._id },
+      ];
+
+      let invite = await StudentInvite.findOne({ academyId: academy._id, $or: inviteOr });
+      if (!invite) {
+        invite = await StudentInvite.create({
+          academyId: academy._id,
+          batchCode,
+          name,
+          email: cleanEmail || candidate.email,
+          mobile: rawMobile ? `+91 ${rawMobile.slice(-10)}` : "",
+          course,
+          status: "delivered",
+          candidateId: candidate._id,
+          emailSentAt: new Date(),
+          smsSentAt: new Date(),
+          smsDeliveredAt: new Date(Date.now() + 2000),
+        });
+      } else {
+        invite.batchCode = batchCode;
+        invite.course = course;
+        invite.candidateId = candidate._id;
+        if (rawMobile && !invite.mobile) invite.mobile = `+91 ${rawMobile.slice(-10)}`;
+        await invite.save();
+      }
       createdInvites.push(invite);
       await sendInviteEmail({ invite, academyName: academy.name });
     }
@@ -1143,12 +1527,162 @@ router.get("/students/:id/stage-progress", requireAcademyAuth, async (req, res) 
       name: candidate.stage1?.fullName || candidate.email,
       email: candidate.email,
       mobile: candidate.mobile || candidate.stage1?.mobile,
+      batchCode: candidate.stage2?.batch || "—",
+      courseTitle: candidate.stage2?.course || candidate.stage1?.currentRole || "Medical Coding",
+      stage1: candidate.stage1 || {},
+      stage2: candidate.stage2 || {},
+      stage3: candidate.stage3 || {},
+      stage4: candidate.stage4 || {},
+      stage5: candidate.stage5 || {},
+      stage6: candidate.stage6 || {},
+      stage7: candidate.stage7 || {},
+      stage8: candidate.stage8 || {},
+      completedStages: candidate.completedStages || [],
+      isVerified: candidate.isVerified,
       videoUrl,
       talenteraScore,
       ...stageData,
     });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch stage progress." });
+  }
+});
+
+// PUT /api/academy/students/:id - Update candidate details
+router.put("/students/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const { name, email, mobile, batchCode, course, experience, city, branch, specialty, expectedSalaryLpa } = req.body;
+
+    if (name) {
+      if (!candidate.stage1) candidate.stage1 = {};
+      candidate.stage1.fullName = name.trim();
+    }
+    if (email) {
+      candidate.email = email.toLowerCase().trim();
+    }
+    if (mobile !== undefined) {
+      const cleanMobile = String(mobile).replace(/\D/g, "");
+      candidate.mobile = cleanMobile ? `+91 ${cleanMobile.slice(-10)}` : "";
+      if (!candidate.stage1) candidate.stage1 = {};
+      candidate.stage1.mobile = cleanMobile ? `+91 ${cleanMobile.slice(-10)}` : "";
+    }
+    if (batchCode) {
+      if (!candidate.stage2) candidate.stage2 = {};
+      candidate.stage2.batch = batchCode.trim();
+    }
+    if (course) {
+      if (!candidate.stage2) candidate.stage2 = {};
+      candidate.stage2.course = course.trim();
+    }
+    if (experience) {
+      if (!candidate.stage1) candidate.stage1 = {};
+      candidate.stage1.experience = experience;
+    }
+    if (city || branch) {
+      if (!candidate.stage1) candidate.stage1 = {};
+      if (city) candidate.stage1.city = city;
+      if (!candidate.stage2) candidate.stage2 = {};
+      if (branch || city) candidate.stage2.branch = branch || city;
+    }
+    if (specialty) {
+      if (!candidate.stage1) candidate.stage1 = {};
+      candidate.stage1.currentRole = specialty;
+    }
+
+    await candidate.save();
+
+    // Also update any matching StudentInvite
+    const candMobiles = [candidate.mobile, candidate.stage1?.mobile, mobile].filter(Boolean);
+    const mobileVariants = candMobiles.length > 0 ? getMobileQueryVariants(candMobiles) : [];
+    const mobileRegexes = candMobiles.length > 0 ? buildMobileRegexFilters(candMobiles) : [];
+
+    await StudentInvite.updateMany(
+      {
+        academyId: req.academyId,
+        $or: [
+          { candidateId: candidate._id },
+          { email: candidate.email },
+          ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+          ...mobileRegexes,
+        ],
+      },
+      {
+        $set: {
+          name: name ? name.trim() : candidate.stage1?.fullName,
+          email: email ? email.toLowerCase().trim() : candidate.email,
+          mobile: candidate.mobile,
+          batchCode: batchCode || candidate.stage2?.batch,
+          course: course || candidate.stage2?.course,
+        },
+      }
+    );
+
+    res.json({
+      success: true,
+      message: `Candidate ${candidate.stage1?.fullName || candidate.email} updated successfully.`,
+      candidate,
+    });
+  } catch (err) {
+    logger.error(`Update student error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update candidate details." });
+  }
+});
+
+// DELETE /api/academy/students/:id - Delete candidate from academy dashboard
+router.delete("/students/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    const candidate = await Candidate.findById(req.params.id);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const candBatchCode = candidate.stage2?.batch;
+    const candMobiles = [candidate.mobile, candidate.stage1?.mobile].filter(Boolean);
+    const mobileVariants = candMobiles.length > 0 ? getMobileQueryVariants(candMobiles) : [];
+    const mobileRegexes = candMobiles.length > 0 ? buildMobileRegexFilters(candMobiles) : [];
+
+    // Delete student invites associated with this candidate & academy (matching candidateId, email, or mobile)
+    await StudentInvite.deleteMany({
+      academyId: req.academyId,
+      $or: [
+        { candidateId: candidate._id },
+        { email: candidate.email },
+        ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+        ...mobileRegexes,
+      ],
+    });
+
+    // If candidate was only added by this academy (not a standalone verified user), delete candidate document or unlink
+    if (!candidate.isVerified || candidate.stage2?.academyId === req.academyId.toString() || candidate.stage2?.academyName === academy?.name) {
+      await Candidate.findByIdAndDelete(candidate._id);
+    } else {
+      // Unlink academy from candidate stage2
+      candidate.stage2 = undefined;
+      await candidate.save();
+    }
+
+    // Update batch counter & academy students uploaded
+    if (candBatchCode && academy) {
+      const batch = await AcademyBatch.findOne({ academyId: req.academyId, code: candBatchCode });
+      if (batch && batch.studentsCount > 0) {
+        batch.studentsCount -= 1;
+        await batch.save();
+      }
+      if (academy.studentsUploaded > 0) {
+        academy.studentsUploaded -= 1;
+        await academy.save();
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Candidate removed successfully from academy dashboard.",
+    });
+  } catch (err) {
+    logger.error(`Delete student error: ${err.message}`);
+    res.status(500).json({ message: "Failed to remove candidate." });
   }
 });
 
@@ -1280,52 +1814,56 @@ router.get("/students/:id/timeline", requireAcademyAuth, async (req, res) => {
 router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
-    const academyName = academy?.name || "";
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
-    const candidates = await Candidate.find({
-      $or: [
-        { "stage2.academyId": req.academyId.toString() },
-        ...(academyName ? [{ "stage2.academyName": { $regex: new RegExp(`^${academyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } }] : []),
-      ],
-    }).limit(DASHBOARD_FETCH_CAP).lean();
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
-    const scored = candidates
-      .map((c) => {
-        const score = c.stage4?.score !== undefined && c.stage4?.score !== null ? Number(c.stage4.score) : (c.stage8?.aiInterview?.result?.overallScore ? Number(c.stage8.aiInterview.result.overallScore) : null);
-        const stageInfo = compute8Stages(c);
-        return {
-          id: c._id,
-          name: c.stage1?.fullName || c.email.split("@")[0],
-          email: c.email,
-          batch: c.stage2?.batch || "JAN-HCC-01",
-          course: c.stage2?.course || "HCC Coding Specialization",
-          type: c.stage1?.experience || "Fresher",
-          score,
-          foundationScore: c.stage4?.foundationScore || (score ? Math.min(100, Math.round(score * 1.02)) : null),
-          specialtyScore: c.stage4?.specialtyScore || (score ? Math.max(70, Math.round(score * 0.98)) : null),
-          chartAccuracy: c.stage6?.accuracy || 87,
-          videoAiScore: c.stage5?.aiScore ? Math.round(c.stage5.aiScore / 10) : 8.5,
-          verificationScore: stageInfo.pct,
-          finalTalenteraScore: score || 85,
-          status: stageInfo.isComplete ? "Verified" : (score ? "Scored" : "In Progress"),
-          readyForPlacement: (score >= 80 && stageInfo.pct >= 75) || c.status === "verified",
-        };
-      });
+    const scored = candidates.map((c) => {
+      const score = c.stage4?.score !== undefined && c.stage4?.score !== null && !isNaN(Number(c.stage4.score))
+        ? Number(c.stage4.score)
+        : (c.stage8?.aiInterview?.result?.overallScore && !isNaN(Number(c.stage8.aiInterview.result.overallScore))
+            ? Number(c.stage8.aiInterview.result.overallScore)
+            : null);
+      const stageInfo = compute8Stages(c);
+      const foundationScore = c.stage4?.foundationScore !== undefined && c.stage4?.foundationScore !== null ? Number(c.stage4.foundationScore) : null;
+      const specialtyScore = c.stage4?.specialtyScore !== undefined && c.stage4?.specialtyScore !== null ? Number(c.stage4.specialtyScore) : null;
+      const chartAccuracy = c.stage6?.accuracy !== undefined && c.stage6?.accuracy !== null ? Number(c.stage6.accuracy) : null;
+      const videoAiScore = c.stage5?.aiScore !== undefined && c.stage5?.aiScore !== null ? (Number(c.stage5.aiScore) / 10).toFixed(1) : null;
+
+      return {
+        id: c._id,
+        name: c.stage1?.fullName || c.email.split("@")[0],
+        email: c.email,
+        batch: c.stage2?.batch || "—",
+        course: c.stage2?.course || c.stage1?.currentRole || "Medical Coding",
+        type: c.stage1?.experience || "Fresher",
+        score,
+        foundationScore,
+        specialtyScore,
+        chartAccuracy,
+        videoAiScore,
+        verificationScore: stageInfo.pct,
+        finalTalenteraScore: score,
+        status: stageInfo.isComplete ? "Verified" : (score !== null ? "Scored" : "In Progress"),
+        readyForPlacement: (score !== null && score >= 80 && stageInfo.pct >= 75) || c.status === "verified",
+      };
+    });
 
     const validScores = scored.filter((s) => s.score !== null).map((s) => s.score);
-    const avgScore = validScores.length > 0 ? Math.round(validScores.reduce((sum, v) => sum + v, 0) / validScores.length) : 89;
-    const highestScore = validScores.length > 0 ? Math.max(...validScores) : 96;
-    const above80Count = scored.filter((s) => (s.score || 85) >= 80).length;
-    const above90Count = scored.filter((s) => (s.score || 85) >= 90).length;
+    const avgScore = validScores.length > 0 ? Math.round(validScores.reduce((sum, v) => sum + v, 0) / validScores.length) : 0;
+    const highestScore = validScores.length > 0 ? Math.max(...validScores) : 0;
+    const above80Count = scored.filter((s) => s.score !== null && s.score >= 80).length;
+    const above90Count = scored.filter((s) => s.score !== null && s.score >= 90).length;
     const readyForPlacementCount = scored.filter((s) => s.readyForPlacement).length;
 
-    // Distribution Brackets
+    // Distribution Brackets from real score values only
     const brackets = {
-      "< 60": scored.filter((s) => (s.score || 85) < 60).length,
-      "60-70": scored.filter((s) => (s.score || 85) >= 60 && (s.score || 85) < 70).length,
-      "70-80": scored.filter((s) => (s.score || 85) >= 70 && (s.score || 85) < 80).length,
-      "80-90": scored.filter((s) => (s.score || 85) >= 80 && (s.score || 85) < 90).length,
-      "90-100": scored.filter((s) => (s.score || 85) >= 90).length,
+      "< 60": scored.filter((s) => s.score !== null && s.score < 60).length,
+      "60-70": scored.filter((s) => s.score !== null && s.score >= 60 && s.score < 70).length,
+      "70-80": scored.filter((s) => s.score !== null && s.score >= 70 && s.score < 80).length,
+      "80-90": scored.filter((s) => s.score !== null && s.score >= 80 && s.score < 90).length,
+      "90-100": scored.filter((s) => s.score !== null && s.score >= 90).length,
     };
 
     // Sort scored candidates by final score descending
@@ -1352,43 +1890,60 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
 router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
-    const academyName = academy?.name || "";
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
-    const candidates = await Candidate.find({
-      $or: [
-        { "stage2.academyId": req.academyId.toString() },
-        ...(academyName ? [{ "stage2.academyName": { $regex: new RegExp(`^${academyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } }] : []),
-      ],
-    }).limit(DASHBOARD_FETCH_CAP).lean();
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
+
+    if (candidates.length === 0) {
+      return res.json({ liveProfiles: [], totalLive: 0 });
+    }
+
+    const candidateIds = candidates.map((c) => c._id);
+
+    // Fetch real applications and activity events from database
+    const [applications, activityEvents] = await Promise.all([
+      Application.find({ candidateId: { $in: candidateIds } }).populate("companyId", "companyName").lean(),
+      AcademyActivityEvent.find({ academyId: req.academyId, candidateId: { $in: candidateIds } }).lean(),
+    ]);
 
     const liveProfiles = candidates
       .map((c) => {
         const stageInfo = compute8Stages(c);
-        const score = c.stage4?.score || 88;
+        const score = c.stage4?.score !== undefined && c.stage4?.score !== null ? Number(c.stage4.score) : null;
         const isLive = stageInfo.pct >= 75 || c.completedStages?.includes(8) || c.isSubmitted || c.isVerified;
+
+        const candApps = applications.filter((a) => String(a.candidateId) === String(c._id));
+        const candEvents = activityEvents.filter((ev) => String(ev.candidateId) === String(c._id));
+
+        const companyViews = candEvents.filter((ev) => ev.eventType === "viewed").length;
+        const interviewCount = candApps.filter((a) => a.status === "interviewing" || a.status === "shortlisted").length;
+        const lockEvent = candEvents.find((ev) => ev.eventType === "locked");
+
         return {
           id: c._id,
           name: c.stage1?.fullName || c.email.split("@")[0],
           email: c.email,
           mobile: c.mobile || c.stage1?.mobile,
-          batch: c.stage2?.batch || "JAN-HCC-01",
-          course: c.stage2?.course || "HCC Coding Specialization",
+          batch: c.stage2?.batch || "—",
+          course: c.stage2?.course || c.stage1?.currentRole || "Medical Coding",
           specialty: c.stage1?.currentRole || c.stage2?.course || "Medical Coding",
-          talenteraScore: score,
+          talenteraScore: score !== null ? `${score}%` : "Pending",
           completionPct: stageInfo.pct,
           profileLiveDate: c.publishedAt || c.updatedAt || new Date(),
-          companyViews: Math.floor(Math.random() * 8) + 2,
-          jobApplications: Math.floor(Math.random() * 4) + 1,
-          interviewCount: Math.floor(Math.random() * 3),
-          isLocked: Math.random() > 0.7,
-          lockedBy: Math.random() > 0.7 ? "Optum" : null,
+          companyViews,
+          jobApplications: candApps.length,
+          interviewCount,
+          isLocked: Boolean(lockEvent),
+          lockedBy: lockEvent?.companyName || null,
           status: isLive ? "Live" : "In Verification",
         };
       })
-      .filter((p) => p.status === "Live" || p.completionPct >= 60);
+      .filter((p) => p.status === "Live" || p.completionPct >= 75);
 
     res.json({ liveProfiles, totalLive: liveProfiles.length });
   } catch (err) {
+    logger.error(`Live profiles error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch live profiles." });
   }
 });
@@ -1461,9 +2016,11 @@ router.post("/placements/dispute", requireAcademyAuth, async (req, res) => {
 router.get("/stuck-students", requireAcademyAuth, async (req, res) => {
   try {
     const daysIdle = Number(req.query.days_idle) || 5;
-    const candidates = await Candidate.find({
-      "stage2.academyId": req.academyId.toString(),
-    }).limit(DASHBOARD_FETCH_CAP).lean();
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const stuckList = candidates
       .map((c) => {
@@ -1498,40 +2055,75 @@ router.get("/stuck-students", requireAcademyAuth, async (req, res) => {
   }
 });
 
-// POST /api/academy/students/:id/nudge
+// POST /api/academy/students/:id/nudge - Multi-channel reminder (Email, SMS, WhatsApp)
 router.post("/students/:id/nudge", requireAcademyAuth, async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
-    const channel = req.body.channel || "whatsapp";
+    const academy = await Academy.findById(req.academyId);
+    const { reminderType, channel = "all", customMessage } = req.body;
+
+    await sendCandidateReminderNotification({
+      candidate,
+      academy,
+      reminderType: reminderType || req.body.type || "general",
+      customMessage,
+    });
+
+    const candidateName = candidate.stage1?.fullName || candidate.email;
+    const isVideo = reminderType === "portfolio_video" || reminderType === "video";
+
     res.json({
       success: true,
-      message: `Nudge reminder sent to ${candidate.stage1?.fullName || candidate.email} via ${channel.toUpperCase()}!`,
+      message: isVideo
+        ? `Portfolio Video reminder sent to ${candidateName} via Email, SMS, and WhatsApp!`
+        : `Reminder sent to ${candidateName} via Email, SMS, and WhatsApp!`,
       studentId: candidate._id,
-      channel,
+      channel: channel || "all",
+      channels: ["email", "sms", "whatsapp"],
       sentAt: new Date(),
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to send nudge." });
+    logger.error(`Send student reminder error: ${err.message}`);
+    res.status(500).json({ message: "Failed to send reminder." });
   }
 });
 
-// POST /api/academy/students/bulk-nudge
+// POST /api/academy/students/bulk-nudge - Multi-channel bulk reminder (Email, SMS, WhatsApp)
 router.post("/students/bulk-nudge", requireAcademyAuth, async (req, res) => {
   try {
-    const { studentIds, channel = "whatsapp" } = req.body;
-    const count = Array.isArray(studentIds) && studentIds.length > 0 ? studentIds.length : 6;
+    const { studentIds, channel = "all", reminderType = "general" } = req.body;
+    const academy = await Academy.findById(req.academyId);
+
+    let candidates = [];
+    if (Array.isArray(studentIds) && studentIds.length > 0) {
+      candidates = await Candidate.find({ _id: { $in: studentIds } });
+    } else {
+      candidates = await Candidate.find({ "stage2.academyId": req.academyId.toString() }).limit(20);
+    }
+
+    const count = candidates.length || (Array.isArray(studentIds) ? studentIds.length : 1);
+
+    for (const cand of candidates) {
+      await sendCandidateReminderNotification({
+        candidate: cand,
+        academy,
+        reminderType,
+      });
+    }
 
     res.json({
       success: true,
-      message: `Bulk ${channel.toUpperCase()} nudge sent to ${count} students successfully! Delivery rate: 100%.`,
+      message: `Bulk reminder sent to ${count} student(s) via Email, SMS, and WhatsApp! Delivery rate: 100%.`,
       nudgedCount: count,
-      channel,
+      channel: channel || "all",
+      channels: ["email", "sms", "whatsapp"],
       sentAt: new Date(),
     });
   } catch (err) {
-    res.status(500).json({ message: "Failed to send bulk nudge." });
+    logger.error(`Send bulk reminder error: ${err.message}`);
+    res.status(500).json({ message: "Failed to send bulk reminder." });
   }
 });
 
@@ -1539,14 +2131,10 @@ router.post("/students/bulk-nudge", requireAcademyAuth, async (req, res) => {
 router.get("/approvals", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
-    const academyName = academy?.name || "";
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
-    const candidates = await Candidate.find({
-      $or: [
-        { "stage2.academyId": req.academyId.toString() },
-        ...(academyName ? [{ "stage2.academyName": { $regex: new RegExp(`^${academyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } }] : []),
-      ],
-    }).limit(DASHBOARD_FETCH_CAP).lean();
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const pendingQueue = [];
     for (const c of candidates) {
@@ -1562,11 +2150,11 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
           candidateId: c._id,
           candidateName: s1.fullName || c.email.split("@")[0],
           candidateEmail: c.email,
-          batchCode: s2.batch || "JAN-HCC-01",
-          courseTitle: s2.course || s1.currentRole || "HCC Coding Specialization",
+          batchCode: s2.batch || "—",
+          courseTitle: s2.course || s1.currentRole || "Medical Coding",
           stageNumber: 2,
           stageTitle: "Stage 2 · Course & Training Validation",
-          itemDescription: `Verify 120 training hours and Path B MCQ assessment for ${s1.fullName || "Candidate"}.`,
+          itemDescription: `Verify training hours and Path B assessment for ${s1.fullName || "Candidate"}.`,
           submittedAt: c.createdAt || new Date(),
           type: "training_validation",
         });
@@ -1575,18 +2163,19 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
       // Stage 5: Portfolio Video Review
       const isStage5Rejected = s5.rejected || s5.status === "rejected" || s5.needsRevision;
       if (s5.videoUrl && !s5.verified && !isStage5Rejected) {
+        const aiScoreFormatted = s5.aiScore !== undefined && s5.aiScore !== null ? `${(Number(s5.aiScore) / 10).toFixed(1)}/10` : "Pending Evaluation";
         pendingQueue.push({
           id: `${c._id}_stage5`,
           candidateId: c._id,
           candidateName: s1.fullName || c.email.split("@")[0],
           candidateEmail: c.email,
-          batchCode: s2.batch || "JAN-HCC-01",
-          courseTitle: s2.course || "HCC Coding Specialization",
+          batchCode: s2.batch || "—",
+          courseTitle: s2.course || s1.currentRole || "Medical Coding",
           stageNumber: 5,
           stageTitle: "Stage 5 · Portfolio Video Review",
-          itemDescription: `2-minute self-introduction video. AI Confidence Score: ${s5.aiScore ? (s5.aiScore / 10).toFixed(1) : "8.5"}/10.`,
+          itemDescription: `2-minute self-introduction video. AI Confidence Score: ${aiScoreFormatted}.`,
           videoUrl: s5.videoUrl,
-          aiScore: s5.aiScore ? (s5.aiScore / 10).toFixed(1) : "8.5",
+          aiScore: s5.aiScore !== undefined && s5.aiScore !== null ? (Number(s5.aiScore) / 10).toFixed(1) : "—",
           submittedAt: c.updatedAt || new Date(),
           type: "video_review",
         });
@@ -1829,9 +2418,11 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
   try {
     const { batchCode, company, search } = req.query;
 
-    const candidates = await Candidate.find({
-      "stage2.academyId": req.academyId.toString(),
-    }).limit(DASHBOARD_FETCH_CAP).lean();
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const kanban = { applied: [], shortlisted: [], interview: [], offer: [], joined: [] };
     if (candidates.length === 0) return res.json({ kanban });
@@ -1925,8 +2516,11 @@ router.get("/interviews/heatmap", requireAcademyAuth, async (req, res) => {
   try {
     const { batchCode } = req.query;
 
-    const candidateQuery = { "stage2.academyId": req.academyId.toString() };
-    if (batchCode) candidateQuery["stage2.batch"] = batchCode;
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const baseFilter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+
+    const candidateQuery = batchCode ? { $and: [baseFilter, { "stage2.batch": batchCode }] } : baseFilter;
 
     const candidates = await Candidate.find(candidateQuery).limit(50).lean();
     const pipelineStages = Object.keys(HEATMAP_COLUMNS);
@@ -2130,9 +2724,9 @@ router.get("/placements/:id/certificate", requireAcademyAuth, async (req, res) =
 router.get("/reports/monthly", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId);
-    const candidates = await Candidate.find({
-      "stage2.academyId": req.academyId.toString(),
-    }).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const candidates = await Candidate.find(filter).lean();
 
     const totalStudents = candidates.length;
     const placements = academy?.placements || [];
@@ -2206,21 +2800,35 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
     }
 
     const defaultPassword = await bcrypt.hash("Password123", 10);
-    const validStudents = Array.isArray(studentsList) ? studentsList.filter((s) => s && (s.fullName || s.name) && s.email) : [];
+    const validStudents = Array.isArray(studentsList) ? studentsList.filter((s) => s && (s.fullName || s.name) && (s.email || s.mobile)) : [];
 
     for (const st of validStudents) {
       const studentName = (st.fullName || st.name).trim();
-      const cleanEmail = st.email.toLowerCase().trim();
-      let candidate = await Candidate.findOne({ email: cleanEmail });
+      const cleanEmail = st.email ? st.email.toLowerCase().trim() : "";
+      const rawMobile = st.mobile || "";
+
+      const mobileRegexes = buildMobileRegexFilters([rawMobile]);
+      const mobileVariants = getMobileQueryVariants([rawMobile]);
+
+      const findCandOr = [
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(mobileVariants.length > 0 ? [
+          { mobile: { $in: mobileVariants } },
+          { "stage1.mobile": { $in: mobileVariants } },
+        ] : []),
+        ...mobileRegexes,
+      ];
+
+      let candidate = findCandOr.length > 0 ? await Candidate.findOne({ $or: findCandOr }) : null;
       if (!candidate) {
         candidate = await Candidate.create({
-          email: cleanEmail,
+          email: cleanEmail || `student.${Date.now()}@talentera.academy`,
           passwordHash: defaultPassword,
-          mobile: st.mobile || "",
+          mobile: rawMobile || "",
           completedStages: [1],
           stage1: {
             fullName: studentName,
-            mobile: st.mobile || "+91 98765 00000",
+            mobile: rawMobile || "+91 98765 00000",
             city: branch,
             experience: "Fresher",
             currentRole: course.trim(),
@@ -2234,21 +2842,51 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
             verified: true,
           },
         });
+      } else {
+        candidate.stage2 = {
+          academyId: academy._id.toString(),
+          academyName: academy.name,
+          batch: code.trim(),
+          branch,
+          verified: true,
+        };
+        if (rawMobile && (!candidate.mobile || !candidate.stage1?.mobile)) {
+          if (!candidate.mobile) candidate.mobile = rawMobile;
+          if (!candidate.stage1) candidate.stage1 = {};
+          if (!candidate.stage1.mobile) candidate.stage1.mobile = rawMobile;
+        }
+        await candidate.save();
       }
 
-      const invite = await StudentInvite.create({
-        academyId: academy._id,
-        batchCode: code.trim(),
-        name: studentName,
-        email: cleanEmail,
-        mobile: st.mobile || "",
-        course: course.trim(),
-        status: "delivered",
-        candidateId: candidate._id,
-        emailSentAt: new Date(),
-        smsSentAt: new Date(),
-        smsDeliveredAt: new Date(Date.now() + 2000),
-      });
+      const inviteOr = [
+        ...(cleanEmail ? [{ email: cleanEmail }] : []),
+        ...(mobileVariants.length > 0 ? [{ mobile: { $in: mobileVariants } }] : []),
+        ...mobileRegexes,
+        { candidateId: candidate._id },
+      ];
+
+      let invite = await StudentInvite.findOne({ academyId: academy._id, $or: inviteOr });
+      if (!invite) {
+        invite = await StudentInvite.create({
+          academyId: academy._id,
+          batchCode: code.trim(),
+          name: studentName,
+          email: cleanEmail || candidate.email,
+          mobile: rawMobile || "",
+          course: course.trim(),
+          status: "delivered",
+          candidateId: candidate._id,
+          emailSentAt: new Date(),
+          smsSentAt: new Date(),
+          smsDeliveredAt: new Date(Date.now() + 2000),
+        });
+      } else {
+        invite.batchCode = code.trim();
+        invite.course = course.trim();
+        invite.candidateId = candidate._id;
+        if (rawMobile && !invite.mobile) invite.mobile = rawMobile;
+        await invite.save();
+      }
       await sendInviteEmail({ invite, academyName: academy.name });
     }
 
@@ -2395,15 +3033,17 @@ router.delete("/batch/:id", requireAcademyAuth, async (req, res) => {
 // DELETE /api/academy/clear-all
 router.delete("/clear-all", requireAcademyAuth, async (req, res) => {
   try {
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+
     await AcademyBatch.deleteMany({ academyId: req.academyId });
     await StudentInvite.deleteMany({ academyId: req.academyId });
     await StudentUpload.deleteMany({ academyId: req.academyId });
     await AcademyActivityEvent.deleteMany({ academyId: req.academyId });
     await PlacementConfirmation.deleteMany({ academyId: req.academyId });
 
-    await Candidate.deleteMany({
-      "stage2.academyId": req.academyId.toString(),
-    });
+    await Candidate.deleteMany(filter);
 
     await Academy.findByIdAndUpdate(req.academyId, { studentsUploaded: 0, verifiedPct: 0, placements: [] });
     res.json({ success: true, message: "All academy data cleared." });

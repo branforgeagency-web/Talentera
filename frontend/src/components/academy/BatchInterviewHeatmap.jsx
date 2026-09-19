@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { safeJson } from "../../utils/safeJson.js";
 
-export default function BatchInterviewHeatmap({ batchCode = "JAN-HCC-01", batches = [], token, getAuthHeader, onSelectStudent, onSelectCandidate }) {
-  const [selectedBatchCode, setSelectedBatchCode] = useState(batchCode || batches[0]?.code || "JAN-HCC-01");
+export default function BatchInterviewHeatmap({ batchCode = "", batches = [], token, getAuthHeader, onSelectStudent, onSelectCandidate }) {
+  const [selectedBatchCode, setSelectedBatchCode] = useState(batchCode || batches[0]?.code || "");
   const [heatmapData, setHeatmapData] = useState(null);
   const [loading, setLoading] = useState(true);
 

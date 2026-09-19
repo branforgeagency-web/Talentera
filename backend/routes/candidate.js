@@ -18,6 +18,7 @@ const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
 const logger = require("../utils/logger");
+const { computeStage6Result } = require("../utils/stage6Score");
 
 const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
@@ -624,63 +625,116 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage5.isLiveVerified = req.body.isLiveVerified !== undefined ? req.body.isLiveVerified : true;
       candidate.stage5.faceMatched = req.body.faceMatched !== undefined ? req.body.faceMatched : true;
     } else if (stageNum === 6) {
+      // Stage 6 is scored ONLY from what the candidate entered on Stage 6 itself. The server
+      // recomputes totals, tier, score and points from the raw inputs - client-sent aggregates
+      // are never trusted.
       const s6 = candidate.stage6 || {};
-      const evidencePath = req.body.evidencePath || s6.evidencePath || (req.body.option === "upload" ? "B" : req.body.option === "declare" ? "C" : req.body.option === "none" ? "D" : "A");
-      const totalCharts = typeof req.body.totalCharts === "number" ? req.body.totalCharts : (typeof s6.totalCharts === "number" ? s6.totalCharts : 141);
-      const overallAccuracy = typeof req.body.overallAccuracy === "number" ? req.body.overallAccuracy : (typeof s6.overallAccuracy === "number" ? s6.overallAccuracy : 83.5);
-      
-      let tier = "Bronze";
-      if (totalCharts >= 500 && overallAccuracy >= 90) tier = "Platinum";
-      else if (totalCharts >= 201 && overallAccuracy >= 85) tier = "Gold";
-      else if (totalCharts >= 51 && overallAccuracy >= 75) tier = "Silver";
-      else tier = "Bronze";
+      const evidencePath = ["A", "B", "C", "D"].includes(req.body.evidencePath)
+        ? req.body.evidencePath
+        : (["A", "B", "C", "D"].includes(s6.evidencePath) ? s6.evidencePath : (req.body.option === "upload" ? "B" : req.body.option === "declare" ? "C" : req.body.option === "none" ? "D" : "A"));
+
+      const rawRows = Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || []);
+      const specialtyCharts = evidencePath === "D" ? [] : rawRows.slice(0, 30).map((r, i) => ({
+        id: r.id || i + 1,
+        name: String(r.name || "").trim().slice(0, 60),
+        icon: r.icon || "📑",
+        count: Math.max(0, Math.floor(Number(r.count) || 0)),
+        accuracy: Math.min(100, Math.max(0, Number(r.accuracy) || 0)),
+        // kept as "N min" text because the resume + academy views render it directly
+        timePerChart: `${Math.max(0, parseFloat(r.timePerChart) || 0)} min`,
+        timePerChartMin: Math.max(0, parseFloat(r.timePerChart) || 0),
+        lastCodedDate: r.lastCodedDate || null,
+        active: true,
+      }));
+
+      const numOr = (v, fallback) => (v !== undefined && v !== null && v !== "" && Number.isFinite(Number(v)) ? Number(v) : fallback);
+      const timePracticedHours = Math.max(0, numOr(req.body.timePracticedHours, numOr(s6.timePracticedHours, 0)));
+      const practicePeriodDays = Math.max(0, Math.floor(numOr(req.body.practicePeriodDays, numOr(s6.practicePeriodDays, 0))));
+
+      // Honest verification status: Talentera has no live OAuth/API integration with
+      // Practicode/Codivia today, so path "A" is self-reported, not API-verified. Path "B"
+      // is only "verified" once a real proof document has actually been uploaded - simply
+      // choosing that path does not itself constitute evidence.
+      const realDocUrl = req.body.docUrl || req.body.proofDocUrl || s6.docUrl || null;
+      let verified = false;
+      let verificationMethod = "No Charts";
+      if (evidencePath === "A") {
+        verificationMethod = "Self-Reported (Platform)";
+        verified = false;
+      } else if (evidencePath === "B") {
+        verified = !!realDocUrl;
+        verificationMethod = realDocUrl ? "Academy-Signed" : "Pending Upload";
+      } else if (evidencePath === "C") {
+        verificationMethod = "Self-Declared";
+        verified = false;
+      }
+
+      const result = computeStage6Result({
+        evidencePath,
+        specialtyCharts,
+        timePracticedHours,
+        practicePeriodDays,
+        hasProofDoc: !!realDocUrl,
+      });
+      const { totalCharts, overallAccuracy, tier } = result;
 
       candidate.stage6 = {
         ...s6,
         ...req.body,
         evidencePath,
-        option: req.body.option || (evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none"),
+        option: evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none",
+        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || []),
+        specialtyCharts,
+        timePracticedHours,
+        practicePeriodDays,
+        chartsPerHour: result.chartsPerHour,
         totalCharts,
         overallAccuracy,
+        avgTimePerChart: result.avgTimePerChart,
         tier,
         liveChartsAudited: totalCharts,
         accuracyScore: overallAccuracy,
         accuracy: overallAccuracy,
-        timePracticedHours: req.body.timePracticedHours || s6.timePracticedHours || 48,
-        chartsPerHour: req.body.chartsPerHour || s6.chartsPerHour || 2.9,
-        verified: evidencePath === "A" || evidencePath === "B",
-        verificationMethod: evidencePath === "A" ? "API-Verified" : evidencePath === "B" ? "Academy-Signed" : evidencePath === "C" ? "Self-Declared" : "No Charts",
-        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || ["Practicode", "Codivia", "3M 360 Encompass"]),
-        specialtyCharts: Array.isArray(req.body.specialtyCharts) ? req.body.specialtyCharts : (s6.specialtyCharts || [
-          { id: 1, name: "HCC (Risk Adjustment)", icon: "stethoscope", count: 65, accuracy: 87, timePerChart: "5.2 min", lastCoded: "2 days ago", active: true },
-          { id: 2, name: "E/M (Evaluation)", icon: "clipboard-list", count: 48, accuracy: 82, timePerChart: "4.1 min", lastCoded: "5 days ago", active: true },
-          { id: 3, name: "ED (Emergency)", icon: "truck-medical", count: 20, accuracy: 78, timePerChart: "6.8 min", lastCoded: "12 days ago", active: true },
-          { id: 4, name: "Surgery", icon: "flask", count: 8, accuracy: 85, timePerChart: "8.4 min", lastCoded: "20 days ago", active: true },
-        ]),
+        stageScore: result.stageScore,
+        scoreBreakdown: result.breakdown,
+        evidenceMultiplier: result.multiplier,
+        verificationPoints: result.points,
+        needsReview: result.needsReview,
+        verified,
+        verificationMethod,
         completedAt: candidate.stage6?.completedAt || new Date(),
       };
 
+      // Only add a Document Vault entry when a real file was actually uploaded (path B).
+      // Self-reported (A) and self-declared (C) numbers are not documents, and a "no
+      // charts" (D) submission has no proof at all - fabricating a vault record for any
+      // of those would misrepresent evidence that was never provided.
       if (!Array.isArray(candidate.documentVault)) {
         candidate.documentVault = [];
       }
       const docVaultId = "live_chart_proof_stage6";
       const existingDocIdx = candidate.documentVault.findIndex((d) => d.id === docVaultId);
-      const proofVaultItem = {
-        id: docVaultId,
-        title: `Live Chart Proof — ${tier} Tier (${totalCharts} Charts)`,
-        docType: "Live Chart Proof",
-        docUrl: req.body.docUrl || req.body.proofDocUrl || null,
-        docName: req.body.docName || req.body.proofDocName || (evidencePath === "B" ? (req.body.docName || "Academy_Chart_Log.pdf") : "Practicode_Codivia_Confirmation.pdf"),
-        uploadedAt: new Date(),
-        verified: evidencePath === "A" || evidencePath === "B",
-        tier,
-        totalCharts,
-        overallAccuracy,
-      };
-      if (existingDocIdx >= 0) {
-        candidate.documentVault[existingDocIdx] = { ...candidate.documentVault[existingDocIdx], ...proofVaultItem };
-      } else {
-        candidate.documentVault.push(proofVaultItem);
+      if (evidencePath === "B" && realDocUrl) {
+        const proofVaultItem = {
+          id: docVaultId,
+          title: `Live Chart Proof — ${tier} Tier (${totalCharts} Charts)`,
+          docType: "Live Chart Proof",
+          docUrl: realDocUrl,
+          docName: req.body.docName || req.body.proofDocName || "Academy_Chart_Log.pdf",
+          uploadedAt: new Date(),
+          verified: true,
+          tier,
+          totalCharts,
+          overallAccuracy,
+        };
+        if (existingDocIdx >= 0) {
+          candidate.documentVault[existingDocIdx] = { ...candidate.documentVault[existingDocIdx], ...proofVaultItem };
+        } else {
+          candidate.documentVault.push(proofVaultItem);
+        }
+      } else if (existingDocIdx >= 0) {
+        // Evidence path changed away from an uploaded document - remove the stale vault entry.
+        candidate.documentVault.splice(existingDocIdx, 1);
       }
       candidate.markModified("documentVault");
       candidate.markModified("stage6");
@@ -691,9 +745,12 @@ router.put("/stage/:n", async (req, res) => {
       const versionHistory = Array.isArray(req.body.versionHistory) && req.body.versionHistory.length > 0
         ? req.body.versionHistory
         : (s7.versionHistory || [
-            { version: "v3", timestamp: "16 Sep 2026 · 14:22", title: `Career Objective updated, template = ${template.replace(/_/g, " ")}`, current: true },
-            { version: "v2", timestamp: "12 Sep 2026", title: "Added Live Chart entries (HCC + E/M)", current: false },
-            { version: "v1", timestamp: "04 Sep 2026", title: "Initial resume generated after Stage 06 completion", current: false }
+            {
+              version: "v1",
+              timestamp: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+              title: `Resume generated (${template.replace(/_/g, " ")})`,
+              current: true,
+            }
           ]);
 
       candidate.stage7 = {
@@ -998,8 +1055,12 @@ router.post(
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
       const selfIntroScore = evaluation.overallScore;
-      const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
-      const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
+      const hasRealMock = Boolean(
+        candidate.stage5?.mockInterviewCompleted && typeof candidate.stage5?.mockScore === "number"
+      );
+      const mockScore = hasRealMock ? candidate.stage5.mockScore : null;
+      const isBothCompleted = hasRealMock && mockScore !== null;
+      const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null;
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -1007,31 +1068,28 @@ router.post(
         videoUrl: fileUrl,
         selfIntroVideoUrl: fileUrl,
         selfIntroCompleted: true,
-        // evaluation.qaPairs carries the original transcript PLUS
-        // translatedTranscript/detectedLanguage per question (see
-        // evaluateAiVideoAssessment) - persisting that instead of the raw
-        // browser qaPairs is what makes the translation survive page
-        // reloads/report re-views, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
-        // aiScore is now a communication score (clarity/fluency/vocabulary &
-        // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: selfIntroScore,
         selfIntroScore: selfIntroScore,
+        mockInterviewCompleted: hasRealMock,
+        mockScore: mockScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
+        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
-        completedAt: new Date(),
+        completedAt: isBothCompleted ? new Date() : (candidate.stage5?.completedAt || null),
       };
       candidate.videoUrl = fileUrl;
       candidate.markModified("stage5");
 
-      if (!candidate.completedStages.includes(5)) {
-        candidate.completedStages.push(5);
+      if (isBothCompleted) {
+        if (!candidate.completedStages.includes(5)) {
+          candidate.completedStages.push(5);
+        }
       }
 
       await candidate.save();
@@ -1098,8 +1156,12 @@ router.post(
       const enrichedPairs = await enrichQaPairsWithAnswerKey(qaPairs);
       const evaluation = await evaluateAiVideoAssessment(enrichedPairs, proctorLogs);
       const selfIntroScore = evaluation.overallScore;
-      const mockScore = typeof candidate.stage5?.mockScore === "number" && candidate.stage5?.mockInterviewCompleted ? candidate.stage5.mockScore : null;
-      const combinedScore = mockScore !== null ? Math.round((selfIntroScore + mockScore) / 2) : selfIntroScore;
+      const hasRealMock = Boolean(
+        candidate.stage5?.mockInterviewCompleted && typeof candidate.stage5?.mockScore === "number"
+      );
+      const mockScore = hasRealMock ? candidate.stage5.mockScore : null;
+      const isBothCompleted = hasRealMock && mockScore !== null;
+      const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null;
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -1107,28 +1169,27 @@ router.post(
         videoUrl: fileUrl,
         selfIntroVideoUrl: fileUrl,
         selfIntroCompleted: true,
-        // See the matching comment in /ai-video/assess above - this carries
-        // translatedTranscript/detectedLanguage per question so it survives
-        // page reloads, not just this one response.
         qaPairs: evaluation.qaPairs || qaPairs,
-        // aiScore is now a communication score (clarity/fluency/vocabulary &
-        // grammar/confidence, averaged) - not an answer-correctness score.
         aiScore: selfIntroScore,
         selfIntroScore: selfIntroScore,
+        mockInterviewCompleted: hasRealMock,
+        mockScore: mockScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
+        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
         livenessVerified: evaluation.livenessVerified,
         proctoringDeductions: evaluation.proctoringDeductions,
-        completedAt: new Date(),
+        completedAt: isBothCompleted ? new Date() : (candidate.stage5?.completedAt || null),
       };
       candidate.markModified("stage5");
 
-      if (!candidate.completedStages.includes(5)) {
-        candidate.completedStages.push(5);
+      if (isBothCompleted) {
+        if (!candidate.completedStages.includes(5)) {
+          candidate.completedStages.push(5);
+        }
       }
 
       await candidate.save();
@@ -2990,6 +3051,41 @@ router.get("/jobs", async (req, res) => {
       return c.companyLogo || c.logo || c.stage2?.logo?.docUrl || c.stage2?.logosquare?.docUrl || null;
     };
 
+    // Only ever show what the employer actually entered - no invented defaults.
+    const hasVal = (v) => v !== undefined && v !== null && String(v).trim() !== "";
+    const asList = (v) => (Array.isArray(v) ? v.filter(hasVal) : hasVal(v) ? [v] : []);
+    const formatExperience = (fd) => {
+      if (fd.level === "Fresher only") return "Fresher";
+      const lo = hasVal(fd.expmin) ? Number(fd.expmin) : null;
+      const hi = hasVal(fd.expmax) ? Number(fd.expmax) : null;
+      if (lo !== null && hi !== null) return `${lo}-${hi} yrs`;
+      if (lo !== null) return `${lo}+ yrs`;
+      if (hi !== null) return `Up to ${hi} yrs`;
+      return "";
+    };
+    const formatSalary = (fd) => {
+      const lo = hasVal(fd.compmin) ? fd.compmin : null;
+      const hi = hasVal(fd.compmax) ? fd.compmax : null;
+      if (lo !== null && hi !== null) return `₹${lo} - ₹${hi} LPA`;
+      if (lo !== null) return `From ₹${lo} LPA`;
+      if (hi !== null) return `Up to ₹${hi} LPA`;
+      return "Not disclosed";
+    };
+    // Extra JD details, listed only when the employer filled them in
+    const buildJobDetails = (fd) => {
+      const rows = [];
+      const add = (label, value) => { if (hasVal(value)) rows.push({ label, value: String(value) }); };
+      add("Hiring level", fd.level);
+      add("Education", fd.edumin);
+      add("Shift", fd.shift);
+      add("Languages", asList(fd.languages).join(", "));
+      add("Tools / EHR", asList(fd.reqtools).join(", "));
+      if (fd.level !== "Fresher only") add("Notice period", fd.notice);
+      add("Probation", hasVal(fd.probation) ? `${fd.probation} months` : "");
+      add("Joining bonus", hasVal(fd.joiningbonus) ? `₹${fd.joiningbonus}` : "");
+      return rows;
+    };
+
     // Process posted jobs
     for (const j of postedJobs) {
       if (!j.jobId || seenJobIds.has(j.jobId)) continue;
@@ -2997,12 +3093,12 @@ router.get("/jobs", async (req, res) => {
       const f = j.fields || {};
       const company = j.companyId || {};
       const compName = company.companyName || (company.stage1a && company.stage1a.legalname) || "Talentera Partner Employer";
-      const location = f.location || company.city || "Hyderabad";
-      const specialty = f.specialty || "HCC / Risk Adjustment";
-      const openings = Number(f.openings) || 5;
-      const minSalary = f.compmin || 4.5;
-      const maxSalary = f.compmax || 8.0;
-      const workMode = f.workmode || "Hybrid";
+      const location = f.location || company.city || "";
+      const specialty = f.specialty || "";
+      const openings = Number(f.openings) || 1;
+      const minSalary = hasVal(f.compmin) ? f.compmin : null;
+      const maxSalary = hasVal(f.compmax) ? f.compmax : null;
+      const workMode = f.workmode || "";
 
       // Match scoring
       let matchScore = 80;
@@ -3021,25 +3117,27 @@ router.get("/jobs", async (req, res) => {
         location: location,
         mode: workMode,
         workMode: workMode,
-        salary: `₹${minSalary} - ₹${maxSalary} LPA`,
+        salary: formatSalary(f),
         compMin: minSalary,
         compMax: maxSalary,
         specialty: specialty,
-        projectClient: f.department || f.project || "US Healthcare RCM",
-        urgency: f.urgency || (openings > 10 ? "Immediate Walk-in" : "Actively Hiring"),
+        projectClient: f.department || f.project || "",
+        urgency: f.urgency || "",
         openings: openings,
-        experience: `${f.expmin || 0}-${f.expmax || 3} yrs`,
-        expMin: f.expmin || 0,
-        expMax: f.expmax || 3,
-        description: f.description || f.musthaves || "Looking for certified medical coders with high chart accuracy and proficiency in ICD-10-CM / CPT guidelines.",
-        mustHaves: f.musthaves || "CPC/CIC Certified · Minimum 85% Accuracy · Immediate Joining",
-        certsRequired: f.certs || ["CPC", "CIC"],
+        experience: formatExperience(f),
+        expMin: hasVal(f.expmin) && f.level !== "Fresher only" ? Number(f.expmin) : 0,
+        expMax: hasVal(f.expmax) && f.level !== "Fresher only" ? Number(f.expmax) : 0,
+        isFresherOnly: f.level === "Fresher only",
+        description: f.description || "",
+        mustHaves: f.musthaves || "",
+        certsRequired: asList(f.certs),
+        jobDetails: buildJobDetails(f),
         publishedAt: j.createdAt || new Date().toISOString(),
         matchScore,
         isProfileMatch,
         isTierMatch: candidateScore >= 70,
         minTierRequired: openings > 10 ? "Verified" : "Silver+",
-        isWalkIn: (f.urgency || "").toLowerCase().includes("immediate") || openings >= 10,
+        isWalkIn: /immediate|critical/i.test(f.urgency || ""),
         isFeatured: openings >= 15 || matchScore >= 92,
         isOpenToGlobal: location.toLowerCase().includes("global") || location.toLowerCase().includes("remote"),
       });
@@ -3051,12 +3149,12 @@ router.get("/jobs", async (req, res) => {
       seenJobIds.add(c.jobId);
       const s9 = c.stage9 || {};
       const compName = c.companyName || (c.stage1a && c.stage1a.legalname) || "Talentera Partner Employer";
-      const location = s9.location || c.city || "Bengaluru";
-      const specialty = s9.specialty || "Inpatient DRG / Hospital Coding";
-      const openings = Number(s9.openings) || 8;
-      const minSalary = s9.compmin || 5.0;
-      const maxSalary = s9.compmax || 9.5;
-      const workMode = s9.workmode || "Remote";
+      const location = s9.location || c.city || "";
+      const specialty = s9.specialty || "";
+      const openings = Number(s9.openings) || 1;
+      const minSalary = hasVal(s9.compmin) ? s9.compmin : null;
+      const maxSalary = hasVal(s9.compmax) ? s9.compmax : null;
+      const workMode = s9.workmode || "";
 
       let matchScore = 85;
       if (candidateCerts.some(cert => (s9.certs || []).includes(cert) || specialty.toUpperCase().includes(cert))) matchScore += 10;
@@ -3074,25 +3172,27 @@ router.get("/jobs", async (req, res) => {
         location: location,
         mode: workMode,
         workMode: workMode,
-        salary: `₹${minSalary} - ₹${maxSalary} LPA`,
+        salary: formatSalary(s9),
         compMin: minSalary,
         compMax: maxSalary,
         specialty: specialty,
-        projectClient: s9.department || "Enterprise RCM Services",
-        urgency: s9.urgency || "High Priority",
+        projectClient: s9.department || "",
+        urgency: s9.urgency || "",
         openings: openings,
-        experience: `${s9.expmin || 1}-${s9.expmax || 4} yrs`,
-        expMin: s9.expmin || 1,
-        expMax: s9.expmax || 4,
-        description: s9.musthaves || "Join our high-growth US healthcare client portfolio with direct medical chart auditing and verified credentials.",
-        mustHaves: s9.musthaves || "AAPC Certified · Inpatient/Outpatient Experience",
-        certsRequired: s9.certs || ["CPC", "COC"],
+        experience: formatExperience(s9),
+        expMin: hasVal(s9.expmin) && s9.level !== "Fresher only" ? Number(s9.expmin) : 0,
+        expMax: hasVal(s9.expmax) && s9.level !== "Fresher only" ? Number(s9.expmax) : 0,
+        isFresherOnly: s9.level === "Fresher only",
+        description: s9.description || "",
+        mustHaves: s9.musthaves || "",
+        certsRequired: asList(s9.certs),
+        jobDetails: buildJobDetails(s9),
         publishedAt: c.jdPublishedAt || c.updatedAt || new Date().toISOString(),
         matchScore,
         isProfileMatch,
         isTierMatch: candidateScore >= 70,
         minTierRequired: "Silver+",
-        isWalkIn: openings >= 10,
+        isWalkIn: /immediate|critical/i.test(s9.urgency || ""),
         isFeatured: true,
         isOpenToGlobal: location.toLowerCase().includes("global") || workMode.toLowerCase() === "remote",
       });

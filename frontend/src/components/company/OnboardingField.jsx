@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import companyApi from "../../api/companyClient";
 import { useToast } from "../Toast.jsx";
+import EditableNameList from "./EditableNameList.jsx";
 
 const TAG_LABEL = { must: "MUST", opt: "OPT", cond: "COND" };
 
@@ -156,8 +157,8 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
     (item.input === "file" && Boolean(fileInfo && (fileInfo.docUrl || fileInfo.docName || fileInfo.url || fileInfo.fileUrl))) ||
     (item.input === "name-email" && Boolean(nameEmail?.name && String(nameEmail.name).trim() && nameEmail?.email && String(nameEmail.email).trim()));
 
+  // Custom question bank upload (stage 5) is open to every plan; rubric + ATS stay Enterprise-only.
   const isEnterpriseField =
-    (stageId === "5" && item.id === "qcustom") ||
     stageId === "6" ||
     (stageId === "8" && ["sats", "swebhook"].includes(item.id));
   const isLockedByPlan = isEnterpriseField && companyPlan !== "enterprise";
@@ -233,8 +234,10 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             className="conb-input"
             value={text}
             placeholder={item.placeholder}
+            min={item.input === "number" ? 0 : undefined}
             maxLength={item.input === "gstin" ? 15 : item.input === "pan" ? 10 : undefined}
-            onChange={(e) => setText(isUpperType ? e.target.value.toUpperCase() : e.target.value)}
+            onKeyDown={item.input === "number" ? (e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); } : undefined}
+            onChange={(e) => setText(item.input === "number" ? e.target.value.replace(/[^0-9.]/g, "") : isUpperType ? e.target.value.toUpperCase() : e.target.value)}
             onBlur={handleTextBlur}
           />
           {item.input === "gstin" && text.length === 15 && !error && (
@@ -259,7 +262,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             value={text}
             placeholder="10-digit mobile"
             maxLength={10}
-            onChange={(e) => setText(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setText(e.target.value.replace(/\D/g, "").slice(0, 10))}
             onBlur={handleTextBlur}
           />
         </div>
@@ -310,7 +313,16 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         </>
       )}
 
-      {item.input === "multi" && (
+      {item.input === "multi" && item.id === "panel" && (
+        <EditableNameList
+          value={multiVal}
+          onChange={setMultiVal}
+          onCommit={commit}
+          suggestions={item.options || []}
+        />
+      )}
+
+      {item.input === "multi" && item.id !== "panel" && (
         <div className="conb-chip-grid">
           {(item.options || []).map((opt) => (
             <button

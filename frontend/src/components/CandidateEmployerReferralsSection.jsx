@@ -499,9 +499,10 @@ export default function CandidateEmployerReferralsSection({
                 />
                 <input
                   type="tel"
-                  placeholder="Phone Number *"
+                  placeholder="Phone Number (10 digits) *"
+                  maxLength={10}
                   value={employerForm.phone}
-                  onChange={(e) => setEmployerForm({ ...employerForm, phone: e.target.value })}
+                  onChange={(e) => setEmployerForm({ ...employerForm, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                   style={{ padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: '8px', fontSize: '13px' }}
                 />
                 <input

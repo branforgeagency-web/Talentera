@@ -304,8 +304,8 @@ const STAGE_CONFIGS = {
   },
   6: {
     eyebrow: "CAREER PASSPORT",
-    title: "75/100 · 2 stages to go",
-    status: "💻 Stage 06 · Live Chart Audit active",
+    title: (props) => (typeof props.score === "number" ? `Live Chart Score · ${props.score}/100` : "Live Chart Score · not scored yet"),
+    status: "💻 Stage 06 · Live Chart active",
     desc: "Real medical charts audited in real EHR environments. Companies shortlist coders based on audited chart accuracy over written test claims.",
     companies: [
       {

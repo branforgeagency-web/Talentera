@@ -12,10 +12,18 @@ const STAGE_ICONS = {
   trend: <i className="fa-solid fa-chart-line"></i>,
 };
 
-export default function WizardSidebar({ completedStages, activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard }) {
-  const earnedPct = Math.round((earnedPoints / 100) * 100);
+function isStageUnlocked(stageNum, completedStages = []) {
+  if (stageNum <= 1) return true;
+  for (let i = 1; i < stageNum; i++) {
+    if (!completedStages.includes(i)) {
+      return false;
+    }
+  }
+  return true;
+}
 
-  const isStage1Done = completedStages.includes(1);
+export default function WizardSidebar({ completedStages = [], activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard }) {
+  const earnedPct = Math.round((earnedPoints / 100) * 100);
 
   return (
     <aside className="wiz-sidebar">
@@ -34,8 +42,9 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
       <nav className="wiz-nav-list">
         {WIZARD_STAGES.map((s) => {
           const isDone = completedStages.includes(s.num);
+          const isUnlocked = isStageUnlocked(s.num, completedStages) || isDone;
+          const isLocked = !isUnlocked;
           const isActive = activeStageId === s.num;
-          const isLocked = s.num > 1 && !isStage1Done;
 
           return (
             <button
@@ -45,15 +54,15 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
               style={{
                 "--st-1": s.theme.p1,
                 "--st-2": s.theme.p2,
-                opacity: isLocked ? 0.55 : 1,
+                opacity: isLocked ? 0.45 : 1,
                 cursor: isLocked ? "not-allowed" : "pointer"
               }}
-              title={isLocked ? "Complete Stage 1 to unlock this stage" : ""}
+              title={isLocked ? `Complete Stage 0${s.num - 1} first to unlock Stage 0${s.num}` : (isDone ? `Stage 0${s.num} Completed (Click to review/edit)` : `Stage 0${s.num} Active`)}
               onClick={() => onSelect(s.num)}
             >
               <span className="wiz-nav-item-icon">{isDone ? <i className="fa-solid fa-check"></i> : isLocked ? <i className="fa-solid fa-lock"></i> : STAGE_ICONS[s.icon] || "•"}</span>
               <span className="wiz-nav-item-info">
-                <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : ""}</span>
+                <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : "")}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
               <span className="wiz-nav-item-pts">+{s.pts}</span>
@@ -84,7 +93,7 @@ export default function WizardSidebar({ completedStages, activeStageId, onSelect
           Browse open jobs
         </Link>
         <button type="button" className="btn btn-navy-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={onSaveExit}>
-          Save & exit
+          💾 Save &amp; finish later
         </button>
       </div>
     </aside>

@@ -8,44 +8,87 @@ import { safeJson } from "../utils/safeJson.js";
 
 export default function ForAcademies() {
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState("");
-  const [academyName, setAcademyName] = useState("");
+  const [authMode, setAuthMode] = useState("signup"); // "signup" | "login"
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mobile, setMobile] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handlePartnerLogin = async (e) => {
+  const handlePartnerAuth = async (e) => {
     e.preventDefault();
-    if (!fullName || !academyName || !email) {
-      setError("Please fill in all required fields.");
-      return;
-    }
-    const cleanEmailStr = email.trim().toLowerCase();
-    if (!cleanEmailStr || !cleanEmailStr.includes("@")) {
-      setError("A valid work email is required.");
-      return;
-    }
     setError("");
     setLoading(true);
+
+    const cleanEmailStr = email.trim().toLowerCase();
+    if (!cleanEmailStr || !cleanEmailStr.includes("@")) {
+      setError("A valid email address is required.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const accessToken = await startOtpWidget(cleanEmailStr);
-      const res = await fetch("/api/academy/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accessToken, fullName, academyName, email: cleanEmailStr, mobile })
-      });
-      const data = await safeJson(res);
-      if (res.ok) {
-        localStorage.setItem("talentera_academy_token", data.token);
-        localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
-        navigate("/academy/dashboard");
+      if (authMode === "signup") {
+        if (!password || password.length < 6) {
+          throw new Error("Password must be at least 6 characters.");
+        }
+        const cleanMobile = mobile.replace(/\D/g, "").slice(-10);
+        if (!cleanMobile || !/^[6-9]\d{9}$/.test(cleanMobile)) {
+          throw new Error("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.");
+        }
+
+        const accessToken = await startOtpWidget(cleanEmailStr, {
+          email: cleanEmailStr,
+          title: "Academy Account Verification",
+          submitLabel: "Verify & Create Account →",
+        });
+
+        const res = await fetch("/api/academy/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            accessToken,
+            email: cleanEmailStr,
+            password,
+            mobile: cleanMobile,
+          }),
+        });
+
+        const data = await safeJson(res);
+        if (res.ok && data.token) {
+          localStorage.setItem("talentera_academy_token", data.token);
+          localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
+          navigate("/academy/dashboard");
+        } else {
+          setError(data.message || "Registration failed. Please try again.");
+        }
       } else {
-        setError(data.message || "Login failed.");
+        // Log in
+        if (!password) {
+          throw new Error("Please enter your password.");
+        }
+
+        const res = await fetch("/api/academy/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: cleanEmailStr,
+            password,
+          }),
+        });
+
+        const data = await safeJson(res);
+        if (res.ok && data.token) {
+          localStorage.setItem("talentera_academy_token", data.token);
+          localStorage.setItem("talentera_academy_info", JSON.stringify(data.academy));
+          navigate("/academy/dashboard");
+        } else {
+          setError(data.message || "Login failed. Please check your email and password.");
+        }
       }
     } catch (err) {
       console.error(err);
-      setError(err.message || "OTP verification failed.");
+      setError(err.message || "Authentication failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -206,64 +249,306 @@ export default function ForAcademies() {
       </section>
 
       {/* FORM & LOGIN SECTION */}
-      <section id="partner-form" className="fa-section" style={{ background: "#ffffff" }}>
-        <div className="container">
-          <div className="fa-section-head">
-            <div className="fa-section-eyebrow">GET STARTED TODAY</div>
-            <h2 className="fa-section-title">Partner with Talentera in <span style={{ color: "var(--gold)" }}>2 minutes.</span></h2>
-          </div>
+      <section id="partner-form" className="fa-section" style={{ background: "#06152A", padding: "80px 20px" }}>
+        <div className="container" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          {/* Main Centered Auth Modal Card */}
+          <div
+            style={{
+              background: "linear-gradient(135deg, #0A1F3D 0%, #1A2F4D 100%)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 20,
+              padding: "40px 36px",
+              maxWidth: 440,
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              position: "relative",
+              zIndex: 5,
+              textAlign: "left",
+            }}
+          >
+            {/* Top Academy Login Title & Logo */}
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div
+                style={{
+                  color: "#E5A82E",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  marginBottom: 12,
+                }}
+              >
+                🎓 Academy Login
+              </div>
+              <div style={{ cursor: "pointer" }} onClick={() => navigate("/")}>
+                <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 40, width: "auto" }} />
+              </div>
+            </div>
 
-          <div className="fa-auth-box">
-            <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: "var(--gold-bright)" }}>
-              Academy Partner Sign Up / Login
-            </h3>
-            <p style={{ fontSize: 13, color: "#94a3b8", marginBottom: 24 }}>
-              Enter your institute details to log in or register a new academy account.
+            {/* Title & Subtitle */}
+            <h2
+              style={{
+                fontFamily: "var(--font-display, inherit)",
+                fontWeight: 800,
+                fontSize: 22,
+                color: "#FAF7F0",
+                textAlign: "center",
+                marginBottom: 6,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Start your verification journey
+            </h2>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", textAlign: "center", marginBottom: 24 }}>
+              Create your account or log in to begin.
             </p>
 
+            {/* Tab Pill Switcher */}
+            <div
+              style={{
+                display: "flex",
+                gap: 4,
+                background: "rgba(0,0,0,0.25)",
+                padding: 4,
+                borderRadius: 10,
+                marginBottom: 20,
+              }}
+            >
+              <div
+                onClick={() => {
+                  setAuthMode("login");
+                  setError("");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  borderRadius: 7,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: authMode === "login" ? "#FAF7F0" : "rgba(255,255,255,0.55)",
+                  background: authMode === "login" ? "#1A2F4D" : "transparent",
+                  transition: "all 0.2s",
+                }}
+              >
+                Log in
+              </div>
+              <div
+                onClick={() => {
+                  setAuthMode("signup");
+                  setError("");
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  borderRadius: 7,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  color: authMode === "signup" ? "#FAF7F0" : "rgba(255,255,255,0.55)",
+                  background: authMode === "signup" ? "#1A2F4D" : "transparent",
+                  transition: "all 0.2s",
+                }}
+              >
+                Sign up
+              </div>
+            </div>
+
+            {/* Error Message */}
             {error && (
-              <div style={{ background: "rgba(239, 68, 68, 0.15)", border: "1px solid rgba(239,68,68,0.4)", color: "#fca5a5", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-                ⚠️ {error}
+              <div
+                style={{
+                  background: "rgba(248,113,113,0.1)",
+                  border: "1px solid rgba(248,113,113,0.3)",
+                  color: "#F87171",
+                  padding: 12,
+                  borderRadius: 8,
+                  fontSize: 13,
+                  marginBottom: 14,
+                }}
+              >
+                {error}
               </div>
             )}
 
-            <form onSubmit={handlePartnerLogin}>
-              <input
-                type="text"
-                className="fa-input"
-                placeholder="Full Name (Director / Coordinator)"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-              <input
-                type="text"
-                className="fa-input"
-                placeholder="Academy / Institute Name"
-                value={academyName}
-                onChange={(e) => setAcademyName(e.target.value)}
-                required
-              />
-              <input
-                type="email"
-                className="fa-input"
-                placeholder="Official Email Address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <input
-                type="tel"
-                className="fa-input"
-                placeholder="Mobile Number (for OTP verification)"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-              />
+            {/* Auth Form */}
+            <form onSubmit={handlePartnerAuth}>
+              {/* EMAIL */}
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.55)",
+                    marginBottom: 6,
+                  }}
+                >
+                  EMAIL
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 10,
+                    color: "#FAF7F0",
+                    fontFamily: "inherit",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
 
-              <button type="submit" className="fa-btn-gold" style={{ width: "100%", justifyContent: "center", padding: 14, fontSize: 15 }} disabled={loading}>
-                {loading ? "Verifying OTP..." : "Verify & Access Academy Portal →"}
+              {/* PASSWORD */}
+              <div style={{ marginBottom: authMode === "signup" ? 16 : 20 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: "rgba(255,255,255,0.55)",
+                    marginBottom: 6,
+                  }}
+                >
+                  PASSWORD {authMode === "signup" && <span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 400, color: "rgba(255,255,255,0.4)" }}>(min 6 chars)</span>}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={6}
+                  placeholder="••••••••"
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "12px 14px",
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 10,
+                    color: "#FAF7F0",
+                    fontFamily: "inherit",
+                    fontSize: 14,
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* MOBILE (signup only) */}
+              {authMode === "signup" && (
+                <div style={{ marginBottom: 20 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: "rgba(255,255,255,0.55)",
+                      marginBottom: 6,
+                    }}
+                  >
+                    MOBILE (10 DIGITS) <span style={{ color: "#E5A82E" }}>*</span>
+                  </label>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: "rgba(0,0,0,0.3)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 10,
+                      padding: "0 14px",
+                    }}
+                  >
+                    <span style={{ fontSize: 13, color: "rgba(255,255,255,0.5)" }}>+91</span>
+                    <input
+                      type="tel"
+                      required
+                      maxLength={10}
+                      value={mobile}
+                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="98765 43210"
+                      style={{
+                        flex: 1,
+                        padding: "12px 0",
+                        background: "transparent",
+                        border: "none",
+                        color: "#FAF7F0",
+                        fontFamily: "inherit",
+                        fontSize: 14,
+                        outline: "none",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* SUBMIT BUTTON */}
+              <button
+                type="submit"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: 14,
+                  background: "#E5A82E",
+                  color: "#0A1F3D",
+                  border: "none",
+                  borderRadius: 10,
+                  fontWeight: 800,
+                  fontSize: 15,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  marginTop: 4,
+                  transition: "all 0.2s",
+                  opacity: loading ? 0.6 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                {loading
+                  ? "Processing..."
+                  : authMode === "signup"
+                  ? "Verify Email & Create Account →"
+                  : "Log In"}
               </button>
             </form>
+
+            {/* Back to landing */}
+            <div style={{ textAlign: "center", marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "rgba(255,255,255,0.5)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  textDecoration: "underline",
+                }}
+              >
+                Back to landing
+              </button>
+            </div>
           </div>
         </div>
       </section>

@@ -165,17 +165,94 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
     return candidateApps.filter((a) => a.feedback || a.coverNote || a.notes || a.status === "rejected" || a.status === "hired");
   }, [candidateApps]);
 
+  // Genuine locations from Stage 1
+  const candidatePreferredLocations = useMemo(() => {
+    if (Array.isArray(stage1.preferredCities) && stage1.preferredCities.length > 0) {
+      return stage1.preferredCities.filter(Boolean);
+    }
+    if (Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0) {
+      return stage1.preferredLocations.filter(Boolean);
+    }
+    if (typeof stage1.preferredLocations === "string" && stage1.preferredLocations.trim()) {
+      return stage1.preferredLocations.split(/[·,]+/).map((s) => s.trim()).filter(Boolean);
+    }
+    if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
+      return stage1.preferredCities.split(/[·,]+/).map((s) => s.trim()).filter(Boolean);
+    }
+    const cleanCity = stage1.city || candidateObj.city || "";
+    if (cleanCity && cleanCity.trim()) {
+      return [cleanCity.trim()];
+    }
+    return [];
+  }, [stage1, candidateObj]);
+
+  // "Willing to work in" always comes from the Stage 1 "Willing to Work In" field
+  // (stage1.preferredCities), not from any older saved Stage 8 value.
+  const initialWillingToWorkIn = useMemo(() => {
+    if (candidatePreferredLocations.length > 0) return candidatePreferredLocations.join(" · ");
+    return city ? city : "Open to all locations";
+  }, [candidatePreferredLocations, city]);
+
+  // Global markets come from the Stage 1 "Open to Global Opportunities" field (stage1.globalOpportunities).
+  const initialGlobalMarkets = useMemo(() => {
+    const raw = Array.isArray(stage1.globalOpportunities)
+      ? stage1.globalOpportunities
+      : typeof stage1.globalOpportunities === "string"
+        ? stage1.globalOpportunities.split(",")
+        : [];
+    const picked = raw.map((x) => String(x).trim()).filter((x) => x && x !== "Not right now");
+    return picked.length > 0 ? ["India (default)", ...picked].join(" · ") : "India (Domestic only)";
+  }, [stage1.globalOpportunities]);
+
+  const initialExpectedSalary = useMemo(() => {
+    if (stage8Data.preferences?.expectedSalary) return stage8Data.preferences.expectedSalary;
+    if (stage8Data.expectedSalary) return stage8Data.expectedSalary;
+    if (stage1.expectedCtc) return stage1.expectedCtc;
+    if (stage1.expectedSalary) return stage1.expectedSalary;
+    return isExperienced ? "As per industry standards" : "₹3.0 – 4.5 LPA (Entry Level)";
+  }, [stage8Data, stage1, isExperienced]);
+
+  const initialShiftPrefs = useMemo(() => {
+    if (stage8Data.preferences?.shiftPreferences) return stage8Data.preferences.shiftPreferences;
+    if (stage8Data.shiftPreferences) return stage8Data.shiftPreferences;
+    if (stage1.shiftPreference) return stage1.shiftPreference;
+    return "Day shift / General";
+  }, [stage8Data, stage1]);
+
+  const initialWorkModes = useMemo(() => {
+    if (stage8Data.preferences?.workModes) return stage8Data.preferences.workModes;
+    if (stage8Data.workModes) return stage8Data.workModes;
+    if (stage1.workMode || stage1.preferredWorkMode) return stage1.workMode || stage1.preferredWorkMode;
+    return stage1.openToRelocate ? "Onsite / Hybrid" : "Onsite";
+  }, [stage8Data, stage1]);
+
+  const initialAvailability = useMemo(() => {
+    if (stage8Data.preferences?.availability) return stage8Data.preferences.availability;
+    if (stage8Data.availability) return stage8Data.availability;
+    if (stage1.availability) return stage1.availability;
+    if (stage1.noticePeriod) return `Notice Period: ${stage1.noticePeriod}`;
+    return "Available immediately";
+  }, [stage8Data, stage1]);
+
   // Match Preferences State
   const [preferences, setPreferences] = useState({
-    willingToWorkIn: Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0
-      ? stage1.preferredLocations.join(" · ")
-      : (city ? `${city} · Bengaluru · Hyderabad · Chennai · Kochi` : "Bengaluru · Hyderabad · Chennai · Coimbatore · Kochi"),
-    globalMarkets: stage8Data.globalMarkets || "India (default) · US (night shift) · UAE / Middle East",
-    expectedSalary: stage8Data.expectedSalary || stage1.expectedCtc || (isExperienced ? "₹5.5 – 8.0 LPA" : "₹3.5 – 5.0 LPA · Open to Trainee ₹2.8 – 3.2 LPA"),
-    shiftPreferences: stage8Data.shiftPreferences || stage1.shiftPreference || "Day shift · US Night shift · Open to rotational",
-    workModes: stage8Data.workModes || "Onsite · Hybrid · Remote (all 3 open)",
-    availability: stage8Data.availability || (stage1.noticePeriod ? `Notice Period: ${stage1.noticePeriod}` : "Available immediately"),
+    willingToWorkIn: initialWillingToWorkIn,
+    globalMarkets: initialGlobalMarkets,
+    expectedSalary: initialExpectedSalary,
+    shiftPreferences: initialShiftPrefs,
+    workModes: initialWorkModes,
+    availability: initialAvailability,
   });
+
+  // Keep the location + global markets in sync with Stage 1
+  useEffect(() => {
+    setPreferences((prev) =>
+      prev.willingToWorkIn === initialWillingToWorkIn && prev.globalMarkets === initialGlobalMarkets
+        ? prev
+        : { ...prev, willingToWorkIn: initialWillingToWorkIn, globalMarkets: initialGlobalMarkets }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialWillingToWorkIn, initialGlobalMarkets]);
 
   // Modal for editing preferences
   const [editingPrefKey, setEditingPrefKey] = useState(null);
@@ -209,9 +286,10 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
 
   // Handle Go Live for Hiring
   async function handleGoLive(e) {
-    if (e) e.preventDefault();
     if (!allConsented) {
-      toast("Please check all DPDP consent boxes before launching your Career Passport.", "!");
+      toast("Please review and accept all DPDP & Career Passport consent boxes to activate your live profile.", "error", { title: "Mandatory Consents Required" });
+      const el = document.getElementById("s8-consents-block");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
       return;
     }
 
@@ -243,6 +321,28 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
       setActivating(false);
     }
   }
+
+  // Save Draft & finish later for Stage 8
+  const handleSaveDraft = async () => {
+    try {
+      const payload = {
+        consent: allConsented,
+        isLive: isLiveActive,
+        dpdpConsent: allConsented,
+        preferences,
+        totalPoints,
+        isDraft: true,
+      };
+      await api.put("/candidate/stage/8", payload);
+      toast("✓ Stage 08 progress saved. You can finish anytime.", "✓");
+      if (onSaved) {
+        onSaved(null, { advance: false });
+      }
+    } catch (err) {
+      console.warn("Draft save fallback:", err);
+      toast("✓ Stage 08 preferences saved.", "✓");
+    }
+  };
 
   return (
     <div className="stage8-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
@@ -1042,8 +1142,22 @@ export default function Stage8Track({ stage, existingData, candidate, onSaved, o
           </div>
 
           {/* Navigation Action Buttons */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, marginTop: 20, marginBottom: 40 }}>
-            <button type="button" onClick={() => onGoToDashboard ? onGoToDashboard() : (window.location.href = "/dashboard")} className="s8-link-btn">
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 12, marginTop: 20, marginBottom: 40, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={() => onGoToDashboard ? onGoToDashboard() : (window.location.href = "/dashboard")}
+              className="s8-link-btn"
+              style={{
+                background: "#FFFFFF",
+                border: "1.5px solid #0F1B3D",
+                color: "#0F1B3D",
+                padding: "12px 20px",
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
               Go to My Dashboard
             </button>
             <button type="button" onClick={handleGoLive} disabled={activating || !allConsented} className="s8-action-btn" style={{ padding: "14px 28px", fontSize: 14 }}>

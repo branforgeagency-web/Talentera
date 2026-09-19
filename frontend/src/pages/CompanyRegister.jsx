@@ -281,6 +281,7 @@ export default function CompanyRegister() {
                         type="tel"
                         className="cauth-input"
                         placeholder="10-digit mobile"
+                        maxLength={10}
                         value={regMobile}
                         onChange={(e) => setRegMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                         required

@@ -42,27 +42,6 @@ export default function CompanyLogin() {
     }
   }
 
-  const handleDemoEmployerLogin = async (e) => {
-    if (e) e.preventDefault();
-    setError("");
-    setSubmitting(true);
-    try {
-      const res = await fetch("/api/company/auth/demo-login", { method: "POST" });
-      const data = await safeJson(res);
-      if (res.ok && data.token) {
-        localStorage.setItem("talentera_company_token", data.token);
-        localStorage.setItem("talentera_company_info", JSON.stringify(data.company));
-        navigate("/companies/jobs");
-      } else {
-        setError(data.message || "Demo login failed.");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Demo login error: " + (err.message || "Failed to log in"));
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const handleRequestForgot = async (e) => {
     e.preventDefault();
@@ -224,28 +203,6 @@ export default function CompanyLogin() {
             {submitting ? "Logging in..." : "Log In →"}
           </button>
         </form>
-
-        <div style={{ marginTop: 12 }}>
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={handleDemoEmployerLogin}
-            style={{
-              width: "100%",
-              padding: 12,
-              background: "rgba(255,255,255,0.08)",
-              color: "#FAF7F0",
-              border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: 10,
-              fontWeight: 700,
-              fontSize: 13,
-              cursor: "pointer",
-              fontFamily: "inherit"
-            }}
-          >
-            ⚡ Try Demo Employer Sandbox
-          </button>
-        </div>
 
         <div style={{ textAlign: "center", marginTop: 22 }}>
           <span style={{ fontSize: 12.5, color: "rgba(255,255,255,0.5)" }}>New company? </span>

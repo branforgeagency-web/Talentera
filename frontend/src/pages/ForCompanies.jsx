@@ -654,10 +654,11 @@ export default function ForCompanies() {
                       <input
                         type="tel"
                         required
-                        placeholder="+91 98765 43210"
+                        maxLength={10}
+                        placeholder="98765 43210"
                         style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 14, outline: "none" }}
                         value={jobForm.mobile}
-                        onChange={(e) => setJobForm({ ...jobForm, mobile: e.target.value })}
+                        onChange={(e) => setJobForm({ ...jobForm, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                       />
                     </div>
                     <div>

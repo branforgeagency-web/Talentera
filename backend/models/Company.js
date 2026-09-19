@@ -80,6 +80,8 @@ const CompanySchema = new mongoose.Schema(
     jdApprovedAt: { type: Date, default: null },
     jdApprovedBy: { type: String, default: "" },
     jdRejectionReason: { type: String, default: "" },
+    // Candidate email alert for the onboarding "first JD" (see utils/jobAlerts.js); sent once.
+    jdCandidateAlertSentAt: { type: Date, default: null },
 
     // Raw answers from the "Post a Requirement" / "Post a Job" lead-gen
     // wizard (frontend/src/pages/CompanyRegister.jsx) that don't map

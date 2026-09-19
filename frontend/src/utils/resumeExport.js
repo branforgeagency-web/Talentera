@@ -1,5 +1,6 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
+import { joinUnique } from "./resumeSubtitle.js";
 
 /**
  * Export a DOM element directly to a high-resolution A4 PDF document.
@@ -272,7 +273,7 @@ export function exportResumeWord(data) {
             ${fullName.toUpperCase()}
           </div>
           <div style="font-size: 12pt; font-weight: bold; color: ${isBw ? "#333333" : secAccentColor}; margin-top: 4pt;">
-            ${currentRoleTitle} · ${expLabel}
+            ${joinUnique(currentRoleTitle, expLabel)}
           </div>
           <div style="font-size: 9.5pt; color: ${isBw ? "#475569" : "#E2E8F0"}; margin-top: 6pt;">
             ${mobile ? `📞 ${mobile} &nbsp;|&nbsp; ` : ""}${email ? `✉ ${email} &nbsp;|&nbsp; ` : ""}📍 ${locality}
@@ -336,7 +337,7 @@ export function exportResumeWord(data) {
           <td style="padding: 6pt 8pt; border: 1pt solid ${borderColor}; background-color: ${lightBg}; width: 25%;">
             <div style="color: #64748B; font-size: 8pt; text-transform: uppercase; font-weight: bold;">AI Video Pitch</div>
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
-              ${videoMedal} Tier ${videoScore !== null ? `(${videoScore}/100)` : ""}
+              ${videoScore !== null ? `Video Pitch Score · ${videoScore}/100` : `${videoMedal} Tier`}
             </div>
             <div style="color: #475569; font-size: 8pt;">Clarity ${clarityScore} · Fluency ${fluencyScore} · Confidence ${confidenceScore}</div>
           </td>

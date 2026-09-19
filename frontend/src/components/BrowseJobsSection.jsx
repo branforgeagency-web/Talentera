@@ -149,23 +149,52 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
     setExpandedJDs(prev => ({ ...prev, [jId]: !prev[jId] }));
   };
 
-  // Extract unique filter dropdown values strictly from live database jobs
-  const locationsList = Array.from(new Set(jobs.map(j => j.location).filter(Boolean)));
-  const specialtiesList = Array.from(new Set(jobs.map(j => j.specialty).filter(Boolean)));
-  const companiesList = Array.from(new Set(jobs.map(j => j.company).filter(Boolean)));
-  const projectsList = Array.from(new Set(jobs.map(j => j.projectClient).filter(Boolean)));
+  // One matcher for every filter. `skip` leaves out the named filters so each dropdown /
+  // directory / map only offers values that still have jobs under the OTHER active filters
+  // (e.g. Work mode = Remote -> a company that only hires onsite disappears everywhere).
+  const jobMatches = (job, skip = []) => {
+    const on = (key) => !skip.includes(key);
+    if (on('location') && selectedLocation && job.location?.toLowerCase() !== selectedLocation.toLowerCase()) return false;
+    if (on('specialty') && selectedSpecialty && job.specialty !== selectedSpecialty) return false;
+    if (on('company') && selectedCompany && job.company !== selectedCompany) return false;
+    if (on('project') && selectedProject && job.projectClient !== selectedProject) return false;
+    if (on('workmode') && selectedWorkMode && (job.workMode || job.mode)?.toLowerCase() !== selectedWorkMode.toLowerCase()) return false;
+    if (on('salary') && selectedSalaryBand) {
+      if (job.compMin === null || job.compMin === undefined || job.compMin === "") return false;
+      const min = Number(job.compMin);
+      if (selectedSalaryBand === '<4' && min >= 4) return false;
+      if (selectedSalaryBand === '4-6' && (min < 4 || min > 6)) return false;
+      if (selectedSalaryBand === '6-9' && (min < 6 || min > 9)) return false;
+      if (selectedSalaryBand === '9+' && min < 9) return false;
+    }
+    // Quick filter toggles
+    if (filterMatchProfile && !job.isProfileMatch && (job.matchScore || 0) < 85) return false;
+    if (filterSilverPlus && job.minTierRequired === 'Gold') return false;
+    if (filterFeatured && !job.isFeatured) return false;
+    if (filterWalkIn && !job.isWalkIn) return false;
+    if (filterOpenToGlobal && !job.isOpenToGlobal) return false;
+    return true;
+  };
+  const jobsFor = (skipKey) => jobs.filter((j) => jobMatches(j, skipKey ? [skipKey] : []));
 
-  // Generate real cities list purely from database
-  const displayCities = cityStats.length > 0 ? cityStats.map(item => ({
-    city: item.city,
-    count: item.jobsCount,
-    companies: item.companyCount,
-    icon: getCityIcon(item.city),
-    tag: item.jobsCount >= 5 ? '🔥 High hiring' : '✓ Active',
-  })) : locationsList.map(loc => {
-    const locJobs = jobs.filter(j => j.location === loc);
+  const filteredJobs = jobsFor();
+
+  const uniq = (arr, keep) => {
+    const out = Array.from(new Set(arr.filter(Boolean)));
+    if (keep && !out.includes(keep)) out.push(keep); // keep a chosen value visible even if it now has no jobs
+    return out;
+  };
+  const locationsList = uniq(jobsFor('location').map((j) => j.location), selectedLocation);
+  const specialtiesList = uniq(jobsFor('specialty').map((j) => j.specialty), selectedSpecialty);
+  const companyJobs = jobsFor('company');
+  const companiesList = uniq(companyJobs.map((j) => j.company), selectedCompany);
+  const projectsList = uniq(jobsFor('project').map((j) => j.projectClient), selectedProject);
+
+  // Hiring map: cities that still have jobs under the other filters
+  const displayCities = Array.from(new Set(jobsFor('location').map((j) => j.location).filter(Boolean))).map((loc) => {
+    const locJobs = jobsFor('location').filter((j) => j.location === loc);
     const locOpenings = locJobs.reduce((sum, j) => sum + (j.openings || 1), 0);
-    const locCompanies = new Set(locJobs.map(j => j.company).filter(Boolean)).size;
+    const locCompanies = new Set(locJobs.map((j) => j.company).filter(Boolean)).size;
     return {
       city: loc,
       count: locOpenings,
@@ -175,55 +204,19 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
     };
   });
 
-  // Filter Jobs purely based on database records
-  const filteredJobs = jobs.filter((job) => {
-    if (selectedLocation && job.location?.toLowerCase() !== selectedLocation.toLowerCase()) {
-      return false;
-    }
-    if (selectedSpecialty && job.specialty !== selectedSpecialty) {
-      return false;
-    }
-    if (selectedCompany && job.company !== selectedCompany) {
-      return false;
-    }
-    if (selectedProject && job.projectClient !== selectedProject) {
-      return false;
-    }
-    if (selectedWorkMode && (job.workMode || job.mode)?.toLowerCase() !== selectedWorkMode.toLowerCase()) {
-      return false;
-    }
-    if (selectedSalaryBand) {
-      const min = job.compMin || 4;
-      if (selectedSalaryBand === '<4' && min >= 4) return false;
-      if (selectedSalaryBand === '4-6' && (min < 4 || min > 6)) return false;
-      if (selectedSalaryBand === '6-9' && (min < 6 || min > 9)) return false;
-      if (selectedSalaryBand === '9+' && min < 9) return false;
-    }
+  const anyFilterActive = Boolean(
+    selectedLocation || selectedSpecialty || selectedCompany || selectedProject || selectedSalaryBand || selectedWorkMode ||
+    filterMatchProfile || filterSilverPlus || filterFeatured || filterWalkIn || filterOpenToGlobal
+  );
+  const sumOpenings = (list) => list.reduce((sum, j) => sum + (j.openings || 1), 0);
+  const directoryJobsCount = sumOpenings(companyJobs);
 
-    // Quick filter toggles
-    if (filterMatchProfile && !job.isProfileMatch && (job.matchScore || 0) < 85) {
-      return false;
-    }
-    if (filterSilverPlus && job.minTierRequired === 'Gold') {
-      return false;
-    }
-    if (filterFeatured && !job.isFeatured) {
-      return false;
-    }
-    if (filterWalkIn && !job.isWalkIn) {
-      return false;
-    }
-    if (filterOpenToGlobal && !job.isOpenToGlobal) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const totalOpeningsCount = stats.totalOpenings || jobs.reduce((s, j) => s + (j.openings || 1), 0);
-  const totalCompaniesCount = stats.companiesCount || companiesList.length;
-  const totalMatchingCount = stats.matchingCount || jobs.filter(j => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length;
-  const totalCitiesCount = stats.citiesCount || locationsList.length;
+  const totalOpeningsCount = anyFilterActive ? sumOpenings(filteredJobs) : (stats.totalOpenings || sumOpenings(jobs));
+  const totalCompaniesCount = anyFilterActive ? new Set(filteredJobs.map((j) => j.company).filter(Boolean)).size : (stats.companiesCount || companiesList.length);
+  const totalMatchingCount = anyFilterActive
+    ? filteredJobs.filter((j) => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length
+    : (stats.matchingCount || jobs.filter((j) => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length);
+  const totalCitiesCount = anyFilterActive ? new Set(filteredJobs.map((j) => j.location).filter(Boolean)).size : (stats.citiesCount || locationsList.length);
 
   return (
     <div className="browse-jobs-exact-section" style={{ padding: '24px 32px', background: '#F8FAFC', minHeight: '100%' }}>
@@ -837,7 +830,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                 fontSize: 11,
                 fontWeight: 800,
               }}>
-                {companiesList.length} COMPANIES · {totalOpeningsCount} JOBS
+                {companiesList.length} COMPANIES · {directoryJobsCount} JOBS
               </span>
             </div>
 
@@ -1075,6 +1068,11 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
 
                   {/* Must-Haves / Certs Required chips */}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                    {job.isFresherOnly && (
+                      <span style={{ background: '#ECFDF5', color: '#047857', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
+                        🎓 Freshers welcome
+                      </span>
+                    )}
                     {(job.certsRequired || []).map((cert) => (
                       <span key={cert} style={{ background: '#EEF2FF', color: '#4F46E5', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
                         🎓 {cert} Required
@@ -1102,7 +1100,17 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                       <div style={{ fontWeight: 800, color: '#0F1B3D', marginBottom: 4 }}>
                         📋 Detailed Job Description & Requirements:
                       </div>
-                      <p style={{ margin: '0 0 8px' }}>{job.description}</p>
+                      {job.description && <p style={{ margin: '0 0 8px' }}>{job.description}</p>}
+                      {Array.isArray(job.jobDetails) && job.jobDetails.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, margin: '0 0 8px' }}>
+                          {job.jobDetails.map((d) => (
+                            <div key={d.label}><b style={{ color: '#334155' }}>{d.label}:</b> {d.value}</div>
+                          ))}
+                        </div>
+                      )}
+                      {!job.description && !job.mustHaves && (!job.jobDetails || job.jobDetails.length === 0) && (
+                        <p style={{ margin: 0, fontStyle: 'italic' }}>The employer hasn&apos;t added more details for this role.</p>
+                      )}
                       {job.mustHaves && (
                         <div style={{ fontSize: 12, color: '#334155', fontWeight: 600 }}>
                           <b>Key Must-Haves:</b> {job.mustHaves}

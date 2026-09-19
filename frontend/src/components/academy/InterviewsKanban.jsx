@@ -206,7 +206,7 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
                       {/* Company & Role Details */}
                       <div style={{ background: "#F8FAFC", borderRadius: 6, padding: "6px 8px", marginBottom: 6 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#2563EB" }}>
-                          🏢 {card.company || "Optum"}
+                          🏢 {card.company || "Employer"}
                         </div>
                         <div style={{ fontSize: 10, color: "#475569" }}>
                           {card.role || "Medical Coder"}

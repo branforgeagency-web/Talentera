@@ -152,6 +152,9 @@ export default function App() {
       <Route path="/academy" element={<ForAcademies />} />
       <Route path="/academies" element={<ForAcademies />} />
       <Route path="/academy/login" element={<AcademyLogin />} />
+      <Route path="/academies/login" element={<AcademyLogin />} />
+      <Route path="/academy/register" element={<AcademyLogin />} />
+      <Route path="/academies/register" element={<AcademyLogin />} />
       <Route path="/academy/*" element={<AcademyPortal />} />
 
       {/* 05. Staff & Employee Operations Hub */}

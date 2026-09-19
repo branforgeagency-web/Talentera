@@ -342,10 +342,13 @@ const PRACTICE_QUESTIONS = [
 export default function Stage4Assessment({ stage, existingData, candidate, onSaved }) {
   const toast = useToast();
 
+  const [localResult, setLocalResult] = useState(null);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+
   // Load candidate stage 4 state
-  const stage4 = candidate?.stage4 || existingData || null;
-  const isCompleted = Boolean(stage4 && (stage4.foundationScore !== undefined || stage4.score !== undefined));
-  const candidateScore = stage4?.foundationScore ?? stage4?.score ?? 0;
+  const stage4 = localResult || candidate?.stage4 || existingData || null;
+  const isCompleted = Boolean(stage4 && (stage4.foundationScore !== undefined || stage4.score !== undefined || stage4.passed !== undefined));
+  const candidateScore = Number(stage4?.foundationScore ?? stage4?.score ?? 0);
 
   // Derive candidate profile details strictly from previous stage inputs
   const candidateName = candidate?.stage1?.fullName || "Candidate";
@@ -374,6 +377,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const s3 = candidate?.stage3 || {};
   const certName = s3.certCode || s3.certName || (Array.isArray(s3.certifications) && s3.certifications.length > 0 ? (s3.certifications[0].code || s3.certifications[0].name) : "") || "CPC";
   const certStatus = s3.certStatus === "verified" ? "verified" : s3.certStatus === "non-certified" ? "non-certified" : "registered";
+
+  // Human-readable certification label that follows the candidate's Stage 3 status
+  const s3Status = String(s3.status || s3.certType || (s3.nonCertified ? "non-certified" : s3.isCertified ? "certified" : "")).toLowerCase();
+  const s3CertCode = s3.certCode && s3.certCode !== "NON-CERT" ? s3.certCode : (s3.pursuingDetails?.cert || "");
+  let certLabel = "Certification pending";
+  if (s3Status === "non-certified") {
+    certLabel = "Non-Certified";
+  } else if (s3Status === "pursuing") {
+    certLabel = `Pursuing ${s3.pursuingDetails?.cert || s3CertCode}`.trim();
+  } else if (s3Status === "certified") {
+    certLabel = `${s3CertCode || certName} Certified${certStatus === "verified" ? " · Verified" : ""}`;
+  }
 
   // Build full 10-question test bank (5 sections x 2 questions)
   const fullTestQuestions = React.useMemo(() => {
@@ -662,6 +677,15 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   // Modals & Runners
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [isPracticeRunning, setIsPracticeRunning] = useState(false);
+  // Set once the candidate finishes the 3-question warm-up (remembered for this browser session)
+  const practiceStorageKey = `talentera_s4_practice_done_${candidate?._id || candidate?.email || "me"}`;
+  const [practiceCompleted, setPracticeCompleted] = useState(() => {
+    try {
+      return sessionStorage.getItem(practiceStorageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [showVaultModal, setShowVaultModal] = useState(false);
   const [showRetakeModal, setShowRetakeModal] = useState(false);
   const [retakeReason, setRetakeReason] = useState("");
@@ -709,6 +733,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       return next;
     });
   }
+
+  const handleSaveAndFinishLater = async () => {
+    try {
+      await api.put("/candidate/stage/4", { isDraft: true });
+    } catch (e) {
+      console.warn("Draft save fallback:", e);
+    }
+    toast("✓ Stage 04 progress saved. You can finish your assessment later.", "✓");
+    if (onSaved) {
+      onSaved(null, { advance: false });
+    }
+  };
 
   // 20-minute Test Timer Effect
   useEffect(() => {
@@ -972,6 +1008,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       };
 
       const res = await api.put("/candidate/stage/4", payload);
+      setLocalResult(payload);
+      setShowCompletionModal(true);
       setIsTestRunning(false);
       toast(`Assessment Submitted! Score: ${overallPct}% (${medalTier})`, "✓");
 
@@ -1162,7 +1200,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 FROM YOUR STAGE 01-03 · IDENTITY + FOUNDATION + CERTIFICATION
               </div>
               <div style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 800, marginTop: 2 }}>
-                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {s2Domain} · {adaptiveBank.domainName} · {certName} ({certStatus})
+                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {s2Domain} · {adaptiveBank.domainName} · {certLabel}
               </div>
               <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 1, fontStyle: "italic" }}>
                 Talentera has configured your personalized assessment domain based on your previous stage inputs.
@@ -1172,6 +1210,92 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               🔒 LOCKED
             </div>
           </div>
+
+          {/* COMPLETED ASSESSMENT PROMINENT TOP SCORECARD BANNER */}
+          {isCompleted && (
+            <div
+              style={{
+                background: "linear-gradient(135deg, #0F1B3D 0%, #1A2A55 100%)",
+                border: "2px solid var(--gold)",
+                borderRadius: 16,
+                padding: "22px 26px",
+                color: "#FFFFFF",
+                marginBottom: 20,
+                boxShadow: "0 8px 24px rgba(15,27,61,0.18)",
+                display: "grid",
+                gridTemplateColumns: "110px 1fr auto",
+                gap: 22,
+                alignItems: "center",
+              }}
+            >
+              {/* CIRCULAR GAUGE */}
+              <div
+                style={{
+                  width: 105,
+                  height: 105,
+                  borderRadius: "50%",
+                  background: `conic-gradient(var(--gold) 0deg ${Math.round((candidateScore / 100) * 360)}deg, rgba(255,255,255,0.15) ${Math.round((candidateScore / 100) * 360)}deg 360deg)`,
+                  display: "grid",
+                  placeItems: "center",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
+                }}
+              >
+                <div style={{ width: 82, height: 82, background: "#0F1B3D", borderRadius: "50%", display: "grid", placeItems: "center", textAlign: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--gold)", lineHeight: 1 }}>
+                      {candidateScore}
+                    </div>
+                    <div style={{ fontSize: 9.5, color: "#8A91A3", marginTop: 2 }}>of 100</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* DETAILS */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+                  <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
+                    {currentMedal.toUpperCase()} MEDAL
+                  </span>
+                  <span style={{ background: candidateScore >= 70 ? "rgba(46,204,113,0.25)" : "rgba(230,126,34,0.25)", color: candidateScore >= 70 ? "#2ECC71" : "#F39C12", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
+                    {candidateScore >= 70 ? "✓ TALENTERA VERIFIED" : "ATTEMPT RECORDED"}
+                  </span>
+                  {displayPercentile && (
+                    <span style={{ background: "rgba(255,255,255,0.15)", color: "#FFFFFF", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
+                      Top {Math.max(1, 100 - displayPercentile)}% Cohort
+                    </span>
+                  )}
+                </div>
+                <h3 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 4px", color: "#FFFFFF" }}>
+                  Assessment Score Recorded: {candidateScore}/100
+                </h3>
+                <div style={{ fontSize: 12, color: "#FFF6E0", lineHeight: 1.5 }}>
+                  {displaySections.map((s) => `${s.sectionName}: ${s.score}%`).join(" · ")}
+                </div>
+              </div>
+
+              {/* ACTION BUTTON */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
+                  style={{
+                    background: "var(--gold)",
+                    color: "var(--navy)",
+                    padding: "12px 20px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Continue to Stage 05 →
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* ACTIVE RETAKE NOTIFICATION BANNER (ON CANDIDATE DETAIL / STAGE 4) */}
           {retakeRequest && retakeRequest.status === "PENDING" && (
@@ -1715,9 +1839,15 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
                 Practice Test — 5 minute warm-up (optional but recommended)
               </div>
-              <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700 }}>
-                NOT TAKEN
-              </div>
+              {practiceCompleted ? (
+                <div style={{ background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <span>✓</span> COMPLETED
+                </div>
+              ) : (
+                <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700 }}>
+                  NOT TAKEN
+                </div>
+              )}
             </div>
 
             <div style={{ background: "linear-gradient(135deg, #EEF2FF, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 20px", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 16, alignItems: "center" }}>
@@ -1749,7 +1879,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   cursor: "pointer",
                 }}
               >
-                Start Practice →
+                {practiceCompleted ? "Practice Again →" : "Start Practice →"}
               </button>
             </div>
           </div>
@@ -1935,29 +2065,30 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 </div>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleStartRealTest}
-                    style={{
-                      background: isSystemReady && allRulesChecked ? "var(--gold)" : "rgba(245,180,26,0.3)",
-                      color: isSystemReady && allRulesChecked ? "var(--navy)" : "rgba(15,27,61,0.5)",
-                      padding: "14px 36px",
-                      borderRadius: 12,
-                      fontSize: 15,
-                      fontWeight: 800,
-                      border: "none",
-                      cursor: "pointer",
-                      letterSpacing: 0.5,
-                      marginTop: 16,
-                      boxShadow: isSystemReady && allRulesChecked ? "0 6px 16px rgba(245,180,26,0.35)" : "none",
-                    }}
-                  >
-                    {!isSystemReady
-                      ? "🔒 Allow Camera & Mic in System Check to Unlock"
-                      : !allRulesChecked
-                      ? `🔒 Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
-                      : "Launch Proctored Assessment 🚀"}
-                  </button>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", flexWrap: "wrap", marginTop: 16 }}>
+                    <button
+                      type="button"
+                      onClick={handleStartRealTest}
+                      style={{
+                        background: isSystemReady && allRulesChecked ? "var(--gold)" : "rgba(245,180,26,0.3)",
+                        color: isSystemReady && allRulesChecked ? "var(--navy)" : "rgba(15,27,61,0.5)",
+                        padding: "14px 36px",
+                        borderRadius: 12,
+                        fontSize: 15,
+                        fontWeight: 800,
+                        border: "none",
+                        cursor: isSystemReady && allRulesChecked ? "pointer" : "not-allowed",
+                        letterSpacing: 0.5,
+                        boxShadow: isSystemReady && allRulesChecked ? "0 6px 16px rgba(245,180,26,0.35)" : "none",
+                      }}
+                    >
+                      {!isSystemReady
+                        ? "🔒 Allow Camera & Mic in System Check to Unlock"
+                        : !allRulesChecked
+                        ? `🔒 Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
+                        : "Launch Proctored Assessment 🚀"}
+                    </button>
+                  </div>
                   <div style={{ marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
                     Once you click Start, the test locks you in. No pauses. No exits without submission.
                   </div>
@@ -1998,7 +2129,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   width: 140,
                   height: 140,
                   borderRadius: "50%",
-                  background: isCompleted ? `conic-gradient(#8B9199 0deg ${Math.round((candidateScore / 100) * 360)}deg, #F2F3F5 ${Math.round((candidateScore / 100) * 360)}deg 360deg)` : "#F2F3F5",
+                  background: isCompleted ? `conic-gradient(${candidateScore >= 70 ? "#1F7A3C" : "var(--gold)"} 0deg ${Math.round((candidateScore / 100) * 360)}deg, #F2F3F5 ${Math.round((candidateScore / 100) * 360)}deg 360deg)` : "#F2F3F5",
                   display: "grid",
                   placeItems: "center",
                   position: "relative",
@@ -2178,7 +2309,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   {isCompleted ? "🟢 Proctored" : "⚪ Unassessed"}
                 </span>
                 <span style={{ background: "rgba(245,180,26,0.2)", color: "var(--gold)", padding: "4px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>
-                  {certName} + {adaptiveBank.domainName}
+                  {certLabel} + {adaptiveBank.domainName}
                 </span>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 10, fontFamily: "monospace", fontSize: 11, color: "rgba(255,255,255,0.85)" }}>
@@ -2194,7 +2325,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
 
             {/* ACTION BUTTONS */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
               <button
                 type="button"
                 onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
@@ -2664,6 +2795,12 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   type="button"
                   onClick={() => {
                     setIsPracticeRunning(false);
+                    setPracticeCompleted(true);
+                    try {
+                      sessionStorage.setItem(practiceStorageKey, "1");
+                    } catch {
+                      /* storage unavailable - completed state still shows for this visit */
+                    }
                     toast("Practice session finished! Ready for the real test.", "✓");
                   }}
                   style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}
@@ -2739,6 +2876,133 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
           candidate={candidate}
           onClose={() => setShowVaultModal(false)}
         />
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* POST-SUBMISSION SCORE REPORT CELEBRATION MODAL                    */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {showCompletionModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(8, 18, 42, 0.88)",
+            backdropFilter: "blur(8px)",
+            zIndex: 10000,
+            display: "grid",
+            placeItems: "center",
+            padding: 20,
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 20,
+              maxWidth: 580,
+              width: "100%",
+              padding: "32px 36px",
+              boxShadow: "0 20px 50px rgba(0,0,0,0.35)",
+              textAlign: "center",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                width: 70,
+                height: 70,
+                borderRadius: "50%",
+                background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6",
+                color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00",
+                display: "grid",
+                placeItems: "center",
+                fontSize: 34,
+                margin: "0 auto 16px",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
+              }}
+            >
+              {candidateScore >= 85 ? "🥇" : candidateScore >= 70 ? "🥈" : candidateScore >= 50 ? "🥉" : "📋"}
+            </div>
+
+            <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
+              STAGE 04 · PROCTORED ASSESSMENT COMPLETE
+            </div>
+            <h2 style={{ fontSize: 30, fontWeight: 900, color: "var(--navy)", margin: "6px 0 10px" }}>
+              Score: {candidateScore} / 100
+            </h2>
+
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6", color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00", padding: "6px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
+              <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "⚠️ Attempt Saved"}</span>
+              <span>·</span>
+              <span>{currentMedal} Medal Tier</span>
+              {displayPercentile && (
+                <>
+                  <span>·</span>
+                  <span>Top {Math.max(1, 100 - displayPercentile)}% Cohort</span>
+                </>
+              )}
+            </div>
+
+            {/* SECTION SCORES SUMMARY */}
+            <div style={{ background: "#F5F7FB", borderRadius: 14, padding: "16px 20px", marginBottom: 24, textAlign: "left", border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--navy)", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 12 }}>
+                Topic Breakdown ({displaySections.length} Sections)
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {displaySections.map((sec, idx) => (
+                  <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--navy)" }}>
+                    <span style={{ fontWeight: 600 }}>{sec.icon} {sec.sectionName}</span>
+                    <span style={{ fontWeight: 800, color: sec.score >= 70 ? "#1F7A3C" : "#E08E00" }}>
+                      {sec.score}% {sec.score >= 70 ? "✓" : ""}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={() => setShowCompletionModal(false)}
+                style={{
+                  background: "#F2F3F5",
+                  color: "var(--navy)",
+                  border: "none",
+                  padding: "12px 20px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Review Scorecard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompletionModal(false);
+                  if (onSaved) onSaved(null, { advance: true, nextStage: 5 });
+                }}
+                style={{
+                  background: "var(--gold)",
+                  color: "var(--navy)",
+                  border: "none",
+                  padding: "12px 26px",
+                  borderRadius: 10,
+                  fontSize: 13.5,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
+                }}
+              >
+                Continue to Stage 05 · Video Pitch →
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

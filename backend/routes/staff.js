@@ -18,6 +18,7 @@ const { getPlan, PLANS } = require("../config/plans");
 const logger = require("../utils/logger");
 const fs = require("fs");
 const path = require("path");
+const { announcePostedJob, announceOnboardingJd } = require("../utils/jobAlerts");
 const { isCloudinaryConfigured, uploadBufferToCloudinary } = require("../config/cloudinary");
 const { startLiveVerifySession, captureLiveVerifyResult, closeLiveVerifySession } = require("../utils/liveVerifySession");
 
@@ -657,6 +658,14 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
     const company = await Company.findById(companyId);
     if (!company) return res.status(404).json({ message: "Company not found." });
 
+    // Jobs that this KYC approval is about to make live (they were waiting on approval)
+    let jobsGoingLive = [];
+    let jdGoingLive = false;
+    if (action === "verify") {
+      jobsGoingLive = await Job.find({ companyId: company._id, published: true, approvalStatus: { $ne: "approved" } }).select("_id").lean();
+      jdGoingLive = !!company.jdPublished && company.jdApprovalStatus !== "approved";
+    }
+
     if (action === "verify") {
       company.kycStatus = "verified";
       company.isVerified = true;
@@ -689,6 +698,12 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
     }
 
     await company.save();
+
+    // KYC approval made these jobs live in candidates' Browse Jobs - email candidates (once each, in the background)
+    if (action === "verify") {
+      jobsGoingLive.forEach((j) => announcePostedJob(j._id));
+      if (jdGoingLive) announceOnboardingJd(company._id);
+    }
 
     // Dispatch email notification to company email POC
     await sendKycAuditEmail({
@@ -1196,6 +1211,12 @@ router.post("/verify-job", requireStaffAuth, async (req, res) => {
         job.rejectionReason = rejectionReason || "Job post did not meet Talentera's listing guidelines. Please review and resubmit.";
       }
       await job.save();
+    }
+
+    // An approved job is now live in candidates' Browse Jobs - email them (once, in the background)
+    if (action === "verify") {
+      if (source === "onboarding") announceOnboardingJd(id);
+      else announcePostedJob(id);
     }
 
     // Notify the company through the in-app notification bell (see
@@ -2436,7 +2457,7 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
     }
 
     // 3. Generate direct login & retake redirect URL
-    const retakeUrl = `${frontendUrl}/login?redirect=${encodeURIComponent(retakeRedirectPath)}&email=${encodeURIComponent(candidate.email)}`;
+    const retakeUrl = "https://talentera-nine.vercel.app/dashboard";
 
     // 4. Send Approval Email to candidate's logged-in email
     try {

@@ -3,6 +3,8 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
+import { joinUnique } from "../../utils/resumeSubtitle.js";
+import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
 // Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
 const QrIconSvg = () => (
@@ -183,20 +185,29 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   // Stage 5 Video Pitch from Database
   const videoScore = stage5.aiScore !== undefined ? stage5.aiScore : (stage5.score !== undefined ? stage5.score : null);
   const videoMedal = stage5.medal || (videoScore !== null ? (videoScore >= 85 ? "Gold" : videoScore >= 70 ? "Silver" : videoScore >= 50 ? "Bronze" : "Verified") : "Pending");
-  const clarityScore = stage5.clarityScore || stage5.clarity || (videoScore ? Math.min(100, videoScore + 4) : 80);
-  const fluencyScore = stage5.fluencyScore || stage5.fluency || (videoScore ? Math.max(50, videoScore - 3) : 75);
-  const vocabScore = stage5.vocabScore || stage5.vocabularyScore || 80;
-  const confidenceScore = stage5.confidenceScore || stage5.confidence || 75;
-  const contentScore = stage5.contentScore || stage5.relevanceScore || 82;
+  const clarityScore = stage5.clarityScore || stage5.clarity || (videoScore ? Math.min(100, videoScore + 4) : 0);
+  const fluencyScore = stage5.fluencyScore || stage5.fluency || (videoScore ? Math.max(50, videoScore - 3) : 0);
+  const vocabScore = stage5.vocabScore || stage5.vocabularyScore || (videoScore ? videoScore : 0);
+  const confidenceScore = stage5.confidenceScore || stage5.confidence || (videoScore ? videoScore : 0);
+  const contentScore = stage5.contentScore || stage5.relevanceScore || (videoScore ? videoScore : 0);
   const regionalLang = stage5.regionalLanguage || "";
 
   // Stage 6 Live Charts from Database
   const totalCharts = stage6.totalCharts !== undefined ? stage6.totalCharts : (stage6.liveChartsAudited !== undefined ? stage6.liveChartsAudited : 0);
   const overallAccuracy = stage6.overallAccuracy !== undefined ? stage6.overallAccuracy : (stage6.accuracyScore !== undefined ? stage6.accuracyScore : 0);
   const chartTier = stage6.tier || (totalCharts >= 500 ? "Platinum" : totalCharts >= 201 ? "Gold" : totalCharts >= 51 ? "Silver" : totalCharts > 0 ? "Bronze" : "Declared");
+
+  // Check if saved stage6 was the old legacy mock
+  const isLegacyMock = useMemo(() => {
+    if (!Array.isArray(stage6.specialtyCharts) || stage6.specialtyCharts.length === 0) return false;
+    const legacyNames = ["HCC (Risk Adjustment)", "E/M (Evaluation)", "ED (Emergency)", "Surgery"];
+    const isExactLegacyList = stage6.specialtyCharts.length === 4 && stage6.specialtyCharts.every(s => legacyNames.includes(s.name));
+    const s2Specs = Array.isArray(stage2.specialties) ? stage2.specialties : [];
+    return isExactLegacyList && s2Specs.length > 0 && !s2Specs.every(s => legacyNames.includes(s));
+  }, [stage6.specialtyCharts, stage2.specialties]);
   
   const specialtyCharts = useMemo(() => {
-    if (Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.length > 0) {
+    if (Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.length > 0 && !isLegacyMock) {
       return stage6.specialtyCharts;
     }
     if (Array.isArray(stage2.specialties) && stage2.specialties.length > 0) {
@@ -204,24 +215,25 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         id: idx + 1,
         name: spec,
         icon: "clipboard-list",
-        count: Math.round(totalCharts / Math.max(1, stage2.specialties.length)),
-        accuracy: overallAccuracy || 85,
-        timePerChart: "5.2 min",
+        count: totalCharts > 0 ? Math.round(totalCharts / Math.max(1, stage2.specialties.length)) : 0,
+        accuracy: overallAccuracy || 0,
+        timePerChart: "5.0 min",
         lastCoded: "Recent",
         active: true,
       }));
     }
     if (totalCharts > 0) {
-      return [{ id: 1, name: domainName || "Medical Coding", icon: "stethoscope", count: totalCharts, accuracy: overallAccuracy || 85, timePerChart: "5.0 min", lastCoded: "Recent", active: true }];
+      return [{ id: 1, name: domainName || "Medical Coding", icon: "stethoscope", count: totalCharts, accuracy: overallAccuracy || 0, timePerChart: "5.0 min", lastCoded: "Recent", active: true }];
     }
     return [];
-  }, [stage6, stage2, totalCharts, overallAccuracy, domainName]);
+  }, [stage6, stage2, totalCharts, overallAccuracy, domainName, isLegacyMock]);
 
   const selectedPlatforms = useMemo(() => {
     if (Array.isArray(stage6.selectedPlatforms) && stage6.selectedPlatforms.length > 0) {
       return stage6.selectedPlatforms;
     }
-    return ["Practicode", "Codivia", "3M 360 Encompass"];
+    if (stage6.primaryPlatform) return [stage6.primaryPlatform];
+    return [];
   }, [stage6]);
 
   // Education details from Stage 1 Database
@@ -234,10 +246,22 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   const twelfthScore = stage1.twelfthPercentage ? `${stage1.twelfthPercentage}%` : (stage1.twelfthBoard ? `${stage1.twelfthBoard} Board` : "");
 
   // Work Preferences from Database
-  const preferredCities = Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0
-    ? stage1.preferredLocations.join(" · ")
-    : (city ? `${city} · Bengaluru · Hyderabad · Chennai` : "Bengaluru · Hyderabad · Chennai · Coimbatore · Kochi");
-  const shiftPreference = stage1.shiftPreference || "Day + US Night";
+  const preferredCities = useMemo(() => {
+    if (Array.isArray(stage1.preferredCities) && stage1.preferredCities.length > 0) {
+      return stage1.preferredCities.filter(Boolean).join(" · ");
+    }
+    if (Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0) {
+      return stage1.preferredLocations.filter(Boolean).join(" · ");
+    }
+    if (typeof stage1.preferredLocations === "string" && stage1.preferredLocations.trim()) {
+      return stage1.preferredLocations.trim();
+    }
+    if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
+      return stage1.preferredCities.trim();
+    }
+    return city ? city : "Open to Relocation";
+  }, [stage1, city]);
+  const shiftPreference = stage1.shiftPreference || "Day shift";
   const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
 
   // Total Genuine Points Calculation
@@ -331,38 +355,47 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     toast("Reset theme to default template styles.", "✓");
   }
 
-  // Dynamic AI Suggestions for Career Objective based strictly on real DB data
-  const aiObjectiveOptions = useMemo(() => {
-    const certString = certificationsList.length > 0 ? `${certificationsList.map((c) => c.code || c.name).join(" + ")} certified` : (isNonCertified ? "Talentera-validated" : "Medical coding trained");
-    const chartInfo = totalCharts > 0 ? `with ${totalCharts} verified live charts (${overallAccuracy ? Math.round(overallAccuracy) + "% accuracy" : "audited"})` : `with verified foundation in ${trainingSpecialties}`;
-    const targetSpecialty = specialtyCharts.length > 0 ? specialtyCharts.map((s) => s.name).slice(0, 3).join(", ") : domainName;
+  // Career objectives tailored to experience level (fresher / experienced) and Stage 3 certification
+  // status (certified / pursuing / non-certified) - see utils/careerObjective.js
+  const objectiveSet = useMemo(() => {
+    const { level, years } = getExperienceLevel(stage1, candidateObj);
+    return buildCareerObjectives({
+      level,
+      years,
+      status: getCertStatus(stage3, certificationsList),
+      certCodes: certificationsList.map((c) => c.code || c.name),
+      pursuingCert: stage3.pursuingDetails?.cert || stage3.pursuingCert || "",
+      expectedExam: stage3.pursuingDetails?.expectedDate || "",
+      totalCharts,
+      accuracy: overallAccuracy,
+      specialties: specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName,
+      roleTitle: stage1.currentRole || "",
+      academyName,
+      assessmentScore,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore]);
 
-    return [
-      {
-        id: 1,
-        tag: "Data-forward · US-facing tone",
-        label: "🤖 AI Option 1",
-        text: `${certString} ${expLabel.toLowerCase()} ${chartInfo} across ${targetSpecialty} — seeking an entry-level healthcare RCM coder role at a growth-stage firm serving US healthcare accounts.`,
-      },
-      {
-        id: 2,
-        tag: "Passion-first · story tone",
-        label: "🤖 AI Option 2",
-        text: `Passionate ${targetSpecialty} specialist trained at ${academyName}, seeking to apply my ${assessmentMedal !== "Pending" ? assessmentMedal + "-tier" : "verified"} Talentera skillset in a production RCM setting where precision and continuous learning are valued.`,
-      },
-      {
-        id: 3,
-        tag: "Concise · outcome-focused",
-        label: "🤖 AI Option 3",
-        text: `Verified ${expLabel.toLowerCase()} coder with demonstrated proficiency in ${targetSpecialty} targeting an entry-level position on a US payer account. Available immediately and open to shifts.`,
-      },
-    ];
-  }, [certificationsList, isNonCertified, expLabel, totalCharts, overallAccuracy, trainingSpecialties, specialtyCharts, domainName, academyName, assessmentMedal]);
+  const aiObjectiveOptions = useMemo(
+    () => objectiveSet.options.map((o, i) => ({ id: i + 1, tag: o.tag, label: `🤖 AI Option ${i + 1}`, text: o.text })),
+    [objectiveSet]
+  );
+
+  const cleanObjectiveString = (str) => {
+    if (!str) return "";
+    return str
+      .replace(/Talentera[- ]verified/gi, "Qualified")
+      .replace(/Talentera[- ]validated/gi, "Qualified")
+      .replace(/Talentera skillset/gi, "skillset")
+      .replace(/Talentera/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
 
   const [selectedAiIdx, setSelectedAiIdx] = useState(0);
   const [careerObjective, setCareerObjective] = useState(() => {
-    if (stage7Data.objective) return stage7Data.objective;
-    if (stage7Data.summary) return stage7Data.summary;
+    const saved = stage7Data.objective || stage7Data.summary;
+    if (saved && !isLegacyAutoObjective(saved)) return cleanObjectiveString(saved);
     return aiObjectiveOptions[0].text;
   });
 
@@ -371,12 +404,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   function handleRegenerateAi() {
     setAiGenSeed((prev) => prev + 1);
-    const certString = certificationsList.length > 0 ? `${certificationsList.map((c) => c.code || c.name).join(" + ")} credentialed` : "Talentera-validated";
-    const newOptions = [
-      `${certString} professional with ${totalCharts > 0 ? totalCharts + " audited charts" : "verified pedigree from " + academyName} aiming to contribute precision medical coding expertise to high-volume healthcare operations.`,
-      `Detail-oriented ${domainName} specialist with verified training at ${academyName} and ${chartTier}-tier proficiency seeking an impactful role with immediate availability.`,
-      `Talentera-verified ${expLabel.toLowerCase()} coder with ${videoScore !== null ? videoScore + "% AI communication score" : "verified communication profile"} and ${assessmentScore !== null ? assessmentScore + "% foundation rating" : "solid foundation"} eager to join a clinical documentation team.`,
-    ];
+    const newOptions = objectiveSet.alternates;
     const picked = newOptions[aiGenSeed % newOptions.length];
     setCareerObjective(picked);
     toast("Generated fresh AI objective variation based on your database record!", "✓");
@@ -532,7 +560,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       "==================================================================",
       "",
       `NAME: ${fullName.toUpperCase()}`,
-      `TITLE: ${currentRoleTitle} (${expLabel})`,
+      `TITLE: ${joinUnique(currentRoleTitle, expLabel)}`,
       `CONTACT: Mobile: ${mobile} | Email: ${email} | Location: ${locality}`,
       `LIVE VERIFICATION URL: ${liveResumeUrl}`,
       "",
@@ -545,7 +573,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       "TALENTERA VERIFIED CREDENTIALS & SCORECARD",
       "------------------------------------------------------------------",
       assessmentScore !== null ? `* Foundation Assessment: ${assessmentMedal} Tier (${assessmentScore}/100)` : "* Foundation Assessment: Verified",
-      videoScore !== null ? `* AI Video Pitch: ${videoMedal} Tier (${videoScore}/100) - Clarity: ${clarityScore}, Fluency: ${fluencyScore}, Confidence: ${confidenceScore}` : "* AI Video Pitch: Verified",
+      videoScore !== null ? `* Video Pitch Score: ${videoScore}/100 - Clarity: ${clarityScore}, Fluency: ${fluencyScore}, Confidence: ${confidenceScore}` : "* AI Video Pitch: Verified",
       totalCharts > 0 ? `* Live Chart Production: ${chartTier} Tier (${totalCharts} charts coded, ${overallAccuracy}% accuracy)` : "* Live Chart: Foundation Track",
       "",
       certificationsList.length > 0 ? [
@@ -606,6 +634,11 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Save Stage 7 Data to MongoDB
   async function handleSaveAndAdvance(advanceToStage8 = true) {
+    if (advanceToStage8 && (!careerObjective || careerObjective.trim().length < 5)) {
+      toast("Please provide or select a Career Objective in Section 2 to continue.", "error", { title: "Mandatory Field Required" });
+      window.scrollTo({ top: 400, behavior: "smooth" });
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -1718,7 +1751,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-header">
                 <div>
                   <div className="s7-resume-name">{fullName.toUpperCase()}</div>
-                  <div className="s7-resume-title">{currentRoleTitle} · {expLabel}{locality ? ` · ${locality}` : ""}</div>
+                  <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
                   <div className="s7-resume-contact">
                     {mobile && <span>📞 {mobile}</span>}
                     {email && <span>✉ {email}</span>}
@@ -1811,15 +1844,15 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                           <td>{sc.count}</td>
                           <td>{sc.accuracy}%</td>
                           <td>{sc.timePerChart}</td>
-                          <td>🟢 {sc.lastCoded}</td>
+                          <td>{Number(sc.count) > 0 ? (sc.lastCodedDate ? new Date(sc.lastCodedDate).toLocaleDateString() : "Active") : "—"}</td>
                         </tr>
                       ))}
                       <tr className="total">
                         <td><b>TOTAL</b></td>
-                        <td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (b.count || 0), 0)}</b></td>
-                        <td><b>{overallAccuracy || 85}%</b></td>
-                        <td><b>5.8 min avg</b></td>
-                        <td>🟢 Active</td>
+                        <td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (Number(b.count) || 0), 0)}</b></td>
+                        <td><b>{overallAccuracy || 0}%</b></td>
+                        <td><b>{totalCharts > 0 ? "5.0 min avg" : "—"}</b></td>
+                        <td>{totalCharts > 0 ? "🟢 Active" : "—"}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1835,7 +1868,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 <div className="s7-r-block">
                   <div className="s7-qr-mini"><PlayIconSvg /></div>
                   <div className="k">Self-Introduction (60 sec)</div>
-                  <div className="v">{videoScore !== null ? `${videoMedal} · ${videoScore}/100` : "Verified Pitch"}</div>
+                  <div className="v">{videoScore !== null ? `Video Pitch Score · ${videoScore}/100` : "Verified Pitch"}</div>
                   <div className="details">Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · 🟢 Live Verified · Scan to play</div>
                 </div>
                 <div className="s7-r-block">
@@ -1970,9 +2003,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <button type="button" onClick={() => setShowFullPreviewModal(true)} className="s7-link-btn">
                 Preview full page
               </button>
-              <button type="button" onClick={() => handleSaveAndAdvance(false)} disabled={saving} className="s7-link-btn">
-                Save &amp; finish later
-              </button>
               <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
                 {saving ? "Saving..." : "Continue to Stage 08 · Career Passport →"}
               </button>
@@ -2045,7 +2075,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-header">
                 <div>
                   <div className="s7-resume-name">{fullName.toUpperCase()}</div>
-                  <div className="s7-resume-title">{currentRoleTitle} · {expLabel}{locality ? ` · ${locality}` : ""}</div>
+                  <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
                   <div className="s7-resume-contact">
                     {mobile && <span>📞 {mobile}</span>}
                     {email && <span>✉ {email}</span>}
@@ -2108,10 +2138,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                           <td>{sc.count}</td>
                           <td>{sc.accuracy}%</td>
                           <td>{sc.timePerChart}</td>
-                          <td>🟢 {sc.lastCoded}</td>
+                          <td>{Number(sc.count) > 0 ? (sc.lastCodedDate ? new Date(sc.lastCodedDate).toLocaleDateString() : "Active") : "—"}</td>
                         </tr>
                       ))}
-                      <tr className="total"><td><b>TOTAL</b></td><td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (b.count || 0), 0)}</b></td><td><b>{overallAccuracy || 85}%</b></td><td><b>5.8 min avg</b></td><td>🟢 Active</td></tr>
+                      <tr className="total"><td><b>TOTAL</b></td><td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (Number(b.count) || 0), 0)}</b></td><td><b>{overallAccuracy || 0}%</b></td><td><b>{totalCharts > 0 ? "5.0 min avg" : "—"}</b></td><td>{totalCharts > 0 ? "🟢 Active" : "—"}</td></tr>
                     </tbody>
                   </table>
                 </>

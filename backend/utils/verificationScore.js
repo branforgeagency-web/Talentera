@@ -68,7 +68,13 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         const s6 = candidate.stage6 || {};
         const opt = (s6.evidencePath || s6.option || "").toLowerCase();
         let pts = 0;
-        if (opt === "a" || opt.includes("api") || opt === "practicode") {
+        if (typeof s6.verificationPoints === "number") {
+          // Stage 6 scored from its own inputs (see utils/stage6Score.js)
+          pts = Math.min(STAGE_POINTS[6], Math.max(0, s6.verificationPoints));
+          score += pts;
+          if (pts >= 3) verifiedStages.push(6);
+          continue;
+        } else if (opt === "a" || opt.includes("api") || opt === "practicode") {
           pts = 10;
         } else if (opt === "b" || opt.includes("academy") || opt === "upload") {
           pts = 10;

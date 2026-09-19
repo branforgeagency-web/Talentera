@@ -32,10 +32,22 @@ const DOMAINS = [
 ];
 
 const TRAINING_LEVELS = [
+  "Non-Trained",
   "Basic Medical Coding",
   "Intermediate Medical Coding",
   "Advanced Medical Coding",
   "Auditor / QA Level",
+];
+
+const SELF_LEARNING_SOURCES = [
+  "YouTube Channels (Medical Coding / AAPC / Anatomy)",
+  "AAPC Official Study Guides, Books & Documentation",
+  "AHIMA Study Guides & Textbooks",
+  "Online Course Platforms (Udemy, Coursera, edX)",
+  "Self-Study (ICD-10-CM / CPT / HCPCS Code Manuals)",
+  "Medical Coding Blogs, Forums & Peer Community",
+  "Hospital / Clinical On-the-Job Self-Learning",
+  "Other Self-Learning Channels & Web Sources",
 ];
 
 const ALL_SPECIALTIES = [
@@ -53,6 +65,20 @@ const ALL_SPECIALTIES = [
   "Cardiology",
   "Inpatient Coding",
   "Outpatient Coding",
+];
+
+// Foundation topics for freshers (shown first in the Readiness Check)
+const FRESHER_TOPICS = [
+  "Anatomy",
+  "Physiology",
+  "Medical Terminology",
+  "Pharmacology",
+  "Pathology Basics",
+  "ICD-10-CM Basics",
+  "CPT / HCPCS Basics",
+  "Medical Billing Basics",
+  "Healthcare Insurance Basics",
+  "Coding Guidelines",
 ];
 
 const TRAINING_PATHS = [
@@ -126,8 +152,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const candidateExp = s1.experienceLevel || s1.experience || candidate.experience || "Fresher";
 
   // FORM STATES (Initialized from existingData or empty)
-  const [domain, setDomain] = useState(existingData.domain || "Medical Coding");
-  const [trainingLevel, setTrainingLevel] = useState(existingData.trainingLevel || "");
+  const [domain, setDomain] = useState(existingData.domain || "");
+  // A saved level that isn't one of the preset pills was typed in under "Others"
+  const savedLevelIsCustom = Boolean(existingData.trainingLevel) && !TRAINING_LEVELS.includes(existingData.trainingLevel);
+  const [trainingLevel, setTrainingLevel] = useState(savedLevelIsCustom ? "" : existingData.trainingLevel || "");
+  const [levelOtherSelected, setLevelOtherSelected] = useState(savedLevelIsCustom);
+  const [levelOtherText, setLevelOtherText] = useState(savedLevelIsCustom ? existingData.trainingLevel : "");
+  const effectiveTrainingLevel = levelOtherSelected ? levelOtherText.trim() : trainingLevel;
   const [specialties, setSpecialties] = useState(
     Array.isArray(existingData.specialties) && existingData.specialties.length > 0
       ? existingData.specialties
@@ -135,6 +166,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       ? [existingData.specialty]
       : []
   );
+  // "Others" lets a candidate add their own specialty (e.g. Billing, AR Calling) as a tag
+  const [specialtyOtherOpen, setSpecialtyOtherOpen] = useState(false);
+  const [specialtyOtherText, setSpecialtyOtherText] = useState("");
 
   const [trainingPath, setTrainingPath] = useState(existingData.trainingPath || "academy");
 
@@ -255,6 +289,46 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     }
   }
 
+  function handleAddCustomSpecialty() {
+    const name = specialtyOtherText.replace(/\s+/g, " ").trim();
+    if (name.length < 2) {
+      toast("Type your specialty (at least 2 characters).", "!");
+      return;
+    }
+    if (specialties.some((s) => s.toLowerCase() === name.toLowerCase())) {
+      toast("That specialty is already added.", "!");
+      return;
+    }
+    if (specialties.length >= 3) {
+      toast("You can select up to 3 specialties for your primary focus.", "!");
+      return;
+    }
+    setSpecialties([...specialties, name]);
+    setSpecialtyOtherText("");
+    setSpecialtyOtherOpen(false);
+  }
+
+  // Readiness Check pills: freshers see foundation topics (Anatomy, Physiology…)
+  // first, then the specialties they picked in 1.3 (relevant match), then the
+  // usual specialty list. Anything already selected always stays visible.
+  const isFresherCandidate = /fresher|student|^0\b|no experience|trainee/i.test(String(candidateExp || ""));
+  const readinessOptions = (() => {
+    const seen = new Set();
+    const out = [];
+    const add = (name) => {
+      const key = String(name || "").trim().toLowerCase();
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      out.push(String(name).trim());
+    };
+    if (isFresherCandidate) FRESHER_TOPICS.forEach(add);
+    specialties.forEach(add);
+    ALL_SPECIALTIES.slice(0, 9).forEach(add);
+    confidentSpecs.forEach(add);
+    learningSpecs.forEach(add);
+    return out;
+  })();
+
   function handleToggleConfident(spec) {
     if (confidentSpecs.includes(spec)) {
       setConfidentSpecs(confidentSpecs.filter((s) => s !== spec));
@@ -288,10 +362,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     return {
       isDraft,
       domain,
-      trainingLevel,
+      trainingLevel: effectiveTrainingLevel,
       specialties,
       specialty: specialties[0] || "HCC",
-      courseName: `${domain} - ${specialties.join(", ") || trainingLevel}`,
+      courseName: domain ? `${domain} - ${specialties.join(", ") || effectiveTrainingLevel}` : (specialties.join(", ") || effectiveTrainingLevel),
       course: domain,
       trainingPath,
       academyName: academyName.trim(),
@@ -349,19 +423,29 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   // Final Submit & Advance to Stage 3
   async function handleSaveAndContinue() {
     setError("");
-    if (!domain) {
-      setError("Please choose your Primary Domain.");
-      window.scrollTo({ top: 300, behavior: "smooth" });
-      return;
+    const missing = [];
+    if (levelOtherSelected && !levelOtherText.trim()) {
+      missing.push("Training Level - type your level under Others, or unselect it (Section 1.2)");
     }
     if (specialties.length === 0) {
-      setError("Please select at least 1 specialty in Section 1.3.");
-      window.scrollTo({ top: 300, behavior: "smooth" });
-      return;
+      missing.push("Primary Specialty (Section 1.3)");
     }
     if (trainingPath === "academy" && (!academyName || academyName.trim().length < 2)) {
-      setError("Please provide your Academy Name in Section 3.");
-      window.scrollTo({ top: 600, behavior: "smooth" });
+      missing.push("Academy Name (Section 3)");
+    }
+    if (trainingPath === "self" && (!academyName || academyName.trim().length < 2)) {
+      missing.push("Primary Learning Source / Platform (Section 3)");
+    }
+
+    if (missing.length > 0) {
+      const msg = `Please fill mandatory fields: ${missing.join(", ")}.`;
+      setError(msg);
+      toast(msg, "error", { title: "Mandatory Fields Required" });
+      if (specialties.length === 0) {
+        window.scrollTo({ top: 300, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 600, behavior: "smooth" });
+      }
       return;
     }
 
@@ -1423,14 +1507,17 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             </div>
 
             <div className="s2-field">
-              <label>1.1 · Primary Domain <span className="req">*</span></label>
-              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the RCM function you trained on.</div>
+              <label>
+                1.1 · Primary Domain
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (Optional)</span>
+              </label>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the RCM function you trained on, if any. Tap again to clear.</div>
               <div className="s2-choice-grid-4">
                 {DOMAINS.map((d) => (
                   <div
                     key={d.id}
                     className={`s2-choice ${domain === d.id ? "selected" : ""}`}
-                    onClick={() => setDomain(d.id)}
+                    onClick={() => setDomain(domain === d.id ? "" : d.id)}
                   >
                     <div className="s2-choice-check">{domain === d.id ? "✓" : ""}</div>
                     <div className="s2-choice-icon">{d.icon}</div>
@@ -1451,13 +1538,37 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 {TRAINING_LEVELS.map((lvl) => (
                   <span
                     key={lvl}
-                    className={`s2-tag-pill ${trainingLevel === lvl ? "selected" : ""}`}
-                    onClick={() => setTrainingLevel(trainingLevel === lvl ? "" : lvl)}
+                    className={`s2-tag-pill ${!levelOtherSelected && trainingLevel === lvl ? "selected" : ""}`}
+                    onClick={() => {
+                      setLevelOtherSelected(false);
+                      setTrainingLevel(!levelOtherSelected && trainingLevel === lvl ? "" : lvl);
+                    }}
                   >
                     {lvl}
                   </span>
                 ))}
+                <span
+                  className={`s2-tag-pill ${levelOtherSelected ? "selected" : ""}`}
+                  onClick={() => {
+                    setTrainingLevel("");
+                    setLevelOtherSelected(!levelOtherSelected);
+                  }}
+                >
+                  Others
+                </span>
               </div>
+              {levelOtherSelected && (
+                <div style={{ marginTop: 10, maxWidth: 420 }}>
+                  <input
+                    type="text"
+                    value={levelOtherText}
+                    maxLength={60}
+                    autoFocus
+                    onChange={(e) => setLevelOtherText(e.target.value)}
+                    placeholder="Type your training level (e.g. Certificate in Medical Billing)"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="s2-field">
@@ -1485,6 +1596,36 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     {spec}
                   </span>
                 ))}
+                <span
+                  className={`s2-tag-pill ${specialtyOtherOpen ? "selected" : ""}`}
+                  onClick={() => setSpecialtyOtherOpen(!specialtyOtherOpen)}
+                >
+                  Others
+                </span>
+              </div>
+              {specialtyOtherOpen && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10, maxWidth: 460, alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={specialtyOtherText}
+                    maxLength={40}
+                    autoFocus
+                    onChange={(e) => setSpecialtyOtherText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddCustomSpecialty();
+                      }
+                    }}
+                    placeholder="Type your specialty (e.g. Medical Billing, AR Calling)"
+                  />
+                  <button type="button" className="s2-action-btn" onClick={handleAddCustomSpecialty} style={{ whiteSpace: "nowrap", padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, cursor: "pointer" }}>
+                    Add
+                  </button>
+                </div>
+              )}
+              <div className="s2-helper" style={{ marginTop: 6 }}>
+                Not in the list — e.g. Billing, AR Calling, Denial Management? Choose Others and add your own.
               </div>
               <div className="s2-helper" style={{ marginTop: 6 }}>
                 Available for Coding: E/M · HCC · ED · Surgery · IP-DRG · Home Health · ObGyn · Radiology · Pediatrics · Anesthesia · Pathology
@@ -1525,21 +1666,22 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             <div className="s2-section-header">
               <div className="s2-section-num">3</div>
               <div className="s2-section-title">
-                {trainingPath === "self" ? "Self-Trained Platform & Course Details" : "Academy Details"}
+                {trainingPath === "self" ? "Self-Trained Platform & Learning Sources" : "Academy Details"}
               </div>
-              <div className="s2-status-chip pending">PENDING · +5</div>
+              <div className="s2-status-chip pending">
+                {trainingPath === "self" ? (academyName ? "COMPLETED" : "PENDING") : "PENDING · +5"}
+              </div>
             </div>
 
-            {/* Row 1: Academy Name (Dropdown List) & Academy Location (Input with Dropdown List) */}
-            <div className="s2-row">
-              <div className="s2-field">
+            {trainingPath === "self" ? (
+              /* Self-Trained: Only Training Source Dropdown */
+              <div className="s2-field" style={{ marginBottom: 8 }}>
                 <label>
-                  {trainingPath === "self" ? "Primary Learning Source / Platform" : "Academy Name"}{" "}
-                  <span className="req">*</span>
+                  Primary Learning Source / Platform <span className="req">*</span>
                 </label>
                 <select
                   value={academyName}
-                  onChange={(e) => handleSelectAcademy(e.target.value)}
+                  onChange={(e) => setAcademyName(e.target.value)}
                   style={{
                     background: "var(--white)",
                     border: "1.5px solid var(--border)",
@@ -1548,181 +1690,216 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     fontSize: "13.5px",
                     color: "var(--navy)",
                     fontWeight: "600",
+                    width: "100%",
                   }}
                 >
-                  <option value="">-- Select Academy from List --</option>
-                  {allAcademiesList.map((a) => (
-                    <option key={a.name} value={a.name}>
-                      {a.name} ({a.location || "Pan-India"})
+                  <option value="">-- Select Self-Learning Source / Platform --</option>
+                  {SELF_LEARNING_SOURCES.map((src) => (
+                    <option key={src} value={src}>
+                      {src}
                     </option>
                   ))}
                 </select>
                 <div className="s2-helper">
-                  Select your training academy from the list.
+                  Select your primary self-learning platform (e.g. YouTube channels, AAPC guides, or online courses).
                 </div>
               </div>
+            ) : (
+              <>
+                {/* Row 1: Academy Name (Dropdown List) & Academy Location (Input with Dropdown List) */}
+                <div className="s2-row">
+                  <div className="s2-field">
+                    <label>
+                      Academy Name <span className="req">*</span>
+                    </label>
+                    <select
+                      value={academyName}
+                      onChange={(e) => handleSelectAcademy(e.target.value)}
+                      style={{
+                        background: "var(--white)",
+                        border: "1.5px solid var(--border)",
+                        borderRadius: "9px",
+                        padding: "11px 14px",
+                        fontSize: "13.5px",
+                        color: "var(--navy)",
+                        fontWeight: "600",
+                      }}
+                    >
+                      <option value="">-- Select Academy from List --</option>
+                      {allAcademiesList.map((a) => (
+                        <option key={a.name} value={a.name}>
+                          {a.name} ({a.location || "Pan-India"})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="s2-helper">
+                      Select your training academy from the list.
+                    </div>
+                  </div>
 
-              <div className="s2-field">
-                <label>
-                  Academy Location / Branch <span className="req">*</span>
-                </label>
-                <input
-                  type="text"
-                  list="academy-locations-datalist"
-                  value={academyLocation}
-                  onChange={(e) => setAcademyLocation(e.target.value)}
-                  placeholder="Select from dropdown or type location (e.g. Coimbatore, Tamil Nadu)"
-                />
-                <datalist id="academy-locations-datalist">
-                  {ACADEMY_LOCATIONS.map((loc) => (
-                    <option key={loc} value={loc} />
-                  ))}
-                </datalist>
-                <div className="s2-helper">
-                  Select your academy location from the list or type your specific branch.
+                  <div className="s2-field">
+                    <label>
+                      Academy Location / Branch <span className="req">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      list="academy-locations-datalist"
+                      value={academyLocation}
+                      onChange={(e) => setAcademyLocation(e.target.value)}
+                      placeholder="Select from dropdown or type location (e.g. Coimbatore, Tamil Nadu)"
+                    />
+                    <datalist id="academy-locations-datalist">
+                      {ACADEMY_LOCATIONS.map((loc) => (
+                        <option key={loc} value={loc} />
+                      ))}
+                    </datalist>
+                    <div className="s2-helper">
+                      Select your academy location from the list or type your specific branch.
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Row 2: Batch / Roll Number & Certificate ID */}
-            <div className="s2-row">
-              <div className="s2-field">
-                <label>Batch / Roll Number <span className="req">*</span></label>
-                <input
-                  type="text"
-                  value={batch}
-                  onChange={(e) => setBatch(e.target.value)}
-                  placeholder="e.g. APX-2601-012 / Roll No"
-                />
-                <div className="s2-helper">Your academy cross-checks this against their student roster.</div>
-              </div>
-              <div className="s2-field">
-                <label>Certificate ID <span className="req">*</span></label>
-                <input
-                  type="text"
-                  value={certificateId}
-                  onChange={(e) => setCertificateId(e.target.value)}
-                  placeholder="e.g. CERT-2026-HCC-0187"
-                />
-                <div className="s2-helper">Unique ID from your academy. Duplicate IDs are auto-flagged.</div>
-              </div>
-            </div>
-
-            {/* Row 3: Start Month/Year, End Month/Year, Total Training Hours */}
-            <div className="s2-row-3">
-              <div className="s2-field">
-                <label>Start Month & Year <span className="req">*</span></label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <select
-                    value={startMonth}
-                    onChange={(e) => setStartMonth(e.target.value)}
-                  >
-                    <option value="">Month…</option>
-                    {MONTH_OPTIONS.map((m) => (
-                      <option key={m.val} value={m.val}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={startYear}
-                    onChange={(e) => setStartYear(e.target.value)}
-                  >
-                    <option value="">Year…</option>
-                    {TRAINING_YEAR_OPTIONS.map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                      </option>
-                    ))}
-                  </select>
+                {/* Row 2: Batch / Roll Number & Certificate ID */}
+                <div className="s2-row">
+                  <div className="s2-field">
+                    <label>Batch / Roll Number <span className="req">*</span></label>
+                    <input
+                      type="text"
+                      value={batch}
+                      onChange={(e) => setBatch(e.target.value)}
+                      placeholder="e.g. APX-2601-012 / Roll No"
+                    />
+                    <div className="s2-helper">Your academy cross-checks this against their student roster.</div>
+                  </div>
+                  <div className="s2-field">
+                    <label>Certificate ID <span className="req">*</span></label>
+                    <input
+                      type="text"
+                      value={certificateId}
+                      onChange={(e) => setCertificateId(e.target.value)}
+                      placeholder="e.g. CERT-2026-HCC-0187"
+                    />
+                    <div className="s2-helper">Unique ID from your academy. Duplicate IDs are auto-flagged.</div>
+                  </div>
                 </div>
-              </div>
-              <div className="s2-field">
-                <label>End Month & Year <span className="req">*</span></label>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <select
-                    value={endMonth}
-                    onChange={(e) => setEndMonth(e.target.value)}
-                  >
-                    <option value="">Month…</option>
-                    {MONTH_OPTIONS.map((m) => (
-                      <option key={m.val} value={m.val}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={endYear}
-                    onChange={(e) => setEndYear(e.target.value)}
-                  >
-                    <option value="">Year…</option>
-                    {TRAINING_YEAR_OPTIONS.map((yr) => (
-                      <option key={yr} value={yr}>
-                        {yr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="s2-field">
-                <label>Total Training Hours <span className="req">*</span></label>
-                <select value={totalHours} onChange={(e) => setTotalHours(e.target.value)}>
-                  <option value="">Select hours…</option>
-                  {TOTAL_HOURS_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
 
-            {/* Row 4: Mode of Training */}
-            <div className="s2-field">
-              <label>Mode of Training <span className="req">*</span></label>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {TRAINING_MODES.map((mode) => (
-                  <span
-                    key={mode}
-                    className={`s2-tag-pill ${modeOfTraining === mode ? "selected" : ""}`}
-                    onClick={() => setModeOfTraining(mode)}
-                  >
-                    {mode}
+                {/* Row 3: Start Month/Year, End Month/Year, Total Training Hours */}
+                <div className="s2-row-3">
+                  <div className="s2-field">
+                    <label>Start Month & Year <span className="req">*</span></label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <select
+                        value={startMonth}
+                        onChange={(e) => setStartMonth(e.target.value)}
+                      >
+                        <option value="">Month…</option>
+                        {MONTH_OPTIONS.map((m) => (
+                          <option key={m.val} value={m.val}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={startYear}
+                        onChange={(e) => setStartYear(e.target.value)}
+                      >
+                        <option value="">Year…</option>
+                        {TRAINING_YEAR_OPTIONS.map((yr) => (
+                          <option key={yr} value={yr}>
+                            {yr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="s2-field">
+                    <label>End Month & Year <span className="req">*</span></label>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <select
+                        value={endMonth}
+                        onChange={(e) => setEndMonth(e.target.value)}
+                      >
+                        <option value="">Month…</option>
+                        {MONTH_OPTIONS.map((m) => (
+                          <option key={m.val} value={m.val}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={endYear}
+                        onChange={(e) => setEndYear(e.target.value)}
+                      >
+                        <option value="">Year…</option>
+                        {TRAINING_YEAR_OPTIONS.map((yr) => (
+                          <option key={yr} value={yr}>
+                            {yr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="s2-field">
+                    <label>Total Training Hours <span className="req">*</span></label>
+                    <select value={totalHours} onChange={(e) => setTotalHours(e.target.value)}>
+                      <option value="">Select hours…</option>
+                      {TOTAL_HOURS_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Row 4: Mode of Training */}
+                <div className="s2-field">
+                  <label>Mode of Training <span className="req">*</span></label>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {TRAINING_MODES.map((mode) => (
+                      <span
+                        key={mode}
+                        className={`s2-tag-pill ${modeOfTraining === mode ? "selected" : ""}`}
+                        onClick={() => setModeOfTraining(mode)}
+                      >
+                        {mode}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="s2-field">
+                  <label>
+                    Academy Assessment Score <span className="lock">🔒 Populated by academy — read-only</span>
+                  </label>
+                  <input type="text" className="locked" value={academyScore} readOnly />
+                  <div className="s2-helper">
+                    Your score can only be set by your academy or by Talentera's proctored assessment. Never self-declared.
+                  </div>
+                </div>
+
+                {/* DOC LINK */}
+                <div className="s2-doclink">
+                  <div className="ico">📁</div>
+                  <div className="txt">
+                    <div className="title">Your Certificate is stored in My Documents</div>
+                    <div className="sub">HCC_Certificate.pdf · uploaded 15 Sep 2026 · verified by {academyName.split(" ")[0] || "Academy"}</div>
+                  </div>
+                  <span className="go" onClick={() => toast("Certificate verified and stored securely in platform vault.", "✓")}>
+                    Open Vault →
                   </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="s2-field">
-              <label>
-                Academy Assessment Score <span className="lock">🔒 Populated by academy — read-only</span>
-              </label>
-              <input type="text" className="locked" value={academyScore} readOnly />
-              <div className="s2-helper">
-                Your score can only be set by your academy or by Talentera's proctored assessment. Never self-declared.
-              </div>
-            </div>
-
-            {/* DOC LINK */}
-            <div className="s2-doclink">
-              <div className="ico">📁</div>
-              <div className="txt">
-                <div className="title">Your Certificate is stored in My Documents</div>
-                <div className="sub">HCC_Certificate.pdf · uploaded 15 Sep 2026 · verified by {academyName.split(" ")[0] || "Academy"}</div>
-              </div>
-              <span className="go" onClick={() => toast("Certificate verified and stored securely in platform vault.", "✓")}>
-                Open Vault →
-              </span>
-            </div>
-
-            {/* VERIFICATION STRIP */}
-            <div className="s2-verify-strip">
-              <div className="badge-dot">🟢</div>
-              <div>
-                <div className="title">Academy-Verified · {academyName}</div>
-                <div className="body">
-                  Your batch, roll number and score were confirmed by {academyName} via their Talentera Academy Dashboard.
                 </div>
-              </div>
-            </div>
+
+                {/* VERIFICATION STRIP */}
+                <div className="s2-verify-strip">
+                  <div className="badge-dot">🟢</div>
+                  <div>
+                    <div className="title">Academy-Verified · {academyName}</div>
+                    <div className="body">
+                      Your batch, roll number and score were confirmed by {academyName} via their Talentera Academy Dashboard.
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* SECTION 4 · PRACTICAL EXPOSURE */}
@@ -1838,9 +2015,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
             <div className="s2-field">
               <label>I'm confident in <span className="req">*</span></label>
-              <div className="s2-helper" style={{ marginBottom: 6 }}>Companies match you to these specialties first.</div>
+              <div className="s2-helper" style={{ marginBottom: 6 }}>Companies match you to these specialties first.{isFresherCandidate ? " As a fresher, pick the foundation topics you know well." : ""}</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {ALL_SPECIALTIES.slice(0, 9).map((spec) => (
+                {readinessOptions.map((spec) => (
                   <span
                     key={spec}
                     className={`s2-tag-pill ${confidentSpecs.includes(spec) ? "selected" : ""}`}
@@ -1856,7 +2033,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <label>I'd like more practice in</label>
               <div className="s2-helper" style={{ marginBottom: 6 }}>Our Learning Hub will recommend content on these.</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {ALL_SPECIALTIES.slice(0, 8).map((spec) => (
+                {readinessOptions.map((spec) => (
                   <span
                     key={spec}
                     className={`s2-tag-pill ${learningSpecs.includes(spec) ? "selected" : ""}`}
@@ -1937,14 +2114,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div><b>25 / 100</b> · Stage 02 in progress</div>
             </div>
             <div className="s2-sticky-actions">
-              <button
-                type="button"
-                className="s2-link-btn"
-                onClick={handleSaveDraft}
-                disabled={saving}
-              >
-                {saving ? "Saving…" : "Save & finish later"}
-              </button>
               <button
                 type="button"
                 className="s2-action-btn"
