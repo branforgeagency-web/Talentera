@@ -1291,6 +1291,13 @@ router.post("/ai-interview/start", async (req, res) => {
       });
     }
 
+    if (existing && (existing.status === "COMPLETED" || existing.status === "STOPPED") && !retake) {
+      return res.json({
+        session: existing,
+        messiReply: `You have completed this interview with an overall score of ${existing.result?.overallScore ?? 0}/100.`,
+      });
+    }
+
     const session = await buildFreshAiInterviewSession(candidate);
     candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
     candidate.markModified("stage8");
@@ -1298,7 +1305,7 @@ router.post("/ai-interview/start", async (req, res) => {
 
     const firstQ = session.questions[0];
     const totalCount = session.questions.length;
-    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} from our interview bank. Let's begin with our first question:\n\n${firstQ?.question || ""}`;
+    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm Jessy, your AI interviewer today, and I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} from our interview bank. Let's begin with our first question:\n\n${firstQ?.question || ""}`;
 
     res.json({ session, messiReply });
   } catch (err) {
@@ -1328,6 +1335,37 @@ router.post("/ai-interview/turn", async (req, res) => {
     }
 
     const utterance = String(req.body?.candidateUtterance || "").trim();
+
+    // Guard against stale turn submissions (e.g., if voice already advanced this question)
+    if (
+      req.body?.expectedQuestionIndex !== undefined &&
+      Number(req.body.expectedQuestionIndex) !== session.currentQuestionIndex
+    ) {
+      const interviewEnded = session.status === "COMPLETED";
+      return res.json({
+        messiReply: "Question already answered — continuing.",
+        nextQuestion: interviewEnded ? null : session.questions[session.currentQuestionIndex],
+        progress: { index: session.currentQuestionIndex, total: session.questions.length },
+        interviewEnded,
+        result: session.result || null,
+        session,
+      });
+    }
+
+    // Guard against duplicate question records
+    const alreadyRecorded = session.questionRecords?.some((r) => r.index === session.currentQuestionIndex);
+    if (alreadyRecorded) {
+      const interviewEnded = session.status === "COMPLETED";
+      return res.json({
+        messiReply: "Question already recorded — continuing.",
+        nextQuestion: interviewEnded ? null : session.questions[session.currentQuestionIndex],
+        progress: { index: session.currentQuestionIndex, total: session.questions.length },
+        interviewEnded,
+        result: session.result || null,
+        session,
+      });
+    }
+
     const currentIndex = session.currentQuestionIndex;
     const currentQuestion = session.questions[currentIndex];
 

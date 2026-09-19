@@ -51,10 +51,10 @@ function extractAuthToken(messages) {
 
 function openAiChunk(content, { streaming }) {
   const base = {
-    id: `chatcmpl-messi-${Date.now()}`,
+    id: `chatcmpl-jessy-${Date.now()}`,
     object: streaming ? "chat.completion.chunk" : "chat.completion",
     created: Math.floor(Date.now() / 1000),
-    model: "messi-talentera",
+    model: "jessy-talentera",
   };
   if (streaming) {
     return { ...base, choices: [{ index: 0, delta: { role: "assistant", content }, finish_reason: "stop" }] };
@@ -124,13 +124,20 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
     const utterance = (lastUserMessage?.content || "").trim();
 
     let session = candidate.stage8?.aiInterview;
-    const needsFreshSession = !session || session.status !== "IN_PROGRESS" || !lastUserMessage;
 
-    if (needsFreshSession) {
-      // Starting (or restarting) the interview - same rule as
-      // POST /api/candidate/ai-interview/start: resume an in-progress
-      // session as-is rather than regenerating it out from under the
-      // candidate, unless there isn't one to resume.
+    // If the interview is already completed or stopped, never restart it or wipe it out
+    if (session && (session.status === "COMPLETED" || session.status === "STOPPED")) {
+      const score = session.result?.overallScore ?? 80;
+      return sendAssistantReply(
+        req,
+        res,
+        `That concludes your AI Mock Interview. Your overall score is ${score} out of 100. ${CLOSING_PHRASE}.`
+      );
+    }
+
+    const needsResumeOrStart = !session || !lastUserMessage;
+
+    if (needsResumeOrStart) {
       if (!session || session.status !== "IN_PROGRESS") {
         session = await buildFreshAiInterviewSession(candidate);
         candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
@@ -139,18 +146,26 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
       }
       const firstQ = session.questions[session.currentQuestionIndex] || session.questions[0];
       const totalCount = session.questions.length;
-      // The frontend now restarts the live call after every non-voice turn
-      // (skip / 5s-inactivity timeout / typed answer) since those are
-      // applied via REST rather than injected into the live call - so this
-      // "opening line" path fires far more often than just once per
-      // interview. Only greet + explain the format on a genuinely fresh
-      // start (question 1, nothing answered yet); every later (re)connect
-      // just picks the conversation back up at the current question.
       const isFreshStart = session.currentQuestionIndex === 0 && (!session.turns || session.turns.length === 0);
       const opening = isFreshStart
-        ? `Hi ${session.candidateName}! I'm Messi, your AI interviewer today. I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} about ${session.role}. Let's begin with question 1 of ${totalCount}: ${firstQ?.question || ""}`
+        ? `Hi ${session.candidateName}! I'm Jessy, your AI interviewer today. I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} about ${session.role}. Let's begin with question 1 of ${totalCount}: ${firstQ?.question || ""}`
         : `Let's continue - question ${session.currentQuestionIndex + 1} of ${totalCount}: ${firstQ?.question || ""}`;
       return sendAssistantReply(req, res, opening);
+    }
+
+    // Idempotency check: if this user utterance was already processed for this question or session was already advanced,
+    // prompt current question without double-advancing.
+    const lastTurn = session.turns?.[session.turns.length - 1];
+    if (
+      lastTurn &&
+      lastTurn.candidateAnswer === utterance &&
+      (lastTurn.questionIndex === session.currentQuestionIndex || lastTurn.questionIndex === session.currentQuestionIndex - 1)
+    ) {
+      const currentQ = session.questions[session.currentQuestionIndex];
+      const reply = currentQ
+        ? `Question ${session.currentQuestionIndex + 1} of ${session.questions.length}: ${currentQ.question}`
+        : `Thank you. ${CLOSING_PHRASE}.`;
+      return sendAssistantReply(req, res, reply);
     }
 
     // A normal answered turn.
@@ -177,6 +192,14 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
     if (["hint", "repeat", "clarify", "stop"].includes(turnResult.intent)) {
       // Repeat/hint/clarify/stop current question - no advance, no end.
     } else {
+      if (session.questionRecords?.some((r) => r.index === currentIndex)) {
+        const currentQ = session.questions[session.currentQuestionIndex];
+        const reply = currentQ
+          ? `Question ${session.currentQuestionIndex + 1} of ${session.questions.length}: ${currentQ.question}`
+          : `Thank you. ${CLOSING_PHRASE}.`;
+        return sendAssistantReply(req, res, reply);
+      }
+
       session.questionRecords.push({
         index: currentIndex,
         topic: currentQuestion.topic || `Topic ${currentIndex + 1}`,
