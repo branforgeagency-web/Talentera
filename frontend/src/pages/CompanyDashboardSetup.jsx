@@ -69,7 +69,8 @@ export default function CompanyDashboardSetup() {
     const st = ONBOARDING_STAGES.find((s) => s.id === stageId);
     if (!st || !updatedCompany) return [];
     const stData = updatedCompany[`stage${stageId}`] || {};
-    const mustItems = st.items.filter((i) => i.tag === "must");
+    const fresherOnly = stageId === "9" && stData.level === "Fresher only";
+    const mustItems = st.items.filter((i) => i.tag === "must" && !(fresherOnly && (i.id === "expmin" || i.id === "expmax")));
     return mustItems.filter((item) => {
       const val = stData[item.id];
       if (val === undefined || val === null) return true;
@@ -725,7 +726,20 @@ export default function CompanyDashboardSetup() {
               </div>
             )}
 
-            {activeStageId === "5" && company?.plan !== "enterprise" && (
+            {activeStageId === "5" && ["No", "Mix"].includes(activeData?.qdefault) && (
+              <div style={{ background: "#ECFDF5", border: "1.5px solid #6EE7B7", borderRadius: 12, padding: "14px 18px", marginBottom: 20 }}>
+                <strong style={{ fontSize: 13.5, color: "#047857", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>📝</span> {activeData.qdefault === "No" ? "YOUR OWN QUESTION BANK" : "TALENTERA + YOUR OWN QUESTION BANK"}
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#065F46", lineHeight: 1.5 }}>
+                  {activeData.qdefault === "No"
+                    ? "Upload your own interview questions below (Excel/CSV). Candidates will be interviewed with your questions instead of Talentera's default bank."
+                    : "Upload your own interview questions below (Excel/CSV). They'll be used alongside Talentera's default bank."}
+                </p>
+              </div>
+            )}
+
+            {activeStageId === "5" && !["No", "Mix"].includes(activeData?.qdefault) && (
               <div
                 style={{
                   background: "#FFFBEB",
@@ -745,31 +759,17 @@ export default function CompanyDashboardSetup() {
                     <span>⚡</span> TALENTERA DEFAULT QUESTION BANK ACTIVE
                   </strong>
                   <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#B45309", lineHeight: 1.5 }}>
-                    Your candidate interviews are powered by Talentera's verified AAPC/AHIMA-aligned question bank. Uploading proprietary custom interview question banks is an Enterprise Tier feature.
+                    Your candidate interviews are powered by Talentera's verified AAPC/AHIMA-aligned question bank. Want to use your own questions? Set &ldquo;Use Talentera default bank&rdquo; to No (or Mix) to add your own question bank.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/companies/billing")}
-                  style={{
-                    background: "#D97706",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "8px 16px",
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Upgrade to Enterprise →
-                </button>
               </div>
             )}
 
             <div className="conb-field-list">
-              {activeStage.items.map((item) => (
+              {activeStage.items
+                .filter((item) => !(activeStageId === "9" && activeData?.level === "Fresher only" && (item.id === "expmin" || item.id === "expmax" || item.id === "notice")))
+                .filter((item) => !(activeStageId === "5" && item.id === "qcustom" && !["No", "Mix"].includes(activeData?.qdefault)))
+                .map((item) => (
                 <OnboardingField
                   key={`${activeStageId}-${item.id}`}
                   item={item}

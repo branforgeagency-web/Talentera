@@ -4,8 +4,10 @@ import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { getStage } from "../data/companyOnboardingStages";
+import EditableNameList from "../components/company/EditableNameList.jsx";
 
 const STAGE9 = getStage("9");
+const EXPERIENCE_IDS = new Set(["expmin", "expmax"]);
 const REQUIRED_IDS = new Set(STAGE9.items.filter((i) => i.tag === "must").map((i) => i.id));
 
 function emptyFormState() {
@@ -101,7 +103,10 @@ export default function CompanyJobs() {
     }
     setSubmitting(true);
     try {
-      await companyApi.post("/company/jobs", form);
+      // Experience range doesn't apply when hiring freshers only
+      const payload = form.level === "Fresher only" ? { ...form, expmin: "", expmax: "", notice: "" } : { ...form };
+      payload.panel = (Array.isArray(payload.panel) ? payload.panel : []).map((n) => String(n).trim()).filter(Boolean);
+      await companyApi.post("/company/jobs", payload);
       toast("Job posted and published live! ✓", "✓");
       setShowForm(false);
       setForm(emptyFormState());
@@ -268,8 +273,32 @@ export default function CompanyJobs() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {STAGE9.items.map((item) => {
                 const isFullWidth = item.input === "textarea" || item.input === "multi";
+                // "Hiring freshers" checked -> hide the experience inputs (the checkbox itself stays visible)
+                const hideExperience = form.level === "Fresher only" && EXPERIENCE_IDS.has(item.id);
+                // Notice period doesn't apply to freshers either
+                if (form.level === "Fresher only" && item.id === "notice") return null;
                 return (
-                  <div key={item.id} style={{ gridColumn: isFullWidth ? "1 / -1" : "auto" }}>
+                  <React.Fragment key={item.id}>
+                  {item.id === "expmin" && (
+                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                        <input
+                          type="checkbox"
+                          checked={form.level === "Fresher only"}
+                          onChange={(e) => setField("level", e.target.checked ? "Fresher only" : "")}
+                          style={{ width: 16, height: 16, accentColor: "var(--navy)", cursor: "pointer" }}
+                        />
+                        🎓 Hiring freshers
+                      </label>
+                      <span style={{ fontSize: 12, color: "#64748B" }}>
+                        {form.level === "Fresher only"
+                          ? "Experience range not needed for freshers."
+                          : "Experience range is optional. Select this if you're hiring freshers."}
+                      </span>
+                    </div>
+                  )}
+                  {!hideExperience && (
+                  <div style={{ gridColumn: isFullWidth ? "1 / -1" : "auto" }}>
                     <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#475569", marginBottom: 6 }}>
                       {item.name}
                       {REQUIRED_IDS.has(item.id) && <span style={{ color: "#DC2626" }}>*</span>}
@@ -278,10 +307,12 @@ export default function CompanyJobs() {
                     {["text", "number"].includes(item.input) && (
                       <input
                         type={item.input}
+                        min={item.input === "number" ? 0 : undefined}
+                        onKeyDown={item.input === "number" ? (e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); } : undefined}
                         style={inputStyle}
                         placeholder={item.placeholder}
                         value={form[item.id]}
-                        onChange={(e) => setField(item.id, e.target.value)}
+                        onChange={(e) => setField(item.id, item.input === "number" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value)}
                       />
                     )}
 
@@ -304,7 +335,15 @@ export default function CompanyJobs() {
                       />
                     )}
 
-                    {item.input === "multi" && (
+                    {item.input === "multi" && item.id === "panel" && (
+                      <EditableNameList
+                        value={form.panel}
+                        onChange={(next) => setField("panel", next)}
+                        suggestions={item.options || []}
+                      />
+                    )}
+
+                    {item.input === "multi" && item.id !== "panel" && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                         {(item.options || []).map((opt) => {
                           const active = (form[item.id] || []).includes(opt);
@@ -331,6 +370,8 @@ export default function CompanyJobs() {
                       </div>
                     )}
                   </div>
+                  )}
+                  </React.Fragment>
                 );
               })}
             </div>

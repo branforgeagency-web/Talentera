@@ -25,8 +25,6 @@ const JD_REQUIRED_FIELDS = [
   "roletitle",
   "specialty",
   "level",
-  "expmin",
-  "expmax",
   "compmin",
   "compmax",
   "workmode",
@@ -37,6 +35,11 @@ const JD_REQUIRED_FIELDS = [
   "urgency",
   "hiringmanager",
 ];
+
+// Numeric JD fields must never be negative
+const NON_NEGATIVE_JD_FIELDS = ["expmin", "expmax", "compmin", "compmax", "joiningbonus", "probation", "openings"];
+const findNegativeJdField = (data = {}) =>
+  NON_NEGATIVE_JD_FIELDS.find((f) => data[f] !== undefined && data[f] !== null && data[f] !== "" && Number(data[f]) < 0);
 
 const APPLICATION_STATUS_LABELS = {
   shortlisted: "Shortlisted",
@@ -207,21 +210,18 @@ router.put("/stage/:id", async (req, res) => {
     return res.status(400).json({ message: "Invalid onboarding stage." });
   }
 
+  if (stageId === "9") {
+    const negative = findNegativeJdField(req.body || {});
+    if (negative) return res.status(400).json({ message: `${negative} cannot be negative.` });
+  }
+
   const company = await Company.findById(req.companyId);
   if (!company) return res.status(404).json({ message: "Not found." });
 
   const plan = getPlan(company.plan);
 
   // Plan feature gating:
-  // Custom Question Banks (Stage 5 qcustom) is gated to Enterprise tier
-  if (stageId === "5" && req.body && req.body.qcustom) {
-    if (!plan.customQuestionBanks) {
-      return res.status(403).json({
-        message: "Custom interview question banks are only available on the Enterprise Tier. Please upgrade to unlock custom questions.",
-        requiredPlan: "enterprise",
-      });
-    }
-  }
+  // (Custom question banks - Stage 5 qcustom - are open to every plan.)
 
   // Custom Screening Rubrics (Stage 6) is gated to Enterprise tier
   if (stageId === "6" && req.body && (req.body.rweights || req.body.rpolicy || req.body.rroles)) {
@@ -569,6 +569,10 @@ router.post("/jobs", async (req, res) => {
     }
 
     const fields = req.body || {};
+    const negativeField = findNegativeJdField(fields);
+    if (negativeField) {
+      return res.status(400).json({ message: `${negativeField} cannot be negative.` });
+    }
     const missing = JD_REQUIRED_FIELDS.filter((f) => isEmptyValue(fields[f]));
     if (missing.length > 0) {
       return res.status(400).json({ message: "Some required job fields are missing.", missing });
@@ -708,6 +712,26 @@ router.get("/applications", async (req, res) => {
     const scoring = calculateVerificationScore(candidate.completedStages || []);
     const canViewScoresAndCerts = Boolean(plan.viewCandidateScoresAndCerts);
 
+    // Real live-chart exposure straight from Stage 6 (0 when the candidate has none / chose "no charts")
+    const s6 = candidate.stage6 || {};
+    const s6Rows = Array.isArray(s6.specialtyCharts) ? s6.specialtyCharts : [];
+    const realChartCount =
+      s6.evidencePath === "D"
+        ? 0
+        : Number.isFinite(Number(s6.totalCharts))
+        ? Number(s6.totalCharts)
+        : Number.isFinite(Number(s6.liveChartsAudited))
+        ? Number(s6.liveChartsAudited)
+        : s6Rows.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+
+    // The saved career summary can quote chart numbers from before the candidate changed Stage 6.
+    // Never show a chart claim that doesn't match what is on record now.
+    let stage7ForCompany = candidate.stage7 || {};
+    const quotedCharts = /(\d[\d,]*)\s+(?:verified\s+)?(?:live\s+)?charts?\b/i.exec(String(stage7ForCompany.summary || ""));
+    if (quotedCharts && Number(quotedCharts[1].replace(/,/g, "")) !== realChartCount) {
+      stage7ForCompany = { ...stage7ForCompany, summary: "" };
+    }
+
     return {
       _id: app._id,
       status: app.status,
@@ -734,8 +758,8 @@ router.get("/applications", async (req, res) => {
           videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
         },
         videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
-        liveCharts: canViewScoresAndCerts ? (candidate.stage6 || {}) : { masked: true },
-        summary: candidate.stage7 || {},
+        liveCharts: canViewScoresAndCerts ? { ...s6, realChartCount } : { masked: true },
+        summary: stage7ForCompany,
         employmentStatus: candidate.stage8 || {},
         documentVault: canViewScoresAndCerts ? (candidate.documentVault || []) : [],
         completedStages: candidate.completedStages,

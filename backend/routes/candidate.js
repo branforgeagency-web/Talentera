@@ -3051,6 +3051,41 @@ router.get("/jobs", async (req, res) => {
       return c.companyLogo || c.logo || c.stage2?.logo?.docUrl || c.stage2?.logosquare?.docUrl || null;
     };
 
+    // Only ever show what the employer actually entered - no invented defaults.
+    const hasVal = (v) => v !== undefined && v !== null && String(v).trim() !== "";
+    const asList = (v) => (Array.isArray(v) ? v.filter(hasVal) : hasVal(v) ? [v] : []);
+    const formatExperience = (fd) => {
+      if (fd.level === "Fresher only") return "Fresher";
+      const lo = hasVal(fd.expmin) ? Number(fd.expmin) : null;
+      const hi = hasVal(fd.expmax) ? Number(fd.expmax) : null;
+      if (lo !== null && hi !== null) return `${lo}-${hi} yrs`;
+      if (lo !== null) return `${lo}+ yrs`;
+      if (hi !== null) return `Up to ${hi} yrs`;
+      return "";
+    };
+    const formatSalary = (fd) => {
+      const lo = hasVal(fd.compmin) ? fd.compmin : null;
+      const hi = hasVal(fd.compmax) ? fd.compmax : null;
+      if (lo !== null && hi !== null) return `₹${lo} - ₹${hi} LPA`;
+      if (lo !== null) return `From ₹${lo} LPA`;
+      if (hi !== null) return `Up to ₹${hi} LPA`;
+      return "Not disclosed";
+    };
+    // Extra JD details, listed only when the employer filled them in
+    const buildJobDetails = (fd) => {
+      const rows = [];
+      const add = (label, value) => { if (hasVal(value)) rows.push({ label, value: String(value) }); };
+      add("Hiring level", fd.level);
+      add("Education", fd.edumin);
+      add("Shift", fd.shift);
+      add("Languages", asList(fd.languages).join(", "));
+      add("Tools / EHR", asList(fd.reqtools).join(", "));
+      if (fd.level !== "Fresher only") add("Notice period", fd.notice);
+      add("Probation", hasVal(fd.probation) ? `${fd.probation} months` : "");
+      add("Joining bonus", hasVal(fd.joiningbonus) ? `₹${fd.joiningbonus}` : "");
+      return rows;
+    };
+
     // Process posted jobs
     for (const j of postedJobs) {
       if (!j.jobId || seenJobIds.has(j.jobId)) continue;
@@ -3058,12 +3093,12 @@ router.get("/jobs", async (req, res) => {
       const f = j.fields || {};
       const company = j.companyId || {};
       const compName = company.companyName || (company.stage1a && company.stage1a.legalname) || "Talentera Partner Employer";
-      const location = f.location || company.city || "Hyderabad";
-      const specialty = f.specialty || "HCC / Risk Adjustment";
-      const openings = Number(f.openings) || 5;
-      const minSalary = f.compmin || 4.5;
-      const maxSalary = f.compmax || 8.0;
-      const workMode = f.workmode || "Hybrid";
+      const location = f.location || company.city || "";
+      const specialty = f.specialty || "";
+      const openings = Number(f.openings) || 1;
+      const minSalary = hasVal(f.compmin) ? f.compmin : null;
+      const maxSalary = hasVal(f.compmax) ? f.compmax : null;
+      const workMode = f.workmode || "";
 
       // Match scoring
       let matchScore = 80;
@@ -3082,25 +3117,27 @@ router.get("/jobs", async (req, res) => {
         location: location,
         mode: workMode,
         workMode: workMode,
-        salary: `₹${minSalary} - ₹${maxSalary} LPA`,
+        salary: formatSalary(f),
         compMin: minSalary,
         compMax: maxSalary,
         specialty: specialty,
-        projectClient: f.department || f.project || "US Healthcare RCM",
-        urgency: f.urgency || (openings > 10 ? "Immediate Walk-in" : "Actively Hiring"),
+        projectClient: f.department || f.project || "",
+        urgency: f.urgency || "",
         openings: openings,
-        experience: `${f.expmin || 0}-${f.expmax || 3} yrs`,
-        expMin: f.expmin || 0,
-        expMax: f.expmax || 3,
-        description: f.description || f.musthaves || "Looking for certified medical coders with high chart accuracy and proficiency in ICD-10-CM / CPT guidelines.",
-        mustHaves: f.musthaves || "CPC/CIC Certified · Minimum 85% Accuracy · Immediate Joining",
-        certsRequired: f.certs || ["CPC", "CIC"],
+        experience: formatExperience(f),
+        expMin: hasVal(f.expmin) && f.level !== "Fresher only" ? Number(f.expmin) : 0,
+        expMax: hasVal(f.expmax) && f.level !== "Fresher only" ? Number(f.expmax) : 0,
+        isFresherOnly: f.level === "Fresher only",
+        description: f.description || "",
+        mustHaves: f.musthaves || "",
+        certsRequired: asList(f.certs),
+        jobDetails: buildJobDetails(f),
         publishedAt: j.createdAt || new Date().toISOString(),
         matchScore,
         isProfileMatch,
         isTierMatch: candidateScore >= 70,
         minTierRequired: openings > 10 ? "Verified" : "Silver+",
-        isWalkIn: (f.urgency || "").toLowerCase().includes("immediate") || openings >= 10,
+        isWalkIn: /immediate|critical/i.test(f.urgency || ""),
         isFeatured: openings >= 15 || matchScore >= 92,
         isOpenToGlobal: location.toLowerCase().includes("global") || location.toLowerCase().includes("remote"),
       });
@@ -3112,12 +3149,12 @@ router.get("/jobs", async (req, res) => {
       seenJobIds.add(c.jobId);
       const s9 = c.stage9 || {};
       const compName = c.companyName || (c.stage1a && c.stage1a.legalname) || "Talentera Partner Employer";
-      const location = s9.location || c.city || "Bengaluru";
-      const specialty = s9.specialty || "Inpatient DRG / Hospital Coding";
-      const openings = Number(s9.openings) || 8;
-      const minSalary = s9.compmin || 5.0;
-      const maxSalary = s9.compmax || 9.5;
-      const workMode = s9.workmode || "Remote";
+      const location = s9.location || c.city || "";
+      const specialty = s9.specialty || "";
+      const openings = Number(s9.openings) || 1;
+      const minSalary = hasVal(s9.compmin) ? s9.compmin : null;
+      const maxSalary = hasVal(s9.compmax) ? s9.compmax : null;
+      const workMode = s9.workmode || "";
 
       let matchScore = 85;
       if (candidateCerts.some(cert => (s9.certs || []).includes(cert) || specialty.toUpperCase().includes(cert))) matchScore += 10;
@@ -3135,25 +3172,27 @@ router.get("/jobs", async (req, res) => {
         location: location,
         mode: workMode,
         workMode: workMode,
-        salary: `₹${minSalary} - ₹${maxSalary} LPA`,
+        salary: formatSalary(s9),
         compMin: minSalary,
         compMax: maxSalary,
         specialty: specialty,
-        projectClient: s9.department || "Enterprise RCM Services",
-        urgency: s9.urgency || "High Priority",
+        projectClient: s9.department || "",
+        urgency: s9.urgency || "",
         openings: openings,
-        experience: `${s9.expmin || 1}-${s9.expmax || 4} yrs`,
-        expMin: s9.expmin || 1,
-        expMax: s9.expmax || 4,
-        description: s9.musthaves || "Join our high-growth US healthcare client portfolio with direct medical chart auditing and verified credentials.",
-        mustHaves: s9.musthaves || "AAPC Certified · Inpatient/Outpatient Experience",
-        certsRequired: s9.certs || ["CPC", "COC"],
+        experience: formatExperience(s9),
+        expMin: hasVal(s9.expmin) && s9.level !== "Fresher only" ? Number(s9.expmin) : 0,
+        expMax: hasVal(s9.expmax) && s9.level !== "Fresher only" ? Number(s9.expmax) : 0,
+        isFresherOnly: s9.level === "Fresher only",
+        description: s9.description || "",
+        mustHaves: s9.musthaves || "",
+        certsRequired: asList(s9.certs),
+        jobDetails: buildJobDetails(s9),
         publishedAt: c.jdPublishedAt || c.updatedAt || new Date().toISOString(),
         matchScore,
         isProfileMatch,
         isTierMatch: candidateScore >= 70,
         minTierRequired: "Silver+",
-        isWalkIn: openings >= 10,
+        isWalkIn: /immediate|critical/i.test(s9.urgency || ""),
         isFeatured: true,
         isOpenToGlobal: location.toLowerCase().includes("global") || workMode.toLowerCase() === "remote",
       });
