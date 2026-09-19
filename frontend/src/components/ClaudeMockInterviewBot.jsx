@@ -151,7 +151,7 @@ function InterviewerVideoAvatar({ state, size = "large" }) {
         {isSpeaking ? (
           <>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0A1F3D", animation: "pulse 1s infinite" }}></span>
-            AI ASKING
+            JESSY ASKING
           </>
         ) : isListening ? (
           <>
@@ -166,7 +166,7 @@ function InterviewerVideoAvatar({ state, size = "large" }) {
         ) : (
           <>
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#94A3B8" }}></span>
-            AI INTERVIEWER
+            JESSY (AI INTERVIEWER)
           </>
         )}
       </div>
@@ -749,9 +749,17 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (s) {
         setSession(s);
         if (s.status === "COMPLETED" || s.status === "STOPPED") {
-          // Interview is done - stop the call ourselves in case Vapi's
-          // endCallPhrases match didn't fire for some reason. handleVapiCallEnd
-          // (wired to the "call-end" event) takes it from here either way.
+          clearInactivityTimer();
+          setIsListening(false);
+          setIsWaitingForAnswerStart(false);
+          setLoadingTurn(false);
+          setStep("report");
+          stopCandidateCamera();
+          const finalResult = s.result;
+          if (typeof finalResult?.overallScore === "number" && onCompleted) {
+            onCompleted({ score: finalResult.overallScore });
+          }
+          toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
           try {
             vapiRef.current?.stop();
           } catch (e) {}
@@ -807,7 +815,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     });
 
     vapi.on("speech-start", () => {
-      // Messi has started speaking.
+      // Interviewer has started speaking.
       setIsSpeaking(true);
       clearInactivityTimer();
       setIsWaitingForAnswerStart(false);
@@ -815,9 +823,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
     vapi.on("speech-end", () => {
       setIsSpeaking(false);
-      // Messi just finished a line. If the interview is still in progress,
-      // open the 30-second "start answering" window.
-      if (sessionRef.current?.status === "IN_PROGRESS") {
+      // Only open answer window if interview is still in progress AND we haven't answered all questions
+      const currentS = sessionRef.current;
+      const totalQ = currentS?.questions?.length || 5;
+      const answeredQ = currentS?.questionRecords?.length || 0;
+      if (currentS?.status === "IN_PROGRESS" && answeredQ < totalQ) {
         openAnswerWindow();
       }
     });
@@ -1383,8 +1393,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   const isMessi = line.speaker === "messi";
                   return (
                     <div key={idx} style={{ display: "flex", flexDirection: "column", alignItems: isMessi ? "flex-start" : "flex-end" }}>
-                      <span style={{ fontSize: 9, fontWeight: 800, color: "#64748B", marginBottom: 2 }}>
-                        {isMessi ? "AI INTERVIEWER" : "YOU"}
+                      <span style={{ fontSize: 9, fontWeight: 800, color: isMessi ? "#F5B41A" : "#64748B", marginBottom: 2 }}>
+                        {isMessi ? "JESSY (AI)" : "YOU"}
                       </span>
                       <div
                         style={{

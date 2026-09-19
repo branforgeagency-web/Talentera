@@ -1268,6 +1268,13 @@ router.post("/ai-interview/start", async (req, res) => {
       });
     }
 
+    if (existing && (existing.status === "COMPLETED" || existing.status === "STOPPED") && !retake) {
+      return res.json({
+        session: existing,
+        messiReply: `You have completed this interview with an overall score of ${existing.result?.overallScore ?? 0}/100.`,
+      });
+    }
+
     const session = await buildFreshAiInterviewSession(candidate);
     candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
     candidate.markModified("stage8");
@@ -1275,7 +1282,7 @@ router.post("/ai-interview/start", async (req, res) => {
 
     const firstQ = session.questions[0];
     const totalCount = session.questions.length;
-    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm your AI interviewer today, and I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} from our interview bank. Let's begin with our first question:\n\n${firstQ?.question || ""}`;
+    const messiReply = `Hi ${session.candidateName}! Welcome to your AI Mock Interview. I'm Jessy, your AI interviewer today, and I'll ask you ${totalCount} question${totalCount === 1 ? "" : "s"} from our interview bank. Let's begin with our first question:\n\n${firstQ?.question || ""}`;
 
     res.json({ session, messiReply });
   } catch (err) {
