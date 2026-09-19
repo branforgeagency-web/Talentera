@@ -683,49 +683,6 @@ export default function CompanyDashboardSetup() {
               </div>
             )}
 
-            {activeStageId === "6" && company?.plan !== "enterprise" && (
-              <div
-                style={{
-                  background: "#EFF6FF",
-                  border: "1.5px solid #3B82F6",
-                  borderRadius: 12,
-                  padding: "16px 20px",
-                  marginBottom: 20,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: 16,
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <strong style={{ fontSize: 13.5, color: "#1E40AF", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span>💎</span> ENTERPRISE FEATURE: CUSTOM SCORING RUBRICS
-                  </strong>
-                  <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#1D4ED8", lineHeight: 1.5 }}>
-                    Your candidates are currently scored using Talentera's standard 100-point calibrated healthcare RCM rubric. Upgrade to Enterprise Tier (₹19,999/mo) to set custom role weights and override approval policies.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/companies/billing")}
-                  style={{
-                    background: "#1D4ED8",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 8,
-                    padding: "8px 16px",
-                    fontSize: 12.5,
-                    fontWeight: 800,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Upgrade to Enterprise →
-                </button>
-              </div>
-            )}
-
             {activeStageId === "5" && ["No", "Mix"].includes(activeData?.qdefault) && (
               <div style={{ background: "#ECFDF5", border: "1.5px solid #6EE7B7", borderRadius: 12, padding: "14px 18px", marginBottom: 20 }}>
                 <strong style={{ fontSize: 13.5, color: "#047857", display: "flex", alignItems: "center", gap: 6 }}>

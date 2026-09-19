@@ -223,27 +223,7 @@ router.put("/stage/:id", async (req, res) => {
   // Plan feature gating:
   // (Custom question banks - Stage 5 qcustom - are open to every plan.)
 
-  // Custom Screening Rubrics (Stage 6) is gated to Enterprise tier
-  if (stageId === "6" && req.body && (req.body.rweights || req.body.rpolicy || req.body.rroles)) {
-    if (!plan.customScreeningRubrics) {
-      return res.status(403).json({
-        message: "Custom screening rubrics and per-role weight calibrations are only available on the Enterprise Tier. Please upgrade to unlock.",
-        requiredPlan: "enterprise",
-      });
-    }
-  }
-
-  // ATS / HRIS Integrations (Stage 8 sats, swebhook) is gated to Enterprise tier
-  if (stageId === "8" && req.body && (req.body.sats || req.body.swebhook)) {
-    const isConnectingAts = req.body.sats && req.body.sats !== "None";
-    const isSettingWebhook = Boolean(req.body.swebhook);
-    if ((isConnectingAts || isSettingWebhook) && !plan.integrationsAtsHris) {
-      return res.status(403).json({
-        message: "ATS and HRIS webhook / API integrations are only available on the Enterprise Tier. Please upgrade to unlock.",
-        requiredPlan: "enterprise",
-      });
-    }
-  }
+  // (Custom rubrics and ATS / webhook integrations are open to every plan.)
 
   const key = `stage${stageId}`;
   company[key] = { ...(company[key] || {}), ...req.body };

@@ -157,11 +157,8 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
     (item.input === "file" && Boolean(fileInfo && (fileInfo.docUrl || fileInfo.docName || fileInfo.url || fileInfo.fileUrl))) ||
     (item.input === "name-email" && Boolean(nameEmail?.name && String(nameEmail.name).trim() && nameEmail?.email && String(nameEmail.email).trim()));
 
-  // Custom question bank upload (stage 5) is open to every plan; rubric + ATS stay Enterprise-only.
-  const isEnterpriseField =
-    stageId === "6" ||
-    (stageId === "8" && ["sats", "swebhook"].includes(item.id));
-  const isLockedByPlan = isEnterpriseField && companyPlan !== "enterprise";
+  // No onboarding field is locked behind a paid plan any more (question bank, rubric, ATS/webhook).
+  const isLockedByPlan = false;
 
   return (
     <div
