@@ -70,6 +70,12 @@ export function CompanyAuthProvider({ children }) {
     return res.data.company;
   }
 
+  function logout() {
+    localStorage.removeItem("talentera_company_token");
+    localStorage.removeItem("talentera_company_info");
+    setCompany(null);
+  }
+
   async function refreshCompany() {
     try {
       const token = localStorage.getItem("talentera_company_token");
