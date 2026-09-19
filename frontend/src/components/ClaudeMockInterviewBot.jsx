@@ -454,16 +454,16 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 let posture = "centered";
                 let alertText = "";
 
-                if (yawRatio < 0.45) {
+                if (yawRatio < 0.58) {
                   detectedIssue = "head_turned";
                   posture = "turned_right";
                   alertText = "⚠️ Please look directly at the screen";
-                } else if (yawRatio > 2.20) {
+                } else if (yawRatio > 1.75) {
                   detectedIssue = "head_turned";
                   posture = "turned_left";
                   alertText = "⚠️ Please look directly at the screen";
-                } else if (pitchRatio < 0.50 || pitchRatio > 2.20) {
-                  detectedIssue = pitchRatio < 0.50 ? "looking_up" : "looking_down";
+                } else if (pitchRatio < 0.62 || pitchRatio > 1.75) {
+                  detectedIssue = pitchRatio < 0.62 ? "looking_up" : "looking_down";
                   posture = detectedIssue;
                   alertText = "⚠️ Keep your gaze centered on the interview";
                 }

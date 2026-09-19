@@ -3,6 +3,7 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
+import AiProctoringScreen from "../AiProctoringScreen.jsx";
 
 // ══════════════════════════════════════════════════════════════════════════
 // 10-QUESTION BANK (4 Universal Sections x 2 Qs + 4 Profile-Adaptive Sets x 2 Qs)
@@ -349,6 +350,25 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const stage4 = localResult || candidate?.stage4 || existingData || null;
   const isCompleted = Boolean(stage4 && (stage4.foundationScore !== undefined || stage4.score !== undefined || stage4.passed !== undefined));
   const candidateScore = Number(stage4?.foundationScore ?? stage4?.score ?? 0);
+  const isAutoSubmitted = Boolean(
+    stage4?.isAutoSubmitted === true ||
+    localResult?.isAutoSubmitted === true ||
+    (stage4?.submissionReason && (
+      stage4.submissionReason.includes("Violation") ||
+      stage4.submissionReason.includes("Tab Switch") ||
+      stage4.submissionReason.includes("5 Attention Warnings") ||
+      stage4.submissionReason.includes("10 Attention Warnings") ||
+      stage4.submissionReason.includes("Attention Warnings Exceeded")
+    )) ||
+    (stage4?.autoSubmitReason && (
+      stage4.autoSubmitReason.includes("Violation") ||
+      stage4.autoSubmitReason.includes("Tab Switch") ||
+      stage4.autoSubmitReason.includes("5 Attention Warnings") ||
+      stage4.autoSubmitReason.includes("10 Attention Warnings") ||
+      stage4.autoSubmitReason.includes("Attention Warnings Exceeded")
+    ))
+  );
+  const autoSubmitReason = isAutoSubmitted ? (stage4?.autoSubmitReason || stage4?.submissionReason || "Proctoring Policy Violation") : "";
 
   // Derive candidate profile details strictly from previous stage inputs
   const candidateName = candidate?.stage1?.fullName || "Candidate";
@@ -694,19 +714,41 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const [retakeRequest, setRetakeRequest] = useState(null);
 
   // Fetch candidate's active Stage 4 retake request on mount & when completed
-  useEffect(() => {
-    async function fetchRetakeStatus() {
-      try {
-        const res = await api.get("/candidate/retake-request?stage=4");
-        if (res.data?.request) {
-          setRetakeRequest(res.data.request);
-        }
-      } catch (err) {
-        console.warn("Could not fetch retake request:", err);
+  const fetchRetakeStatus = async () => {
+    try {
+      const res = await api.get("/candidate/retake-request?stage=4");
+      if (res.data?.request) {
+        setRetakeRequest(res.data.request);
+        return res.data.request;
+      } else {
+        setRetakeRequest(null);
+        return null;
       }
+    } catch (err) {
+      console.warn("Could not fetch retake request:", err);
+      return null;
     }
+  };
+
+  useEffect(() => {
     fetchRetakeStatus();
   }, [isCompleted]);
+
+  // Real-time polling while retake request is PENDING so employee approval is instantly reflected
+  useEffect(() => {
+    let pollTimer = null;
+    if (retakeRequest?.status === "PENDING") {
+      pollTimer = setInterval(async () => {
+        const latest = await fetchRetakeStatus();
+        if (latest?.status === "APPROVED") {
+          toast("🎉 Staff approved your retake! Complete hardware setup to launch your assessment.", "✓");
+        }
+      }, 4000);
+    }
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [retakeRequest?.status]);
 
   // Test Runner State (20 minutes for 10 questions)
   const [currentQIndex, setCurrentQIndex] = useState(0);
@@ -785,15 +827,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
     function handleVisibilityChange() {
       if (document.hidden) {
-        setTabSwitchWarnings((prev) => {
-          const nextCount = prev + 1;
-          setShowTabWarningBanner(true);
-          toast("⚠️ Anti-Cheat Warning: Tab-switching is prohibited during proctored test!", "!");
-          if (nextCount >= 3) {
-            handleAutoSubmit("Anti-Cheat Policy Violation: Multiple Tab Switches Detected");
-          }
-          return nextCount;
-        });
+        setTabSwitchWarnings((prev) => prev + 1);
+        setShowTabWarningBanner(true);
+        toast("🚨 Anti-Cheat Violation: Tab switch detected. Auto-submitting assessment...", "!");
+        handleAutoSubmit("Anti-Cheat Policy Violation: Tab Switch Detected");
       }
     }
 
@@ -810,10 +847,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     };
   }, [isTestRunning]);
 
-  // Active Test Camera & Mic Stream Lifecycle
+  // Active Practice Camera & Mic Stream Lifecycle (Proctored test is handled by AiProctoringScreen)
   useEffect(() => {
     let activeStream = null;
-    if (isTestRunning || isPracticeRunning) {
+    if (isPracticeRunning) {
       navigator.mediaDevices?.getUserMedia({ video: true, audio: true })
         .then((stream) => {
           activeStream = stream;
@@ -843,7 +880,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       }
       setWebcamActive(false);
     };
-  }, [isTestRunning, isPracticeRunning]);
+  }, [isPracticeRunning]);
 
   function formatTime(secs) {
     const mins = Math.floor(secs / 60);
@@ -928,18 +965,31 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     setIsPracticeRunning(true);
   }
 
-  async function handleAutoSubmit(reason = "Normal Submission") {
+  async function handleAutoSubmit(reasonOrPayload = "Normal Submission") {
     if (submittingTest) return;
     setSubmittingTest(true);
 
     try {
+      let finalAnswers = userAnswers;
+      let finalReason = typeof reasonOrPayload === "string" ? reasonOrPayload : (reasonOrPayload?.submissionReason || "Normal Submission");
+      let finalTabSwitches = tabSwitchWarnings;
+      let finalAttentionWarnings = 0;
+      let finalTimeSpent = 20 * 60 - timeRemaining;
+
+      if (reasonOrPayload && typeof reasonOrPayload === "object") {
+        if (reasonOrPayload.answers) finalAnswers = reasonOrPayload.answers;
+        if (typeof reasonOrPayload.attentionWarningsCount === "number") finalAttentionWarnings = reasonOrPayload.attentionWarningsCount;
+        if (typeof reasonOrPayload.tabSwitchCount === "number") finalTabSwitches = reasonOrPayload.tabSwitchCount;
+        if (typeof reasonOrPayload.timeSpentSeconds === "number") finalTimeSpent = reasonOrPayload.timeSpentSeconds;
+      }
+
       let totalCorrect = 0;
       const sectionScores = [];
 
       UNIVERSAL_SECTIONS.forEach((sec) => {
         let secCorrect = 0;
         sec.questions.forEach((q) => {
-          if (userAnswers[q.id] === q.correct) {
+          if (finalAnswers[q.id] === q.correct) {
             secCorrect += 1;
             totalCorrect += 1;
           }
@@ -959,7 +1009,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
       let adaptiveCorrect = 0;
       adaptiveBank.questions.forEach((q) => {
-        if (userAnswers[q.id] === q.correct) {
+        if (finalAnswers[q.id] === q.correct) {
           adaptiveCorrect += 1;
           totalCorrect += 1;
         }
@@ -987,68 +1037,109 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
       const medalTier = overallPct >= 85 ? "Gold" : overallPct >= 70 ? "Silver" : overallPct >= 50 ? "Bronze" : "Needs Practice";
 
+      const isAutoSubmitted = Boolean(
+        (reasonOrPayload && typeof reasonOrPayload === "object" && reasonOrPayload.isAutoSubmitted) ||
+        finalReason.includes("Violation") ||
+        finalReason.includes("Tab Switch") ||
+        finalReason.includes("5 Attention Warnings") ||
+        finalReason.includes("10 Attention Warnings") ||
+        finalReason.includes("Attention Warnings Exceeded")
+      );
+
       const payload = {
         foundationScore: overallPct,
         score: overallPct,
         correctCount: totalCorrect,
         totalQuestions: 10,
         percentile: calcPercentile,
-        medal: medalTier,
-        passed: overallPct >= 70,
-        verified: overallPct >= 70,
+        medal: isAutoSubmitted ? "Needs Practice" : medalTier,
+        passed: isAutoSubmitted ? false : overallPct >= 70,
+        verified: isAutoSubmitted ? false : overallPct >= 70,
+        isAutoSubmitted,
+        autoSubmitReason: isAutoSubmitted ? finalReason : null,
         domain: adaptiveBank.domainName,
         specialty: s2.specialty || adaptiveBank.domainName,
         sectionScores,
-        answers: userAnswers,
-        submissionReason: reason,
-        tabSwitchCount: tabSwitchWarnings,
-        timeSpentSeconds: 20 * 60 - timeRemaining,
+        answers: finalAnswers,
+        submissionReason: finalReason,
+        tabSwitchCount: finalTabSwitches,
+        attentionWarningsCount: finalAttentionWarnings,
+        proctorWarningsCount: finalAttentionWarnings,
+        timeSpentSeconds: finalTimeSpent,
         completedAt: new Date().toISOString(),
         attemptNumber: 1,
+        isRetakeApproved: false,
       };
 
-      const res = await api.put("/candidate/stage/4", payload);
+      try {
+        const res = await api.put("/candidate/stage/4", payload);
+        if (onSaved) {
+          onSaved(res.data, { advance: false });
+        }
+      } catch (saveErr) {
+        console.warn("Backend save notice:", saveErr);
+      }
+
       setLocalResult(payload);
+      if (isAutoSubmitted) {
+        setRetakeRequest(null);
+      }
       setShowCompletionModal(true);
       setIsTestRunning(false);
-      toast(`Assessment Submitted! Score: ${overallPct}% (${medalTier})`, "✓");
 
-      if (onSaved) {
-        onSaved(res.data, { advance: false });
+      if (isAutoSubmitted) {
+        toast(`🚨 Assessment Auto-Submitted: ${finalReason}. Retake requires employee approval.`, "!");
+      } else {
+        toast(`Assessment Submitted! Score: ${overallPct}% (${medalTier})`, "✓");
       }
     } catch (err) {
       console.error(err);
-      toast(err.response?.data?.message || "Failed to submit assessment. Please try again.", "!");
+      setIsTestRunning(false);
+      setShowCompletionModal(true);
+      toast(err.response?.data?.message || "Assessment submitted.", "✓");
     } finally {
       setSubmittingTest(false);
     }
   }
 
-  async function handleRequestRetake(e) {
-    e.preventDefault();
-    if (!retakeReason.trim()) {
-      toast("Please provide a reason for the retake request.", "!");
-      return;
-    }
+  async function handleDirectRequestRetake(customReason) {
+    if (submittingRetake) return;
     setSubmittingRetake(true);
+    const reasonText =
+      customReason ||
+      retakeReason.trim() ||
+      (isAutoSubmitted
+        ? `Assessment auto-submitted due to proctoring policy violation: ${autoSubmitReason || "Policy Violation"}. Requesting employee review and retake approval.`
+        : `Candidate requesting assessment retake to improve score. Stage 4 (${adaptiveBank.domainName}).`);
+
     try {
       const res = await api.post("/candidate/retake-request", {
         stage: 4,
-        reason: retakeReason.trim(),
+        reason: reasonText,
         assessmentType: `Talentera AAPC / RCM Assessment (Stage 4 - ${adaptiveBank.domainName})`,
       });
       if (res.data?.request) {
         setRetakeRequest(res.data.request);
       }
-      setRetakeStatusMsg("Retake request submitted! An employee will review within 24 hours.");
-      toast("Retake request submitted to employee dashboard!", "✓");
       setShowRetakeModal(false);
+      setShowCompletionModal(false);
       setRetakeReason("");
+      toast("✓ Retake request submitted! Retake is locked until approved by Talentera employee.", "✓");
     } catch (err) {
-      toast(err.response?.data?.message || "Failed to submit retake request.", "!");
+      if (err.response?.data?.request) {
+        setRetakeRequest(err.response.data.request);
+        toast("You already have an active retake request pending employee review.", "!");
+      } else {
+        toast(err.response?.data?.message || "Failed to submit retake request.", "!");
+      }
     } finally {
       setSubmittingRetake(false);
     }
+  }
+
+  async function handleRequestRetake(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    await handleDirectRequestRetake(retakeReason);
   }
 
   // Section score calculations
@@ -1211,91 +1302,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
           </div>
 
-          {/* COMPLETED ASSESSMENT PROMINENT TOP SCORECARD BANNER */}
-          {isCompleted && (
-            <div
-              style={{
-                background: "linear-gradient(135deg, #0F1B3D 0%, #1A2A55 100%)",
-                border: "2px solid var(--gold)",
-                borderRadius: 16,
-                padding: "22px 26px",
-                color: "#FFFFFF",
-                marginBottom: 20,
-                boxShadow: "0 8px 24px rgba(15,27,61,0.18)",
-                display: "grid",
-                gridTemplateColumns: "110px 1fr auto",
-                gap: 22,
-                alignItems: "center",
-              }}
-            >
-              {/* CIRCULAR GAUGE */}
-              <div
-                style={{
-                  width: 105,
-                  height: 105,
-                  borderRadius: "50%",
-                  background: `conic-gradient(var(--gold) 0deg ${Math.round((candidateScore / 100) * 360)}deg, rgba(255,255,255,0.15) ${Math.round((candidateScore / 100) * 360)}deg 360deg)`,
-                  display: "grid",
-                  placeItems: "center",
-                  boxShadow: "0 4px 14px rgba(0,0,0,0.25)",
-                }}
-              >
-                <div style={{ width: 82, height: 82, background: "#0F1B3D", borderRadius: "50%", display: "grid", placeItems: "center", textAlign: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--gold)", lineHeight: 1 }}>
-                      {candidateScore}
-                    </div>
-                    <div style={{ fontSize: 9.5, color: "#8A91A3", marginTop: 2 }}>of 100</div>
-                  </div>
-                </div>
-              </div>
 
-              {/* DETAILS */}
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                  <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
-                    {currentMedal.toUpperCase()} MEDAL
-                  </span>
-                  <span style={{ background: candidateScore >= 70 ? "rgba(46,204,113,0.25)" : "rgba(230,126,34,0.25)", color: candidateScore >= 70 ? "#2ECC71" : "#F39C12", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
-                    {candidateScore >= 70 ? "✓ TALENTERA VERIFIED" : "ATTEMPT RECORDED"}
-                  </span>
-                  {displayPercentile && (
-                    <span style={{ background: "rgba(255,255,255,0.15)", color: "#FFFFFF", padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
-                      Top {Math.max(1, 100 - displayPercentile)}% Cohort
-                    </span>
-                  )}
-                </div>
-                <h3 style={{ fontSize: 19, fontWeight: 800, margin: "0 0 4px", color: "#FFFFFF" }}>
-                  Assessment Score Recorded: {candidateScore}/100
-                </h3>
-                <div style={{ fontSize: 12, color: "#FFF6E0", lineHeight: 1.5 }}>
-                  {displaySections.map((s) => `${s.sectionName}: ${s.score}%`).join(" · ")}
-                </div>
-              </div>
-
-              {/* ACTION BUTTON */}
-              <div>
-                <button
-                  type="button"
-                  onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}
-                  style={{
-                    background: "var(--gold)",
-                    color: "var(--navy)",
-                    padding: "12px 20px",
-                    borderRadius: 10,
-                    fontSize: 13,
-                    fontWeight: 800,
-                    border: "none",
-                    cursor: "pointer",
-                    boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Continue to Stage 05 →
-                </button>
-              </div>
-            </div>
-          )}
 
           {/* ACTIVE RETAKE NOTIFICATION BANNER (ON CANDIDATE DETAIL / STAGE 4) */}
           {retakeRequest && retakeRequest.status === "PENDING" && (
@@ -1510,21 +1517,21 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div
                 style={{
                   background: "#0F1B3D",
-                  borderRadius: 12,
-                  padding: 16,
+                  borderRadius: 14,
+                  padding: 18,
                   marginBottom: 16,
                   display: "grid",
-                  gridTemplateColumns: "220px 1fr",
-                  gap: 16,
+                  gridTemplateColumns: "380px 1fr",
+                  gap: 20,
                   alignItems: "center",
-                  border: "1px solid rgba(245,180,26,0.3)",
-                  boxShadow: "0 4px 14px rgba(15,27,61,0.15)",
+                  border: "1.5px solid rgba(245,180,26,0.4)",
+                  boxShadow: "0 6px 20px rgba(15,27,61,0.2)",
                 }}
               >
-                <div style={{ width: 220, height: 130, background: "#000", borderRadius: 8, overflow: "hidden", position: "relative" }}>
-                  <video ref={setupVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  <span style={{ position: "absolute", bottom: 6, right: 6, background: "rgba(31,122,60,0.9)", color: "#FFFFFF", padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 800 }}>
-                    LIVE FEED ●
+                <div style={{ width: 380, height: 230, background: "#000", borderRadius: 10, overflow: "hidden", position: "relative", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <video ref={setupVideoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
+                  <span style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(31,122,60,0.9)", color: "#FFFFFF", padding: "3px 8px", borderRadius: 5, fontSize: 10, fontWeight: 800 }}>
+                    LIVE FEED ● 720p HD
                   </span>
                 </div>
                 <div>
@@ -1973,16 +1980,20 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 overflow: "hidden",
               }}
             >
-              <div style={{ color: "var(--gold)", fontWeight: 700, fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                {isCompleted ? "ASSESSMENT COMPLETED" : "FINAL STEP"}
+              <div style={{ color: isAutoSubmitted ? "#F87171" : "var(--gold)", fontWeight: 700, fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase" }}>
+                {isAutoSubmitted ? "🚨 PROCTORING POLICY VIOLATION" : isCompleted ? "ASSESSMENT COMPLETED" : "FINAL STEP"}
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, margin: "6px 0 4px", color: "#FFFFFF" }}>
-                {isCompleted
+                {isAutoSubmitted
+                  ? "Assessment Auto-Submitted & Locked"
+                  : isCompleted
                   ? `Assessment Score: ${candidateScore}/100 (${currentMedal})`
                   : "Start My Assessment (10 Questions)"}
               </div>
-              <div style={{ color: "#FFF6E0", fontStyle: "italic", fontSize: 13 }}>
-                {isCompleted
+              <div style={{ color: isAutoSubmitted ? "#FCA5A5" : "#FFF6E0", fontStyle: "italic", fontSize: 13 }}>
+                {isAutoSubmitted
+                  ? `Violation: ${autoSubmitReason} · Attempt terminated.`
+                  : isCompleted
                   ? "Attempt 1 of 5 Completed · Recorded on Talentera Database"
                   : "Opens locked proctored testing window · 20 min · anti-cheat live"}
               </div>
@@ -1998,18 +2009,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           gap: 8,
                           background: "rgba(245, 180, 26, 0.2)",
                           color: "var(--gold)",
-                          padding: "10px 20px",
+                          padding: "12px 24px",
                           borderRadius: 10,
-                          fontSize: 13.5,
+                          fontSize: 14,
                           fontWeight: 700,
                           border: "1px solid rgba(245, 180, 26, 0.4)",
                           marginBottom: 8,
                         }}
                       >
-                        ⏳ Retake Request Pending Employee Review
+                        ⏳ Retake Requested · Pending Employee Approval
                       </div>
-                      <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.75)" }}>
-                        Your retake request is under review by our audit team. You will be notified once reviewed.
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", maxWidth: 500, margin: "0 auto" }}>
+                        Your retake request has been submitted to Talentera staff for audit. Strictly no retake without employee approval.
                       </div>
                     </div>
                   ) : retakeRequest?.status === "APPROVED" ? (
@@ -2033,14 +2044,15 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                         🚀 Launch Approved Retake Assessment
                       </button>
                       <div style={{ marginTop: 8, fontSize: 11.5, color: "#86EFAC", fontWeight: 700 }}>
-                        ✓ Staff approved your retake! Complete hardware check to start.
+                        ✓ Employee approved your retake! Complete hardware check to start.
                       </div>
                     </div>
                   ) : (
                     <div>
                       <button
                         type="button"
-                        onClick={() => setShowRetakeModal(true)}
+                        onClick={() => handleDirectRequestRetake()}
+                        disabled={submittingRetake}
                         style={{
                           background: "var(--gold)",
                           color: "var(--navy)",
@@ -2055,10 +2067,12 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           transition: "all 0.15s ease",
                         }}
                       >
-                        🔁 Request a Retake for Assessment →
+                        {submittingRetake ? "Submitting Request..." : "🔁 Request Retake"}
                       </button>
-                      <div style={{ marginTop: 10, fontSize: 11.5, color: "rgba(255,255,255,0.7)" }}>
-                        Want to improve your score? Submit a formal retake request with reason for staff review.
+                      <div style={{ marginTop: 10, fontSize: 11.5, color: isAutoSubmitted ? "#FCA5A5" : "rgba(255,255,255,0.7)" }}>
+                        {isAutoSubmitted
+                          ? "⚠️ Assessment was auto-submitted. Click above to submit retake request for employee approval."
+                          : "Want to improve your score? Submit a formal retake request with reason for staff review."}
                       </div>
                     </div>
                   )}
@@ -2404,315 +2418,21 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* ACTIVE PROCTORED TEST FULL MODAL RUNNER (10 QUESTIONS)             */}
+      {/* REAL-TIME AI PROCTORED ASSESSMENT SCREEN (70/30 SPLIT & MEDIAPIPE) */}
       {/* ══════════════════════════════════════════════════════════════════ */}
       {isTestRunning && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "#08122A",
-            color: "#FFFFFF",
-            zIndex: 9999,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          {/* TOP BAR */}
-          <div
-            style={{
-              background: "var(--navy)",
-              padding: "12px 24px",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderBottom: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: 6, display: "grid", placeItems: "center", fontWeight: 900, fontSize: 18 }}>
-                T
-              </div>
-              <div>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: "#FFFFFF" }}>TALENTERA SECURE ASSESSMENT</div>
-                <div style={{ fontSize: 10.5, color: "var(--gold)" }}>Stage 04 · Adaptive Domain: {adaptiveBank.domainName} (10 Questions)</div>
-              </div>
-            </div>
-
-            {/* COUNTDOWN TIMER */}
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <div style={{ background: timeRemaining < 300 ? "#C0392B" : "rgba(245,180,26,0.15)", border: `1.5px solid ${timeRemaining < 300 ? "#E74C3C" : "var(--gold)"}`, padding: "6px 14px", borderRadius: 8, textAlign: "center" }}>
-                <div style={{ fontSize: 9, color: timeRemaining < 300 ? "#FFF" : "var(--gold)", textTransform: "uppercase", fontWeight: 800 }}>Time Remaining</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#FFFFFF", fontFamily: "monospace" }}>
-                  {formatTime(timeRemaining)}
-                </div>
-              </div>
-
-              {/* SECURITY PILL */}
-              <div style={{ background: "rgba(31,122,60,0.25)", border: "1px solid #2ECC71", color: "#2ECC71", padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#2ECC71" }} />
-                PROCTOR ACTIVE
-              </div>
-            </div>
-          </div>
-
-          {/* WARNING BANNER IF TAB SWITCHED */}
-          {showTabWarningBanner && (
-            <div style={{ background: "#C0392B", color: "#FFFFFF", padding: "8px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12, fontWeight: 700 }}>
-              <span>⚠️ Anti-Cheat Triggered: You left or unfocused the assessment window! Violations are recorded. ({tabSwitchWarnings}/3 warnings before auto-submit)</span>
-              <button
-                type="button"
-                onClick={() => setShowTabWarningBanner(false)}
-                style={{ background: "#FFFFFF", color: "#C0392B", border: "none", padding: "2px 8px", borderRadius: 4, fontSize: 11, fontWeight: 800, cursor: "pointer" }}
-              >
-                Dismiss
-              </button>
-            </div>
-          )}
-
-          {/* MAIN TEST BODY */}
-          <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 280px", gap: 20, padding: 20, overflow: "hidden" }}>
-            
-            {/* QUESTION PANEL */}
-            <div style={{ background: "var(--navy)", borderRadius: 14, padding: 24, display: "flex", flexDirection: "column", overflowY: "auto", border: "1px solid rgba(255,255,255,0.08)" }}>
-              {fullTestQuestions[currentQIndex] && (
-                <>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "4px 10px", borderRadius: 6, fontSize: 11.5, fontWeight: 800 }}>
-                        Question {currentQIndex + 1} of 10
-                      </span>
-                      <span style={{ background: "rgba(255,255,255,0.1)", color: "#FFFFFF", padding: "4px 10px", borderRadius: 6, fontSize: 11 }}>
-                        {fullTestQuestions[currentQIndex].topic}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => toggleFlag(fullTestQuestions[currentQIndex].id)}
-                      style={{
-                        background: flaggedQuestions[fullTestQuestions[currentQIndex].id] ? "var(--gold)" : "rgba(255,255,255,0.1)",
-                        color: flaggedQuestions[fullTestQuestions[currentQIndex].id] ? "var(--navy)" : "#FFFFFF",
-                        border: "none",
-                        padding: "5px 12px",
-                        borderRadius: 6,
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {flaggedQuestions[fullTestQuestions[currentQIndex].id] ? "🚩 Flagged" : "⚐ Flag for review"}
-                    </button>
-                  </div>
-
-                  <div style={{ fontSize: 16, fontWeight: 700, color: "#FFFFFF", lineHeight: 1.5, marginBottom: 20 }}>
-                    {fullTestQuestions[currentQIndex].question}
-                  </div>
-
-                  {/* OPTIONS */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 24 }}>
-                    {fullTestQuestions[currentQIndex].options.map((opt, oIdx) => {
-                      const isSelected = userAnswers[fullTestQuestions[currentQIndex].id] === oIdx;
-                      return (
-                        <div
-                          key={oIdx}
-                          onClick={() => handleSelectOption(fullTestQuestions[currentQIndex].id, oIdx)}
-                          style={{
-                            background: isSelected ? "rgba(245, 180, 26, 0.2)" : "rgba(255,255,255,0.05)",
-                            border: `1.5px solid ${isSelected ? "var(--gold)" : "rgba(255,255,255,0.1)"}`,
-                            borderRadius: 10,
-                            padding: "12px 16px",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                            cursor: "pointer",
-                            transition: "all 0.15s ease",
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 26,
-                              height: 26,
-                              borderRadius: "50%",
-                              background: isSelected ? "var(--gold)" : "rgba(255,255,255,0.1)",
-                              color: isSelected ? "var(--navy)" : "#FFFFFF",
-                              display: "grid",
-                              placeItems: "center",
-                              fontWeight: 800,
-                              fontSize: 12,
-                            }}
-                          >
-                            {String.fromCharCode(65 + oIdx)}
-                          </div>
-                          <div style={{ fontSize: 13.5, color: "#FFFFFF", fontWeight: 500 }}>
-                            {opt}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* BOTTOM NAV */}
-                  <div style={{ marginTop: "auto", display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 16, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentQIndex((prev) => Math.max(0, prev - 1))}
-                      disabled={currentQIndex === 0}
-                      style={{
-                        background: "rgba(255,255,255,0.1)",
-                        color: "#FFFFFF",
-                        border: "none",
-                        padding: "8px 18px",
-                        borderRadius: 8,
-                        fontSize: 12.5,
-                        fontWeight: 700,
-                        cursor: currentQIndex === 0 ? "not-allowed" : "pointer",
-                        opacity: currentQIndex === 0 ? 0.5 : 1,
-                      }}
-                    >
-                      ← Previous
-                    </button>
-
-                    <div style={{ fontSize: 12, color: "var(--gold)" }}>
-                      {Object.keys(userAnswers).length} of 10 answered
-                    </div>
-
-                    {currentQIndex < fullTestQuestions.length - 1 ? (
-                      <button
-                        type="button"
-                        onClick={() => setCurrentQIndex((prev) => Math.min(fullTestQuestions.length - 1, prev + 1))}
-                        style={{
-                          background: "var(--gold)",
-                          color: "var(--navy)",
-                          border: "none",
-                          padding: "8px 22px",
-                          borderRadius: 8,
-                          fontSize: 12.5,
-                          fontWeight: 800,
-                          cursor: "pointer",
-                        }}
-                      >
-                        Next →
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleAutoSubmit("Completed by Candidate")}
-                        disabled={submittingTest}
-                        style={{
-                          background: "#2ECC71",
-                          color: "var(--navy)",
-                          border: "none",
-                          padding: "8px 24px",
-                          borderRadius: 8,
-                          fontSize: 13,
-                          fontWeight: 800,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {submittingTest ? "Submitting..." : "Submit Assessment ✓"}
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* RIGHT PROCTOR & PALETTE PANEL */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, overflowY: "auto" }}>
-              
-              {/* WEBCAM PREVIEW */}
-              <div style={{ background: "var(--navy)", borderRadius: 12, padding: 12, border: "1px solid rgba(255,255,255,0.08)", textAlign: "center" }}>
-                <div style={{ fontSize: 10, color: "var(--gold)", fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-                  Live Proctor Webcam
-                </div>
-                <div style={{ width: "100%", height: 130, background: "#000000", borderRadius: 8, overflow: "hidden", display: "grid", placeItems: "center", position: "relative" }}>
-                  <video ref={videoRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                  {!webcamActive && (
-                    <div style={{ position: "absolute", color: "rgba(255,255,255,0.6)", fontSize: 11 }}>
-                      📹 Live Proctor Feed Active
-                    </div>
-                  )}
-                  <span style={{ position: "absolute", bottom: 6, right: 6, background: "rgba(31,122,60,0.8)", color: "#FFFFFF", padding: "2px 6px", borderRadius: 4, fontSize: 9, fontWeight: 800 }}>
-                    REC ●
-                  </span>
-                </div>
-              </div>
-
-              {/* 10 QUESTION PALETTE GRID */}
-              <div style={{ background: "var(--navy)", borderRadius: 12, padding: 14, border: "1px solid rgba(255,255,255,0.08)", flex: 1 }}>
-                <div style={{ fontSize: 10.5, color: "var(--gold)", fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginBottom: 10 }}>
-                  Question Palette (10 Qs)
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
-                  {fullTestQuestions.map((q, idx) => {
-                    const isAnswered = userAnswers[q.id] !== undefined;
-                    const isFlagged = flaggedQuestions[q.id];
-                    const isCur = currentQIndex === idx;
-
-                    return (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setCurrentQIndex(idx)}
-                        style={{
-                          aspectRatio: "1/1",
-                          borderRadius: 6,
-                          fontSize: 11,
-                          fontWeight: 800,
-                          border: isCur ? "2px solid var(--gold)" : "none",
-                          background: isAnswered ? "#2ECC71" : isFlagged ? "#F39C12" : "rgba(255,255,255,0.1)",
-                          color: isAnswered ? "var(--navy)" : "#FFFFFF",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {idx + 1}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div style={{ marginTop: 14, fontSize: 10, color: "rgba(255,255,255,0.6)", display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: "#2ECC71" }} /> Answered
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: "#F39C12" }} /> Flagged for review
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ width: 8, height: 8, borderRadius: 2, background: "rgba(255,255,255,0.1)" }} /> Unvisited
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleAutoSubmit("Voluntary Candidate Final Submit")}
-                  disabled={submittingTest}
-                  style={{
-                    background: "var(--gold)",
-                    color: "var(--navy)",
-                    border: "none",
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: 8,
-                    fontSize: 12,
-                    fontWeight: 800,
-                    marginTop: 16,
-                    cursor: "pointer",
-                  }}
-                >
-                  {submittingTest ? "Submitting..." : "Submit All & Finish ✓"}
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
+        <AiProctoringScreen
+          questions={fullTestQuestions}
+          candidateName={candidateName}
+          candidateRole={candidateRole}
+          domainTitle={adaptiveBank.domainName}
+          timeLimitSeconds={20 * 60}
+          initialAnswers={userAnswers}
+          onSubmit={handleAutoSubmit}
+          onCancel={() => setIsTestRunning(false)}
+        />
       )}
+
 
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* PRACTICE TEST MODAL                                                */}
@@ -2831,8 +2551,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 ✕
               </button>
             </div>
-            <p style={{ fontSize: 12.5, color: "#3A425A", margin: "0 0 14px" }}>
-              If you experienced technical disruption, internet disconnection, or power outage, submit your request here. An employee will review your proctor logs.
+            <p style={{ fontSize: 12.5, color: "#3A425A", margin: "0 0 14px", lineHeight: 1.5 }}>
+              Under proctoring policy, <b>no assessment retake is permitted without Talentera employee review and approval</b>. If you experienced technical disruption, internet disconnection, or false flagging, submit your explanation below for staff audit.
             </p>
             <form onSubmit={handleRequestRetake}>
               <textarea
@@ -2915,8 +2635,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 width: 70,
                 height: 70,
                 borderRadius: "50%",
-                background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6",
-                color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00",
+                background: isAutoSubmitted ? "#FEE2E2" : candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6",
+                color: isAutoSubmitted ? "#DC2626" : candidateScore >= 70 ? "#1F7A3C" : "#E08E00",
                 display: "grid",
                 placeItems: "center",
                 fontSize: 34,
@@ -2924,27 +2644,39 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
               }}
             >
-              {candidateScore >= 85 ? "🥇" : candidateScore >= 70 ? "🥈" : candidateScore >= 50 ? "🥉" : "📋"}
+              {isAutoSubmitted ? "🚨" : candidateScore >= 85 ? "🥇" : candidateScore >= 70 ? "🥈" : candidateScore >= 50 ? "🥉" : "📋"}
             </div>
 
-            <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
-              STAGE 04 · PROCTORED ASSESSMENT COMPLETE
+            <div style={{ color: isAutoSubmitted ? "#DC2626" : "#8A91A3", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
+              {isAutoSubmitted ? "PROCTORING VIOLATION · TEST AUTO-SUBMITTED" : "STAGE 04 · PROCTORED ASSESSMENT COMPLETE"}
             </div>
-            <h2 style={{ fontSize: 30, fontWeight: 900, color: "var(--navy)", margin: "6px 0 10px" }}>
-              Score: {candidateScore} / 100
+            <h2 style={{ fontSize: 28, fontWeight: 900, color: "var(--navy)", margin: "6px 0 10px" }}>
+              {isAutoSubmitted ? "Assessment Locked (Policy Violation)" : `Score: ${candidateScore} / 100`}
             </h2>
 
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6", color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00", padding: "6px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
-              <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "⚠️ Attempt Saved"}</span>
-              <span>·</span>
-              <span>{currentMedal} Medal Tier</span>
-              {displayPercentile && (
-                <>
-                  <span>·</span>
-                  <span>Top {Math.max(1, 100 - displayPercentile)}% Cohort</span>
-                </>
-              )}
-            </div>
+            {isAutoSubmitted ? (
+              <div style={{ background: "#FEF2F2", border: "1.5px solid #F87171", borderRadius: 12, padding: "14px 18px", marginBottom: 20, textAlign: "left" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#991B1B", fontWeight: 800, fontSize: 13, marginBottom: 4 }}>
+                  <span>⚠️</span>
+                  <span>Reason: {autoSubmitReason}</span>
+                </div>
+                <p style={{ margin: 0, fontSize: 12, color: "#7F1D1D", lineHeight: 1.5 }}>
+                  The proctoring system flagged this assessment. <b>Strict policy: No retake is permitted without Talentera employee review and authorization.</b> You may request an audit review below.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6", color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00", padding: "6px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
+                <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "⚠️ Attempt Saved"}</span>
+                <span>·</span>
+                <span>{currentMedal} Medal Tier</span>
+                {displayPercentile && (
+                  <>
+                    <span>·</span>
+                    <span>Top {Math.max(1, 100 - displayPercentile)}% Cohort</span>
+                  </>
+                )}
+              </div>
+            )}
 
             {/* SECTION SCORES SUMMARY */}
             <div style={{ background: "#F5F7FB", borderRadius: 14, padding: "16px 20px", marginBottom: 24, textAlign: "left", border: "1px solid #E5E7EB" }}>
@@ -2980,26 +2712,87 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               >
                 Review Scorecard
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCompletionModal(false);
-                  if (onSaved) onSaved(null, { advance: true, nextStage: 5 });
-                }}
-                style={{
-                  background: "var(--gold)",
-                  color: "var(--navy)",
-                  border: "none",
-                  padding: "12px 26px",
-                  borderRadius: 10,
-                  fontSize: 13.5,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                  boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
-                }}
-              >
-                Continue to Stage 05 · Video Pitch →
-              </button>
+
+              {isAutoSubmitted ? (
+                retakeRequest?.status === "PENDING" ? (
+                  <button
+                    type="button"
+                    disabled
+                    style={{
+                      background: "rgba(245, 180, 26, 0.25)",
+                      color: "#92400E",
+                      border: "1.5px solid rgba(245, 180, 26, 0.5)",
+                      padding: "12px 24px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: "not-allowed",
+                    }}
+                  >
+                    ⏳ Retake Requested · Pending Employee Approval
+                  </button>
+                ) : retakeRequest?.status === "APPROVED" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCompletionModal(false);
+                    }}
+                    style={{
+                      background: "#10B981",
+                      color: "#FFFFFF",
+                      border: "none",
+                      padding: "12px 26px",
+                      borderRadius: 10,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      boxShadow: "0 4px 14px rgba(16,185,129,0.35)",
+                    }}
+                  >
+                    ✓ Retake Approved — Return to Start
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleDirectRequestRetake()}
+                    disabled={submittingRetake}
+                    style={{
+                      background: "var(--gold)",
+                      color: "var(--navy)",
+                      border: "none",
+                      padding: "12px 26px",
+                      borderRadius: 10,
+                      fontSize: 13.5,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
+                    }}
+                  >
+                    {submittingRetake ? "Submitting Request..." : "🔁 Request Retake"}
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCompletionModal(false);
+                    if (onSaved) onSaved(null, { advance: true, nextStage: 5 });
+                  }}
+                  style={{
+                    background: "var(--gold)",
+                    color: "var(--navy)",
+                    padding: "12px 26px",
+                    borderRadius: 10,
+                    fontSize: 13.5,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                    boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
+                  }}
+                >
+                  Continue to Stage 05 · Video Pitch →
+                </button>
+              )}
             </div>
           </div>
         </div>

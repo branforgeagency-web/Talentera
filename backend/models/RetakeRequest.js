@@ -53,7 +53,7 @@ const RetakeRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["PENDING", "APPROVED", "REJECTED"],
+      enum: ["PENDING", "APPROVED", "REJECTED", "COMPLETED", "CONSUMED"],
       default: "PENDING",
       index: true,
     },
