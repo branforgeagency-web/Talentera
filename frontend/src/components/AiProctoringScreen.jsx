@@ -45,12 +45,12 @@ import {
 const MEDIAPIPE_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
 const MEDIAPIPE_MODEL_PATH = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
-// Calibrated geometric ratio thresholds with reduced tolerance (stricter detection)
+// Calibrated geometric ratio thresholds with increased tolerance for left/right head turn
 export const DEFAULT_PROCTOR_THRESHOLDS = {
-  YAW_MIN: 0.58,   // Ratio < 0.58 (Turned Right) - reduced tolerance from 0.45
-  YAW_MAX: 1.75,   // Ratio > 1.75 (Turned Left)  - reduced tolerance from 2.20
-  PITCH_MIN: 0.62, // Ratio < 0.62 (Looking Up)   - reduced tolerance from 0.50
-  PITCH_MAX: 1.75, // Ratio > 1.75 (Looking Down) - reduced tolerance from 2.20
+  YAW_MIN: 0.44,   // Ratio < 0.44 (Turned Right) - increased tolerance for natural head movement
+  YAW_MAX: 2.28,   // Ratio > 2.28 (Turned Left)  - increased tolerance for natural head movement
+  PITCH_MIN: 0.62, // Ratio < 0.62 (Looking Up)   - kept as is
+  PITCH_MAX: 1.75, // Ratio > 1.75 (Looking Down) - kept as is
   CONSECUTIVE_ANOMALIES: 3, // 3 consecutive anomalous frames (~50ms) to trigger warning
   CONSECUTIVE_NORMALS: 2,   // 2 consecutive normal frames to clear
 };
@@ -763,13 +763,13 @@ export default function AiProctoringScreen({
       )}
 
       {/* ──────────────────────────────────────────────────────────────────── */}
-      {/* MAIN SPLIT-SCREEN LAYOUT: 70% LEFT PANE / 30% RIGHT PANE            */}
+      {/* MAIN SPLIT-SCREEN LAYOUT: 60% LEFT PANE (QUESTIONS) / 40% RIGHT PANE (CAMERA & TABS) */}
       {/* ──────────────────────────────────────────────────────────────────── */}
       <div
         style={{
           flex: 1,
           display: "grid",
-          gridTemplateColumns: "7fr 3fr",
+          gridTemplateColumns: "6fr 4fr",
           gap: 16,
           padding: 16,
           minHeight: 0,
@@ -778,35 +778,318 @@ export default function AiProctoringScreen({
         }}
       >
         {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* LEFT PANE (70%): BIG WEBCAM FEED & GLOWING RED PROCTOR OVERLAYS    */}
+        {/* LEFT PANE (60%): QUESTION, OPTIONS, NEXT & SUBMIT BUTTONS         */}
         {/* ══════════════════════════════════════════════════════════════════ */}
         <section
           style={{
-            position: "relative",
             display: "flex",
             flexDirection: "column",
+            justifyContent: "space-between",
             borderRadius: 16,
-            overflow: "hidden",
             backgroundColor: "#0f172a",
-            border: isWarningActive
-              ? "3.5px solid #ef4444"
-              : "1.5px solid rgba(51, 65, 85, 0.8)",
-            boxShadow: isWarningActive
-              ? "0 0 45px rgba(239, 68, 68, 0.85), inset 0 0 25px rgba(239, 68, 68, 0.35)"
-              : "0 20px 40px rgba(0, 0, 0, 0.5)",
-            transition: "all 0.25s ease",
+            border: "1.5px solid rgba(51, 65, 85, 0.8)",
+            padding: 24,
+            overflowY: "auto",
+            minHeight: 0,
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.4)",
           }}
         >
-          {/* Main Video Viewport (Mirrored scale-x-[-1]) */}
+          {activeQuestion ? (
+            <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+              {/* Question Header & Flagging */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  marginBottom: 16,
+                  paddingBottom: 14,
+                  borderBottom: "1px solid rgba(51, 65, 85, 0.6)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span
+                    style={{
+                      padding: "4px 12px",
+                      borderRadius: 8,
+                      backgroundColor: "rgba(245, 158, 11, 0.2)",
+                      border: "1.5px solid rgba(245, 158, 11, 0.5)",
+                      color: "#fbbf24",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      letterSpacing: "0.4px",
+                    }}
+                  >
+                    Question {currentQuestionIndex + 1} of {questions.length}
+                  </span>
+                  <span
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 8,
+                      backgroundColor: "rgba(30, 41, 59, 0.8)",
+                      border: "1px solid #334155",
+                      fontSize: 12,
+                      color: "#94a3b8",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {activeQuestion.topic || activeQuestion.section || domainTitle}
+                  </span>
+                  {answers[activeQuestion.id] !== undefined && (
+                    <span
+                      style={{
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        backgroundColor: "rgba(16, 185, 129, 0.2)",
+                        color: "#34d399",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <CheckCircle2 style={{ width: 13, height: 13 }} />
+                      Answered
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleToggleFlag}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "6px 12px",
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    border: flagged[activeQuestion.id]
+                      ? "1.5px solid rgba(245, 158, 11, 0.6)"
+                      : "1px solid #334155",
+                    backgroundColor: flagged[activeQuestion.id]
+                      ? "rgba(245, 158, 11, 0.25)"
+                      : "#1e293b",
+                    color: flagged[activeQuestion.id] ? "#fbbf24" : "#94a3b8",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <Flag style={{ width: 14, height: 14 }} />
+                  <span>{flagged[activeQuestion.id] ? "Flagged for Review" : "Flag Question"}</span>
+                </button>
+              </div>
+
+              {/* Question Text */}
+              <div style={{ marginBottom: 20 }}>
+                <h3
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#ffffff",
+                    lineHeight: 1.55,
+                    margin: 0,
+                    letterSpacing: "0.2px",
+                  }}
+                >
+                  {activeQuestion.question}
+                </h3>
+              </div>
+
+              {/* Question Options */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                {activeQuestion.options?.map((option, idx) => {
+                  const isSelected = answers[activeQuestion.id] === idx;
+                  const optionLetter = String.fromCharCode(65 + idx);
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectOption(idx)}
+                      style={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 14,
+                        padding: "14px 16px",
+                        borderRadius: 12,
+                        border: isSelected
+                          ? "2px solid #fbbf24"
+                          : "1.5px solid rgba(51, 65, 85, 0.8)",
+                        backgroundColor: isSelected
+                          ? "rgba(245, 158, 11, 0.16)"
+                          : "rgba(15, 23, 42, 0.7)",
+                        color: isSelected ? "#ffffff" : "#cbd5e1",
+                        fontSize: 13.5,
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
+                        boxShadow: isSelected ? "0 4px 16px rgba(245, 158, 11, 0.12)" : "none",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 28,
+                          height: 28,
+                          borderRadius: "50%",
+                          fontSize: 12.5,
+                          fontWeight: 800,
+                          flexShrink: 0,
+                          backgroundColor: isSelected ? "#fbbf24" : "#1e293b",
+                          color: isSelected ? "#0f172a" : "#94a3b8",
+                          border: isSelected ? "none" : "1px solid #475569",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {optionLetter}
+                      </div>
+                      <div style={{ flex: 1, fontWeight: isSelected ? 600 : 400, lineHeight: 1.5, paddingTop: 3 }}>
+                        {option}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action Buttons: Previous, Next Question, and Submit Assessment */}
+              <div
+                style={{
+                  marginTop: 24,
+                  paddingTop: 16,
+                  borderTop: "1px solid rgba(51, 65, 85, 0.7)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                {/* Previous Button */}
+                <button
+                  type="button"
+                  onClick={handlePrevQuestion}
+                  disabled={currentQuestionIndex === 0}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    backgroundColor: "#1e293b",
+                    color: "#cbd5e1",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    border: "1px solid #334155",
+                    cursor: currentQuestionIndex === 0 ? "not-allowed" : "pointer",
+                    opacity: currentQuestionIndex === 0 ? 0.35 : 1,
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <ChevronLeft style={{ width: 16, height: 16 }} />
+                  <span>Previous</span>
+                </button>
+
+                {/* Right-aligned Next & Submit Buttons */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {!isLastQuestion && (
+                    <button
+                      type="button"
+                      onClick={handleNextQuestion}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "10px 22px",
+                        borderRadius: 10,
+                        background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
+                        color: "#0f172a",
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: "none",
+                        cursor: "pointer",
+                        boxShadow: "0 4px 14px rgba(245, 158, 11, 0.3)",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <span>Next Question</span>
+                      <ChevronRight style={{ width: 16, height: 16 }} />
+                    </button>
+                  )}
+
+                  {/* Submit Assessment Button */}
+                  <button
+                    type="button"
+                    onClick={() => triggerSubmit("Voluntary Candidate Final Submit")}
+                    disabled={isSubmitting}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "10px 22px",
+                      borderRadius: 10,
+                      background: isLastQuestion
+                        ? "linear-gradient(135deg, #10b981, #059669)"
+                        : "linear-gradient(135deg, #059669, #047857)",
+                      color: "#ffffff",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      border: "none",
+                      cursor: isSubmitting ? "wait" : "pointer",
+                      boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <CheckCircle2 style={{ width: 16, height: 16 }} />
+                    <span>{isSubmitting ? "Submitting..." : isLastQuestion ? "Submit Assessment" : "Submit Test"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: "#64748b" }}>
+              No questions available.
+            </div>
+          )}
+        </section>
+
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        {/* RIGHT PANE (40%): CAMERA SCREEN & QUESTION NUMBER TABS             */}
+        {/* ══════════════════════════════════════════════════════════════════ */}
+        <aside
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 14,
+            borderRadius: 16,
+            backgroundColor: "#0f172a",
+            border: "1.5px solid rgba(51, 65, 85, 0.8)",
+            padding: 16,
+            overflowY: "auto",
+            minHeight: 0,
+            boxShadow: "0 10px 30px rgba(0, 0, 0, 0.4)",
+          }}
+        >
+          {/* CAMERA FEED (PROCTOR MONITOR) */}
           <div
             style={{
               position: "relative",
-              flex: 1,
               width: "100%",
-              height: "100%",
-              minHeight: 380,
-              backgroundColor: "#000000",
+              height: 240,
+              minHeight: 220,
+              borderRadius: 14,
               overflow: "hidden",
+              backgroundColor: "#000000",
+              border: isWarningActive
+                ? "3.5px solid #ef4444"
+                : "1.5px solid rgba(51, 65, 85, 0.8)",
+              boxShadow: isWarningActive
+                ? "0 0 35px rgba(239, 68, 68, 0.85), inset 0 0 20px rgba(239, 68, 68, 0.35)"
+                : "0 8px 24px rgba(0, 0, 0, 0.5)",
+              transition: "all 0.25s ease",
+              flexShrink: 0,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -838,30 +1121,27 @@ export default function AiProctoringScreen({
                   justifyContent: "center",
                   backgroundColor: "rgba(2, 6, 23, 0.9)",
                   textAlign: "center",
-                  padding: 24,
+                  padding: 16,
                   zIndex: 20,
                 }}
               >
-                <Camera style={{ width: 44, height: 44, color: "#64748b", marginBottom: 12 }} />
-                <p style={{ fontSize: 14, fontWeight: 700, color: "#cbd5e1", margin: 0 }}>
+                <Camera style={{ width: 36, height: 36, color: "#64748b", marginBottom: 8 }} />
+                <p style={{ fontSize: 12.5, fontWeight: 700, color: "#cbd5e1", margin: 0 }}>
                   {cameraError || "Initializing candidate camera feed..."}
                 </p>
-                <p style={{ fontSize: 12, color: "#64748b", marginTop: 4, maxWidth: 380 }}>
-                  Please verify camera permissions in your browser to maintain real-time proctored status.
+                <p style={{ fontSize: 11, color: "#64748b", marginTop: 4, maxWidth: 300 }}>
+                  Please verify camera permissions to maintain proctored status.
                 </p>
               </div>
             )}
 
-
-            {/* ────────────────────────────────────────────────────────────── */}
-            {/* TOP OVERLAYS: Live Status Indicator & Telemetry                */}
-            {/* ────────────────────────────────────────────────────────────── */}
+            {/* Top HUD: Live Status Pill & Posture Telemetry */}
             <div
               style={{
                 position: "absolute",
-                top: 14,
-                left: 16,
-                right: 16,
+                top: 10,
+                left: 12,
+                right: 12,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
@@ -874,10 +1154,10 @@ export default function AiProctoringScreen({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  padding: "6px 14px",
-                  borderRadius: 12,
-                  fontSize: 11,
+                  gap: 6,
+                  padding: "4px 10px",
+                  borderRadius: 10,
+                  fontSize: 10,
                   fontWeight: 800,
                   letterSpacing: "0.5px",
                   textTransform: "uppercase",
@@ -885,65 +1165,52 @@ export default function AiProctoringScreen({
                   border: isWarningActive ? "1.5px solid #f87171" : "1px solid rgba(51, 65, 85, 0.8)",
                   backgroundColor: isWarningActive ? "rgba(220, 38, 38, 0.95)" : "rgba(15, 23, 42, 0.85)",
                   color: isWarningActive ? "#ffffff" : "#34d399",
-                  boxShadow: isWarningActive ? "0 4px 20px rgba(239, 68, 68, 0.6)" : "0 4px 12px rgba(0,0,0,0.3)",
                 }}
               >
                 <span
                   style={{
-                    width: 8,
-                    height: 8,
+                    width: 7,
+                    height: 7,
                     borderRadius: "50%",
                     backgroundColor: isWarningActive ? "#ffffff" : "#34d399",
                   }}
                 />
-                <span>{isWarningActive ? "ATTENTION ALERT" : "LIVE PROCTOR ACTIVE"}</span>
+                <span>{isWarningActive ? "ATTENTION" : "LIVE PROCTOR"}</span>
               </div>
 
-              {/* Model & Posture Telemetry Pill */}
+              {/* Posture Telemetry Pill */}
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
+                  gap: 6,
                   backgroundColor: "rgba(15, 23, 42, 0.85)",
                   backdropFilter: "blur(12px)",
-                  padding: "6px 12px",
-                  borderRadius: 12,
+                  padding: "4px 8px",
+                  borderRadius: 10,
                   border: "1px solid rgba(51, 65, 85, 0.8)",
-                  fontSize: 11,
+                  fontSize: 10,
                   fontFamily: "monospace",
                   color: "#cbd5e1",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
                 }}
               >
-                <Activity style={{ width: 14, height: 14, color: "#38bdf8" }} />
-                <span>Posture:</span>
-                <span
-                  style={{
-                    fontWeight: 700,
-                    textTransform: "capitalize",
-                    color: currentPosture === "centered" ? "#34d399" : "#fcd34d",
-                  }}
-                >
+                <Activity style={{ width: 12, height: 12, color: "#38bdf8" }} />
+                <span style={{ color: currentPosture === "centered" ? "#34d399" : "#fcd34d", fontWeight: 700 }}>
                   {currentPosture.replace("_", " ")}
                 </span>
                 <span style={{ color: "#475569" }}>|</span>
-                <span>Yaw: <strong style={{ color: "#ffffff" }}>{yawRatio.toFixed(2)}</strong></span>
-                <span style={{ color: "#475569" }}>|</span>
-                <span>Pitch: <strong style={{ color: "#ffffff" }}>{pitchRatio.toFixed(2)}</strong></span>
+                <span>Y: {yawRatio.toFixed(2)}</span>
               </div>
             </div>
 
-            {/* ────────────────────────────────────────────────────────────── */}
-            {/* ATTENTION WARNING BANNER OVERLAY (DEBOUNCED & GLOWING RED)     */}
-            {/* ────────────────────────────────────────────────────────────── */}
+            {/* Glowing Red Warning Overlay */}
             {isWarningActive && (
               <div
                 style={{
                   position: "absolute",
-                  left: 20,
-                  right: 20,
-                  top: 70,
+                  left: 12,
+                  right: 12,
+                  top: 50,
                   zIndex: 40,
                   display: "flex",
                   alignItems: "center",
@@ -953,58 +1220,24 @@ export default function AiProctoringScreen({
                 <div
                   style={{
                     width: "100%",
-                    maxWidth: 560,
                     background: "linear-gradient(135deg, rgba(220, 38, 38, 0.98), rgba(185, 28, 28, 0.98))",
                     color: "#ffffff",
-                    padding: "14px 20px",
-                    borderRadius: 14,
-                    border: "2px solid #fca5a5",
-                    boxShadow: "0 0 35px rgba(239, 68, 68, 0.9), 0 8px 24px rgba(0,0,0,0.5)",
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    boxShadow: "0 8px 24px rgba(239, 68, 68, 0.7)",
                     display: "flex",
                     alignItems: "center",
-                    gap: 16,
-                    backdropFilter: "blur(14px)",
+                    gap: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 10,
-                      backgroundColor: "rgba(255, 255, 255, 0.2)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <AlertTriangle style={{ width: 26, height: 26, color: "#ffffff" }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span
-                        style={{
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          backgroundColor: "rgba(0, 0, 0, 0.4)",
-                          fontSize: 10,
-                          fontWeight: 900,
-                          textTransform: "uppercase",
-                          color: "#fde68a",
-                        }}
-                      >
-                        Proctor Violation
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#fee2e2" }}>
-                        Infraction #{attentionWarningsCount}
-                      </span>
+                  <AlertTriangle style={{ width: 22, height: 22, color: "#ffffff", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 9.5, fontWeight: 900, textTransform: "uppercase", color: "#fde68a" }}>
+                      Warning #{attentionWarningsCount} / 5
                     </div>
-                    <p style={{ fontSize: 14.5, fontWeight: 800, margin: "3px 0 0", color: "#ffffff", letterSpacing: "0.2px" }}>
-                      {currentWarningMessage || "⚠️ Please keep your gaze centered on the screen"}
-                    </p>
-                    <p style={{ fontSize: 11, color: "#fee2e2", margin: "2px 0 0", opacity: 0.9 }}>
-                      Head turns, tilting away, or leaving the camera frame are strictly recorded in proctor audit telemetry.
-                    </p>
+                    <div style={{ fontSize: 12, fontWeight: 800, margin: "2px 0 0", color: "#ffffff" }}>
+                      {currentWarningMessage || "⚠️ Please keep your gaze centered"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1014,37 +1247,8 @@ export default function AiProctoringScreen({
             <div
               style={{
                 position: "absolute",
-                bottom: 14,
-                left: 16,
-                zIndex: 30,
-                pointerEvents: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                backgroundColor: "rgba(2, 6, 23, 0.85)",
-                backdropFilter: "blur(12px)",
-                padding: "6px 12px",
-                borderRadius: 10,
-                border: "1px solid #1e293b",
-                fontSize: 11.5,
-              }}
-            >
-              <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#34d399" }} />
-              <div style={{ color: "#cbd5e1", fontWeight: 600 }}>
-                {candidateName} <span style={{ color: "#64748b" }}>({candidateRole})</span>
-              </div>
-              <span style={{ color: "#475569" }}>·</span>
-              <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "monospace" }}>
-                Delegate: {delegateUsed}
-              </span>
-            </div>
-
-            {/* Bottom-right Camera REC Badge */}
-            <div
-              style={{
-                position: "absolute",
-                bottom: 14,
-                right: 16,
+                bottom: 10,
+                left: 12,
                 zIndex: 30,
                 pointerEvents: "none",
                 display: "flex",
@@ -1052,345 +1256,77 @@ export default function AiProctoringScreen({
                 gap: 6,
                 backgroundColor: "rgba(2, 6, 23, 0.85)",
                 backdropFilter: "blur(12px)",
-                padding: "5px 10px",
+                padding: "4px 8px",
                 borderRadius: 8,
                 border: "1px solid #1e293b",
-                fontSize: 11,
+                fontSize: 10.5,
+              }}
+            >
+              <div style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#34d399" }} />
+              <div style={{ color: "#cbd5e1", fontWeight: 600 }}>
+                {candidateName}
+              </div>
+            </div>
+
+            {/* Bottom-right Camera REC Badge */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: 10,
+                right: 12,
+                zIndex: 30,
+                pointerEvents: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                backgroundColor: "rgba(2, 6, 23, 0.85)",
+                backdropFilter: "blur(12px)",
+                padding: "4px 8px",
+                borderRadius: 8,
+                border: "1px solid #1e293b",
+                fontSize: 10,
                 fontFamily: "monospace",
                 color: "#f87171",
                 fontWeight: 700,
               }}
             >
-              <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#ef4444" }} />
-              <span>REC 720p HD</span>
-            </div>
-          </div>
-        </section>
-
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        {/* RIGHT PANE (30%): AI INTERVIEWER & DYNAMIC QUESTION PANEL          */}
-        {/* ══════════════════════════════════════════════════════════════════ */}
-        <aside
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            borderRadius: 16,
-            backgroundColor: "#0f172a",
-            border: "1.5px solid rgba(51, 65, 85, 0.8)",
-            padding: 18,
-            overflowY: "auto",
-          }}
-        >
-          {/* AI INTERVIEWER BOT CARD */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "12px 14px",
-              borderRadius: 12,
-              backgroundColor: "rgba(30, 41, 59, 0.7)",
-              border: "1px solid rgba(51, 65, 85, 0.7)",
-              boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
-            }}
-          >
-            <div
-              style={{
-                position: "relative",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 42,
-                height: 42,
-                borderRadius: 10,
-                background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
-                color: "#0f172a",
-                boxShadow: "0 4px 12px rgba(245, 158, 11, 0.3)",
-                flexShrink: 0,
-              }}
-            >
-              <Bot style={{ width: 22, height: 22 }} />
-              <span
-                style={{
-                  position: "absolute",
-                  top: -2,
-                  right: -2,
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  backgroundColor: "#10b981",
-                  border: "2px solid #0f172a",
-                }}
-              />
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <h4 style={{ margin: 0, fontSize: 12, fontWeight: 800, textTransform: "uppercase", color: "#ffffff", letterSpacing: "0.5px" }}>
-                  Talentera AI Proctor
-                </h4>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    color: "#fbbf24",
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                    backgroundColor: "rgba(245, 158, 11, 0.15)",
-                    border: "1px solid rgba(245, 158, 11, 0.3)",
-                  }}
-                >
-                  Active
-                </span>
-              </div>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#94a3b8" }}>
-                Real-time vision &amp; telemetry proctor
-              </p>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#ef4444" }} />
+              <span>REC</span>
             </div>
           </div>
 
-          {/* DYNAMIC QUESTION CARD */}
-          {activeQuestion ? (
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                borderRadius: 12,
-                backgroundColor: "rgba(2, 6, 23, 0.6)",
-                border: "1px solid rgba(30, 41, 59, 0.9)",
-                padding: 16,
-              }}
-            >
-              <div>
-                {/* Question Header & Flagging */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span
-                      style={{
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        backgroundColor: "rgba(245, 158, 11, 0.2)",
-                        border: "1px solid rgba(245, 158, 11, 0.4)",
-                        color: "#fbbf24",
-                        fontSize: 11,
-                        fontWeight: 800,
-                      }}
-                    >
-                      Q {currentQuestionIndex + 1} of {questions.length}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 130 }}>
-                      {activeQuestion.topic || activeQuestion.section || domainTitle}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleToggleFlag}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      padding: "4px 8px",
-                      borderRadius: 6,
-                      fontSize: 11,
-                      fontWeight: 700,
-                      border: flagged[activeQuestion.id]
-                        ? "1px solid rgba(245, 158, 11, 0.5)"
-                        : "1px solid #334155",
-                      backgroundColor: flagged[activeQuestion.id]
-                        ? "rgba(245, 158, 11, 0.2)"
-                        : "#1e293b",
-                      color: flagged[activeQuestion.id] ? "#fbbf24" : "#94a3b8",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <Flag style={{ width: 12, height: 12 }} />
-                    <span>{flagged[activeQuestion.id] ? "Flagged" : "Flag"}</span>
-                  </button>
-                </div>
-
-                {/* Question Text */}
-                <h3
-                  style={{
-                    fontSize: 13.5,
-                    fontWeight: 700,
-                    color: "#ffffff",
-                    lineHeight: 1.45,
-                    marginBottom: 16,
-                    marginTop: 0,
-                  }}
-                >
-                  {activeQuestion.question}
-                </h3>
-
-                {/* Question Options */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {activeQuestion.options?.map((option, idx) => {
-                    const isSelected = answers[activeQuestion.id] === idx;
-                    const optionLetter = String.fromCharCode(65 + idx);
-
-                    return (
-                      <div
-                        key={idx}
-                        onClick={() => handleSelectOption(idx)}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 10,
-                          padding: "10px 12px",
-                          borderRadius: 10,
-                          border: isSelected
-                            ? "1.5px solid #fbbf24"
-                            : "1px solid #1e293b",
-                          backgroundColor: isSelected
-                            ? "rgba(245, 158, 11, 0.18)"
-                            : "rgba(15, 23, 42, 0.8)",
-                          color: isSelected ? "#ffffff" : "#cbd5e1",
-                          fontSize: 12,
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                        }}
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            width: 22,
-                            height: 22,
-                            borderRadius: "50%",
-                            fontSize: 11,
-                            fontWeight: 800,
-                            flexShrink: 0,
-                            backgroundColor: isSelected ? "#fbbf24" : "#1e293b",
-                            color: isSelected ? "#0f172a" : "#94a3b8",
-                          }}
-                        >
-                          {optionLetter}
-                        </div>
-                        <div style={{ flex: 1, fontWeight: isSelected ? 600 : 400, lineHeight: 1.4 }}>
-                          {option}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Navigation & Submit Controls */}
-              <div
-                style={{
-                  marginTop: 18,
-                  paddingTop: 14,
-                  borderTop: "1px solid #1e293b",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={handlePrevQuestion}
-                  disabled={currentQuestionIndex === 0}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    backgroundColor: "#1e293b",
-                    color: "#cbd5e1",
-                    fontSize: 11.5,
-                    fontWeight: 600,
-                    border: "none",
-                    cursor: currentQuestionIndex === 0 ? "not-allowed" : "pointer",
-                    opacity: currentQuestionIndex === 0 ? 0.4 : 1,
-                  }}
-                >
-                  <ChevronLeft style={{ width: 14, height: 14 }} />
-                  <span>Previous</span>
-                </button>
-
-                {isLastQuestion ? (
-                  <button
-                    type="button"
-                    onClick={() => triggerSubmit("Voluntary Candidate Final Submit")}
-                    disabled={isSubmitting}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      background: "linear-gradient(135deg, #10b981, #0d9488)",
-                      color: "#020617",
-                      fontSize: 12,
-                      fontWeight: 800,
-                      border: "none",
-                      cursor: isSubmitting ? "wait" : "pointer",
-                      boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
-                    }}
-                  >
-                    <CheckCircle2 style={{ width: 15, height: 15 }} />
-                    <span>{isSubmitting ? "Submitting..." : "Submit Assessment"}</span>
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleNextQuestion}
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 6,
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      background: "linear-gradient(135deg, #f59e0b, #fbbf24)",
-                      color: "#0f172a",
-                      fontSize: 12,
-                      fontWeight: 800,
-                      border: "none",
-                      cursor: "pointer",
-                      boxShadow: "0 4px 12px rgba(245, 158, 11, 0.25)",
-                    }}
-                  >
-                    <span>Next Question</span>
-                    <ChevronRight style={{ width: 15, height: 15 }} />
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#64748b" }}>
-              No questions available.
-            </div>
-          )}
-
-          {/* QUESTION PALETTE / NAVIGATION MAP */}
+          {/* NUMBER OF QUESTIONS TABS (QUESTION PALETTE) */}
           <div
             style={{
               borderRadius: 12,
-              backgroundColor: "rgba(2, 6, 23, 0.6)",
+              backgroundColor: "rgba(2, 6, 23, 0.7)",
               border: "1px solid rgba(30, 41, 59, 0.9)",
-              padding: 12,
+              padding: 14,
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Question Palette
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#cbd5e1", textTransform: "uppercase", letterSpacing: "0.6px" }}>
+                Questions Navigator
               </span>
-              <span style={{ fontSize: 11, color: "#fbbf24", fontFamily: "monospace" }}>
+              <span style={{ fontSize: 11, color: "#fbbf24", fontWeight: 700, fontFamily: "monospace" }}>
                 {answeredCount} / {questions.length} answered
               </span>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+            {/* Grid of question number tabs */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(5, 1fr)",
+                gap: 8,
+                maxHeight: 240,
+                overflowY: "auto",
+                paddingRight: 2,
+              }}
+            >
               {questions.map((q, idx) => {
                 const isCurrent = idx === currentQuestionIndex;
                 const isAnswered = answers[q.id] !== undefined;
@@ -1401,18 +1337,19 @@ export default function AiProctoringScreen({
                     key={idx}
                     type="button"
                     onClick={() => setCurrentQuestionIndex(idx)}
+                    title={`Question ${idx + 1}${isAnswered ? " (Answered)" : ""}${isFlag ? " (Flagged)" : ""}`}
                     style={{
-                      aspectRatio: "1/1",
-                      borderRadius: 6,
-                      fontSize: 11,
+                      height: 38,
+                      borderRadius: 8,
+                      fontSize: 12,
                       fontWeight: 800,
                       border: isCurrent
                         ? "2px solid #fbbf24"
                         : isAnswered
-                        ? "1px solid rgba(16, 185, 129, 0.6)"
+                        ? "1.5px solid rgba(16, 185, 129, 0.7)"
                         : isFlag
-                        ? "1px solid rgba(245, 158, 11, 0.6)"
-                        : "none",
+                        ? "1.5px solid rgba(245, 158, 11, 0.7)"
+                        : "1px solid rgba(51, 65, 85, 0.6)",
                       backgroundColor: isCurrent
                         ? "#f59e0b"
                         : isAnswered
@@ -1429,15 +1366,64 @@ export default function AiProctoringScreen({
                         : "#94a3b8",
                       cursor: "pointer",
                       transition: "all 0.15s ease",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      position: "relative",
                     }}
                   >
-                    {idx + 1}
+                    <span>{idx + 1}</span>
+                    {isFlag && !isCurrent && (
+                      <span
+                        style={{
+                          position: "absolute",
+                          top: 2,
+                          right: 2,
+                          width: 5,
+                          height: 5,
+                          borderRadius: "50%",
+                          backgroundColor: "#f59e0b",
+                        }}
+                      />
+                    )}
                   </button>
                 );
               })}
             </div>
-          </div>
 
+            {/* Question status legend */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: 14,
+                paddingTop: 10,
+                borderTop: "1px dashed rgba(51, 65, 85, 0.7)",
+                fontSize: 10.5,
+                color: "#94a3b8",
+                flexWrap: "wrap",
+                gap: 6,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#34d399" }} />
+                <span>Answered</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f59e0b" }} />
+                <span>Current</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#fbbf24" }} />
+                <span>Flagged</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#475569" }} />
+                <span>Pending</span>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
 

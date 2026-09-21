@@ -3,6 +3,7 @@ import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
 import { joinUnique } from "../utils/resumeSubtitle.js";
+import { getMedalTier, medalLabel, medalBadgeStyle } from "../utils/medalBadge.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
 // 7 Verified Resume Templates matching Talentera standards
@@ -151,6 +152,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   // Stage 2 Training Foundation
   const academyName = stage2.academyName || stage2.instituteName || "Talentera Partner Academy";
   const academyLocality = stage2.academyCity || city || "Chennai";
+  const trainingLevel = stage2.trainingLevel || stage2.level || "";
   const trainingSpecialties = Array.isArray(stage2.specialties) && stage2.specialties.length > 0
     ? stage2.specialties.join(" · ")
     : (stage2.specialty || domainName || "Medical Billing · Intermediate Medical Coding · Inpatient Coding");
@@ -317,16 +319,21 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       expectedExam: stage3.pursuingDetails?.expectedDate || "",
       totalCharts,
       accuracy: overallAccuracy,
-      specialties: specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName,
+      domain: domainName,
+      trainingLevel,
+      specialties: Array.isArray(stage2.specialties) && stage2.specialties.length > 0 ? stage2.specialties.slice(0, 3).join(", ") : (stage2.specialty || (specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName)),
       roleTitle: stage1.currentRole || "",
       academyName,
       assessmentScore,
     }).options[0].text;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore]);
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore, trainingLevel, stage2]);
+  // Key of the inputs the objective depends on - a saved objective for a different domain / level is stale.
+  const objectiveKey = `${domainName}|${trainingLevel}|${getExperienceLevel(stage1, candidateObj).level}|${getCertStatus(stage3, certificationsList)}`;
   const [careerObjective, setCareerObjective] = useState(() => {
     const saved = stage7Data.objective || stage7Data.summary;
-    const raw = saved && !isLegacyAutoObjective(saved) ? saved : defaultObjective;
+    const stale = stage7Data.objectiveKey && stage7Data.objectiveKey !== objectiveKey;
+    const raw = saved && !stale && !isLegacyAutoObjective(saved) ? saved : defaultObjective;
     return raw
       .replace(/Talentera[- ]verified/gi, "Qualified")
       .replace(/Talentera[- ]validated/gi, "Qualified")
@@ -405,6 +412,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           sections: visibleSections,
         },
         objective: careerObjective,
+        objectiveKey,
         summary: careerObjective,
         resumeUrl: `https://${liveResumeUrl}`,
         slug: candidateSlug,
@@ -1744,7 +1752,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   ▶
                 </div>
                 <div style={{ fontSize: 10.5, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>SELF-INTRODUCTION (60 SEC)</div>
-                <div style={{ fontSize: scale.base + 1.5, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>Video Pitch Score · {videoScore}/100</div>
+                <div style={{ marginTop: 6 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), scale.base + 1)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
                 <div style={{ fontSize: scale.base - 0.5, color: "#475569", marginTop: 3 }}>
                   Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Live Verified</span> · Scan to play
                 </div>
@@ -1755,7 +1763,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   ☰
                 </div>
                 <div style={{ fontSize: 10.5, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>5-QUESTION AI MOCK</div>
-                <div style={{ fontSize: scale.base + 1.5, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>Avg {videoScore}/100</div>
+                <div style={{ marginTop: 6 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), scale.base + 1)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
                 <div style={{ fontSize: scale.base - 0.5, color: "#475569", marginTop: 3 }}>
                   Auto-transcribed · Searchable · Scan to review answers
                 </div>

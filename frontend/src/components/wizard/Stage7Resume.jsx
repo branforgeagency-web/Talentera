@@ -4,6 +4,7 @@ import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
 import { joinUnique } from "../../utils/resumeSubtitle.js";
+import { getMedalTier, medalLabel, medalBadgeStyle } from "../../utils/medalBadge.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
 // Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
@@ -368,13 +369,15 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       expectedExam: stage3.pursuingDetails?.expectedDate || "",
       totalCharts,
       accuracy: overallAccuracy,
-      specialties: specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName,
+      domain: domainName,
+      trainingLevel,
+      specialties: Array.isArray(stage2.specialties) && stage2.specialties.length > 0 ? stage2.specialties.slice(0, 3).join(", ") : (stage2.specialty || (specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName)),
       roleTitle: stage1.currentRole || "",
       academyName,
       assessmentScore,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore]);
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore, trainingLevel, stage2]);
 
   const aiObjectiveOptions = useMemo(
     () => objectiveSet.options.map((o, i) => ({ id: i + 1, tag: o.tag, label: `🤖 AI Option ${i + 1}`, text: o.text })),
@@ -392,27 +395,34 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       .trim();
   };
 
+  const objectiveKey = `${domainName}|${trainingLevel}|${objectiveSet.level}|${objectiveSet.status}`;
   const [selectedAiIdx, setSelectedAiIdx] = useState(0);
   const [careerObjective, setCareerObjective] = useState(() => {
     const saved = stage7Data.objective || stage7Data.summary;
-    if (saved && !isLegacyAutoObjective(saved)) return cleanObjectiveString(saved);
+    // A saved objective written for a different domain / training level / experience is stale - rebuild it.
+    const stale = stage7Data.objectiveKey && stage7Data.objectiveKey !== objectiveKey;
+    if (saved && !stale && !isLegacyAutoObjective(saved)) return cleanObjectiveString(saved);
     return aiObjectiveOptions[0].text;
   });
 
   // Regenerate fresh AI options counter
   const [aiGenSeed, setAiGenSeed] = useState(0);
 
+  const [formErrors, setFormErrors] = useState({});
+
   function handleRegenerateAi() {
     setAiGenSeed((prev) => prev + 1);
     const newOptions = objectiveSet.alternates;
     const picked = newOptions[aiGenSeed % newOptions.length];
     setCareerObjective(picked);
+    if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
     toast("Generated fresh AI objective variation based on your database record!", "✓");
   }
 
   function handleSelectAiOption(idx) {
     setSelectedAiIdx(idx);
     setCareerObjective(aiObjectiveOptions[idx].text);
+    if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
   }
 
   // Version history state from Database or initialized
@@ -635,10 +645,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   // Save Stage 7 Data to MongoDB
   async function handleSaveAndAdvance(advanceToStage8 = true) {
     if (advanceToStage8 && (!careerObjective || careerObjective.trim().length < 5)) {
+      setFormErrors({ careerObjective: "Career Objective is mandatory (minimum 5 characters)." });
       toast("Please provide or select a Career Objective in Section 2 to continue.", "error", { title: "Mandatory Field Required" });
       window.scrollTo({ top: 400, behavior: "smooth" });
       return;
     }
+    setFormErrors({});
     setSaving(true);
     try {
       const payload = {
@@ -650,6 +662,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           density: layoutDensity,
         },
         objective: careerObjective,
+        objectiveKey,
         summary: careerObjective,
         resumeUrl: liveResumeUrl,
         slug: candidateSlug,
@@ -922,6 +935,23 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         .s7-ai-suggestion-txt { font-size: 13px; color: #0F1B3D; line-height: 1.5; font-style: italic; }
         .s7-obj-editor { background: #FFFFFF; border: 1.5px solid #F5B41A; border-radius: 10px; padding: 14px 16px; margin-top: 10px; }
         .s7-obj-editor textarea { width: 100%; border: none; outline: none; font-size: 13px; color: #0F1B3D; line-height: 1.5; resize: vertical; min-height: 70px; font-family: inherit; }
+        .s7-obj-editor.has-error {
+          border: 2px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+        }
+        .s7-obj-editor.has-error textarea {
+          background-color: transparent !important;
+        }
+        .s7-field-error-msg {
+          color: #DC2626;
+          font-size: 12px;
+          font-weight: 700;
+          margin-top: 6px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
         .s7-obj-editor-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E7EB; font-size: 11px; color: #8A91A3; }
         .s7-regen-btn { background: #EEF2FF; color: #1A4FB8; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
@@ -1586,13 +1616,19 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               </div>
             ))}
 
-            <div className="s7-obj-editor">
+            <div className={`s7-obj-editor ${formErrors.careerObjective ? "has-error" : ""}`}>
               <textarea
                 value={careerObjective}
-                onChange={(e) => setCareerObjective(e.target.value)}
+                onChange={(e) => {
+                  setCareerObjective(e.target.value);
+                  if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
+                }}
                 maxLength={500}
                 placeholder="Edit the selected option, or write your own from scratch..."
               />
+              {formErrors.careerObjective && (
+                <div className="s7-field-error-msg">⚠️ {formErrors.careerObjective}</div>
+              )}
               <div className="s7-obj-editor-footer">
                 <span>{careerObjective.length} / 500 characters · Editing AI Option {selectedAiIdx + 1}</span>
                 <button type="button" onClick={handleRegenerateAi} className="s7-regen-btn">
@@ -1868,13 +1904,13 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 <div className="s7-r-block">
                   <div className="s7-qr-mini"><PlayIconSvg /></div>
                   <div className="k">Self-Introduction (60 sec)</div>
-                  <div className="v">{videoScore !== null ? `Video Pitch Score · ${videoScore}/100` : "Verified Pitch"}</div>
+                  <div className="v" style={{ marginTop: 4 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), 12)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
                   <div className="details">Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · 🟢 Live Verified · Scan to play</div>
                 </div>
                 <div className="s7-r-block">
                   <div className="s7-qr-mini"><CheckListIconSvg /></div>
                   <div className="k">5-question AI Mock</div>
-                  <div className="v">{videoScore !== null ? `Avg ${videoScore}/100` : "Completed"}</div>
+                  <div className="v" style={{ marginTop: 4 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), 12)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
                   <div className="details">Auto-transcribed · Searchable · Scan to review answers</div>
                 </div>
               </div>

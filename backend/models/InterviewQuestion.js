@@ -42,6 +42,13 @@ const InterviewQuestionSchema = new mongoose.Schema(
         message: "keywords must be either empty or contain exactly 3 entries.",
       },
     },
+    // Healthcare domain this interview question belongs to
+    domain: {
+      type: String,
+      enum: ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "General"],
+      default: "Medical Coding",
+      index: true,
+    },
     // Which interview mode this question is asked in. "both" means it's
     // used by the video assessment AND the audio interview.
     mode: {

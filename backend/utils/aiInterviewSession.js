@@ -59,11 +59,20 @@ function formatQuestionItem(q, idx) {
 
 async function buildFreshAiInterviewSession(candidate) {
   const candidateName = candidate.stage1?.fullName || "Candidate";
-  const role = candidate.stage1?.currentRole || "Medical Coder";
+  const candidateDomain = candidate.stage2?.domain || "Medical Coding";
+  const role = candidate.stage1?.currentRole || candidateDomain;
   const experienceYears = candidate.stage1?.experience ?? null;
 
-  // Retrieve all active interview questions from database bank
-  const allActiveBankQuestions = await InterviewQuestion.find({ active: true }).lean();
+  // Retrieve active interview questions from database bank matching domain (or general)
+  const allActiveBankQuestions = await InterviewQuestion.find({
+    active: true,
+    $or: [
+      { domain: candidateDomain },
+      { domain: "General" },
+      { domain: { $exists: false } },
+      { domain: null },
+    ],
+  }).lean();
 
   // Deduplicate active bank questions by normalized question text
   const seenNorms = new Set();
@@ -74,6 +83,13 @@ async function buildFreshAiInterviewSession(candidate) {
     seenNorms.add(norm);
     dedupedBank.push(q);
   }
+
+  // Prioritize domain-matched questions over generic ones
+  dedupedBank.sort((a, b) => {
+    const aMatch = a.domain === candidateDomain ? 1 : 0;
+    const bMatch = b.domain === candidateDomain ? 1 : 0;
+    return bMatch - aMatch;
+  });
 
   // Identify questions this candidate has previously answered (if retaking)
   const priorNorms = new Set(
@@ -106,15 +122,15 @@ async function buildFreshAiInterviewSession(candidate) {
 
   let finalRawQuestions = [...chosenQuestions];
 
-  // If active bank has fewer than 5 distinct questions, supplement using dynamic / diverse generator
+  // If active bank has fewer than 5 distinct questions, supplement using dynamic / diverse generator for this domain
   if (finalRawQuestions.length < 5) {
-    const needed = 5 - finalRawQuestions.length;
     const existingTexts = finalRawQuestions.map((q) => q.text || q.question);
     const supplemental = await generateInterviewQuestions({
       candidateName,
       role,
       experienceYears,
       excludeQuestions: existingTexts,
+      domain: candidateDomain,
     });
 
     for (const sq of supplemental) {

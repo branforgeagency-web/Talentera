@@ -4,6 +4,8 @@ const Company = require("../models/Company");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const InterviewQuestion = require("../models/InterviewQuestion");
+const AssessmentQuestion = require("../models/AssessmentQuestion");
+const { DEFAULT_ASSESSMENT_QUESTIONS } = require("../data/defaultAssessmentQuestions");
 const Notification = require("../models/Notification");
 const RetakeRequest = require("../models/RetakeRequest");
 const { requireAuth } = require("../middleware/auth");
@@ -29,6 +31,26 @@ const VALID_STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
 // except Build Resume (7) — matches frontend/src/data/wizardStages.js
 // SKIPPABLE_STAGE_NUMS exactly.
 const SKIPPABLE_STAGES = [7];
+
+// Self-trained = chose the self path, the "Non-Trained" level, or named a self-learning source instead of an academy.
+// Keep in sync with isSelfTrainedCandidate() in frontend/src/data/wizardStages.js.
+const SELF_SOURCE_RE = /self[\s-]?(learning|study|taught|trained)|youtube|udemy|coursera|\bedx\b|online course|aapc official|ahima study|blogs?,? forums|on-the-job/i;
+function isSelfTrainedCandidate(candidate) {
+  const s2 = (candidate && candidate.stage2) || {};
+  const level = String(s2.trainingLevel || s2.level || "");
+  const source = String(s2.selfLearningSource || s2.academyName || s2.instituteName || "");
+  return Boolean(
+    s2.trainingPath === "self" ||
+    s2.isSelfTrained ||
+    s2.trainingType === "self" ||
+    (candidate && (candidate.trainingPath === "self" || candidate.isSelfTrained)) ||
+    s2.selfLearningSource ||
+    /non[\s-]?trained/i.test(level) ||
+    SELF_SOURCE_RE.test(source)
+  );
+}
+
+
 
 // A candidate must hold a verification score of at least 75% before they're
 // allowed to search or apply for jobs — enforced below in POST /apply/:jobId.
@@ -723,8 +745,9 @@ router.put("/stage/:n", async (req, res) => {
         evidenceMultiplier: result.multiplier,
         verificationPoints: result.points,
         needsReview: result.needsReview,
+        isOptional: isSelfTrainedCandidate(candidate),
         verified,
-        verificationMethod,
+        verificationMethod: (evidencePath === "D" && isSelfTrainedCandidate(candidate)) ? "Optional (Self-Trained)" : verificationMethod,
         completedAt: candidate.stage6?.completedAt || new Date(),
       };
 
@@ -872,21 +895,41 @@ router.put("/stage/:n", async (req, res) => {
   }
 });
 
-// POST /api/candidate/stage/:n/skip - skip-stage system (stages 2, 3, 7 only)
+// POST /api/candidate/stage/:n/skip - skip-stage system (Stage 7 always, Stage 6 for self-trained)
 router.post("/stage/:n/skip", async (req, res) => {
   const stageNum = Number(req.params.n);
-  if (!SKIPPABLE_STAGES.includes(stageNum)) {
-    return res.status(400).json({ message: `Stage ${stageNum} cannot be skipped.` });
-  }
-
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
+
+  const isSelfTrained = isSelfTrainedCandidate(candidate);
+
+  const allowedSkip = SKIPPABLE_STAGES.includes(stageNum) || (stageNum === 6 && isSelfTrained);
+  if (!allowedSkip) {
+    if (stageNum === 6) {
+      return res.status(400).json({ message: "Live Charts is mandatory for academy-trained candidates. It is optional for self-trained candidates." });
+    }
+    return res.status(400).json({ message: `Stage ${stageNum} cannot be skipped.` });
+  }
 
   if (stageNum > 1 && !candidate.completedStages.includes(1)) {
     return res.status(400).json({ message: "You must complete and save Stage 1 (Identity & Basics) before skipping higher stages." });
   }
 
-  candidate[`stage${stageNum}`] = { skipped: true };
+  if (stageNum === 6) {
+    candidate.stage6 = {
+      skipped: true,
+      isOptional: true,
+      evidencePath: "D",
+      option: "none",
+      verificationMethod: "Optional (Self-Trained)",
+      stageScore: 0,
+      verificationPoints: 0,
+      completedAt: new Date(),
+    };
+  } else {
+    candidate[`stage${stageNum}`] = { skipped: true };
+  }
+
   if (!candidate.completedStages.includes(stageNum)) {
     candidate.completedStages.push(stageNum);
   }
@@ -975,16 +1018,115 @@ router.post("/video-platform/sync", async (req, res) => {
   }
 });
 
-// GET /api/candidate/interview-questions?mode=video|audio - Ordered question
+// GET /api/candidate/assessment-questions?domain=...
+// Fetches the 5 syllabus sections and 10 questions tailored to candidate's domain
+router.get("/assessment-questions", async (req, res) => {
+  try {
+    let domain = req.query.domain;
+    if (!domain) {
+      const candidate = await Candidate.findById(req.candidateId).select("stage2").lean();
+      domain = candidate?.stage2?.domain || "Medical Coding";
+    }
+
+    // Auto-seed default assessment questions if database has none
+    const count = await AssessmentQuestion.countDocuments();
+    if (count === 0 && Array.isArray(DEFAULT_ASSESSMENT_QUESTIONS) && DEFAULT_ASSESSMENT_QUESTIONS.length > 0) {
+      try {
+        await AssessmentQuestion.insertMany(DEFAULT_ASSESSMENT_QUESTIONS, { ordered: false });
+      } catch (e) {
+        logger.warn("Auto-seed default assessment questions in candidate route notice:", e.message);
+      }
+    }
+
+    let dbQuestions = await AssessmentQuestion.find({ domain, active: true })
+      .sort({ sectionOrder: 1, order: 1 })
+      .lean();
+
+    // Fallback to memory defaults if none in DB for this specific domain
+    if (!dbQuestions || dbQuestions.length === 0) {
+      dbQuestions = DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => q.domain === domain);
+      if (dbQuestions.length === 0) {
+        dbQuestions = DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => q.domain === "Medical Coding");
+      }
+    }
+
+    // Group into 5 syllabus sections
+    const sectionsMap = new Map();
+    for (const q of dbQuestions) {
+      const sKey = q.sectionKey;
+      if (!sectionsMap.has(sKey)) {
+        sectionsMap.set(sKey, {
+          key: sKey,
+          name: q.sectionName,
+          icon: q.sectionIcon || "🎯",
+          sub: q.sectionSub || "",
+          order: q.sectionOrder || 1,
+          time: "4 min",
+          questions: [],
+        });
+      }
+      sectionsMap.get(sKey).questions.push({
+        id: String(q._id || q.id || `q_${q.order}`),
+        section: q.sectionKey,
+        topic: q.topic || "",
+        question: q.question,
+        options: q.options,
+        correct: q.correct,
+        explanation: q.explanation || "",
+      });
+    }
+
+    const sections = Array.from(sectionsMap.values()).sort((a, b) => a.order - b.order);
+
+    res.json({
+      success: true,
+      domain,
+      sections,
+      questions: sections.flatMap((s) => s.questions),
+    });
+  } catch (err) {
+    logger.error(`Fetch assessment questions error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to load assessment questions." });
+  }
+});
+
+// GET /api/candidate/interview-questions?mode=video|audio&domain=... - Ordered question
 // list for the Stage 5 AI Video Assessment / AI Audio Interview, as configured
 // by staff in the Staff Hub. Answer keys are NEVER included here - grading
 // happens entirely server-side in /ai-video/assess and /ai-audio/assess.
 router.get("/interview-questions", async (req, res) => {
   try {
     const mode = req.query.mode === "video" ? "video" : "audio";
-    const rawQuestions = await InterviewQuestion.find({ active: true, mode: { $in: [mode, "both"] } })
-      .select("_id text")
+    let domain = req.query.domain;
+    if (!domain) {
+      const candidate = await Candidate.findById(req.candidateId).select("stage2").lean();
+      domain = candidate?.stage2?.domain || "Medical Coding";
+    }
+
+    const queryFilter = {
+      active: true,
+      mode: { $in: [mode, "both"] },
+    };
+
+    if (domain) {
+      queryFilter.$or = [
+        { domain },
+        { domain: "General" },
+        { domain: { $exists: false } },
+        { domain: null },
+      ];
+    }
+
+    const rawQuestions = await InterviewQuestion.find(queryFilter)
+      .select("_id text domain")
       .lean();
+
+    // Prioritize exact domain matches first
+    rawQuestions.sort((a, b) => {
+      const aMatch = a.domain === domain ? 1 : 0;
+      const bMatch = b.domain === domain ? 1 : 0;
+      return bMatch - aMatch;
+    });
 
     // Deduplicate by normalized text
     const seenNorms = new Set();
@@ -996,9 +1138,8 @@ router.get("/interview-questions", async (req, res) => {
       deduped.push(q);
     }
 
-    // Shuffle to provide different questions per user
-    const shuffled = [...deduped].sort(() => 0.5 - Math.random());
-    let selected = shuffled.slice(0, 5);
+    // Shuffle slightly while keeping domain priority
+    let selected = deduped.slice(0, 5);
 
     // If fewer than 5 questions, supplement from DEFAULT_INTERVIEW_QUESTIONS without duplicates
     if (selected.length < 5) {
@@ -3165,8 +3306,8 @@ router.get("/jobs", async (req, res) => {
       add("Education", fd.edumin);
       add("Shift", fd.shift);
       add("Languages", asList(fd.languages).join(", "));
-      add("Tools / EHR", asList(fd.reqtools).join(", "));
-      if (fd.level !== "Fresher only") add("Notice period", fd.notice);
+      const isFresherRole = fd.level === "Fresher only" || fd.level === "Fresher" || String(fd.level || "").toLowerCase().includes("fresher") || (fd.expmin !== undefined && fd.expmin !== null && fd.expmin !== "" && Number(fd.expmin) === 0 && Number(fd.expmax || 0) <= 1);
+      if (!isFresherRole) add("Notice period", fd.notice);
       add("Probation", hasVal(fd.probation) ? `${fd.probation} months` : "");
       add("Joining bonus", hasVal(fd.joiningbonus) ? `₹${fd.joiningbonus}` : "");
       return rows;

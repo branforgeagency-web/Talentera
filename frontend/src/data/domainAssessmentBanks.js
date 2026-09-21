@@ -1,0 +1,708 @@
+/**
+ * Domain Assessment Question Banks
+ * 
+ * Contains the 5 tailored syllabus sections and 10 questions for each of the 4 domains:
+ * 1. Medical Coding
+ * 2. Medical Billing
+ * 3. Accounts Receivable
+ * 4. Front Office
+ */
+
+export const DOMAIN_ASSESSMENT_SECTIONS = {
+  "Medical Coding": [
+    {
+      key: "anatomy",
+      name: "Anatomy & Physiology",
+      icon: "🫀",
+      sub: "Body systems, organ location, systemic circulation, endocrine function",
+      time: "4 min",
+      questions: [
+        {
+          id: "mc_anat_1",
+          section: "anatomy",
+          topic: "Cardiovascular System",
+          question: "Which chamber of the human heart is responsible for pumping oxygenated blood into the systemic circulation via the aorta?",
+          options: ["Right atrium", "Right ventricle", "Left ventricle", "Left atrium"],
+          correct: 2,
+          explanation: "The left ventricle possesses the thickest muscular myocardium to pump oxygenated blood through the aortic valve into systemic circulation.",
+        },
+        {
+          id: "mc_anat_2",
+          section: "anatomy",
+          topic: "Endocrine System",
+          question: "Which endocrine glands are situated superiorly on the upper pole of each kidney?",
+          options: ["Thyroid glands", "Adrenal (Suprarenal) glands", "Parathyroid glands", "Pituitary gland"],
+          correct: 1,
+          explanation: "The adrenal glands sit directly atop the kidneys and secrete vital hormones including aldosterone, cortisol, and adrenaline.",
+        },
+      ],
+    },
+    {
+      key: "medterm",
+      name: "Medical Terminology",
+      icon: "📖",
+      sub: "Prefixes, suffixes, combining root words, clinical terminology",
+      time: "4 min",
+      questions: [
+        {
+          id: "mc_med_1",
+          section: "medterm",
+          topic: "Word Roots",
+          question: "What anatomical structure is referred to by the combining root form 'Chondr/o'?",
+          options: ["Bone marrow", "Cartilage", "Joint cavity", "Tendon sheath"],
+          correct: 1,
+          explanation: "'Chondr/o' is the Greek combining form for cartilage (e.g., chondroma, chondromalacia).",
+        },
+        {
+          id: "mc_med_2",
+          section: "medterm",
+          topic: "Surgical Suffixes",
+          question: "Which surgical suffix indicates the surgical excision or complete removal of an organ or tissue?",
+          options: ["-otomy (incision into)", "-ostomy (creation of an opening)", "-ectomy (surgical removal)", "-plasty (surgical repair)"],
+          correct: 2,
+          explanation: "'-ectomy' denotes surgical removal or excision (e.g., appendectomy, cholecystectomy).",
+        },
+      ],
+    },
+    {
+      key: "aptitude",
+      name: "Aptitude & Logic",
+      icon: "🧠",
+      sub: "Reasoning, auditing arithmetic, chart sequence analysis",
+      time: "4 min",
+      questions: [
+        {
+          id: "mc_apt_1",
+          section: "aptitude",
+          topic: "Auditing Math",
+          question: "A quality auditor reviews 120 medical charts during an 8-hour shift and identifies a 5% coding error rate. Exactly how many charts were coded accurately?",
+          options: ["112 charts", "114 charts", "116 charts", "110 charts"],
+          correct: 1,
+          explanation: "5% of 120 charts = 6 erroneous charts. 120 - 6 = 114 completely accurate charts (95% accuracy).",
+        },
+        {
+          id: "mc_apt_2",
+          section: "aptitude",
+          topic: "Sequential Logic",
+          question: "In a billing queue: Claim P is adjudicated before Claim Q. Claim R is adjudicated after Claim Q but before Claim S. Which claim is adjudicated FIRST?",
+          options: ["Claim Q", "Claim R", "Claim P", "Claim S"],
+          correct: 2,
+          explanation: "Sequence: P -> Q -> R -> S. Therefore, Claim P is processed first.",
+        },
+      ],
+    },
+    {
+      key: "basicicd",
+      name: "Basic ICD-10-CM",
+      icon: "📊",
+      sub: "ICD-10-CM structure, conventions, etiology/manifestation sequencing",
+      time: "4 min",
+      questions: [
+        {
+          id: "mc_icd_1",
+          section: "basicicd",
+          topic: "Sequencing Guidelines",
+          question: "According to ICD-10-CM Official Coding Guidelines, when an underlying condition (etiology) produces a secondary manifestation, how must the codes be sequenced?",
+          options: [
+            "The manifestation code is always sequenced first",
+            "The underlying etiology code is sequenced first, followed by the manifestation code",
+            "Either code may be sequenced in any random order",
+            "Only the manifestation code is reported",
+          ],
+          correct: 1,
+          explanation: "ICD-10-CM guidelines mandate 'Code First underlying disease' sequencing: etiology followed by manifestation code.",
+        },
+        {
+          id: "mc_icd_2",
+          section: "basicicd",
+          topic: "7th Character Extenders",
+          question: "In ICD-10-CM Chapter 19 (Injury and Poisoning), what does the 7th character 'A' designate?",
+          options: [
+            "Subsequent encounter for fracture with routine healing",
+            "Initial encounter for active treatment of the injury",
+            "Sequela or late effect of previous trauma",
+            "Adverse effect of therapeutic drug",
+          ],
+          correct: 1,
+          explanation: "Character 'A' indicates the initial encounter while the patient is receiving active treatment for the condition.",
+        },
+      ],
+    },
+    {
+      key: "cpt_hcpcs",
+      name: "CPT / HCPCS & Modifiers",
+      icon: "🏷️",
+      sub: "Procedural coding, modifier usage (-25 vs -59), global surgery package",
+      time: "4 min",
+      questions: [
+        {
+          id: "mc_cpt_1",
+          section: "cpt_hcpcs",
+          topic: "Modifier Selection",
+          question: "Which modifier should be appended to an E/M service code when a physician performs a significant, separately identifiable evaluation on the same date as a minor surgical procedure?",
+          options: ["Modifier -59", "Modifier -25", "Modifier -51", "Modifier -22"],
+          correct: 1,
+          explanation: "Modifier -25 designates a significant, separately identifiable Evaluation and Management service by the same physician on the same day as a minor procedure.",
+        },
+        {
+          id: "mc_cpt_2",
+          section: "cpt_hcpcs",
+          topic: "Global Surgery Rules",
+          question: "Under standard CMS Global Surgical Package guidelines, routine uncomplicated postoperative follow-up visits within a 90-day global surgery window are:",
+          options: [
+            "Separately billable with modifier -25",
+            "Included in the global surgical fee and not separately billable",
+            "Billed under CPT 99214 directly to the patient",
+            "Billed only to the secondary payer",
+          ],
+          correct: 1,
+          explanation: "Routine postoperative care related to surgical recovery within the global period is included in the global surgical reimbursement package.",
+        },
+      ],
+    },
+  ],
+
+  "Medical Billing": [
+    {
+      key: "insurance_types",
+      name: "Insurance Types & Payers",
+      icon: "🏥",
+      sub: "Medicare Parts A/B/C/D, Medicaid, Commercial, Managed Care plans",
+      time: "4 min",
+      questions: [
+        {
+          id: "mb_ins_1",
+          section: "insurance_types",
+          topic: "Medicare Programs",
+          question: "Which part of the United States Medicare program covers outpatient clinical services, physician fees, durable medical equipment (DME), and laboratory diagnostics?",
+          options: ["Medicare Part A", "Medicare Part B", "Medicare Part C", "Medicare Part D"],
+          correct: 1,
+          explanation: "Medicare Part B covers outpatient physician visits, diagnostic lab tests, ambulance services, and medical supplies.",
+        },
+        {
+          id: "mb_ins_2",
+          section: "insurance_types",
+          topic: "Government vs Commercial",
+          question: "Medicaid is best described as which type of healthcare insurance model?",
+          options: [
+            "A federally-funded only entitlement for individuals aged 65 and older",
+            "A joint federal-state program providing health coverage to low-income individuals and families",
+            "A private employer-sponsored ERISA managed care plan",
+            "A supplemental secondary policy purchased exclusively from private commercial payers",
+          ],
+          correct: 1,
+          explanation: "Medicaid is administered at state level under federal guidelines to provide assistance to eligible low-income individuals.",
+        },
+      ],
+    },
+    {
+      key: "billing_terms",
+      name: "Billing Terminology & Identifiers",
+      icon: "📖",
+      sub: "NPI, TIN, Copay, Coinsurance, Deductible, Out-of-Pocket limits",
+      time: "4 min",
+      questions: [
+        {
+          id: "mb_terms_1",
+          section: "billing_terms",
+          topic: "Provider Identifiers",
+          question: "What is a 10-digit National Provider Identifier (NPI) used for in medical billing workflows?",
+          options: [
+            "A tax identification number assigned by the IRS to claim provider deductions",
+            "A standard unique health identifier mandated by HIPAA for healthcare providers on all administrative and financial transactions",
+            "A state medical license number required to dispense controlled substances",
+            "A regional clearinghouse clearing account routing ID",
+          ],
+          correct: 1,
+          explanation: "Mandated under HIPAA, the 10-digit NPI uniquely identifies healthcare providers across all electronic healthcare transactions.",
+        },
+        {
+          id: "mb_terms_2",
+          section: "billing_terms",
+          topic: "Cost Sharing",
+          question: "What is the key difference between a patient's 'Copayment' and 'Coinsurance'?",
+          options: [
+            "Copayment is paid by the employer, while coinsurance is paid by the employee",
+            "Copayment is a fixed dollar fee per visit; coinsurance is a percentage of the allowable charge shared after the deductible is satisfied",
+            "Copayment only applies to hospital stays; coinsurance only applies to pharmacy prescriptions",
+            "There is no difference; both terms describe the annual deductible",
+          ],
+          correct: 1,
+          explanation: "Copay is a set dollar amount (e.g., $25/visit), whereas coinsurance is a percentage split (e.g., 80/20) of allowable fees.",
+        },
+      ],
+    },
+    {
+      key: "claims_rcm",
+      name: "Claims Submission & RCM",
+      icon: "📑",
+      sub: "CMS-1500, UB-04, 837P/837I EDI, clearinghouse scrubbing, clean claims",
+      time: "4 min",
+      questions: [
+        {
+          id: "mb_claim_1",
+          section: "claims_rcm",
+          topic: "Claim Form Types",
+          question: "Which claim format is designated standard for professional physician and outpatient clinic services billed to third-party payers?",
+          options: ["UB-04 / CMS-1450", "CMS-1500 / 837P", "CMS-10080", "ADA Dental Claim Form J400"],
+          correct: 1,
+          explanation: "The CMS-1500 (electronic 837P) is the standard claim form for professional physician and outpatient clinical services.",
+        },
+        {
+          id: "mb_claim_2",
+          section: "claims_rcm",
+          topic: "Clearinghouse Edits",
+          question: "What primary function does an electronic healthcare clearinghouse perform between a provider and an insurance payer?",
+          options: [
+            "Adjudicating claims and directly transferring money from the US Treasury",
+            "Validating and scrubbing claims for formatting and HIPAA errors before transmitting 837 EDI files to payers",
+            "Conducting in-person patient physical examinations",
+            "Determining clinical medication dosages",
+          ],
+          correct: 1,
+          explanation: "Clearinghouses audit, format, and scrub electronic claim files against payer-specific rules before forwarding clean claims.",
+        },
+      ],
+    },
+    {
+      key: "payment_posting",
+      name: "Payment Posting & Remittance",
+      icon: "💳",
+      sub: "EOB, ERA (835), contractual adjustments, patient balance calculation",
+      time: "4 min",
+      questions: [
+        {
+          id: "mb_post_1",
+          section: "payment_posting",
+          topic: "Remittance Processing",
+          question: "What is an Electronic Remittance Advice (ERA / 835 transaction) utilized for in medical billing?",
+          options: [
+            "Notifying the DEA of controlled substance orders",
+            "Receiving electronic explanation of claim payment, contractual adjustments, and patient liability from the payer",
+            "Scheduling surgeon operating theater times",
+            "Registering new clinical staff members with CMS",
+          ],
+          correct: 1,
+          explanation: "An 835 ERA transmits electronic payment explanations, payment adjustments, denial codes, and allowed amounts to practice management systems.",
+        },
+        {
+          id: "mb_post_2",
+          section: "payment_posting",
+          topic: "Adjustment Calculation",
+          question: "A doctor bills $250 for an encounter. The contracted payer allowable fee is $160, and the payer pays $128 (80%) with a $32 patient coinsurance (20%). What is the Contractual Adjustment write-off amount?",
+          options: ["$32.00", "$90.00", "$128.00", "$160.00"],
+          correct: 1,
+          explanation: "Contractual write-off = Billed Charge ($250) - Contracted Allowable ($160) = $90.00.",
+        },
+      ],
+    },
+    {
+      key: "billing_compliance",
+      name: "Billing Math & Compliance",
+      icon: "⚖️",
+      sub: "Fraud vs Abuse, False Claims Act, Anti-Kickback Statute, billing calculations",
+      time: "4 min",
+      questions: [
+        {
+          id: "mb_comp_1",
+          section: "billing_compliance",
+          topic: "Fraud vs Abuse",
+          question: "Under federal healthcare law, billing for services or diagnostic tests that were never rendered is categorized as:",
+          options: ["Incidental billing abuse", "Healthcare Fraud", "Standard administrative variance", "Defensive coding practice"],
+          correct: 1,
+          explanation: "Knowingly submitting claims for healthcare services, procedures, or supplies that were never provided constitutes healthcare fraud under the False Claims Act.",
+        },
+        {
+          id: "mb_comp_2",
+          section: "billing_compliance",
+          topic: "Clean Claim Rate Math",
+          question: "A medical billing department submits 500 initial claims in a month. 440 claims are accepted and paid on first-pass submission without rework. What is the First-Pass Clean Claim Rate (CCR)?",
+          options: ["80%", "85%", "88%", "92%"],
+          correct: 2,
+          explanation: "Clean Claim Rate = (440 clean claims / 500 total submitted claims) * 100 = 88%.",
+        },
+      ],
+    },
+  ],
+
+  "Accounts Receivable": [
+    {
+      key: "ar_fundamentals",
+      name: "AR Fundamentals & Aging",
+      icon: "📈",
+      sub: "AR aging buckets (0-30, 31-60, 61-90, 91-120, 120+), Days in AR (DAR)",
+      time: "4 min",
+      questions: [
+        {
+          id: "ar_fund_1",
+          section: "ar_fundamentals",
+          topic: "Aging Buckets",
+          question: "In healthcare revenue cycle management, which AR aging bucket represents the highest risk of bad debt and timely-filing loss if unworked?",
+          options: ["0 - 30 days", "31 - 60 days", "61 - 90 days", "120+ days"],
+          correct: 3,
+          explanation: "Claims exceeding 120 days have the highest probability of permanent loss due to payer timely filing appeal restrictions and collection decay.",
+        },
+        {
+          id: "ar_fund_2",
+          section: "ar_fundamentals",
+          topic: "Days in AR Calculation",
+          question: "A clinic has $600,000 in Total Accounts Receivable and generates $15,000 in Average Daily Gross Charges. What is the clinic's Days in AR (DAR)?",
+          options: ["25 days", "35 days", "40 days", "50 days"],
+          correct: 2,
+          explanation: "Days in AR = Total AR ($600,000) / Average Daily Charges ($15,000) = 40 days.",
+        },
+      ],
+    },
+    {
+      key: "denial_management",
+      name: "Denial Management & Codes",
+      icon: "❌",
+      sub: "CARC, RARC, Group codes (CO, PR, OA, CR), denial categorization",
+      time: "4 min",
+      questions: [
+        {
+          id: "ar_den_1",
+          section: "denial_management",
+          topic: "Claim Adjustment Group Codes",
+          question: "On an Explanation of Benefits / 835 Remittance, what does Claim Adjustment Group Code 'CO' signify?",
+          options: [
+            "Contractual Obligation: Provider cannot bill the patient for this adjustment",
+            "Patient Responsibility: Balance must be billed to the patient",
+            "Correction Opportunity: Resubmit without changes within 24 hours",
+            "Commercial Override: Primary insurer pays 100%",
+          ],
+          correct: 0,
+          explanation: "'CO' (Contractual Obligation) indicates adjustments mandated by payer-provider contracts that cannot be balance-billed to the patient.",
+        },
+        {
+          id: "ar_den_2",
+          section: "denial_management",
+          topic: "CARC vs RARC",
+          question: "What is the difference between a Claim Adjustment Reason Code (CARC) and a Remittance Advice Remark Code (RARC)?",
+          options: [
+            "CARCs are for hospitals; RARCs are for pharmacies",
+            "CARC explains WHY a service was denied or reduced; RARC provides additional explanation or documentation guidance",
+            "CARC is a patient ID code; RARC is a provider tax ID code",
+            "There is no difference; they are interchangeable duplicates",
+          ],
+          correct: 1,
+          explanation: "CARC conveys why payment differs from billed charges; RARC provides supplementary clinical or administrative instructions.",
+        },
+      ],
+    },
+    {
+      key: "payer_followup",
+      name: "Payer Follow-Up & Appeals",
+      icon: "📞",
+      sub: "IVR, Payer web portals, call reference numbers, formal appeal packages",
+      time: "4 min",
+      questions: [
+        {
+          id: "ar_fol_1",
+          section: "payer_followup",
+          topic: "Representative Call Protocol",
+          question: "When conducting telephone follow-up with an insurance payer on an unpaid aged claim, which critical piece of information must the AR specialist ALWAYS obtain?",
+          options: [
+            "The personal home address of the insurance agent",
+            "The payer call reference number, representative name, and specific claim status notes",
+            "The payer's corporate stock market ticker symbol",
+            "The physician's personal cell phone PIN",
+          ],
+          correct: 1,
+          explanation: "A call reference number and representative name provide audit verification and binding tracking for follow-up appeals.",
+        },
+        {
+          id: "ar_fol_2",
+          section: "payer_followup",
+          topic: "Timely Filing Appeal Evidence",
+          question: "Which document constitutes the strongest legal proof to overturn an insurance denial for 'Timely Filing Limit Exceeded'?",
+          options: [
+            "A handwritten physician note dated yesterday",
+            "An electronic clearinghouse 277 acceptance report / 999 batch transmission receipt proving timely submission within payer limits",
+            "A verbal phone testimonial from the medical receptionist",
+            "A photocopy of the patient's driver license",
+          ],
+          correct: 1,
+          explanation: "Clearinghouse electronic acceptance reports (EDI 277/999) provide irrefutable timestamped evidence of timely delivery.",
+        },
+      ],
+    },
+    {
+      key: "patient_ar",
+      name: "Patient AR & Collections",
+      icon: "👥",
+      sub: "Self-pay billing, patient statements, credit balances, FDCPA compliance",
+      time: "4 min",
+      questions: [
+        {
+          id: "ar_pat_1",
+          section: "patient_ar",
+          topic: "Credit Balances",
+          question: "What is an AR specialist required to do when an account audit reveals an undisbursed patient or insurance 'Credit Balance'?",
+          options: [
+            "Quietly transfer the surplus amount to clinic profit margin",
+            "Investigate whether an overpayment occurred and issue a timely refund or transfer to active outstanding balances",
+            "Discard the encounter chart after 30 days",
+            "Charge an administrative penalty to the patient",
+          ],
+          correct: 1,
+          explanation: "Credit balances represent liabilities; healthcare entities must audit overpayments and issue prompt refunds to patients or payers.",
+        },
+        {
+          id: "ar_pat_2",
+          section: "patient_ar",
+          topic: "FDCPA Regulations",
+          question: "Under the Fair Debt Collection Practices Act (FDCPA), collection calls to a patient are strictly prohibited:",
+          options: [
+            "During normal daytime business hours",
+            "Before 8:00 AM or after 9:00 PM local time, or at work if the employer prohibits personal calls",
+            "Via written paper statement sent by postal mail",
+            "When the account balance is under $500",
+          ],
+          correct: 1,
+          explanation: "The FDCPA prohibits contacting debtors before 8:00 AM or after 9:00 PM local time without consent.",
+        },
+      ],
+    },
+    {
+      key: "recovery_metrics",
+      name: "Recovery Math & Root-Cause",
+      icon: "📊",
+      sub: "Net collection rate, denial overturn rate, root cause remediation",
+      time: "4 min",
+      questions: [
+        {
+          id: "ar_rec_1",
+          section: "recovery_metrics",
+          topic: "Net Collection Rate",
+          question: "In AR analytics, how is the Net Collection Rate (NCR) accurately calculated?",
+          options: [
+            "(Total Gross Charges / Total Collections) * 100",
+            "[Total Payments Collected / (Gross Charges - Contractual Adjustments)] * 100",
+            "(Total Number of Patients / Number of Providers) * 100",
+            "(Total Denials / Total Claims) * 100",
+          ],
+          correct: 1,
+          explanation: "Net Collection Rate = Payments Collected / (Gross Charges - Allowed Contractual Adjustments) * 100. Benchmarks exceed 95%.",
+        },
+        {
+          id: "ar_rec_2",
+          section: "recovery_metrics",
+          topic: "Root Cause Remediation",
+          question: "If an AR team observes that 40% of recent claim denials are due to 'CO-27 (Expenses incurred after coverage terminated)', what is the recommended root cause fix?",
+          options: [
+            "Hire more inpatient surgical coders",
+            "Enforce real-time insurance eligibility verification (270/271) at front desk check-in prior to services being rendered",
+            "Increase physician service fee schedules by 20%",
+            "Stop billing insurance and convert all patients to self-pay cash only",
+          ],
+          correct: 1,
+          explanation: "Eligibility denials (CO-27) originate at the front desk and are eliminated by verifying active coverage before visits.",
+        },
+      ],
+    },
+  ],
+
+  "Front Office": [
+    {
+      key: "patient_scheduling",
+      name: "Patient Scheduling & Intake",
+      icon: "📅",
+      sub: "Appointment templates, new vs established, intake registration, no-show reduction",
+      time: "4 min",
+      questions: [
+        {
+          id: "fo_sch_1",
+          section: "patient_scheduling",
+          topic: "Appointment Slotting",
+          question: "When scheduling appointments, why are new patient slots allocated longer duration templates than established patient visits?",
+          options: [
+            "New patients pay lower clinic fees",
+            "New patient visits require comprehensive intake history, insurance capture, and full physical examination baseline",
+            "Established patients do not need to see the provider",
+            "Insurers mandate that established visits last exactly 5 minutes",
+          ],
+          correct: 1,
+          explanation: "New patients require thorough registration, consent forms, medical history documentation, and extensive clinical evaluation.",
+        },
+        {
+          id: "fo_sch_2",
+          section: "patient_scheduling",
+          topic: "No-Show Minimization",
+          question: "Which front office protocol has proven most effective at reducing patient no-show rates in outpatient practices?",
+          options: [
+            "Refusing to book follow-up appointments",
+            "Automated multi-channel appointment reminders (SMS text and phone calls 24 to 48 hours in advance) with confirmation prompts",
+            "Double-booking every appointment time slot four times",
+            "Eliminating phone triage service",
+          ],
+          correct: 1,
+          explanation: "Automated SMS/phone appointment reminders 24-48 hours before appointments consistently lower no-show rates by 30-50%.",
+        },
+      ],
+    },
+    {
+      key: "eligibility_auth",
+      name: "Eligibility & Prior Authorization",
+      icon: "🔑",
+      sub: "EDI 270/271, active dates, referral vs pre-certification, specialty care",
+      time: "4 min",
+      questions: [
+        {
+          id: "fo_auth_1",
+          section: "eligibility_auth",
+          topic: "Real-Time Eligibility",
+          question: "What is an electronic 270/271 transaction pair utilized for in healthcare front office operations?",
+          options: [
+            "Submitting hospital inpatient death records",
+            "Inquiring (270) and receiving (271) real-time patient insurance eligibility, active coverage dates, copayments, and deductible status",
+            "Ordering laboratory biological reagents",
+            "Reporting employee payroll taxes to the state",
+          ],
+          correct: 1,
+          explanation: "The HIPAA 270/271 transaction standard enables real-time verification of patient insurance benefit coverage and cost-sharing.",
+        },
+        {
+          id: "fo_auth_2",
+          section: "eligibility_auth",
+          topic: "Prior Authorization Impact",
+          question: "What is the consequence if a specialist performs an elective MRI or surgery without obtaining required Prior Authorization (Pre-certification)?",
+          options: [
+            "The payer will deny the claim entirely, and the provider contractually cannot bill the patient",
+            "The payer will automatically pay double as an emergency incentive",
+            "The hospital will be exempt from state licensing",
+            "The patient will receive a full tax credit",
+          ],
+          correct: 0,
+          explanation: "Lack of required prior authorization results in an unappealable claim denial that cannot be transferred to the patient.",
+        },
+      ],
+    },
+    {
+      key: "hipaa_demographics",
+      name: "Patient Demographics & HIPAA",
+      icon: "🛡️",
+      sub: "PHI protection, Notice of Privacy Practices (NPP), Minimum Necessary rule",
+      time: "4 min",
+      questions: [
+        {
+          id: "fo_hipaa_1",
+          section: "hipaa_demographics",
+          topic: "Front-Desk Privacy Safeguards",
+          question: "Which of the following represents an essential physical safeguard to prevent unauthorized disclosure of Protected Health Information (PHI) at reception?",
+          options: [
+            "Displaying full patient medical diagnosis sheets on a wall whiteboard",
+            "Positioning computer monitor screens facing away from public view or using privacy filters, and speaking in lowered tones",
+            "Leaving paper charts open face-up on the check-in counter",
+            "Reading patient social security numbers aloud in the waiting room",
+          ],
+          correct: 1,
+          explanation: "Privacy screens, positioning monitors away from waiting areas, and keeping voices low prevent public PHI exposure under HIPAA.",
+        },
+        {
+          id: "fo_hipaa_2",
+          section: "hipaa_demographics",
+          topic: "Notice of Privacy Practices",
+          question: "What is the purpose of providing a candidate or patient with the Notice of Privacy Practices (NPP)?",
+          options: [
+            "To force the patient to waive all rights to privacy",
+            "To inform the patient how their protected health information may be used, disclosed, and how they can access their records",
+            "To guarantee that treatment will be free of charge",
+            "To bill the patient an annual administrative retainer",
+          ],
+          correct: 1,
+          explanation: "The HIPAA NPP outlines how medical information is handled, patient privacy rights, and the practice's legal privacy duties.",
+        },
+      ],
+    },
+    {
+      key: "front_collections",
+      name: "Front-Desk Collections & Service",
+      icon: "💵",
+      sub: "Point-of-service copay collections, payment receipts, customer service",
+      time: "4 min",
+      questions: [
+        {
+          id: "fo_coll_1",
+          section: "front_collections",
+          topic: "Point-of-Service (POS) Collections",
+          question: "Why is collecting patient copayments and deductibles at check-in (Point of Service) critical to medical practice viability?",
+          options: [
+            "It gives front desk staff extra cash commissions",
+            "It eliminates downstream collection costs, prevents bad debt write-offs, and significantly improves practice cash flow",
+            "Insurance companies fine clinics that do not collect cash before physician rounds",
+            "Physicians are legally barred from seeing patients without physical receipts",
+          ],
+          correct: 1,
+          explanation: "Collecting patient copayments at check-in captures over 90% of patient revenue and drastically reduces billing agency costs.",
+        },
+        {
+          id: "fo_coll_2",
+          section: "front_collections",
+          topic: "Clear Financial Communication",
+          question: "What is the most professional way for a front desk coordinator to request a required copayment at check-in?",
+          options: [
+            "\"You owe money today; give me your card.\"",
+            "\"Mr. Smith, your insurance requires a $25 specialist copay for today's visit. Will you be paying with credit, debit, or cash?\"",
+            "\"You don't need to pay now, we will probably bill you later.\"",
+            "\"Can you leave your watch as security deposit?\"",
+          ],
+          correct: 1,
+          explanation: "Polite, clear, and assertive phrasing stating the verified insurance requirement facilitates seamless collection without conflict.",
+        },
+      ],
+    },
+    {
+      key: "coordination_benefits",
+      name: "Coordination of Benefits & Referrals",
+      icon: "🔄",
+      sub: "Primary vs secondary payers, Birthday Rule, referral authorizations",
+      time: "4 min",
+      questions: [
+        {
+          id: "fo_cob_1",
+          section: "coordination_benefits",
+          topic: "The Birthday Rule",
+          question: "Under the standard Coordination of Benefits (COB) 'Birthday Rule', which parent's health insurance plan is primary for a covered child?",
+          options: [
+            "The plan of the parent who was born earlier in year (the oldest parent by age)",
+            "The plan of the parent whose birthday (month and day, ignoring birth year) falls earlier in the calendar year",
+            "The plan of the father always, regardless of dates",
+            "The plan with the higher deductible",
+          ],
+          correct: 1,
+          explanation: "The Birthday Rule dictates that the policyholder whose birth month and day occurs first in the calendar year provides primary coverage.",
+        },
+        {
+          id: "fo_cob_2",
+          section: "coordination_benefits",
+          topic: "Specialist Referral Tracking",
+          question: "In an HMO (Health Maintenance Organization) plan, what must the front desk ensure is on file before scheduling a patient with an in-network specialist?",
+          options: [
+            "A notarized affidavit from a municipal court",
+            "A valid Primary Care Physician (PCP) referral authorization",
+            "An emergency room discharge certificate",
+            "A written letter from the patient's employer",
+          ],
+          correct: 1,
+          explanation: "HMO plans mandate a PCP referral authorization to be on file before specialist services are reimbursable.",
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * Returns the 5 syllabus sections for the specified domain
+ */
+export function getDomainSections(domain = "Medical Coding") {
+  return DOMAIN_ASSESSMENT_SECTIONS[domain] || DOMAIN_ASSESSMENT_SECTIONS["Medical Coding"];
+}
+
+/**
+ * Returns the 10 assessment questions for the specified domain
+ */
+export function getDomainQuestions(domain = "Medical Coding") {
+  const sections = getDomainSections(domain);
+  return sections.flatMap((s) => s.questions);
+}

@@ -242,14 +242,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const chartsCoded = profile?.stage6?.totalCharts || 0;
   const pendingInvites = invites.filter((i) => i.status !== 'confirmed');
   const badgeCriteria = [
-    { key: 'aadhaar', label: 'Aadhaar Identity Verified', icon: '🪪', earned: !!profile?.stage1?.aadhaarVerified },
-    { key: 'academy', label: 'Academy Foundation Complete', icon: '🎓', earned: completedStages.includes(2) },
-    { key: 'cert', label: 'Certification Verified', icon: '📜', earned: profile?.stage3?.certStatus === 'verified' },
-    { key: 'assessment', label: 'Assessment Passed', icon: '🧠', earned: !!(profile?.stage4?.passed) },
-    { key: 'video', label: 'Video Pitch Verified', icon: '🎥', earned: !!(profile?.stage5?.verified) },
-    { key: 'charts', label: 'Live Charts Logged', icon: '💻', earned: (profile?.stage6?.totalCharts || 0) > 0 },
-    { key: 'resume', label: 'Resume Built', icon: '📄', earned: completedStages.includes(7) },
-    { key: 'track', label: 'Employment Status Set', icon: '📍', earned: completedStages.includes(8) },
+    { key: 'aadhaar', label: 'Aadhaar Identity Verified', icon: <i className="fa-solid fa-id-card" />, earned: !!profile?.stage1?.aadhaarVerified },
+    { key: 'academy', label: 'Academy Foundation Complete', icon: <i className="fa-solid fa-graduation-cap" />, earned: completedStages.includes(2) },
+    { key: 'cert', label: 'Certification Verified', icon: <i className="fa-solid fa-certificate" />, earned: profile?.stage3?.certStatus === 'verified' },
+    { key: 'assessment', label: 'Assessment Passed', icon: <i className="fa-solid fa-brain" />, earned: !!(profile?.stage4?.passed) },
+    { key: 'video', label: 'Video Pitch Verified', icon: <i className="fa-solid fa-video" />, earned: !!(profile?.stage5?.verified) },
+    { key: 'charts', label: 'Live Charts Logged', icon: <i className="fa-solid fa-laptop" />, earned: (profile?.stage6?.totalCharts || 0) > 0 },
+    { key: 'resume', label: 'Resume Built', icon: <i className="fa-solid fa-file-lines" />, earned: completedStages.includes(7) },
+    { key: 'track', label: 'Employment Status Set', icon: <i className="fa-solid fa-location-dot" />, earned: completedStages.includes(8) },
   ];
   const badgesEarnedCount = badgeCriteria.filter((b) => b.earned).length;
 
@@ -400,14 +400,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         </div>
 
         <div className="top-actions">
-          {/* ⚡ 8 Stages Verification Dashboard Topbar Action */}
+          {/* 8 Stages Verification Dashboard Topbar Action */}
           <button
             type="button"
             onClick={() => handleOpenStagesWizard(1)}
             className="btn-open-stages-topbar"
             title="Open Candidate 8 Stages Verification Wizard"
           >
-            <span className="stages-icon-pulse">⚡</span>
+            <span className="stages-icon-pulse"><i className="fa-solid fa-bolt" /></span>
             <span>8 Stages Dashboard</span>
             <span className="stages-count-pill">{completedStages.length}/8 Done</span>
           </button>
@@ -417,7 +417,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           </div>
 
           <div className="top-notif" onClick={() => triggerToast("You have no unread notifications.")}>
-            🔔
+            <i className="fa-solid fa-bell" />
           </div>
 
           <div className="top-user" onClick={() => setActiveTab('profile')}>
@@ -431,7 +431,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             </div>
           </div>
 
-          {/* 🚪 Sign Out Button -> redirects to Homepage */}
+          {/* Sign Out Button -> redirects to Homepage */}
           <button
             type="button"
             onClick={handleSignOut}
@@ -452,14 +452,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="layout">
         {/* SIDEBAR */}
         <aside className="sidebar" ref={sidebarRef}>
-          {/* ⚡ Quick Launch 8 Stages Wizard Banner */}
+          {/* Quick Launch 8 Stages Wizard Banner */}
           <div
             className="sb-stage-wizard-banner"
             onClick={() => handleOpenStagesWizard(1)}
             title="Click to open Candidate 8 Stages Verification Dashboard"
           >
             <div className="sb-swb-top">
-              <div className="sb-swb-icon-wrap">⚡</div>
+              <div className="sb-swb-icon-wrap"><i className="fa-solid fa-bolt" /></div>
               <div className="sb-swb-text">
                 <div className="sb-swb-title">8 Stages Dashboard</div>
                 <div className="sb-swb-sub">{completedStages.length}/8 Completed · {profileScore} pts</div>
@@ -478,24 +478,24 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="sb-group-label">STUDENT DASHBOARD</div>
             <div className="sb-nav">
               <div data-tab="dashboard" className={'sb-item ' + (activeTab === 'dashboard' ? 'active' : '')} onClick={() => setActiveTab('dashboard')}>
-                <span className="ico">📊</span>
+                <span className="ico"><i className="fa-solid fa-chart-pie" /></span>
                 <span>My Hub</span>
               </div>
               <div data-tab="profile" className={'sb-item ' + (activeTab === 'profile' ? 'active' : '')} onClick={() => setActiveTab('profile')}>
-                <span className="ico">👤</span>
+                <span className="ico"><i className="fa-solid fa-user" /></span>
                 <span>My Profile</span>
                 <span className="badge green">{profileScore}/100</span>
               </div>
               <div data-tab="badges" className={'sb-item ' + (activeTab === 'badges' ? 'active' : '')} onClick={() => setActiveTab('badges')}>
-                <span className="ico">🏅</span>
+                <span className="ico"><i className="fa-solid fa-award" /></span>
                 <span>My Badges</span>
               </div>
               <div data-tab="documents" className={'sb-item ' + (activeTab === 'documents' ? 'active' : '')} onClick={() => setActiveTab('documents')}>
-                <span className="ico">📁</span>
+                <span className="ico"><i className="fa-solid fa-folder" /></span>
                 <span>My Documents</span>
               </div>
               <div data-tab="resumes" className={'sb-item ' + (activeTab === 'resumes' ? 'active' : '')} onClick={() => setActiveTab('resumes')}>
-                <span className="ico">📄</span>
+                <span className="ico"><i className="fa-solid fa-file-lines" /></span>
                 <span>My Resumes</span>
               </div>
             </div>
@@ -505,21 +505,21 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="sb-group-label">HIRING &amp; EMPLOYERS</div>
             <div className="sb-nav">
               <div data-tab="companies" className={'sb-item ' + (activeTab === 'companies' ? 'active' : '')} onClick={() => setActiveTab('companies')}>
-                <span className="ico">🏢</span>
+                <span className="ico"><i className="fa-solid fa-building" /></span>
                 <span>My Companies</span>
                 <span className="badge gold">{companies.length}</span>
               </div>
               <div data-tab="applications" className={'sb-item ' + (activeTab === 'applications' ? 'active' : '')} onClick={() => setActiveTab('applications')}>
-                <span className="ico">📋</span>
+                <span className="ico"><i className="fa-solid fa-clipboard-list" /></span>
                 <span>My Applications</span>
                 <span className="badge gold">{applications.length}</span>
               </div>
               <div data-tab="invites" className={'sb-item ' + (activeTab === 'invites' ? 'active' : '')} onClick={() => setActiveTab('invites')}>
-                <span className="ico">💌</span>
+                <span className="ico"><i className="fa-solid fa-envelope" /></span>
                 <span>Interview Invites</span>
               </div>
               <div data-tab="feedback" className={'sb-item ' + (activeTab === 'feedback' ? 'active' : '')} onClick={() => setActiveTab('feedback')}>
-                <span className="ico">💬</span>
+                <span className="ico"><i className="fa-solid fa-comment-dots" /></span>
                 <span>Feedback Vault</span>
               </div>
             </div>
@@ -529,36 +529,36 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="sb-group-label">GROW</div>
             <div className="sb-nav">
               <div data-tab="jobs" className={'sb-item ' + (activeTab === 'jobs' ? 'active' : '')} onClick={() => setActiveTab('jobs')}>
-                <span className="ico">🔍</span>
+                <span className="ico"><i className="fa-solid fa-magnifying-glass" /></span>
                 <span>Browse Jobs</span>
                 <span className="badge blue">{jobs.length}</span>
               </div>
               <div data-tab="learning" className={'sb-item ' + (activeTab === 'learning' ? 'active' : '')} onClick={() => setActiveTab('learning')}>
-                <span className="ico">📚</span>
+                <span className="ico"><i className="fa-solid fa-book" /></span>
                 <span>Learning Hub</span>
               </div>
               <div data-tab="analytics" className={'sb-item ' + (activeTab === 'analytics' ? 'active' : '')} onClick={() => setActiveTab('analytics')}>
-                <span className="ico">📈</span>
+                <span className="ico"><i className="fa-solid fa-chart-line" /></span>
                 <span>Career Analytics</span>
               </div>
             </div>
           </div>
 
           <div className="sb-group">
-            <div className="sb-group-label">🎁 EARN · 3 ENGINES</div>
+            <div className="sb-group-label"><i className="fa-solid fa-gift" style={{ marginRight: 6 }} />EARN · 3 ENGINES</div>
             <div className="sb-nav">
               <div data-tab="refer" className={'sb-item ' + (activeTab === 'refer' ? 'active' : '')} onClick={() => setActiveTab('refer')}>
-                <span className="ico">🎁</span>
+                <span className="ico"><i className="fa-solid fa-gift" /></span>
                 <span>Refer to Portal</span>
                 <span className="badge gold">{(referrals?.pointsWallet ?? profile?.pointsWallet ?? 50)} pts</span>
               </div>
               <div data-tab="employer-referrals" className={'sb-item ' + (activeTab === 'employer-referrals' ? 'active' : '')} onClick={() => setActiveTab('employer-referrals')}>
-                <span className="ico">🏢</span>
+                <span className="ico"><i className="fa-solid fa-building" /></span>
                 <span>Employer Referrals</span>
                 <span className="badge blue">Direct pay</span>
               </div>
               <div data-tab="academy-referrals" className={'sb-item ' + (activeTab === 'academy-referrals' ? 'active' : '')} onClick={() => setActiveTab('academy-referrals')}>
-                <span className="ico">🏫</span>
+                <span className="ico"><i className="fa-solid fa-school" /></span>
                 <span>Academy Referrals</span>
                 <span className="badge green">
                   {(referrals?.academyReferrals?.filter(r => r.status === 'PAID')?.length || 0) > 0
@@ -573,7 +573,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="sb-group-label">VERIFICATION</div>
             <div className="sb-nav">
               <div data-tab="employment" className={'sb-item ' + (activeTab === 'employment' ? 'active' : '')} onClick={() => setActiveTab('employment')}>
-                <span className="ico">🛡️</span>
+                <span className="ico"><i className="fa-solid fa-shield-halved" /></span>
                 <span>Employment &amp; BG</span>
               </div>
             </div>
@@ -583,15 +583,15 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="sb-group-label">ACCOUNT</div>
             <div className="sb-nav">
               <div data-tab="settings" className={'sb-item ' + (activeTab === 'settings' ? 'active' : '')} onClick={() => setActiveTab('settings')}>
-                <span className="ico">⚙️</span>
+                <span className="ico"><i className="fa-solid fa-gear" /></span>
                 <span>Settings</span>
               </div>
               <div data-tab="help" className={'sb-item ' + (activeTab === 'help' ? 'active' : '')} onClick={() => setActiveTab('help')}>
-                <span className="ico">❓</span>
+                <span className="ico"><i className="fa-solid fa-circle-question" /></span>
                 <span>Help &amp; Support</span>
               </div>
               <div className="sb-item sb-signout-item" onClick={handleSignOut} title="Sign out and return to Homepage">
-                <span className="ico">🚪</span>
+                <span className="ico"><i className="fa-solid fa-right-from-bracket" /></span>
                 <span>Sign Out</span>
               </div>
             </div>
@@ -605,17 +605,17 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="welcome-hero">
         <div className="wh-grid">
           <div>
-            <div className="wh-greeting">👋 Welcome back</div>
+            <div className="wh-greeting">Welcome back</div>
             <div className="wh-name">{candidateName}</div>
             <div className="wh-tagline">{(companiesAttendedCount > 0 || pendingInvites.length > 0) ? `Your Career Passport is live. ${companiesAttendedCount} ${companiesAttendedCount === 1 ? 'company' : 'companies'} tracked · ${pendingInvites.length} pending interview ${pendingInvites.length === 1 ? 'invite' : 'invites'}.` : 'Your Career Passport is live. Stage verification score computed live from Stages 1–8.'}</div>
             <div className="wh-badges">
-              <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}>{profileScore >= 75 ? '🏆 Talentera Verified (75+)' : `⏳ Stage Score: ${profileScore}/100`}</span>
-              <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? '🟢 LIVE FOR HIRING' : '⚪ Not Live Yet'}</span>
-              <span className="wh-chip">🎓 {profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}</span>
-              <span className="wh-chip">📍 {profile?.stage1?.city || 'Location not set'}</span>
+              <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}>{profileScore >= 75 ? 'Talentera Verified (75+)' : `Stage Score: ${profileScore}/100`}</span>
+              <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? 'LIVE FOR HIRING' : 'Not Live Yet'}</span>
+              <span className="wh-chip"><i className="fa-solid fa-graduation-cap" style={{ marginRight: 5 }} />{profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}</span>
+              <span className="wh-chip"><i className="fa-solid fa-location-dot" style={{ marginRight: 5 }} />{profile?.stage1?.city || 'Location not set'}</span>
             </div>
 
-            {/* ⚡ Prominent Hero Action Buttons to Open 8 Stages Dashboard */}
+            {/* Prominent Hero Action Buttons to Open 8 Stages Dashboard */}
             <div style={{ marginTop: '18px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
@@ -623,7 +623,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 className="btn-open-stages-hero"
                 title="Launch the Candidate 8 Stages Verification Dashboard"
               >
-                <span>⚡ Open 8 Stages Dashboard</span>
+                <span><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open 8 Stages Dashboard</span>
                 <span className="hero-btn-pill">{completedStages.length}/8 Done</span>
                 <span style={{ fontSize: '15px' }}>→</span>
               </button>
@@ -633,7 +633,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 className="btn-view-profile-hero"
                 title="View individual stage completion breakdowns"
               >
-                👤 View Stage Breakdown
+                <><i className="fa-solid fa-user" style={{ marginRight: 6 }} />View Stage Breakdown</>
               </button>
             </div>
           </div>
@@ -653,23 +653,23 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               </div>
             </div>
             <div style={{ marginTop: '8px', fontSize: '11px', fontWeight: '800', color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              {profileScore >= 75 ? '🏆 Gold Verified' : 'Passport Score'}
+              {profileScore >= 75 ? 'Gold Verified' : 'Passport Score'}
             </div>
           </div>
         </div>
       </div>
 
       <div className="quick-stats">
-        <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico blue">🏢</div><div><div className="qs-val">{companiesAttendedCount}</div><div className="qs-lbl">Companies Attended</div><div className="qs-trend">{applications.length > 0 ? `${applications.length} total applications` : 'No applications yet'}</div></div></div>
-        <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico green">✓</div><div><div className="qs-val">{offersReceivedCount}</div><div className="qs-lbl">Offers Received</div><div className="qs-trend">{bestOfferCtc > 0 ? `↑ Best ₹${bestOfferCtc} LPA` : 'No offers yet'}</div></div></div>
-        <div className="qs-card" onClick={() => handleOpenStagesWizard(6)}><div className="qs-ico gold">💻</div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Open Stage 06'}</div></div></div>
-        <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple">🎖</div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${badgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico blue"><i className="fa-solid fa-building" /></div><div><div className="qs-val">{companiesAttendedCount}</div><div className="qs-lbl">Companies Attended</div><div className="qs-trend">{applications.length > 0 ? `${applications.length} total applications` : 'No applications yet'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico green"><i className="fa-solid fa-check" /></div><div><div className="qs-val">{offersReceivedCount}</div><div className="qs-lbl">Offers Received</div><div className="qs-trend">{bestOfferCtc > 0 ? `↑ Best ₹${bestOfferCtc} LPA` : 'No offers yet'}</div></div></div>
+        <div className="qs-card" onClick={() => handleOpenStagesWizard(6)}><div className="qs-ico gold"><i className="fa-solid fa-laptop" /></div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Open Stage 06'}</div></div></div>
+        <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple"><i className="fa-solid fa-award" /></div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${badgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
       </div>
 
-      {/* ⚡ Candidate 8 Stages Interactive Verification Grid */}
+      {/* Candidate 8 Stages Interactive Verification Grid */}
       <div className="sec">
         <div className="sec-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="sec-title"><div className="mod-ico">⚡</div>Candidate 8 Stages Verification</div>
+          <div className="sec-title"><div className="mod-ico"><i className="fa-solid fa-bolt" /></div>Candidate 8 Stages Verification</div>
           <button
             type="button"
             onClick={() => handleOpenStagesWizard(1)}
@@ -693,14 +693,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         </div>
         <div className="stages-overview-grid">
           {[
-            { num: 1, name: 'Identity & Aadhaar', pts: '+5 pts', icon: '🪪', done: completedStages.includes(1) },
-            { num: 2, name: 'Training Foundation', pts: '+15 pts', icon: '🎓', done: completedStages.includes(2) },
-            { num: 3, name: 'Certifications', pts: '+20 pts', icon: '📜', done: completedStages.includes(3) },
-            { num: 4, name: 'Assessment', pts: '+25 pts', icon: '🧠', done: completedStages.includes(4) },
-            { num: 5, name: 'Video Pitch AI', pts: '+10 pts', icon: '🎥', done: completedStages.includes(5) },
-            { num: 6, name: 'Live Charts Audit', pts: '+10 pts', icon: '💻', done: completedStages.includes(6) },
-            { num: 7, name: 'Resume Studio', pts: '+10 pts', icon: '📄', done: completedStages.includes(7) },
-            { num: 8, name: 'Placement & Hiring', pts: '+5 pts', icon: '📍', done: completedStages.includes(8) },
+            { num: 1, name: 'Identity & Aadhaar', pts: '+5 pts', icon: <i className="fa-solid fa-id-card" />, done: completedStages.includes(1) },
+            { num: 2, name: 'Training Foundation', pts: '+15 pts', icon: <i className="fa-solid fa-graduation-cap" />, done: completedStages.includes(2) },
+            { num: 3, name: 'Certifications', pts: '+20 pts', icon: <i className="fa-solid fa-certificate" />, done: completedStages.includes(3) },
+            { num: 4, name: 'Assessment', pts: '+25 pts', icon: <i className="fa-solid fa-brain" />, done: completedStages.includes(4) },
+            { num: 5, name: 'Video Pitch AI', pts: '+10 pts', icon: <i className="fa-solid fa-video" />, done: completedStages.includes(5) },
+            { num: 6, name: 'Live Charts Audit', pts: '+10 pts', icon: <i className="fa-solid fa-laptop" />, done: completedStages.includes(6) },
+            { num: 7, name: 'Resume Studio', pts: '+10 pts', icon: <i className="fa-solid fa-file-lines" />, done: completedStages.includes(7) },
+            { num: 8, name: 'Placement & Hiring', pts: '+5 pts', icon: <i className="fa-solid fa-location-dot" />, done: completedStages.includes(8) },
           ].map((stg) => (
             <div
               key={stg.num}
@@ -710,7 +710,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             >
               <div className="soc-top">
                 <span className="soc-badge">0{stg.num}</span>
-                <span className="soc-status">{stg.done ? '✓ Done' : 'Pending'}</span>
+                <span className="soc-status">{stg.done ? 'Done' : 'Pending'}</span>
               </div>
               <div className="soc-icon">{stg.icon}</div>
               <div className="soc-name">{stg.name}</div>
@@ -721,24 +721,24 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       </div>
 
       <div className="sec">
-        <div className="sec-head"><div className="sec-title"><div className="mod-ico">🎯</div>Priority Actions</div></div>
+        <div className="sec-head"><div className="sec-title"><div className="mod-ico"><i className="fa-solid fa-bullseye" /></div>Priority Actions</div></div>
         <div className="card" style={{"background":"linear-gradient(135deg,var(--gold-pale),#FFF9E0)","borderColor":"var(--gold)"}}>
           {(hiredApplications.length > 0 || pendingInvites.length > 0 || profileScore < 100) ? (
           <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"12px"}}>
             {hiredApplications.length > 0 ? (
-              <button onClick={() => setActiveTab("companies")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green">✉</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Accept {hiredApplications[0].companyName} Offer</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Review your offer details</div></div></button>
+              <button onClick={() => setActiveTab("companies")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green"><i className="fa-solid fa-envelope" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Accept {hiredApplications[0].companyName} Offer</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Review your offer details</div></div></button>
             ) : (
-              <button onClick={() => setActiveTab("jobs")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green">✉</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Browse Open Jobs</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>No offers yet — start applying</div></div></button>
+              <button onClick={() => setActiveTab("jobs")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green"><i className="fa-solid fa-envelope" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Browse Open Jobs</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>No offers yet — start applying</div></div></button>
             )}
             {pendingInvites.length > 0 ? (
-              <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue">📅</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>{pendingInvites.length} Interview{pendingInvites.length === 1 ? '' : 's'} Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{pendingInvites[0].company} · {pendingInvites[0].role}</div></div></button>
+              <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue"><i className="fa-solid fa-calendar-days" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>{pendingInvites.length} Interview{pendingInvites.length === 1 ? '' : 's'} Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{pendingInvites[0].company} · {pendingInvites[0].role}</div></div></button>
             ) : (
-              <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue">📅</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>No Interviews Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>You'll see invites here</div></div></button>
+              <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue"><i className="fa-solid fa-calendar-days" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>No Interviews Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>You'll see invites here</div></div></button>
             )}
             {profileScore < 100 ? (
-              <button onClick={() => handleOpenStagesWizard(1)} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">⚡</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete 8 Stages</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {8 - completedStages.length} stage{(8 - completedStages.length) === 1 ? '' : 's'} left</div></div></button>
+              <button onClick={() => handleOpenStagesWizard(1)} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple"><i className="fa-solid fa-bolt" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete 8 Stages</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {8 - completedStages.length} stage{(8 - completedStages.length) === 1 ? '' : 's'} left</div></div></button>
             ) : (
-              <button onClick={() => setActiveTab("learning")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple">📚</div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Keep Learning</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Stage score 100/100 · Fully verified</div></div></button>
+              <button onClick={() => setActiveTab("learning")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple"><i className="fa-solid fa-book" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Keep Learning</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Stage score 100/100 · Fully verified</div></div></button>
             )}
           </div>
           ) : (
@@ -764,7 +764,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           style={{ background: 'var(--grad-navy-dark)', color: '#FFFFFF', border: '1.5px solid var(--gold)', boxShadow: '0 4px 14px rgba(10, 37, 64, 0.3)' }}
           title="Open Candidate 8 Stages Verification Wizard"
         >
-          <span style={{ color: 'var(--gold-lite)' }}>⚡</span>
+          <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
           <span>Open 8 Stages Dashboard</span>
           <span className="hero-btn-pill">{completedStages.length}/8 Completed</span>
         </button>
@@ -773,19 +773,19 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="profile-hero">
         <div className="profile-avatar-wrap">
           <div className="profile-avatar">{candidateName ? candidateName.split(' ').map((w) => w[0]).slice(0,2).join('').toUpperCase() : 'NA'}</div>
-          <div className="profile-avatar-edit" onClick={() => handleOpenStagesWizard(1)} title="Change photo in Stage 1">📷</div>
+          <div className="profile-avatar-edit" onClick={() => handleOpenStagesWizard(1)} title="Change photo in Stage 1"><i className="fa-solid fa-camera" /></div>
         </div>
         <div className="profile-info">
           <div className="profile-name">{candidateName}</div>
           <div className="profile-title">{profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}{profile?.stage3?.certifications?.length ? ` · ${profile.stage3.certifications.map((c) => c.code || c.certCode).filter(Boolean).join(' + ')}` : ''}{profileScore >= 75 ? ' · Talentera Verified' : ''}</div>
           <div className="profile-meta">
-            <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? '🟢 LIVE FOR HIRING' : '⚪ Not Live Yet'}</span>
-            <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}>🏆 {profileScore}/100 Verified</span>
-            <span className="wh-chip">📍 {profile?.stage1?.city || 'Location not set'}</span>
-            <span className="wh-chip">🎂 {profile?.stage1?.dob ? new Date(profile.stage1.dob).toLocaleDateString('en-IN') : 'DOB not set'}{profile?.stage1?.gender ? ` · ${profile.stage1.gender}` : ''}</span>
+            <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? 'LIVE FOR HIRING' : 'Not Live Yet'}</span>
+            <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}><><i className="fa-solid fa-trophy" style={{ color: "#E5A82E", marginRight: 5 }} /> {profileScore}/100 Verified</></span>
+            <span className="wh-chip"><i className="fa-solid fa-location-dot" style={{ marginRight: 5 }} />{profile?.stage1?.city || 'Location not set'}</span>
+            <span className="wh-chip"><i className="fa-solid fa-cake-candles" style={{ marginRight: 5 }} />{profile?.stage1?.dob ? new Date(profile.stage1.dob).toLocaleDateString('en-IN') : 'DOB not set'}{profile?.stage1?.gender ? ` · ${profile.stage1.gender}` : ''}</span>
           </div>
         </div>
-        <button className="profile-cta" onClick={() => handleOpenStagesWizard(1)}>⚡ Edit All Stages</button>
+        <button className="profile-cta" onClick={() => handleOpenStagesWizard(1)}><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Edit All Stages</button>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '24px 0 14px' }}>
@@ -795,7 +795,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           onClick={() => handleOpenStagesWizard(1)}
           style={{ fontSize: '12.5px', fontWeight: 800, color: 'var(--navy)', background: 'var(--grad-gold-soft)', border: '1px solid var(--gold)', padding: '5px 12px', borderRadius: '8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
         >
-          <span>⚡ Launch 8-Stage Wizard</span>
+          <span><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Launch 8-Stage Wizard</span>
           <span>→</span>
         </button>
       </div>
@@ -806,14 +806,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">01</div>
             <div><div className="stage-detail-name">Identity · {completedStages.includes(1) ? 'Aadhaar Verified' : 'Not Completed'}</div><div className="stage-detail-tag">+5 pts · {completedStages.includes(1) ? 'Verified' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(1)}>✎ Edit Stage 01</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(1)}><><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Edit Stage 01</></button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Full Name</div><div className="v">{candidateName || '—'}</div></div>
-          <div className="field"><div className="k">DOB</div><div className="v">{profile?.stage1?.dob ? `${new Date(profile.stage1.dob).toLocaleDateString('en-IN')} · 🔒` : '—'}</div></div>
-          <div className="field"><div className="k">Gender</div><div className="v">{profile?.stage1?.gender ? `${profile.stage1.gender} · 🔒` : '—'}</div></div>
-          <div className="field"><div className="k">Mobile</div><div className="v">{candidatePhone ? `${candidatePhone}${profile?.stage1?.aadhaarVerified ? ' ✓' : ''}` : '—'}</div></div>
-          <div className="field"><div className="k">Email</div><div className="v">{candidateEmail ? `${candidateEmail} ✓` : '—'}</div></div>
+          <div className="field"><div className="k">DOB</div><div className="v">{profile?.stage1?.dob ? `${new Date(profile.stage1.dob).toLocaleDateString('en-IN')} ` : '—'}</div></div>
+          <div className="field"><div className="k">Gender</div><div className="v">{profile?.stage1?.gender ? `${profile.stage1.gender} ` : '—'}</div></div>
+          <div className="field"><div className="k">Mobile</div><div className="v">{candidatePhone ? `${candidatePhone}${profile?.stage1?.aadhaarVerified ? '' : ''}` : '—'}</div></div>
+          <div className="field"><div className="k">Email</div><div className="v">{candidateEmail || '—'}</div></div>
           <div className="field"><div className="k">Locality</div><div className="v">{profile?.stage1?.address || profile?.stage1?.currentLocality || profile?.stage1?.city || '—'}</div></div>
         </div>
       </div>
@@ -824,7 +824,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">02</div>
             <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+15 pts · {completedStages.includes(2) ? 'Academy-Signed' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(2)}>✎ Edit Stage 02</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(2)}><><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Edit Stage 02</></button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Academy</div><div className="v">{profile?.stage2?.academyName || profile?.stage2?.instituteName || '—'}</div></div>
@@ -842,7 +842,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">03</div>
             <div><div className="stage-detail-name">Certifications · {(profile?.stage3?.certifications?.length || (profile?.stage3?.certCode ? 1 : 0))} Active</div><div className="stage-detail-tag">+20 pts · {profile?.stage3?.certStatus === 'verified' ? 'API-Verified' : (completedStages.includes(3) ? 'Pending Verification' : 'Not Completed')}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(3)}>➕ Add / Edit Cert (Stage 03)</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(3)}><><i className="fa-solid fa-plus" style={{ marginRight: 6 }} />Add / Edit Cert (Stage 03)</></button></div>
         </div>
         <div className="stage-fields">
           {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
@@ -860,7 +860,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">04</div>
             <div><div className="stage-detail-name">Assessment · {(profile?.stage4?.foundationScore ?? profile?.stage4?.score) != null ? `${profile?.stage4?.medal || (profile?.stage4?.passed ? 'Passed' : 'Attempted')} ${profile?.stage4?.foundationScore ?? profile?.stage4?.score}/100` : 'Not Completed'}</div><div className="stage-detail-tag">+25 pts · Talentera-Proctored</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(4)}>🔄 Take Stage 04 Assessment</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(4)}><><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }} />Take Stage 04 Assessment</></button></div>
         </div>
         <div className="stage-fields">
           {Array.isArray(profile?.stage4?.sectionScores) && profile.stage4.sectionScores.length > 0 ? profile.stage4.sectionScores.map((sec, idx) => (
@@ -877,7 +877,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">05</div>
             <div><div className="stage-detail-name">Video Pitch · {profile?.stage5?.overallScore != null ? `${profile.stage5.overallScore}/100` : (completedStages.includes(5) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+10 pts · {profile?.stage5?.verified ? 'Live Verified' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(5)}>🎥 Open Stage 05 Pitch</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(5)}><><i className="fa-solid fa-video" style={{ marginRight: 6 }} />Open Stage 05 Pitch</></button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Clarity</div><div className="v">{profile?.stage5?.clarityScore != null ? `${profile.stage5.clarityScore} / 100` : '—'}</div></div>
@@ -895,7 +895,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">06</div>
             <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {profile?.stage6?.totalCharts ? (profile?.stage6?.verificationMethod || (profile?.stage6?.verified ? 'Verified' : 'Self-Reported')) : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(6)}>💻 Open Stage 06 Charts</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(6)}><><i className="fa-solid fa-laptop" style={{ marginRight: 6 }} />Open Stage 06 Charts</></button></div>
         </div>
         <div className="stage-fields">
           {Array.isArray(profile?.stage6?.specialtyCharts) && profile.stage6.specialtyCharts.length > 0 ? profile.stage6.specialtyCharts.map((sc, idx) => (
@@ -914,7 +914,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">07</div>
             <div><div className="stage-detail-name">Resume Studio · {completedStages.includes(7) ? 'Resume Built & Verified' : 'Not Completed'}</div><div className="stage-detail-tag">+10 pts · {completedStages.includes(7) ? 'Built' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(7)}>📄 Open Stage 07 Resume</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(7)}><><i className="fa-solid fa-file-lines" style={{ marginRight: 6 }} />Open Stage 07 Resume</></button></div>
         </div>
         <div className="stage-fields">
           <div className="field"><div className="k">Objective</div><div className="v">{profile?.stage7?.objective ? `${profile.stage7.objective.slice(0, 50)}...` : 'Not set'}</div></div>
@@ -930,10 +930,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="stage-detail-num">08</div>
             <div><div className="stage-detail-name">Placement &amp; Hiring · {profile?.stage8?.liveForHiring ? 'Live For Hiring' : (completedStages.includes(8) ? 'Preferences Configured' : 'Not Completed')}</div><div className="stage-detail-tag">+5 pts · {completedStages.includes(8) ? 'Ready' : 'Pending'}</div></div>
           </div>
-          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(8)}>📍 Open Stage 08 Track</button></div>
+          <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(8)}><><i className="fa-solid fa-location-dot" style={{ marginRight: 6 }} />Open Stage 08 Track</></button></div>
         </div>
         <div className="stage-fields">
-          <div className="field"><div className="k">Status</div><div className="v">{profile?.stage8?.liveForHiring ? '🟢 Live For Hiring' : '⚪ Not Live'}</div></div>
+          <div className="field"><div className="k">Status</div><div className="v">{profile?.stage8?.liveForHiring ? 'Live For Hiring' : 'Not Live'}</div></div>
           <div className="field"><div className="k">Employment</div><div className="v">{profile?.stage8?.employmentStatus || 'Actively Looking'}</div></div>
           <div className="field"><div className="k">Work Mode</div><div className="v">{profile?.stage8?.workMode || 'Hybrid / Remote / Onsite'}</div></div>
           <div className="field"><div className="k">Preferred Cities</div><div className="v">{Array.isArray(profile?.stage8?.preferredCities) ? profile.stage8.preferredCities.join(', ') : 'All locations'}</div></div>
@@ -957,22 +957,22 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           style={{ background: 'var(--grad-navy-dark)', color: '#FFFFFF', border: '1.5px solid var(--gold)' }}
           title="Open 8 Stages Wizard to unlock badges"
         >
-          <span style={{ color: 'var(--gold-lite)' }}>⚡</span>
+          <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
           <span>Open 8 Stages Dashboard</span>
         </button>
       </div>
 
       <div className="badge-section priority-required">
         <div className="badge-sec-title">
-          🔴 Verification Badges
+          <><i className="fa-solid fa-shield-halved" style={{ marginRight: 8, color: "var(--red)" }} />Verification Badges</>
           <span className="badge-sec-tag">CORE STAGES</span>
         </div>
         <div className="badge-sec-sub">These come directly from your 8 verification stages and are what companies check first.</div>
         <div className="badge-grid">
           {badgeCriteria.map((b) => (
             <div className={"badge " + (b.earned ? "earned priority" : "locked")} key={b.key}>
-              {b.earned && <div className="badge-crown">👑</div>}
-              {b.earned && <div className="badge-verified">✓</div>}
+              {b.earned && <div className="badge-crown"><i className="fa-solid fa-crown" /></div>}
+              {b.earned && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
               <div className="badge-ico">{b.icon}</div>
               <div className="badge-name">{b.label}</div>
               <div className="badge-sub">{b.earned ? 'Verified' : 'Not completed yet'}</div>
@@ -984,14 +984,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
       <div className="badge-section">
         <div className="badge-sec-title">
-          📜 Certification Badges
+          <><i className="fa-solid fa-certificate" style={{ marginRight: 8, color: "var(--gold)" }} />Certification Badges</>
           <span className="badge-sec-tag regular">FROM STAGE 03</span>
         </div>
         <div className="badge-sec-sub">Every certification you've added in Stage 03, shown here automatically.</div>
         <div className="badge-grid">
           {(profile?.stage3?.certifications?.length > 0 ? profile.stage3.certifications : (profile?.stage3?.certCode ? [profile.stage3] : [])).map((cert, idx) => (
             <div className="badge earned" key={cert.memberId || cert.certCode || idx}>
-              <div className="badge-verified">✓</div>
+              <div className="badge-verified"><i className="fa-solid fa-check" /></div>
               <div className="badge-ico">{cert.code || cert.certCode || 'CERT'}</div>
               <div className="badge-name">{(cert.body || cert.issuingBody || 'AAPC')} {cert.code || cert.certCode}</div>
               <div className="badge-sub">{cert.name || cert.certName || 'Certification'}</div>
@@ -1000,7 +1000,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           ))}
           {!(profile?.stage3?.certifications?.length > 0) && !profile?.stage3?.certCode && (
             <div className="badge locked" onClick={() => handleOpenStagesWizard(3)} style={{ cursor: 'pointer' }}>
-              <div className="badge-ico">📜</div>
+              <div className="badge-ico"><i className="fa-solid fa-certificate" /></div>
               <div className="badge-name">No Certifications Yet</div>
               <div className="badge-sub">Add one in Stage 03</div>
               <span className="badge-value locked-tag">Locked · Click to Add</span>
@@ -1011,35 +1011,35 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
       <div className="badge-section">
         <div className="badge-sec-title">
-          ✨ Milestone Badges
+          <><i className="fa-solid fa-award" style={{ marginRight: 8, color: "var(--gold)" }} />Milestone Badges</>
           <span className="badge-sec-tag achievement">FROM LIVE CHARTS</span>
         </div>
         <div className="badge-sec-sub">Automatic milestones based on your logged live-chart activity.</div>
         <div className="badge-grid">
           <div className={"badge " + (chartsCoded >= 100 ? "earned" : "locked")}>
-            {chartsCoded >= 100 && <div className="badge-verified">✓</div>}
-            <div className="badge-ico">💯</div>
+            {chartsCoded >= 100 && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+            <div className="badge-ico"><i className="fa-solid fa-check-double" /></div>
             <div className="badge-name">100 Charts Club</div>
             <div className="badge-sub">{chartsCoded >= 100 ? `${chartsCoded} charts logged` : `${chartsCoded} / 100 charts logged`}</div>
             <span className={"badge-value " + (chartsCoded >= 100 ? "regular" : "locked-tag")}>{chartsCoded >= 100 ? 'Earned' : 'Locked'}</span>
           </div>
           <div className={"badge " + (chartsCoded >= 500 ? "earned" : "locked")}>
-            {chartsCoded >= 500 && <div className="badge-verified">✓</div>}
-            <div className="badge-ico">🏔</div>
+            {chartsCoded >= 500 && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+            <div className="badge-ico"><i className="fa-solid fa-mountain" /></div>
             <div className="badge-name">500 Charts Club</div>
             <div className="badge-sub">{chartsCoded >= 500 ? `${chartsCoded} charts logged` : `${chartsCoded} / 500 charts logged`}</div>
             <span className={"badge-value " + (chartsCoded >= 500 ? "regular" : "locked-tag")}>{chartsCoded >= 500 ? 'Earned' : 'Locked'}</span>
           </div>
           <div className={"badge " + (profile?.stage5?.regionalLanguage ? "earned" : "locked")}>
-            {profile?.stage5?.regionalLanguage && <div className="badge-verified">✓</div>}
-            <div className="badge-ico">🌏</div>
+            {profile?.stage5?.regionalLanguage && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+            <div className="badge-ico"><i className="fa-solid fa-earth-americas" /></div>
             <div className="badge-name">Multilingual</div>
             <div className="badge-sub">{profile?.stage5?.regionalLanguage ? `English + ${profile.stage5.regionalLanguage}` : 'Add a regional-language video in Stage 05'}</div>
             <span className={"badge-value " + (profile?.stage5?.regionalLanguage ? "regular" : "locked-tag")}>{profile?.stage5?.regionalLanguage ? 'Earned' : 'Locked'}</span>
           </div>
           <div className={"badge " + (profile?.stage4?.medal === 'Gold' ? "earned" : "locked")}>
-            {profile?.stage4?.medal === 'Gold' && <div className="badge-verified">✓</div>}
-            <div className="badge-ico">🥇</div>
+            {profile?.stage4?.medal === 'Gold' && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
+            <div className="badge-ico"><i className="fa-solid fa-medal" /></div>
             <div className="badge-name">Gold Assessment</div>
             <div className="badge-sub">{profile?.stage4?.medal === 'Gold' ? 'Scored 85+ on the assessment' : 'Score 85+ to unlock'}</div>
             <span className={"badge-value " + (profile?.stage4?.medal === 'Gold' ? "regular" : "locked-tag")}>{profile?.stage4?.medal === 'Gold' ? 'Earned' : 'Locked'}</span>
@@ -1047,10 +1047,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         </div>
       </div>
 
-      {/* ⚡ Unlock remaining badges banner */}
+      {/* Unlock remaining badges banner */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', background: 'var(--grad-hero)', color: '#FFFFFF', borderRadius: '16px', marginTop: '24px', border: '1.5px solid rgba(245, 166, 35, 0.45)', flexWrap: 'wrap', gap: '14px' }}>
         <div>
-          <div style={{ fontWeight: 800, fontSize: '15.5px' }}>🚀 Unlock All 8 Verification Badges</div>
+          <div style={{ fontWeight: 800, fontSize: '15.5px' }}><><i className="fa-solid fa-rocket" style={{ marginRight: 8 }} />Unlock All 8 Verification Badges</></div>
           <div style={{ fontSize: '12.5px', color: 'rgba(255, 255, 255, 0.85)', marginTop: '4px' }}>Complete or improve your scores in the candidate 8 stages verification dashboard.</div>
         </div>
         <button
@@ -1058,7 +1058,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           onClick={() => handleOpenStagesWizard(1)}
           className="btn-open-stages-hero"
         >
-          ⚡ Open 8 Stages Dashboard
+          <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open 8 Stages Dashboard</>
         </button>
       </div>
     </div>
@@ -1108,11 +1108,11 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="co-list">
         {applications.length > 0 ? applications.map((app) => {
           const statusMap = {
-            applied: { cls: 'applied', label: '⚪ Applied', cta: 'View' },
-            shortlisted: { cls: 'shortlisted', label: '🟡 Shortlisted', cta: 'Book →' },
-            interviewing: { cls: 'interviewed', label: '🔵 Interviewing', cta: 'Prep →' },
-            hired: { cls: 'selected', label: '✓ OFFER', cta: 'Accept →' },
-            rejected: { cls: 'rejected', label: '✕ Not Selected', cta: 'Feedback' },
+            applied: { cls: 'applied', label: 'Applied', cta: 'View' },
+            shortlisted: { cls: 'shortlisted', label: 'Shortlisted', cta: 'Book →' },
+            interviewing: { cls: 'interviewed', label: 'Interviewing', cta: 'Prep →' },
+            hired: { cls: 'selected', label: 'OFFER', cta: 'Accept →' },
+            rejected: { cls: 'rejected', label: 'Not Selected', cta: 'Feedback' },
           };
           const st = statusMap[app.status] || statusMap.applied;
           const comp = app.compMin && app.compMax ? `₹${app.compMin} – ₹${app.compMax} LPA` : '';
@@ -1156,8 +1156,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="co-row" key={inv.id}>
             <div className="co-logo" style={{"background":inv.logoBg || 'var(--navy)'}}>{inv.logoLetter || (inv.company || 'C')[0]}</div>
             <div className="co-info"><div className="name">{inv.company} · {inv.role}</div><div className="role">{inv.type}{inv.duration ? ` · ${inv.duration}` : ''}</div><div className="timeline">{inv.time}</div></div>
-            <div className={"co-status " + (inv.status === 'confirmed' ? 'selected' : 'shortlisted')}>{inv.status === 'confirmed' ? '✓ Confirmed' : '🟡 Pending'}</div>
-            {inv.status !== 'confirmed' && <button className="co-cta-btn" onClick={() => triggerToast("Slot confirmed. Calendar invite sent.")}>✓ Confirm</button>}
+            <div className={"co-status " + (inv.status === 'confirmed' ? 'selected' : 'shortlisted')}>{inv.status === 'confirmed' ? 'Confirmed' : 'Pending'}</div>
+            {inv.status !== 'confirmed' && <button className="co-cta-btn" onClick={() => triggerToast("Slot confirmed. Calendar invite sent.")}>Confirm</button>}
           </div>
         )) : (
           <div style={{"padding":"30px","textAlign":"center","color":"var(--gray-mute)"}}>No interview invites yet. They'll show up here once a company shortlists you.</div>
@@ -1237,50 +1237,50 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <p className="page-sub">Add every job you take. Talentera builds a verified career passport that companies trust more than any resume.</p>
         </div>
         <button className="profile-cta" onClick={() => setShowAddJobForm(!showAddJobForm)} id="addJobBtn" style={{"background":"var(--gold)","color":"var(--navy)","padding":"14px 24px","fontSize":"14px","borderRadius":"12px","display":"flex","alignItems":"center","gap":"8px"}}>
-          <span style={{"fontSize":"20px","lineHeight":"1"}}>➕</span> Add New Employment
+          <span style={{"fontSize":"18px","lineHeight":"1"}}><i className="fa-solid fa-plus" /></span> Add New Employment
         </button>
       </div>
 
       {showAddJobForm && (
       <div className="add-employment-form" id="addJobForm" style={{"background":"linear-gradient(135deg,var(--gold-pale),#FFF9E0)","border":"2px solid var(--gold)","borderRadius":"16px","padding":"28px 30px","marginBottom":"20px"}}>
         <div style={{"display":"flex","justifyContent":"space-between","alignItems":"center","marginBottom":"20px"}}>
-          <h2 style={{"fontSize":"18px","fontWeight":"800","color":"var(--navy)","margin":"0","display":"flex","alignItems":"center","gap":"10px"}}>💼 Add Your New Job at a Company</h2>
-          <button onClick={() => setShowAddJobForm(!showAddJobForm)} style={{"background":"transparent","color":"var(--gray-mute)","fontSize":"22px","fontWeight":"800","cursor":"pointer","padding":"0 8px"}}>✕</button>
+          <h2 style={{"fontSize":"18px","fontWeight":"800","color":"var(--navy)","margin":"0","display":"flex","alignItems":"center","gap":"10px"}}><><i className="fa-solid fa-briefcase" style={{ marginRight: 8 }} />Add Your New Job at a Company</></h2>
+          <button onClick={() => setShowAddJobForm(!showAddJobForm)} style={{"background":"transparent","color":"var(--gray-mute)","fontSize":"22px","fontWeight":"800","cursor":"pointer","padding":"0 8px"}}><i className="fa-solid fa-xmark" /></button>
         </div>
 
         <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"14px","marginBottom":"14px"}}>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🏢 Company Name *</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-building" style={{ marginRight: 6 }} />Company Name *</></label>
             <input type="text" value={employmentForm.companyName} onChange={(e) => setEmploymentForm({ ...employmentForm, companyName: e.target.value })} placeholder="e.g. Optum India" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🎯 Your Role / Designation *</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-briefcase" style={{ marginRight: 6 }} />Your Role / Designation *</></label>
             <input type="text" value={employmentForm.role} onChange={(e) => setEmploymentForm({ ...employmentForm, role: e.target.value })} placeholder="e.g. HCC Medical Coder" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
         </div>
 
         <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr","gap":"14px","marginBottom":"14px"}}>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🩺 Department / Specialty</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-stethoscope" style={{ marginRight: 6 }} />Department / Specialty</></label>
             <input type="text" value={employmentForm.specialty} onChange={(e) => setEmploymentForm({ ...employmentForm, specialty: e.target.value })} placeholder="e.g. HCC · Risk Adjustment" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>📍 Work Location *</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-location-dot" style={{ marginRight: 6 }} />Work Location *</></label>
             <input type="text" value={employmentForm.location} onChange={(e) => setEmploymentForm({ ...employmentForm, location: e.target.value })} placeholder="e.g. Hyderabad · Onsite" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
         </div>
 
         <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"14px","marginBottom":"14px"}}>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>📅 Joining Date *</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-calendar-days" style={{ marginRight: 6 }} />Joining Date *</></label>
             <input type="date" value={employmentForm.joiningDate} onChange={(e) => setEmploymentForm({ ...employmentForm, joiningDate: e.target.value })} style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>💰 Base CTC (₹ LPA) *</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-sack-dollar" style={{ marginRight: 6 }} />Base CTC (₹ LPA) *</></label>
             <input type="text" value={employmentForm.ctc} onChange={(e) => setEmploymentForm({ ...employmentForm, ctc: e.target.value })} placeholder="6.8" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🏢 Employment Type</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-building" style={{ marginRight: 6 }} />Employment Type</></label>
             <select value={employmentForm.employmentType} onChange={(e) => setEmploymentForm({ ...employmentForm, employmentType: e.target.value })} style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}>
               <option>Full Time · Permanent</option>
               <option>Trainee (6-month contract)</option>
@@ -1296,18 +1296,18 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <input type="text" value={employmentForm.uan} onChange={(e) => setEmploymentForm({ ...employmentForm, uan: e.target.value })} placeholder="12-digit UAN" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>👤 Reporting Manager</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-user" style={{ marginRight: 6 }} />Reporting Manager</></label>
             <input type="text" value={employmentForm.manager} onChange={(e) => setEmploymentForm({ ...employmentForm, manager: e.target.value })} placeholder="Manager name" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>📋 Project / Client</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}><><i className="fa-solid fa-clipboard-list" style={{ marginRight: 6 }} />Project / Client</></label>
             <input type="text" value={employmentForm.project} onChange={(e) => setEmploymentForm({ ...employmentForm, project: e.target.value })} placeholder="e.g. UnitedHealthcare" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
         </div>
 
         <div style={{"display":"flex","gap":"10px","marginTop":"20px","justifyContent":"flex-end"}}>
           <button onClick={() => setShowAddJobForm(false)} style={{"background":"transparent","color":"var(--gray-txt)","padding":"12px 22px","borderRadius":"10px","fontSize":"13px","fontWeight":"700","border":"1.5px solid var(--border)","cursor":"pointer"}}>Cancel</button>
-          <button disabled={savingEmployment} onClick={handleSaveEmployment} style={{"background":"var(--gold)","color":"var(--navy)","padding":"12px 26px","borderRadius":"10px","fontSize":"13px","fontWeight":"800","border":"none","cursor":"pointer"}}>{savingEmployment ? 'Saving…' : '✓ Save'}</button>
+          <button disabled={savingEmployment} onClick={handleSaveEmployment} style={{"background":"var(--gold)","color":"var(--navy)","padding":"12px 26px","borderRadius":"10px","fontSize":"13px","fontWeight":"800","border":"none","cursor":"pointer"}}>{savingEmployment ? 'Saving…' : 'Save'}</button>
         </div>
       </div>
       )}
@@ -1318,7 +1318,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div style={{"display":"flex","alignItems":"center","gap":"16px"}}>
             <div className="co-logo" style={{"width":"64px","height":"64px","borderRadius":"16px","fontSize":"22px"}}>{(profile.stage8.currentEmployment.companyName || 'C')[0].toUpperCase()}</div>
             <div>
-              <div style={{"color":"var(--green)","fontSize":"11px","fontWeight":"800","letterSpacing":"1.2px","textTransform":"uppercase"}}>🟢 CURRENT EMPLOYMENT</div>
+              <div style={{"color":"var(--green)","fontSize":"11px","fontWeight":"800","letterSpacing":"1.2px","textTransform":"uppercase"}}>CURRENT EMPLOYMENT</div>
               <div style={{"fontSize":"20px","fontWeight":"800","color":"var(--navy)","marginTop":"4px"}}>{profile.stage8.currentEmployment.companyName} · {profile.stage8.currentEmployment.role}</div>
               <div style={{"fontSize":"13px","color":"var(--gray-txt)","marginTop":"4px"}}>{profile.stage8.currentEmployment.location}{profile.stage8.currentEmployment.employmentType ? ` · ${profile.stage8.currentEmployment.employmentType}` : ''}{profile.stage8.currentEmployment.project ? ` · ${profile.stage8.currentEmployment.project}` : ''}</div>
             </div>
@@ -1337,7 +1337,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       )}
 
       <div style={{"marginTop":"24px"}}>
-        <h3 style={{"fontSize":"16px","fontWeight":"800","color":"var(--navy)","margin":"0 0 14px","display":"flex","alignItems":"center","gap":"10px"}}><div className="mod-ico">📅</div>Your Lifetime Employment History</h3>
+        <h3 style={{"fontSize":"16px","fontWeight":"800","color":"var(--navy)","margin":"0 0 14px","display":"flex","alignItems":"center","gap":"10px"}}><div className="mod-ico"><i className="fa-solid fa-calendar-days" /></div>Your Lifetime Employment History</h3>
         <div style={{"background":"var(--white)","border":"1px solid var(--border)","borderRadius":"14px","padding":"22px 26px"}}>
           {Array.isArray(profile?.stage8?.employmentHistory) && profile.stage8.employmentHistory.length > 0 ? (
           <div style={{"position":"relative","paddingLeft":"28px"}}>
@@ -1345,7 +1345,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             {profile.stage8.employmentHistory.map((job, idx) => (
               <div style={{"position":"relative","padding":"14px 0 18px"}} key={job.id || idx}>
                 <div style={{"position":"absolute","left":"-19px","top":"20px","width":"14px","height":"14px","background": job.status === 'active' ? 'var(--green)' : 'var(--gray-mute)',"border":"3px solid var(--white)","borderRadius":"50%"}}></div>
-                <div style={{"fontSize":"11px","color":"var(--gray-mute)","fontWeight":"800","letterSpacing":".4px"}}>{job.joiningDate ? new Date(job.joiningDate).toLocaleDateString('en-IN') : ''} · {job.status === 'active' ? '🟢 ACTIVE' : 'PAST'}</div>
+                <div style={{"fontSize":"11px","color":"var(--gray-mute)","fontWeight":"800","letterSpacing":".4px"}}>{job.joiningDate ? new Date(job.joiningDate).toLocaleDateString('en-IN') : ''} · {job.status === 'active' ? 'ACTIVE' : 'PAST'}</div>
                 <div style={{"fontSize":"14px","color":"var(--navy)","fontWeight":"800","marginTop":"3px"}}>{job.companyName} · {job.role}</div>
                 <div style={{"fontSize":"12px","color":"var(--gray-txt)","marginTop":"4px"}}>{job.ctc ? `₹${job.ctc} LPA · ` : ''}{job.location}</div>
               </div>
@@ -1367,7 +1367,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <p className="page-sub">Stage tutorials, an interview question bank, and partner academy enrollment — coming soon.</p>
       </div>
       <div className="placeholder-page">
-        <div className="placeholder-ico">📚</div>
+        <div className="placeholder-ico"><i className="fa-solid fa-book" /></div>
         <div className="placeholder-title">Full Learning Hub — Coming Soon</div>
         <div className="placeholder-sub">Interview prep videos, an RCM question bank filterable by specialty, and partner academy enrollment, with recommendations based on your Assessment results.</div>
       </div>
@@ -1382,14 +1382,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       </div>
       {applications.length > 0 ? (
       <div className="quick-stats">
-        <div className="qs-card"><div className="qs-ico blue">🎯</div><div><div className="qs-val">{Math.round((applications.filter((a) => ['shortlisted','interviewing','hired'].includes(a.status)).length / applications.length) * 100)}%</div><div className="qs-lbl">Shortlist Rate</div></div></div>
-        <div className="qs-card"><div className="qs-ico green">✓</div><div><div className="qs-val">{applications.filter((a) => ['interviewing','hired'].includes(a.status)).length > 0 ? Math.round((applications.filter((a) => a.status === 'hired').length / applications.filter((a) => ['interviewing','hired'].includes(a.status)).length) * 100) : 0}%</div><div className="qs-lbl">Interview-to-Offer</div></div></div>
-        <div className="qs-card"><div className="qs-ico gold">📅</div><div><div className="qs-val">{profile?.createdAt ? Math.floor((Date.now() - new Date(profile.createdAt)) / 86400000) : 0}</div><div className="qs-lbl">Days on Talentera</div></div></div>
-        <div className="qs-card"><div className="qs-ico purple">💰</div><div><div className="qs-val">{bestOfferCtc > 0 ? `₹${bestOfferCtc}` : '—'}</div><div className="qs-lbl">Best CTC (LPA)</div></div></div>
+        <div className="qs-card"><div className="qs-ico blue"><i className="fa-solid fa-bullseye" /></div><div><div className="qs-val">{Math.round((applications.filter((a) => ['shortlisted','interviewing','hired'].includes(a.status)).length / applications.length) * 100)}%</div><div className="qs-lbl">Shortlist Rate</div></div></div>
+        <div className="qs-card"><div className="qs-ico green"><i className="fa-solid fa-check" /></div><div><div className="qs-val">{applications.filter((a) => ['interviewing','hired'].includes(a.status)).length > 0 ? Math.round((applications.filter((a) => a.status === 'hired').length / applications.filter((a) => ['interviewing','hired'].includes(a.status)).length) * 100) : 0}%</div><div className="qs-lbl">Interview-to-Offer</div></div></div>
+        <div className="qs-card"><div className="qs-ico gold"><i className="fa-solid fa-calendar-days" /></div><div><div className="qs-val">{profile?.createdAt ? Math.floor((Date.now() - new Date(profile.createdAt)) / 86400000) : 0}</div><div className="qs-lbl">Days on Talentera</div></div></div>
+        <div className="qs-card"><div className="qs-ico purple"><i className="fa-solid fa-sack-dollar" /></div><div><div className="qs-val">{bestOfferCtc > 0 ? `₹${bestOfferCtc}` : '—'}</div><div className="qs-lbl">Best CTC (LPA)</div></div></div>
       </div>
       ) : (
       <div className="placeholder-page">
-        <div className="placeholder-ico">📊</div>
+        <div className="placeholder-ico"><i className="fa-solid fa-chart-pie" /></div>
         <div className="placeholder-title">No data yet</div>
         <div className="placeholder-sub">Once you start applying to companies, your career metrics — shortlist rate, interview-to-offer rate, and more — will appear here.</div>
       </div>
@@ -1443,7 +1443,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <h1 className="page-title">Help & Support</h1>
       </div>
       <div className="placeholder-page">
-        <div className="placeholder-ico">🛟</div>
+        <div className="placeholder-ico"><i className="fa-solid fa-life-ring" /></div>
         <div className="placeholder-title">We're here to help</div>
         <div className="placeholder-sub">Live chat with the Talentera team, an FAQ library, and video tutorials — coming soon. For now, reach out via the contact details on your registration email.</div>
       </div>
@@ -1481,12 +1481,12 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="modal-overlay show" onClick={() => setShowReferralInfoModal(false)}>
           <div className="modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <div className="ico-lg">🔗</div>
+              <div className="ico-lg"><i className="fa-solid fa-link" /></div>
               <div style={{ flex: 1 }}>
                 <div className="title">How Your Referral Works</div>
                 <div className="sub">Fully automatic — you just share the link</div>
               </div>
-              <button className="close" onClick={() => setShowReferralInfoModal(false)}>✕</button>
+              <button className="close" onClick={() => setShowReferralInfoModal(false)}><i className="fa-solid fa-xmark" /></button>
             </div>
 
             <div className="modal-body">
@@ -1495,12 +1495,12 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <div className="modal-step">
                 <div className="modal-step-head">
                   <div className="modal-step-num">1</div>
-                  <div className="modal-step-title">Your unique referral link is generated ✓</div>
+                  <div className="modal-step-title">Your unique referral link is generated</div>
                 </div>
                 <div className="modal-step-body">Every link is tagged with your Candidate ID, so Talentera knows exactly who to credit when your friend signs up.</div>
                 <div className="modal-link-row">
                   <code>{referralLink || 'Loading your link…'}</code>
-                  <button onClick={() => { if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied to clipboard'); } }}>📋 Copy</button>
+                  <button onClick={() => { if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied to clipboard'); } }}><><i className="fa-solid fa-clipboard" style={{ marginRight: 6 }} />Copy</></button>
                 </div>
               </div>
 
@@ -1511,10 +1511,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 </div>
                 <div className="modal-step-body">Send it over WhatsApp, LinkedIn, email, or however you'd normally reach them.</div>
                 <div className="modal-share-row">
-                  <button className="modal-share-btn" style={{ background: '#25D366' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('WhatsApp share opened'); }}>💬 WhatsApp</button>
-                  <button className="modal-share-btn" style={{ background: '#0A66C2' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('LinkedIn share opened'); }}>💼 LinkedIn</button>
-                  <button className="modal-share-btn" style={{ background: 'var(--red)' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('Email composer opened'); }}>✉ Email</button>
-                  <button className="modal-share-btn" style={{ background: '#0088CC' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('Telegram opened'); }}>📢 Telegram</button>
+                  <button className="modal-share-btn" style={{ background: '#25D366' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('WhatsApp share opened'); }}><><i className="fa-brands fa-whatsapp" style={{ marginRight: 6 }} />WhatsApp</></button>
+                  <button className="modal-share-btn" style={{ background: '#0A66C2' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('LinkedIn share opened'); }}><><i className="fa-brands fa-linkedin" style={{ marginRight: 6 }} />LinkedIn</></button>
+                  <button className="modal-share-btn" style={{ background: 'var(--red)' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('Email composer opened'); }}><><i className="fa-solid fa-envelope" style={{ marginRight: 6 }} />Email</></button>
+                  <button className="modal-share-btn" style={{ background: '#0088CC' }} onClick={() => { setShowReferralInfoModal(false); triggerToast('Telegram opened'); }}><><i className="fa-brands fa-telegram" style={{ marginRight: 6 }} />Telegram</></button>
                 </div>
               </div>
 
@@ -1535,15 +1535,15 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               </div>
 
               <div className="modal-outcome">
-                <div className="modal-outcome-title">💰 Redeem anytime</div>
+                <div className="modal-outcome-title"><><i className="fa-solid fa-sack-dollar" style={{ marginRight: 6 }} />Redeem anytime</></div>
                 <div className="modal-outcome-row"><span>Current wallet balance</span><span></span><b>{referrals?.pointsWallet ?? 0} pts</b></div>
                 <div className="modal-outcome-row"><span>Approx. cash value</span><span></span><b>≈ ₹{Math.round((referrals?.pointsWallet ?? 0) / 2)}</b></div>
               </div>
             </div>
 
             <div className="modal-footer">
-              <div className="hint">🛡 Fair play: points vest once your friend verifies their profile · self-referrals are blocked.</div>
-              <button className="cta" onClick={() => { setShowReferralInfoModal(false); if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied. Ready to share.'); } }}>📋 Copy My Link →</button>
+              <div className="hint">Fair play: points vest once your friend verifies their profile · self-referrals are blocked.</div>
+              <button className="cta" onClick={() => { setShowReferralInfoModal(false); if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied. Ready to share.'); } }}><><i className="fa-solid fa-clipboard" style={{ marginRight: 6 }} />Copy</> My Link →</button>
             </div>
           </div>
         </div>

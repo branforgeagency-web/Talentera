@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useToast } from "../components/Toast.jsx";
-import { WIZARD_STAGES, getStage } from "../data/wizardStages";
+import { WIZARD_STAGES, getStage, isSelfTrainedCandidate, getWizardStages } from "../data/wizardStages";
 import WizardSidebar from "../components/WizardSidebar.jsx";
 import WizardStagePane from "../components/WizardStagePane.jsx";
 import Stage1Aadhaar from "../components/wizard/Stage1Aadhaar.jsx";
@@ -27,9 +27,10 @@ const STAGE_COMPONENTS = {
   8: Stage8Track,
 };
 
-export function isStageUnlocked(stageNum, completedStages = []) {
+export function isStageUnlocked(stageNum, completedStages = [], isSelfTrained = false) {
   if (stageNum <= 1) return true;
   for (let i = 1; i < stageNum; i++) {
+    if (isSelfTrained && i === 6) continue;
     if (!completedStages.includes(i)) {
       return false;
     }
@@ -67,6 +68,7 @@ export default function CandidateWizard() {
         }
 
         // Determine the earliest incomplete stage in sequential order
+        const isSelf = isSelfTrainedCandidate(candidateObj);
         let firstIncompleteStage = 1;
         for (let i = 1; i <= 8; i++) {
           if (!completed.includes(i)) {
@@ -81,7 +83,7 @@ export default function CandidateWizard() {
         if (
           stageParam >= 1 &&
           stageParam <= 8 &&
-          (isStageUnlocked(stageParam, completed) || completed.includes(stageParam))
+          (isStageUnlocked(stageParam, completed, isSelf) || completed.includes(stageParam))
         ) {
           setActiveStageId(stageParam);
           localStorage.setItem("talentera_active_stage", String(stageParam));
@@ -92,7 +94,7 @@ export default function CandidateWizard() {
         } else if (
           savedActiveStage >= 1 &&
           savedActiveStage <= 8 &&
-          (isStageUnlocked(savedActiveStage, completed) || completed.includes(savedActiveStage))
+          (isStageUnlocked(savedActiveStage, completed, isSelf) || completed.includes(savedActiveStage))
         ) {
           setActiveStageId(savedActiveStage);
         } else {
@@ -109,21 +111,21 @@ export default function CandidateWizard() {
   function handleSelectStage(stageNum) {
     const candidateObj = profile?.candidate || profile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+    const isSelf = isSelfTrainedCandidate(candidateObj);
 
-    const isUnlocked = isStageUnlocked(stageNum, completed) || completed.includes(stageNum);
+    const isUnlocked = isStageUnlocked(stageNum, completed, isSelf) || completed.includes(stageNum);
     if (!isUnlocked) {
       let firstMissing = 1;
       for (let i = 1; i < stageNum; i++) {
+        if (isSelf && i === 6) continue;
         if (!completed.includes(i)) {
           firstMissing = i;
           break;
         }
       }
-      const missingStageMeta = WIZARD_STAGES.find((s) => s.num === firstMissing);
-      const targetStageMeta = WIZARD_STAGES.find((s) => s.num === stageNum);
       toast(
-        `Stage 0${stageNum} (${targetStageMeta?.short || "Locked"}) is locked. Please complete Stage 0${firstMissing} (${missingStageMeta?.short || "Previous"}) first.`,
-        "!"
+        `Please complete Stage ${firstMissing} before opening Stage ${stageNum}.`,
+        { title: "Stage Locked", type: "warning", glyph: "⚠️" }
       );
       return;
     }
@@ -165,7 +167,8 @@ export default function CandidateWizard() {
 
     if (!advance) return;
 
-    if (nextStage && (isStageUnlocked(nextStage, completed) || completed.includes(nextStage))) {
+    const isSelf = isSelfTrainedCandidate(candidateObj);
+    if (nextStage && (isStageUnlocked(nextStage, completed, isSelf) || completed.includes(nextStage))) {
       setActiveStageId(nextStage);
       localStorage.setItem("talentera_active_stage", String(nextStage));
       return;
@@ -189,7 +192,8 @@ export default function CandidateWizard() {
     if (!profile) return;
     const candidateObj = profile?.candidate || profile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
-    const mandatoryStages = WIZARD_STAGES.filter((s) => s.mandatory);
+    const stagesList = getWizardStages(candidateObj);
+    const mandatoryStages = stagesList.filter((s) => s.mandatory);
     const missing = mandatoryStages.filter((s) => !completed.includes(s.num));
     if (missing.length > 0) {
       toast(`Finish ${missing.map((s) => s.short).join(", ")} before submitting.`, "!");
@@ -210,7 +214,7 @@ export default function CandidateWizard() {
   }
 
   function handleSaveExit() {
-    toast("✓ Progress saved. Returning to your dashboard...", "✓");
+    toast("Progress saved. Returning to your dashboard...", "✓");
     setShowDashboard(true);
   }
 
@@ -245,7 +249,8 @@ export default function CandidateWizard() {
     );
   }
 
-  const activeStage = getStage(activeStageId) || WIZARD_STAGES[0];
+  const isSelfTrained = isSelfTrainedCandidate(candidateObj);
+  const activeStage = getStage(activeStageId, candidateObj) || WIZARD_STAGES[0];
   const stageKey = `stage${activeStage.num}`;
   const existingData = candidateObj?.[stageKey] || {};
   const completedStages = Array.isArray(candidateObj?.completedStages) ? candidateObj.completedStages : [];
@@ -264,6 +269,7 @@ export default function CandidateWizard() {
         onSubmit={handleSubmitForVerification}
         onSaveExit={handleSaveExit}
         onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
+        isSelfTrained={isSelfTrained}
       />
 
       {activeStageId >= 1 && activeStageId <= 8 ? (

@@ -68,6 +68,11 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         const s6 = candidate.stage6 || {};
         const opt = (s6.evidencePath || s6.option || "").toLowerCase();
         let pts = 0;
+        if (s6.skipped) {
+          pts = 0;
+          score += pts;
+          continue;
+        }
         if (typeof s6.verificationPoints === "number") {
           // Stage 6 scored from its own inputs (see utils/stage6Score.js)
           pts = Math.min(STAGE_POINTS[6], Math.max(0, s6.verificationPoints));

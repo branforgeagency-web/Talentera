@@ -549,6 +549,12 @@ router.post("/jobs", async (req, res) => {
     }
 
     const fields = req.body || {};
+    const isFresherJobReq = String(fields.level || "").toLowerCase().includes("fresher") || (fields.expmin !== undefined && fields.expmin !== null && fields.expmin !== "" && Number(fields.expmin) === 0 && Number(fields.expmax || 0) <= 1);
+    if (isFresherJobReq) {
+      fields.notice = "";
+      fields.expmin = "";
+      fields.expmax = "";
+    }
     const negativeField = findNegativeJdField(fields);
     if (negativeField) {
       return res.status(400).json({ message: `${negativeField} cannot be negative.` });
