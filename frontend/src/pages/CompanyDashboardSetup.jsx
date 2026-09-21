@@ -69,7 +69,12 @@ export default function CompanyDashboardSetup() {
     const st = ONBOARDING_STAGES.find((s) => s.id === stageId);
     if (!st || !updatedCompany) return [];
     const stData = updatedCompany[`stage${stageId}`] || {};
-    const fresherOnly = stageId === "9" && stData.level === "Fresher only";
+    const fresherOnly = stageId === "9" && (
+      stData.level === "Fresher only" ||
+      stData.level === "Fresher" ||
+      String(stData.level || "").toLowerCase().includes("fresher") ||
+      (stData.expmin !== "" && stData.expmin !== undefined && Number(stData.expmin) === 0 && (stData.expmax === "" || Number(stData.expmax) <= 1))
+    );
     const mustItems = st.items.filter((i) => i.tag === "must" && !(fresherOnly && (i.id === "expmin" || i.id === "expmax")));
     return mustItems.filter((item) => {
       const val = stData[item.id];
@@ -724,7 +729,17 @@ export default function CompanyDashboardSetup() {
 
             <div className="conb-field-list">
               {activeStage.items
-                .filter((item) => !(activeStageId === "9" && activeData?.level === "Fresher only" && (item.id === "expmin" || item.id === "expmax" || item.id === "notice")))
+                .filter((item) => {
+                  if (activeStageId === "9") {
+                    const isFresher =
+                      activeData?.level === "Fresher only" ||
+                      activeData?.level === "Fresher" ||
+                      String(activeData?.level || "").toLowerCase().includes("fresher") ||
+                      (activeData?.expmin !== "" && activeData?.expmin !== undefined && Number(activeData?.expmin) === 0 && (activeData?.expmax === "" || Number(activeData?.expmax) <= 1));
+                    if (isFresher && (item.id === "expmin" || item.id === "expmax" || item.id === "notice")) return false;
+                  }
+                  return true;
+                })
                 .filter((item) => !(activeStageId === "5" && item.id === "qcustom" && !["No", "Mix"].includes(activeData?.qdefault)))
                 .map((item) => (
                 <OnboardingField

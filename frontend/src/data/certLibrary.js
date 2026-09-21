@@ -15,6 +15,7 @@ function cert(code, name, opts = {}) {
     qs: opts.qs || 100,
     usd: opts.usd || 399,
     inr: opts.inr || "~₹33,500",
+    renewal: opts.renewal || "1 year",
     flag: opts.flag || null,
     flagText: opts.flagText || null,
     featured: opts.featured || false,

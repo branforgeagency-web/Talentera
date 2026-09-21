@@ -102,27 +102,27 @@ function Icon({ name, size = 18, sw = 2, style, className }) {
 // (there is no staff-directory or matching-engine-metrics API yet).
 const DEPARTMENTS = {
   dept_candidate_acquisition: {
-    icon: "👥", title: "Candidate Acquisition", isMine: true,
+    icon: <i className="fa-solid fa-users" />, title: "Candidate Acquisition", isMine: true,
     description: "Sources candidates from partner academies, colleges, walk-ins, and referrals, then onboards their profiles into the verification pipeline.",
   },
   dept_company_relations: {
-    icon: "🏢", title: "Company Relations",
+    icon: <i className="fa-solid fa-building" />, title: "Company Relations",
     description: "Owns hiring-company relationships: onboarding new employers, KYC follow-up, and matching verified candidates to open roles.",
   },
   dept_mapping_engine: {
-    icon: "🔄", title: "Mapping Engine",
+    icon: <i className="fa-solid fa-arrows-rotate" />, title: "Mapping Engine",
     description: "Maintains the matching logic that pairs verified candidates with company job requisitions by specialty, certification, location, and score.",
   },
   dept_assessment_video: {
-    icon: "🎥", title: "Assessment + Video",
+    icon: <i className="fa-solid fa-video" />, title: "Assessment + Video",
     description: "Reviews text assessments and video introductions flagged by the AI grading pipeline, and maintains the interview question bank.",
   },
   dept_crm_data: {
-    icon: "📈", title: "CRM + Data",
+    icon: <i className="fa-solid fa-chart-line" />, title: "CRM + Data",
     description: "Keeps candidate and company records clean, monitors pipeline data quality, and builds the operational reports leadership reviews weekly.",
   },
   dept_success_revenue: {
-    icon: "💰", title: "Success + Revenue",
+    icon: <i className="fa-solid fa-sack-dollar" />, title: "Success + Revenue",
     description: "Tracks candidates who complete verification and are placed, and the platform's overall placement rate.",
   },
 };
@@ -242,7 +242,7 @@ function CertAuditVerificationPanel({
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <h4 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: 0 }}>
-            📁 1. Uploaded Certificate Document
+            <><i className="fa-solid fa-folder" style={{ marginRight: 8 }}></i> 1. Uploaded Certificate Document</>
           </h4>
           <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>
             Candidate Evidence
@@ -271,7 +271,7 @@ function CertAuditVerificationPanel({
                 boxShadow: "0 2px 8px rgba(147,51,234,0.2)",
               }}
             >
-              📄 View / Download Certificate PDF
+              <><i className="fa-solid fa-file-pdf" style={{ marginRight: 8 }}></i> View / Download Certificate PDF</>
             </a>
             <span style={{ fontSize: 12, color: "#475569" }}>
               (Confirm name, body seal, credential code, and member ID match)
@@ -279,7 +279,7 @@ function CertAuditVerificationPanel({
           </div>
         ) : (
           <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FEE2E2", color: "#DC2626", fontSize: 12.5, fontWeight: 600 }}>
-            ⚠️ No certificate document file attached to this claim.
+            <><i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 8, color: "#F59E0B" }}></i> No certificate document file attached to this claim.</>
           </div>
         )}
       </div>
@@ -288,7 +288,7 @@ function CertAuditVerificationPanel({
       <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <h4 style={{ fontSize: 14, fontWeight: 800, color: "#0F172A", margin: 0 }}>
-            🌐 2. Issuing Body Official Registry Lookup
+            <><i className="fa-solid fa-globe" style={{ marginRight: 8 }}></i> 2. Issuing Body Official Registry Lookup</>
           </h4>
           {officialMeta?.verifyUrl && (
             <a
@@ -308,7 +308,7 @@ function CertAuditVerificationPanel({
         {selectedCert.liveVerificationEvidenceUrl && (
           <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, marginBottom: 14 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#047857", textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
-              <span>✓ Evidence captured</span>
+              <span><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 5 }}></i> Evidence captured</span>
               {selectedCert.liveVerificationCapturedAt && `(${new Date(selectedCert.liveVerificationCapturedAt).toLocaleString()})`}
               {selectedCert.liveVerificationCapturedBy && `by ${selectedCert.liveVerificationCapturedBy}`}
             </div>
@@ -318,7 +318,7 @@ function CertAuditVerificationPanel({
               rel="noreferrer"
               style={{ fontSize: 12.5, fontWeight: 700, color: "#2563EB", display: "inline-block" }}
             >
-              🖼️ View captured registry screenshot ↗
+              <><i className="fa-solid fa-image" style={{ marginRight: 6 }}></i> View captured registry screenshot ↗</>
             </a>
             {selectedCert.liveVerificationText && (
               <details style={{ marginTop: 8 }}>
@@ -351,7 +351,7 @@ function CertAuditVerificationPanel({
               gap: 8,
             }}
           >
-            🎥 Start Live Remote Verification
+            <><i className="fa-solid fa-video" style={{ marginRight: 6 }}></i> Start Live Remote Verification</>
           </button>
           {officialMeta?.verifyUrl && (
             <a
@@ -372,7 +372,7 @@ function CertAuditVerificationPanel({
                 gap: 6,
               }}
             >
-              🔗 Open {officialMeta.name} Portal in New Tab ↗
+              <><i className="fa-solid fa-arrow-up-right-from-square" style={{ marginRight: 6 }}></i> Open {officialMeta.name} Portal in New Tab ↗</>
             </a>
           )}
         </div>
@@ -382,7 +382,7 @@ function CertAuditVerificationPanel({
       <div style={{ background: "#FAF5FF", border: "1.5px solid #D8B4FE", borderRadius: 14, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <h4 style={{ fontSize: 14, fontWeight: 800, color: "#581C87", margin: 0, display: "flex", alignItems: "center", gap: 8 }}>
-            <span>✅</span> Verification Quality Checklist
+            <span><i className="fa-solid fa-circle-check" style={{ color: "#10B981", marginRight: 6 }}></i></span> Verification Quality Checklist
           </h4>
           <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", background: "#E9D5FF", color: "#6B21A8", padding: "3px 10px", borderRadius: 999 }}>
             Anti-Fraud Protocol
@@ -396,7 +396,7 @@ function CertAuditVerificationPanel({
           {/* Check 1: Member ID Pattern Validation */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10, background: "#FFFFFF", padding: "10px 14px", borderRadius: 10, border: idFormatValid ? "1px solid #BBF7D0" : "1px solid #FED7AA" }}>
             <div style={{ width: 22, height: 22, borderRadius: "50%", background: idFormatValid ? "#DCFCE7" : "#FFEDD5", color: idFormatValid ? "#15803D" : "#C2410C", display: "grid", placeItems: "center", fontWeight: 800, fontSize: 12, flexShrink: 0, marginTop: 1 }}>
-              {idFormatValid ? "✓" : "!"}
+              {idFormatValid ? <i className="fa-solid fa-check" /> : <i className="fa-solid fa-exclamation" />}
             </div>
             <div style={{ flex: 1, fontSize: 12.5 }}>
               <div style={{ fontWeight: 700, color: "#0F172A" }}>
@@ -405,11 +405,11 @@ function CertAuditVerificationPanel({
               <div style={{ color: "#64748B", marginTop: 2, fontSize: 11.5 }}>
                 {idFormatValid ? (
                   <span style={{ color: "#15803D", fontWeight: 600 }}>
-                    ✓ ID &quot;{rawMemberId || "N/A"}&quot; matches {patternMeta?.description || "expected format"} for {officialMeta?.name || "body"}.
+                    <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 5 }}></i> ID &quot;{rawMemberId || "N/A"}&quot; matches {patternMeta?.description || "expected format"} for {officialMeta?.name || "body"}.</>
                   </span>
                 ) : (
                   <span style={{ color: "#C2410C", fontWeight: 600 }}>
-                    ⚠️ ID &quot;{rawMemberId}&quot; does not conform to expected {patternMeta?.description} for {officialMeta?.name}.
+                    <><i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B", marginRight: 5 }}></i> ID &quot;{rawMemberId}&quot; does not conform to expected {patternMeta?.description} for {officialMeta?.name}.</>
                   </span>
                 )}
               </div>
@@ -429,7 +429,7 @@ function CertAuditVerificationPanel({
                 2. Official Registry Verified
               </div>
               <div style={{ color: "#64748B", marginTop: 2, fontSize: 11.5 }}>
-                {hasLiveCapture ? "✓ Evidence captured via Live Remote Browser Session." : `Audited on official ${officialMeta?.name || "body"} registry (status active, credential valid for candidate name).`}
+                {hasLiveCapture ? <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 5 }}></i> Evidence captured via Live Remote Browser Session.</> : `Audited on official ${officialMeta?.name || "body"} registry (status active, credential valid for candidate name).`}
               </div>
             </div>
           </label>
@@ -500,7 +500,7 @@ function CertAuditVerificationPanel({
             opacity: processingId === selectedCert.id ? 0.7 : 1,
           }}
         >
-          {processingId === selectedCert.id ? "Processing…" : "✓ Approve & Verify Certification"}
+          {processingId === selectedCert.id ? "Processing…" : <><i className="fa-solid fa-check" style={{ marginRight: 6 }}></i> Approve & Verify Certification</>}
         </button>
 
         <button
@@ -528,17 +528,17 @@ function CertAuditVerificationPanel({
             opacity: processingId === selectedCert.id ? 0.7 : 1,
           }}
         >
-          ✕ Reject Certification Claim
+          <><i className="fa-solid fa-xmark" style={{ marginRight: 6 }}></i> Reject Certification Claim</>
         </button>
 
         {isVerified && (
           <span style={{ fontSize: 12, fontWeight: 700, color: "#15803D" }}>
-            ✓ Currently marked verified in database
+            <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 6 }}></i> Currently marked verified in database</>
           </span>
         )}
         {isRejected && (
           <span style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>
-            ✕ Currently rejected in database
+            <><i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginRight: 6 }}></i> Currently rejected in database</>
           </span>
         )}
       </div>
@@ -596,7 +596,7 @@ export default function StaffHub() {
   const copyToClipboard = (text, label) => {
     if (!text) return;
     navigator.clipboard?.writeText(text);
-    showToast(`Copied ${label || text} to clipboard! 📋`);
+    showToast(`Copied ${label || text} to clipboard!`);
   };
 
   const exportCandidatesCSV = (list) => {
@@ -627,7 +627,7 @@ export default function StaffHub() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast("Candidate roster exported successfully! 📥");
+    showToast("Candidate roster exported successfully!");
   };
 
   const exportCompaniesCSV = (list) => {
@@ -657,7 +657,7 @@ export default function StaffHub() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    showToast("Company directory exported successfully! 📥");
+    showToast("Company directory exported successfully!");
   };
 
   const [selectedKycId, setSelectedKycId] = useState(null);
@@ -686,6 +686,7 @@ export default function StaffHub() {
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [questionForm, setQuestionForm] = useState({
+    domain: "Medical Coding",
     text: "",
     correctAnswer: "",
     mode: "both",
@@ -695,6 +696,33 @@ export default function StaffHub() {
   const [questionSubmitting, setQuestionSubmitting] = useState(false);
   const [questionError, setQuestionError] = useState("");
   const [questionDeleteConfirmId, setQuestionDeleteConfirmId] = useState(null);
+
+  // Stage 4 Proctored Assessment MCQ Bank State
+  const [questionBankTab, setQuestionBankTab] = useState("stage4"); // "stage4" (Assessment MCQs) or "stage5" (Interview)
+  const [assessmentDomain, setAssessmentDomain] = useState("Medical Coding");
+  const [assessmentQuestions, setAssessmentQuestions] = useState([]);
+  const [assessmentLoading, setAssessmentLoading] = useState(false);
+  const [assessmentModalOpen, setAssessmentModalOpen] = useState(false);
+  const [editingAssessmentQ, setEditingAssessmentQ] = useState(null);
+  const [assessmentForm, setAssessmentForm] = useState({
+    domain: "Medical Coding",
+    sectionKey: "anatomy",
+    sectionName: "Anatomy & Physiology",
+    sectionIcon: "fa-bullseye",
+    sectionSub: "",
+    sectionOrder: 1,
+    topic: "",
+    question: "",
+    options: ["", "", "", ""],
+    correct: 0,
+    explanation: "",
+    order: 1,
+    active: true,
+  });
+  const [assessmentSubmitting, setAssessmentSubmitting] = useState(false);
+  const [assessmentError, setAssessmentError] = useState("");
+  const [assessmentDeleteConfirmId, setAssessmentDeleteConfirmId] = useState(null);
+  const [interviewDomainFilter, setInterviewDomainFilter] = useState("all");
 
   // --- EMPLOYEE DASHBOARD INTERACTIVE STATE (CANDIDATE & COMPANY THEME UNIFIED) ---
   // These start empty rather than seeded with fictional names/academies -
@@ -858,7 +886,7 @@ export default function StaffHub() {
       if (!res.ok) {
         showToast(data.message || "Failed to approve retake request");
       } else {
-        showToast("Retake approved! Notification email sent to candidate. ✉️");
+        showToast("Retake approved! Notification email sent to candidate.");
         setSelectedRetakeModal(null);
         setRetakeReviewNotes("");
         fetchRetakeRequests(retakeStatusFilter);
@@ -1013,6 +1041,182 @@ export default function StaffHub() {
     }
   };
 
+  const fetchAssessmentQuestions = async (domain = assessmentDomain) => {
+    setAssessmentLoading(true);
+    try {
+      let url = "/api/staff/assessment-questions";
+      if (domain && domain !== "all") {
+        url += `?domain=${encodeURIComponent(domain)}`;
+      }
+      const res = await fetch(url, { headers: { ...getAuthHeader() } });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      setAssessmentQuestions(data.questions || []);
+    } catch (err) {
+      console.error("fetchAssessmentQuestions error:", err);
+    } finally {
+      setAssessmentLoading(false);
+    }
+  };
+
+  const handleResetAssessmentDefaults = async () => {
+    if (!window.confirm(`Reset Stage 4 assessment questions for "${assessmentDomain}" to standard curriculum defaults? Any custom changes for this domain will be restored.`)) {
+      return;
+    }
+    setAssessmentLoading(true);
+    try {
+      const res = await fetch("/api/staff/assessment-questions/reset-defaults", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ domain: assessmentDomain }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "Failed to reset questions.");
+      showToast(data.message || "Standard domain questions reset successfully!");
+      fetchAssessmentQuestions(assessmentDomain);
+    } catch (err) {
+      showToast("Error resetting: " + err.message);
+    } finally {
+      setAssessmentLoading(false);
+    }
+  };
+
+  const handleOpenAddAssessmentQ = () => {
+    setEditingAssessmentQ(null);
+    setAssessmentForm({
+      domain: assessmentDomain,
+      sectionKey: "custom_section",
+      sectionName: "General Knowledge",
+      sectionIcon: "fa-bullseye",
+      sectionSub: "",
+      sectionOrder: 1,
+      topic: "",
+      question: "",
+      options: ["", "", "", ""],
+      correct: 0,
+      explanation: "",
+      order: assessmentQuestions.length + 1,
+      active: true,
+    });
+    setAssessmentError("");
+    setAssessmentModalOpen(true);
+  };
+
+  const handleOpenEditAssessmentQ = (q) => {
+    setEditingAssessmentQ(q);
+    const opts = Array.isArray(q.options) && q.options.length >= 2 ? [...q.options] : ["", "", "", ""];
+    while (opts.length < 4) opts.push("");
+    setAssessmentForm({
+      domain: q.domain || assessmentDomain,
+      sectionKey: q.sectionKey || "custom_section",
+      sectionName: q.sectionName || "Section",
+      sectionIcon: q.sectionIcon || "fa-bullseye",
+      sectionSub: q.sectionSub || "",
+      sectionOrder: q.sectionOrder || 1,
+      topic: q.topic || "",
+      question: q.question || "",
+      options: opts,
+      correct: typeof q.correct === "number" ? q.correct : 0,
+      explanation: q.explanation || "",
+      order: q.order ?? 1,
+      active: q.active !== false,
+    });
+    setAssessmentError("");
+    setAssessmentModalOpen(true);
+  };
+
+  const handleSaveAssessmentQ = async (e) => {
+    if (e) e.preventDefault();
+    if (!assessmentForm.question.trim()) {
+      setAssessmentError("Question text is required.");
+      return;
+    }
+    const cleanOptions = assessmentForm.options.map((o) => String(o).trim()).filter(Boolean);
+    if (cleanOptions.length < 2) {
+      setAssessmentError("At least 2 non-empty options are required.");
+      return;
+    }
+    setAssessmentSubmitting(true);
+    setAssessmentError("");
+
+    try {
+      const isEdit = Boolean(editingAssessmentQ && (editingAssessmentQ._id || editingAssessmentQ.id));
+      const qId = editingAssessmentQ?._id || editingAssessmentQ?.id;
+      const url = isEdit ? `/api/staff/assessment-questions/${qId}` : "/api/staff/assessment-questions";
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeader(),
+        },
+        body: JSON.stringify({
+          domain: assessmentForm.domain,
+          sectionKey: assessmentForm.sectionKey.trim(),
+          sectionName: assessmentForm.sectionName.trim(),
+          sectionIcon: assessmentForm.sectionIcon || "fa-bullseye",
+          sectionSub: assessmentForm.sectionSub.trim(),
+          sectionOrder: Number(assessmentForm.sectionOrder) || 1,
+          topic: assessmentForm.topic.trim(),
+          question: assessmentForm.question.trim(),
+          options: cleanOptions,
+          correct: Math.min(cleanOptions.length - 1, Math.max(0, Number(assessmentForm.correct) || 0)),
+          explanation: assessmentForm.explanation.trim(),
+          order: Number(assessmentForm.order) || 1,
+          active: Boolean(assessmentForm.active),
+        }),
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "Failed to save assessment question.");
+
+      showToast(isEdit ? "Assessment question updated successfully!" : "New Stage 4 MCQ added to bank!");
+      setAssessmentModalOpen(false);
+      fetchAssessmentQuestions(assessmentDomain);
+    } catch (err) {
+      setAssessmentError(err.message || "An error occurred while saving.");
+    } finally {
+      setAssessmentSubmitting(false);
+    }
+  };
+
+  const handleToggleAssessmentQActive = async (q) => {
+    const qId = q._id || q.id;
+    try {
+      const res = await fetch(`/api/staff/assessment-questions/${qId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ active: !q.active }),
+      });
+      if (!res.ok) throw new Error("Failed to toggle status.");
+      showToast(`Question status updated to ${!q.active ? "Active" : "Inactive"}.`);
+      setAssessmentQuestions((prev) =>
+        prev.map((item) => ((item._id || item.id) === qId ? { ...item, active: !item.active } : item))
+      );
+    } catch (err) {
+      showToast("Error updating status: " + err.message);
+    }
+  };
+
+  const handleDeleteAssessmentQ = async (qId) => {
+    try {
+      const res = await fetch(`/api/staff/assessment-questions/${qId}`, {
+        method: "DELETE",
+        headers: { ...getAuthHeader() },
+      });
+      if (!res.ok) throw new Error("Failed to delete MCQ.");
+      showToast("Question removed from bank.");
+      setAssessmentDeleteConfirmId(null);
+      setAssessmentQuestions((prev) => prev.filter((item) => (item._id || item.id) !== qId));
+    } catch (err) {
+      showToast("Error deleting question: " + err.message);
+    }
+  };
+
   const fetchInterviewQuestions = async () => {
     setQuestionsLoading(true);
     try {
@@ -1033,6 +1237,7 @@ export default function StaffHub() {
   const handleOpenAddQuestion = () => {
     setEditingQuestion(null);
     setQuestionForm({
+      domain: interviewDomainFilter !== "all" ? interviewDomainFilter : "Medical Coding",
       text: "",
       correctAnswer: "",
       mode: "both",
@@ -1046,6 +1251,7 @@ export default function StaffHub() {
   const handleOpenEditQuestion = (q) => {
     setEditingQuestion(q);
     setQuestionForm({
+      domain: q.domain || "Medical Coding",
       text: q.text || "",
       correctAnswer: q.correctAnswer || "",
       mode: q.mode || "both",
@@ -1082,6 +1288,7 @@ export default function StaffHub() {
           ...getAuthHeader(),
         },
         body: JSON.stringify({
+          domain: questionForm.domain || "Medical Coding",
           text: questionForm.text.trim(),
           correctAnswer: questionForm.correctAnswer.trim(),
           mode: questionForm.mode,
@@ -1095,7 +1302,7 @@ export default function StaffHub() {
         throw new Error(data.message || "Failed to save interview question.");
       }
 
-      showToast(isEdit ? "Interview question updated successfully! ✓" : "New interview question added to bank! ✓");
+      showToast(isEdit ? "Interview question updated successfully!" : "New interview question added to bank!");
       setQuestionModalOpen(false);
       fetchInterviewQuestions();
     } catch (err) {
@@ -1133,7 +1340,7 @@ export default function StaffHub() {
         headers: { ...getAuthHeader() },
       });
       if (!res.ok) throw new Error("Failed to delete interview question.");
-      showToast("Interview question removed from bank. 🗑️");
+      showToast("Interview question removed from bank.");
       setQuestionDeleteConfirmId(null);
       setInterviewQuestions((prev) => prev.filter((item) => (item._id || item.id) !== qId));
     } catch (err) {
@@ -1257,7 +1464,7 @@ export default function StaffHub() {
         return;
       }
 
-      showToast(`Employee "${data.employee?.name || createEmployeeForm.name}" created successfully! 🎉`);
+      showToast(`Employee "${data.employee?.name || createEmployeeForm.name}" created successfully!`);
       setActiveModal(null);
       setCreateEmployeeForm({
         name: "",
@@ -1289,7 +1496,7 @@ export default function StaffHub() {
         showToast(data.message || "Failed to update employee status.");
         return;
       }
-      showToast(`Employee "${emp.name}" is now ${targetActive ? "Active ✓" : "Deactivated"}.`);
+      showToast(`Employee "${emp.name}" is now ${targetActive ? "Active" : "Deactivated"}.`);
       fetchEmployees(employeeSearch, employeeStatusFilter);
     } catch (err) {
       showToast("Error updating employee status.");
@@ -1315,7 +1522,7 @@ export default function StaffHub() {
         setResetPasswordError(data.message || "Failed to reset password.");
         return;
       }
-      showToast(`Password reset successfully for ${resetPasswordEmployee.name}! 🔑`);
+      showToast(`Password reset successfully for ${resetPasswordEmployee.name}!`);
       setActiveModal(null);
       setResetPasswordEmployee(null);
       setNewPasswordForReset("");
@@ -1346,7 +1553,7 @@ export default function StaffHub() {
         setResetCompanyPasswordError(data.message || "Failed to reset company password.");
         return;
       }
-      showToast(`Password reset successfully for ${resetPasswordCompany.companyName || resetPasswordCompany.email}! 🔑`);
+      showToast(`Password reset successfully for ${resetPasswordCompany.companyName || resetPasswordCompany.email}!`);
       setActiveModal(null);
       setResetPasswordCompany(null);
       setNewCompanyPasswordForReset("");
@@ -1377,7 +1584,7 @@ export default function StaffHub() {
         setResetCandidatePasswordError(data.message || "Failed to reset candidate password.");
         return;
       }
-      showToast(`Password reset successfully for ${resetPasswordCandidate.fullName || resetPasswordCandidate.email}! 🔑`);
+      showToast(`Password reset successfully for ${resetPasswordCandidate.fullName || resetPasswordCandidate.email}!`);
       setActiveModal(null);
       setResetPasswordCandidate(null);
       setNewCandidatePasswordForReset("");
@@ -1398,7 +1605,7 @@ export default function StaffHub() {
       });
       const data = await safeJson(res);
       if (res.ok) {
-        showToast(`✓ Plan changed to ${newPlan.toUpperCase()} successfully!`);
+        showToast(`Plan changed to ${newPlan.toUpperCase()} successfully!`);
         fetchCompanies(companySearch, companyKycFilter);
         if (selectedCompany && (selectedCompany._id === companyId || selectedCompany.id === companyId)) {
           setSelectedCompany((prev) => ({ ...prev, plan: newPlan }));
@@ -1445,7 +1652,7 @@ export default function StaffHub() {
       });
       const data = await safeJson(res);
       if (res.ok) {
-        showToast(`✓ Applicant status updated to ${newStatus.toUpperCase()}`);
+        showToast(`Applicant status updated to ${newStatus.toUpperCase()}`);
         setSelectedCompany((prev) => {
           if (!prev) return prev;
           const updated = (prev.applications || []).map((a) =>
@@ -1519,7 +1726,7 @@ export default function StaffHub() {
     const student = partnerBucket.find((p) => p.id === id);
     setPartnerBucket((prev) => prev.filter((p) => p.id !== id));
     if (student && actionType === "verify") {
-      showToast(`⚡ ${student.name} sent to verification pipeline!`);
+      showToast(`${student.name} sent to verification pipeline!`);
     } else if (student) {
       showToast(`Skipped ${student.name}.`);
     }
@@ -1596,7 +1803,7 @@ export default function StaffHub() {
       });
       if (res.ok) {
         fetchDashboard();
-        showToast(`Document (${docId}) marked as ${isValid ? "Valid ✓" : "Invalid ✖"}`);
+        showToast(`Document (${docId}) marked as ${isValid ? "Valid" : "Invalid"}`);
       }
     } catch (err) {
       console.error(err);
@@ -1826,7 +2033,7 @@ export default function StaffHub() {
       {/* Toast Notification */}
       {toastMsg && (
         <div style={{ position: "fixed", top: 20, right: 20, background: "var(--navy-deep, #06152A)", color: "var(--gold, #E5A82E)", border: "1px solid rgba(229,168,46,0.3)", padding: "12px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700, boxShadow: "0 10px 25px rgba(0,0,0,0.3)", zIndex: 10000, display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}>
-          <span>✨</span> {toastMsg}
+          <><i className="fa-solid fa-wand-magic-sparkles" style={{ color: "var(--gold, #E5A82E)", marginRight: 6 }}></i> {toastMsg}</>
         </div>
       )}
 
@@ -2060,7 +2267,7 @@ export default function StaffHub() {
                               <div className="sf-theme-option-desc">{theme.desc}</div>
                             </div>
                           </div>
-                          {isActive && <span style={{ color: theme.accent, fontWeight: 800 }}>✓</span>}
+                          {isActive && <span style={{ color: theme.accent, fontWeight: 800 }}><i className="fa-solid fa-check"></i></span>}
                         </button>
                       );
                     })}
@@ -2154,7 +2361,7 @@ export default function StaffHub() {
                   ))}
                   {partnerBucket.length === 0 && (
                     <div style={{ textAlign: "center", color: "#78350F", padding: 12, fontSize: 12, fontWeight: 600 }}>
-                      ✓ All academy partner uploads reviewed for today!
+                      <><i className="fa-solid fa-circle-check" style={{ color: "#10B981", marginRight: 6 }}></i> All academy partner uploads reviewed for today!</>
                     </div>
                   )}
                 </div>
@@ -2199,7 +2406,7 @@ export default function StaffHub() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                        👥
+                        <i className="fa-solid fa-users"></i>
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
                         {dashData?.reportsData?.verifiedCandidates ?? 0} VERIFIED
@@ -2233,7 +2440,7 @@ export default function StaffHub() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                        🏢
+                        <i className="fa-solid fa-building"></i>
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#FEF3C7", color: "#B45309" }}>
                         {dashData?.stats?.pendingCompanyKycs ?? 0} PENDING KYC
@@ -2267,7 +2474,7 @@ export default function StaffHub() {
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                       <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                        🎓
+                        <i className="fa-solid fa-graduation-cap"></i>
                       </div>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#EDE9FE", color: "#6D28D9" }}>
                         PARTNER NETWORK
@@ -2526,7 +2733,7 @@ export default function StaffHub() {
                         onClick={() => fetchCandidates(candidateSearch, candidateStatusFilter)}
                         disabled={candidatesLoading}
                       >
-                        {candidatesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                        {candidatesLoading ? "Refreshing..." : <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> Refresh Directory</>}
                       </button>
                     </div>
                   </div>
@@ -2554,7 +2761,7 @@ export default function StaffHub() {
                       <span className="sf-hero-pill-lbl">Job Applications</span>
                     </div>
                     <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val" style={{ color: "#22C55E" }}>🎉 {totalHiredSum}</span>
+                      <span className="sf-hero-pill-val" style={{ color: "#22C55E" }}><i className="fa-solid fa-award" style={{ marginRight: 6 }}></i>{totalHiredSum}</span>
                       <span className="sf-hero-pill-lbl">Hired &amp; Placed</span>
                     </div>
                   </div>
@@ -2641,7 +2848,7 @@ export default function StaffHub() {
                           onClick={() => setCandidateSearch("")}
                           title="Clear search"
                         >
-                          ✕
+                          <i className="fa-solid fa-xmark"></i>
                         </button>
                       )}
                     </div>
@@ -2707,21 +2914,21 @@ export default function StaffHub() {
                       className={`sf-chip-btn ${candidateQuickFilter === "verified" ? "active" : ""}`}
                       onClick={() => setCandidateQuickFilter("verified")}
                     >
-                      ✓ Verified (Gold) ({verifiedTotal})
+                      <><i className="fa-solid fa-circle-check" style={{ color: "#10B981", marginRight: 5 }}></i> Verified (Gold) ({verifiedTotal})</>
                     </button>
                     <button
                       type="button"
                       className={`sf-chip-btn ${candidateQuickFilter === "assessment" ? "active" : ""}`}
                       onClick={() => setCandidateQuickFilter("assessment")}
                     >
-                      📊 In Assessment ({inAssessmentTotal})
+                      <><i className="fa-solid fa-chart-simple" style={{ color: "#2563EB", marginRight: 5 }}></i> In Assessment ({inAssessmentTotal})</>
                     </button>
                     <button
                       type="button"
                       className={`sf-chip-btn ${candidateQuickFilter === "aadhaar" ? "active" : ""}`}
                       onClick={() => setCandidateQuickFilter("aadhaar")}
                     >
-                      🛡️ Aadhaar Verified ({aadhaarTotal})
+                      <><i className="fa-solid fa-shield-halved" style={{ color: "#059669", marginRight: 5 }}></i> Aadhaar Verified ({aadhaarTotal})</>
                     </button>
                     <button
                       type="button"
@@ -2735,7 +2942,7 @@ export default function StaffHub() {
                       className={`sf-chip-btn ${candidateQuickFilter === "hired" ? "active" : ""}`}
                       onClick={() => setCandidateQuickFilter("hired")}
                     >
-                      🎉 Placed ({totalHiredSum})
+                      <><i className="fa-solid fa-award" style={{ color: "#10B981", marginRight: 5 }}></i> Placed ({totalHiredSum})</>
                     </button>
                     <button
                       type="button"
@@ -2812,7 +3019,7 @@ export default function StaffHub() {
                                       <div style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)" }}>{c.email}</div>
                                       {c.mobile && (
                                         <div style={{ fontSize: 10.5, color: "var(--st-text-muted, #94A3B8)", display: "flex", alignItems: "center", gap: 4 }}>
-                                          <span>📞 {c.mobile}</span>
+                                          <span><i className="fa-solid fa-phone" style={{ marginRight: 5 }}></i> {c.mobile}</span>
                                           <button
                                             type="button"
                                             className="sf-copy-chip"
@@ -2842,10 +3049,10 @@ export default function StaffHub() {
                                         width: "fit-content",
                                       }}
                                     >
-                                      {isAadhaarDone ? "✓ Aadhaar Verified" : "⏳ Aadhaar Pending"}
+                                      {isAadhaarDone ? <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 4 }}></i> Aadhaar Verified</> : <><i className="fa-solid fa-hourglass-half" style={{ color: "#F59E0B", marginRight: 4 }}></i> Aadhaar Pending</>}
                                     </span>
                                     <span style={{ fontSize: 11, color: "var(--st-text-muted, #64748B)" }}>
-                                      📍 {c.city || c.stage1?.city || "India"} {c.experience || c.stage1?.experience ? `· ${c.experience || c.stage1?.experience} yrs exp` : ""}
+                                      <><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {c.city || c.stage1?.city || "India"} {c.experience || c.stage1?.experience ? `· ${c.experience || c.stage1?.experience} yrs exp` : ""}</>
                                     </span>
                                   </div>
                                 </td>
@@ -2962,12 +3169,12 @@ export default function StaffHub() {
                                       </span>
                                       {m.hired > 0 && (
                                         <span style={{ fontSize: 10, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4 }}>
-                                          🎉 {m.hired} Hired
+                                          <><i className="fa-solid fa-award" style={{ color: "#10B981", marginRight: 4 }}></i> {m.hired} Hired</>
                                         </span>
                                       )}
                                       {m.offered > 0 && (
                                         <span style={{ fontSize: 10, fontWeight: 800, background: "#FEF3C7", color: "#B45309", padding: "1px 6px", borderRadius: 4 }}>
-                                          📜 {m.offered} Offered
+                                          <><i className="fa-solid fa-scroll" style={{ color: "#F59E0B", marginRight: 4 }}></i> {m.offered} Offered</>
                                         </span>
                                       )}
                                     </div>
@@ -2989,7 +3196,7 @@ export default function StaffHub() {
                                       fontWeight: 800,
                                     }}
                                   >
-                                    {c.isVerified ? "VERIFIED ✓" : stages.length >= 4 ? "IN ASSESSMENT" : "PENDING"}
+                                    {c.isVerified ? "VERIFIED" : stages.length >= 4 ? "IN ASSESSMENT" : "PENDING"}
                                   </span>
                                 </td>
                                 <td style={{ textAlign: "right" }}>
@@ -3008,7 +3215,7 @@ export default function StaffHub() {
                                       onClick={() => openCandidateDetail(c, "placement")}
                                       title="View all jobs applied, shortlisted, interviews and hiring"
                                     >
-                                      🎯 Jobs ({m.total})
+                                      <><i className="fa-solid fa-briefcase" style={{ color: "#2563EB", marginRight: 4 }}></i> Jobs ({m.total})</>
                                     </button>
                                     {c.isVerified ? (
                                       <button
@@ -3017,7 +3224,7 @@ export default function StaffHub() {
                                         onClick={() => openCandidateDetail(c, "stages")}
                                         title="Candidate is Gold Verified"
                                       >
-                                        ✓ Verified
+                                        <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 4 }}></i> Verified</>
                                       </button>
                                     ) : (
                                       <button
@@ -3027,7 +3234,7 @@ export default function StaffHub() {
                                         onClick={() => handleVerifyCandidate(c._id, "verify")}
                                         title="Verify candidate"
                                       >
-                                        ✓ Verify
+                                        <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Verify</>
                                       </button>
                                     )}
                                     <button
@@ -3043,7 +3250,7 @@ export default function StaffHub() {
                                       }}
                                       title={`Reset login password for ${c.fullName || c.email}`}
                                     >
-                                      🔑 Reset PW
+                                      <><i className="fa-solid fa-key" style={{ marginRight: 4 }}></i> Reset PW</>
                                     </button>
                                   </div>
                                 </td>
@@ -3053,7 +3260,7 @@ export default function StaffHub() {
                           {filteredCandidates.length === 0 && (
                             <tr>
                               <td colSpan={9} style={{ textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
-                                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                                <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                                 <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No candidates found</div>
                                 <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or status filters.</div>
                               </td>
@@ -3141,7 +3348,7 @@ export default function StaffHub() {
 
                                   <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 8 }}>
                                     <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: c.aadhaarVerified ? "#DCFCE7" : "#FEF3C7", color: c.aadhaarVerified ? "#15803D" : "#B45309" }}>
-                                      {c.aadhaarVerified ? "✓ Aadhaar" : "⏳ Aadhaar Pending"}
+                                      {c.aadhaarVerified ? <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 4 }}></i> Aadhaar</> : <><i className="fa-solid fa-hourglass-half" style={{ color: "#F59E0B", marginRight: 4 }}></i> Aadhaar Pending</>}
                                     </span>
                                     {score && (
                                       <span style={{ fontSize: 9.5, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EFF6FF", color: "#2563EB" }}>
@@ -3217,7 +3424,7 @@ export default function StaffHub() {
 
                             <div className="sf-profile-badge-row">
                               <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: c.isVerified ? "#DCFCE7" : "#FEF3C7", color: c.isVerified ? "#15803D" : "#B45309" }}>
-                                {c.isVerified ? "VERIFIED GOLD ✓" : "PENDING AUDIT"}
+                                {c.isVerified ? "VERIFIED GOLD" : "PENDING AUDIT"}
                               </span>
                               <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: c.aadhaarVerified ? "#DCFCE7" : "#FEE2E2", color: c.aadhaarVerified ? "#15803D" : "#B91C1C" }}>
                                 {c.aadhaarVerified ? "Aadhaar OK" : "Aadhaar Missing"}
@@ -3260,7 +3467,7 @@ export default function StaffHub() {
                               onClick={() => openCandidateDetail(c, "placement")}
                               title="Jobs and applications"
                             >
-                              🎯
+                              <i className="fa-solid fa-briefcase"></i>
                             </button>
                             {c.isVerified ? (
                               <button
@@ -3269,7 +3476,7 @@ export default function StaffHub() {
                                 onClick={() => openCandidateDetail(c, "stages")}
                                 title="Gold Verified"
                               >
-                                ✓
+                                <i className="fa-solid fa-check"></i>
                               </button>
                             ) : (
                               <button
@@ -3279,7 +3486,7 @@ export default function StaffHub() {
                                 onClick={() => handleVerifyCandidate(c._id, "verify")}
                                 title="Verify candidate"
                               >
-                                ✓ Verify
+                                <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Verify</>
                               </button>
                             )}
                             <button
@@ -3295,7 +3502,7 @@ export default function StaffHub() {
                               }}
                               title={`Reset login password for ${c.fullName || c.email}`}
                             >
-                              🔑
+                              <i className="fa-solid fa-key"></i>
                             </button>
                           </div>
                         </div>
@@ -3303,7 +3510,7 @@ export default function StaffHub() {
                     })}
                     {filteredCandidates.length === 0 && (
                       <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
-                        <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                        <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                         <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No candidates found</div>
                         <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or status filters.</div>
                       </div>
@@ -3384,7 +3591,7 @@ export default function StaffHub() {
                         onClick={() => fetchCompanies(companySearch, companyKycFilter)}
                         disabled={companiesLoading}
                       >
-                        {companiesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                        {companiesLoading ? "Refreshing..." : <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> Refresh Directory</>}
                       </button>
                     </div>
                   </div>
@@ -3487,7 +3694,7 @@ export default function StaffHub() {
                           onClick={() => setCompanySearch("")}
                           title="Clear search"
                         >
-                          ✕
+                          <i className="fa-solid fa-xmark"></i>
                         </button>
                       )}
                     </div>
@@ -3561,14 +3768,14 @@ export default function StaffHub() {
                       className={`sf-chip-btn ${companyQuickFilter === "verified" ? "active" : ""}`}
                       onClick={() => setCompanyQuickFilter("verified")}
                     >
-                      ✓ KYC Verified ({verifiedCount})
+                      <><i className="fa-solid fa-shield-check" style={{ color: "#10B981", marginRight: 4 }}></i> KYC Verified ({verifiedCount})</>
                     </button>
                     <button
                       type="button"
                       className={`sf-chip-btn ${companyQuickFilter === "under_review" ? "active" : ""}`}
                       onClick={() => setCompanyQuickFilter("under_review")}
                     >
-                      ⚠️ Under Review ({reviewCount})
+                      <><i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B", marginRight: 4 }}></i> Under Review ({reviewCount})</>
                     </button>
                     <button
                       type="button"
@@ -3582,21 +3789,21 @@ export default function StaffHub() {
                       className={`sf-chip-btn ${companyQuickFilter === "enterprise" ? "active" : ""}`}
                       onClick={() => setCompanyQuickFilter("enterprise")}
                     >
-                      👑 Enterprise ({enterpriseCount})
+                      <><i className="fa-solid fa-crown" style={{ color: "#E5A82E", marginRight: 4 }}></i> Enterprise ({enterpriseCount})</>
                     </button>
                     <button
                       type="button"
                       className={`sf-chip-btn ${companyQuickFilter === "growth" ? "active" : ""}`}
                       onClick={() => setCompanyQuickFilter("growth")}
                     >
-                      ⚡ Growth ({growthCount})
+                      <><i className="fa-solid fa-bolt" style={{ color: "#3B82F6", marginRight: 4 }}></i> Growth ({growthCount})</>
                     </button>
                     <button
                       type="button"
                       className={`sf-chip-btn ${companyQuickFilter === "jobs" ? "active" : ""}`}
                       onClick={() => setCompanyQuickFilter("jobs")}
                     >
-                      💼 Has Active Jobs
+                      <><i className="fa-solid fa-briefcase" style={{ marginRight: 4 }}></i> Has Active Jobs</>
                     </button>
                   </div>
                 </div>
@@ -3743,7 +3950,7 @@ export default function StaffHub() {
                                     onClick={() => openCompanyDetail(comp, "plan")}
                                     title="Click to manage subscription plan"
                                   >
-                                    {comp.plan || "Free"} ⚙️
+                                    <>{comp.plan || "Free"} <i className="fa-solid fa-gear" style={{ marginLeft: 4 }}></i></>
                                   </span>
                                 </td>
                                 <td>
@@ -3756,7 +3963,7 @@ export default function StaffHub() {
                                     }}
                                   >
                                     {comp.kycStatus === "verified"
-                                      ? "VERIFIED ✓"
+                                      ? "VERIFIED"
                                       : comp.kycStatus === "under_review"
                                       ? "UNDER REVIEW"
                                       : comp.kycStatus === "rejected"
@@ -3790,7 +3997,7 @@ export default function StaffHub() {
                                       onClick={() => openCompanyDetail(comp, "applicants")}
                                       title="Review company applicants"
                                     >
-                                      👥 ({comp.applicationsCount || 0})
+                                      <><i className="fa-solid fa-users" style={{ marginRight: 4 }}></i> ({comp.applicationsCount || 0})</>
                                     </button>
                                     {comp.kycStatus === "verified" ? (
                                       <button
@@ -3799,7 +4006,7 @@ export default function StaffHub() {
                                         onClick={() => openCompanyDetail(comp, "legal")}
                                         title="Company is Gold KYC Verified"
                                       >
-                                        ✓ Verified
+                                        <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 4 }}></i> Verified</>
                                       </button>
                                     ) : (
                                       <button
@@ -3824,7 +4031,7 @@ export default function StaffHub() {
                                       }}
                                       title={`Reset login password for ${comp.companyName || comp.email}`}
                                     >
-                                      🔑 Reset Pass
+                                      <><i className="fa-solid fa-key" style={{ marginRight: 4 }}></i> Reset Pass</>
                                     </button>
                                   </div>
                                 </td>
@@ -3834,7 +4041,7 @@ export default function StaffHub() {
                           {filteredCompanies.length === 0 && (
                             <tr>
                               <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
-                                <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                                <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                                 <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No companies found</div>
                                 <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or KYC filters.</div>
                               </td>
@@ -3921,7 +4128,7 @@ export default function StaffHub() {
                                     </span>
                                     {s1a.gstin && (
                                       <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#EFF6FF", color: "#2563EB", fontFamily: "var(--font-mono, monospace)" }}>
-                                        GSTIN ✓
+                                        <>GSTIN <i className="fa-solid fa-check" style={{ color: "#10B981", marginLeft: 4 }}></i></>
                                       </span>
                                     )}
                                     <span style={{ fontSize: 9.5, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#FEF3C7", color: "#B45309" }}>
@@ -3956,7 +4163,7 @@ export default function StaffHub() {
                                         }}
                                         title={`Reset login password for ${comp.companyName || comp.email}`}
                                       >
-                                        🔑 Pass
+                                        <><i className="fa-solid fa-key" style={{ marginRight: 4 }}></i> Pass</>
                                       </button>
                                       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--st-accent, #B45309)" }}>
                                         Manage ↗
@@ -4062,7 +4269,7 @@ export default function StaffHub() {
                               onClick={() => openCompanyDetail(comp, "applicants")}
                               title="Applicants"
                             >
-                              👥
+                              <i className="fa-solid fa-users"></i>
                             </button>
                             <button
                               type="button"
@@ -4070,7 +4277,7 @@ export default function StaffHub() {
                               onClick={() => openCompanyDetail(comp, "plan")}
                               title="Assign Subscription Plan"
                             >
-                              ⚙️ Plan
+                              <><i className="fa-solid fa-gear" style={{ marginRight: 4 }}></i> Plan</>
                             </button>
                             <button
                               type="button"
@@ -4085,7 +4292,7 @@ export default function StaffHub() {
                               }}
                               title={`Reset login password for ${comp.companyName || comp.email}`}
                             >
-                              🔑 Reset Pass
+                              <><i className="fa-solid fa-key" style={{ marginRight: 4 }}></i> Reset Pass</>
                             </button>
                           </div>
                         </div>
@@ -4093,7 +4300,7 @@ export default function StaffHub() {
                     })}
                     {filteredCompanies.length === 0 && (
                       <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "48px 20px", color: "var(--st-text-muted, #64748B)" }}>
-                        <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                        <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                         <div style={{ fontWeight: 800, color: "var(--st-text-heading, #0A1F3D)", fontSize: 15 }}>No companies found</div>
                         <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords or KYC filters.</div>
                       </div>
@@ -4127,7 +4334,7 @@ export default function StaffHub() {
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="🎓"
+                  icon={<i className="fa-solid fa-graduation-cap" style={{ color: "#4F46E5" }}></i>}
                   accent="var(--navy, #0A1F3D)"
                   title="Academies Master Directory"
                   subtitle="Comprehensive database of partner training institutions, student batches, specialized healthcare courses, affiliated trainees, question banks, and placement track record."
@@ -4156,7 +4363,7 @@ export default function StaffHub() {
                     onClick={() => fetchAcademies(academySearch)}
                     style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
                   >
-                    {academiesLoading ? "Refreshing..." : "🔄 Refresh Directory"}
+                    {academiesLoading ? "Refreshing..." : <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> Refresh Directory</>}
                   </button>
                 </div>
 
@@ -4226,7 +4433,7 @@ export default function StaffHub() {
                                   {ac.primaryAdmin || ac.contactName || "Academy Lead"}
                                 </div>
                                 <div style={{ fontSize: 11, color: "#64748B" }}>{ac.email}</div>
-                                {ac.phone && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>📞 {ac.phone}</div>}
+                                {ac.phone && <div style={{ fontSize: 10.5, color: "#94A3B8" }}><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {ac.phone}</div>}
                               </td>
                               <td>
                                 <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>
@@ -4297,7 +4504,7 @@ export default function StaffHub() {
                         {filteredAcademies.length === 0 && (
                           <tr>
                             <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
-                              <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                              <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                               <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No academies found</div>
                               <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords.</div>
                             </td>
@@ -4337,7 +4544,7 @@ export default function StaffHub() {
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="🛡️"
+                  icon={<i className="fa-solid fa-shield-halved" style={{ color: "#2563EB" }}></i>}
                   accent="var(--navy, #0A1F3D)"
                   title="Employee Directory & Credentials Management"
                   subtitle="Create employee username and password credentials, assign operations roles, control access status, and maintain internal staff accounts."
@@ -4486,7 +4693,7 @@ export default function StaffHub() {
                                   </span>
                                   {emp.badge && (
                                     <span className="emp-badge-tag">
-                                      🛡️ {emp.badge}
+                                      <><i className="fa-solid fa-shield-halved" style={{ marginRight: 4, color: "#2563EB" }}></i> {emp.badge}</>
                                     </span>
                                   )}
                                 </div>
@@ -4513,7 +4720,7 @@ export default function StaffHub() {
                                       setActiveModal("reset_employee_password");
                                     }}
                                   >
-                                    🔑 Reset PW
+                                    <><i className="fa-solid fa-key" style={{ marginRight: 4 }}></i> Reset PW</>
                                   </button>
                                   <button
                                     type="button"
@@ -4531,7 +4738,7 @@ export default function StaffHub() {
                         {filteredEmployees.length === 0 && (
                           <tr>
                             <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
-                              <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+                              <div style={{ fontSize: 32, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-users"></i></div>
                               <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 16 }}>No employees found</div>
                               <div style={{ fontSize: 12, marginTop: 4, color: "#64748B" }}>
                                 {employeeSearch ? "No employees match your search criteria." : "Create your first employee account to grant platform access."}
@@ -4921,7 +5128,7 @@ export default function StaffHub() {
                             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                               {!v.verified ? (
                                 <button type="button" className="sf-action-btn" disabled={processingId === v.id} onClick={() => handleVerifyVideo(v.id, "verify")}>
-                                  {processingId === v.id ? "Processing…" : "✓ Verify"}
+                                  {processingId === v.id ? "Processing…" : <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Verify</>}
                                 </button>
                               ) : (
                                 <button type="button" className="sf-action-btn outline" disabled={processingId === v.id} onClick={() => handleVerifyVideo(v.id, "reject")}>
@@ -5034,7 +5241,7 @@ export default function StaffHub() {
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="📈"
+                  icon={<i className="fa-solid fa-chart-line" style={{ color: "#059669" }}></i>}
                   accent="#0284C7"
                   title="CRM + Data Operations"
                   subtitle="Monitors cross-platform master database hygiene, candidate-to-employer pipeline conversion, data completeness ratios, and the live staff verification audit trail."
@@ -5235,7 +5442,7 @@ export default function StaffHub() {
                       onClick={() => fetchActivityLog(1)}
                       disabled={activityLoading}
                     >
-                      <span>🔄</span> {activityLoading ? "Refreshing..." : "Refresh Audit Log"}
+                      <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> {activityLoading ? "Refreshing..." : "Refresh Audit Log"}</>
                     </button>
                   </div>
 
@@ -5250,7 +5457,7 @@ export default function StaffHub() {
                         className="sf-search-input"
                         style={{ width: "100%", padding: "8px 12px 8px 32px", fontSize: 13, border: "1px solid var(--border-light, #E2E8F0)", borderRadius: 8 }}
                       />
-                      <span style={{ position: "absolute", left: 10, top: 9, color: "var(--text-muted, #4A5568)" }}>🔍</span>
+                      <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: 10, top: 12, color: "var(--text-muted, #4A5568)" }}></i>
                     </div>
                     <select
                       value={crmActionFilter}
@@ -5425,7 +5632,7 @@ export default function StaffHub() {
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="💰"
+                  icon={<i className="fa-solid fa-sack-dollar" style={{ color: "#D97706" }}></i>}
                   accent="#059669"
                   title="Success + Revenue"
                   subtitle="Tracks candidate placement velocity, hiring outcomes, employer subscriptions, and platform Monthly Recurring Revenue (MRR)."
@@ -5578,7 +5785,7 @@ export default function StaffHub() {
                       borderRadius: "6px 6px 0 0",
                     }}
                   >
-                    <span>🎓</span> Placed & Hired Candidates
+                    <><i className="fa-solid fa-graduation-cap" style={{ marginRight: 6 }}></i> Placed & Hired Candidates</>
                     <span style={{ fontSize: 11, background: revTab === "placed" ? "#DCFCE7" : "#E2E8F0", color: revTab === "placed" ? "#166534" : "#475569", padding: "2px 7px", borderRadius: 999 }}>
                       {placedCandidates.length}
                     </span>
@@ -5602,7 +5809,7 @@ export default function StaffHub() {
                       borderRadius: "6px 6px 0 0",
                     }}
                   >
-                    <span>🏢</span> Employer Subscriptions & Monetization
+                    <><i className="fa-solid fa-building" style={{ marginRight: 6 }}></i> Employer Subscriptions & Monetization</>
                     <span style={{ fontSize: 11, background: revTab === "subscriptions" ? "#DBEAFE" : "#E2E8F0", color: revTab === "subscriptions" ? "#1E40AF" : "#475569", padding: "2px 7px", borderRadius: 999 }}>
                       {companiesList.length}
                     </span>
@@ -5690,7 +5897,7 @@ export default function StaffHub() {
                                   <td style={{ padding: "12px 14px" }}>
                                     {isFullyVerified ? (
                                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#FEF3C7", color: "#92400E", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                                        ★ Gold Certified (8/8)
+                                        <><i className="fa-solid fa-star" style={{ color: "#E5A82E", marginRight: 5 }}></i> Gold Certified (8/8)</>
                                       </span>
                                     ) : (
                                       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "#EFF6FF", color: "#1E40AF", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
@@ -5701,11 +5908,11 @@ export default function StaffHub() {
                                   <td style={{ padding: "12px 14px" }}>
                                     {hiredCount > 0 ? (
                                       <span style={{ background: "#DCFCE7", color: "#166534", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                                        ✓ Hired & Placed
+                                        <><i className="fa-solid fa-check" style={{ color: "#10B981", marginRight: 5 }}></i> Hired & Placed</>
                                       </span>
                                     ) : offeredCount > 0 ? (
                                       <span style={{ background: "#E0E7FF", color: "#3730A3", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                                        ★ Offer Extended
+                                        <><i className="fa-solid fa-star" style={{ color: "#F59E0B", marginRight: 5 }}></i> Offer Extended</>
                                       </span>
                                     ) : (
                                       <span style={{ background: "#FEF3C7", color: "#92400E", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
@@ -5825,7 +6032,7 @@ export default function StaffHub() {
                                   <td style={{ padding: "12px 14px" }}>
                                     {comp.kycStatus === "verified" ? (
                                       <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "3px 8px", borderRadius: 6 }}>
-                                        ✓ KYC Verified
+                                        <><i className="fa-solid fa-shield-check" style={{ color: "#10B981", marginRight: 5 }}></i> KYC Verified</>
                                       </span>
                                     ) : (
                                       <span style={{ fontSize: 11, fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "3px 8px", borderRadius: 6 }}>
@@ -5944,7 +6151,7 @@ export default function StaffHub() {
           {activeNav === "kyc" && (
             <div className="tt-content">
               <QueuePageHeader
-                icon="🔍"
+                icon={<i className="fa-solid fa-magnifying-glass" style={{ color: "#2563EB" }}></i>}
                 accent="var(--navy, #0A1F3D)"
                 title="KYC Verification"
                 subtitle="Audit business registration, GSTIN, PAN, and KYC certificates submitted by employer accounts before granting the Gold Trust Badge."
@@ -6007,12 +6214,12 @@ export default function StaffHub() {
                                   </span>
                                   {comp.plan === "enterprise" && (
                                     <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}>
-                                      ⚡ EXPRESS AUDIT
+                                      <><i className="fa-solid fa-bolt" style={{ color: "#E5A82E", marginRight: 4 }}></i> EXPRESS AUDIT</>
                                     </span>
                                   )}
                                   {comp.plan === "growth" && (
                                     <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EFF6FF", color: "#1E40AF", border: "1px solid #BFDBFE" }}>
-                                      ⚡ PRIORITY
+                                      <><i className="fa-solid fa-bolt" style={{ color: "#3B82F6", marginRight: 4 }}></i> PRIORITY</>
                                     </span>
                                   )}
                                 </div>
@@ -6038,7 +6245,7 @@ export default function StaffHub() {
                                 </p>
                               </div>
                               <span style={{ fontSize: 11, fontWeight: 800, padding: "6px 14px", borderRadius: 999, background: selectedComp.kycStatus === "verified" ? "#DCFCE7" : selectedComp.kycStatus === "rejected" ? "#FEE2E2" : "#FEF3C7", color: selectedComp.kycStatus === "verified" ? "#15803D" : selectedComp.kycStatus === "rejected" ? "#B91C1C" : "#B45309", textTransform: "uppercase" }}>
-                                {selectedComp.kycStatus === "verified" ? "✓ GOLD BADGE VERIFIED" : selectedComp.kycStatus === "rejected" ? "✕ REVISION REQUESTED" : "● PENDING STAFF AUDIT"}
+                                {selectedComp.kycStatus === "verified" ? "GOLD BADGE VERIFIED" : selectedComp.kycStatus === "rejected" ? "REVISION REQUESTED" : "PENDING STAFF AUDIT"}
                               </span>
                             </div>
 
@@ -6067,7 +6274,7 @@ export default function StaffHub() {
                               <div>
                                 <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>Subscription Plan Tier</div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: selectedComp.plan === "enterprise" ? "#B45309" : selectedComp.plan === "growth" ? "#1D4ED8" : "#475569", marginTop: 2, textTransform: "uppercase" }}>
-                                  {toStr(selectedComp.plan, "Free")} Tier {selectedComp.plan === "enterprise" ? "⚡ (Express Audit)" : selectedComp.plan === "growth" ? "⚡ (Priority Audit)" : ""}
+                                  {toStr(selectedComp.plan, "Free")} Tier {selectedComp.plan === "enterprise" ? "(Express Audit)" : selectedComp.plan === "growth" ? "(Priority Audit)" : ""}
                                 </div>
                               </div>
                             </div>
@@ -6090,7 +6297,7 @@ export default function StaffHub() {
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                       <span style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>{toStr(doc.label, "")}</span>
                                       <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: doc.uploaded ? "#DCFCE7" : "#F1F5F9", color: doc.uploaded ? "#15803D" : "#94A3B8" }}>
-                                        {doc.uploaded ? "✓ UPLOADED" : "MISSING"}
+                                        {doc.uploaded ? "UPLOADED" : "MISSING"}
                                       </span>
                                     </div>
                                     <div style={{ fontSize: 11, color: "#64748B", marginBottom: 10, wordBreak: "break-all" }}>
@@ -6106,7 +6313,7 @@ export default function StaffHub() {
                                           rel="noreferrer"
                                           style={{ background: "#F1F5F9", color: "#0F172A", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: "none" }}
                                         >
-                                          📄 View PDF / File
+                                          <><i className="fa-solid fa-file-pdf" style={{ marginRight: 5 }}></i> View PDF / File</>
                                         </a>
                                       )}
                                       <button
@@ -6114,14 +6321,14 @@ export default function StaffHub() {
                                         onClick={() => handleVerifyDoc(selectedComp.id, doc.id, true)}
                                         style={{ background: doc.isValid === true ? "#DCFCE7" : "#F8FAFC", color: doc.isValid === true ? "#15803D" : "#475569", border: "1px solid #CBD5E1", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                                       >
-                                        Valid ✓
+                                        <>Valid <i className="fa-solid fa-check" style={{ color: "#10B981", marginLeft: 4 }}></i></>
                                       </button>
                                       <button
                                         type="button"
                                         onClick={() => handleVerifyDoc(selectedComp.id, doc.id, false)}
                                         style={{ background: doc.isValid === false ? "#FEE2E2" : "#F8FAFC", color: doc.isValid === false ? "#B91C1C" : "#475569", border: "1px solid #CBD5E1", padding: "5px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                                       >
-                                        Invalid ✕
+                                        <>Invalid <i className="fa-solid fa-xmark" style={{ color: "#EF4444", marginLeft: 4 }}></i></>
                                       </button>
                                     </div>
                                   )}
@@ -6137,7 +6344,7 @@ export default function StaffHub() {
                                 onClick={() => handleAuditKyc(selectedComp.id, "verify")}
                                 style={{ background: "#10B981", color: "#FFFFFF", border: "none", padding: "12px 24px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer", boxShadow: "0 4px 12px rgba(16,185,129,0.3)" }}
                               >
-                                {processingId === selectedComp.id ? "Processing…" : "✓ Approve KYC & Activate Gold Badge"}
+                                {processingId === selectedComp.id ? "Processing…" : <><i className="fa-solid fa-check" style={{ marginRight: 6 }}></i> Approve KYC & Activate Gold Badge</>}
                               </button>
                               <button
                                 type="button"
@@ -6148,7 +6355,7 @@ export default function StaffHub() {
                                 }}
                                 style={{ background: "#EF4444", color: "#FFFFFF", border: "none", padding: "12px 24px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
                               >
-                                ✕ Reject & Request Revision
+                                <><i className="fa-solid fa-xmark" style={{ marginRight: 6 }}></i> Reject & Request Revision</>
                               </button>
                             </div>
                           </div>
@@ -6165,7 +6372,7 @@ export default function StaffHub() {
           {activeNav === "certifications" && (
             <div className="tt-content">
               <QueuePageHeader
-                icon="🎓"
+                icon={<i className="fa-solid fa-graduation-cap" style={{ color: "#4F46E5" }}></i>}
                 accent="#9333EA"
                 title="Certifications Review Queue"
                 subtitle="Audit AAPC, AHIMA, and professional coding credentials uploaded by candidates before verifying on candidate profile."
@@ -6246,7 +6453,7 @@ export default function StaffHub() {
                                 </p>
                               </div>
                               <span style={{ fontSize: 11, fontWeight: 800, padding: "6px 14px", borderRadius: 999, background: selectedCert.certStatus === "verified" ? "#DCFCE7" : selectedCert.certStatus === "rejected" ? "#FEE2E2" : "#FEF3C7", color: selectedCert.certStatus === "verified" ? "#15803D" : selectedCert.certStatus === "rejected" ? "#B91C1C" : "#B45309", textTransform: "uppercase" }}>
-                                {selectedCert.certStatus === "verified" ? "✓ VERIFIED ON PROFILE" : selectedCert.certStatus === "rejected" ? "✕ REJECTED" : "● PENDING AUDIT"}
+                                {selectedCert.certStatus === "verified" ? "VERIFIED ON PROFILE" : selectedCert.certStatus === "rejected" ? "REJECTED" : "PENDING AUDIT"}
                               </span>
                             </div>
 
@@ -6307,7 +6514,7 @@ export default function StaffHub() {
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="⚡"
+                  icon={<i className="fa-solid fa-bolt" style={{ color: "#D97706" }}></i>}
                   accent="#F59E0B"
                   title="Assessment Retake Requests"
                   subtitle="Review and process candidate requests to retake the Talentera Stage 4 Assessment. Approving will automatically send an email with a direct login & retake link to the candidate's logged-in email."
@@ -6402,7 +6609,7 @@ export default function StaffHub() {
                           onClick={() => setRetakeSearch("")}
                           style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "none", cursor: "pointer", color: "#94A3B8", fontSize: 13 }}
                         >
-                          ✕
+                          <i className="fa-solid fa-xmark"></i>
                         </button>
                       )}
                     </div>
@@ -6440,7 +6647,7 @@ export default function StaffHub() {
                     </div>
                   ) : filteredRequests.length === 0 ? (
                     <div style={{ padding: "60px 20px", textAlign: "center", color: "#64748B" }}>
-                      <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
+                      <div style={{ fontSize: 36, marginBottom: 10, color: "#94A3B8" }}><i className="fa-solid fa-clipboard-list"></i></div>
                       <div style={{ fontWeight: 700, fontSize: 15, color: "#1E293B", marginBottom: 4 }}>No retake requests found</div>
                       <div style={{ fontSize: 13 }}>
                         {retakeStatusFilter !== "ALL"
@@ -6521,7 +6728,7 @@ export default function StaffHub() {
                                       </div>
                                       {req.candidateMobile && (
                                         <div style={{ fontSize: 11, color: "#64748B", marginTop: 1 }}>
-                                          📞 {req.candidateMobile}
+                                          <><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {req.candidateMobile}</>
                                         </div>
                                       )}
                                     </div>
@@ -6537,7 +6744,7 @@ export default function StaffHub() {
                                     <span>Stage {req.stage || 4} • Medical Coding</span>
                                     {req.proctorLogs?.tabSwitches > 0 && (
                                       <span style={{ background: "#FEE2E2", color: "#B91C1C", padding: "1px 6px", borderRadius: 4, fontWeight: 700, fontSize: 10 }}>
-                                        ⚠️ Tab Switch ({req.proctorLogs.tabSwitches})
+                                        <><i className="fa-solid fa-triangle-exclamation" style={{ color: "#EF4444", marginRight: 4 }}></i> Tab Switch ({req.proctorLogs.tabSwitches})</>
                                       </span>
                                     )}
                                   </div>
@@ -6781,13 +6988,34 @@ export default function StaffHub() {
             );
           })()}
 
-          {/* TAB MODULE 5: INTERVIEW QUESTIONS */}
+{/* TAB MODULE 5: QUESTION BANKS (STAGE 4 MCQS + STAGE 5/8 INTERVIEW) */}
           {activeNav === "questions" && (() => {
-            const activeCount = interviewQuestions.filter((q) => q.active).length;
+            // Stage 4 metrics
+            const stage4ActiveCount = assessmentQuestions.filter((q) => q.active !== false).length;
+            const uniqueSections = [...new Set(assessmentQuestions.map((q) => q.sectionName || q.sectionKey).filter(Boolean))];
+
+            // Filtered Stage 4 questions
+            const filteredAssessmentQs = assessmentQuestions.filter((q) => {
+              if (questionStatusFilter === "active" && q.active === false) return false;
+              if (questionStatusFilter === "inactive" && q.active !== false) return false;
+              if (questionSearch.trim()) {
+                const term = questionSearch.toLowerCase();
+                const inQ = (q.question || "").toLowerCase().includes(term);
+                const inTopic = (q.topic || "").toLowerCase().includes(term);
+                const inSec = (q.sectionName || "").toLowerCase().includes(term);
+                const inOpts = Array.isArray(q.options) && q.options.some((opt) => String(opt).toLowerCase().includes(term));
+                if (!inQ && !inTopic && !inSec && !inOpts) return false;
+              }
+              return true;
+            });
+
+            // Stage 5 & 8 metrics
+            const activeInterviewCount = interviewQuestions.filter((q) => q.active).length;
             const videoCount = interviewQuestions.filter((q) => q.mode === "both" || q.mode === "video").length;
             const audioCount = interviewQuestions.filter((q) => q.mode === "both" || q.mode === "audio").length;
 
-            const filteredQuestions = interviewQuestions.filter((q) => {
+            const filteredInterviewQs = interviewQuestions.filter((q) => {
+              if (interviewDomainFilter !== "all" && (q.domain || "General") !== interviewDomainFilter) return false;
               if (questionModeFilter !== "all" && q.mode !== questionModeFilter) return false;
               if (questionStatusFilter === "active" && !q.active) return false;
               if (questionStatusFilter === "inactive" && q.active) return false;
@@ -6800,510 +7028,1086 @@ export default function StaffHub() {
               return true;
             });
 
+            const domainTabs = [
+              { id: "Medical Coding", label: "Medical Coding", icon: "fa-stethoscope" },
+              { id: "Medical Billing", label: "Medical Billing", icon: "fa-file-invoice-dollar" },
+              { id: "Accounts Receivable", label: "Accounts Receivable", icon: "fa-chart-line" },
+              { id: "Front Office", label: "Front Office / Access", icon: "fa-hospital-user" },
+              { id: "General", label: "General Healthcare", icon: "fa-notes-medical" },
+            ];
+
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="🎤"
-                  accent="#059669"
-                  title="AI Interview Questions Bank"
-                  subtitle="Manage AI video & audio interview assessment question items and expected answers."
+                  icon={<i className="fa-solid fa-graduation-cap" style={{ color: "#2563EB" }}></i>}
+                  accent="#2563EB"
+                  title="Comprehensive Question Banks"
+                  subtitle="Manage domain-specific Stage 4 Proctored Assessment MCQs & Stage 5/8 AI Mock Interview Questions."
                   pills={
                     <>
-                      <StatPill count={interviewQuestions.length} label="TOTAL QUESTIONS" tone="good" />
-                      <StatPill count={activeCount} label="ACTIVE" tone="good" />
-                      <StatPill count={videoCount} label="VIDEO" tone="pending" />
-                      <StatPill count={audioCount} label="AUDIO" tone="pending" />
+                      <StatPill
+                        count={questionBankTab === "stage4" ? assessmentQuestions.length : interviewQuestions.length}
+                        label="TOTAL IN BANK"
+                        tone="good"
+                      />
+                      <StatPill
+                        count={questionBankTab === "stage4" ? stage4ActiveCount : activeInterviewCount}
+                        label="ACTIVE ITEMS"
+                        tone="good"
+                      />
+                      {questionBankTab === "stage4" ? (
+                        <StatPill count={uniqueSections.length} label="CURRICULUM SECTIONS" tone="pending" />
+                      ) : (
+                        <>
+                          <StatPill count={videoCount} label="VIDEO" tone="pending" />
+                          <StatPill count={audioCount} label="AUDIO" tone="pending" />
+                        </>
+                      )}
                     </>
                   }
                 />
 
-                {/* BANNER & ADD BUTTON */}
+                {/* DUAL-TAB SWITCHER */}
                 <div
                   style={{
-                    background: "linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)",
-                    border: "1.5px solid #A7F3D0",
-                    borderRadius: 16,
-                    padding: "16px 22px",
                     display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 16,
-                    flexWrap: "wrap",
+                    gap: 12,
+                    borderBottom: "2px solid #E2E8F0",
                     marginBottom: 20,
+                    paddingBottom: 2,
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 260, flex: 1 }}>
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 12,
-                        background: "#059669",
-                        color: "#FFFFFF",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 20,
-                        flexShrink: 0,
-                        boxShadow: "0 4px 10px rgba(5,150,105,0.25)",
-                      }}
-                    >
-                      🎤
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 14.5, color: "#065F46" }}>
-                        Official Assessment & AI Mock Interview Bank
-                      </div>
-                      <div style={{ fontSize: 12.5, color: "#047857", marginTop: 2, lineHeight: 1.45 }}>
-                        All active questions and model answers configured here are asked directly to candidates in Stage 5 (Video & Audio Assessments) and Stage 8 (Live AI Technical Mock Interview). The AI grading engine uses the model answers below to score responses.
-                      </div>
-                    </div>
-                  </div>
                   <button
                     type="button"
-                    onClick={handleOpenAddQuestion}
+                    onClick={() => setQuestionBankTab("stage4")}
                     style={{
-                      background: "#059669",
-                      color: "#FFFFFF",
+                      background: "none",
                       border: "none",
-                      padding: "11px 22px",
-                      borderRadius: 10,
+                      borderBottom: questionBankTab === "stage4" ? "3px solid #2563EB" : "3px solid transparent",
+                      padding: "12px 18px",
+                      fontSize: 14,
                       fontWeight: 800,
-                      fontSize: 13.5,
+                      color: questionBankTab === "stage4" ? "#2563EB" : "#64748B",
                       cursor: "pointer",
-                      display: "inline-flex",
+                      display: "flex",
                       alignItems: "center",
                       gap: 8,
-                      boxShadow: "0 4px 14px rgba(5,150,105,0.3)",
-                      whiteSpace: "nowrap",
+                      transition: "all 0.15s ease",
+                      marginBottom: -2,
                     }}
                   >
-                    <span>+ Add New Question</span>
+                    <i className="fa-solid fa-bullseye"></i>
+                    Stage 4: Proctored Assessment MCQs ({assessmentQuestions.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setQuestionBankTab("stage5")}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      borderBottom: questionBankTab === "stage5" ? "3px solid #059669" : "3px solid transparent",
+                      padding: "12px 18px",
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: questionBankTab === "stage5" ? "#059669" : "#64748B",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      transition: "all 0.15s ease",
+                      marginBottom: -2,
+                    }}
+                  >
+                    <i className="fa-solid fa-microphone"></i>
+                    Stage 5 &amp; 8: AI Spoken &amp; Mock Interview ({interviewQuestions.length})
                   </button>
                 </div>
 
-                {/* SEARCH & FILTERS BAR */}
-                <div
-                  style={{
-                    background: "#FFFFFF",
-                    borderRadius: 14,
-                    border: "1px solid var(--border-light, #E2E8F0)",
-                    padding: "14px 18px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    marginBottom: 20,
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 240, position: "relative" }}>
-                    <input
-                      type="text"
-                      placeholder="Search question text or model answer keywords…"
-                      value={questionSearch}
-                      onChange={(e) => setQuestionSearch(e.target.value)}
+                {/* =========================================================================
+                    SUB-TAB 1: STAGE 4 PROCTORED ASSESSMENT MCQ BANK
+                   ========================================================================= */}
+                {questionBankTab === "stage4" && (
+                  <div>
+                    {/* DOMAIN SELECTION BAR */}
+                    <div
                       style={{
-                        width: "100%",
-                        padding: "9px 14px 9px 34px",
-                        borderRadius: 9,
-                        border: "1px solid #CBD5E1",
-                        fontSize: 13,
-                        outline: "none",
-                        color: "#0F172A",
-                        background: "#F8FAFC",
-                      }}
-                    />
-                    <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 13 }}>
-                      🔍
-                    </span>
-                    {questionSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setQuestionSearch("")}
-                        style={{
-                          position: "absolute",
-                          right: 10,
-                          top: "50%",
-                          transform: "translateY(-50%)",
-                          background: "none",
-                          border: "none",
-                          color: "#94A3B8",
-                          cursor: "pointer",
-                          fontSize: 12,
-                          fontWeight: 700,
-                        }}
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <select
-                      value={questionModeFilter}
-                      onChange={(e) => setQuestionModeFilter(e.target.value)}
-                      style={{
-                        padding: "9px 12px",
-                        borderRadius: 9,
-                        border: "1px solid #CBD5E1",
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        color: "#334155",
                         background: "#FFFFFF",
-                        cursor: "pointer",
-                        outline: "none",
+                        borderRadius: 16,
+                        border: "1px solid #E2E8F0",
+                        padding: "14px 18px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        marginBottom: 16,
                       }}
                     >
-                      <option value="all">All Modes ({interviewQuestions.length})</option>
-                      <option value="both">Both Video & Audio ({interviewQuestions.filter((q) => q.mode === "both").length})</option>
-                      <option value="video">Video Only ({interviewQuestions.filter((q) => q.mode === "video").length})</option>
-                      <option value="audio">Audio Only ({interviewQuestions.filter((q) => q.mode === "audio").length})</option>
-                    </select>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: "#475569", textTransform: "uppercase", letterSpacing: "0.05em", marginRight: 4 }}>
+                          Domain Syllabus:
+                        </span>
+                        {domainTabs.map((dt) => {
+                          const isSel = assessmentDomain === dt.id;
+                          return (
+                            <button
+                              key={dt.id}
+                              type="button"
+                              onClick={() => {
+                                setAssessmentDomain(dt.id);
+                                fetchAssessmentQuestions(dt.id);
+                              }}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 7,
+                                padding: "8px 14px",
+                                borderRadius: 10,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                border: isSel ? "1.5px solid #2563EB" : "1px solid #E2E8F0",
+                                background: isSel ? "#EFF6FF" : "#FFFFFF",
+                                color: isSel ? "#1D4ED8" : "#475569",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <i className={`fa-solid ${dt.icon}`} style={{ fontSize: 12, color: isSel ? "#2563EB" : "#94A3B8" }}></i>
+                              {dt.label}
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                    <select
-                      value={questionStatusFilter}
-                      onChange={(e) => setQuestionStatusFilter(e.target.value)}
-                      style={{
-                        padding: "9px 12px",
-                        borderRadius: 9,
-                        border: "1px solid #CBD5E1",
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        color: "#334155",
-                        background: "#FFFFFF",
-                        cursor: "pointer",
-                        outline: "none",
-                      }}
-                    >
-                      <option value="all">All Statuses ({interviewQuestions.length})</option>
-                      <option value="active">Active Only ({activeCount})</option>
-                      <option value="inactive">Inactive Only ({interviewQuestions.length - activeCount})</option>
-                    </select>
-
-                    {(questionSearch || questionModeFilter !== "all" || questionStatusFilter !== "all") && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQuestionSearch("");
-                          setQuestionModeFilter("all");
-                          setQuestionStatusFilter("all");
-                        }}
-                        style={{
-                          background: "#F1F5F9",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 8,
-                          padding: "8px 12px",
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: "#64748B",
-                          cursor: "pointer",
-                        }}
-                      >
-                        Reset
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* QUESTIONS LIST */}
-                {questionsLoading ? (
-                  <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
-                    <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
-                    <div style={{ fontWeight: 700, color: "#334155" }}>Loading questions bank…</div>
-                  </div>
-                ) : filteredQuestions.length === 0 ? (
-                  <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
-                    <div style={{ fontSize: 32, marginBottom: 12 }}>🎤</div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
-                      {interviewQuestions.length === 0 ? "No interview questions in bank" : "No matching questions found"}
-                    </h3>
-                    <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 18px", maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
-                      {interviewQuestions.length === 0
-                        ? "Add questions and their model answers so the AI can present them to candidates during Stage 5 and Stage 8 assessments."
-                        : "Try adjusting your search terms or filter selection to view more questions."}
-                    </p>
-                    <button
-                      type="button"
-                      onClick={interviewQuestions.length === 0 ? handleOpenAddQuestion : () => { setQuestionSearch(""); setQuestionModeFilter("all"); setQuestionStatusFilter("all"); }}
-                      style={{
-                        background: "#059669",
-                        color: "#FFFFFF",
-                        border: "none",
-                        padding: "10px 20px",
-                        borderRadius: 10,
-                        fontWeight: 700,
-                        fontSize: 13,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {interviewQuestions.length === 0 ? "+ Add Your First Question" : "Clear Filters"}
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    {filteredQuestions.map((q, idx) => {
-                      const qId = q._id || q.id;
-                      const isConfirmingDelete = questionDeleteConfirmId === qId;
-
-                      return (
-                        <div
-                          key={qId}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={handleResetAssessmentDefaults}
+                          disabled={assessmentLoading}
+                          title="Restore pre-configured standard curriculum questions for this domain"
                           style={{
-                            background: "#FFFFFF",
-                            borderRadius: 16,
-                            border: q.active ? "1px solid #E2E8F0" : "1px dashed #CBD5E1",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
-                            padding: "20px 22px",
-                            opacity: q.active ? 1 : 0.82,
-                            transition: "all 0.2s ease",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "9px 14px",
+                            borderRadius: 10,
+                            border: "1px solid #CBD5E1",
+                            background: "#F8FAFC",
+                            color: "#475569",
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            cursor: "pointer",
                           }}
                         >
-                          {/* TOP CARD HEADER */}
-                          <div
+                          <i className="fa-solid fa-arrows-rotate"></i>
+                          Reset {assessmentDomain} Defaults
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenAddAssessmentQ}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "9px 16px",
+                            borderRadius: 10,
+                            border: "none",
+                            background: "#2563EB",
+                            color: "#FFFFFF",
+                            fontSize: 13,
+                            fontWeight: 800,
+                            cursor: "pointer",
+                            boxShadow: "0 4px 12px rgba(37,99,235,0.25)",
+                          }}
+                        >
+                          <i className="fa-solid fa-plus"></i>
+                          Add MCQ to {assessmentDomain}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* SEARCH & FILTERS FOR ASSESSMENT MCQS */}
+                    <div
+                      style={{
+                        background: "#FFFFFF",
+                        borderRadius: 14,
+                        border: "1px solid #E2E8F0",
+                        padding: "12px 18px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        marginBottom: 18,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 260 }}>
+                        <div style={{ position: "relative", width: "100%", maxWidth: 360 }}>
+                          <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 13 }}></i>
+                          <input
+                            type="text"
+                            placeholder="Search MCQs by question, section, or topic…"
+                            value={questionSearch}
+                            onChange={(e) => setQuestionSearch(e.target.value)}
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: 12,
-                              flexWrap: "wrap",
-                              borderBottom: "1px solid #F1F5F9",
-                              paddingBottom: 12,
-                              marginBottom: 14,
+                              width: "100%",
+                              padding: "8px 12px 8px 34px",
+                              borderRadius: 8,
+                              border: "1px solid #CBD5E1",
+                              fontSize: 13,
+                              outline: "none",
+                              color: "#0F172A",
+                            }}
+                          />
+                        </div>
+
+                        <select
+                          value={questionStatusFilter}
+                          onChange={(e) => setQuestionStatusFilter(e.target.value)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid #CBD5E1",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#334155",
+                            outline: "none",
+                            background: "#FFFFFF",
+                          }}
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="active">Active Only</option>
+                          <option value="inactive">Inactive Only</option>
+                        </select>
+                      </div>
+
+                      <div style={{ fontSize: 12.5, color: "#64748B", fontWeight: 600 }}>
+                        Showing <strong>{filteredAssessmentQs.length}</strong> of <strong>{assessmentQuestions.length}</strong> questions in <strong>{assessmentDomain}</strong>
+                      </div>
+                    </div>
+
+                    {/* ASSESSMENT MCQS LIST */}
+                    {assessmentLoading ? (
+                      <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
+                        <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: 28, color: "#2563EB", marginBottom: 12 }}></i>
+                        <div style={{ fontWeight: 700, color: "#334155" }}>Loading Stage 4 MCQs for {assessmentDomain}…</div>
+                      </div>
+                    ) : filteredAssessmentQs.length === 0 ? (
+                      <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
+                        <i className="fa-solid fa-bullseye" style={{ fontSize: 36, color: "#94A3B8", marginBottom: 12 }}></i>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
+                          No assessment MCQs found for {assessmentDomain}
+                        </h3>
+                        <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 18px", maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
+                          You can populate the curriculum with the standard questions or write your own custom MCQs.
+                        </p>
+                        <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                          <button
+                            type="button"
+                            onClick={handleResetAssessmentDefaults}
+                            style={{
+                              background: "#2563EB",
+                              color: "#FFFFFF",
+                              border: "none",
+                              padding: "9px 18px",
+                              borderRadius: 10,
+                              fontWeight: 700,
+                              fontSize: 13,
+                              cursor: "pointer",
                             }}
                           >
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                              <span
+                            <i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i>
+                            Load Standard {assessmentDomain} MCQs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleOpenAddAssessmentQ}
+                            style={{
+                              background: "#F1F5F9",
+                              color: "#334155",
+                              border: "1px solid #CBD5E1",
+                              padding: "9px 18px",
+                              borderRadius: 10,
+                              fontWeight: 700,
+                              fontSize: 13,
+                              cursor: "pointer",
+                            }}
+                          >
+                            <i className="fa-solid fa-plus" style={{ marginRight: 6 }}></i>
+                            Create New MCQ
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                        {filteredAssessmentQs.map((q, idx) => {
+                          const qId = q._id || q.id;
+                          const isConfirmingDelete = assessmentDeleteConfirmId === qId;
+                          const opts = Array.isArray(q.options) ? q.options : [];
+                          const correctIdx = typeof q.correct === "number" ? q.correct : 0;
+
+                          return (
+                            <div
+                              key={qId}
+                              style={{
+                                background: "#FFFFFF",
+                                borderRadius: 16,
+                                border: q.active !== false ? "1px solid #E2E8F0" : "1px dashed #CBD5E1",
+                                boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
+                                padding: "18px 22px",
+                                opacity: q.active !== false ? 1 : 0.8,
+                              }}
+                            >
+                              {/* CARD HEADER */}
+                              <div
                                 style={{
-                                  background: "var(--navy, #0A1F3D)",
-                                  color: "#FFFFFF",
-                                  padding: "3px 10px",
-                                  borderRadius: 7,
-                                  fontSize: 12,
-                                  fontWeight: 800,
-                                  letterSpacing: "0.02em",
-                                }}
-                              >
-                                #{q.order ?? (idx + 1)}
-                              </span>
-
-                              {q.mode === "both" && (
-                                <span style={{ background: "#EEF2FF", color: "#4F46E5", border: "1px solid #C7D2FE", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
-                                  🎥 Video & 🎙️ Audio
-                                </span>
-                              )}
-                              {q.mode === "video" && (
-                                <span style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
-                                  🎥 Video Assessment Only
-                                </span>
-                              )}
-                              {q.mode === "audio" && (
-                                <span style={{ background: "#F5F3FF", color: "#7C3AED", border: "1px solid #DDD6FE", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
-                                  🎙️ Audio Interview Only
-                                </span>
-                              )}
-
-                              {q.active ? (
-                                <span style={{ background: "#DCFCE7", color: "#15803D", border: "1px solid #86EFAC", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 800, display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#15803D" }}></span> Active
-                                </span>
-                              ) : (
-                                <span style={{ background: "#F1F5F9", color: "#64748B", border: "1px solid #CBD5E1", padding: "3px 9px", borderRadius: 7, fontSize: 11.5, fontWeight: 700 }}>
-                                  ○ Inactive (Paused)
-                                </span>
-                              )}
-                            </div>
-
-                            {/* ACTIONS */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <button
-                                type="button"
-                                onClick={() => handleToggleQuestionActive(q)}
-                                title={q.active ? "Pause this question" : "Activate this question"}
-                                style={{
-                                  background: q.active ? "#FEF3C7" : "#DCFCE7",
-                                  color: q.active ? "#92400E" : "#15803D",
-                                  border: `1px solid ${q.active ? "#FDE68A" : "#86EFAC"}`,
-                                  borderRadius: 8,
-                                  padding: "6px 12px",
-                                  fontSize: 11.5,
-                                  fontWeight: 700,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                {q.active ? "Pause" : "Activate"}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditQuestion(q)}
-                                style={{
-                                  background: "#F8FAFC",
-                                  color: "#0F172A",
-                                  border: "1px solid #CBD5E1",
-                                  borderRadius: 8,
-                                  padding: "6px 12px",
-                                  fontSize: 11.5,
-                                  fontWeight: 700,
-                                  cursor: "pointer",
-                                  display: "inline-flex",
+                                  display: "flex",
                                   alignItems: "center",
-                                  gap: 5,
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  flexWrap: "wrap",
+                                  borderBottom: "1px solid #F1F5F9",
+                                  paddingBottom: 10,
+                                  marginBottom: 12,
                                 }}
                               >
-                                ✏️ Edit
-                              </button>
-
-                              {isConfirmingDelete ? (
-                                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#FEE2E2", padding: "4px 8px", borderRadius: 8, border: "1px solid #FCA5A5" }}>
-                                  <span style={{ fontSize: 11, color: "#B91C1C", fontWeight: 700 }}>Delete?</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteQuestion(qId)}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <span
                                     style={{
-                                      background: "#DC2626",
-                                      color: "#FFFFFF",
-                                      border: "none",
-                                      borderRadius: 6,
-                                      padding: "3px 8px",
-                                      fontSize: 11,
+                                      background: "#EFF6FF",
+                                      color: "#1D4ED8",
                                       fontWeight: 800,
-                                      cursor: "pointer",
+                                      fontSize: 11,
+                                      padding: "3px 9px",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
                                     }}
                                   >
-                                    Yes
-                                  </button>
+                                    <i className="fa-solid fa-layer-group"></i>
+                                    {q.sectionName || "Section"}
+                                  </span>
+
+                                  {q.topic && (
+                                    <span
+                                      style={{
+                                        background: "#F8FAFC",
+                                        border: "1px solid #E2E8F0",
+                                        color: "#475569",
+                                        fontWeight: 700,
+                                        fontSize: 11,
+                                        padding: "3px 9px",
+                                        borderRadius: 6,
+                                      }}
+                                    >
+                                      {q.topic}
+                                    </span>
+                                  )}
+
+                                  <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600 }}>
+                                    Item #{q.order || idx + 1}
+                                  </span>
+
+                                  {q.active === false && (
+                                    <span
+                                      style={{
+                                        background: "#FEF2F2",
+                                        color: "#DC2626",
+                                        fontWeight: 700,
+                                        fontSize: 10.5,
+                                        padding: "2px 8px",
+                                        borderRadius: 6,
+                                      }}
+                                    >
+                                      Inactive
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* CARD ACTION BUTTONS */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                   <button
                                     type="button"
-                                    onClick={() => setQuestionDeleteConfirmId(null)}
+                                    onClick={() => handleToggleAssessmentQActive(q)}
                                     style={{
-                                      background: "#FFFFFF",
-                                      color: "#475569",
-                                      border: "1px solid #CBD5E1",
-                                      borderRadius: 6,
-                                      padding: "3px 8px",
+                                      background: q.active !== false ? "#F0FDF4" : "#F1F5F9",
+                                      color: q.active !== false ? "#15803D" : "#64748B",
+                                      border: `1px solid ${q.active !== false ? "#BBF7D0" : "#CBD5E1"}`,
+                                      borderRadius: 8,
+                                      padding: "5px 10px",
                                       fontSize: 11,
                                       fontWeight: 700,
                                       cursor: "pointer",
                                     }}
                                   >
-                                    No
+                                    <i className={`fa-solid ${q.active !== false ? "fa-toggle-on" : "fa-toggle-off"}`} style={{ marginRight: 5 }}></i>
+                                    {q.active !== false ? "Active" : "Inactive"}
                                   </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditAssessmentQ(q)}
+                                    style={{
+                                      background: "#F8FAFC",
+                                      color: "#334155",
+                                      border: "1px solid #CBD5E1",
+                                      borderRadius: 8,
+                                      padding: "5px 10px",
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-pen-to-square" style={{ marginRight: 5 }}></i>
+                                    Edit
+                                  </button>
+
+                                  {isConfirmingDelete ? (
+                                    <div style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteAssessmentQ(qId)}
+                                        style={{
+                                          background: "#DC2626",
+                                          color: "#FFFFFF",
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "5px 10px",
+                                          fontSize: 11,
+                                          fontWeight: 800,
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        Confirm
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setAssessmentDeleteConfirmId(null)}
+                                        style={{
+                                          background: "#F1F5F9",
+                                          color: "#475569",
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "5px 8px",
+                                          fontSize: 11,
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setAssessmentDeleteConfirmId(qId)}
+                                      style={{
+                                        background: "#FFF1F2",
+                                        color: "#E11D48",
+                                        border: "1px solid #FECDD3",
+                                        borderRadius: 8,
+                                        padding: "5px 10px",
+                                        fontSize: 11,
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-trash-can" style={{ marginRight: 5 }}></i>
+                                      Delete
+                                    </button>
+                                  )}
                                 </div>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setQuestionDeleteConfirmId(qId)}
-                                  title="Delete question"
+                              </div>
+
+                              {/* QUESTION PROMPT */}
+                              <div style={{ fontSize: 14.5, fontWeight: 700, color: "#0F172A", lineHeight: 1.5, marginBottom: 12 }}>
+                                {q.question}
+                              </div>
+
+                              {/* OPTIONS GRID */}
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
+                                {opts.map((optText, oIdx) => {
+                                  const isCorrect = oIdx === correctIdx;
+                                  const letter = String.fromCharCode(65 + oIdx);
+                                  return (
+                                    <div
+                                      key={oIdx}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        gap: 10,
+                                        padding: "10px 14px",
+                                        borderRadius: 10,
+                                        border: isCorrect ? "1.5px solid #10B981" : "1px solid #E2E8F0",
+                                        background: isCorrect ? "#F0FDF4" : "#F8FAFC",
+                                      }}
+                                    >
+                                      <span
+                                        style={{
+                                          width: 22,
+                                          height: 22,
+                                          borderRadius: "50%",
+                                          background: isCorrect ? "#10B981" : "#E2E8F0",
+                                          color: isCorrect ? "#FFFFFF" : "#475569",
+                                          fontSize: 11,
+                                          fontWeight: 800,
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          flexShrink: 0,
+                                        }}
+                                      >
+                                        {letter}
+                                      </span>
+                                      <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: 13, color: isCorrect ? "#065F46" : "#334155", fontWeight: isCorrect ? 700 : 500 }}>
+                                          {optText}
+                                        </div>
+                                        {isCorrect && (
+                                          <div style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 11, fontWeight: 800, color: "#059669" }}>
+                                            <i className="fa-solid fa-check"></i> Correct Answer
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* EXPLANATION */}
+                              {q.explanation && (
+                                <div
                                   style={{
-                                    background: "#FFF1F2",
-                                    color: "#E11D48",
-                                    border: "1px solid #FECDD3",
+                                    background: "#F8FAFC",
+                                    border: "1px solid #E2E8F0",
                                     borderRadius: 8,
-                                    padding: "6px 12px",
-                                    fontSize: 11.5,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
+                                    padding: "8px 12px",
+                                    fontSize: 12,
+                                    color: "#64748B",
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    gap: 8,
                                   }}
                                 >
-                                  🗑️ Delete
-                                </button>
+                                  <i className="fa-solid fa-circle-info" style={{ color: "#2563EB", marginTop: 2 }}></i>
+                                  <div>
+                                    <strong style={{ color: "#334155" }}>Rationale: </strong>
+                                    {q.explanation}
+                                  </div>
+                                </div>
                               )}
                             </div>
-                          </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                          {/* QUESTION TEXT */}
-                          <div style={{ marginBottom: 14 }}>
-                            <div style={{ fontSize: 11, color: "#64748B", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
-                              Question Prompt
-                            </div>
-                            <div style={{ fontSize: 15.5, fontWeight: 700, color: "#0F172A", lineHeight: 1.5 }}>
-                              {q.text}
-                            </div>
+                {/* =========================================================================
+                    SUB-TAB 2: STAGE 5 & 8 INTERVIEW QUESTIONS BANK
+                   ========================================================================= */}
+                {questionBankTab === "stage5" && (
+                  <div>
+                    {/* BANNER & ADD BUTTON */}
+                    <div
+                      style={{
+                        background: "linear-gradient(135deg, #ECFDF5 0%, #F0FDF4 100%)",
+                        border: "1.5px solid #A7F3D0",
+                        borderRadius: 16,
+                        padding: "16px 22px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 16,
+                        flexWrap: "wrap",
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 260, flex: 1 }}>
+                        <div
+                          style={{
+                            width: 42,
+                            height: 42,
+                            borderRadius: 12,
+                            background: "#059669",
+                            color: "#FFFFFF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 18,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <i className="fa-solid fa-microphone"></i>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 14.5, fontWeight: 800, color: "#065F46" }}>
+                            AI Spoken &amp; Mock Interview Evaluation Bank
                           </div>
-
-                          {/* MODEL / EXPECTED ANSWER BOX */}
-                          <div
-                            style={{
-                              background: "#F8FAFC",
-                              border: "1.5px solid #E2E8F0",
-                              borderRadius: 12,
-                              padding: "14px 18px",
-                            }}
-                          >
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
-                              <span
-                                style={{
-                                  fontSize: 11.5,
-                                  fontWeight: 800,
-                                  color: "#059669",
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.04em",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 6,
-                                }}
-                              >
-                                <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#059669" }}></span>
-                                Expected / Model Answer (For AI Evaluation)
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => copyToClipboard(q.correctAnswer, "Expected Answer")}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  color: "#64748B",
-                                  fontSize: 11.5,
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                  padding: 0,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                📋 Copy
-                              </button>
-                            </div>
-                            <div style={{ fontSize: 13.5, color: "#1E293B", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
-                              {q.correctAnswer || (
-                                <span style={{ color: "#94A3B8", fontStyle: "italic" }}>
-                                  No expected model answer recorded yet. Click &ldquo;Edit&rdquo; above to provide the grading key.
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* FOOTER METADATA */}
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              marginTop: 12,
-                              paddingTop: 10,
-                              fontSize: 11.5,
-                              color: "#94A3B8",
-                              flexWrap: "wrap",
-                              gap: 8,
-                            }}
-                          >
-                            <div>
-                              Mode: <strong>{q.mode}</strong> · Order Priority: <strong>{q.order ?? 0}</strong>
-                            </div>
-                            {q.createdAt && (
-                              <div>Added on {new Date(q.createdAt).toLocaleDateString()}</div>
-                            )}
+                          <div style={{ fontSize: 12.5, color: "#047857", marginTop: 2 }}>
+                            Questions presented during Stage 5 assessment and Stage 8 AI Mock Interview. Evaluated against model answers.
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleOpenAddQuestion}
+                        style={{
+                          background: "#059669",
+                          color: "#FFFFFF",
+                          border: "none",
+                          borderRadius: 10,
+                          padding: "10px 18px",
+                          fontWeight: 800,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          boxShadow: "0 4px 12px rgba(5,150,105,0.25)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <i className="fa-solid fa-plus"></i>
+                        Add Interview Question
+                      </button>
+                    </div>
+
+                    {/* FILTERS & SEARCH */}
+                    <div
+                      style={{
+                        background: "#FFFFFF",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: 14,
+                        padding: "12px 18px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flex: 1 }}>
+                        {/* SEARCH */}
+                        <div style={{ position: "relative", minWidth: 240, flex: 1, maxWidth: 360 }}>
+                          <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 13 }}></i>
+                          <input
+                            type="text"
+                            placeholder="Search question prompt or model answer…"
+                            value={questionSearch}
+                            onChange={(e) => setQuestionSearch(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px 8px 34px",
+                              borderRadius: 8,
+                              border: "1px solid #CBD5E1",
+                              fontSize: 13,
+                              color: "#0F172A",
+                              outline: "none",
+                            }}
+                          />
+                        </div>
+
+                        {/* DOMAIN FILTER */}
+                        <select
+                          value={interviewDomainFilter}
+                          onChange={(e) => setInterviewDomainFilter(e.target.value)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid #CBD5E1",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#334155",
+                            outline: "none",
+                            background: "#FFFFFF",
+                          }}
+                        >
+                          <option value="all">All Domains</option>
+                          <option value="Medical Coding">Medical Coding</option>
+                          <option value="Medical Billing">Medical Billing</option>
+                          <option value="Accounts Receivable">Accounts Receivable</option>
+                          <option value="Front Office">Front Office</option>
+                          <option value="General">General RCM</option>
+                        </select>
+
+                        {/* MODE FILTER */}
+                        <select
+                          value={questionModeFilter}
+                          onChange={(e) => setQuestionModeFilter(e.target.value)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid #CBD5E1",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#334155",
+                            outline: "none",
+                            background: "#FFFFFF",
+                          }}
+                        >
+                          <option value="all">All Modes</option>
+                          <option value="both">Both (Video &amp; Audio)</option>
+                          <option value="video">Video Only</option>
+                          <option value="audio">Audio Only</option>
+                        </select>
+
+                        {/* STATUS FILTER */}
+                        <select
+                          value={questionStatusFilter}
+                          onChange={(e) => setQuestionStatusFilter(e.target.value)}
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: 8,
+                            border: "1px solid #CBD5E1",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#334155",
+                            outline: "none",
+                            background: "#FFFFFF",
+                          }}
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="active">Active Only</option>
+                          <option value="inactive">Inactive Only</option>
+                        </select>
+
+                        {(questionSearch || interviewDomainFilter !== "all" || questionModeFilter !== "all" || questionStatusFilter !== "all") && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuestionSearch("");
+                              setInterviewDomainFilter("all");
+                              setQuestionModeFilter("all");
+                              setQuestionStatusFilter("all");
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              color: "#64748B",
+                              cursor: "pointer",
+                            }}
+                          >
+                            Reset Filters
+                          </button>
+                        )}
+                      </div>
+
+                      <div style={{ fontSize: 12.5, color: "#64748B", fontWeight: 600 }}>
+                        Showing <strong>{filteredInterviewQs.length}</strong> of <strong>{interviewQuestions.length}</strong> questions
+                      </div>
+                    </div>
+
+                    {/* QUESTIONS LIST */}
+                    {questionsLoading ? (
+                      <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
+                        <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: 28, color: "#059669", marginBottom: 12 }}></i>
+                        <div style={{ fontWeight: 700, color: "#334155" }}>Loading questions bank…</div>
+                      </div>
+                    ) : filteredInterviewQs.length === 0 ? (
+                      <div style={{ background: "#FFFFFF", borderRadius: 16, padding: 48, textAlign: "center", border: "1px solid #E2E8F0" }}>
+                        <i className="fa-solid fa-microphone" style={{ fontSize: 36, color: "#94A3B8", marginBottom: 12 }}></i>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", margin: "0 0 6px" }}>
+                          {interviewQuestions.length === 0 ? "No interview questions in bank" : "No matching questions found"}
+                        </h3>
+                        <p style={{ fontSize: 13, color: "#64748B", margin: "0 0 18px", maxWidth: 440, marginLeft: "auto", marginRight: "auto" }}>
+                          {interviewQuestions.length === 0
+                            ? "Add questions and their model answers so the AI can present them to candidates during Stage 5 and Stage 8 assessments."
+                            : "Try adjusting your search terms or filter selection to view more questions."}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={interviewQuestions.length === 0 ? handleOpenAddQuestion : () => { setQuestionSearch(""); setInterviewDomainFilter("all"); setQuestionModeFilter("all"); setQuestionStatusFilter("all"); }}
+                          style={{
+                            background: "#059669",
+                            color: "#FFFFFF",
+                            border: "none",
+                            padding: "10px 20px",
+                            borderRadius: 10,
+                            fontWeight: 700,
+                            fontSize: 13,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {interviewQuestions.length === 0 ? "+ Add Your First Question" : "Clear Filters"}
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        {filteredInterviewQs.map((q, idx) => {
+                          const qId = q._id || q.id;
+                          const isConfirmingDelete = questionDeleteConfirmId === qId;
+
+                          return (
+                            <div
+                              key={qId}
+                              style={{
+                                background: "#FFFFFF",
+                                borderRadius: 16,
+                                border: q.active ? "1px solid #E2E8F0" : "1px dashed #CBD5E1",
+                                boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                                padding: "20px 22px",
+                                opacity: q.active ? 1 : 0.82,
+                                transition: "all 0.2s ease",
+                              }}
+                            >
+                              {/* TOP CARD HEADER */}
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "space-between",
+                                  gap: 12,
+                                  flexWrap: "wrap",
+                                  borderBottom: "1px solid #F1F5F9",
+                                  paddingBottom: 12,
+                                  marginBottom: 14,
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                  <span
+                                    style={{
+                                      background: "var(--navy, #0A1F3D)",
+                                      color: "#FFFFFF",
+                                      fontWeight: 800,
+                                      fontSize: 11,
+                                      padding: "3px 9px",
+                                      borderRadius: 6,
+                                    }}
+                                  >
+                                    #{q.order ?? idx + 1}
+                                  </span>
+
+                                  {/* DOMAIN BADGE */}
+                                  <span
+                                    style={{
+                                      background: "#F1F5F9",
+                                      color: "#334155",
+                                      border: "1px solid #CBD5E1",
+                                      fontWeight: 700,
+                                      fontSize: 11,
+                                      padding: "3px 9px",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-stethoscope" style={{ fontSize: 10, color: "#2563EB" }}></i>
+                                    {q.domain || "General"}
+                                  </span>
+
+                                  {/* MODE BADGE */}
+                                  <span
+                                    style={{
+                                      background: q.mode === "video" ? "#EEF2FF" : q.mode === "audio" ? "#FEF3C7" : "#ECFDF5",
+                                      color: q.mode === "video" ? "#4338CA" : q.mode === "audio" ? "#92400E" : "#065F46",
+                                      fontWeight: 700,
+                                      fontSize: 11.5,
+                                      padding: "3px 10px",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                    }}
+                                  >
+                                    <i className={`fa-solid ${q.mode === "video" ? "fa-video" : q.mode === "audio" ? "fa-microphone" : "fa-arrows-split-up-and-left"}`}></i>
+                                    {q.mode === "video" ? "Video Only" : q.mode === "audio" ? "Audio Only" : "Video + Audio"}
+                                  </span>
+
+                                  {/* ACTIVE / INACTIVE BADGE */}
+                                  <span
+                                    style={{
+                                      background: q.active ? "#F0FDF4" : "#F1F5F9",
+                                      color: q.active ? "#15803D" : "#64748B",
+                                      fontWeight: 700,
+                                      fontSize: 11.5,
+                                      padding: "3px 10px",
+                                      borderRadius: 6,
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                    }}
+                                  >
+                                    <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: q.active ? "#15803D" : "#94A3B8" }}></span>
+                                    {q.active ? "Active" : "Inactive"}
+                                  </span>
+                                </div>
+
+                                {/* CARD CONTROLS */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleQuestionActive(q)}
+                                    title={q.active ? "Deactivate question" : "Activate question"}
+                                    style={{
+                                      background: "#F8FAFC",
+                                      color: "#334155",
+                                      border: "1px solid #CBD5E1",
+                                      borderRadius: 8,
+                                      padding: "6px 12px",
+                                      fontSize: 11.5,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <i className={`fa-solid ${q.active ? "fa-toggle-on" : "fa-toggle-off"}`} style={{ marginRight: 5 }}></i>
+                                    {q.active ? "Disable" : "Enable"}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditQuestion(q)}
+                                    title="Edit question text and expected answer"
+                                    style={{
+                                      background: "#F8FAFC",
+                                      color: "#334155",
+                                      border: "1px solid #CBD5E1",
+                                      borderRadius: 8,
+                                      padding: "6px 12px",
+                                      fontSize: 11.5,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-pen-to-square" style={{ marginRight: 5 }}></i>
+                                    Edit
+                                  </button>
+
+                                  {isConfirmingDelete ? (
+                                    <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteQuestion(qId)}
+                                        style={{
+                                          background: "#DC2626",
+                                          color: "#FFFFFF",
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "6px 12px",
+                                          fontSize: 11.5,
+                                          fontWeight: 800,
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        Confirm
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setQuestionDeleteConfirmId(null)}
+                                        style={{
+                                          background: "#F1F5F9",
+                                          color: "#475569",
+                                          border: "none",
+                                          borderRadius: 8,
+                                          padding: "6px 10px",
+                                          fontSize: 11.5,
+                                          cursor: "pointer",
+                                        }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setQuestionDeleteConfirmId(qId)}
+                                      title="Delete question"
+                                      style={{
+                                        background: "#FFF1F2",
+                                        color: "#E11D48",
+                                        border: "1px solid #FECDD3",
+                                        borderRadius: 8,
+                                        padding: "6px 12px",
+                                        fontSize: 11.5,
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-trash-can" style={{ marginRight: 5 }}></i>
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* QUESTION TEXT */}
+                              <div style={{ marginBottom: 14 }}>
+                                <div style={{ fontSize: 11, color: "#64748B", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 4 }}>
+                                  Question Prompt
+                                </div>
+                                <div style={{ fontSize: 15.5, fontWeight: 700, color: "#0F172A", lineHeight: 1.5 }}>
+                                  {q.text}
+                                </div>
+                              </div>
+
+                              {/* MODEL / EXPECTED ANSWER BOX */}
+                              <div
+                                style={{
+                                  background: "#F8FAFC",
+                                  border: "1.5px solid #E2E8F0",
+                                  borderRadius: 12,
+                                  padding: "14px 18px",
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, flexWrap: "wrap", gap: 8 }}>
+                                  <span
+                                    style={{
+                                      fontSize: 11.5,
+                                      fontWeight: 800,
+                                      color: "#059669",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.04em",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 6,
+                                    }}
+                                  >
+                                    <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#059669" }}></span>
+                                    Expected / Model Answer (For AI Evaluation)
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(q.correctAnswer, "Expected Answer")}
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      color: "#64748B",
+                                      fontSize: 11.5,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      padding: 0,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-clipboard"></i> Copy
+                                  </button>
+                                </div>
+                                <div style={{ fontSize: 13.5, color: "#1E293B", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                                  {q.correctAnswer || (
+                                    <span style={{ color: "#94A3B8", fontStyle: "italic" }}>
+                                      No expected model answer recorded yet. Click &ldquo;Edit&rdquo; above to provide the grading key.
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             );
           })()}
-
           {/* TAB MODULE 6: REPORTS */}
           {activeNav === "reports" && (() => {
             const rp = dashData?.reportsData || {};
@@ -7311,7 +8115,7 @@ export default function StaffHub() {
             return (
               <div className="tt-content">
                 <QueuePageHeader
-                  icon="📊"
+                  icon={<i className="fa-solid fa-chart-pie" style={{ color: "#D97706" }}></i>}
                   accent="#D97706"
                   title="Operations Analytics & Reports"
                   subtitle="Real counts pulled straight from the candidate, company, and audit-log records - no simulated figures."
@@ -7382,7 +8186,7 @@ export default function StaffHub() {
           {activeNav === "activity" && (
             <div className="tt-content">
               <QueuePageHeader
-                icon="🗒️"
+                icon={<i className="fa-solid fa-clipboard-list" style={{ color: "#4B5563" }}></i>}
                 accent="#4B5563"
                 title="Staff Audit Trail & Activity Log"
                 subtitle="Immutable log of staff actions, approvals, and candidate status updates."
@@ -7471,10 +8275,10 @@ export default function StaffHub() {
                   cursor: "pointer",
                   fontWeight: 700,
                   color: "#475569",
-                  fontSize: 16,
+                  fontSize: 14,
                 }}
               >
-                ✕
+                <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
 
@@ -7491,11 +8295,45 @@ export default function StaffHub() {
                     fontSize: 12.5,
                     fontWeight: 600,
                     marginBottom: 16,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
                   }}
                 >
-                  ⚠️ {questionError}
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                  <span>{questionError}</span>
                 </div>
               )}
+
+              {/* DOMAIN SELECTION */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                  Healthcare Domain <span style={{ color: "#EF4444" }}>*</span>
+                </label>
+                <select
+                  value={questionForm.domain || "Medical Coding"}
+                  onChange={(e) => setQuestionForm({ ...questionForm, domain: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: "1px solid #CBD5E1",
+                    fontSize: 13.5,
+                    color: "#0F172A",
+                    outline: "none",
+                    background: "#FFFFFF",
+                  }}
+                >
+                  <option value="Medical Coding">Medical Coding</option>
+                  <option value="Medical Billing">Medical Billing</option>
+                  <option value="Accounts Receivable">Accounts Receivable</option>
+                  <option value="Front Office">Front Office</option>
+                  <option value="General">General RCM</option>
+                </select>
+                <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
+                  Candidates whose primary domain matches will receive this question.
+                </div>
+              </div>
 
               {/* QUESTION TEXT */}
               <div style={{ marginBottom: 16 }}>
@@ -7578,7 +8416,7 @@ export default function StaffHub() {
                       background: "#FFFFFF",
                     }}
                   >
-                    <option value="both">Both (Video & Audio)</option>
+                    <option value="both">Both (Video &amp; Audio)</option>
                     <option value="video">Video Assessment Only</option>
                     <option value="audio">Audio Interview Only</option>
                   </select>
@@ -7680,30 +8518,410 @@ export default function StaffHub() {
         </div>
       )}
 
+      {/* ADD / EDIT STAGE 4 ASSESSMENT MCQ MODAL */}
+      {assessmentModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10000,
+            padding: 20,
+            fontFamily: "var(--font-body, 'Manrope', sans-serif)",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 18,
+              width: "100%",
+              maxWidth: 660,
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 20px 45px rgba(0,0,0,0.2)",
+              border: "1px solid #E2E8F0",
+            }}
+          >
+            {/* MODAL HEADER */}
+            <div
+              style={{
+                padding: "18px 24px",
+                borderBottom: "1px solid #E2E8F0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: "#F8FAFC",
+                borderTopLeftRadius: 18,
+                borderTopRightRadius: 18,
+              }}
+            >
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: "#0F172A", margin: "0 0 3px" }}>
+                  {editingAssessmentQ ? "Edit Stage 4 Assessment MCQ" : "Add New Stage 4 Assessment MCQ"}
+                </h3>
+                <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
+                  Multiple-choice question with 4 options and 1 verified correct answer.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAssessmentModalOpen(false)}
+                style={{
+                  background: "#E2E8F0",
+                  border: "none",
+                  borderRadius: "50%",
+                  width: 32,
+                  height: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  color: "#475569",
+                  fontSize: 14,
+                }}
+              >
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            {/* MODAL BODY */}
+            <form onSubmit={handleSaveAssessmentQ} style={{ padding: "20px 24px" }}>
+              {assessmentError && (
+                <div
+                  style={{
+                    background: "#FEF2F2",
+                    border: "1px solid #FECACA",
+                    borderRadius: 10,
+                    padding: "10px 14px",
+                    color: "#B91C1C",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    marginBottom: 16,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                  <span>{assessmentError}</span>
+                </div>
+              )}
+
+              {/* DOMAIN & SECTION */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                    Domain <span style={{ color: "#EF4444" }}>*</span>
+                  </label>
+                  <select
+                    value={assessmentForm.domain}
+                    onChange={(e) => setAssessmentForm({ ...assessmentForm, domain: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#0F172A",
+                      outline: "none",
+                      background: "#FFFFFF",
+                    }}
+                  >
+                    <option value="Medical Coding">Medical Coding</option>
+                    <option value="Medical Billing">Medical Billing</option>
+                    <option value="Accounts Receivable">Accounts Receivable</option>
+                    <option value="Front Office">Front Office</option>
+                    <option value="General">General RCM</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                    Syllabus Section Name <span style={{ color: "#EF4444" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Anatomy &amp; Physiology"
+                    value={assessmentForm.sectionName}
+                    onChange={(e) => setAssessmentForm({ ...assessmentForm, sectionName: e.target.value })}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 13,
+                      color: "#0F172A",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* TOPIC & ORDER */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                    Topic (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Cardiovascular System"
+                    value={assessmentForm.topic}
+                    onChange={(e) => setAssessmentForm({ ...assessmentForm, topic: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 13,
+                      color: "#0F172A",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                    Question Order / Number
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={assessmentForm.order}
+                    onChange={(e) => setAssessmentForm({ ...assessmentForm, order: e.target.value })}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 10,
+                      border: "1px solid #CBD5E1",
+                      fontSize: 13,
+                      color: "#0F172A",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* QUESTION TEXT */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                  Question Prompt <span style={{ color: "#EF4444" }}>*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Enter the MCQ question statement…"
+                  value={assessmentForm.question}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, question: e.target.value })}
+                  required
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    border: "1px solid #CBD5E1",
+                    fontSize: 13.5,
+                    lineHeight: 1.5,
+                    color: "#0F172A",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              {/* 4 OPTIONS WITH RADIO BUTTON FOR CORRECT */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <label style={{ fontSize: 12.5, fontWeight: 800, color: "#1E293B" }}>
+                    Options &amp; Correct Answer <span style={{ color: "#EF4444" }}>*</span>
+                  </label>
+                  <span style={{ fontSize: 11, color: "#64748B" }}>Select the radio button next to the correct answer</span>
+                </div>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[0, 1, 2, 3].map((optIdx) => {
+                    const letter = String.fromCharCode(65 + optIdx);
+                    const isCorrect = assessmentForm.correct === optIdx;
+                    return (
+                      <div
+                        key={optIdx}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                          background: isCorrect ? "#F0FDF4" : "#F8FAFC",
+                          border: isCorrect ? "1.5px solid #10B981" : "1px solid #CBD5E1",
+                          borderRadius: 10,
+                          padding: "8px 12px",
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="correctAssessmentOption"
+                          checked={isCorrect}
+                          onChange={() => setAssessmentForm({ ...assessmentForm, correct: optIdx })}
+                          style={{ width: 18, height: 18, cursor: "pointer" }}
+                        />
+                        <span style={{ width: 22, fontWeight: 800, fontSize: 13, color: isCorrect ? "#059669" : "#475569" }}>
+                          {letter}.
+                        </span>
+                        <input
+                          type="text"
+                          placeholder={`Option ${letter} text...`}
+                          value={assessmentForm.options[optIdx] || ""}
+                          onChange={(e) => {
+                            const newOpts = [...assessmentForm.options];
+                            newOpts[optIdx] = e.target.value;
+                            setAssessmentForm({ ...assessmentForm, options: newOpts });
+                          }}
+                          required={optIdx < 2}
+                          style={{
+                            flex: 1,
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #CBD5E1",
+                            fontSize: 13,
+                            color: "#0F172A",
+                            outline: "none",
+                            background: "#FFFFFF",
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* EXPLANATION */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#1E293B", marginBottom: 6 }}>
+                  Explanation / Educational Rationale
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Explain why the selected option is correct for candidate review…"
+                  value={assessmentForm.explanation}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, explanation: e.target.value })}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: 10,
+                    border: "1px solid #CBD5E1",
+                    fontSize: 13,
+                    color: "#0F172A",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                  }}
+                />
+              </div>
+
+              {/* ACTIVE CHECKBOX */}
+              <div
+                style={{
+                  background: "#F8FAFC",
+                  border: "1px solid #E2E8F0",
+                  borderRadius: 10,
+                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 20,
+                  cursor: "pointer",
+                }}
+                onClick={() => setAssessmentForm({ ...assessmentForm, active: !assessmentForm.active })}
+              >
+                <input
+                  type="checkbox"
+                  checked={assessmentForm.active}
+                  onChange={(e) => setAssessmentForm({ ...assessmentForm, active: e.target.checked })}
+                  style={{ width: 18, height: 18, cursor: "pointer" }}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                    Active in Proctored Assessment
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#64748B" }}>
+                    When checked, candidates in {assessmentForm.domain} will receive this question in their Stage 4 test.
+                  </div>
+                </div>
+              </div>
+
+              {/* MODAL ACTIONS */}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button
+                  type="button"
+                  onClick={() => setAssessmentModalOpen(false)}
+                  style={{
+                    background: "#F1F5F9",
+                    color: "#475569",
+                    border: "none",
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={assessmentSubmitting}
+                  style={{
+                    background: "#2563EB",
+                    color: "#FFFFFF",
+                    border: "none",
+                    padding: "10px 22px",
+                    borderRadius: 10,
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: "pointer",
+                    boxShadow: "0 4px 12px rgba(37,99,235,0.25)",
+                    opacity: assessmentSubmitting ? 0.7 : 1,
+                  }}
+                >
+                  {assessmentSubmitting ? "Saving…" : editingAssessmentQ ? "Update MCQ" : "Save MCQ to Bank"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* QUICK ACTION MODALS */}
       {activeModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(6,21,42,0.7)", backdropFilter: "blur(4px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}>
           <div style={{ background: "#FFFFFF", borderRadius: 18, width: "100%", maxWidth: 520, padding: 28, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", position: "relative" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid #F1F5F9", pb: 14 }}>
               <h2 style={{ fontSize: 18, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}>
-                {activeModal === "search" && "⌘ Quick Global Search"}
-                {activeModal === "upload" && "📤 Upload New Candidate"}
-                {activeModal === "lead" && "💼 Add Company Lead"}
-                {activeModal === "verify" && "⚡ Send for Verification"}
-                {activeModal === "visit" && "📍 Log Site Visit"}
-                {activeModal === "quick_add" && "➕ Quick Add Candidate / Lead"}
-                {activeModal === "kanban" && "📋 Core Verification Pipeline Kanban"}
-                {activeModal === "create_employee" && "🛡️ Create New Employee Account"}
-                {activeModal === "reset_employee_password" && "🔑 Reset Employee Password"}
-                {activeModal === "reset_company_password" && "🔑 Reset Company Account Password"}
-                {activeModal === "reset_candidate_password" && "🔑 Reset Candidate Account Password"}
+                {activeModal === "search" && <><i className="fa-solid fa-magnifying-glass" style={{ marginRight: 8 }}></i> Quick Global Search</>}
+                {activeModal === "upload" && <><i className="fa-solid fa-upload" style={{ marginRight: 8 }}></i> Upload New Candidate</>}
+                {activeModal === "lead" && <><i className="fa-solid fa-briefcase" style={{ marginRight: 8 }}></i> Add Company Lead</>}
+                {activeModal === "verify" && <><i className="fa-solid fa-bolt" style={{ marginRight: 8 }}></i> Send for Verification</>}
+                {activeModal === "visit" && <><i className="fa-solid fa-location-dot" style={{ marginRight: 8 }}></i> Log Site Visit</>}
+                {activeModal === "quick_add" && <><i className="fa-solid fa-plus" style={{ marginRight: 8 }}></i> Quick Add Candidate / Lead</>}
+                {activeModal === "kanban" && <><i className="fa-solid fa-table-columns" style={{ marginRight: 8 }}></i> Core Verification Pipeline Kanban</>}
+                {activeModal === "create_employee" && <><i className="fa-solid fa-shield-halved" style={{ marginRight: 8 }}></i> Create New Employee Account</>}
+                {activeModal === "reset_employee_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Employee Password</>}
+                {activeModal === "reset_company_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Company Account Password</>}
+                {activeModal === "reset_candidate_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Candidate Account Password</>}
               </h2>
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
                 style={{ background: "transparent", border: "none", fontSize: 20, color: "var(--text-muted, #4A5568)", cursor: "pointer" }}
               >
-                ✕
+                <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
 
@@ -7770,7 +8988,7 @@ export default function StaffHub() {
                       {matchedCandidates.length > 0 && (
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
-                            👥 Candidates ({matchedCandidates.length})
+                            <><i className="fa-solid fa-users" style={{ marginRight: 6 }}></i> Candidates ({matchedCandidates.length})</>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {matchedCandidates.slice(0, 5).map((c) => (
@@ -7818,7 +9036,7 @@ export default function StaffHub() {
                       {matchedCompanies.length > 0 && (
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
-                            🏢 Companies ({matchedCompanies.length})
+                            <><i className="fa-solid fa-building" style={{ marginRight: 6 }}></i> Companies ({matchedCompanies.length})</>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {matchedCompanies.slice(0, 5).map((comp) => (
@@ -7866,7 +9084,7 @@ export default function StaffHub() {
                       {matchedAcademies.length > 0 && (
                         <div>
                           <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>
-                            🎓 Academies ({matchedAcademies.length})
+                            <><i className="fa-solid fa-graduation-cap" style={{ marginRight: 6 }}></i> Academies ({matchedAcademies.length})</>
                           </div>
                           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             {matchedAcademies.slice(0, 5).map((ac) => (
@@ -7984,7 +9202,7 @@ export default function StaffHub() {
                   onClick={() => { showToast("All pending candidates pushed to verification queue!"); setActiveModal(null); }}
                   style={{ background: "#9333EA", color: "#FFFFFF", padding: "12px 24px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", marginTop: 14, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}
                 >
-                  ⚡ Push All Pending Candidates Now
+                  <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }}></i> Push All Pending Candidates Now</>
                 </button>
               </div>
             )}
@@ -8020,7 +9238,7 @@ export default function StaffHub() {
 
                 {createEmployeeError && (
                   <div className="emp-modal-alert">
-                    <span>⚠️</span>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B" }}></i>
                     <span>{createEmployeeError}</span>
                   </div>
                 )}
@@ -8089,7 +9307,7 @@ export default function StaffHub() {
                         cursor: "pointer",
                       }}
                     >
-                      🎲 Auto-Generate
+                      <><i className="fa-solid fa-shuffle" style={{ marginRight: 5 }}></i> Auto-Generate</>
                     </button>
                   </div>
                   <div className="emp-pw-input-wrapper">
@@ -8108,7 +9326,7 @@ export default function StaffHub() {
                       onClick={() => setShowEmployeePassword(!showEmployeePassword)}
                       title={showEmployeePassword ? "Hide password" : "Show password"}
                     >
-                      {showEmployeePassword ? "🙈" : "👁️"}
+                      {showEmployeePassword ? <i className="fa-solid fa-eye-slash"></i> : <i className="fa-solid fa-eye"></i>}
                     </button>
                   </div>
                   <div style={{ fontSize: 10, color: "#94A3B8", marginTop: 3 }}>
@@ -8203,7 +9421,7 @@ export default function StaffHub() {
 
                 {resetPasswordError && (
                   <div className="emp-modal-alert">
-                    <span>⚠️</span>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B" }}></i>
                     <span>{resetPasswordError}</span>
                   </div>
                 )}
@@ -8233,7 +9451,7 @@ export default function StaffHub() {
                         cursor: "pointer",
                       }}
                     >
-                      🎲 Auto-Generate
+                      <><i className="fa-solid fa-shuffle" style={{ marginRight: 5 }}></i> Auto-Generate</>
                     </button>
                   </div>
                   <div className="emp-pw-input-wrapper">
@@ -8252,7 +9470,7 @@ export default function StaffHub() {
                       onClick={() => setShowEmployeePassword(!showEmployeePassword)}
                       title={showEmployeePassword ? "Hide password" : "Show password"}
                     >
-                      {showEmployeePassword ? "🙈" : "👁️"}
+                      {showEmployeePassword ? <i className="fa-solid fa-eye-slash"></i> : <i className="fa-solid fa-eye"></i>}
                     </button>
                   </div>
                 </div>
@@ -8308,8 +9526,8 @@ export default function StaffHub() {
                     {resetPasswordCompany.companyName || resetPasswordCompany.legalName || "Employer"}
                   </div>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span>✉️ {resetPasswordCompany.email}</span>
-                    {resetPasswordCompany.mobile && <span>📞 {resetPasswordCompany.mobile}</span>}
+                    <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> {resetPasswordCompany.email}</span>
+                    {resetPasswordCompany.mobile && <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {resetPasswordCompany.mobile}</span>}
                     {resetPasswordCompany.stage1a?.gstin && (
                       <span style={{ fontFamily: "var(--font-mono, monospace)", fontSize: 11, background: "#EFF6FF", color: "#2563EB", padding: "1px 6px", borderRadius: 4 }}>
                         GSTIN: {resetPasswordCompany.stage1a.gstin}
@@ -8324,7 +9542,7 @@ export default function StaffHub() {
 
                 {resetCompanyPasswordError && (
                   <div className="emp-modal-alert">
-                    <span>⚠️</span>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B" }}></i>
                     <span>{resetCompanyPasswordError}</span>
                   </div>
                 )}
@@ -8354,7 +9572,7 @@ export default function StaffHub() {
                         cursor: "pointer",
                       }}
                     >
-                      🎲 Auto-Generate
+                      <><i className="fa-solid fa-shuffle" style={{ marginRight: 5 }}></i> Auto-Generate</>
                     </button>
                   </div>
                   <div className="emp-pw-input-wrapper">
@@ -8373,7 +9591,7 @@ export default function StaffHub() {
                       onClick={() => setShowCompanyPassword(!showCompanyPassword)}
                       title={showCompanyPassword ? "Hide password" : "Show password"}
                     >
-                      {showCompanyPassword ? "🙈" : "👁️"}
+                      {showCompanyPassword ? <i className="fa-solid fa-eye-slash"></i> : <i className="fa-solid fa-eye"></i>}
                     </button>
                   </div>
                 </div>
@@ -8432,10 +9650,10 @@ export default function StaffHub() {
                     {resetPasswordCandidate.fullName || "Candidate"}
                   </div>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span>✉️ {resetPasswordCandidate.email}</span>
-                    {resetPasswordCandidate.mobile && <span>📞 {resetPasswordCandidate.mobile}</span>}
+                    <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> {resetPasswordCandidate.email}</span>
+                    {resetPasswordCandidate.mobile && <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {resetPasswordCandidate.mobile}</span>}
                     {(resetPasswordCandidate.city || resetPasswordCandidate.stage1?.city) && (
-                      <span>📍 {resetPasswordCandidate.city || resetPasswordCandidate.stage1?.city}</span>
+                      <span><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {resetPasswordCandidate.city || resetPasswordCandidate.stage1?.city}</span>
                     )}
                     {(resetPasswordCandidate.currentRole || resetPasswordCandidate.stage1?.currentRole) && (
                       <span style={{ fontSize: 11, background: "#EFF6FF", color: "#2563EB", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
@@ -8451,7 +9669,7 @@ export default function StaffHub() {
 
                 {resetCandidatePasswordError && (
                   <div className="emp-modal-alert">
-                    <span>⚠️</span>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B" }}></i>
                     <span>{resetCandidatePasswordError}</span>
                   </div>
                 )}
@@ -8481,7 +9699,7 @@ export default function StaffHub() {
                         cursor: "pointer",
                       }}
                     >
-                      🎲 Auto-Generate
+                      <><i className="fa-solid fa-shuffle" style={{ marginRight: 5 }}></i> Auto-Generate</>
                     </button>
                   </div>
                   <div className="emp-pw-input-wrapper">
@@ -8500,7 +9718,7 @@ export default function StaffHub() {
                       onClick={() => setShowCandidatePassword(!showCandidatePassword)}
                       title={showCandidatePassword ? "Hide password" : "Show password"}
                     >
-                      {showCandidatePassword ? "🙈" : "👁️"}
+                      {showCandidatePassword ? <i className="fa-solid fa-eye-slash"></i> : <i className="fa-solid fa-eye"></i>}
                     </button>
                   </div>
                 </div>
@@ -8575,9 +9793,9 @@ export default function StaffHub() {
                       </span>
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
-                      <span>✉️ {selectedCandidate.email}</span>
-                      {selectedCandidate.mobile && <span>📞 {selectedCandidate.mobile}</span>}
-                      <span>📍 {selectedCandidate.city || "India"}</span>
+                      <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> {selectedCandidate.email}</span>
+                      {selectedCandidate.mobile && <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {selectedCandidate.mobile}</span>}
+                      <span><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {selectedCandidate.city || "India"}</span>
                     </div>
                   </div>
                 </div>
@@ -8586,7 +9804,7 @@ export default function StaffHub() {
                   onClick={() => setSelectedCandidate(null)}
                   style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
-                  ✕
+                  <i className="fa-solid fa-xmark"></i>
                 </button>
               </div>
             </div>
@@ -8614,12 +9832,12 @@ export default function StaffHub() {
                   { id: "placement", stage: "Stage 8", label: "Placement & Track" },
                   {
                     id: "applications",
-                    stage: "🎯",
+                    stage: <i className="fa-solid fa-briefcase" />,
                     label: `Job Applications (${selectedCandidate.applicationMetrics?.total ?? (selectedCandidate.applications || []).length})`,
                   },
                   {
                     id: "vault",
-                    stage: "🗄️",
+                    stage: <i className="fa-solid fa-box-archive" />,
                     label: `Document Vault (${(selectedCandidate.documentVault || selectedCandidate.documents || []).length})`,
                   },
                 ].map((tab) => (
@@ -8683,7 +9901,7 @@ export default function StaffHub() {
                       <div className="staff-meta-label">Aadhaar Verification Status</div>
                       <div className="staff-meta-value">
                         {selectedCandidate.aadhaarVerified || selectedCandidate.stage1?.aadhaarVerified ? (
-                          <span style={{ color: "#15803D", fontWeight: 800 }}>✓ Aadhaar Verified (Official UIDAI)</span>
+                          <span style={{ color: "#15803D", fontWeight: 800 }}><i className="fa-solid fa-shield-check" style={{ marginRight: 5 }}></i> Aadhaar Verified (Official UIDAI)</span>
                         ) : (
                           <span style={{ color: "#B45309", fontWeight: 700 }}>⏳ Verification Pending</span>
                         )}
@@ -8724,7 +9942,7 @@ export default function StaffHub() {
                         <div className="staff-meta-label">Academy Verification</div>
                         <div className="staff-meta-value">
                           <span style={{ color: s2.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>
-                            {s2.verified ? "✓ Verified Partner Academy Student" : "Pending Academy Confirmation"}
+                            {s2.verified ? "Verified Partner Academy Student" : "Pending Academy Confirmation"}
                           </span>
                         </div>
                       </div>
@@ -8786,15 +10004,15 @@ export default function StaffHub() {
                         <div className="staff-meta-value">
                           {s3.isReal === true || s3.verificationResult?.verdict === "REAL" ? (
                             <span style={{ color: "#15803D", fontWeight: 800 }}>
-                              🟢 REAL · VERIFIED ({s3.trustScore || s3.verificationResult?.trustScore || 98}% Trust)
+                              <><i className="fa-solid fa-circle-check" style={{ color: "#10B981", marginRight: 5 }}></i> REAL · VERIFIED ({s3.trustScore || s3.verificationResult?.trustScore || 98}% Trust)</>
                             </span>
                           ) : s3.isReal === false || s3.verificationResult?.verdict === "FAKE" ? (
                             <span style={{ color: "#B91C1C", fontWeight: 800 }}>
-                              🔴 FAKE / SUSPICIOUS (Flagged)
+                              <><i className="fa-solid fa-triangle-exclamation" style={{ color: "#EF4444", marginRight: 5 }}></i> FAKE / SUSPICIOUS (Flagged)</>
                             </span>
                           ) : (
                             <span style={{ color: "#B45309", fontWeight: 700 }}>
-                              🟡 {s3.verificationResult?.badge || "Pending Live Proof"}
+                              <><i className="fa-solid fa-circle-pause" style={{ color: "#F59E0B", marginRight: 5 }}></i> {s3.verificationResult?.badge || "Pending Live Proof"}</>
                             </span>
                           )}
                         </div>
@@ -8838,7 +10056,7 @@ export default function StaffHub() {
                               {cert.certUrl && (
                                 <div style={{ fontSize: 11 }}>
                                   <a href={cert.certUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>
-                                    🔗 View Credential Link ↗
+                                    <><i className="fa-solid fa-arrow-up-right-from-square" style={{ marginRight: 5 }}></i> View Credential Link ↗</>
                                   </a>
                                 </div>
                               )}
@@ -8856,7 +10074,7 @@ export default function StaffHub() {
                       <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 8 }}>Uploaded Certificate Document Proof</div>
                       {s3.docUrl ? (
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span style={{ fontSize: 24 }}>📄</span>
+                          <span style={{ fontSize: 24, color: "#64748B" }}><i className="fa-solid fa-file-pdf"></i></span>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 700, fontSize: 13 }}>{s3.docName || "Official Certificate Document"}</div>
                             <div style={{ fontSize: 11, color: "#64748B" }}>Official proof uploaded by candidate</div>
@@ -8883,7 +10101,7 @@ export default function StaffHub() {
                         onClick={() => handleAuditCertification(selectedCandidate._id, "verify")}
                         style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                       >
-                        ✓ Approve Certificate
+                        <><i className="fa-solid fa-check" style={{ marginRight: 5 }}></i> Approve Certificate</>
                       </button>
                       <button
                         type="button"
@@ -8893,7 +10111,7 @@ export default function StaffHub() {
                         }}
                         style={{ background: "#EF4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                       >
-                        ✕ Reject Certificate
+                        <><i className="fa-solid fa-xmark" style={{ marginRight: 5 }}></i> Reject Certificate</>
                       </button>
                     </div>
                   </div>
@@ -8940,7 +10158,7 @@ export default function StaffHub() {
                               <div style={{ fontSize: 11.5, display: "flex", gap: 16, color: "#64748B" }}>
                                 <span>Candidate choice: <strong style={{ color: ans.isCorrect ? "#15803D" : "#B91C1C" }}>{ans.selectedAnswer || ans.userAnswer || "N/A"}</strong></span>
                                 {ans.correctAnswer && <span>Correct answer: <strong style={{ color: "#15803D" }}>{ans.correctAnswer}</strong></span>}
-                                <span>Status: {ans.isCorrect ? "✓ Correct" : "✕ Incorrect"}</span>
+                                <span>Status: {ans.isCorrect ? "Correct" : "Incorrect"}</span>
                               </div>
                             </div>
                           ))}
@@ -8989,11 +10207,11 @@ export default function StaffHub() {
                         <div className="staff-meta-value">
                           {s5.terminatedDueToTabSwitch ? (
                             <span style={{ color: "#DC2626", fontWeight: 800 }}>
-                              🚨 Tab Switch Auto-Terminated ({s5.proctorLogs?.tabSwitches || 1})
+                              <><i className="fa-solid fa-triangle-exclamation" style={{ color: "#EF4444", marginRight: 5 }}></i> Tab Switch Auto-Terminated ({s5.proctorLogs?.tabSwitches || 1})</>
                             </span>
                           ) : s5.mockInterviewCompleted ? (
                             <span style={{ color: "#15803D", fontWeight: 800 }}>
-                              ✓ Passed Anti-Cheat Checks
+                              <><i className="fa-solid fa-shield-check" style={{ color: "#10B981", marginRight: 5 }}></i> Passed Anti-Cheat Checks</>
                             </span>
                           ) : (
                             <span style={{ color: "#64748B", fontWeight: 600 }}>
@@ -9008,7 +10226,7 @@ export default function StaffHub() {
                       <div style={{ background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 18, maxHeight: 340, display: "flex", flexDirection: "column", alignItems: "center" }}>
                         <video controls playsInline src={getAssetUrl(videoUrl)} style={{ width: "100%", maxHeight: 300, display: "block" }} />
                         <div style={{ padding: "6px 12px", width: "100%", background: "#0F172A", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "#94A3B8" }}>
-                          <span>📹 AI Mock Interview Proctored Recording</span>
+                          <span><i className="fa-solid fa-video" style={{ marginRight: 6, color: "#2563EB" }}></i> AI Mock Interview Proctored Recording</span>
                           <a href={getAssetUrl(videoUrl)} target="_blank" rel="noreferrer" style={{ color: "#F5B41A", textDecoration: "none", fontWeight: 700 }}>
                             Open video in new tab ↗
                           </a>
@@ -9042,7 +10260,7 @@ export default function StaffHub() {
                         onClick={() => handleVerifyVideo(selectedCandidate._id, "verify")}
                         style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                       >
-                        ✓ Verify Video Introduction
+                        <><i className="fa-solid fa-check" style={{ marginRight: 5 }}></i> Verify Video Introduction</>
                       </button>
                       <button
                         type="button"
@@ -9088,7 +10306,7 @@ export default function StaffHub() {
                       </div>
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Verification Status</div>
-                        <div className="staff-meta-value" style={{ color: s6.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>{s6.verified ? "✓ Verified" : (s6.verificationMethod || (totalCharts > 0 ? "Self-Reported" : "Not started"))}</div>
+                        <div className="staff-meta-value" style={{ color: s6.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>{s6.verified ? "Verified" : (s6.verificationMethod || (totalCharts > 0 ? "Self-Reported" : "Not started"))}</div>
                       </div>
                     </div>
                   </div>
@@ -9199,9 +10417,9 @@ export default function StaffHub() {
                 const statusStyles = {
                   applied: { bg: "#EFF6FF", color: "#1D4ED8", border: "#BFDBFE", label: "APPLIED" },
                   shortlisted: { bg: "#F5F3FF", color: "#6D28D9", border: "#DDD6FE", label: "SHORTLISTED ⭐" },
-                  interviewing: { bg: "#F0FDFA", color: "#0F766E", border: "#99F6E4", label: "INTERVIEWING 🎙️" },
-                  offered: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A", label: "OFFER EXTENDED 📜" },
-                  hired: { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0", label: "HIRED 🎉" },
+                  interviewing: { bg: "#F0FDFA", color: "#0F766E", border: "#99F6E4", label: "INTERVIEWING" },
+                  offered: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A", label: "OFFER EXTENDED" },
+                  hired: { bg: "#F0FDF4", color: "#15803D", border: "#BBF7D0", label: "HIRED" },
                   rejected: { bg: "#FEF2F2", color: "#B91C1C", border: "#FECACA", label: "REJECTED" },
                 };
 
@@ -9281,10 +10499,10 @@ export default function StaffHub() {
                                       </span>
                                     </div>
                                     <div style={{ fontSize: 12.5, color: "#334155", marginTop: 4, fontWeight: 600 }}>
-                                      🏢 {compName} {app.companyEmail ? `· ✉️ ${app.companyEmail}` : ""}
+                                      <><i className="fa-solid fa-building" style={{ marginRight: 4 }}></i> {compName} {app.companyEmail ? `· ${app.companyEmail}` : ""}</>
                                     </div>
                                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>
-                                      📅 Applied on: <strong>{new Date(app.createdAt || Date.now()).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</strong>
+                                      <><i className="fa-solid fa-calendar-days" style={{ marginRight: 5 }}></i> Applied on: <strong>{new Date(app.createdAt || Date.now()).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</strong></>
                                       {app.updatedAt && app.updatedAt !== app.createdAt && (
                                         <span> · Last Status Update: {new Date(app.updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
                                       )}
@@ -9317,7 +10535,7 @@ export default function StaffHub() {
                         </div>
                       ) : (
                         <div style={{ padding: 32, background: "#F8FAFC", borderRadius: 12, color: "#64748B", fontSize: 13, textAlign: "center", border: "1px dashed #CBD5E1" }}>
-                          <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
+                          <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-inbox"></i></div>
                           <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>No job applications submitted yet</div>
                           <div style={{ fontSize: 12, marginTop: 4 }}>
                             This candidate has not applied to any job postings directly yet. Their profile is indexed and searchable by verified employers in the Talent Search.
@@ -9353,7 +10571,7 @@ export default function StaffHub() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                       <div>
                         <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-                          🗄️ Candidate Document Vault ({vaultDocs.length})
+                          <><i className="fa-solid fa-box-archive" style={{ marginRight: 6 }}></i> Candidate Document Vault ({vaultDocs.length})</>
                         </h3>
                         <p style={{ fontSize: 12, color: "#64748B", margin: "3px 0 0" }}>
                           All official certificates, degree transcripts, government IDs, and verification proofs uploaded by the candidate.
@@ -9408,7 +10626,7 @@ export default function StaffHub() {
                                       color: doc.verified ? "#15803D" : "#64748B",
                                     }}
                                   >
-                                    {doc.verified ? "✓ Verified" : "• Attached"}
+                                    {doc.verified ? "Verified" : "Attached"}
                                   </span>
                                 </div>
 
@@ -9418,13 +10636,13 @@ export default function StaffHub() {
 
                                 {doc.docName && doc.docName !== docName && (
                                   <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 3, wordBreak: "break-all" }}>
-                                    📎 {doc.docName}
+                                    <><i className="fa-solid fa-paperclip" style={{ marginRight: 5 }}></i> {doc.docName}</>
                                   </div>
                                 )}
 
                                 <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 8, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                  {issueDate && <span>📅 Issue: {issueDate}</span>}
-                                  {uploadedDate && <span>🕒 Uploaded: {uploadedDate}</span>}
+                                  {issueDate && <span><i className="fa-solid fa-calendar-days" style={{ marginRight: 4 }}></i> Issue: {issueDate}</span>}
+                                  {uploadedDate && <span><i className="fa-solid fa-clock" style={{ marginRight: 4 }}></i> Uploaded: {uploadedDate}</span>}
                                 </div>
                               </div>
 
@@ -9450,7 +10668,7 @@ export default function StaffHub() {
                                       gap: 6,
                                     }}
                                   >
-                                    <span>👁️</span>
+                                    <i className="fa-solid fa-eye"></i>
                                     <span>View Document Proof ↗</span>
                                   </a>
                                 ) : (
@@ -9463,7 +10681,7 @@ export default function StaffHub() {
                       </div>
                     ) : (
                       <div style={{ padding: 40, background: "#F8FAFC", borderRadius: 12, color: "#64748B", fontSize: 13, textAlign: "center", border: "1px dashed #CBD5E1" }}>
-                        <div style={{ fontSize: 32, marginBottom: 8 }}>🗄️</div>
+                        <div style={{ fontSize: 32, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-box-archive"></i></div>
                         <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>No documents in vault</div>
                         <div style={{ fontSize: 12, marginTop: 4 }}>
                           The candidate has not uploaded extra certificates or degree proofs to their Document Vault yet.
@@ -9485,7 +10703,7 @@ export default function StaffHub() {
                     onClick={() => handleVerifyCandidate(selectedCandidate._id, "verify")}
                     style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 22px", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                   >
-                    ✓ Verify & Gold-Badge Entire Profile
+                    <><i className="fa-solid fa-certificate" style={{ marginRight: 6 }}></i> Verify & Gold-Badge Entire Profile</>
                   </button>
                 )}
                 <button
@@ -9512,7 +10730,7 @@ export default function StaffHub() {
                   }}
                   title={`Reset login password for ${selectedCandidate.fullName || selectedCandidate.email}`}
                 >
-                  🔑 Reset Password
+                  <><i className="fa-solid fa-key" style={{ marginRight: 5 }}></i> Reset Password</>
                 </button>
               </div>
               <button
@@ -9537,7 +10755,7 @@ export default function StaffHub() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.1)", color: "var(--gold, #E5A82E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 }}>
-                    🏢
+                    <i className="fa-solid fa-building"></i>
                   </div>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -9553,8 +10771,8 @@ export default function StaffHub() {
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
                       <span>Legal: {selectedCompany.legalName || selectedCompany.stage1a?.legalname || selectedCompany.companyName}</span>
-                      <span>✉️ {selectedCompany.email}</span>
-                      {selectedCompany.mobile && <span>📞 {selectedCompany.mobile}</span>}
+                      <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> {selectedCompany.email}</span>
+                      {selectedCompany.mobile && <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {selectedCompany.mobile}</span>}
                     </div>
                   </div>
                 </div>
@@ -9583,14 +10801,14 @@ export default function StaffHub() {
                     }}
                     title={`Reset login password for ${selectedCompany.companyName || selectedCompany.email}`}
                   >
-                    🔑 Reset Password
+                    <><i className="fa-solid fa-key" style={{ marginRight: 5 }}></i> Reset Password</>
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedCompany(null)}
                     style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                   >
-                    ✕
+                    <i className="fa-solid fa-xmark"></i>
                   </button>
                 </div>
               </div>
@@ -9695,7 +10913,7 @@ export default function StaffHub() {
                                   View File ↗
                                 </a>
                                 <span style={{ fontSize: 10, fontWeight: 800, color: vState?.isValid ? "#15803D" : vState?.isValid === false ? "#B91C1C" : "#B45309" }}>
-                                  {vState?.isValid ? "✓ Validated" : vState?.isValid === false ? "✕ Invalid" : "Pending Audit"}
+                                  {vState?.isValid ? "Validated" : vState?.isValid === false ? "Invalid" : "Pending Audit"}
                                 </span>
                               </div>
                             ) : (
@@ -9714,7 +10932,7 @@ export default function StaffHub() {
                         onClick={() => handleAuditKyc(selectedCompany._id || selectedCompany.id, "verify")}
                         style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                       >
-                        ✓ Approve KYC & Activate Gold Trust Badge
+                        <><i className="fa-solid fa-certificate" style={{ marginRight: 6 }}></i> Approve KYC & Activate Gold Trust Badge</>
                       </button>
                       <button
                         type="button"
@@ -9725,7 +10943,7 @@ export default function StaffHub() {
                         }}
                         style={{ background: "#EF4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
                       >
-                        ✕ Request Revision / Reject
+                        <><i className="fa-solid fa-xmark" style={{ marginRight: 6 }}></i> Request Revision / Reject</>
                       </button>
                     </div>
                   </div>
@@ -9862,7 +11080,7 @@ export default function StaffHub() {
                               </div>
                               <h4 style={{ margin: "6px 0 2px", fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>{s9.roletitle || "Specialist Coder"}</h4>
                               <div style={{ fontSize: 12, color: "#64748B" }}>
-                                📍 {s9.location || "India"} · {s9.workmode || "Onsite"} · Openings: {s9.openings || 5} · Comp: ₹{s9.compmin || 4}–{s9.compmax || 6} LPA
+                                <><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {s9.location || "India"} · {s9.workmode || "Onsite"} · Openings: {s9.openings || 5} · Comp: ₹{s9.compmin || 4}–{s9.compmax || 6} LPA</>
                               </div>
                             </div>
                             <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 6, textTransform: "uppercase", background: selectedCompany.jdApprovalStatus === "approved" ? "#DCFCE7" : "#FEF3C7", color: selectedCompany.jdApprovalStatus === "approved" ? "#15803D" : "#B45309" }}>
@@ -9881,7 +11099,7 @@ export default function StaffHub() {
                                 <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748B" }}>#{job.jobId}</span>
                                 <h4 style={{ margin: "4px 0 2px", fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>{f.roletitle || "Role"}</h4>
                                 <div style={{ fontSize: 12, color: "#64748B" }}>
-                                  📍 {f.location || "India"} · {f.workmode || "Onsite"} · Openings: {f.openings || 1}
+                                  <><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {f.location || "India"} · {f.workmode || "Onsite"} · Openings: {f.openings || 1}</>
                                 </div>
                               </div>
                               <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 9px", borderRadius: 6, textTransform: "uppercase", background: job.approvalStatus === "approved" ? "#DCFCE7" : "#FEF3C7", color: job.approvalStatus === "approved" ? "#15803D" : "#B45309" }}>
@@ -10036,7 +11254,7 @@ export default function StaffHub() {
                     {/* APPLICANTS LIST */}
                     {filteredApps.length === 0 ? (
                       <div style={{ padding: 36, textAlign: "center", background: "#F8FAFC", borderRadius: 12, border: "1px dashed #CBD5E1" }}>
-                        <div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>
+                        <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-users"></i></div>
                         <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>
                           {totalApps === 0 ? "No Candidate Applications Yet" : "No Matching Applications"}
                         </div>
@@ -10096,7 +11314,7 @@ export default function StaffHub() {
                                       </h4>
                                       {isVerified ? (
                                         <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
-                                          ✓ GOLD VERIFIED (8/8)
+                                          <><i className="fa-solid fa-star" style={{ color: "#E5A82E", marginRight: 5 }}></i> GOLD VERIFIED (8/8)</>
                                         </span>
                                       ) : (
                                         <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, background: "#FEF3C7", color: "#B45309" }}>
@@ -10110,12 +11328,12 @@ export default function StaffHub() {
                                       )}
                                     </div>
                                     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "#64748B", marginTop: 4 }}>
-                                      <span>✉️ <a href={`mailto:${cand.email}`} style={{ color: "inherit", textDecoration: "none" }}>{cand.email}</a></span>
+                                      <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> <a href={`mailto:${cand.email}`} style={{ color: "inherit", textDecoration: "none" }}>{cand.email}</a></span>
                                       {cand.mobile && cand.mobile !== "N/A" && (
-                                        <span>📞 <a href={`tel:${cand.mobile}`} style={{ color: "inherit", textDecoration: "none" }}>{cand.mobile}</a></span>
+                                        <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> <a href={`tel:${cand.mobile}`} style={{ color: "inherit", textDecoration: "none" }}>{cand.mobile}</a></span>
                                       )}
-                                      {cand.city && <span>📍 {cand.city}</span>}
-                                      {cand.currentRole && <span>💼 {cand.currentRole}</span>}
+                                      {cand.city && <span><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {cand.city}</span>}
+                                      {cand.currentRole && <span><i className="fa-solid fa-briefcase" style={{ marginRight: 4 }}></i> {cand.currentRole}</span>}
                                     </div>
                                   </div>
                                 </div>
@@ -10187,7 +11405,7 @@ export default function StaffHub() {
                                     Applied Position / Requisition
                                   </div>
                                   <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
-                                    <span>🎯 {app.jobTitle || "Job Requisition"}</span>
+                                    <span><i className="fa-solid fa-briefcase" style={{ marginRight: 4, color: "#2563EB" }}></i> {app.jobTitle || "Job Requisition"}</span>
                                     <span style={{ fontFamily: "monospace", fontSize: 11, color: "#64748B", background: "#E2E8F0", padding: "1px 6px", borderRadius: 4 }}>
                                       #{app.jobId}
                                     </span>
@@ -10216,7 +11434,7 @@ export default function StaffHub() {
                                     className="staff-doc-chip"
                                     style={{ fontSize: 11.5, padding: "5px 12px", textDecoration: "none" }}
                                   >
-                                    📄 Download Resume ↗
+                                    <><i className="fa-solid fa-file-pdf" style={{ marginRight: 5 }}></i> Download Resume ↗</>
                                   </a>
                                 )}
 
@@ -10243,7 +11461,7 @@ export default function StaffHub() {
                                     gap: 6,
                                   }}
                                 >
-                                  👁️ Inspect Candidate Dossier
+                                  <><i className="fa-solid fa-eye" style={{ marginRight: 5 }}></i> Inspect Candidate Dossier</>
                                 </button>
                               </div>
                             </div>
@@ -10286,7 +11504,7 @@ export default function StaffHub() {
                   }}
                   title={`Reset login password for ${selectedCompany.companyName || selectedCompany.email}`}
                 >
-                  🔑 Reset Password
+                  <><i className="fa-solid fa-key" style={{ marginRight: 5 }}></i> Reset Password</>
                 </button>
                 <button
                   type="button"
@@ -10311,7 +11529,7 @@ export default function StaffHub() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <div style={{ width: 48, height: 48, borderRadius: 14, background: "rgba(255,255,255,0.1)", color: "var(--gold, #E5A82E)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800 }}>
-                    🎓
+                    <i className="fa-solid fa-graduation-cap"></i>
                   </div>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -10324,8 +11542,8 @@ export default function StaffHub() {
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginTop: 4, display: "flex", gap: 12, flexWrap: "wrap" }}>
                       <span>HQ: {selectedAcademy.headquarters || "India"}</span>
-                      <span>✉️ {selectedAcademy.email}</span>
-                      {selectedAcademy.phone && <span>📞 {selectedAcademy.phone}</span>}
+                      <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> {selectedAcademy.email}</span>
+                      {selectedAcademy.phone && <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {selectedAcademy.phone}</span>}
                     </div>
                   </div>
                 </div>
@@ -10334,7 +11552,7 @@ export default function StaffHub() {
                   onClick={() => setSelectedAcademy(null)}
                   style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
-                  ✕
+                  <i className="fa-solid fa-xmark"></i>
                 </button>
               </div>
             </div>
@@ -10419,7 +11637,7 @@ export default function StaffHub() {
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {(selectedAcademy.branches || []).map((b, idx) => (
                         <span key={idx} style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "var(--navy)", fontWeight: 600 }}>
-                          📍 {b}
+                          <><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {b}</>
                         </span>
                       ))}
                     </div>
@@ -10649,10 +11867,10 @@ export default function StaffHub() {
           <div style={{ background: "#FFFFFF", borderRadius: 18, width: "100%", maxWidth: 980, padding: 24, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.35)", position: "relative", display: "flex", flexDirection: "column", maxHeight: "92vh" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, borderBottom: "1px solid #F1F5F9", paddingBottom: 14 }}>
               <h2 style={{ fontSize: 17, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}>
-                🎥 Live Verification{liveVerifyModal.issuingBodyName ? ` — ${liveVerifyModal.issuingBodyName}` : ""}
+                <><i className="fa-solid fa-video" style={{ marginRight: 6 }}></i> Live Verification{liveVerifyModal.issuingBodyName ? ` — ${liveVerifyModal.issuingBodyName}` : ""}</>
               </h2>
               <button type="button" onClick={closeLiveVerify} style={{ background: "transparent", border: "none", fontSize: 20, color: "var(--text-muted, #4A5568)", cursor: "pointer" }}>
-                ✕
+                <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
 
@@ -10688,7 +11906,7 @@ export default function StaffHub() {
                     disabled={liveVerifyModal.capturing}
                     style={{ background: "#10B981", color: "#FFFFFF", border: "none", padding: "12px 22px", borderRadius: 10, fontWeight: 800, fontSize: 14, cursor: "pointer" }}
                   >
-                    {liveVerifyModal.capturing ? "Capturing…" : "📸 Capture Result"}
+                    {liveVerifyModal.capturing ? "Capturing…" : <><i className="fa-solid fa-camera" style={{ marginRight: 5 }}></i> Capture Result</>}
                   </button>
                   <button
                     type="button"
@@ -10701,7 +11919,7 @@ export default function StaffHub() {
 
                 {liveVerifyModal.captured && (
                   <div style={{ marginTop: 16, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 10, padding: 14 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 800, color: "#15803D", marginBottom: 6 }}>✓ Captured — saved to this candidate's record as evidence</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: "#15803D", marginBottom: 6 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 5 }}></i> Captured — saved to this candidate's record as evidence</div>
                     <div style={{ fontSize: 12, color: "#334155", marginBottom: 6, wordBreak: "break-all" }}>Page URL at capture: {liveVerifyModal.captured.currentUrl}</div>
                     <details>
                       <summary style={{ fontSize: 12, color: "#64748B", cursor: "pointer" }}>Show captured page text</summary>
@@ -10748,7 +11966,7 @@ export default function StaffHub() {
             {/* Modal Header */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, borderBottom: "1px solid #F1F5F9", paddingBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span style={{ fontSize: 22 }}>⚡</span>
+                <span style={{ fontSize: 22, color: "#F59E0B" }}><i className="fa-solid fa-bolt"></i></span>
                 <div>
                   <h2 style={{ fontSize: 16, fontWeight: 800, color: "var(--navy, #0A1F3D)", margin: 0 }}>
                     {selectedRetakeModal.actionType === "APPROVE" && "Approve Assessment Retake"}
@@ -10765,7 +11983,7 @@ export default function StaffHub() {
                 onClick={() => setSelectedRetakeModal(null)}
                 style={{ background: "transparent", border: "none", fontSize: 20, color: "#94A3B8", cursor: "pointer", padding: 4 }}
               >
-                ✕
+                <i className="fa-solid fa-xmark"></i>
               </button>
             </div>
 
@@ -10790,7 +12008,7 @@ export default function StaffHub() {
                   </div>
                   {selectedRetakeModal.candidateMobile && (
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>
-                      📞 {selectedRetakeModal.candidateMobile}
+                      <><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {selectedRetakeModal.candidateMobile}</>
                     </div>
                   )}
                 </div>
@@ -10839,7 +12057,7 @@ export default function StaffHub() {
                   alignItems: "center",
                   gap: 8
                 }}>
-                  <span style={{ fontSize: 16 }}>⚠️</span>
+                  <span style={{ fontSize: 16, color: "#EF4444" }}><i className="fa-solid fa-triangle-exclamation"></i></span>
                   <div>
                     <strong>Tab Switch Violation Detected:</strong> Candidate switched browser tabs {selectedRetakeModal.proctorLogs.tabSwitches} time(s) during active assessment.
                   </div>
@@ -10902,7 +12120,7 @@ export default function StaffHub() {
                   lineHeight: 1.45,
                   marginBottom: 16
                 }}>
-                  <strong>⚡ Automated Action on Approval:</strong>
+                  <strong><i className="fa-solid fa-bolt" style={{ color: "#F59E0B", marginRight: 5 }}></i> Automated Action on Approval:</strong>
                   <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
                     <li>Resets Stage 4 Assessment so candidate can take it fresh.</li>
                     <li>Dispatches approval email to <strong>{selectedRetakeModal.candidateEmail}</strong>.</li>
@@ -10987,7 +12205,7 @@ export default function StaffHub() {
                   lineHeight: 1.45,
                   marginBottom: 16
                 }}>
-                  <strong>⚠️ Rejecting Retake Request:</strong>
+                  <strong><i className="fa-solid fa-triangle-exclamation" style={{ color: "#EF4444", marginRight: 5 }}></i> Rejecting Retake Request:</strong>
                   <div style={{ marginTop: 4 }}>
                     The candidate will receive an email notification informing them that their retake request could not be granted at this time.
                   </div>

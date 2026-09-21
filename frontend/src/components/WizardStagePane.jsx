@@ -83,6 +83,7 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
             <span className="wiz-meta-pill wiz-meta-pill-pts">+{stage.pts} POINTS</span>
             <span className="wiz-meta-pill">~{stage.mins} MIN</span>
             {isDone && <span className="wiz-meta-pill wiz-meta-pill-done">✓ COMPLETED</span>}
+            {stage.isOptional && <span className="wiz-meta-pill" style={{ background: "#DCFCE7", color: "#15803D", fontWeight: 800 }}>OPTIONAL (SELF-TRAINED)</span>}
           </div>
           <h1 className="wiz-hero-title">{stage.long}</h1>
           <p className="wiz-hero-intro">{stage.intro}</p>

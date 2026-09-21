@@ -1,6 +1,7 @@
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { joinUnique } from "./resumeSubtitle.js";
+import { getMedalTier, medalBadgeHtml } from "./medalBadge.js";
 
 /**
  * Export a DOM element directly to a high-resolution A4 PDF document.
@@ -21,24 +22,40 @@ export async function exportResumePdf(element, candidateName = "Candidate") {
     .replace(/\s+/g, "_");
   const filename = `${cleanName}_Talentera_Verified_Resume.pdf`;
 
-  // Capture element using html2canvas
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    logging: false,
-    backgroundColor: "#FFFFFF",
-    windowWidth: element.scrollWidth || 1024,
-    onclone: (clonedDoc) => {
-      // Ensure the cloned resume paper has full opacity and visible content
-      const clonedEl = clonedDoc.querySelector(".s7-resume-preview, .resume-sheet-paper");
-      if (clonedEl) {
-        clonedEl.style.boxShadow = "none";
-        clonedEl.style.margin = "0";
-      }
-    },
-  });
+  // Capture element using html2canvas. While the clone is laid out we also record every
+  // "do not cut here" region (text lines, images, table rows, small cards) so page breaks
+  // can be placed between blocks instead of slicing through a line of text.
+  const pageAspect = 297 / 210; // A4 height / width
+  let blockers = [];
+  let cloneHeight = 0;
+  element.setAttribute("data-pdf-root", "1");
+  let canvas;
+  try {
+    canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: "#FFFFFF",
+      windowWidth: element.scrollWidth || 1024,
+      onclone: (clonedDoc) => {
+        // Ensure the cloned resume paper has full opacity and visible content
+        const clonedEl = clonedDoc.querySelector(".s7-resume-preview, .resume-sheet-paper");
+        if (clonedEl) {
+          clonedEl.style.boxShadow = "none";
+          clonedEl.style.margin = "0";
+        }
+        const root = clonedDoc.querySelector("[data-pdf-root]");
+        if (root) {
+          const out = collectBreakBlockers(clonedDoc, root, pageAspect);
+          blockers = out.blockers;
+          cloneHeight = out.height;
+        }
+      },
+    });
+  } finally {
+    element.removeAttribute("data-pdf-root");
+  }
 
-  const imgData = canvas.toDataURL("image/jpeg", 0.98);
   const pdf = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -49,26 +66,97 @@ export async function exportResumePdf(element, candidateName = "Candidate") {
   const pdfWidth = pdf.internal.pageSize.getWidth();
   const pdfHeight = pdf.internal.pageSize.getHeight();
 
-  const imgWidth = pdfWidth;
-  const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+  // Convert blocker regions (CSS px) to canvas px and work out the page slices.
+  const k = cloneHeight > 0 ? canvas.height / cloneHeight : 1;
+  const regions = blockers.map(([t, b]) => [t * k, b * k]);
+  const mmToPx = canvas.width / pdfWidth;
+  const topMarginMm = 14;    // breathing room above the content on page 2 onwards
+  const bottomMarginMm = 8;  // and below the content on every page
+  const firstCap = Math.floor((pdfHeight - bottomMarginMm) * mmToPx);
+  const nextCap = Math.floor((pdfHeight - topMarginMm - bottomMarginMm) * mmToPx);
+  const slices = computePageSlices(canvas.height, firstCap, nextCap, regions);
 
-  let heightLeft = imgHeight;
-  let position = 0;
-
-  // Add first page
-  pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-  heightLeft -= pdfHeight;
-
-  // Handle multi-page resumes if height exceeds 1 A4 page
-  while (heightLeft > 2) {
-    position = -(imgHeight - heightLeft);
-    pdf.addPage();
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
-    heightLeft -= pdfHeight;
-  }
+  slices.forEach(([y0, y1], i) => {
+    const h = Math.max(1, Math.round(y1 - y0));
+    const slice = document.createElement("canvas");
+    slice.width = canvas.width;
+    slice.height = h;
+    const ctx = slice.getContext("2d");
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, slice.width, slice.height);
+    ctx.drawImage(canvas, 0, Math.round(y0), canvas.width, h, 0, 0, canvas.width, h);
+    if (i > 0) pdf.addPage();
+    pdf.addImage(slice.toDataURL("image/jpeg", 0.98), "JPEG", 0, i > 0 ? topMarginMm : 0, pdfWidth, (h * pdfWidth) / canvas.width, undefined, "FAST");
+  });
 
   pdf.save(filename);
   return { success: true, filename };
+}
+
+/**
+ * Collect vertical regions [top, bottom] (CSS px, relative to root) that a page break must not cut through:
+ * text line boxes, images/svg, table rows, and small bordered/filled cards.
+ */
+function collectBreakBlockers(doc, root, pageAspect) {
+  const rootRect = root.getBoundingClientRect();
+  const blockers = [];
+  const add = (r) => {
+    if (r.height > 1 && r.width > 1) blockers.push([r.top - rootRect.top, r.bottom - rootRect.top]);
+  };
+
+  const walker = doc.createTreeWalker(root, 4 /* NodeFilter.SHOW_TEXT */);
+  const range = doc.createRange();
+  while (walker.nextNode()) {
+    const n = walker.currentNode;
+    if (!n.nodeValue || !n.nodeValue.trim()) continue;
+    range.selectNodeContents(n);
+    Array.from(range.getClientRects()).forEach(add);
+  }
+
+  const maxCard = rootRect.width * pageAspect * 0.4; // cards taller than 40% of a page may be split
+  const view = doc.defaultView;
+  root.querySelectorAll("*").forEach((el) => {
+    const tag = el.tagName;
+    const r = el.getBoundingClientRect();
+    if (tag === "IMG" || tag === "SVG" || tag === "CANVAS" || tag === "TR") return add(r);
+    if (r.height < 16 || r.height > maxCard) return;
+    const cs = view.getComputedStyle(el);
+    const hasBorder = parseFloat(cs.borderTopWidth) > 0 && cs.borderTopStyle !== "none";
+    const hasFill = cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== "transparent";
+    if (hasBorder || hasFill) add(r);
+  });
+
+  return { blockers, height: rootRect.height };
+}
+
+/**
+ * Decide where each PDF page starts/ends (canvas px). A page ends at the last position that
+ * does not cut through a blocker; falls back to a hard cut if that would leave a page under 60% full.
+ */
+function computePageSlices(totalHeight, firstCap, nextCap, regions) {
+  const tol = 2;
+  const slices = [];
+  let y = 0;
+  let cap = firstCap;
+  while (totalHeight - y > cap + tol) {
+    const minFill = cap * 0.6;
+    const limit = y + cap;
+    let cut = limit;
+    for (let guard = 0; guard < 200; guard++) {
+      const hit = regions.find(([t, bt]) => t + tol < cut && cut < bt - tol);
+      if (!hit) break;
+      cut = hit[0];
+      if (cut - y < minFill) {
+        cut = limit; // nothing sensible to break on - hard cut
+        break;
+      }
+    }
+    slices.push([y, cut]);
+    y = cut;
+    cap = nextCap;
+  }
+  slices.push([y, totalHeight]);
+  return slices;
 }
 
 /**
@@ -337,7 +425,7 @@ export function exportResumeWord(data) {
           <td style="padding: 6pt 8pt; border: 1pt solid ${borderColor}; background-color: ${lightBg}; width: 25%;">
             <div style="color: #64748B; font-size: 8pt; text-transform: uppercase; font-weight: bold;">AI Video Pitch</div>
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
-              ${videoScore !== null ? `Video Pitch Score · ${videoScore}/100` : `${videoMedal} Tier`}
+              ${medalBadgeHtml(getMedalTier(videoScore, videoMedal))}
             </div>
             <div style="color: #475569; font-size: 8pt;">Clarity ${clarityScore} · Fluency ${fluencyScore} · Confidence ${confidenceScore}</div>
           </td>

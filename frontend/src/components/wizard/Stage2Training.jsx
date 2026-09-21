@@ -31,13 +31,42 @@ const DOMAINS = [
   },
 ];
 
-const TRAINING_LEVELS = [
-  "Non-Trained",
-  "Basic Medical Coding",
-  "Intermediate Medical Coding",
-  "Advanced Medical Coding",
-  "Auditor / QA Level",
-];
+const DOMAIN_TRAINING_LEVELS = {
+  "Medical Coding": [
+    "Non-Trained",
+    "Basic Medical Coding",
+    "Intermediate Medical Coding",
+    "Advanced Medical Coding",
+    "Auditor / QA Level",
+  ],
+  "Medical Billing": [
+    "Non-Trained",
+    "Basic Medical Billing",
+    "Intermediate Medical Billing",
+    "Advanced Medical Billing",
+    "Auditor / QA Level",
+  ],
+  "Accounts Receivable": [
+    "Non-Trained",
+    "Basic Accounts Receivable",
+    "Intermediate Accounts Receivable",
+    "Advanced Accounts Receivable",
+    "Auditor / QA Level",
+  ],
+  "Front Office": [
+    "Non-Trained",
+    "Basic Front Office",
+    "Intermediate Front Office",
+    "Advanced Front Office",
+    "Auditor / QA Level",
+  ],
+};
+
+const ALL_TRAINING_LEVELS = Array.from(
+  new Set(Object.values(DOMAIN_TRAINING_LEVELS).flat())
+);
+
+const DEFAULT_TRAINING_LEVELS = DOMAIN_TRAINING_LEVELS["Medical Coding"];
 
 const SELF_LEARNING_SOURCES = [
   "YouTube Channels (Medical Coding / AAPC / Anatomy)",
@@ -154,11 +183,35 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   // FORM STATES (Initialized from existingData or empty)
   const [domain, setDomain] = useState(existingData.domain || "");
   // A saved level that isn't one of the preset pills was typed in under "Others"
-  const savedLevelIsCustom = Boolean(existingData.trainingLevel) && !TRAINING_LEVELS.includes(existingData.trainingLevel);
+  const savedLevelIsCustom = Boolean(existingData.trainingLevel) && !ALL_TRAINING_LEVELS.includes(existingData.trainingLevel);
   const [trainingLevel, setTrainingLevel] = useState(savedLevelIsCustom ? "" : existingData.trainingLevel || "");
   const [levelOtherSelected, setLevelOtherSelected] = useState(savedLevelIsCustom);
   const [levelOtherText, setLevelOtherText] = useState(savedLevelIsCustom ? existingData.trainingLevel : "");
   const effectiveTrainingLevel = levelOtherSelected ? levelOtherText.trim() : trainingLevel;
+
+  // Dynamic Training Levels matching selected domain
+  const currentTrainingLevels = (domain && DOMAIN_TRAINING_LEVELS[domain]) ? DOMAIN_TRAINING_LEVELS[domain] : DEFAULT_TRAINING_LEVELS;
+
+  function handleSelectDomain(newDomainId) {
+    if (formErrors.domain) {
+      setFormErrors((prev) => ({ ...prev, domain: "" }));
+    }
+    const nextDomain = newDomainId;
+    const prevDomain = domain;
+    setDomain(nextDomain);
+
+    // If a preset training level was selected, dynamically map it to the corresponding tier in the newly selected domain
+    if (!levelOtherSelected && trainingLevel) {
+      const prevLevels = (prevDomain && DOMAIN_TRAINING_LEVELS[prevDomain]) ? DOMAIN_TRAINING_LEVELS[prevDomain] : DEFAULT_TRAINING_LEVELS;
+      const nextLevels = (nextDomain && DOMAIN_TRAINING_LEVELS[nextDomain]) ? DOMAIN_TRAINING_LEVELS[nextDomain] : DEFAULT_TRAINING_LEVELS;
+      const idx = prevLevels.indexOf(trainingLevel);
+      if (idx !== -1 && nextLevels[idx]) {
+        setTrainingLevel(nextLevels[idx]);
+      } else if (!nextLevels.includes(trainingLevel)) {
+        setTrainingLevel("");
+      }
+    }
+  }
   const [specialties, setSpecialties] = useState(
     Array.isArray(existingData.specialties) && existingData.specialties.length > 0
       ? existingData.specialties
@@ -179,6 +232,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   );
   const [registeredAcademies, setRegisteredAcademies] = useState([]);
   const [batch, setBatch] = useState(existingData.batch || existingData.batchNumber || existingData.rollNumber || "");
+  const [formErrors, setFormErrors] = useState({});
 
   // Load registered partner academies from backend API
   useEffect(() => {
@@ -278,6 +332,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   // Handle Tag Picker (Max 3)
   function handleToggleSpecialty(spec) {
+    if (formErrors.specialties) {
+      setFormErrors((prev) => ({ ...prev, specialties: "" }));
+    }
     if (specialties.includes(spec)) {
       setSpecialties(specialties.filter((s) => s !== spec));
     } else {
@@ -302,6 +359,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     if (specialties.length >= 3) {
       toast("You can select up to 3 specialties for your primary focus.", "!");
       return;
+    }
+    if (formErrors.specialties) {
+      setFormErrors((prev) => ({ ...prev, specialties: "" }));
     }
     setSpecialties([...specialties, name]);
     setSpecialtyOtherText("");
@@ -424,30 +484,45 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   async function handleSaveAndContinue() {
     setError("");
     const missing = [];
-    if (levelOtherSelected && !levelOtherText.trim()) {
-      missing.push("Training Level - type your level under Others, or unselect it (Section 1.2)");
+    const errs = {};
+
+    if (!domain) {
+      missing.push("Primary Domain (Section 1.1)");
+      errs.domain = "Please select your primary domain";
+    }
+    if (!trainingLevel && !levelOtherSelected) {
+      missing.push("Training Level (Section 1.2)");
+      errs.trainingLevel = "Please select your training level";
+    } else if (levelOtherSelected && !levelOtherText.trim()) {
+      missing.push("Training Level - specify under Others (Section 1.2)");
+      errs.levelOther = "Please type your training level";
     }
     if (specialties.length === 0) {
       missing.push("Primary Specialty (Section 1.3)");
+      errs.specialties = "Please select at least 1 primary specialty";
     }
     if (trainingPath === "academy" && (!academyName || academyName.trim().length < 2)) {
       missing.push("Academy Name (Section 3)");
+      errs.academyName = "Academy Name is mandatory";
     }
     if (trainingPath === "self" && (!academyName || academyName.trim().length < 2)) {
       missing.push("Primary Learning Source / Platform (Section 3)");
+      errs.academyName = "Primary Learning Source / Platform is mandatory";
     }
 
     if (missing.length > 0) {
-      const msg = `Please fill mandatory fields: ${missing.join(", ")}.`;
+      setFormErrors(errs);
+      const msg = `Please fill all mandatory fields highlighted in red: ${missing.join(", ")}.`;
       setError(msg);
       toast(msg, "error", { title: "Mandatory Fields Required" });
-      if (specialties.length === 0) {
-        window.scrollTo({ top: 300, behavior: "smooth" });
+      if (errs.domain || errs.trainingLevel || errs.specialties || errs.levelOther) {
+        window.scrollTo({ top: 200, behavior: "smooth" });
       } else {
         window.scrollTo({ top: 600, behavior: "smooth" });
       }
       return;
     }
+    setFormErrors({});
 
     setSaving(true);
     try {
@@ -878,6 +953,27 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           border-color: var(--gold-soft);
           color: var(--navy);
           font-weight: 700;
+        }
+
+        /* MANDATORY FIELD ERROR HIGHLIGHTING */
+        .s2-field.has-error input, .s2-field.has-error select, .s2-field.has-error textarea,
+        .s2-field.has-error .s2-tag-picker,
+        .s2-field.has-error .s2-choice-grid-4,
+        .s2-field.has-error .s2-level-pill-group,
+        .has-error input, .has-error select {
+          border: 2px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+          border-radius: 12px;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+        }
+        .field-error-msg {
+          color: #DC2626;
+          font-size: 11.5px;
+          font-weight: 700;
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
         }
 
         /* CHOICE CARDS (4 Col) */
@@ -1506,18 +1602,17 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div className="s2-status-chip">DONE · +3</div>
             </div>
 
-            <div className="s2-field">
+            <div className={`s2-field ${formErrors.domain ? "has-error" : ""}`}>
               <label>
-                1.1 · Primary Domain
-                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (Optional)</span>
+                1.1 · Primary Domain <span className="req">*</span>
               </label>
-              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the RCM function you trained on, if any. Tap again to clear.</div>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the primary RCM function you trained on.</div>
               <div className="s2-choice-grid-4">
                 {DOMAINS.map((d) => (
                   <div
                     key={d.id}
                     className={`s2-choice ${domain === d.id ? "selected" : ""}`}
-                    onClick={() => setDomain(domain === d.id ? "" : d.id)}
+                    onClick={() => handleSelectDomain(d.id)}
                   >
                     <div className="s2-choice-check">{domain === d.id ? "✓" : ""}</div>
                     <div className="s2-choice-icon">{d.icon}</div>
@@ -1526,22 +1621,27 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   </div>
                 ))}
               </div>
+              {formErrors.domain && (
+                <div className="field-error-msg">⚠️ {formErrors.domain}</div>
+              )}
             </div>
 
-            <div className="s2-field">
+            <div className={`s2-field ${formErrors.trainingLevel ? "has-error" : ""}`}>
               <label>
-                1.2 · Training Level
-                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (Optional)</span>
+                1.2 · Training Level <span className="req">*</span>
               </label>
-              <div className="s2-helper" style={{ marginBottom: 8 }}>Different levels signal different depth to companies.</div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {TRAINING_LEVELS.map((lvl) => (
+              <div className="s2-helper" style={{ marginBottom: 8 }}>
+                Different levels signal different depth to companies{domain ? ` for ${domain}` : ""}.
+              </div>
+              <div className="s2-level-pill-group" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {currentTrainingLevels.map((lvl) => (
                   <span
                     key={lvl}
                     className={`s2-tag-pill ${!levelOtherSelected && trainingLevel === lvl ? "selected" : ""}`}
                     onClick={() => {
+                      if (formErrors.trainingLevel) setFormErrors((prev) => ({ ...prev, trainingLevel: "" }));
                       setLevelOtherSelected(false);
-                      setTrainingLevel(!levelOtherSelected && trainingLevel === lvl ? "" : lvl);
+                      setTrainingLevel(lvl);
                     }}
                   >
                     {lvl}
@@ -1550,6 +1650,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 <span
                   className={`s2-tag-pill ${levelOtherSelected ? "selected" : ""}`}
                   onClick={() => {
+                    if (formErrors.trainingLevel) setFormErrors((prev) => ({ ...prev, trainingLevel: "" }));
                     setTrainingLevel("");
                     setLevelOtherSelected(!levelOtherSelected);
                   }}
@@ -1557,21 +1658,30 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   Others
                 </span>
               </div>
+              {formErrors.trainingLevel && (
+                <div className="field-error-msg">⚠️ {formErrors.trainingLevel}</div>
+              )}
               {levelOtherSelected && (
-                <div style={{ marginTop: 10, maxWidth: 420 }}>
+                <div style={{ marginTop: 10, maxWidth: 420 }} className={`s2-field ${formErrors.levelOther ? "has-error" : ""}`}>
                   <input
                     type="text"
                     value={levelOtherText}
                     maxLength={60}
                     autoFocus
-                    onChange={(e) => setLevelOtherText(e.target.value)}
-                    placeholder="Type your training level (e.g. Certificate in Medical Billing)"
+                    onChange={(e) => {
+                      setLevelOtherText(e.target.value);
+                      if (formErrors.levelOther) setFormErrors((prev) => ({ ...prev, levelOther: "" }));
+                    }}
+                    placeholder={`Type your training level ${domain ? `(e.g. Certified in ${domain})` : "(e.g. Certificate in Medical Billing)"}`}
                   />
+                  {formErrors.levelOther && (
+                    <div className="field-error-msg">⚠️ {formErrors.levelOther}</div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div className="s2-field">
+            <div className={`s2-field ${formErrors.specialties ? "has-error" : ""}`}>
               <label>
                 1.3 · Specialties within your domain <span className="req">*</span>
                 <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (pick up to 3)</span>
@@ -1586,6 +1696,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   + Available tags below
                 </span>
               </div>
+              {formErrors.specialties && (
+                <div className="field-error-msg">⚠️ {formErrors.specialties}</div>
+              )}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                 {ALL_SPECIALTIES.map((spec) => (
                   <span
@@ -1675,16 +1788,19 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
             {trainingPath === "self" ? (
               /* Self-Trained: Only Training Source Dropdown */
-              <div className="s2-field" style={{ marginBottom: 8 }}>
+              <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`} style={{ marginBottom: 8 }}>
                 <label>
                   Primary Learning Source / Platform <span className="req">*</span>
                 </label>
                 <select
                   value={academyName}
-                  onChange={(e) => setAcademyName(e.target.value)}
+                  onChange={(e) => {
+                    setAcademyName(e.target.value);
+                    if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
+                  }}
                   style={{
-                    background: "var(--white)",
-                    border: "1.5px solid var(--border)",
+                    background: formErrors.academyName ? "#FEF2F2" : "var(--white)",
+                    border: formErrors.academyName ? "2px solid #EF4444" : "1.5px solid var(--border)",
                     borderRadius: "9px",
                     padding: "11px 14px",
                     fontSize: "13.5px",
@@ -1700,6 +1816,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     </option>
                   ))}
                 </select>
+                {formErrors.academyName && (
+                  <div className="field-error-msg">⚠️ {formErrors.academyName}</div>
+                )}
                 <div className="s2-helper">
                   Select your primary self-learning platform (e.g. YouTube channels, AAPC guides, or online courses).
                 </div>
@@ -1708,16 +1827,19 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <>
                 {/* Row 1: Academy Name (Dropdown List) & Academy Location (Input with Dropdown List) */}
                 <div className="s2-row">
-                  <div className="s2-field">
+                  <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`}>
                     <label>
                       Academy Name <span className="req">*</span>
                     </label>
                     <select
                       value={academyName}
-                      onChange={(e) => handleSelectAcademy(e.target.value)}
+                      onChange={(e) => {
+                        handleSelectAcademy(e.target.value);
+                        if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
+                      }}
                       style={{
-                        background: "var(--white)",
-                        border: "1.5px solid var(--border)",
+                        background: formErrors.academyName ? "#FEF2F2" : "var(--white)",
+                        border: formErrors.academyName ? "2px solid #EF4444" : "1.5px solid var(--border)",
                         borderRadius: "9px",
                         padding: "11px 14px",
                         fontSize: "13.5px",
@@ -1732,6 +1854,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                         </option>
                       ))}
                     </select>
+                    {formErrors.academyName && (
+                      <div className="field-error-msg">⚠️ {formErrors.academyName}</div>
+                    )}
                     <div className="s2-helper">
                       Select your training academy from the list.
                     </div>

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
+import { isSelfTrainedCandidate } from "../../data/wizardStages.js";
 import { computeStage6Result, EVIDENCE_LABELS, STAGE6_MAX_POINTS } from "../../utils/stage6Score.js";
 
 /**
@@ -13,22 +14,22 @@ import { computeStage6Result, EVIDENCE_LABELS, STAGE6_MAX_POINTS } from "../../u
  */
 
 const PLATFORM_CATEGORIES = [
-  { category: "practice", title: "PRACTICE / TRAINING PLATFORMS", icon: "🪴", platforms: ["Practicode", "Codivia", "SuperCoder", "FlashCode", "HCC Coder"] },
-  { category: "encoders", title: "PRODUCTION ENCODERS", icon: "🏭", platforms: ["3M 360 Encompass", "Optum EncoderPro", "TruCode", "CodeItRight"] },
+  { category: "practice", title: "PRACTICE / TRAINING PLATFORMS", icon: "fa-solid fa-seedling", platforms: ["Practicode", "Codivia", "SuperCoder", "FlashCode", "HCC Coder"] },
+  { category: "encoders", title: "PRODUCTION ENCODERS", icon: "fa-solid fa-industry", platforms: ["3M 360 Encompass", "Optum EncoderPro", "TruCode", "CodeItRight"] },
   {
     category: "ehr",
     title: "EHR / EMR (REAL CHART CODING)",
-    icon: "🏥",
+    icon: "fa-solid fa-hospital",
     platforms: ["EPIC", "Cerner / Oracle Health", "Meditech", "Allscripts", "eClinicalWorks", "NextGen", "Athenahealth", "Kareo", "DrChrono", "AdvancedMD"],
   },
-  { category: "dental", title: "DENTAL PLATFORMS", icon: "🦷", platforms: ["Dentrix", "Eaglesoft", "Curve Dental", "Open Dental"] },
+  { category: "dental", title: "DENTAL PLATFORMS", icon: "fa-solid fa-tooth", platforms: ["Dentrix", "Eaglesoft", "Curve Dental", "Open Dental"] },
 ];
 
-const PATHS = [
-  { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% credit", badge: "🟡 Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F" },
-  { id: "B", title: "Academy-Verified Log", sub: "Upload your chart log signed off by your academy", credit: "100% with proof · 60% without", badge: "🟢 Academy-Signed", badgeBg: "#DCFCE7", badgeFg: "#166534", chipBg: "#1E293B", chipFg: "#FFFFFF" },
-  { id: "C", title: "Self-Declared", sub: "Manual entry, subject to random audit", credit: "70% credit", badge: "🟠 Self-Declared", badgeBg: "#FFEDD5", badgeFg: "#9A3412", chipBg: "#0284C7", chipFg: "#FFFFFF" },
-  { id: "D", title: "No exposure yet", sub: "Honest declaration — but limits company visibility", credit: "0 pts", badge: "🔴 No Charts", badgeBg: "#FEE2E2", badgeFg: "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF" },
+const getPaths = (isSelfTrained) => [
+  { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% credit", badge: "Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F", dotColor: "#EAB308" },
+  { id: "B", title: "Academy-Verified Log", sub: "Upload your chart log signed off by your academy", credit: "100% with proof · 60% without", badge: "Academy-Signed", badgeBg: "#DCFCE7", badgeFg: "#166534", chipBg: "#1E293B", chipFg: "#FFFFFF", dotColor: "#16A34A" },
+  { id: "C", title: "Self-Declared", sub: "Manual entry, subject to random audit", credit: "70% credit", badge: "Self-Declared", badgeBg: "#FFEDD5", badgeFg: "#9A3412", chipBg: "#0284C7", chipFg: "#FFFFFF", dotColor: "#F97316" },
+  { id: "D", title: "No exposure yet", sub: isSelfTrained ? "Optional for self-trained — zero penalty to verification eligibility" : "Honest declaration — but limits company visibility", credit: "0 pts", badge: "No Charts", badgeBg: "#FEE2E2", badgeFg: "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF", dotColor: "#EF4444" },
 ];
 
 const SPECIALTY_OPTIONS = [
@@ -74,7 +75,7 @@ const toDateInput = (v) => {
   const d = new Date(v);
   return isNaN(d) ? "" : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
-const blankRow = (id) => ({ id, name: "", icon: "📑", count: "", accuracy: "", timePerChart: "", lastCodedDate: "", active: true });
+const blankRow = (id) => ({ id, name: "", icon: "", count: "", accuracy: "", timePerChart: "", lastCodedDate: "", active: true });
 
 // ---- shared styles -------------------------------------------------------------------------
 const INPUT = { width: "100%", boxSizing: "border-box", border: "1px solid #CBD5E1", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontWeight: 600, color: "#0F172A", background: "#FFFFFF", fontFamily: "inherit" };
@@ -157,7 +158,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     return saved.map((r, i) => ({
       id: r.id || i + 1,
       name: r.name || "",
-      icon: r.icon || "📑",
+      icon: r.icon || "",
       count: r.count ? String(r.count) : "",
       accuracy: r.accuracy ? String(r.accuracy) : "",
       timePerChart: parseFloat(r.timePerChart) ? String(parseFloat(r.timePerChart)) : "",
@@ -174,8 +175,15 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
   const [uploadedDocName, setUploadedDocName] = useState(s6.docName || s6.proofDocName || "");
   const [uploadedDocUrl, setUploadedDocUrl] = useState(s6.docUrl || s6.proofDocUrl || "");
   const [saving, setSaving] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(Boolean(s6.completedAt || s6.totalCharts));
   const [showErrors, setShowErrors] = useState(false);
+
+  // Detect self-trained candidate
+  const isSelfTrained = isSelfTrainedCandidate(candidate) || Boolean(s6?.isSelfTrained);
+
+  // Dynamic paths (Path D description changes for self-trained)
+  const PATHS = getPaths(isSelfTrained);
 
   // ---- live score & result, from Stage 6 inputs only -------------------------------------
   const result = useMemo(
@@ -251,7 +259,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
       const res = await api.post(`/candidate/upload/doc/6`, formData, { headers: { "Content-Type": "multipart/form-data" } });
       setUploadedDocName(file.name);
       setUploadedDocUrl(res.data?.url || res.data?.docUrl || "");
-      toast(`✓ ${file.name} uploaded & linked to Document Vault`, "✓");
+      toast(`${file.name} uploaded & linked to Document Vault`, "✓");
     } catch (err) {
       toast(err.response?.data?.message || "File upload failed.", "!");
     } finally {
@@ -300,7 +308,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     try {
       const res = await api.put(`/candidate/stage/6`, buildPayload());
       setSavedSuccess(true);
-      if (!silent) toast("✓ Stage 06 Live Chart saved.", "✓");
+      if (!silent) toast("Stage 06 Live Chart saved.", "✓");
       // Stay on this stage so the candidate sees their result below; "Continue" advances.
       if (onSaved) onSaved(res.data, { advance: false });
       return true;
@@ -325,11 +333,32 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     }
   };
 
+  // Skip Stage 6 entirely (self-trained candidates only)
+  const handleSkipStage6 = async () => {
+    setSkipping(true);
+    try {
+      const res = await api.post("/candidate/stage/6/skip");
+      toast("Stage 06 skipped. Proceeding to Stage 07 - Resume.", "✓");
+      if (onSaved) {
+        onSaved(res.data, { advance: true, nextStage: 7 });
+      } else {
+        const url = new URL(window.location.href);
+        url.searchParams.set("stage", "7");
+        window.history.pushState({}, "", url.toString());
+        window.dispatchEvent(new PopStateEvent("popstate"));
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || "Could not skip Stage 06. Please try again.", "!");
+    } finally {
+      setSkipping(false);
+    }
+  };
+
   const HOW_CARDS = [
-    { icon: "?", title: "Why chart exposure matters most", text: "A fresher with 250 verified charts at 87% accuracy is dramatically different from one who only has classroom theory. Companies hiring for production roles rank candidates by chart exposure first, certification second. This is the moat." },
-    { icon: "🔗", title: "How you prove it — 4 paths", text: "A Platform-reported figures · B Academy signs off your chart log · C Self-declare (partial credit) · D No exposure yet (honest but limits visibility). Each path has its own trust level and score multiplier." },
-    { icon: "🧮", title: "How your score is made", text: "Volume 40 · Accuracy 30 · Breadth 10 · Speed 10 · Recency 10 — all from the numbers you enter on this page — then multiplied by your evidence trust level. Up to 10 points go to your Career Passport." },
-    { icon: "🛡️", title: "Anti-fraud stack", text: "Academy cross-check within 7 days · timeline plausibility checks (500 charts in 30 days = auto-review) · 5% random audit · HR challenge system. Verified frauds get a 'Volume Disputed' badge permanently." },
+    { icon: "fa-solid fa-chart-bar", title: "Why chart exposure matters most", text: "A fresher with 250 verified charts at 87% accuracy is dramatically different from one who only has classroom theory. Companies hiring for production roles rank candidates by chart exposure first, certification second. This is the moat." },
+    { icon: "fa-solid fa-link", title: "How you prove it — 4 paths", text: "A Platform-reported figures · B Academy signs off your chart log · C Self-declare (partial credit) · D No exposure yet (honest but limits visibility). Each path has its own trust level and score multiplier." },
+    { icon: "fa-solid fa-calculator", title: "How your score is made", text: "Volume 40 · Accuracy 30 · Breadth 10 · Speed 10 · Recency 10 — all from the numbers you enter on this page — then multiplied by your evidence trust level. Up to 10 points go to your Career Passport." },
+    { icon: "fa-solid fa-shield-halved", title: "Anti-fraud stack", text: "Academy cross-check within 7 days · timeline plausibility checks (500 charts in 30 days = auto-review) · 5% random audit · HR challenge system. Verified frauds get a 'Volume Disputed' badge permanently." },
   ];
 
   const scoreColor = result.stageScore >= 75 ? "#16A34A" : result.stageScore >= 45 ? "#D97706" : "#64748B";
@@ -356,11 +385,18 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
           <div style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 50%, #2563EB 100%)", borderRadius: 20, padding: "28px 32px", color: "#FFFFFF", boxShadow: "0 14px 34px rgba(30, 58, 138, 0.25)", marginBottom: 20, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: -40, right: -40, width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%)", pointerEvents: "none" }} />
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 12, background: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center", color: "#0F172A", fontSize: 20 }}>💻</div>
+              <div style={{ width: 42, height: 42, borderRadius: 12, background: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center", color: "#0F172A", fontSize: 18 }}>
+                <i className="fa-solid fa-chart-line" />
+              </div>
               <span style={{ background: "#FEF3C7", color: "#92400E", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>STAGE 06 OF 08 · ACTIVE</span>
               <span style={{ background: "#FDE68A", color: "#B45309", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>UP TO +{STAGE6_MAX_POINTS} POINTS</span>
               <span style={{ background: "rgba(255,255,255,0.18)", color: "#FFFFFF", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>~10 MIN</span>
-              <span style={{ background: "linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)", color: "#FFFFFF", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>★ CO-FLAGSHIP</span>
+              <span style={{ background: "linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)", color: "#FFFFFF", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <i className="fa-solid fa-star" style={{ fontSize: 9 }} /> CO-FLAGSHIP
+              </span>
+              {isSelfTrained && (
+                <span style={{ background: "#DCFCE7", color: "#15803D", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>OPTIONAL (SELF-TRAINED)</span>
+              )}
             </div>
             <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.02em", margin: "0 0 6px 0", color: "#FFFFFF" }}>Live Chart</h1>
             <div style={{ fontSize: 15, fontStyle: "italic", fontWeight: 500, color: "#E0E7FF", marginBottom: 12 }}>Real charts. Real accuracy. Real proof.</div>
@@ -369,12 +405,36 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
             </p>
           </div>
 
+          {/* SELF-TRAINED OPTIONAL BANNER */}
+          {isSelfTrained && (
+            <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <i className="fa-solid fa-circle-info" style={{ color: "#16A34A", fontSize: 18, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>Stage 06 is optional for self-trained candidates</div>
+                  <div style={{ fontSize: 12.5, color: "#166534", lineHeight: 1.5 }}>
+                    You can fill in your chart data if you have it — this will boost your profile score. Or you can skip Stage 06 with zero penalty and proceed directly to Stage 07 · Resume. You can always return and update this later.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSkipStage6}
+                disabled={skipping}
+                style={{ background: "#16A34A", color: "#FFFFFF", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                <i className="fa-solid fa-forward" />
+                {skipping ? "Skipping…" : "Skip Stage 06 (Optional) →"}
+              </button>
+            </div>
+          )}
+
           {/* HOW IT WORKS */}
           <div style={{ ...CARD, padding: "20px 28px", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <h3 style={{ fontSize: 18, fontWeight: 900, color: "var(--navy, #0F172A)", margin: 0 }}>How Stage 06 Works</h3>
               <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-                {showHowItWorks ? "Hide Details ▲" : "Show Details ▼"}
+                {showHowItWorks ? "Hide Details" : "Show Details"}
               </button>
             </div>
             {showHowItWorks && (
@@ -382,7 +442,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 {HOW_CARDS.map((c) => (
                   <div key={c.title} style={{ background: "#FEF9C3", border: "1px solid #FDE047", borderRadius: 14, padding: "16px 18px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#EAB308", color: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 900 }}>{c.icon}</div>
+                      <div style={{ width: 24, height: 24, borderRadius: "50%", background: "#EAB308", color: "#FFFFFF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>
+                        <i className={c.icon} />
+                      </div>
                       <strong style={{ fontSize: 13.5, color: "#713F12", fontWeight: 800 }}>{c.title}</strong>
                     </div>
                     <p style={{ fontSize: 12, color: "#854D0E", lineHeight: 1.55, margin: 0 }}>{c.text}</p>
@@ -396,7 +458,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
           <div style={{ ...CARD, borderRadius: 20, padding: "32px 36px", boxShadow: "0 6px 24px rgba(0,0,0,0.04)", marginBottom: 32 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#FEFCE8", border: "1px solid #FEF08A", borderRadius: 10, padding: "10px 16px", marginBottom: 24, gap: 10, flexWrap: "wrap" }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: "#854D0E" }}>All fields on this form are Stage 06 inputs · fields marked * are required</div>
-              <div style={{ fontSize: 12, fontWeight: 800, color: savedSuccess ? "#16A34A" : "#B45309" }}>{savedSuccess ? "✓ Saved — edits need re-saving" : "Not saved yet"}</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: savedSuccess ? "#16A34A" : "#B45309", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                {savedSuccess ? <><i className="fa-solid fa-check" /> Saved — edits need re-saving</> : "Not saved yet"}
+              </div>
             </div>
 
             <div style={{ marginBottom: 28 }}>
@@ -430,8 +494,13 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 })}
               </div>
               {evidencePath === "D" && (
-                <div style={{ marginTop: 14, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 12, padding: "12px 16px", fontSize: 12.5, color: "#991B1B", lineHeight: 1.5 }}>
-                  You have chosen “No exposure yet”. Stage 06 scores 0 and companies will see “No Charts”. You can come back and update this any time after you start coding live charts.
+                <div style={{ marginTop: 14, background: isSelfTrained ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${isSelfTrained ? "#86EFAC" : "#FECACA"}`, borderRadius: 12, padding: "12px 16px", fontSize: 12.5, color: isSelfTrained ? "#166534" : "#991B1B", lineHeight: 1.5, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                  <i className={isSelfTrained ? "fa-solid fa-circle-check" : "fa-solid fa-circle-info"} style={{ marginTop: 2 }} />
+                  <span>
+                    {isSelfTrained
+                      ? "You have selected \"No exposure yet\". As a self-trained candidate, this is perfectly fine — Stage 06 is optional for you and skipping it carries zero penalty to your verification eligibility. You can come back and update this any time after you start coding live charts."
+                      : "You have chosen \"No exposure yet\". Stage 06 scores 0 and companies will see \"No Charts\". You can come back and update this any time after you start coding live charts."}
+                  </span>
                 </div>
               )}
             </div>
@@ -444,7 +513,10 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                   <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 16, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
                     {PLATFORM_CATEGORIES.map((g) => (
                       <div key={g.category}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.06em", marginBottom: 10 }}>{g.icon} {g.title}</div>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.06em", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                          <i className={g.icon} style={{ fontSize: 12, color: "#64748B" }} />
+                          {g.title}
+                        </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                           {g.platforms.map((plat) => {
                             const on = selectedPlatforms.includes(plat);
@@ -499,14 +571,16 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                               <input type="number" min="0" max="100" step="0.1" value={r.accuracy} onChange={(e) => updateRow(r.id, "accuracy", e.target.value === "" ? "" : String(Math.min(100, Math.max(0, Number(e.target.value)))))} placeholder="e.g. 88" style={rowErr(r.id, "accuracy") ? INPUT_ERR : INPUT} />
                               <input type="number" min="0" step="0.5" value={r.timePerChart} onChange={(e) => updateRow(r.id, "timePerChart", e.target.value)} placeholder="e.g. 8" style={rowErr(r.id, "time") ? INPUT_ERR : INPUT} />
                               <input type="date" max={todayISO()} value={r.lastCodedDate} onChange={(e) => updateRow(r.id, "lastCodedDate", e.target.value)} style={rowErr(r.id, "date") ? INPUT_ERR : INPUT} />
-                              <button type="button" aria-label="Remove specialty" onClick={() => removeRow(r.id)} style={{ background: "transparent", border: "none", color: "#94A3B8", fontSize: 16, cursor: "pointer" }}>✕</button>
+                              <button type="button" aria-label="Remove specialty" onClick={() => removeRow(r.id)} style={{ background: "transparent", border: "none", color: "#94A3B8", fontSize: 14, cursor: "pointer" }}>
+                                <i className="fa-solid fa-xmark" />
+                              </button>
                             </div>
                             {msgs.length > 0 && <div style={{ ...HINT, color: "#DC2626", fontWeight: 700 }}>{msgs.join(" · ")}</div>}
                           </div>
                         );
                       })}
                       <div style={{ display: "grid", gridTemplateColumns: "1.9fr 0.9fr 0.9fr 0.9fr 1.2fr 34px", gap: 10, padding: "14px 16px", background: "#F8FAFC", borderTop: "2px solid #E2E8F0", fontSize: 13, fontWeight: 900, color: "#0F172A", alignItems: "center" }}>
-                        <span>📊 TOTAL</span><span>{totalCharts}</span><span>{overallAccuracy}%</span><span>{result.avgTimePerChart || 0} avg</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><i className="fa-solid fa-table-list" /> TOTAL</span><span>{totalCharts}</span><span>{overallAccuracy}%</span><span>{result.avgTimePerChart || 0} avg</span>
                         <span style={{ fontSize: 12, fontWeight: 700, color: "#64748B" }}>{result.lastCodedDate ? new Date(result.lastCodedDate).toLocaleDateString() : "—"}</span><span />
                       </div>
                     </div>
@@ -544,8 +618,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                     ))}
                   </div>
                   {result.needsReview && (
-                    <div style={{ marginTop: 14, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "12px 16px", fontSize: 12.5, color: "#92400E", lineHeight: 1.5 }}>
-                      ⚠ {totalCharts} charts in {practicePeriodDays} days is above our plausibility limit (500 in 30 days). You can still save — this submission will be queued for manual review.
+                    <div style={{ marginTop: 14, background: "#FFFBEB", border: "1px solid #FCD34D", borderRadius: 12, padding: "12px 16px", fontSize: 12.5, color: "#92400E", lineHeight: 1.5, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                      <i className="fa-solid fa-triangle-exclamation" style={{ marginTop: 2 }} />
+                      <span>{totalCharts} charts in {practicePeriodDays} days is above our plausibility limit (500 in 30 days). You can still save — this submission will be queued for manual review.</span>
                     </div>
                   )}
                 </div>
@@ -558,7 +633,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                     <div style={{ background: "#EFF6FF", border: "1.5px solid #93C5FD", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
                         <p style={{ fontSize: 12, color: "#1E40AF", margin: 0, lineHeight: 1.5, flex: 1, minWidth: 220 }}>Live platform sync isn&apos;t available yet. Enter the figures from your platform dashboard above and your account ID here so your academy or Talentera staff can spot-check them.</p>
-                        <button type="button" onClick={() => setShowOAuthModal(true)} style={{ background: "#0F172A", color: "#FFFFFF", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}>ℹ️ How this works →</button>
+                        <button type="button" onClick={() => setShowOAuthModal(true)} style={{ background: "#0F172A", color: "#FFFFFF", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <i className="fa-solid fa-circle-info" /> How this works
+                        </button>
                       </div>
                       <Field label={`${primaryPlatform || selectedPlatforms[0] || "Platform"} username / profile ID`} required error={showErr("profile")}>
                         <input type="text" value={platformProfileId} maxLength={80} onChange={(e) => setPlatformProfileId(e.target.value)} placeholder="Your login ID or public profile link" style={showErr("profile") ? INPUT_ERR : INPUT} />
@@ -609,8 +686,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
 
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, paddingTop: 16, borderTop: "1px solid #F1F5F9", flexWrap: "wrap" }}>
               {showErrors && hasErrors && <span style={{ fontSize: 12, fontWeight: 700, color: "#DC2626" }}>Some required fields need attention.</span>}
-              <button type="button" className="btn btn-gold" onClick={() => saveStage6()} disabled={saving} style={{ padding: "12px 26px", fontSize: 14, fontWeight: 800 }}>
-                {saving ? "Saving…" : savedSuccess ? "✓ Save changes & recalculate" : "Save & calculate my score →"}
+              <button type="button" className="btn btn-gold" onClick={() => saveStage6()} disabled={saving} style={{ padding: "12px 26px", fontSize: 14, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7 }}>
+                {saving ? "Saving…" : savedSuccess ? <><i className="fa-solid fa-check" /> Save changes & recalculate</> : "Save & calculate my score →"}
               </button>
             </div>
           </div>
@@ -618,8 +695,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
           {/* ================== RESULT ================== */}
           <div>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ display: "inline-block", background: savedSuccess ? "#16A34A" : "#F59E0B", color: savedSuccess ? "#FFFFFF" : "#0F172A", padding: "6px 18px", borderRadius: 999, fontSize: 11, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
-                {savedSuccess ? "✓ SAVED RESULT" : "↓ LIVE PREVIEW · UPDATES AS YOU TYPE"}
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: savedSuccess ? "#16A34A" : "#F59E0B", color: savedSuccess ? "#FFFFFF" : "#0F172A", padding: "6px 18px", borderRadius: 999, fontSize: 11, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 }}>
+                {savedSuccess ? <><i className="fa-solid fa-check" /> SAVED RESULT</> : <><i className="fa-solid fa-arrow-down" /> LIVE PREVIEW · UPDATES AS YOU TYPE</>}
               </div>
               <h2 style={{ fontSize: 28, fontWeight: 900, color: "var(--navy, #0F172A)", margin: "0 0 6px 0" }}>Your Live Chart Result</h2>
               <div style={{ fontSize: 13.5, fontStyle: "italic", color: "#64748B" }}>Calculated only from the Stage 06 inputs above</div>
@@ -661,14 +738,16 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               {/* Tier cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 14, marginBottom: 20 }}>
                 {[
-                  { t: "Bronze", i: "🥉", d: "Any charts coded" },
-                  { t: "Silver", i: "🥈", d: "51+ charts & ≥75% acc" },
-                  { t: "Gold", i: "🥇", d: "201+ charts & ≥85% acc" },
-                  { t: "Platinum", i: "🏆", d: "500+ charts & ≥90% acc" },
+                  { t: "Bronze", icon: "fa-solid fa-medal", iconColor: "#CD7F32", d: "Any charts coded" },
+                  { t: "Silver", icon: "fa-solid fa-medal", iconColor: "#94A3B8", d: "51+ charts & ≥75% acc" },
+                  { t: "Gold", icon: "fa-solid fa-medal", iconColor: "#F59E0B", d: "201+ charts & ≥85% acc" },
+                  { t: "Platinum", icon: "fa-solid fa-trophy", iconColor: "#7C3AED", d: "500+ charts & ≥90% acc" },
                 ].map((c) => (
                   <div key={c.t} style={{ border: tier === c.t ? "2px solid #F59E0B" : "1px solid #E2E8F0", background: tier === c.t ? "#FFFBEB" : "#FFFFFF", borderRadius: 16, padding: "18px 14px", textAlign: "center", position: "relative" }}>
                     {tier === c.t && <div style={{ position: "absolute", top: -11, left: "50%", transform: "translateX(-50%)", background: "#F59E0B", color: "#0F172A", fontSize: 9.5, fontWeight: 900, padding: "2px 10px", borderRadius: 999 }}>YOU ARE HERE</div>}
-                    <div style={{ fontSize: 26, marginBottom: 6 }}>{c.i}</div>
+                    <div style={{ fontSize: 26, marginBottom: 6, color: c.iconColor }}>
+                      <i className={c.icon} />
+                    </div>
                     <div style={{ fontSize: 15, fontWeight: 900, color: "#0F172A" }}>{c.t}</div>
                     <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>{c.d}</div>
                   </div>
@@ -676,8 +755,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               </div>
 
               {evidencePath !== "D" && totalCharts > 0 && (
-                <div style={{ background: "#FEFCE8", border: "1px solid #FEF08A", borderRadius: 14, padding: "14px 20px", display: "flex", gap: 12, marginBottom: 24 }}>
-                  <span style={{ fontSize: 18 }}>🎯</span>
+                <div style={{ background: "#FEFCE8", border: "1px solid #FEF08A", borderRadius: 14, padding: "14px 20px", display: "flex", gap: 12, marginBottom: 24, alignItems: "flex-start" }}>
+                  <i className="fa-solid fa-bullseye" style={{ color: "#D97706", fontSize: 18, marginTop: 2 }} />
                   <div style={{ fontSize: 12.5, color: "#854D0E", lineHeight: 1.5 }}>{goal.done ? goal.text : <><strong>Next tier: {goal.next}.</strong> {goal.text}</>}</div>
                 </div>
               )}
@@ -687,9 +766,11 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <div style={{ fontSize: 10.5, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 10 }}>PREVIEW · WHAT COMPANIES SEE</div>
                 <h3 style={{ fontSize: 18, fontWeight: 900, color: "#FFFFFF", margin: "0 0 14px 0" }}>Live Chart Record</h3>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-                  <span style={{ background: "rgba(255,255,255,0.12)", color: "#E2E8F0", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 700 }}>💰 {tier} · {totalCharts} charts · {overallAccuracy}% acc</span>
+                  <span style={{ background: "rgba(255,255,255,0.12)", color: "#E2E8F0", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <i className="fa-solid fa-chart-column" style={{ fontSize: 10 }} /> {tier} · {totalCharts} charts · {overallAccuracy}% acc
+                  </span>
                   <span style={{ background: evidencePath === "B" && uploadedDocUrl ? "#065F46" : "#78350F", color: evidencePath === "B" && uploadedDocUrl ? "#6EE7B7" : "#FDE68A", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800 }}>
-                    {evidencePath === "A" ? "🟡 Self-Reported (Platform)" : evidencePath === "B" ? (uploadedDocUrl ? "🟢 Academy-Signed" : "🟡 Pending Upload") : evidencePath === "C" ? "🟡 Self-Declared" : "⚪ No Charts"}
+                    {evidencePath === "A" ? "Self-Reported (Platform)" : evidencePath === "B" ? (uploadedDocUrl ? "Academy-Signed" : "Pending Upload") : evidencePath === "C" ? "Self-Declared" : "No Charts"}
                   </span>
                   {selectedPlatforms.length > 0 && evidencePath !== "D" && <span style={{ background: "#854D0E", color: "#FEF08A", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800 }}>{selectedPlatforms.slice(0, 3).join(" + ")}</span>}
                   {result.needsReview && <span style={{ background: "#7C2D12", color: "#FED7AA", padding: "4px 12px", borderRadius: 999, fontSize: 11.5, fontWeight: 800 }}>Under review</span>}
@@ -698,7 +779,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px 32px", marginBottom: 18 }}>
                     {specialtyCharts.filter((r) => Number(r.count) > 0 && r.name.trim()).slice(0, 6).map((r) => (
                       <div key={r.id} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: 8 }}>
-                        <span style={{ color: "#94A3B8", fontSize: 13 }}>{r.icon} {r.name}</span>
+                        <span style={{ color: "#94A3B8", fontSize: 13 }}>{r.name}</span>
                         <span style={{ color: "#FFFFFF", fontWeight: 800, fontSize: 13 }}>{r.count} · {r.accuracy || 0}%</span>
                       </div>
                     ))}
@@ -713,6 +794,12 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => setShowHistoryModal(true)} style={{ background: "transparent", border: "1px solid #CBD5E1", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#334155", cursor: "pointer" }}>View my chart history</button>
                   {evidencePath === "B" && <button type="button" onClick={() => setShowVaultModal(true)} style={{ background: "transparent", border: "1px solid #CBD5E1", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#334155", cursor: "pointer" }}>Proof documents ({vaultDocuments.length})</button>}
+                  {isSelfTrained && (
+                    <button type="button" onClick={handleSkipStage6} disabled={skipping} style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#15803D", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
+                      <i className="fa-solid fa-forward" />
+                      {skipping ? "Skipping…" : "Skip Stage 06 (Optional) →"}
+                    </button>
+                  )}
                 </div>
                 <button type="button" className="btn btn-gold" onClick={handleContinueToStage7} disabled={saving} style={{ padding: "12px 26px", fontSize: 14, fontWeight: 800 }}>
                   {saving ? "Saving…" : "Save & continue to Stage 07 · Resume →"}
@@ -736,7 +823,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               <h3 style={{ fontSize: 20, fontWeight: 900, color: "#0F172A", margin: 0 }}>
                 {showOAuthModal ? "How Platform Reporting Works" : showHistoryModal ? "Your chart history" : `Live Chart proof documents (${vaultDocuments.length})`}
               </h3>
-              <button type="button" aria-label="Close" onClick={() => { setShowOAuthModal(false); setShowHistoryModal(false); setShowVaultModal(false); }} style={{ background: "transparent", border: "none", fontSize: 20, cursor: "pointer", color: "#64748B" }}>✕</button>
+              <button type="button" aria-label="Close" onClick={() => { setShowOAuthModal(false); setShowHistoryModal(false); setShowVaultModal(false); }} style={{ background: "transparent", border: "none", fontSize: 18, cursor: "pointer", color: "#64748B" }}>
+                <i className="fa-solid fa-xmark" />
+              </button>
             </div>
 
             {showOAuthModal && (
@@ -760,7 +849,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 {specialtyCharts.filter((r) => Number(r.count) > 0).map((r) => (
                   <div key={r.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{r.icon} {r.name || "Unnamed specialty"}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{r.name || "Unnamed specialty"}</div>
                       <div style={{ fontSize: 11.5, color: "#64748B" }}>{r.timePerChart || "—"} min/chart · last coded {r.lastCodedDate ? new Date(r.lastCodedDate).toLocaleDateString() : "—"}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -778,10 +867,15 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 {vaultDocuments.map((doc, i) => (
                   <div key={doc.id || i} style={{ background: doc.verified ? "#F0FDF4" : "#FFFBEB", border: doc.verified ? "1px solid #86EFAC" : "1px solid #FDE68A", borderRadius: 12, padding: "14px 16px", display: "flex", justifyContent: "space-between" }}>
                     <div>
-                      <div style={{ fontSize: 13.5, fontWeight: 900, color: "#14532D" }}>📄 {doc.title || doc.docName || `Document #${i + 1}`}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 900, color: "#14532D", display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="fa-solid fa-file" style={{ fontSize: 13 }} />
+                        {doc.title || doc.docName || `Document #${i + 1}`}
+                      </div>
                       <div style={{ fontSize: 11.5, color: "#166534" }}>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : ""}</div>
                     </div>
-                    <span style={{ background: doc.verified ? "#DCFCE7" : "#FEF3C7", color: doc.verified ? "#166534" : "#92400E", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, alignSelf: "flex-start" }}>{doc.verified ? "Verified ✓" : "Pending"}</span>
+                    <span style={{ background: doc.verified ? "#DCFCE7" : "#FEF3C7", color: doc.verified ? "#166534" : "#92400E", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      {doc.verified ? <><i className="fa-solid fa-check" /> Verified</> : "Pending"}
+                    </span>
                   </div>
                 ))}
               </div>

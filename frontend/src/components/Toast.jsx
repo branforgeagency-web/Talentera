@@ -42,7 +42,7 @@ export function ToastProvider({ children }) {
         if (rawType === "!" || rawType === "error" || rawType === "danger" || rawType === "fail" || rawType === "failed" || rawType === "✕") {
           type = "error";
           glyph = "⚠️";
-          title = "Required Fields Missing";
+          title = "Attention Required";
         } else if (rawType === "✓" || rawType === "success" || rawType === "ok" || rawType === "done") {
           type = "success";
           glyph = "✓";

@@ -266,6 +266,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   // 6. SAVING & GENERAL UI STATE
   const [saving, setSaving] = useState(false);
   const [savedBadgeText, setSavedBadgeText] = useState("✓ Saved just now");
+  const [formErrors, setFormErrors] = useState({});
 
   // OTP Countdown timer
   useEffect(() => {
@@ -768,57 +769,70 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
 
     if (advance) {
       const missingFields = [];
+      const errs = {};
 
       // Aadhaar verification is strictly mandatory
       if (!isAadhaarVerified) {
         missingFields.push("Aadhaar Verification (DigiLocker)");
+        errs.aadhaar = "Aadhaar verification via DigiLocker is mandatory";
       }
       // Full name is required
       if (!lockedFullName || lockedFullName.trim().length < 2) {
         missingFields.push("Full Legal Name");
+        errs.fullName = "Full Legal Name is mandatory";
       }
       // Mobile validation
       if (!cleanMobile || !isValidIndianMobile(cleanMobile)) {
         missingFields.push("Valid 10-Digit Mobile Number");
+        errs.mobile = "Valid 10-digit mobile number is mandatory";
       }
       // Email validation
       if (!email || !email.includes("@")) {
         missingFields.push("Valid Email Address");
+        errs.email = "Valid email address is mandatory";
       }
       // Basic education validation
       if (!educationStream) {
         missingFields.push("Academic Stream");
+        errs.educationStream = "Please select an academic stream";
       }
       if (!degree || degree.trim().length === 0) {
         missingFields.push("Course Name");
+        errs.degree = "Course name is mandatory";
       }
       if (!collegeName || collegeName.trim().length < 2) {
         missingFields.push("University / College Name");
+        errs.collegeName = "University / College name is mandatory";
       }
       if (!educationStatus) {
         missingFields.push("Education Status");
+        errs.educationStatus = "Education status is mandatory";
       }
       if (!graduationMonth || !graduationYear) {
         missingFields.push("Passing Month & Year");
+        errs.graduation = "Passing month and year are mandatory";
       }
       if (!cgpa || cgpa.trim().length === 0) {
         missingFields.push("CGPA / Percentage");
+        errs.cgpa = "CGPA or percentage is mandatory";
       }
 
       if (missingFields.length > 0) {
-        const errorMsg = `Please fill all mandatory fields: ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? ` and ${missingFields.length - 3} more` : ""}.`;
+        setFormErrors(errs);
+        const errorMsg = `Please fill all mandatory fields highlighted in red: ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? ` and ${missingFields.length - 3} more` : ""}.`;
         toast(errorMsg, "error", { title: "Mandatory Fields Required" });
 
         // Smooth scroll to the first missing section
-        if (!isAadhaarVerified) {
-          document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth" });
-        } else if (!cleanMobile || !email) {
-          document.getElementById("section-2")?.scrollIntoView({ behavior: "smooth" });
+        if (errs.aadhaar) {
+          document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else if (errs.mobile || errs.email || errs.fullName) {
+          document.getElementById("section-2")?.scrollIntoView({ behavior: "smooth", block: "center" });
         } else {
-          document.getElementById("section-5")?.scrollIntoView({ behavior: "smooth" });
+          document.getElementById("section-5")?.scrollIntoView({ behavior: "smooth", block: "center" });
         }
         return;
       }
+      setFormErrors({});
     }
 
     setSaving(true);
@@ -1291,6 +1305,35 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           border-color: var(--gold-soft);
           color: var(--navy);
           font-weight: 700;
+        }
+
+        /* MANDATORY FIELD ERROR HIGHLIGHTING */
+        .field.has-error input, .field.has-error select, .field.has-error textarea,
+        input.has-error, select.has-error, textarea.has-error {
+          border: 2px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+        }
+        .choice-row.has-error .choice {
+          border-color: #EF4444 !important;
+          background-color: #FEF2F2 !important;
+        }
+        .row.has-error .option-item, .has-error .option-item {
+          border: 1.5px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+        }
+        .section.has-error {
+          border: 2px solid #EF4444 !important;
+          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
+        }
+        .field-error-msg {
+          color: #DC2626;
+          font-size: 11.5px;
+          font-weight: 700;
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
         }
 
         /* BUTTONS */
@@ -1934,7 +1977,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           </div>
 
           {/* SECTION 1 · AADHAAR */}
-          <div className="section" id="section-1">
+          <div className={`section ${formErrors.aadhaar ? "has-error" : ""}`} id="section-1">
             <div className="section-header">
               <div className="section-num">1</div>
               <div className="section-title">Aadhaar Identity Verification</div>
@@ -1942,6 +1985,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 {isAadhaarVerified ? "✓ VERIFIED · +5" : "MANDATORY · +5"}
               </div>
             </div>
+            {formErrors.aadhaar && (
+              <div className="field-error-msg" style={{ background: "#FEF2F2", border: "1.5px solid #EF4444", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                ⚠️ {formErrors.aadhaar}
+              </div>
+            )}
 
             {!isAadhaarVerified ? (
               <div style={{ marginTop: 8 }}>
@@ -2178,7 +2226,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             </div>
 
             <div className="row">
-              <div className="field">
+              <div className={`field ${formErrors.mobile ? "has-error" : ""}`}>
                 <label>
                   Mobile Number (10 digits) <span className="req">*</span>
                 </label>
@@ -2187,11 +2235,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   placeholder="98765 43210"
                   maxLength={12}
                   value={mobile}
-                  onChange={(e) => setMobile(formatMobile(e.target.value))}
+                  onChange={(e) => {
+                    setMobile(formatMobile(e.target.value));
+                    if (formErrors.mobile) setFormErrors((prev) => ({ ...prev, mobile: null }));
+                  }}
                 />
-                <div className="helper">Used for interview invites and recruiter calls.</div>
+                {formErrors.mobile ? (
+                  <div className="field-error-msg">⚠️ {formErrors.mobile}</div>
+                ) : (
+                  <div className="helper">Used for interview invites and recruiter calls.</div>
+                )}
               </div>
-              <div className="field">
+              <div className={`field ${formErrors.email ? "has-error" : ""}`}>
                 <label>
                   Email ID <span className="req">*</span>
                 </label>
@@ -2199,9 +2254,16 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   type="email"
                   placeholder="name@example.com"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: null }));
+                  }}
                 />
-                <div className="helper">Official communications and job offers will be sent here.</div>
+                {formErrors.email ? (
+                  <div className="field-error-msg">⚠️ {formErrors.email}</div>
+                ) : (
+                  <div className="helper">Official communications and job offers will be sent here.</div>
+                )}
               </div>
             </div>
 
@@ -2539,14 +2601,17 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               <div className="status-chip pending">PENDING · +3</div>
             </div>
 
-            <div className="field">
+            <div className={`field ${formErrors.educationStream ? "has-error" : ""}`}>
               <label>
                 Academic Stream <span className="req">*</span>
               </label>
-              <div className="choice-row">
+              <div className={`choice-row ${formErrors.educationStream ? "has-error" : ""}`}>
                 <div
                   className={`choice ${educationStream === "Life Science" ? "selected" : ""}`}
-                  onClick={() => handleStreamChange("Life Science")}
+                  onClick={() => {
+                    handleStreamChange("Life Science");
+                    if (formErrors.educationStream) setFormErrors((prev) => ({ ...prev, educationStream: null }));
+                  }}
                 >
                   <div className="choice-check">{educationStream === "Life Science" ? "✓" : ""}</div>
                   <div className="choice-icon">🧬</div>
@@ -2555,7 +2620,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 </div>
                 <div
                   className={`choice ${educationStream === "Non-Life Science" ? "selected" : ""}`}
-                  onClick={() => handleStreamChange("Non-Life Science")}
+                  onClick={() => {
+                    handleStreamChange("Non-Life Science");
+                    if (formErrors.educationStream) setFormErrors((prev) => ({ ...prev, educationStream: null }));
+                  }}
                 >
                   <div className="choice-check">{educationStream === "Non-Life Science" ? "✓" : ""}</div>
                   <div className="choice-icon">📚</div>
@@ -2563,6 +2631,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="choice-sub">B.Com · B.Tech · BCA · BBA · Arts</div>
                 </div>
               </div>
+              {formErrors.educationStream && <div className="field-error-msg">⚠️ {formErrors.educationStream}</div>}
             </div>
 
             <div className="row">
@@ -2581,13 +2650,16 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <option>10th</option>
                 </select>
               </div>
-              <div className="field">
+              <div className={`field ${formErrors.degree ? "has-error" : ""}`}>
                 <label>
                   Course Name <span className="req">*</span>
                 </label>
                 <select
                   value={degree}
-                  onChange={(e) => setDegree(e.target.value)}
+                  onChange={(e) => {
+                    setDegree(e.target.value);
+                    if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
+                  }}
                 >
                   {(educationStream === "Life Science" ? LIFE_SCIENCE_COURSES : NON_LIFE_SCIENCE_COURSES).map((c) => (
                     <option key={c} value={c}>
@@ -2595,11 +2667,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     </option>
                   ))}
                 </select>
+                {formErrors.degree && <div className="field-error-msg">⚠️ {formErrors.degree}</div>}
               </div>
             </div>
 
             <div className="row">
-              <div className="field">
+              <div className={`field ${formErrors.collegeName ? "has-error" : ""}`}>
                 <label>
                   University / College <span className="req">*</span>
                 </label>
@@ -2607,42 +2680,59 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   type="text"
                   placeholder="Start typing — UGC-recognized list"
                   value={collegeName}
-                  onChange={(e) => setCollegeName(e.target.value)}
+                  onChange={(e) => {
+                    setCollegeName(e.target.value);
+                    if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
+                  }}
                 />
-                <div className="helper">Auto-suggests from UGC-recognized institutions.</div>
+                {formErrors.collegeName ? (
+                  <div className="field-error-msg">⚠️ {formErrors.collegeName}</div>
+                ) : (
+                  <div className="helper">Auto-suggests from UGC-recognized institutions.</div>
+                )}
               </div>
-              <div className="field">
+              <div className={`field ${formErrors.educationStatus ? "has-error" : ""}`}>
                 <label>
                   Status <span className="req">*</span>
                 </label>
-                <div className="row" style={{ gap: 8 }}>
+                <div className={`row ${formErrors.educationStatus ? "has-error" : ""}`} style={{ gap: 8 }}>
                   <div
                     className={`option-item ${educationStatus === "Completed" ? "selected" : ""}`}
-                    onClick={() => setEducationStatus("Completed")}
+                    onClick={() => {
+                      setEducationStatus("Completed");
+                      if (formErrors.educationStatus) setFormErrors((prev) => ({ ...prev, educationStatus: null }));
+                    }}
                   >
                     <div className="dot"></div>
                     <div>Completed</div>
                   </div>
                   <div
                     className={`option-item ${educationStatus === "Pursuing" ? "selected" : ""}`}
-                    onClick={() => setEducationStatus("Pursuing")}
+                    onClick={() => {
+                      setEducationStatus("Pursuing");
+                      if (formErrors.educationStatus) setFormErrors((prev) => ({ ...prev, educationStatus: null }));
+                    }}
                   >
                     <div className="dot"></div>
                     <div>Pursuing</div>
                   </div>
                 </div>
+                {formErrors.educationStatus && <div className="field-error-msg">⚠️ {formErrors.educationStatus}</div>}
               </div>
             </div>
 
             <div className="row-3">
-              <div className="field">
+              <div className={`field ${formErrors.graduation ? "has-error" : ""}`}>
                 <label>
                   Passing Month & Year <span className="req">*</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <select
                     value={graduationMonth}
-                    onChange={(e) => setGraduationMonth(e.target.value)}
+                    onChange={(e) => {
+                      setGraduationMonth(e.target.value);
+                      if (formErrors.graduation && graduationYear) setFormErrors((prev) => ({ ...prev, graduation: null }));
+                    }}
                   >
                     <option value="">Month…</option>
                     {MONTH_OPTIONS.map((m) => (
@@ -2653,7 +2743,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   </select>
                   <select
                     value={graduationYear}
-                    onChange={(e) => setGraduationYear(e.target.value)}
+                    onChange={(e) => {
+                      setGraduationYear(e.target.value);
+                      if (formErrors.graduation && graduationMonth) setFormErrors((prev) => ({ ...prev, graduation: null }));
+                    }}
                   >
                     <option value="">Year…</option>
                     {GRAD_YEAR_OPTIONS.map((yr) => (
@@ -2663,7 +2756,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     ))}
                   </select>
                 </div>
-                <div className="helper">Month & year of completion.</div>
+                {formErrors.graduation ? (
+                  <div className="field-error-msg">⚠️ {formErrors.graduation}</div>
+                ) : (
+                  <div className="helper">Month & year of completion.</div>
+                )}
               </div>
               <div className="field">
                 <label>
@@ -2677,7 +2774,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <option>CGPA (out of 10)</option>
                 </select>
               </div>
-              <div className="field">
+              <div className={`field ${formErrors.cgpa ? "has-error" : ""}`}>
                 <label>
                   CGPA / Percentage <span className="req">*</span>
                 </label>
@@ -2685,8 +2782,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   type="text"
                   placeholder="e.g. 78%"
                   value={cgpa}
-                  onChange={(e) => setCgpa(e.target.value)}
+                  onChange={(e) => {
+                    setCgpa(e.target.value);
+                    if (formErrors.cgpa) setFormErrors((prev) => ({ ...prev, cgpa: null }));
+                  }}
                 />
+                {formErrors.cgpa && <div className="field-error-msg">⚠️ {formErrors.cgpa}</div>}
               </div>
             </div>
 

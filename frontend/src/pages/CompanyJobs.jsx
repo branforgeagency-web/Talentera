@@ -18,6 +18,19 @@ function emptyFormState() {
   return state;
 }
 
+function isFresherJob(f) {
+  if (!f) return false;
+  const lvl = String(f.level || "").trim().toLowerCase();
+  if (lvl === "fresher only" || lvl === "fresher" || lvl.includes("fresher")) return true;
+  if (f.isFresher === true) return true;
+  if (f.expmin !== "" && f.expmin !== undefined && f.expmin !== null) {
+    const min = Number(f.expmin);
+    const max = (f.expmax !== "" && f.expmax !== undefined && f.expmax !== null) ? Number(f.expmax) : min;
+    if (min === 0 && max <= 1) return true;
+  }
+  return false;
+}
+
 export default function CompanyJobs() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -71,7 +84,22 @@ export default function CompanyJobs() {
   }
 
   function setField(id, value) {
-    setForm((prev) => ({ ...prev, [id]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [id]: value };
+      if (id === "level") {
+        const lvl = String(value || "").toLowerCase().trim();
+        if (lvl === "fresher only" || lvl === "fresher" || lvl.includes("fresher")) {
+          next.notice = "";
+          next.expmin = "";
+          next.expmax = "";
+        }
+      } else if (id === "expmin") {
+        if (value !== "" && Number(value) === 0 && (next.expmax === "" || Number(next.expmax) <= 1)) {
+          next.notice = "";
+        }
+      }
+      return next;
+    });
   }
 
   function toggleMulti(id, opt) {
@@ -103,8 +131,9 @@ export default function CompanyJobs() {
     }
     setSubmitting(true);
     try {
-      // Experience range doesn't apply when hiring freshers only
-      const payload = form.level === "Fresher only" ? { ...form, expmin: "", expmax: "", notice: "" } : { ...form };
+      // Experience range and notice period don't apply when hiring freshers
+      const isFresher = isFresherJob(form);
+      const payload = isFresher ? { ...form, expmin: "", expmax: "", notice: "" } : { ...form };
       payload.panel = (Array.isArray(payload.panel) ? payload.panel : []).map((n) => String(n).trim()).filter(Boolean);
       await companyApi.post("/company/jobs", payload);
       toast("Job posted and published live! ✓", "✓");
@@ -273,26 +302,48 @@ export default function CompanyJobs() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {STAGE9.items.map((item) => {
                 const isFullWidth = item.input === "textarea" || item.input === "multi";
-                // "Hiring freshers" checked -> hide the experience inputs (the checkbox itself stays visible)
-                const hideExperience = form.level === "Fresher only" && EXPERIENCE_IDS.has(item.id);
-                // Notice period doesn't apply to freshers either
-                if (form.level === "Fresher only" && item.id === "notice") return null;
+                const isFresher = isFresherJob(form);
+                // "Hiring freshers" checked or 0-exp role -> hide the experience inputs
+                const hideExperience = isFresher && EXPERIENCE_IDS.has(item.id);
+                // Notice period is completely removed for freshers (freshers join immediately)
+                if (isFresher && item.id === "notice") return null;
                 return (
                   <React.Fragment key={item.id}>
                   {item.id === "expmin" && (
-                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        background: isFresher ? "#F0FDF4" : "#F8FAFC",
+                        border: isFresher ? "1.5px solid #86EFAC" : "1.5px solid #E2E8F0",
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                      }}
+                    >
                       <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
                         <input
                           type="checkbox"
-                          checked={form.level === "Fresher only"}
-                          onChange={(e) => setField("level", e.target.checked ? "Fresher only" : "")}
+                          checked={isFresher}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setForm((prev) => ({
+                              ...prev,
+                              level: checked ? "Fresher only" : "",
+                              notice: checked ? "" : prev.notice,
+                              expmin: checked ? "" : prev.expmin,
+                              expmax: checked ? "" : prev.expmax,
+                            }));
+                          }}
                           style={{ width: 16, height: 16, accentColor: "var(--navy)", cursor: "pointer" }}
                         />
                         🎓 Hiring freshers
                       </label>
-                      <span style={{ fontSize: 12, color: "#64748B" }}>
-                        {form.level === "Fresher only"
-                          ? "Experience range not needed for freshers."
+                      <span style={{ fontSize: 12, color: isFresher ? "#166534" : "#64748B", fontWeight: isFresher ? 600 : 400 }}>
+                        {isFresher
+                          ? "✓ Experience range & Notice period removed for freshers (immediate joining)."
                           : "Experience range is optional. Select this if you're hiring freshers."}
                       </span>
                     </div>

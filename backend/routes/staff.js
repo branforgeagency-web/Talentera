@@ -8,6 +8,8 @@ const Job = require("../models/Job");
 const Staff = require("../models/Staff");
 const Notification = require("../models/Notification");
 const InterviewQuestion = require("../models/InterviewQuestion");
+const AssessmentQuestion = require("../models/AssessmentQuestion");
+const { DEFAULT_ASSESSMENT_QUESTIONS } = require("../data/defaultAssessmentQuestions");
 const AuditLog = require("../models/AuditLog");
 const RetakeRequest = require("../models/RetakeRequest");
 const { sendRetakeApprovedEmail, sendRetakeRejectedEmail } = require("../utils/emailService");
@@ -1260,10 +1262,14 @@ router.post("/verify-job", requireStaffAuth, async (req, res) => {
 // GET /api/candidate/interview-questions in routes/candidate.js. The correct
 // answer never leaves this staff-only surface.
 
-// GET /api/staff/interview-questions - list all questions (any mode, active or not)
+// GET /api/staff/interview-questions - list all questions (any mode, active or not, optionally filter by domain)
 router.get("/interview-questions", requireStaffAuth, async (req, res) => {
   try {
-    const questions = await InterviewQuestion.find().sort({ mode: 1, order: 1, createdAt: 1 }).lean();
+    const filter = {};
+    if (req.query.domain && req.query.domain !== "all") {
+      filter.domain = req.query.domain;
+    }
+    const questions = await InterviewQuestion.find(filter).sort({ domain: 1, mode: 1, order: 1, createdAt: 1 }).lean();
     res.json({ questions });
   } catch (err) {
     logger.error(`List interview questions error: ${err.message}`);
@@ -1274,7 +1280,7 @@ router.get("/interview-questions", requireStaffAuth, async (req, res) => {
 // POST /api/staff/interview-questions - create a new question
 router.post("/interview-questions", requireStaffAuth, async (req, res) => {
   try {
-    const { text, correctAnswer, mode, order, active } = req.body;
+    const { text, correctAnswer, mode, order, active, domain, topic, keywords } = req.body;
     if (!text || !text.trim()) {
       return res.status(400).json({ message: "Question text is required." });
     }
@@ -1296,13 +1302,16 @@ router.post("/interview-questions", requireStaffAuth, async (req, res) => {
       mode: ["video", "audio", "both"].includes(mode) ? mode : "both",
       order: Number.isFinite(Number(order)) ? Number(order) : 0,
       active: active !== false,
+      domain: ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "General"].includes(domain) ? domain : "Medical Coding",
+      topic: (topic || "").trim(),
+      keywords: Array.isArray(keywords) && keywords.length === 3 ? keywords : undefined,
     });
 
     await recordAudit(req, {
       action: "create_interview_question",
       targetType: "interview_question",
       targetId: question._id,
-      summary: `Created interview question (${question.mode}): "${question.text.slice(0, 80)}"`,
+      summary: `Created interview question (${question.domain} - ${question.mode}): "${question.text.slice(0, 80)}"`,
     });
 
     res.status(201).json({ question });
@@ -1315,7 +1324,7 @@ router.post("/interview-questions", requireStaffAuth, async (req, res) => {
 // PUT /api/staff/interview-questions/:id - edit an existing question
 router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
   try {
-    const { text, correctAnswer, mode, order, active } = req.body;
+    const { text, correctAnswer, mode, order, active, domain, topic, keywords } = req.body;
     const question = await InterviewQuestion.findById(req.params.id);
     if (!question) return res.status(404).json({ message: "Interview question not found." });
 
@@ -1337,6 +1346,11 @@ router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
     if (mode !== undefined && ["video", "audio", "both"].includes(mode)) question.mode = mode;
     if (order !== undefined && Number.isFinite(Number(order))) question.order = Number(order);
     if (active !== undefined) question.active = Boolean(active);
+    if (domain !== undefined && ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "General"].includes(domain)) {
+      question.domain = domain;
+    }
+    if (topic !== undefined) question.topic = topic.trim();
+    if (Array.isArray(keywords) && keywords.length === 3) question.keywords = keywords;
 
     if (!question.correctAnswer) return res.status(400).json({ message: "A correct answer is required so the AI can grade responses to this question." });
 
@@ -1346,7 +1360,7 @@ router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
       action: "update_interview_question",
       targetType: "interview_question",
       targetId: question._id,
-      summary: `Updated interview question (${question.mode}): "${question.text.slice(0, 80)}"`,
+      summary: `Updated interview question (${question.domain} - ${question.mode}): "${question.text.slice(0, 80)}"`,
     });
 
     res.json({ question });
@@ -1373,6 +1387,215 @@ router.delete("/interview-questions/:id", requireStaffAuth, async (req, res) => 
   } catch (err) {
     logger.error(`Delete interview question error: ${err.message}`);
     res.status(500).json({ message: "Failed to delete interview question." });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Stage 4 Assessment Questions (Multiple-Choice Questions by Domain)
+// ---------------------------------------------------------------------------
+
+// Helper: auto-seed defaults if DB is empty
+async function ensureDefaultAssessmentQuestions() {
+  const count = await AssessmentQuestion.countDocuments();
+  if (count === 0 && Array.isArray(DEFAULT_ASSESSMENT_QUESTIONS) && DEFAULT_ASSESSMENT_QUESTIONS.length > 0) {
+    try {
+      await AssessmentQuestion.insertMany(DEFAULT_ASSESSMENT_QUESTIONS, { ordered: false });
+      logger.info(`Auto-seeded ${DEFAULT_ASSESSMENT_QUESTIONS.length} default Stage 4 assessment questions.`);
+    } catch (e) {
+      logger.warn("Auto-seed default assessment questions notice:", e.message);
+    }
+  }
+}
+
+// GET /api/staff/assessment-questions - List MCQs (filter by ?domain=)
+router.get("/assessment-questions", requireStaffAuth, async (req, res) => {
+  try {
+    await ensureDefaultAssessmentQuestions();
+    const filter = {};
+    if (req.query.domain && req.query.domain !== "all") {
+      filter.domain = req.query.domain;
+    }
+    const questions = await AssessmentQuestion.find(filter)
+      .sort({ domain: 1, sectionOrder: 1, order: 1, createdAt: 1 })
+      .lean();
+    res.json({ questions });
+  } catch (err) {
+    logger.error(`List assessment questions error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load assessment questions." });
+  }
+});
+
+// POST /api/staff/assessment-questions - Create a new MCQ
+router.post("/assessment-questions", requireStaffAuth, async (req, res) => {
+  try {
+    const {
+      domain,
+      sectionKey,
+      sectionName,
+      sectionIcon,
+      sectionSub,
+      sectionOrder,
+      topic,
+      question,
+      options,
+      correct,
+      explanation,
+      order,
+      active,
+    } = req.body;
+
+    if (!question || !question.trim()) {
+      return res.status(400).json({ message: "Question text is required." });
+    }
+    if (!Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({ message: "At least 2 options are required." });
+    }
+    const validCorrect = Number(correct);
+    if (isNaN(validCorrect) || validCorrect < 0 || validCorrect >= options.length) {
+      return res.status(400).json({ message: `Correct answer index must be between 0 and ${options.length - 1}.` });
+    }
+
+    const created = await AssessmentQuestion.create({
+      domain: domain || "Medical Coding",
+      sectionKey: (sectionKey || "custom").trim(),
+      sectionName: (sectionName || "General Section").trim(),
+      sectionIcon: sectionIcon || "🎯",
+      sectionSub: (sectionSub || "").trim(),
+      sectionOrder: Number(sectionOrder) || 1,
+      topic: (topic || "").trim(),
+      question: question.trim(),
+      options: options.map((opt) => String(opt).trim()),
+      correct: validCorrect,
+      explanation: (explanation || "").trim(),
+      order: Number(order) || 1,
+      active: active !== false,
+    });
+
+    await recordAudit(req, {
+      action: "create_assessment_question",
+      targetType: "assessment_question",
+      targetId: created._id,
+      summary: `Created Stage 4 assessment question (${created.domain} - ${created.sectionName}): "${created.question.slice(0, 60)}"`,
+    });
+
+    res.status(201).json({ question: created });
+  } catch (err) {
+    logger.error(`Create assessment question error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to create assessment question." });
+  }
+});
+
+// PUT /api/staff/assessment-questions/:id - Update an existing MCQ
+router.put("/assessment-questions/:id", requireStaffAuth, async (req, res) => {
+  try {
+    const qDoc = await AssessmentQuestion.findById(req.params.id);
+    if (!qDoc) return res.status(404).json({ message: "Assessment question not found." });
+
+    const fields = [
+      "domain",
+      "sectionKey",
+      "sectionName",
+      "sectionIcon",
+      "sectionSub",
+      "sectionOrder",
+      "topic",
+      "question",
+      "options",
+      "correct",
+      "explanation",
+      "order",
+      "active",
+    ];
+
+    fields.forEach((f) => {
+      if (req.body[f] !== undefined) {
+        if (f === "options") {
+          if (Array.isArray(req.body.options) && req.body.options.length >= 2) {
+            qDoc.options = req.body.options.map((o) => String(o).trim());
+          }
+        } else if (f === "correct") {
+          const c = Number(req.body.correct);
+          if (!isNaN(c) && c >= 0) qDoc.correct = c;
+        } else if (f === "order" || f === "sectionOrder") {
+          qDoc[f] = Number(req.body[f]) || 1;
+        } else if (f === "active") {
+          qDoc.active = Boolean(req.body.active);
+        } else if (typeof req.body[f] === "string") {
+          qDoc[f] = req.body[f].trim();
+        }
+      }
+    });
+
+    await qDoc.save();
+
+    await recordAudit(req, {
+      action: "update_assessment_question",
+      targetType: "assessment_question",
+      targetId: qDoc._id,
+      summary: `Updated Stage 4 assessment question (${qDoc.domain}): "${qDoc.question.slice(0, 60)}"`,
+    });
+
+    res.json({ question: qDoc });
+  } catch (err) {
+    logger.error(`Update assessment question error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to update assessment question." });
+  }
+});
+
+// DELETE /api/staff/assessment-questions/:id - Delete an MCQ
+router.delete("/assessment-questions/:id", requireStaffAuth, async (req, res) => {
+  try {
+    const deleted = await AssessmentQuestion.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Assessment question not found." });
+
+    await recordAudit(req, {
+      action: "delete_assessment_question",
+      targetType: "assessment_question",
+      targetId: req.params.id,
+      summary: `Deleted Stage 4 assessment question: "${(deleted.question || "").slice(0, 60)}"`,
+    });
+
+    res.json({ message: "Assessment question deleted.", id: req.params.id });
+  } catch (err) {
+    logger.error(`Delete assessment question error: ${err.message}`);
+    res.status(500).json({ message: "Failed to delete assessment question." });
+  }
+});
+
+// POST /api/staff/assessment-questions/reset-defaults - Re-populate with 40 standard domain questions
+router.post("/assessment-questions/reset-defaults", requireStaffAuth, async (req, res) => {
+  try {
+    const domain = req.body.domain;
+    let filter = {};
+    let defaultsToInsert = DEFAULT_ASSESSMENT_QUESTIONS;
+    if (domain && domain !== "all") {
+      filter.domain = domain;
+      defaultsToInsert = DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => q.domain === domain);
+    }
+
+    await AssessmentQuestion.deleteMany(filter);
+    if (defaultsToInsert.length > 0) {
+      await AssessmentQuestion.insertMany(defaultsToInsert, { ordered: false });
+    }
+
+    await recordAudit(req, {
+      action: "reset_default_assessment_questions",
+      targetType: "assessment_question",
+      summary: `Reset default Stage 4 assessment questions${domain ? ` for domain: ${domain}` : ""}.`,
+    });
+
+    const refreshed = await AssessmentQuestion.find(filter)
+      .sort({ domain: 1, sectionOrder: 1, order: 1 })
+      .lean();
+
+    res.json({
+      success: true,
+      message: `Reset complete. Loaded ${refreshed.length} default questions.`,
+      questions: refreshed,
+    });
+  } catch (err) {
+    logger.error(`Reset assessment questions error: ${err.message}`);
+    res.status(500).json({ message: "Failed to reset assessment questions." });
   }
 });
 

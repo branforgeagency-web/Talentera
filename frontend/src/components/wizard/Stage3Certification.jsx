@@ -113,6 +113,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       qs: 100,
       usd: 399,
       inr: "~₹33,500",
+      renewal: "1 year",
       desc: "The flagship AAPC credential — validates expertise in physician office and outpatient CPT/ICD-10-CM/HCPCS coding.",
       prereq: "2 years coding experience recommended. Without experience, credential awarded as CPC-A until experience requirement is met.",
       bestFor: "Entry-to-mid level physician-side and outpatient (OP) coding. ~87% of RCM employers require this or an equivalent.",
@@ -227,6 +228,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   const [saving, setSaving] = useState(false);
   const [savedBadge, setSavedBadge] = useState("✓ Saved just now");
   const [error, setError] = useState("");
+  const [formErrors, setFormErrors] = useState({});
 
   function handleRegionChange(regId) {
     setSelectedRegion(regId);
@@ -454,6 +456,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     setError("");
     if (status === "certified") {
       if (!memberId.trim() && certStack.length === 0) {
+        setFormErrors({ memberId: "Member / Certification ID is mandatory" });
         const msg = "Please enter your Member / Certification ID in Section 2.";
         setError(msg);
         toast(msg, "error", { title: "Mandatory Fields Required" });
@@ -461,6 +464,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         return;
       }
       if (verificationResult?.isFake) {
+        setFormErrors({ memberId: "The entered credential failed authenticity verification" });
         const msg = "The entered credential failed authenticity verification (flagged fake/dummy). Please correct your Member ID or verification link.";
         setError(msg);
         toast(msg, "error", { title: "Invalid Credential" });
@@ -468,6 +472,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         return;
       }
     }
+    setFormErrors({});
 
     setSaving(true);
     try {
@@ -884,6 +889,23 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         .s3-field textarea:focus {
           border-color: var(--gold);
           box-shadow: 0 0 0 3px rgba(245,180,26,.14);
+        }
+
+        /* MANDATORY FIELD ERROR HIGHLIGHTING */
+        .s3-field.has-error input, .s3-field.has-error select, .s3-field.has-error textarea,
+        .has-error input, .has-error select {
+          border: 2px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+        }
+        .field-error-msg {
+          color: #DC2626;
+          font-size: 11.5px;
+          font-weight: 700;
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
         }
 
         /* STATUS CHOICE CARDS (3 Col) */
@@ -1748,7 +1770,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                       <div className="small">Exam fee ({activeCertDetail.inr || "~₹33,500"})</div>
                     </div>
                     <div className="s3-cert-stat">
-                      <div className="big">2 yrs</div>
+                      <div className="big">{activeCertDetail.renewal || "1 year"}</div>
                       <div className="small">Renewal cycle</div>
                     </div>
                   </div>
@@ -1764,7 +1786,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
               {/* Member ID and Verification URL */}
               <div className="s3-row">
-                <div className="s3-field">
+                <div className={`s3-field ${formErrors.memberId ? "has-error" : ""}`}>
                   <label>Step 4a · Member / Cert ID <span className="req">*</span></label>
                   <input
                     type="text"
@@ -1772,10 +1794,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                     value={memberId}
                     onChange={(e) => {
                       setMemberId(e.target.value);
+                      if (formErrors.memberId) setFormErrors((prev) => ({ ...prev, memberId: "" }));
                       if (verificationResult) setVerificationResult(null);
                     }}
                     maxLength={14}
                   />
+                  {formErrors.memberId && (
+                    <div className="field-error-msg">⚠️ {formErrors.memberId}</div>
+                  )}
                   <div className="s3-helper">
                     {bodyData.name || "AAPC"} Member IDs must follow official body formats. Dummy & duplicate IDs are auto-flagged.
                   </div>

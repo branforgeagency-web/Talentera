@@ -4,6 +4,7 @@ import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import AiProctoringScreen from "../AiProctoringScreen.jsx";
+import { getDomainSections, getDomainQuestions, DOMAIN_ASSESSMENT_SECTIONS } from "../../data/domainAssessmentBanks";
 
 // ══════════════════════════════════════════════════════════════════════════
 // 10-QUESTION BANK (4 Universal Sections x 2 Qs + 4 Profile-Adaptive Sets x 2 Qs)
@@ -379,19 +380,38 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
   // Auto-detect domain strictly from Stage 2 data
   const s2 = candidate?.stage2 || {};
-  const s2Domain = s2.domain || s2.courseName || s2.specialty || (Array.isArray(s2.specialties) ? s2.specialties.join(", ") : "") || "Medical Coding";
-  const s2Text = `${s2.domain || ""} ${s2.specialty || ""} ${Array.isArray(s2.specialties) ? s2.specialties.join(" ") : ""} ${s2.courseName || ""}`.toLowerCase();
-  
-  let adaptiveKey = "rcm_compliance";
-  if (s2Text.includes("hcc") || s2Text.includes("risk") || s2Text.includes("e/m") || s2Text.includes("em")) {
-    adaptiveKey = "hcc_em";
-  } else if (s2Text.includes("surg") || s2Text.includes("cpt") || s2Text.includes("modifier") || s2Text.includes("procedural")) {
-    adaptiveKey = "cpt_surgery";
-  } else if (s2Text.includes("inpatient") || s2Text.includes("drg") || s2Text.includes("hospital") || s2Text.includes("pcs")) {
-    adaptiveKey = "inpatient_drg";
-  }
+  const candidateDomain = (() => {
+    const raw = (s2.domain || s2.courseName || s2.specialty || (Array.isArray(s2.specialties) ? s2.specialties.join(", ") : "")).trim().toLowerCase();
+    if (raw.includes("billing")) return "Medical Billing";
+    if (raw.includes("receivable") || raw.includes("ar") || raw.includes("a/r")) return "Accounts Receivable";
+    if (raw.includes("front") || raw.includes("office") || raw.includes("reception")) return "Front Office";
+    return "Medical Coding";
+  })();
 
-  const adaptiveBank = ADAPTIVE_BANKS[adaptiveKey] || ADAPTIVE_BANKS.hcc_em;
+  const s2Domain = candidateDomain;
+  const adaptiveBank = { domainName: candidateDomain };
+
+  const [serverSections, setServerSections] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchDomainQuestions() {
+      try {
+        const res = await api.get(`/candidate/assessment-questions?domain=${encodeURIComponent(candidateDomain)}`);
+        if (isMounted && res.data?.sections && Array.isArray(res.data.sections) && res.data.sections.length > 0) {
+          setServerSections(res.data.sections);
+        }
+      } catch (err) {
+        console.warn("Using offline fallback domain assessment bank:", err.message);
+      }
+    }
+    fetchDomainQuestions();
+    return () => {
+      isMounted = false;
+    };
+  }, [candidateDomain]);
+
+  const domainSections = serverSections || getDomainSections(candidateDomain);
 
   // Derive Stage 3 certification strictly from stage 3 inputs
   const s3 = candidate?.stage3 || {};
@@ -410,15 +430,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     certLabel = `${s3CertCode || certName} Certified${certStatus === "verified" ? " · Verified" : ""}`;
   }
 
-  // Build full 10-question test bank (5 sections x 2 questions)
+  // Build full 10-question test bank (5 sections x 2 questions for this domain)
   const fullTestQuestions = React.useMemo(() => {
-    const list = [];
-    UNIVERSAL_SECTIONS.forEach((sec) => {
-      sec.questions.forEach((q) => list.push(q));
-    });
-    adaptiveBank.questions.forEach((q) => list.push(q));
-    return list;
-  }, [adaptiveBank]);
+    return domainSections.flatMap((sec) => sec.questions || []);
+  }, [domainSections]);
 
   // UI State: 6 Checkbox rules (start fresh without mock pre-fill)
   const [checkedRules, setCheckedRules] = useState([false, false, false, false, false, false]);
@@ -984,50 +999,34 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       }
 
       let totalCorrect = 0;
+      let totalQuestions = 0;
       const sectionScores = [];
 
-      UNIVERSAL_SECTIONS.forEach((sec) => {
+      domainSections.forEach((sec) => {
         let secCorrect = 0;
-        sec.questions.forEach((q) => {
+        const qList = sec.questions || [];
+        qList.forEach((q) => {
+          totalQuestions += 1;
           if (finalAnswers[q.id] === q.correct) {
             secCorrect += 1;
             totalCorrect += 1;
           }
         });
-        const pct = Math.round((secCorrect / sec.questions.length) * 100);
+        const pct = qList.length > 0 ? Math.round((secCorrect / qList.length) * 100) : 0;
         sectionScores.push({
           sectionKey: sec.key,
           sectionName: sec.name,
-          icon: sec.icon,
+          icon: sec.icon || "🎯",
           correct: secCorrect,
-          total: sec.questions.length,
+          total: qList.length,
           score: pct,
           benchmark: 70,
           status: pct >= 70 ? "strong" : "weak",
         });
       });
 
-      let adaptiveCorrect = 0;
-      adaptiveBank.questions.forEach((q) => {
-        if (finalAnswers[q.id] === q.correct) {
-          adaptiveCorrect += 1;
-          totalCorrect += 1;
-        }
-      });
-      const adaptivePct = Math.round((adaptiveCorrect / adaptiveBank.questions.length) * 100);
-      sectionScores.push({
-        sectionKey: "domain_adaptive",
-        sectionName: adaptiveBank.domainName,
-        icon: adaptiveBank.icon,
-        correct: adaptiveCorrect,
-        total: adaptiveBank.questions.length,
-        score: adaptivePct,
-        benchmark: 70,
-        status: adaptivePct >= 70 ? "strong" : "weak",
-      });
-
-      // Overall percentage based on 10 questions
-      const overallPct = Math.round((totalCorrect / 10) * 100);
+      // Overall percentage based on questions answered
+      const overallPct = totalQuestions > 0 ? Math.round((totalCorrect / totalQuestions) * 100) : 0;
       
       let calcPercentile = 68;
       if (overallPct >= 85) calcPercentile = Math.min(99, 85 + Math.round((overallPct - 85) * 0.9));
@@ -1145,13 +1144,14 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   // Section score calculations
   const displaySections = isCompleted && Array.isArray(stage4?.sectionScores) && stage4.sectionScores.length > 0
     ? stage4.sectionScores
-    : [
-        { sectionKey: "anatomy", sectionName: "Anatomy", icon: "🫀", score: isCompleted ? candidateScore : 0, benchmark: 70, status: candidateScore >= 70 ? "strong" : "weak" },
-        { sectionKey: "medterm", sectionName: "Med Terminology", icon: "📖", score: isCompleted ? candidateScore : 0, benchmark: 70, status: candidateScore >= 70 ? "strong" : "weak" },
-        { sectionKey: "aptitude", sectionName: "Aptitude", icon: "🧠", score: isCompleted ? candidateScore : 0, benchmark: 70, status: candidateScore >= 70 ? "strong" : "weak" },
-        { sectionKey: "basicicd", sectionName: "Basic ICD", icon: "📊", score: isCompleted ? candidateScore : 0, benchmark: 70, status: candidateScore >= 70 ? "strong" : "weak" },
-        { sectionKey: "domain_adaptive", sectionName: adaptiveBank.domainName, icon: "🎯", score: isCompleted ? candidateScore : 0, benchmark: 70, status: candidateScore >= 70 ? "strong" : "weak" },
-      ];
+    : domainSections.map((sec) => ({
+        sectionKey: sec.key,
+        sectionName: sec.name,
+        icon: sec.icon || "🎯",
+        score: isCompleted ? candidateScore : 0,
+        benchmark: 70,
+        status: candidateScore >= 70 ? "strong" : "weak",
+      }));
 
   const currentMedal = isCompleted ? (stage4?.medal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : candidateScore >= 50 ? "Bronze" : "Needs Practice")) : "Unattempted";
   const displayPercentile = isCompleted ? (stage4?.percentile || 68) : null;
@@ -1291,7 +1291,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 FROM YOUR STAGE 01-03 · IDENTITY + FOUNDATION + CERTIFICATION
               </div>
               <div style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 800, marginTop: 2 }}>
-                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {s2Domain} · {adaptiveBank.domainName} · {certLabel}
+                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {candidateDomain} · {certLabel}
               </div>
               <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 1, fontStyle: "italic" }}>
                 Talentera has configured your personalized assessment domain based on your previous stage inputs.
@@ -1377,7 +1377,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>What's tested — profile-adaptive</div>
                 </div>
                 <div style={{ fontSize: 12.5, color: "#3A425A", lineHeight: 1.55 }}>
-                  4 universal sections (Anatomy · Med Term · Aptitude · Basic ICD) + 1 domain-adaptive section auto-pulled from your Stage 02 ({adaptiveBank.domainName} in your case).
+                  5 tailored sections for {candidateDomain} ({domainSections.map((s) => s.name).join(" · ")}).
                 </div>
               </div>
 
@@ -1770,9 +1770,9 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {UNIVERSAL_SECTIONS.map((sec) => (
+              {domainSections.map((sec, idx) => (
                 <div
-                  key={sec.key}
+                  key={sec.key || idx}
                   style={{
                     background: "#FFFFFF",
                     border: "1.5px solid #E5E7EB",
@@ -1785,46 +1785,19 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   }}
                 >
                   <div style={{ width: 40, height: 40, background: "var(--navy)", color: "var(--gold)", borderRadius: 10, display: "grid", placeItems: "center", fontSize: 18 }}>
-                    {sec.icon}
+                    {sec.icon || "🎯"}
                   </div>
                   <div>
                     <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13.5 }}>{sec.name}</div>
                     <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 1 }}>{sec.sub}</div>
                   </div>
                   <span style={{ background: "#FFF6E0", color: "#C99413", padding: "3px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
-                    Universal
+                    {candidateDomain}
                   </span>
-                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13 }}>2 Qs</div>
-                  <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 700 }}>{sec.time}</div>
+                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13 }}>{sec.questions?.length || 2} Qs</div>
+                  <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 700 }}>{sec.time || "4 min"}</div>
                 </div>
               ))}
-
-              {/* ADAPTIVE SECTION */}
-              <div
-                style={{
-                  background: "linear-gradient(135deg, #FFF6E0, #FFFBEA)",
-                  border: "1.5px solid var(--gold)",
-                  borderRadius: 12,
-                  padding: "12px 16px",
-                  display: "grid",
-                  gridTemplateColumns: "40px 1fr auto auto auto",
-                  gap: 14,
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ width: 40, height: 40, background: "var(--gold)", color: "var(--navy)", borderRadius: 10, display: "grid", placeItems: "center", fontSize: 18 }}>
-                  {adaptiveBank.icon}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13.5 }}>{adaptiveBank.title}</div>
-                  <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 1 }}>{adaptiveBank.sub}</div>
-                </div>
-                <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "3px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
-                  Adaptive
-                </span>
-                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13 }}>2 Qs</div>
-                <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 700 }}>{adaptiveBank.time}</div>
-              </div>
 
               {/* TOTAL ROW */}
               <div style={{ background: "var(--navy)", color: "#FFFFFF", padding: "12px 18px", borderRadius: 12, display: "grid", gridTemplateColumns: "1fr auto auto", gap: 14, alignItems: "center", marginTop: 4 }}>
@@ -2425,7 +2398,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
           questions={fullTestQuestions}
           candidateName={candidateName}
           candidateRole={candidateRole}
-          domainTitle={adaptiveBank.domainName}
+          domainTitle={candidateDomain}
           timeLimitSeconds={20 * 60}
           initialAnswers={userAnswers}
           onSubmit={handleAutoSubmit}

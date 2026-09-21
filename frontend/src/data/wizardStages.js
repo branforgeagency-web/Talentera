@@ -333,6 +333,42 @@ export const STAGE_POINTS = WIZARD_STAGES.reduce((acc, s) => {
 
 export const GOLD_BADGE_THRESHOLD = 75;
 
-export function getStage(num) {
-  return WIZARD_STAGES.find((s) => s.num === num);
+// A candidate counts as self-trained when Stage 2 says so in ANY of these ways: they chose the
+// self-trained path, picked the "Non-Trained" level, or named a self-learning source instead of an academy.
+const SELF_SOURCE_RE = /self[\s-]?(learning|study|taught|trained)|youtube|udemy|coursera|\bedx\b|online course|aapc official|ahima study|blogs?,? forums|on-the-job/i;
+
+export function isSelfTrainedCandidate(candidate) {
+  if (!candidate) return false;
+  const s2 = candidate.stage2 || {};
+  const level = String(s2.trainingLevel || s2.level || "");
+  const source = String(s2.selfLearningSource || s2.academyName || s2.instituteName || "");
+  return Boolean(
+    s2.trainingPath === "self" ||
+    s2.isSelfTrained ||
+    s2.trainingType === "self" ||
+    candidate.trainingPath === "self" ||
+    candidate.isSelfTrained ||
+    s2.selfLearningSource ||
+    /non[\s-]?trained/i.test(level) ||
+    SELF_SOURCE_RE.test(source)
+  );
+}
+
+export function getWizardStages(candidate) {
+  const isSelf = isSelfTrainedCandidate(candidate);
+  return RAW_WIZARD_STAGES.map((s) => {
+    const isStage6Optional = s.num === 6 && isSelf;
+    const isSkippable = SKIPPABLE_STAGE_NUMS.includes(s.num) || isStage6Optional;
+    return {
+      ...s,
+      mandatory: !isSkippable,
+      skippable: isSkippable,
+      isOptional: isStage6Optional,
+    };
+  });
+}
+
+export function getStage(num, candidate) {
+  const list = candidate ? getWizardStages(candidate) : WIZARD_STAGES;
+  return list.find((s) => s.num === num);
 }

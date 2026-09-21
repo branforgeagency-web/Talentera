@@ -251,7 +251,7 @@ export default function CompanyPortal() {
               color: isVerifiedCompany ? "#4ADE80" : "#FBBF24"
             }}
           >
-            <span>{isVerifiedCompany ? "✓" : "🔒"}</span>
+            <span>{isVerifiedCompany ? <i className="fa-solid fa-check"></i> : <i className="fa-solid fa-lock"></i>}</span>
             <span>{isVerifiedCompany ? "Verified Company" : "Unverified Account"}</span>
           </div>
 
@@ -272,7 +272,7 @@ export default function CompanyPortal() {
               textTransform: "uppercase",
             }}
           >
-            <span>{companyPlan === "enterprise" ? "💎" : companyPlan === "growth" ? "⚡" : "🌱"}</span>
+            <span>{companyPlan === "enterprise" ? <i className="fa-solid fa-gem" style={{ color: "#8B5CF6" }}></i> : companyPlan === "growth" ? <i className="fa-solid fa-bolt" style={{ color: "#3B82F6" }}></i> : <i className="fa-solid fa-seedling" style={{ color: "#10B981" }}></i>}</span>
             <span>{companyPlan} Tier</span>
           </Link>
 
@@ -339,8 +339,8 @@ export default function CompanyPortal() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                🔒
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#D97706" }}>
+                <i className="fa-solid fa-lock"></i>
               </div>
               <div>
                 <strong style={{ fontSize: 14.5, color: "#92400E", letterSpacing: "0.02em" }}>
@@ -386,8 +386,8 @@ export default function CompanyPortal() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                ✓
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#16A34A" }}>
+                <i className="fa-solid fa-check"></i>
               </div>
               <div>
                 <strong style={{ fontSize: 14, color: "#15803D" }}>
@@ -419,8 +419,8 @@ export default function CompanyPortal() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>
-                ⚡
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#2563EB" }}>
+                <i className="fa-solid fa-bolt"></i>
               </div>
               <div>
                 <strong style={{ fontSize: 14.5, color: "#1E40AF", letterSpacing: "0.02em" }}>
@@ -476,7 +476,7 @@ export default function CompanyPortal() {
             {companyPlan === "free" && (
               <div style={{ background: "#EFF6FF", border: "1.5px solid #3B82F6", borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: "#1E40AF", display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>🔒</span> FILTERING LOCKED (FREE TIER)
+                  <span><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i></span> FILTERING LOCKED (FREE TIER)
                 </div>
                 <div style={{ fontSize: 11.5, color: "#1D4ED8", marginTop: 4, lineHeight: 1.4 }}>
                   Upgrade to Growth Tier (₹4,999/mo) to filter by minimum verification score, experience, and domain.
@@ -507,7 +507,7 @@ export default function CompanyPortal() {
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "#64748B" }}>
                 <span>MIN VERIFICATION SCORE</span>
                 <span style={{ color: "var(--navy)", fontFamily: "var(--font-mono)" }}>
-                  {companyPlan === "free" ? "🔒 Locked" : `${minScore}/100`}
+                  {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</> : `${minScore}/100`}
                 </span>
               </div>
               <input
@@ -614,7 +614,7 @@ export default function CompanyPortal() {
                 }}
               >
                 <span style={{ color: "#94A3B8" }}>
-                  {companyPlan === "free" ? "🔒" : <i className="fa-solid fa-magnifying-glass"></i>}
+                  {companyPlan === "free" ? <i className="fa-solid fa-lock"></i> : <i className="fa-solid fa-magnifying-glass"></i>}
                 </span>
                 <input
                   type="text"
@@ -674,10 +674,10 @@ export default function CompanyPortal() {
               </h3>
               <div style={{ fontSize: 12, color: "#64748B" }}>
                 {companyPlan === "free"
-                  ? "🔒 Candidate Scores Locked (Free Tier)"
+                  ? "Candidate Scores Locked (Free Tier)"
                   : isVerifiedCompany
-                  ? "🔓 Full Profile & Direct Contacts Unlocked"
-                  : "🔒 Contacts Masked (Unverified Account)"}
+                  ? "Full Profile & Direct Contacts Unlocked"
+                  : "Contacts Masked (Unverified Account)"}
               </div>
             </div>
 
@@ -686,7 +686,7 @@ export default function CompanyPortal() {
               <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>Loading verified candidate database...</div>
             ) : loadError ? (
               <div style={{ background: "#FEF2F2", borderRadius: 12, padding: 40, textAlign: "center", border: "1px dashed #FCA5A5" }}>
-                <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
+                <div style={{ fontSize: 32, marginBottom: 12, color: "#F59E0B" }}><i className="fa-solid fa-triangle-exclamation"></i></div>
                 <h4 style={{ color: "#B91C1C" }}>{loadError}</h4>
                 <button
                   onClick={() => { setLoading(true); fetchCandidates(); }}
@@ -728,14 +728,14 @@ export default function CompanyPortal() {
                         </div>
                         <div>
                           <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, color: "var(--navy)", display: "flex", alignItems: "center", gap: 6 }}>
-                            {c.name} {c.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 14 }} title="Aadhaar Verified">✓</span>}
+                            {c.name} {c.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 14 }} title="Aadhaar Verified"><i className="fa-solid fa-check"></i></span>}
                           </div>
                           <div style={{ fontSize: 12, color: "#64748B" }}>{c.currentRole || "Role not specified"}{c.experience ? ` • ${c.experience} yrs` : ""}</div>
                         </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: (companyPlan === "free" || c.verificationScore == null) ? 17 : 24, color: "var(--navy)", lineHeight: 1 }}>
-                          {companyPlan === "free" || c.verificationScore == null ? "🔒 Locked" : c.verificationScore}
+                          {companyPlan === "free" || c.verificationScore == null ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</> : c.verificationScore}
                         </div>
                         <div style={{ fontSize: 9, color: companyPlan === "free" ? "#94A3B8" : "var(--gold)", fontWeight: 800, letterSpacing: "0.06em", marginTop: 3 }}>
                           {companyPlan === "free" ? "GROWTH TIER" : c.badgeLabel}
@@ -758,25 +758,25 @@ export default function CompanyPortal() {
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ color: isVerifiedCompany ? "#166534" : "#92400E", fontWeight: 600 }}>
-                          📧 {isVerifiedCompany ? c.email : maskEmail(c.email)}
+                          <><i className="fa-solid fa-envelope" style={{ marginRight: 6, color: "#64748B" }}></i> {isVerifiedCompany ? c.email : maskEmail(c.email)}</>
                         </span>
                         {!isVerifiedCompany && <span style={{ fontSize: 10, background: "#F59E0B", color: "#fff", padding: "1px 5px", borderRadius: 4, fontWeight: 700 }}>LOCKED</span>}
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ color: isVerifiedCompany ? "#166534" : "#92400E", fontWeight: 600 }}>
-                          📞 {isVerifiedCompany ? c.mobile : maskMobile(c.mobile)}
+                          <><i className="fa-solid fa-phone" style={{ marginRight: 6, color: "#64748B" }}></i> {isVerifiedCompany ? c.mobile : maskMobile(c.mobile)}</>
                         </span>
-                        {isVerifiedCompany && <span style={{ fontSize: 10, color: "#15803D", fontWeight: 700 }}>✓ Verified</span>}
+                        {isVerifiedCompany && <span style={{ fontSize: 10, color: "#15803D", fontWeight: 700 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 3 }}></i> Verified</span>}
                       </div>
                     </div>
 
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.15)", color: "#92400E", fontWeight: 700 }}>
-                        📍 {c.city || "Location not specified"}
+                        <><i className="fa-solid fa-location-dot" style={{ marginRight: 6, color: "#64748B" }}></i> {c.city || "Location not specified"}</>
                       </span>
                       {companyPlan === "free" ? (
                         <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700 }}>
-                          🔒 Verified Audit (Growth Tier)
+                          <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Verified Audit (Growth Tier)</>
                         </span>
                       ) : (
                         <>
@@ -794,7 +794,7 @@ export default function CompanyPortal() {
                       )}
                       {c.videoUrl && (
                         <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.18)", color: "#B45309", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                          <i className="fa-solid fa-video" style={{ fontSize: 10 }}></i> Video Intro ✓
+                          <i className="fa-solid fa-video" style={{ fontSize: 10 }}></i> Video Intro <i className="fa-solid fa-check" style={{ marginLeft: 3 }}></i>
                         </span>
                       )}
                     </div>
@@ -821,7 +821,7 @@ export default function CompanyPortal() {
                           gap: 4,
                         }}
                       >
-                        {isVerifiedCompany ? "📞 Contact Candidate" : "🔒 Unlock Contact"}
+                        {isVerifiedCompany ? <><i className="fa-solid fa-phone" style={{ marginRight: 6 }}></i> Contact Candidate</> : <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> Unlock Contact</>}
                       </button>
 
                       <button
@@ -837,7 +837,7 @@ export default function CompanyPortal() {
                           cursor: "pointer",
                         }}
                       >
-                        {companyPlan === "free" ? "🔒 Shortlist" : shortlistedIds.includes(c.id) ? "Shortlisted ✓" : "Shortlist"}
+                        {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist</> : shortlistedIds.includes(c.id) ? "Shortlisted" : "Shortlist"}
                       </button>
                     </div>
                   </div>
@@ -869,7 +869,7 @@ export default function CompanyPortal() {
               {companyPlan === "free" && (
                 <div style={{ background: "#EFF6FF", border: "1px solid #3B82F6", borderRadius: 8, padding: "10px 16px", marginBottom: 16, marginRight: 36, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <span style={{ fontSize: 13, color: "#1E40AF", fontWeight: 700 }}>
-                    🔒 Candidate Assessment Scores, Live Chart Audits &amp; AAPC Certifications Locked on Free Tier
+                    <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> Candidate Assessment Scores, Live Chart Audits & AAPC Certifications Locked on Free Tier</>
                   </span>
                   <button
                     style={{ background: "#1D4ED8", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
@@ -884,7 +884,7 @@ export default function CompanyPortal() {
               {!isVerifiedCompany ? (
                 <div style={{ background: "#FFFBEB", border: "1px solid #F59E0B", borderRadius: 8, padding: "10px 16px", marginBottom: 20, marginRight: 36, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ fontSize: 13, color: "#92400E", fontWeight: 700 }}>
-                    🔒 Candidate Contacts &amp; Full Profile Gated (Unverified Company)
+                    <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> Candidate Contacts & Full Profile Gated (Unverified Company)</>
                   </span>
                   <button
                     style={{ background: "#D97706", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
@@ -895,7 +895,7 @@ export default function CompanyPortal() {
                 </div>
               ) : (
                 <div style={{ background: "#F0FDF4", border: "1px solid #22C55E", borderRadius: 8, padding: "10px 16px", marginBottom: 20, marginRight: 36, display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ color: "#15803D", fontWeight: 800 }}>✓</span>
+                  <span style={{ color: "#15803D", fontWeight: 800 }}><i className="fa-solid fa-check"></i></span>
                   <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>
                     Full Candidate Profile &amp; Direct Contact Details Unlocked for Verified Company
                   </span>
@@ -909,7 +909,7 @@ export default function CompanyPortal() {
                   </div>
                   <div>
                     <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800, margin: 0 }}>
-                      {selectedCandidate.name} {selectedCandidate.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 18 }} title="Aadhaar Verified">✓ Aadhaar Verified</span>}
+                      {selectedCandidate.name} {selectedCandidate.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 18 }} title="Aadhaar Verified"><i className="fa-solid fa-shield-halved" style={{ marginRight: 4 }}></i> Aadhaar Verified</span>}
                     </h2>
                     <div style={{ fontSize: 14, color: "#64748B" }}>{selectedCandidate.currentRole || "Role not specified"}{selectedCandidate.city ? ` • ${selectedCandidate.city}` : ""}</div>
                   </div>
@@ -917,7 +917,7 @@ export default function CompanyPortal() {
 
                 <div style={{ background: "rgba(229,168,46,0.15)", padding: "10px 16px", borderRadius: 10, textAlign: "center" }}>
                   <div style={{ fontFamily: "var(--font-display)", fontSize: (companyPlan === "free" || selectedCandidate.verificationScore == null) ? 19 : 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-                    {companyPlan === "free" || selectedCandidate.verificationScore == null ? "🔒 Locked" : `${selectedCandidate.verificationScore}/100`}
+                    {companyPlan === "free" || selectedCandidate.verificationScore == null ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</> : `${selectedCandidate.verificationScore}/100`}
                   </div>
                   <div style={{ fontSize: 10, fontWeight: 800, color: "var(--gold)", letterSpacing: "0.06em", marginTop: 4 }}>
                     {companyPlan === "free" ? "GROWTH TIER" : selectedCandidate.badgeLabel}
@@ -936,7 +936,7 @@ export default function CompanyPortal() {
                 }}
               >
                 <h4 style={{ fontSize: 12, fontWeight: 800, color: isVerifiedCompany ? "#166534" : "#475569", letterSpacing: "0.08em", marginBottom: 8, margin: 0 }}>
-                  {isVerifiedCompany ? "🔓 UNLOCKED CANDIDATE CONTACT DETAILS" : "🔒 CANDIDATE CONTACT DETAILS (GATED)"}
+                  {isVerifiedCompany ? <><i className="fa-solid fa-lock-open" style={{ marginRight: 6 }}></i> UNLOCKED CANDIDATE CONTACT DETAILS</> : <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> CANDIDATE CONTACT DETAILS (GATED)</>}
                 </h4>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10, fontSize: 13.5 }}>
                   <div>
@@ -944,14 +944,14 @@ export default function CompanyPortal() {
                     <span style={{ color: "var(--navy)", fontWeight: 700 }}>
                       {isVerifiedCompany ? selectedCandidate.email : maskEmail(selectedCandidate.email)}
                     </span>
-                    {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}>🔒 Locked</span>}
+                    {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</span>}
                   </div>
                   <div>
                     <strong style={{ color: "#64748B" }}>MOBILE NUMBER: </strong>
                     <span style={{ color: "var(--navy)", fontWeight: 700 }}>
                       {isVerifiedCompany ? (selectedCandidate.mobile || "Not provided") : maskMobile(selectedCandidate.mobile)}
                     </span>
-                    {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}>🔒 Locked</span>}
+                    {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</span>}
                   </div>
                   <div>
                     <strong style={{ color: "#64748B" }}>AVAILABILITY / NOTICE: </strong>
@@ -968,10 +968,10 @@ export default function CompanyPortal() {
               <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 16, marginBottom: 20 }}>
                 <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em", marginBottom: 10, margin: 0 }}>VERIFICATION AUDIT BREAKDOWN</h4>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, marginTop: 10 }}>
-                  <div>{selectedCandidate.aadhaarVerified ? (<>✓ Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
-                  <div>✓ Academy Claim: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : (selectedCandidate.academyName || "Not claimed")}</strong></div>
-                  <div>✓ Proctored Test: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.assessmentScore != null ? `${selectedCandidate.assessmentScore}% Score` : "Not yet completed"}</strong></div>
-                  <div>✓ Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? "🔒 Locked (Free Tier)" : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited ?? 0} Charts)` : "Not yet completed"}</strong></div>
+                  <div>{selectedCandidate.aadhaarVerified ? (<><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
+                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Academy Claim: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : (selectedCandidate.academyName || "Not claimed")}</strong></div>
+                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Proctored Test: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : selectedCandidate.assessmentScore != null ? `${selectedCandidate.assessmentScore}% Score` : "Not yet completed"}</strong></div>
+                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited ?? 0} Charts)` : "Not yet completed"}</strong></div>
                   {companyPlan !== "free" && selectedCandidate.chartTier && (
                     <div>Chart Rating: <strong style={{ color: "#15803D" }}>{selectedCandidate.chartTier} Tier</strong> <span style={{ color: "#94A3B8", fontWeight: 600 }}>({selectedCandidate.chartsVerified ? (selectedCandidate.chartsVerificationMethod || "Verified") : "Self-Reported, pending review"})</span></div>
                   )}
@@ -987,7 +987,7 @@ export default function CompanyPortal() {
                   </h4>
                   {selectedCandidate.videoUrl && (
                     <span style={{ fontSize: 11, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "2px 8px", borderRadius: 999 }}>
-                      ✓ Video Recorded
+                      <><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Video Recorded</>
                     </span>
                   )}
                 </div>
@@ -1003,7 +1003,7 @@ export default function CompanyPortal() {
                       <span>Recorded on Talentera Single-Take Assessment Platform</span>
                       {selectedCandidate.stage5Score !== null && selectedCandidate.stage5Score !== undefined && (
                         <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>
-                          AI Communication Score: {companyPlan === "free" ? "🔒 Locked (Growth Tier)" : `${selectedCandidate.stage5Score}%`}
+                          AI Communication Score: {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Growth Tier)</> : `${selectedCandidate.stage5Score}%`}
                         </strong>
                       )}
                     </div>
@@ -1044,7 +1044,7 @@ export default function CompanyPortal() {
                   }}
                   onClick={() => toggleShortlist(selectedCandidate.id)}
                 >
-                  {companyPlan === "free" ? "🔒 Shortlist (Growth Tier)" : shortlistedIds.includes(selectedCandidate.id) ? "Shortlisted ✓" : "+ Shortlist Profile"}
+                  {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist (Growth Tier)</> : shortlistedIds.includes(selectedCandidate.id) ? <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Shortlisted</> : "+ Shortlist Profile"}
                 </button>
 
                 <Link
@@ -1077,15 +1077,13 @@ export default function CompanyPortal() {
             </button>
             <div style={{ padding: 28 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, paddingRight: 36 }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                  📞
-                </div>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fa-solid fa-phone"></i></div>
                 <div>
                   <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800 }}>
                     Contact {contactCandidateModal.name}
                   </h3>
                   <div style={{ fontSize: 12, color: "#15803D", fontWeight: 700 }}>
-                    ✓ Verified Company Direct Access
+                    <><i className="fa-solid fa-circle-check" style={{ marginRight: 4 }}></i> Verified Company Direct Access</>
                   </div>
                 </div>
               </div>
@@ -1161,9 +1159,7 @@ export default function CompanyPortal() {
               </svg>
             </button>
             <div style={{ padding: 28, textAlign: "center" }}>
-              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF3C7", color: "#D97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
-                🔒
-              </div>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF3C7", color: "#D97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 16px" }}><i className="fa-solid fa-lock"></i></div>
               <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "var(--navy)" }}>
                 Account Verification Required
               </h3>
@@ -1219,9 +1215,7 @@ export default function CompanyPortal() {
               </svg>
             </button>
             <div style={{ padding: 28, textAlign: "center" }}>
-              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EFF6FF", color: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
-                ⚡
-              </div>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EFF6FF", color: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 16px" }}><i className="fa-solid fa-bolt"></i></div>
               <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "var(--navy)" }}>
                 Upgrade to Growth Tier
               </h3>
