@@ -137,10 +137,8 @@ function computePageSlices(totalHeight, firstCap, nextCap, regions) {
   const tol = 2;
   const slices = [];
   let y = 0;
-  let page = 0;
-  while (true) {
-    const cap = page === 0 ? firstCap : nextCap;
-    if (totalHeight - y <= cap + tol) break;
+  let cap = firstCap;
+  while (totalHeight - y > cap + tol) {
     const minFill = cap * 0.6;
     const limit = y + cap;
     let cut = limit;
@@ -155,7 +153,7 @@ function computePageSlices(totalHeight, firstCap, nextCap, regions) {
     }
     slices.push([y, cut]);
     y = cut;
-    page++;
+    cap = nextCap;
   }
   slices.push([y, totalHeight]);
   return slices;
