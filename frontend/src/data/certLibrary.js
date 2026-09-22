@@ -32,6 +32,20 @@ function cert(code, name, opts = {}) {
   };
 }
 
+// Turns a passingScore string ("70% (70 out of 100 questions)", "300 out of 400 (scaled score)", ...)
+// into a short display label like "70%" for the cert card's passing-percentage stat.
+export function passingPercentLabel(passingScore) {
+  if (!passingScore) return "70%";
+  const pctMatch = passingScore.match(/(\d+)%/);
+  if (pctMatch) return `${pctMatch[1]}%`;
+  const ratioMatch = passingScore.match(/(\d+)\s*(?:out of|\/)\s*(\d+)/i);
+  if (ratioMatch) {
+    const pct = Math.round((Number(ratioMatch[1]) / Number(ratioMatch[2])) * 100);
+    return `${pct}%`;
+  }
+  return passingScore;
+}
+
 export const CERT_LIBRARY = {
   aapc: {
     key: "aapc",

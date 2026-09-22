@@ -5,6 +5,7 @@ import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
 import { joinUnique } from "../../utils/resumeSubtitle.js";
 import { getMedalTier, medalLabel, medalBadgeStyle } from "../../utils/medalBadge.js";
+import { buildResumeSkills, buildDeclarationText } from "../../utils/resumeSkills.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
 // Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
@@ -131,10 +132,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Candidate basics directly from database
   const fullName = stage1.fullName || candidateObj.name || (candidateObj.email ? candidateObj.email.split("@")[0] : "Talentera Candidate");
-  const isExperienced = String(stage1.experience || candidateObj.experience || "").toLowerCase().includes("exp") || (typeof stage1.experience === "number" && stage1.experience > 0) || (parseInt(stage1.experience, 10) > 0);
-  const expLabel = isExperienced ? `${stage1.experience} Years Exp` : "Fresher";
+  // Default to Fresher unless explicitly "Experienced" - matches getExperienceLevel() in utils/careerObjective.js
+  // and Stage2Training.jsx's isFresherCandidate (a legacy "1-3" years-range placeholder must not read as Experienced).
+  const isExperienced = /exp/i.test(String(stage1.experience || candidateObj.experience || ""));
+  const expLabel = isExperienced ? (stage2.totalExperience || "Experienced") : "Fresher";
   const domainName = stage2.domain || stage2.courseName || stage2.specialty || "Medical Coding";
-  const currentRoleTitle = stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist");
+  const currentRoleTitle = isExperienced
+    ? (stage2.jobTitle || stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist"))
+    : (domainName ? `${domainName} Professional` : "Medical Coding Specialist");
   
   // Locality & Contact from Stage 1
   const city = stage1.city || "";
@@ -156,7 +161,17 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     ? stage2.specialties.join(" + ")
     : (stage2.specialty || domainName || "Medical Coding");
   const trainingDuration = stage2.duration || stage2.totalHours ? `${stage2.duration || "Course Completed"}${stage2.totalHours ? ` · ${stage2.totalHours} hours` : ""}` : "Course Completed";
+  // // Accounts Receivable and Eligibility & Verification candidates don't pick a coding specialty (Stage 2 hides that field for them), so trainingSpecialties for them is only ever the placeholder fallback (e.g. "Eligibility & Verification General") - showing it alongside the domain and level was redundant/confusing. For those two domains, show the domain and a labeled training level instead.
+  const NO_SPECIALTY_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+  const trainingFoundationLine = NO_SPECIALTY_DOMAINS.includes(domainName)
+    ? `${domainName}${trainingLevel ? ` · Training level: ${trainingLevel}` : ""}`
+    : `${domainName} · ${trainingLevel} · ${trainingSpecialties}`;
   const trainingAssessmentScore = stage2.assessmentScore || stage2.score || null;
+  // Experienced-candidate work history (Stage 2 · "Your Work Experience")
+  const workCompany = stage2.currentCompany || "";
+  const workProjectDetails = stage2.projectDetails || "";
+  const workTotalExperience = stage2.totalExperience || "";
+  const workNoticePeriod = stage2.noticePeriod || "";
 
   // Stage 3 Certifications from Database
   const isNonCertified = stage3.nonCertified || stage3.isCertified === false || stage3.certType === "non-certified";
@@ -178,6 +193,15 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     }
     return [];
   }, [stage3, isNonCertified]);
+
+  // Skills chips + declaration paragraph - generated from the candidate's own domain,
+  // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
+  const resumeSkills = useMemo(
+    () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
+    [stage2.domain, domainName, stage2.specialties, isNonCertified]
+  );
+  const declarationText = useMemo(() => buildDeclarationText({ fullName, city }), [fullName, city]);
+  const declarationDate = useMemo(() => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), []);
 
   // Stage 4 Assessment from Database
   const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : null);
@@ -372,9 +396,11 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       domain: domainName,
       trainingLevel,
       specialties: Array.isArray(stage2.specialties) && stage2.specialties.length > 0 ? stage2.specialties.slice(0, 3).join(", ") : (stage2.specialty || (specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName)),
-      roleTitle: stage1.currentRole || "",
+      roleTitle: stage2.jobTitle || stage1.currentRole || "",
       academyName,
       assessmentScore,
+      currentCompany: stage2.currentCompany || "",
+      projectDetails: stage2.projectDetails || "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore, trainingLevel, stage2]);
@@ -539,6 +565,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         trainingDuration,
         trainingAssessmentScore,
         specialtyCharts,
+        specialties: stage2.specialties,
+        isNonCertified,
+        city,
+        isExperienced,
+        workCompany,
+        workProjectDetails,
+        workTotalExperience,
+        workNoticePeriod,
         selectedPlatforms,
         degree,
         collegeName,
@@ -575,7 +609,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       `LIVE VERIFICATION URL: ${liveResumeUrl}`,
       "",
       "------------------------------------------------------------------",
-      "CAREER OBJECTIVE",
+      isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
       "------------------------------------------------------------------",
       careerObjective,
       "",
@@ -607,11 +641,25 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       `* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}`,
       twelfthSchool ? `* Class XII: ${twelfthSchool} (${twelfthYear}) ${twelfthScore ? `- ${twelfthScore}` : ""}` : "",
       "",
+      resumeSkills.length > 0 ? [
+        "------------------------------------------------------------------",
+        "SKILLS",
+        "------------------------------------------------------------------",
+        `* ${resumeSkills.join(" | ")}`,
+        ""
+      ].join("\n") : "",
       "------------------------------------------------------------------",
       "WORK PREFERENCES",
       "------------------------------------------------------------------",
       `* Locations: ${preferredCities}`,
       `* Relocation: ${relocationPref} | Availability: Immediate | Shifts: ${shiftPreference}`,
+      "",
+      "------------------------------------------------------------------",
+      "DECLARATION",
+      "------------------------------------------------------------------",
+      declarationText,
+      `Place: ${city || locality} | Date: ${declarationDate}`,
+      fullName,
       "",
       "==================================================================",
       `Verified by Talentera Automated Credential Engine | Live at ${liveResumeUrl}`,
@@ -1804,7 +1852,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               </div>
 
               {/* Career Objective */}
-              <div className="s7-resume-sec-title">🎯 Career Objective</div>
+              <div className="s7-resume-sec-title">🎯 {isExperienced ? "Professional Summary" : "Career Objective"}</div>
               <div className="s7-resume-obj">
                 "{careerObjective}"
               </div>
@@ -1855,7 +1903,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-sec-title">🎓 Training Foundation</div>
               <div className="s7-r-block">
                 <div className="k">{academyName}{academyLocality ? ` · ${academyLocality}` : ""}</div>
-                <div className="v">{domainName} · {trainingLevel} · {trainingSpecialties}</div>
+                <div className="v">{trainingFoundationLine}</div>
                 <div className="details">{trainingDuration} · Classroom{trainingAssessmentScore ? ` · Assessment: ${trainingAssessmentScore}/100` : ""} · 🟢 Academy-Verified</div>
               </div>
 
@@ -1932,12 +1980,39 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 )}
               </div>
 
+              {/* Skills */}
+              {resumeSkills.length > 0 && (
+                <>
+                  <div className="s7-resume-sec-title">🛠 Skills</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                    {resumeSkills.map((skill) => (
+                      <span key={skill} style={{ background: "#FAFAF7", border: "1px solid #E5E7EB", borderRadius: 999, padding: "5px 12px", fontSize: 11.5, fontWeight: 700, color: "#0F1B3D" }}>
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+
               {/* Work Preferences */}
               <div className="s7-resume-sec-title">📍 Work Preferences</div>
               <div style={{ fontSize: 12, color: "#0F1B3D", lineHeight: 1.7, marginTop: 4 }}>
                 <b>Cities open to:</b> {preferredCities}<br />
                 <b>Relocation:</b> {relocationPref} · <b>Availability:</b> Immediately<br />
                 <b>Shifts:</b> {shiftPreference} · <b>Trainee-role open:</b> Yes
+              </div>
+
+              {/* Declaration */}
+              <div className="s7-resume-sec-title">🖊 Declaration</div>
+              <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
+                {declarationText}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 11.5, color: "#0F1B3D" }}>
+                <div>Place: {city || locality}</div>
+                <div>Date: {declarationDate}</div>
+              </div>
+              <div style={{ textAlign: "right", marginTop: 8, fontSize: 12.5, fontWeight: 800, color: "#0F1B3D" }}>
+                {fullName}
               </div>
 
               {/* Watermark & Cryptographic Footer */}
@@ -2127,7 +2202,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 </div>
               </div>
 
-              <div className="s7-resume-sec-title">🎯 Career Objective</div>
+              <div className="s7-resume-sec-title">🎯 {isExperienced ? "Professional Summary" : "Career Objective"}</div>
               <div className="s7-resume-obj">"{careerObjective}"</div>
 
               <div className="s7-resume-sec-title">🏆 Talentera Verified Scorecard</div>
@@ -2156,7 +2231,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-sec-title">🎓 Training Foundation</div>
               <div className="s7-r-block">
                 <div className="k">{academyName}{academyLocality ? ` · ${academyLocality}` : ""}</div>
-                <div className="v">{domainName} · {trainingLevel} · {trainingSpecialties}</div>
+                <div className="v">{trainingFoundationLine}</div>
                 <div className="details">{trainingDuration} · Classroom{trainingAssessmentScore ? ` · Assessment: ${trainingAssessmentScore}/100` : ""} · 🟢 Academy-Verified</div>
               </div>
 
@@ -2197,6 +2272,31 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                     <div className="details">{twelfthScore}</div>
                   </div>
                 )}
+              </div>
+
+              {resumeSkills.length > 0 && (
+                <>
+                  <div className="s7-resume-sec-title">🛠 Skills</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+                    {resumeSkills.map((skill) => (
+                      <span key={skill} style={{ background: "#FAFAF7", border: "1px solid #E5E7EB", borderRadius: 999, padding: "5px 12px", fontSize: 11.5, fontWeight: 700, color: "#0F1B3D" }}>
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <div className="s7-resume-sec-title">🖊 Declaration</div>
+              <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
+                {declarationText}
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 11.5, color: "#0F1B3D" }}>
+                <div>Place: {city || locality}</div>
+                <div>Date: {declarationDate}</div>
+              </div>
+              <div style={{ textAlign: "right", marginTop: 8, fontSize: 12.5, fontWeight: 800, color: "#0F1B3D" }}>
+                {fullName}
               </div>
             </div>
           </div>

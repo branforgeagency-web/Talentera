@@ -155,6 +155,13 @@ async function buildFreshAiInterviewSession(candidate) {
     questionRecords: [],
     currentQuestionIndex: 0,
     followUpCountForCurrent: 0,
+    // Count of candidate ("user") transcript messages the Vapi webhook has already
+    // turned into a recorded answer - see routes/vapiInterview.js. Used to tell a
+    // genuinely new spoken answer apart from Vapi re-delivering (retrying) the same
+    // webhook call, which can carry a slightly re-transcribed (not byte-identical)
+    // copy of an answer already processed and would otherwise be treated as a new
+    // one - silently skipping the next question.
+    lastProcessedUserCount: 0,
     proctorLogs: { tabSwitches: 0, focusLosses: 0 },
     startedAt: new Date(),
     endedAt: null,

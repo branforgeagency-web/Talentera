@@ -3,6 +3,7 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { isSelfTrainedCandidate } from "../../data/wizardStages.js";
+import { getExperienceLevel } from "../../utils/careerObjective.js";
 import { computeStage6Result, EVIDENCE_LABELS, STAGE6_MAX_POINTS } from "../../utils/stage6Score.js";
 
 /**
@@ -24,6 +25,10 @@ const PLATFORM_CATEGORIES = [
   },
   { category: "dental", title: "DENTAL PLATFORMS", icon: "fa-solid fa-tooth", platforms: ["Dentrix", "Eaglesoft", "Curve Dental", "Open Dental"] },
 ];
+
+// Real production EHR/EMR systems a fresher would not yet have account access to -
+// these stay in the list for experienced candidates only (Stage 1 experience > 0).
+const EXPERIENCED_ONLY_PLATFORMS = ["Kareo", "DrChrono", "AdvancedMD"];
 
 const getPaths = (isSelfTrained) => [
   { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% credit", badge: "Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F", dotColor: "#EAB308" },
@@ -181,6 +186,21 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
 
   // Detect self-trained candidate
   const isSelfTrained = isSelfTrainedCandidate(candidate) || Boolean(s6?.isSelfTrained);
+
+  // Freshers don't get production EHR platforms that require real account access
+  // (Kareo, DrChrono, AdvancedMD) in the platform picker - those stay for
+  // candidates who declared work experience in Stage 1.
+  const isExperienced = getExperienceLevel(candidate?.stage1 || {}, candidate || {}).level === "experienced";
+  const platformCategories = useMemo(
+    () =>
+      isExperienced
+        ? PLATFORM_CATEGORIES
+        : PLATFORM_CATEGORIES.map((g) => ({
+            ...g,
+            platforms: g.platforms.filter((p) => !EXPERIENCED_ONLY_PLATFORMS.includes(p)),
+          })),
+    [isExperienced]
+  );
 
   // Dynamic paths (Path D description changes for self-trained)
   const PATHS = getPaths(isSelfTrained);
@@ -511,7 +531,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <div style={{ marginBottom: 36 }}>
                   <SectionHeader n={2} title="Platforms & systems you coded on (optional)" badge={selectedPlatforms.length > 0 ? `${selectedPlatforms.length} selected` : "OPTIONAL"} />
                   <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 16, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
-                    {PLATFORM_CATEGORIES.map((g) => (
+                    {platformCategories.map((g) => (
                       <div key={g.category}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: "#94A3B8", letterSpacing: "0.06em", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
                           <i className={g.icon} style={{ fontSize: 12, color: "#64748B" }} />

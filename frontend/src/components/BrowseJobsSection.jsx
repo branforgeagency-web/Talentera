@@ -28,6 +28,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   const [applyingJobId, setApplyingJobId] = useState(null);
   const [appliedJobIds, setAppliedJobIds] = useState(new Set());
   const [toastMsg, setToastMsg] = useState(null);
+  const [toastTone, setToastTone] = useState('success');
 
   // Filters State
   const [selectedLocation, setSelectedLocation] = useState('');
@@ -47,8 +48,9 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   // Expanded JD toggles
   const [expandedJDs, setExpandedJDs] = useState({});
 
-  const showToast = (msg) => {
+  const showToast = (msg, tone = 'success') => {
     setToastMsg(msg);
+    setToastTone(tone);
     setTimeout(() => setToastMsg(null), 3500);
   };
 
@@ -123,9 +125,20 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
       }
     } catch (err) {
       console.error('Apply job error:', err);
-      setAppliedJobIds(prev => new Set([...prev, jId]));
-      showToast(`Applied to ${job.company} — verified profile submitted!`);
-      if (onApplied) onApplied(job);
+      const serverMsg = err.response?.data?.message || "";
+      const alreadyApplied = err.response?.status === 400 && /already applied/i.test(serverMsg);
+      if (alreadyApplied) {
+        // The application genuinely exists server-side already - resync local state to match reality
+        // instead of leaving the button stuck on "Apply Now".
+        setAppliedJobIds(prev => new Set([...prev, jId]));
+        showToast(`You've already applied to ${job.title} at ${job.company}.`);
+        if (onApplied) onApplied(job);
+      } else {
+        // Any other failure (score below the eligibility threshold, job no longer active, server
+        // error, etc.) is a real failure - show the actual reason and leave the job un-applied so
+        // the "Apply Now" button stays truthful and retryable.
+        showToast(serverMsg || `Could not submit your application to ${job.company}. Please try again.`, 'error');
+      }
     } finally {
       setApplyingJobId(null);
     }
@@ -188,7 +201,10 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   const specialtiesList = uniq(jobsFor('specialty').map((j) => j.specialty), selectedSpecialty);
   const companyJobs = jobsFor('company');
   const companiesList = uniq(companyJobs.map((j) => j.company), selectedCompany);
-  const projectsList = uniq(jobsFor('project').map((j) => j.projectClient), selectedProject);
+  // Always offer these 3 RCM project/client tracks so Billing and AR Calling candidates can filter
+  // for their own domain even before a job posted under that department exists in the database.
+  const BASE_PROJECT_OPTIONS = ['Coding', 'Billing', 'AR calling'];
+  const projectsList = uniq([...BASE_PROJECT_OPTIONS, ...jobsFor('project').map((j) => j.projectClient)], selectedProject);
 
   // Hiring map: cities that still have jobs under the other filters
   const displayCities = Array.from(new Set(jobsFor('location').map((j) => j.location).filter(Boolean))).map((loc) => {
@@ -239,7 +255,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           fontSize: 13.5,
           animation: 'fadeIn 0.2s ease',
         }}>
-          <span style={{ color: '#F5B41A' }}>✓</span> {toastMsg}
+          <span style={{ color: toastTone === 'error' ? '#F87171' : '#F5B41A' }}>{toastTone === 'error' ? '⚠' : '✓'}</span> {toastMsg}
         </div>
       )}
 

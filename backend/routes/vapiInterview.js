@@ -43,6 +43,26 @@ const AUTH_TOKEN_RE = /\[AUTH_TOKEN:([^\]]+)\]/;
 // needed. Must stay in sync with the assistant config if ever reworded.
 const CLOSING_PHRASE = "This concludes your AI Mock Interview";
 
+// Vapi can dispatch more than one webhook call for the same live call in close
+// succession (a retry after a slow response, or overlapping interim/final
+// transcript events). If two calls for the same candidate are handled
+// concurrently, both `Candidate.findById` reads can see the same
+// pre-advance session and each push their own "next question" advance -
+// the candidate's actual answer to the in-between question is never asked.
+// This queues webhook handling per candidate so only one runs at a time.
+const candidateLocks = new Map();
+function withCandidateLock(candidateId, fn) {
+  const key = String(candidateId);
+  const prior = candidateLocks.get(key) || Promise.resolve();
+  const run = prior.then(fn, fn);
+  const tracked = run.catch(() => {}); // never let a rejection wedge the queue
+  candidateLocks.set(key, tracked);
+  tracked.finally(() => {
+    if (candidateLocks.get(key) === tracked) candidateLocks.delete(key);
+  });
+  return run;
+}
+
 function extractAuthToken(messages) {
   const systemMsg = (messages || []).find((m) => m.role === "system");
   const match = AUTH_TOKEN_RE.exec(systemMsg?.content || "");
@@ -112,6 +132,15 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
       return sendAssistantReply(req, res, "Your session has expired - please restart the interview.");
     }
 
+    return withCandidateLock(candidateId, () => handleTurn(req, res, candidateId, messages));
+  } catch (err) {
+    logger.error(`Vapi LLM webhook error: ${err.message}`, { stack: err.stack });
+    return sendAssistantReply(req, res, "I ran into a technical issue on my end - let's try that again.");
+  }
+});
+
+async function handleTurn(req, res, candidateId, messages) {
+  try {
     const candidate = await Candidate.findById(candidateId);
     if (!candidate) {
       return sendAssistantReply(req, res, "I couldn't find your candidate profile - please restart the interview.");
@@ -143,6 +172,17 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
         candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
         candidate.markModified("stage8");
         await candidate.save();
+      } else if (session.lastProcessedUserCount) {
+        // Reaching here with an existing IN_PROGRESS session and no user message yet
+        // means this is a brand-new Vapi call (a reconnect) - its `messages` array
+        // starts counting user turns from zero again, so the running count from the
+        // PREVIOUS call must be reset too, or the very next real answer would look
+        // like a stale/already-processed duplicate (see the userMessageCount check
+        // below) and the candidate would be stuck re-hearing the same question.
+        session.lastProcessedUserCount = 0;
+        candidate.stage8 = { ...(candidate.stage8 || {}), aiInterview: session };
+        candidate.markModified("stage8");
+        await candidate.save();
       }
       const firstQ = session.questions[session.currentQuestionIndex] || session.questions[0];
       const totalCount = session.questions.length;
@@ -153,14 +193,16 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
       return sendAssistantReply(req, res, opening);
     }
 
-    // Idempotency check: if this user utterance was already processed for this question or session was already advanced,
-    // prompt current question without double-advancing.
-    const lastTurn = session.turns?.[session.turns.length - 1];
-    if (
-      lastTurn &&
-      lastTurn.candidateAnswer === utterance &&
-      (lastTurn.questionIndex === session.currentQuestionIndex || lastTurn.questionIndex === session.currentQuestionIndex - 1)
-    ) {
+    // Idempotency check: Vapi re-POSTs the FULL conversation every time it needs a
+    // new line, so a retried/duplicate webhook call for an answer we already
+    // recorded arrives as "new" messages too. Counting how many user turns have
+    // been folded into `messages` so far (rather than string-comparing the latest
+    // one) survives the STT re-transcribing a retried answer slightly differently -
+    // a byte-for-byte comparison would miss that and record it as a fresh answer to
+    // the NEXT question, silently skipping the question the candidate never
+    // actually got to answer.
+    const userMessageCount = messages.filter((m) => m.role === "user").length;
+    if (userMessageCount <= (session.lastProcessedUserCount || 0)) {
       const currentQ = session.questions[session.currentQuestionIndex];
       const reply = currentQ
         ? `Question ${session.currentQuestionIndex + 1} of ${session.questions.length}: ${currentQ.question}`
@@ -185,6 +227,7 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
       flags: turnResult.evaluation === "no_answer" && utterance ? ["very_short_answer"] : [],
       timestamp: new Date(),
     });
+    session.lastProcessedUserCount = userMessageCount;
 
     let interviewEnded = false;
     let replyText = turnResult.messiReply;
@@ -242,6 +285,6 @@ router.post(["/llm", "/llm/chat/completions"], async (req, res) => {
     logger.error(`Vapi LLM webhook error: ${err.message}`, { stack: err.stack });
     return sendAssistantReply(req, res, "I ran into a technical issue on my end - let's try that again.");
   }
-});
+}
 
 module.exports = router;

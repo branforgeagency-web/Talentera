@@ -41,9 +41,12 @@ function isSelfTrainedCandidate(candidate) {
   const source = String(s2.selfLearningSource || s2.academyName || s2.instituteName || "");
   return Boolean(
     s2.trainingPath === "self" ||
+    s2.trainingPath === "non_trained" ||
+    s2.trainingPath === "non-trained" ||
+    s2.isNonTrained ||
     s2.isSelfTrained ||
     s2.trainingType === "self" ||
-    (candidate && (candidate.trainingPath === "self" || candidate.isSelfTrained)) ||
+    (candidate && (candidate.trainingPath === "self" || candidate.trainingPath === "non_trained" || candidate.trainingPath === "non-trained" || candidate.isSelfTrained || candidate.isNonTrained)) ||
     s2.selfLearningSource ||
     /non[\s-]?trained/i.test(level) ||
     SELF_SOURCE_RE.test(source)

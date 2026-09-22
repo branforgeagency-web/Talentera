@@ -5,7 +5,7 @@
  * 1. Medical Coding
  * 2. Medical Billing
  * 3. Accounts Receivable
- * 4. Front Office
+ * 4. Eligibility & Verification
  */
 
 export const DOMAIN_ASSESSMENT_SECTIONS = {
@@ -503,7 +503,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     },
   ],
 
-  "Front Office": [
+  "Eligibility & Verification": [
     {
       key: "patient_scheduling",
       name: "Patient Scheduling & Intake",

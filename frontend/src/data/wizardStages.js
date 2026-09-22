@@ -344,9 +344,15 @@ export function isSelfTrainedCandidate(candidate) {
   const source = String(s2.selfLearningSource || s2.academyName || s2.instituteName || "");
   return Boolean(
     s2.trainingPath === "self" ||
+    s2.trainingPath === "non_trained" ||
+    s2.trainingPath === "non-trained" ||
+    s2.isNonTrained ||
     s2.isSelfTrained ||
     s2.trainingType === "self" ||
     candidate.trainingPath === "self" ||
+    candidate.trainingPath === "non_trained" ||
+    candidate.trainingPath === "non-trained" ||
+    candidate.isNonTrained ||
     candidate.isSelfTrained ||
     s2.selfLearningSource ||
     /non[\s-]?trained/i.test(level) ||
@@ -354,10 +360,27 @@ export function isSelfTrainedCandidate(candidate) {
   );
 }
 
+// Live Chart (Stage 06) coding practice is a Medical Coding / Medical Billing concept - it
+// doesn't apply to AR Calling or Eligibility & Verification work, which never touches a chart
+// encoder. Keep this list in sync with DOMAINS_WITHOUT_SPECIALTIES in Stage2Training.jsx and
+// with backend/routes/candidate.js's copy of this function.
+const LIVE_CHART_EXEMPT_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+
+export function isLiveChartExemptDomain(candidate) {
+  const domain = candidate?.stage2?.domain || "";
+  return LIVE_CHART_EXEMPT_DOMAINS.includes(domain);
+}
+
+// Stage 06 is optional/removed for a candidate who is either self-trained (no live employer
+// system access yet) or whose domain never involves chart coding at all.
+export function isStage6Optional(candidate) {
+  return isSelfTrainedCandidate(candidate) || isLiveChartExemptDomain(candidate);
+}
+
 export function getWizardStages(candidate) {
-  const isSelf = isSelfTrainedCandidate(candidate);
+  const stage6Optional = isStage6Optional(candidate);
   return RAW_WIZARD_STAGES.map((s) => {
-    const isStage6Optional = s.num === 6 && isSelf;
+    const isStage6Optional = s.num === 6 && stage6Optional;
     const isSkippable = SKIPPABLE_STAGE_NUMS.includes(s.num) || isStage6Optional;
     return {
       ...s,

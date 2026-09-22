@@ -31,7 +31,8 @@ const ALLOWED_MIME_TYPES = {
     "application/x-zip-compressed",
     "application/octet-stream",
   ],
-  // Generic per-stage document upload (resumes, certificates, KYC docs)
+  // Generic per-stage document upload (resumes, certificates, KYC docs, and - for Company
+  // Onboarding Stage 5 - the custom interview-questions Excel/CSV upload)
   doc: [
     "application/pdf",
     "image/jpeg",
@@ -42,6 +43,10 @@ const ALLOWED_MIME_TYPES = {
     "image/webp",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/csv",
+    "application/csv",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/octet-stream",
   ],
   // Academy bulk student-roster upload, CSV

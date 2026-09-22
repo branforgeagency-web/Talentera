@@ -384,7 +384,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     const raw = (s2.domain || s2.courseName || s2.specialty || (Array.isArray(s2.specialties) ? s2.specialties.join(", ") : "")).trim().toLowerCase();
     if (raw.includes("billing")) return "Medical Billing";
     if (raw.includes("receivable") || raw.includes("ar") || raw.includes("a/r")) return "Accounts Receivable";
-    if (raw.includes("front") || raw.includes("office") || raw.includes("reception")) return "Front Office";
+    if (raw.includes("eligibility") || raw.includes("verification") || raw.includes("front") || raw.includes("office") || raw.includes("reception") || raw.includes("pre-auth") || raw.includes("preauth")) return "Eligibility & Verification";
     return "Medical Coding";
   })();
 

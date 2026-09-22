@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
-import { CERT_LIBRARY } from "../data/certLibrary";
+import { CERT_LIBRARY, passingPercentLabel } from "../data/certLibrary";
 import { useToast } from "../components/Toast.jsx";
 import api from "../api/client";
 
@@ -691,10 +691,10 @@ export default function CertLibrary() {
                     </div>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#10B981" }}>
-                        {certItem.inr}
+                        {passingPercentLabel(certItem.passingScore)}
                       </div>
                       <div style={{ fontSize: 9, fontWeight: 700, color: "#64748B" }}>
-                        ${certItem.usd}
+                        PASSING SCORE
                       </div>
                     </div>
                   </div>
@@ -923,10 +923,10 @@ export default function CertLibrary() {
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#10B981" }}>
-                  {selectedCertForModal.inr}
+                  {passingPercentLabel(selectedCertForModal.passingScore)}
                 </div>
                 <div style={{ fontSize: 10, color: "#94A3B8" }}>
-                  ${selectedCertForModal.usd} exam fee
+                  Passing score
                 </div>
               </div>
             </div>

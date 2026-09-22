@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useToast } from "../components/Toast.jsx";
-import { WIZARD_STAGES, getStage, isSelfTrainedCandidate, getWizardStages } from "../data/wizardStages";
+import { WIZARD_STAGES, getStage, isStage6Optional, getWizardStages } from "../data/wizardStages";
 import WizardSidebar from "../components/WizardSidebar.jsx";
 import WizardStagePane from "../components/WizardStagePane.jsx";
 import Stage1Aadhaar from "../components/wizard/Stage1Aadhaar.jsx";
@@ -68,7 +68,7 @@ export default function CandidateWizard() {
         }
 
         // Determine the earliest incomplete stage in sequential order
-        const isSelf = isSelfTrainedCandidate(candidateObj);
+        const isSelf = isStage6Optional(candidateObj);
         let firstIncompleteStage = 1;
         for (let i = 1; i <= 8; i++) {
           if (!completed.includes(i)) {
@@ -111,7 +111,7 @@ export default function CandidateWizard() {
   function handleSelectStage(stageNum) {
     const candidateObj = profile?.candidate || profile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
-    const isSelf = isSelfTrainedCandidate(candidateObj);
+    const isSelf = isStage6Optional(candidateObj);
 
     const isUnlocked = isStageUnlocked(stageNum, completed, isSelf) || completed.includes(stageNum);
     if (!isUnlocked) {
@@ -167,7 +167,7 @@ export default function CandidateWizard() {
 
     if (!advance) return;
 
-    const isSelf = isSelfTrainedCandidate(candidateObj);
+    const isSelf = isStage6Optional(candidateObj);
     if (nextStage && (isStageUnlocked(nextStage, completed, isSelf) || completed.includes(nextStage))) {
       setActiveStageId(nextStage);
       localStorage.setItem("talentera_active_stage", String(nextStage));
@@ -249,7 +249,7 @@ export default function CandidateWizard() {
     );
   }
 
-  const isSelfTrained = isSelfTrainedCandidate(candidateObj);
+  const isSelfTrained = isStage6Optional(candidateObj);
   const activeStage = getStage(activeStageId, candidateObj) || WIZARD_STAGES[0];
   const stageKey = `stage${activeStage.num}`;
   const existingData = candidateObj?.[stageKey] || {};

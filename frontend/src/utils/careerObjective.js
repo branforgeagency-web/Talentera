@@ -98,12 +98,12 @@ const DOMAIN_PROFILES = {
     softSkill: "charge entry, claim scrubbing and payment reconciliation",
     industryArea: "Medical Billing & Revenue Cycle",
   },
-  front_office: {
-    roleTitle: "Front Office Executive",
-    specialty: "patient registration, insurance verification and pre-authorization",
-    focusPhrase: "smooth patient registration, eligibility checks and pre-authorization",
-    softSkill: "patient communication, eligibility verification and appointment scheduling",
-    industryArea: "Patient Access & Front Office Operations",
+  eligibility_verification: {
+    roleTitle: "Eligibility & Verification Specialist",
+    specialty: "insurance eligibility verification, benefits checks and pre-authorization",
+    focusPhrase: "accurate insurance eligibility checks, prior-authorization and benefits verification",
+    softSkill: "270/271 transaction processing, payer-specific eligibility portals and pre-auth workflows",
+    industryArea: "Eligibility, Verification & Patient Access RCM",
   },
   general: {
     roleTitle: "Medical Coder",
@@ -124,7 +124,7 @@ export function detectDomainProfile(rawDomain = "", rawSpecialties = "") {
   // The Stage 2 domain the candidate picked decides the role family first.
   if (/accounts?\s*receivable|\bar\b/.test(dom)) return DOMAIN_PROFILES.ar_caller;
   if (/billing/.test(dom)) return DOMAIN_PROFILES.billing;
-  if (/front\s*office|patient\s*(access|services)/.test(dom)) return DOMAIN_PROFILES.front_office;
+  if (/front\s*office|patient\s*(access|services)|eligib|verif|pre.?auth|270|271/.test(dom)) return DOMAIN_PROFILES.eligibility_verification;
 
   // Medical Coding (or anything else) is refined by the specialties they picked.
   return detectBySpecialty(rawSpecialties || rawDomain);
@@ -176,10 +176,33 @@ export function getCertStatus(stage3 = {}, certificationsList = []) {
 }
 
 export function getExperienceLevel(stage1 = {}, candidate = {}) {
-  const raw = stage1.experience ?? candidate.experience ?? "";
-  const years = parseFloat(String(raw).replace(/[^0-9.]/g, ""));
-  const experienced = Number.isFinite(years) && years > 0;
-  return { level: experienced ? "experienced" : "fresher", years: experienced ? years : 0 };
+  // stage1.experience is the literal "Fresher" / "Experienced" choice from Stage 1 (not a numeric
+  // years value), so it must be detected by keyword, not parsed as a number - the same robust,
+  // default-to-fresher pattern used elsewhere (Stage2Training.jsx, CandidateResumeSection.jsx).
+  const raw = String(stage1.experience ?? candidate.experience ?? "");
+  const experienced = /exp/i.test(raw);
+
+  if (!experienced) return { level: "fresher", years: 0 };
+
+  // For experienced candidates, prefer the explicit Stage 2 "Total Experience" range
+  // (e.g. "3 – 5 years", "8+ years") collected on the Work Experience section - it's the
+  // authoritative, candidate-entered figure. Fall back to parsing stage1.experience itself
+  // in case it ever carries a numeric years value.
+  // Extract only the FIRST number in the string (not every digit stripped and concatenated) -
+  // "3 – 5 years" must read as 3, not "35".
+  const firstNumber = (str) => {
+    const m = String(str || "").match(/[0-9]+(\.[0-9]+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  };
+  const stage2 = candidate.stage2 || {};
+  const totalExpRaw = String(stage2.totalExperience || "");
+  const fromStage2 = firstNumber(totalExpRaw);
+  const fromStage1 = firstNumber(raw);
+  const years = Number.isFinite(fromStage2) && fromStage2 > 0
+    ? fromStage2
+    : (Number.isFinite(fromStage1) && fromStage1 > 0 ? fromStage1 : 0);
+
+  return { level: "experienced", years };
 }
 
 // ─── Training level (Stage 2) ─────────────────────────────────────────────────
@@ -242,6 +265,14 @@ function buildContext(p, domainProfile) {
   const softSkill = dp.softSkill;
   const industryArea = dp.industryArea;
 
+  // Experienced-candidate specifics captured on Stage 2's "Your Work Experience" section -
+  // used to make the professional summary read as unique/candidate-specific rather than generic.
+  const company = clean(p.currentCompany || "");
+  const companyClause = company ? ` at ${company}` : "";
+  const commaCompanyClause = company ? `, most recently at ${company},` : "";
+  const projectDetail = clean(p.projectDetails || "");
+  const projectClause = projectDetail ? ` including ${projectDetail}` : "";
+
   return {
     years,
     yearsText,
@@ -267,6 +298,11 @@ function buildContext(p, domainProfile) {
     focusPhrase,
     softSkill,
     industryArea,
+    company,
+    companyClause,
+    commaCompanyClause,
+    projectDetail,
+    projectClause,
   };
 }
 
@@ -345,7 +381,7 @@ const TEMPLATES = {
     options: [
       {
         tag: "Impact-forward · domain-specific tone",
-        text: (c) => `${c.yearsText ? `${c.yearsText} experienced ` : "Experienced "}${c.certs || "certified"} ${c.role} with a track record in ${c.specialty}${c.charts ? `, ${c.charts} on record` : ""} — seeking a production or senior ${c.role} position where ${c.focusPhrase} and demanding accuracy targets are the norm.`,
+        text: (c) => `${c.yearsText ? `${c.yearsText} experienced ` : "Experienced "}${c.certs || "certified"} ${c.role}${c.companyClause}, with a track record in ${c.specialty}${c.projectClause}${c.charts ? `, ${c.charts} on record` : ""} — seeking a production or senior ${c.role} position where ${c.focusPhrase} and demanding accuracy targets are the norm.`,
       },
       {
         tag: "Leadership-first · story tone",
@@ -353,11 +389,11 @@ const TEMPLATES = {
       },
       {
         tag: "Concise · outcome-focused",
-        text: (c) => `${c.certs || "Certified"} ${c.role} with ${c.years || "several"} years' experience in ${c.specialty}; available at short notice for a quality-focused ${c.industryArea} role with increased responsibility and production targets.`,
+        text: (c) => `${c.certs || "Certified"} ${c.role} with ${c.years || "several"} years' experience in ${c.specialty}${c.companyClause}; available at short notice for a quality-focused ${c.industryArea} role with increased responsibility and production targets.`,
       },
     ],
     alternates: [
-      (c) => `Experienced ${c.certs || "certified"} ${c.role} (${c.years || "multi"} yrs) with a track record in ${c.specialty}, seeking a role with greater ownership of ${c.focusPhrase} and audit quality.`,
+      (c) => `Experienced ${c.certs || "certified"} ${c.role} (${c.years || "multi"} yrs)${c.companyClause}, with a track record in ${c.specialty}${c.projectClause}, seeking a role with greater ownership of ${c.focusPhrase} and audit quality.`,
       (c) => `${c.yearsText || "Seasoned"} ${c.role} holding ${c.certs || "professional certification"}, aiming to lead complex ${c.specialty} work and contribute to ${c.industryArea} team QA and coding accuracy benchmarks.`,
       (c) => `Results-driven ${c.certs || "certified"} ${c.role} with ${c.years || "several"} years of ${c.specialty} experience${c.foundation ? ` and ${c.foundation}` : ""}, ready for a step up in scope, responsibility and ${c.softSkill} leadership.`,
     ],
@@ -367,7 +403,7 @@ const TEMPLATES = {
     options: [
       {
         tag: "Experience-forward · honest tone",
-        text: (c) => `${c.yearsText ? `${c.yearsText} ` : ""}${c.role} in ${c.specialty}, currently preparing for the ${c.exam} to formalise my experience — seeking a ${c.industryArea} role that values hands-on ${c.focusPhrase}${c.charts ? ` (${c.charts})` : ""} and supports my certification journey.`,
+        text: (c) => `${c.yearsText ? `${c.yearsText} ` : ""}${c.role}${c.companyClause} in ${c.specialty}${c.projectClause}, currently preparing for the ${c.exam} to formalise my experience — seeking a ${c.industryArea} role that values hands-on ${c.focusPhrase}${c.charts ? ` (${c.charts})` : ""} and supports my certification journey.`,
       },
       {
         tag: "Growth-first · story tone",
@@ -380,7 +416,7 @@ const TEMPLATES = {
     ],
     alternates: [
       (c) => `${c.yearsText || "Seasoned"} ${c.specialty} professional finishing ${c.pursuingCert} preparation, seeking a position where experience and an upcoming credential move me into higher-complexity ${c.role} responsibilities.`,
-      (c) => `Practising ${c.role} with ${c.years || "several"} years in ${c.specialty}, on track for ${c.pursuingCert}, aiming to join a ${c.industryArea} team that values both experience and continued learning.`,
+      (c) => `Practising ${c.role} with ${c.years || "several"} years in ${c.specialty}${c.companyClause}, on track for ${c.pursuingCert}, aiming to join a ${c.industryArea} team that values both experience and continued learning.`,
       (c) => `Production-ready ${c.role} with ${c.years || "several"} years of ${c.specialty} expertise and ${c.pursuingCert} underway, keen to take on quality-critical ${c.industryArea} accounts.`,
     ],
   },
@@ -389,7 +425,7 @@ const TEMPLATES = {
     options: [
       {
         tag: "Experience-forward · proof-led tone",
-        text: (c) => `${c.yearsText ? `${c.yearsText} ` : ""}${c.role} with hands-on ${c.specialty} experience${c.charts ? ` and ${c.charts}` : ""}${c.foundation ? `, ${c.foundation}` : ""} — seeking a production role in ${c.industryArea} where ${c.focusPhrase} matters most, with support to earn a formal certification.`,
+        text: (c) => `${c.yearsText ? `${c.yearsText} ` : ""}${c.role}${c.companyClause} with hands-on ${c.specialty} experience${c.projectClause}${c.charts ? ` and ${c.charts}` : ""}${c.foundation ? `, ${c.foundation}` : ""} — seeking a production role in ${c.industryArea} where ${c.focusPhrase} matters most, with support to earn a formal certification.`,
       },
       {
         tag: "Practical-first · story tone",
@@ -402,11 +438,41 @@ const TEMPLATES = {
     ],
     alternates: [
       (c) => `${c.yearsText || "Seasoned"} ${c.specialty} professional with real-world ${c.role} experience${c.charts ? `, ${c.charts}` : ""}, seeking a ${c.industryArea} role that evaluates on ${c.focusPhrase} and offers a path to certification.`,
-      (c) => `Hands-on ${c.role} with ${c.years || "several"} years in ${c.specialty}, ready to prove quality through audits and to pursue certification with company support in ${c.industryArea}.`,
+      (c) => `Hands-on ${c.role} with ${c.years || "several"} years in ${c.specialty}${c.companyClause}, ready to prove quality through audits and to pursue certification with company support in ${c.industryArea}.`,
       (c) => `Practice-proven ${c.role} looking to convert ${c.years || "several"} years of ${c.specialty} experience into a certified, higher-responsibility position in ${c.industryArea}.`,
     ],
   },
 };
+
+
+// ─── AR Caller fresher — fixed, house-approved objective text ─────────────────
+// The generic template system above builds AR Caller fresher objectives from live
+// candidate fields, but that can surface mismatched or noisy data straight into the
+// sentence (e.g. a Medical Coding specialty like "Surgery" or a raw live-chart
+// accuracy figure leaking into what is meant to be an A/R Caller objective). For
+// AR Caller freshers specifically, use this fixed, reviewed copy instead - clean,
+// domain-accurate wording that doesn't depend on any per-candidate field.
+const AR_CALLER_FRESHER_OPTIONS = [
+  {
+    tag: "Skills-First",
+    text: "Motivated fresher seeking an entry-level A/R Caller position in the healthcare RCM industry, looking to apply my communication, analytical, and problem-solving skills while developing expertise in insurance follow-up and accounts receivable processes.",
+  },
+  {
+    tag: "Career-Interest First",
+    text: "Enthusiastic fresher seeking to begin a career in healthcare RCM as an A/R Caller, with a strong interest in insurance claims, payer communication, and account follow-up, and a willingness to learn and grow within the organization.",
+  },
+  {
+    tag: "Concise, Outcome-Focused",
+    text: "Dedicated fresher seeking an entry-level A/R Caller role to build expertise in claim follow-up, payer communication, and accounts receivable management while contributing to the organization's revenue cycle operations.",
+  },
+];
+
+// A few more in the same plain, jargon-free voice for the "Regenerate" button.
+const AR_CALLER_FRESHER_ALTERNATES = [
+  "Entry-level A/R Caller candidate eager to apply strong communication and analytical skills to insurance follow-up, denial resolution, and accounts receivable management in a fast-paced RCM environment.",
+  "Fresher with a keen interest in medical billing and A/R calling, seeking an opportunity to grow as an insurance follow-up specialist while supporting accurate, timely accounts receivable resolution.",
+  "Detail-oriented fresher pursuing an A/R Caller role, ready to contribute strong problem-solving and communication skills to payer follow-up, claims resolution, and revenue cycle support.",
+];
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -416,7 +482,7 @@ const TEMPLATES = {
  * @param {object} profile
  *   level, status, years, certCodes[], pursuingCert, expectedExam, totalCharts, accuracy,
  *   specialties (string), roleTitle, academyName, assessmentScore,
- *   domain (string — Stage 2 domain: Medical Coding / Medical Billing / Accounts Receivable / Front Office)
+ *   domain (string — Stage 2 domain: Medical Coding / Medical Billing / Accounts Receivable / Eligibility & Verification)
  *   trainingLevel (string — Stage 2 level: Non-Trained / Basic / Intermediate / Advanced / Auditor-QA)
  * @returns {{ level, status, domainKey, options: {tag,text}[], alternates: string[] }}
  */
@@ -430,10 +496,22 @@ export function buildCareerObjectives(profile = {}) {
   const set = TEMPLATES[`${level}_${status}`];
   const c = buildContext(profile, domainProfile);
 
+  const domainKey = Object.keys(DOMAIN_PROFILES).find((k) => DOMAIN_PROFILES[k] === domainProfile) || "general";
+
+  if (level === "fresher" && domainKey === "ar_caller") {
+    return {
+      level,
+      status,
+      domainKey,
+      options: AR_CALLER_FRESHER_OPTIONS,
+      alternates: AR_CALLER_FRESHER_ALTERNATES,
+    };
+  }
+
   return {
     level,
     status,
-    domainKey: Object.keys(DOMAIN_PROFILES).find((k) => DOMAIN_PROFILES[k] === domainProfile) || "general",
+    domainKey,
     options: set.options.map((o) => ({ tag: o.tag, text: clean(o.text(c)) })),
     alternates: set.alternates.map((fn) => clean(fn(c))),
   };
