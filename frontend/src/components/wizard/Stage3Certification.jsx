@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import { CERT_LIBRARY, CERT_ID_PATTERNS } from "../../data/certLibrary";
+import { CERT_LIBRARY, CERT_ID_PATTERNS, passingPercentLabel } from "../../data/certLibrary";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
@@ -101,7 +101,9 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   // Active Cert in dropdown
   const bodyData = CERT_LIBRARY[selectedBodyKey] || CERT_LIBRARY.aapc || { certs: [], name: "AAPC", fullName: "American Academy of Professional Coders" };
-  const [selectedCertCode, setSelectedCertCode] = useState(existingData.certCode || bodyData?.certs?.[0]?.code || "CPC");
+  const [selectedCertCode, setSelectedCertCode] = useState(
+    existingData.certCode && existingData.certCode !== "NON-CERT" ? existingData.certCode : (bodyData?.certs?.[0]?.code || "CPC")
+  );
 
   const activeCertDetail = useMemo(() => {
     const list = bodyData?.certs || [];
@@ -215,6 +217,9 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   const [prepSource, setPrepSource] = useState(existingData.prepSource || "");
   const [prepConfidence, setPrepConfidence] = useState(existingData.prepConfidence || "High");
+  // Optional - a pursuing candidate may already have a membership / registration ID with the
+  // issuing body (e.g. AAPC) even though the certification exam itself hasn't been passed yet.
+  const [pursuingMemberId, setPursuingMemberId] = useState(existingData.pursuingMemberId || "");
 
   // SECTION 5 · GLOBAL MARKETS
   const [selectedMarkets, setSelectedMarkets] = useState(
@@ -263,6 +268,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     const isCertified = status === "certified";
     const isPursuing = status === "pursuing";
     const isNonCert = status === "non-certified";
+    // "NON-CERT" is only ever a status sentinel (written below when isNonCert) - it must never be used
+    // as a real certification code, even if it's still lingering in `selectedCertCode` from an earlier
+    // Non-Certified save that hasn't been re-picked yet.
+    const safeSelectedCertCode = selectedCertCode === "NON-CERT" ? (bodyData?.certs?.[0]?.code || "CPC") : selectedCertCode;
 
     const formattedIssue = issueYear ? (issueMonth ? `${issueMonth}/${issueYear}` : issueYear) : "";
     const formattedExpiry = expiryYear ? (expiryMonth ? `${expiryMonth}/${expiryYear}` : expiryYear) : "";
@@ -272,14 +281,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     const activeStack = customStack !== null ? customStack : certStack;
 
     let finalStack = activeStack;
-    if (isCertified && finalStack.length === 0 && (memberId.trim() || selectedCertCode)) {
+    if (isCertified && finalStack.length === 0 && (memberId.trim() || safeSelectedCertCode)) {
       const isReal = verificationResult ? verificationResult.isReal : null;
       const verdict = verificationResult ? verificationResult.verdict : "NEEDS_AUDIT";
       const statusText = verdict === "REAL" ? "Real · Verified" : (verdict === "FAKE" ? "Fake · Invalid" : "Pending Review");
       const badgeClass = verdict === "REAL" ? "green" : (verdict === "FAKE" ? "red" : "blue");
       finalStack = [
         {
-          code: selectedCertCode,
+          code: safeSelectedCertCode,
           name: activeCertDetail.name,
           body: bodyData.name || "AAPC",
           region: selectedRegion.toUpperCase(),
@@ -307,7 +316,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       certType: status,
       isCertified,
       nonCertified: isNonCert,
-      certCode: isCertified ? (finalStack[0]?.code || selectedCertCode) : isPursuing ? pursuingCert : "NON-CERT",
+      certCode: isCertified ? (finalStack[0]?.code || safeSelectedCertCode) : isPursuing ? pursuingCert : "NON-CERT",
       certName: isCertified ? (finalStack[0]?.name || activeCertDetail.name) : isPursuing ? `Pursuing ${pursuingCert}` : "Non-Certified / Trainee Coder",
       issuingBody: isCertified ? (finalStack[0]?.body || bodyData.name || "AAPC") : isPursuing ? "AAPC" : "None",
       body: isCertified ? (finalStack[0]?.body || bodyData.name || "AAPC") : isPursuing ? "AAPC" : "None",
@@ -336,8 +345,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             expectedDate: formattedExam,
             prepSource,
             confidence: prepConfidence,
+            memberId: pursuingMemberId.trim(),
           }
         : null,
+      pursuingMemberId: isPursuing ? pursuingMemberId.trim() : "",
     };
   }
 
@@ -1657,7 +1668,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               <div className="s3-status-row">
                 <div
                   className={`s3-status-card ${status === "certified" ? "selected" : ""}`}
-                  onClick={() => setStatus("certified")}
+                  onClick={() => {
+                    setStatus("certified");
+                    // Guard against the "NON-CERT" sentinel (written for the Non-Certified path) ever
+                    // being carried over as a real, selected certification code.
+                    if (selectedCertCode === "NON-CERT") {
+                      setSelectedCertCode(bodyData?.certs?.[0]?.code || "CPC");
+                    }
+                  }}
                 >
                   <div className="ico">🏆</div>
                   <div className="title">Certified</div>
@@ -1766,8 +1784,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                       <div className="small">Questions</div>
                     </div>
                     <div className="s3-cert-stat">
-                      <div className="big">${activeCertDetail.usd || 399}</div>
-                      <div className="small">Exam fee ({activeCertDetail.inr || "~₹33,500"})</div>
+                      <div className="big">{passingPercentLabel(activeCertDetail.passingScore)}</div>
+                      <div className="small">Passing score</div>
                     </div>
                     <div className="s3-cert-stat">
                       <div className="big">{activeCertDetail.renewal || "1 year"}</div>
@@ -2197,6 +2215,24 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                     <option value="Medium">Medium — Halfway through syllabus</option>
                     <option value="Starting">Just starting prep</option>
                   </select>
+                </div>
+              </div>
+
+              <div className="s3-row">
+                <div className="s3-field">
+                  <label>
+                    Membership / Registration Number
+                    <span className="s3-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. AAPC Member ID, if you already have one"
+                    value={pursuingMemberId}
+                    onChange={(e) => setPursuingMemberId(e.target.value)}
+                  />
+                  <div className="s3-helper">
+                    Already registered with the issuing body while you prep for the exam? Add your member / registration ID here.
+                  </div>
                 </div>
               </div>
 

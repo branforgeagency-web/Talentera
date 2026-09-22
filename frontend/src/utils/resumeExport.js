@@ -2,6 +2,7 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { joinUnique } from "./resumeSubtitle.js";
 import { getMedalTier, medalBadgeHtml } from "./medalBadge.js";
+import { buildResumeSkills, buildDeclarationText } from "./resumeSkills.js";
 
 /**
  * Export a DOM element directly to a high-resolution A4 PDF document.
@@ -207,10 +208,19 @@ export function exportResumeWord(data) {
     preferredCities = "Bengaluru · Hyderabad · Chennai",
     relocationPref = "Preferred Locality",
     shiftPreference = "Day + US Night",
+    specialties = [],
+    isNonCertified = false,
+    city = "",
+    isExperienced = false,
+    workCompany = "",
+    workProjectDetails = "",
+    workTotalExperience = "",
+    workNoticePeriod = "",
     templateId = "fresher_modern",
     headerBg = "#0F1B3D",
     accentColor = "#F5B41A",
   } = data;
+
 
   const cleanName = (fullName || "Candidate")
     .trim()
@@ -223,6 +233,56 @@ export function exportResumeWord(data) {
   const secAccentColor = isBw ? "#333333" : accentColor || "#F5B41A";
   const lightBg = isBw ? "#F9FAFB" : "#F8FAFC";
   const borderColor = isBw ? "#111111" : "#CBD5E1";
+
+  // Skills chips + declaration paragraph - generated from the candidate's own domain,
+  // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
+  const resumeSkills = buildResumeSkills({ domain: domainName, specialties, certified: !isNonCertified });
+  const declarationText = buildDeclarationText({ fullName, city });
+  const declarationDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const skillsHtml = resumeSkills.length
+    ? `
+    <div style="margin-top: 14pt;">
+      <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
+        <tr>
+          <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
+            🛠 SKILLS
+          </td>
+        </tr>
+      </table>
+      <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+        <tr>
+          <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
+            ${resumeSkills.join(' &nbsp;&bull;&nbsp; ')}
+          </td>
+        </tr>
+      </table>
+    </div>`
+    : "";
+  const declarationHtml = `
+    <div style="margin-top: 14pt;">
+      <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
+        <tr>
+          <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
+            🖊 DECLARATION
+          </td>
+        </tr>
+      </table>
+      <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+        <tr>
+          <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
+            <div style="color: #334155;">${declarationText}</div>
+            <table style="width: 100%; margin-top: 10pt;">
+              <tr>
+                <td style="color: #64748B;">Place: ${city || locality}</td>
+                <td style="text-align: right; color: #64748B;">Date: ${declarationDate}</td>
+              </tr>
+            </table>
+            <div style="text-align: right; margin-top: 8pt; font-weight: bold; color: ${primaryColor};">${fullName}</div>
+          </td>
+        </tr>
+      </table>
+    </div>`;
+
 
   // Build Certifications section
   let certHtml = "";
@@ -261,9 +321,9 @@ export function exportResumeWord(data) {
     `;
   }
 
-  // Build Live Charts table
+  // Build Live Charts table (Fresher only - Experienced gets a Tools Used list instead, built below)
   let chartsHtml = "";
-  if (specialtyCharts && specialtyCharts.length > 0) {
+  if (!isExperienced && specialtyCharts && specialtyCharts.length > 0) {
     chartsHtml = `
       <div style="margin-top: 14pt;">
         <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
@@ -311,6 +371,58 @@ export function exportResumeWord(data) {
         </div>
       </div>
     `;
+  }
+
+  // Work Experience (Experienced only) - replaces Training Foundation
+  let workExperienceHtml = "";
+  if (isExperienced && (workCompany || workProjectDetails || workTotalExperience)) {
+    workExperienceHtml = `
+    <div style="margin-top: 14pt;">
+      <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
+        <tr>
+          <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
+            💼 WORK EXPERIENCE
+          </td>
+        </tr>
+      </table>
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
+            <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor};">
+              ${currentRoleTitle}${workCompany ? ` · ${workCompany}` : ""}
+              ${workTotalExperience ? ` <span style="font-weight: normal; font-size: 9pt; color: #64748B;">(${workTotalExperience})</span>` : ""}
+            </div>
+            <div style="font-size: 9pt; color: #64748B; margin-top: 2pt;">
+              ${domainName}${workNoticePeriod ? ` · Notice period: ${workNoticePeriod}` : ""}
+            </div>
+            ${workProjectDetails ? `<div style="font-size: 10pt; color: #334155; margin-top: 4pt;">${workProjectDetails}</div>` : ""}
+          </td>
+        </tr>
+      </table>
+    </div>`;
+  }
+
+  // Tools Used (Experienced only) - replaces the Live Chart Practice table
+  let toolsUsedHtml = "";
+  const toolsList = Array.isArray(selectedPlatforms) ? selectedPlatforms : (selectedPlatforms ? [selectedPlatforms] : []);
+  if (isExperienced && toolsList.length > 0) {
+    toolsUsedHtml = `
+    <div style="margin-top: 14pt;">
+      <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
+        <tr>
+          <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
+            🧰 TOOLS USED
+          </td>
+        </tr>
+      </table>
+      <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+        <tr>
+          <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
+            ${toolsList.join(' &nbsp;&bull;&nbsp; ')}
+          </td>
+        </tr>
+      </table>
+    </div>`;
   }
 
   const wordDocumentHtml = `
@@ -395,7 +507,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🎯 CAREER OBJECTIVE
+            🎯 ${isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}
           </td>
         </tr>
       </table>
@@ -450,7 +562,8 @@ export function exportResumeWord(data) {
     <!-- CERTIFICATIONS -->
     ${certHtml}
 
-    <!-- TRAINING FOUNDATION -->
+    <!-- TRAINING FOUNDATION (Fresher) / WORK EXPERIENCE (Experienced) -->
+    ${isExperienced ? workExperienceHtml : `
     <div style="margin-top: 14pt;">
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
@@ -466,7 +579,7 @@ export function exportResumeWord(data) {
               ${academyName} (${academyLocality})
             </div>
             <div style="font-size: 10pt; color: #334155; margin-top: 2pt;">
-              ${domainName} · ${trainingLevel} · ${trainingSpecialties}
+              ${["Accounts Receivable", "Eligibility & Verification"].includes(domainName) ? `${domainName}${trainingLevel ? ` · Training level: ${trainingLevel}` : ""}` : `${domainName} · ${trainingLevel} · ${trainingSpecialties}`}
             </div>
             <div style="font-size: 9pt; color: #64748B; margin-top: 2pt;">
               Duration: <b>${trainingDuration}</b>
@@ -476,10 +589,10 @@ export function exportResumeWord(data) {
           </td>
         </tr>
       </table>
-    </div>
+    </div>`}
 
-    <!-- LIVE CHARTS AUDIT -->
-    ${chartsHtml}
+    <!-- LIVE CHARTS AUDIT (Fresher) / TOOLS USED (Experienced) -->
+    ${isExperienced ? toolsUsedHtml : chartsHtml}
 
     <!-- ACADEMIC EDUCATION -->
     <div style="margin-top: 14pt;">
@@ -516,6 +629,8 @@ export function exportResumeWord(data) {
       </table>
     </div>
 
+    ${skillsHtml}
+
     <!-- WORK PREFERENCES -->
     <div style="margin-top: 14pt;">
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
@@ -534,6 +649,8 @@ export function exportResumeWord(data) {
         </tr>
       </table>
     </div>
+
+    ${declarationHtml}
 
     <!-- FOOTER / AUDIT TRAIL -->
     <div style="border-top: 1pt solid ${borderColor}; margin-top: 20pt; padding-top: 8pt; text-align: center; font-size: 8.5pt; color: #64748B;">

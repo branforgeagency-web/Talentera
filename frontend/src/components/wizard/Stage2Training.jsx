@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
@@ -9,27 +9,29 @@ const DOMAINS = [
     id: "Medical Coding",
     title: "Medical Coding",
     sub: "Assigning codes to charts (ICD, CPT, HCPCS)",
-    icon: "🩺",
+    icon: "fa-solid fa-stethoscope",
   },
   {
     id: "Medical Billing",
     title: "Medical Billing",
     sub: "Charge entry, payment posting, claims",
-    icon: "💵",
+    icon: "fa-solid fa-file-invoice-dollar",
   },
   {
     id: "Accounts Receivable",
     title: "Accounts Receivable",
     sub: "AR calling, denials, appeals",
-    icon: "📞",
+    icon: "fa-solid fa-headset",
   },
   {
-    id: "Front Office",
-    title: "Front Office",
-    sub: "Patient services, pre-auth, scheduling",
-    icon: "🖥",
+    id: "Eligibility & Verification",
+    title: "Eligibility & Verification",
+    sub: "Insurance eligibility checks, pre-auth, benefits verification",
+    icon: "fa-solid fa-clipboard-check",
   },
 ];
+
+const DOMAINS_WITHOUT_SPECIALTIES = ["Accounts Receivable", "Eligibility & Verification"];
 
 const DOMAIN_TRAINING_LEVELS = {
   "Medical Coding": [
@@ -53,11 +55,11 @@ const DOMAIN_TRAINING_LEVELS = {
     "Advanced Accounts Receivable",
     "Auditor / QA Level",
   ],
-  "Front Office": [
+  "Eligibility & Verification": [
     "Non-Trained",
-    "Basic Front Office",
-    "Intermediate Front Office",
-    "Advanced Front Office",
+    "Basic Eligibility & Verification",
+    "Intermediate Eligibility & Verification",
+    "Advanced Eligibility & Verification",
     "Auditor / QA Level",
   ],
 };
@@ -115,42 +117,56 @@ const TRAINING_PATHS = [
     id: "academy",
     title: "Path A · Academy",
     sub: "Completed / doing a course at an RCM training academy.",
-    hint: "🟢 Academy-Verified",
+    hint: "Academy-Verified",
     hintClass: "",
-    ico: "🏫",
+    ico: "fa-solid fa-school",
+    badgeIcon: "fa-solid fa-circle-check",
   },
   {
     id: "self",
     title: "Path B · Self-trained",
     sub: "Learned from books, YouTube, AAPC guides, online courses.",
-    hint: "🟡 Talentera-Assessed",
+    hint: "Talentera-Assessed",
     hintClass: "yellow",
-    ico: "📚",
+    ico: "fa-solid fa-book-open-reader",
+    badgeIcon: "fa-solid fa-award",
   },
   {
     id: "pursuing",
     title: "Path C · Pursuing",
     sub: "Currently in the middle of an academy course.",
-    hint: "🟠 In Training",
+    hint: "In Training",
     hintClass: "orange",
-    ico: "⏳",
+    ico: "fa-solid fa-hourglass-half",
+    badgeIcon: "fa-solid fa-clock",
+  },
+  {
+    id: "non_trained",
+    title: "Path D · Non-Trained",
+    sub: "No formal RCM training or course taken yet. Entry-level fresher.",
+    hint: "Direct Entry",
+    hintClass: "blue",
+    ico: "fa-solid fa-user-graduate",
+    badgeIcon: "fa-solid fa-bolt",
   },
 ];
 
 const TRAINING_MODES = ["Classroom", "Online", "Hybrid", "Self-paced"];
+const TOTAL_EXPERIENCE_OPTIONS = ["Less than 1 year", "1 – 2 years", "2 – 3 years", "3 – 5 years", "5 – 8 years", "8+ years"];
+const NOTICE_PERIOD_OPTIONS = ["Immediate Joiner", "15 Days", "30 Days", "45 Days", "60 Days", "90 Days"];
 const TOTAL_HOURS_OPTIONS = ["Less than 100 hrs", "100 – 200 hrs", "200 – 400 hrs", "400+ hrs"];
 const CHART_PRACTICE_OPTIONS = ["0", "1 – 50", "51 – 200", "201 – 500", "500+"];
 const START_TIMELINES = [
-  { id: "immediately", label: "🚀 Immediately" },
-  { id: "30_days", label: "Within 30 days" },
-  { id: "60_days", label: "Within 60 days" },
-  { id: "90_days", label: "90+ days" },
+  { id: "immediately", label: "Immediately", icon: "fa-solid fa-rocket" },
+  { id: "30_days", label: "Within 30 days", icon: "fa-regular fa-calendar" },
+  { id: "60_days", label: "Within 60 days", icon: "fa-regular fa-calendar-days" },
+  { id: "90_days", label: "90+ days", icon: "fa-regular fa-clock" },
 ];
 const SHIFT_OPTIONS = [
-  { id: "day", label: "☀️ Day shift" },
-  { id: "night", label: "🌙 US Night shift" },
-  { id: "uk_evening", label: "🇬🇧 UK Evening shift" },
-  { id: "rotational", label: "🔄 Rotational" },
+  { id: "day", label: "Day shift", icon: "fa-solid fa-sun" },
+  { id: "night", label: "US Night shift", icon: "fa-solid fa-moon" },
+  { id: "uk_evening", label: "UK Evening shift", icon: "fa-solid fa-earth-europe" },
+  { id: "rotational", label: "Rotational", icon: "fa-solid fa-arrows-rotate" },
 ];
 
 const MONTH_OPTIONS = [
@@ -178,7 +194,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const s1 = candidate?.stage1 || {};
   const candidateName = s1.fullName || candidate.fullName || "Candidate";
   const candidateCity = s1.city || candidate.city || "—";
-  const candidateExp = s1.experienceLevel || s1.experience || candidate.experience || "Fresher";
+  // Prioritise Stage 1 saved value; only fall back to root-level candidate.experience
+  // if Stage 1 has not been saved yet. Numeric values (e.g. "5" from registration)
+  // must not override an explicit Fresher selection in Stage 1.
+  const candidateExp = s1.experience || s1.experienceLevel ||
+    (typeof candidate.experience === "string" && /^(fresher|experienced)$/i.test(candidate.experience)
+      ? candidate.experience
+      : "Fresher");
 
   // FORM STATES (Initialized from existingData or empty)
   const [domain, setDomain] = useState(existingData.domain || "");
@@ -199,6 +221,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     const nextDomain = newDomainId;
     const prevDomain = domain;
     setDomain(nextDomain);
+
+    if (DOMAINS_WITHOUT_SPECIALTIES.includes(nextDomain) && specialties.length > 0) {
+      setSpecialties([]);
+      if (formErrors.specialties) setFormErrors((prev) => ({ ...prev, specialties: "" }));
+    }
 
     // If a preset training level was selected, dynamically map it to the corresponding tier in the newly selected domain
     if (!levelOtherSelected && trainingLevel) {
@@ -224,6 +251,33 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [specialtyOtherText, setSpecialtyOtherText] = useState("");
 
   const [trainingPath, setTrainingPath] = useState(existingData.trainingPath || "academy");
+
+  // Experienced-candidate profile — replaces the Academy/Self-trained/Non-trained training path
+  // questions (Sections 2 & 3) with real work-history fields, since an experienced hire doesn't
+  // need to re-prove how they originally trained.
+  const [expCompanyName, setExpCompanyName] = useState(existingData.currentCompany || "");
+  const [expJobTitle, setExpJobTitle] = useState(existingData.jobTitle || "");
+  const [expProjectDetails, setExpProjectDetails] = useState(existingData.projectDetails || "");
+  const [expTotalYears, setExpTotalYears] = useState(existingData.totalExperience || "");
+  const [expNoticePeriod, setExpNoticePeriod] = useState(existingData.noticePeriod || "");
+  const [expCurrentSalary, setExpCurrentSalary] = useState(existingData.currentSalary || "");
+  const [expSkills, setExpSkills] = useState(existingData.skills || "");
+  const [expCertDocName, setExpCertDocName] = useState(existingData.certDocName || "");
+  const [expCertDocUrl, setExpCertDocUrl] = useState(existingData.certDocUrl || "");
+  const [uploadingExpCertDoc, setUploadingExpCertDoc] = useState(false);
+  const expCertFileInputRef = useRef(null);
+  const [nonTrainedBackground, setNonTrainedBackground] = useState(
+    existingData.nonTrainedBackground || "Life Sciences / Medical / Allied Health Graduate"
+  );
+  const [nonTrainedExposure, setNonTrainedExposure] = useState(
+    existingData.nonTrainedExposure || "Complete Beginner — Ready for company onboarding"
+  );
+  const [nonTrainedTargetRole, setNonTrainedTargetRole] = useState(
+    existingData.nonTrainedTargetRole || "Trainee Medical Coder"
+  );
+  const [openToSponsorship, setOpenToSponsorship] = useState(
+    existingData.openToSponsorship !== undefined ? existingData.openToSponsorship : true
+  );
 
   // Path A / C Details - Academy Name & Academy Location
   const [academyName, setAcademyName] = useState(existingData.academyName || "");
@@ -321,12 +375,24 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [error, setError] = useState("");
 
   function handleSelectAcademy(name) {
-    setAcademyName(name);
-    const found = allAcademiesList.find((a) => a.name.toLowerCase() === name.toLowerCase());
-    if (found) {
-      if (!academyLocation || academyLocation.trim() === "" || academyLocation === "—") {
-        setAcademyLocation(found.location || (found.branches && found.branches[0]) || "");
-      }
+    let cleanName = name;
+    let extractedLocation = "";
+    const bracketMatch = name.match(/^(.*?)\s*\((.*?)\)\s*$/);
+    if (bracketMatch) {
+      cleanName = bracketMatch[1].trim();
+      extractedLocation = bracketMatch[2].trim();
+    }
+
+    setAcademyName(cleanName);
+
+    // Get location from the academy itself (from directory or from bracket)
+    const found = allAcademiesList.find(
+      (a) => a.name.toLowerCase() === cleanName.toLowerCase() || a.name.toLowerCase() === name.toLowerCase()
+    );
+
+    const targetLocation = (found && (found.location || (found.branches && found.branches[0]))) || extractedLocation;
+    if (targetLocation) {
+      setAcademyLocation(targetLocation);
     }
   }
 
@@ -368,10 +434,33 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     setSpecialtyOtherOpen(false);
   }
 
-  // Readiness Check pills: freshers see foundation topics (Anatomy, Physiology…)
+  function handleSelectTrainingPath(pathId) {
+    setTrainingPath(pathId);
+    if (formErrors.academyName) {
+      setFormErrors((prev) => ({ ...prev, academyName: "" }));
+    }
+    if (pathId === "non_trained") {
+      // Auto-set training level to "Non-Trained" if not custom-typed
+      if (!levelOtherSelected) {
+        setTrainingLevel("Non-Trained");
+        if (formErrors.trainingLevel) setFormErrors((prev) => ({ ...prev, trainingLevel: "" }));
+      }
+      if (practicedCharts === null) setPracticedCharts(false);
+      if (openToTrainee === null) setOpenToTrainee(true);
+      toast("Switched to Non-Trained · Direct Entry mode. Form sections updated.", "ℹ");
+    }
+  }
+
+  // Readiness Check pills: freshers & non-trained candidates see foundation topics (Anatomy, Physiology…)
   // first, then the specialties they picked in 1.3 (relevant match), then the
   // usual specialty list. Anything already selected always stays visible.
-  const isFresherCandidate = /fresher|student|^0\b|no experience|trainee/i.test(String(candidateExp || ""));
+  // Default to Fresher unless the value explicitly says "Experienced" - candidates added via
+  // company/bulk-import flows can have a legacy placeholder like "1-3" in stage1.experience
+  // (a years-range string, not the Fresher/Experienced wording the wizard itself saves), and
+  // that unrecognized value must never be treated as a positive "Experienced" signal - it
+  // would wrongly show this Experienced-only section to a Fresher whose real choice just
+  // hasn't been saved yet. Matches the same "exp" substring check the resume components use.
+  const isFresherCandidate = !/exp/i.test(String(candidateExp || ""));
   const readinessOptions = (() => {
     const seen = new Set();
     const out = [];
@@ -381,7 +470,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       seen.add(key);
       out.push(String(name).trim());
     };
-    if (isFresherCandidate) FRESHER_TOPICS.forEach(add);
+    if (isFresherCandidate || trainingPath === "non_trained") FRESHER_TOPICS.forEach(add);
     specialties.forEach(add);
     ALL_SPECIALTIES.slice(0, 9).forEach(add);
     confidentSpecs.forEach(add);
@@ -405,6 +494,29 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     }
   }
 
+  const handleUploadExpCertDoc = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast("Certificate file size must be less than 10 MB.", "!");
+      return;
+    }
+    setUploadingExpCertDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("doc", file);
+      const res = await api.post(`/candidate/upload/doc/2`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      setExpCertDocName(file.name);
+      setExpCertDocUrl(res.data?.docUrl || res.data?.url || "");
+      toast(`${file.name} uploaded successfully!`, "✓");
+    } catch (err) {
+      toast(err.response?.data?.message || "Certificate upload failed.", "!");
+    } finally {
+      setUploadingExpCertDoc(false);
+    }
+  };
+
   function handleToggleShift(shiftId) {
     if (selectedShifts.includes(shiftId)) {
       if (selectedShifts.length === 1) {
@@ -419,38 +531,56 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   // Build Payload
   function buildPayload(isDraft = false) {
+    const isNonTrained = trainingPath === "non_trained";
+    const resolvedLevel = isNonTrained ? (trainingLevel || "Non-Trained") : (effectiveTrainingLevel || (!isFresherCandidate ? "Experienced" : ""));
     return {
       isDraft,
       domain,
-      trainingLevel: effectiveTrainingLevel,
+      trainingLevel: resolvedLevel,
       specialties,
-      specialty: specialties[0] || "HCC",
-      courseName: domain ? `${domain} - ${specialties.join(", ") || effectiveTrainingLevel}` : (specialties.join(", ") || effectiveTrainingLevel),
+      specialty: specialties[0] || (domain ? `${domain} General` : "RCM General"),
+      // Experienced-candidate work history — replaces the training-path questions for them (Section 2)
+      currentCompany: isFresherCandidate ? "" : expCompanyName.trim(),
+      jobTitle: isFresherCandidate ? "" : expJobTitle.trim(),
+      projectDetails: isFresherCandidate ? "" : expProjectDetails.trim(),
+      totalExperience: isFresherCandidate ? "" : expTotalYears,
+      noticePeriod: isFresherCandidate ? "" : expNoticePeriod,
+      currentSalary: isFresherCandidate ? "" : expCurrentSalary.trim(),
+      skills: isFresherCandidate ? "" : expSkills.trim(),
+      certDocName: isFresherCandidate ? "" : expCertDocName,
+      certDocUrl: isFresherCandidate ? "" : expCertDocUrl,
+      courseName: domain ? `${domain} - ${specialties.join(", ") || resolvedLevel}` : (specialties.join(", ") || resolvedLevel),
       course: domain,
       trainingPath,
-      academyName: academyName.trim(),
-      academyLocation: academyLocation.trim(),
-      academyCity: academyLocation.trim(),
-      instituteCity: academyLocation.trim(),
-      location: academyLocation.trim(),
-      batch: batch.trim(),
-      batchNumber: batch.trim(),
-      rollNumber: batch.trim(),
-      startMonth,
-      startYear,
-      startDate: startYear ? (startMonth ? `${startMonth}/${startYear}` : startYear) : "",
-      endMonth,
-      endYear,
-      endDate: endYear ? (endMonth ? `${endMonth}/${endYear}` : endYear) : "",
-      duration: totalHours,
-      totalHours,
-      modeOfTraining,
-      certificateId: certificateId.trim(),
-      academyAssessmentScore: academyScore,
-      practicedCharts,
-      chartsCount,
-      totalChartsCount: chartsCount,
-      internshipDone,
+      isNonTrained,
+      isSelfTrained: trainingPath === "self" || isNonTrained,
+      academyName: isNonTrained ? "Non-Trained / Direct Entry" : academyName.trim(),
+      academyLocation: isNonTrained ? (candidateCity || "—") : academyLocation.trim(),
+      academyCity: isNonTrained ? (candidateCity || "—") : academyLocation.trim(),
+      instituteCity: isNonTrained ? (candidateCity || "—") : academyLocation.trim(),
+      location: isNonTrained ? (candidateCity || "—") : academyLocation.trim(),
+      batch: isNonTrained ? "Direct Entry" : batch.trim(),
+      batchNumber: isNonTrained ? "Direct Entry" : batch.trim(),
+      rollNumber: isNonTrained ? "Direct Entry" : batch.trim(),
+      startMonth: isNonTrained ? "" : startMonth,
+      startYear: isNonTrained ? "" : startYear,
+      startDate: isNonTrained ? "" : (startYear ? (startMonth ? `${startMonth}/${startYear}` : startYear) : ""),
+      endMonth: isNonTrained ? "" : endMonth,
+      endYear: isNonTrained ? "" : endYear,
+      endDate: isNonTrained ? "" : (endYear ? (endMonth ? `${endMonth}/${endYear}` : endYear) : ""),
+      duration: isNonTrained ? "0 hrs" : totalHours,
+      totalHours: isNonTrained ? "0 hrs" : totalHours,
+      modeOfTraining: isNonTrained ? "Direct Entry" : modeOfTraining,
+      certificateId: isNonTrained ? "" : certificateId.trim(),
+      academyAssessmentScore: isNonTrained ? "—" : academyScore,
+      nonTrainedBackground: isNonTrained ? nonTrainedBackground : undefined,
+      nonTrainedExposure: isNonTrained ? nonTrainedExposure : undefined,
+      nonTrainedTargetRole: isNonTrained ? nonTrainedTargetRole : undefined,
+      openToSponsorship: isNonTrained ? openToSponsorship : undefined,
+      practicedCharts: isNonTrained && practicedCharts === null ? false : practicedCharts,
+      chartsCount: isNonTrained && practicedCharts !== true ? "0" : chartsCount,
+      totalChartsCount: isNonTrained && practicedCharts !== true ? "0" : chartsCount,
+      internshipDone: isNonTrained && internshipDone === null ? false : internshipDone,
       internshipWhere: internshipWhere.trim(),
       internshipDuration: internshipDuration.trim(),
       internshipRole: internshipRole.trim(),
@@ -458,7 +588,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       learningSpecialties: learningSpecs,
       startTimeline,
       shifts: selectedShifts,
-      openToTrainee,
+      openToTrainee: isNonTrained && openToTrainee === null ? true : openToTrainee,
     };
   }
 
@@ -490,24 +620,42 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       missing.push("Primary Domain (Section 1.1)");
       errs.domain = "Please select your primary domain";
     }
-    if (!trainingLevel && !levelOtherSelected) {
+    if (isFresherCandidate && !trainingLevel && !levelOtherSelected && trainingPath !== "non_trained") {
       missing.push("Training Level (Section 1.2)");
       errs.trainingLevel = "Please select your training level";
-    } else if (levelOtherSelected && !levelOtherText.trim()) {
+    } else if (isFresherCandidate && levelOtherSelected && !levelOtherText.trim()) {
       missing.push("Training Level - specify under Others (Section 1.2)");
       errs.levelOther = "Please type your training level";
     }
-    if (specialties.length === 0) {
+    if (specialties.length === 0 && !DOMAINS_WITHOUT_SPECIALTIES.includes(domain)) {
       missing.push("Primary Specialty (Section 1.3)");
       errs.specialties = "Please select at least 1 primary specialty";
     }
-    if (trainingPath === "academy" && (!academyName || academyName.trim().length < 2)) {
+    if (isFresherCandidate && trainingPath === "academy" && (!academyName || academyName.trim().length < 2)) {
       missing.push("Academy Name (Section 3)");
       errs.academyName = "Academy Name is mandatory";
     }
-    if (trainingPath === "self" && (!academyName || academyName.trim().length < 2)) {
+    if (isFresherCandidate && trainingPath === "self" && (!academyName || academyName.trim().length < 2)) {
       missing.push("Primary Learning Source / Platform (Section 3)");
       errs.academyName = "Primary Learning Source / Platform is mandatory";
+    }
+    if (!isFresherCandidate) {
+      if (!expCompanyName || expCompanyName.trim().length < 2) {
+        missing.push("Current / Most Recent Company (Section 2)");
+        errs.expCompanyName = "Company name is mandatory";
+      }
+      if (!expJobTitle || expJobTitle.trim().length < 2) {
+        missing.push("Job Title (Section 2)");
+        errs.expJobTitle = "Job title is mandatory";
+      }
+      if (!expTotalYears) {
+        missing.push("Total Experience (Section 2)");
+        errs.expTotalYears = "Please select your total experience";
+      }
+      if (!expNoticePeriod) {
+        missing.push("Notice Period (Section 2)");
+        errs.expNoticePeriod = "Please select your notice period";
+      }
     }
 
     if (missing.length > 0) {
@@ -1026,7 +1174,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         .s2-choice.selected .s2-choice-check { background: var(--gold); border-color: var(--gold); color: var(--navy); }
 
         /* PATH CARDS */
-        .s2-path-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        .s2-path-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+        @media (max-width: 960px) {
+          .s2-path-row { grid-template-columns: 1fr 1fr; }
+        }
         @media (max-width: 640px) {
           .s2-path-row { grid-template-columns: 1fr; }
         }
@@ -1068,10 +1219,12 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           font-weight: 700;
           letter-spacing: .3px;
           margin-top: 8px;
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
         }
         .s2-path-card .badge-hint.yellow { background: #FFF3D6; color: var(--amber); }
         .s2-path-card .badge-hint.orange { background: #FFE4CC; color: #B85B00; }
+        .s2-path-card .badge-hint.blue { background: #EEF2FF; color: #1D4ED8; }
 
         /* TAG PICKER & PILLS */
         .s2-tag-picker {
@@ -1614,8 +1767,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     className={`s2-choice ${domain === d.id ? "selected" : ""}`}
                     onClick={() => handleSelectDomain(d.id)}
                   >
-                    <div className="s2-choice-check">{domain === d.id ? "✓" : ""}</div>
-                    <div className="s2-choice-icon">{d.icon}</div>
+                    <div className="s2-choice-check">{domain === d.id ? <i className="fa-solid fa-check" style={{ fontSize: 10 }} /> : ""}</div>
+                    <div className="s2-choice-icon"><i className={d.icon} /></div>
                     <div className="s2-choice-title">{d.title}</div>
                     <div className="s2-choice-sub">{d.sub}</div>
                   </div>
@@ -1626,6 +1779,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               )}
             </div>
 
+            {isFresherCandidate && (
             <div className={`s2-field ${formErrors.trainingLevel ? "has-error" : ""}`}>
               <label>
                 1.2 · Training Level <span className="req">*</span>
@@ -1680,7 +1834,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 </div>
               )}
             </div>
+            )}
 
+            {!DOMAINS_WITHOUT_SPECIALTIES.includes(domain) && (
             <div className={`s2-field ${formErrors.specialties ? "has-error" : ""}`}>
               <label>
                 1.3 · Specialties within your domain <span className="req">*</span>
@@ -1744,8 +1900,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 Available for Coding: E/M · HCC · ED · Surgery · IP-DRG · Home Health · ObGyn · Radiology · Pediatrics · Anesthesia · Pathology
               </div>
             </div>
+            )}
           </div>
 
+          {isFresherCandidate ? (
+            <>
           {/* SECTION 2 · PATH CHOOSER */}
           <div className="s2-section">
             <div className="s2-section-header">
@@ -1762,12 +1921,16 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   <div
                     key={p.id}
                     className={`s2-path-card ${trainingPath === p.id ? "selected" : ""}`}
-                    onClick={() => setTrainingPath(p.id)}
+                    onClick={() => handleSelectTrainingPath(p.id)}
                   >
-                    <div className="ico">{p.ico}</div>
+                    <div className="s2-choice-check">{trainingPath === p.id ? <i className="fa-solid fa-check" style={{ fontSize: 10 }} /> : ""}</div>
+                    <div className="ico"><i className={p.ico} /></div>
                     <div className="title">{p.title}</div>
                     <div className="sub">{p.sub}</div>
-                    <span className={`badge-hint ${p.hintClass}`}>{p.hint}</span>
+                    <span className={`badge-hint ${p.hintClass}`}>
+                      <i className={p.badgeIcon} style={{ marginRight: 5, fontSize: 9 }} />
+                      {p.hint}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1779,14 +1942,138 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             <div className="s2-section-header">
               <div className="s2-section-num">3</div>
               <div className="s2-section-title">
-                {trainingPath === "self" ? "Self-Trained Platform & Learning Sources" : "Academy Details"}
+                {trainingPath === "non_trained"
+                  ? "Direct Entry & Trainee Profile"
+                  : trainingPath === "self"
+                  ? "Self-Trained Platform & Learning Sources"
+                  : "Academy Details"}
               </div>
               <div className="s2-status-chip pending">
-                {trainingPath === "self" ? (academyName ? "COMPLETED" : "PENDING") : "PENDING · +5"}
+                {trainingPath === "non_trained"
+                  ? "COMPLETED · +5"
+                  : trainingPath === "self"
+                  ? (academyName ? "COMPLETED" : "PENDING")
+                  : "PENDING · +5"}
               </div>
             </div>
 
-            {trainingPath === "self" ? (
+            {trainingPath === "non_trained" ? (
+              /* Non-Trained / Direct Entry Profile */
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div
+                  style={{
+                    background: "linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)",
+                    border: "1.5px solid #86EFAC",
+                    borderRadius: 12,
+                    padding: "16px 20px",
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 14,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: "#16A34A",
+                      color: "#FFFFFF",
+                      display: "grid",
+                      placeItems: "center",
+                      fontSize: 16,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <i className="fa-solid fa-user-graduate" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#14532D" }}>
+                      Direct Entry Candidate · No Academy Certificate Required
+                    </div>
+                    <div style={{ fontSize: 12, color: "#166534", marginTop: 4, lineHeight: 1.5 }}>
+                      You have selected <strong>Non-Trained</strong>. Healthcare RCM employers actively recruit fresh graduates directly for in-house training batches with 30–90 days of paid onboarding. You do not need to provide academy certificates, batch numbers, or training hours.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="s2-row">
+                  <div className="s2-field">
+                    <label>
+                      Academic / Educational Foundation <span className="req">*</span>
+                    </label>
+                    <select
+                      value={nonTrainedBackground}
+                      onChange={(e) => setNonTrainedBackground(e.target.value)}
+                    >
+                      <option value="Life Sciences / Medical / Allied Health Graduate">Life Sciences / Medical / Allied Health Graduate</option>
+                      <option value="Pharmacy / Nursing / Physiotherapy Graduate">Pharmacy / Nursing / Physiotherapy Graduate</option>
+                      <option value="Commerce / Finance / Accounts Graduate (B.Com, BBA)">Commerce / Finance / Accounts Graduate (B.Com, BBA)</option>
+                      <option value="Engineering / Computer Science / IT / BCA Graduate">Engineering / Computer Science / IT / BCA Graduate</option>
+                      <option value="Arts / Humanities / Science Graduate">Arts / Humanities / Science Graduate</option>
+                      <option value="Career Transitioner (Switching from another domain)">Career Transitioner (Switching from another domain)</option>
+                    </select>
+                    <div className="s2-helper">Highlights your foundational educational strength to hiring managers.</div>
+                  </div>
+
+                  <div className="s2-field">
+                    <label>
+                      Prior Familiarity with Healthcare / RCM <span className="req">*</span>
+                    </label>
+                    <select
+                      value={nonTrainedExposure}
+                      onChange={(e) => setNonTrainedExposure(e.target.value)}
+                    >
+                      <option value="Complete Beginner — Ready for company onboarding">Complete Beginner — Ready for company onboarding</option>
+                      <option value="Basic knowledge of Human Anatomy & Physiology">Basic knowledge of Human Anatomy & Physiology</option>
+                      <option value="Basic familiarity with Medical Terminology">Basic familiarity with Medical Terminology</option>
+                      <option value="Self-studied ICD-10 / CPT / Billing overviews">Self-studied ICD-10 / CPT / Billing overviews</option>
+                      <option value="Watched introductory YouTube / web webinars">Watched introductory YouTube / web webinars</option>
+                    </select>
+                    <div className="s2-helper">Helps recruiters match you to the right beginner training track.</div>
+                  </div>
+                </div>
+
+                <div className="s2-row">
+                  <div className="s2-field">
+                    <label>Target Trainee Role <span className="req">*</span></label>
+                    <select
+                      value={nonTrainedTargetRole}
+                      onChange={(e) => setNonTrainedTargetRole(e.target.value)}
+                    >
+                      <option value="Trainee Medical Coder">Trainee Medical Coder</option>
+                      <option value="Trainee Medical Biller">Trainee Medical Biller</option>
+                      <option value="AR Caller / Junior Associate">AR Caller / Junior Associate</option>
+                      <option value="Eligibility & Verification Trainee">Eligibility & Verification Trainee</option>
+                      <option value="Open to any RCM Trainee position">Open to any RCM Trainee position</option>
+                    </select>
+                    <div className="s2-helper">The entry-level role you want recruiters to evaluate you for.</div>
+                  </div>
+
+                  <div className="s2-field">
+                    <label>Open to Company-Sponsored Training & Certification? <span className="req">*</span></label>
+                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                      <div
+                        className={`s2-option-item ${openToSponsorship ? "selected" : ""}`}
+                        style={{ flex: 1, justifyContent: "center" }}
+                        onClick={() => setOpenToSponsorship(true)}
+                      >
+                        <div className="dot"></div>
+                        <div>Yes, definitely</div>
+                      </div>
+                      <div
+                        className={`s2-option-item ${!openToSponsorship ? "selected" : ""}`}
+                        style={{ flex: 1, justifyContent: "center" }}
+                        onClick={() => setOpenToSponsorship(false)}
+                      >
+                        <div className="dot"></div>
+                        <div>Self-sponsored</div>
+                      </div>
+                    </div>
+                    <div className="s2-helper">Most top RCM employers sponsor CPC/CIC exams after 6 months.</div>
+                  </div>
+                </div>
+              </div>
+            ) : trainingPath === "self" ? (
               /* Self-Trained: Only Training Source Dropdown */
               <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`} style={{ marginBottom: 8 }}>
                 <label>
@@ -1874,12 +2161,15 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       placeholder="Select from dropdown or type location (e.g. Coimbatore, Tamil Nadu)"
                     />
                     <datalist id="academy-locations-datalist">
+                      {allAcademiesList.find((a) => a.name.toLowerCase() === academyName.trim().toLowerCase())?.branches?.map((b) => (
+                        <option key={b} value={b.includes(",") ? b : `${b}, ${allAcademiesList.find((a) => a.name.toLowerCase() === academyName.trim().toLowerCase())?.state || "India"}`} />
+                      ))}
                       {ACADEMY_LOCATIONS.map((loc) => (
                         <option key={loc} value={loc} />
                       ))}
                     </datalist>
                     <div className="s2-helper">
-                      Select your academy location from the list or type your specific branch.
+                      Auto-filled from academy. You can pick another branch or type yours.
                     </div>
                   </div>
                 </div>
@@ -2026,6 +2316,176 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </>
             )}
           </div>
+            </>
+          ) : (
+            <>
+          {/* SECTION 2 · YOUR WORK EXPERIENCE (Experienced candidates) */}
+          <div className="s2-section">
+            <div className="s2-section-header">
+              <div className="s2-section-num">2</div>
+              <div className="s2-section-title">Your Work Experience</div>
+              <div className="s2-status-chip pending">PENDING · +8</div>
+            </div>
+
+            <div className="s2-row">
+              <div className={`s2-field ${formErrors.expCompanyName ? "has-error" : ""}`}>
+                <label>
+                  Current / Most Recent Company <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={expCompanyName}
+                  onChange={(e) => {
+                    setExpCompanyName(e.target.value);
+                    if (formErrors.expCompanyName) setFormErrors((prev) => ({ ...prev, expCompanyName: "" }));
+                  }}
+                  placeholder="e.g. Omega Healthcare, Access Healthcare"
+                />
+                {formErrors.expCompanyName && (
+                  <div className="field-error-msg">⚠️ {formErrors.expCompanyName}</div>
+                )}
+              </div>
+
+              <div className={`s2-field ${formErrors.expTotalYears ? "has-error" : ""}`}>
+                <label>
+                  Total Experience <span className="req">*</span>
+                </label>
+                <select
+                  value={expTotalYears}
+                  onChange={(e) => {
+                    setExpTotalYears(e.target.value);
+                    if (formErrors.expTotalYears) setFormErrors((prev) => ({ ...prev, expTotalYears: "" }));
+                  }}
+                >
+                  <option value="">-- Select --</option>
+                  {TOTAL_EXPERIENCE_OPTIONS.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+                {formErrors.expTotalYears && (
+                  <div className="field-error-msg">⚠️ {formErrors.expTotalYears}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="s2-row">
+              <div className={`s2-field ${formErrors.expJobTitle ? "has-error" : ""}`}>
+                <label>
+                  Job Title / Designation <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={expJobTitle}
+                  onChange={(e) => {
+                    setExpJobTitle(e.target.value);
+                    if (formErrors.expJobTitle) setFormErrors((prev) => ({ ...prev, expJobTitle: "" }));
+                  }}
+                  placeholder="e.g. Senior AR Caller, HCC Coder, Billing Executive"
+                />
+                {formErrors.expJobTitle && (
+                  <div className="field-error-msg">⚠️ {formErrors.expJobTitle}</div>
+                )}
+              </div>
+
+              <div className="s2-field">
+                <label>
+                  Key Skills
+                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={expSkills}
+                  onChange={(e) => setExpSkills(e.target.value)}
+                  placeholder="e.g. ICD-10-CM, CPT coding, denial management, AR follow-up"
+                />
+              </div>
+            </div>
+
+            <div className="s2-field">
+              <label>
+                Project / Client Details
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+              </label>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>
+                What did you work on — client type, process, specialty focus.
+              </div>
+              <textarea
+                rows={3}
+                value={expProjectDetails}
+                onChange={(e) => setExpProjectDetails(e.target.value)}
+                placeholder="e.g. AR follow-up for a US multispecialty client — denial management and payer calling on outpatient claims"
+              />
+            </div>
+
+            <div className="s2-row">
+              <div className={`s2-field ${formErrors.expNoticePeriod ? "has-error" : ""}`}>
+                <label>
+                  Notice Period <span className="req">*</span>
+                </label>
+                <select
+                  value={expNoticePeriod}
+                  onChange={(e) => {
+                    setExpNoticePeriod(e.target.value);
+                    if (formErrors.expNoticePeriod) setFormErrors((prev) => ({ ...prev, expNoticePeriod: "" }));
+                  }}
+                >
+                  <option value="">-- Select --</option>
+                  {NOTICE_PERIOD_OPTIONS.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+                {formErrors.expNoticePeriod && (
+                  <div className="field-error-msg">⚠️ {formErrors.expNoticePeriod}</div>
+                )}
+              </div>
+
+              <div className="s2-field">
+                <label>
+                  Current Salary (₹ LPA)
+                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={expCurrentSalary}
+                  onChange={(e) => setExpCurrentSalary(e.target.value)}
+                  placeholder="e.g. 3.6"
+                />
+              </div>
+            </div>
+
+            <div className="s2-field">
+              <label>
+                Additional Certification Attachment
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+              </label>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>
+                Upload any certificate that supports your work experience (CPC, CPB, CRC, offer/relieving letter, etc.) — PDF, JPG or PNG, up to 10 MB.
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
+                  {expCertDocName ? `📎 ${expCertDocName}` : "No file attached yet."}
+                </div>
+                <input
+                  ref={expCertFileInputRef}
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{ display: "none" }}
+                  onChange={handleUploadExpCertDoc}
+                />
+                <button
+                  type="button"
+                  className="s2-action-btn"
+                  onClick={() => expCertFileInputRef.current?.click()}
+                  disabled={uploadingExpCertDoc}
+                  style={{ whiteSpace: "nowrap", padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, cursor: uploadingExpCertDoc ? "default" : "pointer", opacity: uploadingExpCertDoc ? 0.7 : 1 }}
+                >
+                  {uploadingExpCertDoc ? "Uploading…" : expCertDocName ? "Change File" : "Choose File →"}
+                </button>
+              </div>
+            </div>
+          </div>
+            </>
+          )}
 
           {/* SECTION 4 · PRACTICAL EXPOSURE */}
           <div className="s2-section">
@@ -2034,6 +2494,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div className="s2-section-title">Practical Exposure</div>
               <div className="s2-status-chip pending">PENDING · +3</div>
             </div>
+
+            {trainingPath === "non_trained" && (
+              <div style={{ background: "#F0FDF4", border: "1px solid #86EFAC", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#166534", display: "flex", alignItems: "center", gap: 8 }}>
+                <i className="fa-solid fa-circle-info" style={{ color: "#16A34A" }} />
+                <span>As a non-trained entry-level applicant, chart practice and internships are completely optional. Having 0 charts is normal — companies train you on their EHR / billing software during initial onboarding.</span>
+              </div>
+            )}
 
             <div className="s2-field">
               <label>Have you practiced on real or mock charts? <span className="req">*</span></label>
@@ -2138,6 +2605,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <div className="s2-status-chip pending">PENDING · +3</div>
             </div>
 
+            {isFresherCandidate && (
+            <>
             <div className="s2-field">
               <label>I'm confident in <span className="req">*</span></label>
               <div className="s2-helper" style={{ marginBottom: 6 }}>Companies match you to these specialties first.{isFresherCandidate ? " As a fresher, pick the foundation topics you know well." : ""}</div>
@@ -2169,6 +2638,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 ))}
               </div>
             </div>
+            </>
+            )}
 
             <div className="s2-row">
               <div className="s2-field">
@@ -2181,7 +2652,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       onClick={() => setStartTimeline(t.id)}
                     >
                       <div className="dot"></div>
-                      <div>{t.label}</div>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        {t.icon && <i className={t.icon} style={{ fontSize: 13, color: "#64748B" }} />}
+                        <span>{t.label}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -2196,18 +2670,24 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       className={`s2-option-item ${selectedShifts.includes(sh.id) ? "selected" : ""}`}
                       onClick={() => handleToggleShift(sh.id)}
                     >
-                      <div className="box">{selectedShifts.includes(sh.id) ? "✓" : ""}</div>
-                      <div>{sh.label}</div>
+                      <div className="box">{selectedShifts.includes(sh.id) ? <i className="fa-solid fa-check" style={{ fontSize: 9 }} /> : ""}</div>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        {sh.icon && <i className={sh.icon} style={{ fontSize: 13, color: "#64748B" }} />}
+                        <span>{sh.label}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
 
+            {isFresherCandidate && (
             <div className="s2-field" style={{ marginTop: 8 }}>
               <label>Open to starting as a Trainee role? <span className="req">*</span></label>
               <div className="s2-helper" style={{ marginBottom: 6 }}>
-                Many fresher roles are labelled "Trainee" for the first 3-6 months. Opening this widens your funnel.
+                {trainingPath === "non_trained"
+                  ? "Pre-selected 'Yes' for non-trained candidates: Trainee roles include 1–3 months of paid onboarding and company domain training."
+                  : "Many fresher roles are labelled 'Trainee' for the first 3-6 months. Opening this widens your funnel."}
               </div>
               <div style={{ display: "flex", gap: 8, maxWidth: 280 }}>
                 <div
@@ -2228,6 +2708,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 </div>
               </div>
             </div>
+            )}
           </div>
 
           {/* STICKY BOTTOM BAR */}

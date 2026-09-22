@@ -158,7 +158,7 @@ export const ONBOARDING_STAGES = [
       { id: "pcchannels", name: "Notification channels", tag: "must", input: "multi", options: ["Email", "SMS", "WhatsApp", "Slack", "In-app"] },
       { id: "pcduration", name: "Default interview duration", tag: "must", input: "select", options: ["30 min", "45 min", "60 min", "90 min"] },
       { id: "pccooling", name: "Cooling-off period (days)", desc: "Optional — leave blank if you don't need a cooling-off period", tag: "opt", input: "number", placeholder: "Optional" },
-      { id: "pcautoreject", name: "Auto-reject filters", tag: "opt", input: "multi", options: ["Below min experience", "Missing certification", "Wrong location", "Notice period exceeds limit", "Below compensation floor", "Already rejected in last 6mo"] },
+      { id: "pcautoreject", name: "Auto-reject filters", tag: "opt", input: "multi", options: ["Below min experience", "Missing certification", "Wrong location", "Notice period exceeds limit", "Below compensation floor", "Already rejected in last 6mo", "Education mismatch (Life Science / Non-Life Science / Both)", "Missing mandatory keywords (CPC / ICD-10 / CPT / HCPCS)", "Experience outside 0\u20132 yrs (fresher drives)", "Location outside preferred cities"] },
       { id: "pctemplate", name: "First-touch email template", tag: "opt", input: "textarea", maxlength: 1000, placeholder: "Hi {{candidate_first_name}}, we'd love to talk about the {{role_title}} role at {{company_name}}. {{recruiter_name}} will reach out within {{sla_hours}} hours." },
       { id: "pcgolive", name: "Go-live confirmation", tag: "must", input: "select", options: ["Yes — open up", "Hold", "Pause"] },
     ],
@@ -189,7 +189,7 @@ export const JOB_POSTING_STAGE = {
   sub: "Create and publish job requirements whenever you have active vacancies",
   items: [
     { id: "roletitle", name: "Role title", tag: "must", input: "text" },
-    { id: "department", name: "Department", tag: "opt", input: "select", options: ["Coding", "Billing", "Quality / QA", "AR & Denials", "Operations", "Training", "Other"] },
+    { id: "department", name: "Department", tag: "opt", input: "select", options: ["Coding", "Billing", "AR calling", "Quality / QA", "Operations", "Training", "Other"] },
     { id: "specialty", name: "Primary specialty", tag: "must", input: "select", options: [...CODING_SPECIALTIES.slice(0, 6), ...BILLING_SPECIALTIES.slice(0, 4)] },
     { id: "level", name: "Hiring level", tag: "must", input: "select", options: ["Fresher only", "Experienced only", "Open to both"] },
     { id: "expmin", name: "Experience — minimum (yrs)", tag: "opt", input: "number" },

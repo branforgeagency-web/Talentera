@@ -4,6 +4,7 @@ import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
 import { joinUnique } from "../utils/resumeSubtitle.js";
 import { getMedalTier, medalLabel, medalBadgeStyle } from "../utils/medalBadge.js";
+import { buildResumeSkills, buildDeclarationText } from "../utils/resumeSkills.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
 // 7 Verified Resume Templates matching Talentera standards
@@ -132,10 +133,14 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
 
   // Candidate basics directly from database
   const fullName = stage1.fullName || candidateObj.name || (candidateObj.email ? candidateObj.email.split("@")[0] : "Talentera Candidate");
-  const isExperienced = String(stage1.experience || candidateObj.experience || "").toLowerCase().includes("exp") || (typeof stage1.experience === "number" && stage1.experience > 0) || (parseInt(stage1.experience, 10) > 0);
-  const expLabel = isExperienced ? `${stage1.experience} Years Exp` : "Fresher";
+  // Default to Fresher unless explicitly "Experienced" - matches getExperienceLevel() in utils/careerObjective.js
+  // and Stage2Training.jsx's isFresherCandidate (a legacy "1-3" years-range placeholder must not read as Experienced).
+  const isExperienced = /exp/i.test(String(stage1.experience || candidateObj.experience || ""));
+  const expLabel = isExperienced ? (stage2.totalExperience || "Experienced") : "Fresher";
   const domainName = stage2.domain || stage2.courseName || stage2.specialty || "Medical Coding";
-  const currentRoleTitle = stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist");
+  const currentRoleTitle = isExperienced
+    ? (stage2.jobTitle || stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist"))
+    : (domainName ? `${domainName} Professional` : "Medical Coding Specialist");
 
   // Contact info
   const city = stage1.city || "";
@@ -157,6 +162,20 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     ? stage2.specialties.join(" · ")
     : (stage2.specialty || domainName || "Medical Billing · Intermediate Medical Coding · Inpatient Coding");
   const trainingDuration = stage2.duration || stage2.totalHours ? `${stage2.duration || "200 – 400 hrs"}${stage2.totalHours ? ` · ${stage2.totalHours} hours` : ""}` : "200 – 400 hrs";
+  // // Accounts Receivable and Eligibility & Verification candidates don't pick a coding specialty (Stage 2 hides that field for them), so trainingSpecialties for them is only ever the placeholder fallback (e.g. "Eligibility & Verification General") - showing it alongside the domain and level was redundant/confusing. For those two domains, show the domain and a labeled training level instead.
+  const NO_SPECIALTY_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+  const trainingFoundationLine = NO_SPECIALTY_DOMAINS.includes(domainName)
+    ? `${domainName}${trainingLevel ? ` · Training level: ${trainingLevel}` : ""}`
+    : trainingSpecialties;
+
+  // Experienced-candidate work history (Stage 2 · "Your Work Experience") - replaces Training
+  // Foundation / Live Chart Practice on the resume for Experienced candidates, since those two
+  // sections are about proving fresher training depth, not relevant once someone has real RCM
+  // work experience to show instead.
+  const workCompany = stage2.currentCompany || "";
+  const workProjectDetails = stage2.projectDetails || "";
+  const workTotalExperience = stage2.totalExperience || "";
+  const workNoticePeriod = stage2.noticePeriod || "";
 
   // Stage 3 Certifications
   const isNonCertified = stage3.nonCertified || stage3.isCertified === false || stage3.certType === "non-certified";
@@ -177,6 +196,15 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     }
     return [];
   }, [stage3, isNonCertified]);
+
+  // Skills chips + declaration paragraph - generated from the candidate's own domain,
+  // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
+  const resumeSkills = useMemo(
+    () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
+    [stage2.domain, domainName, stage2.specialties, isNonCertified]
+  );
+  const declarationText = useMemo(() => buildDeclarationText({ fullName, city }), [fullName, city]);
+  const declarationDate = useMemo(() => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), []);
 
   // Stage 4 Assessment
   const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : (stage4.passed ? 85 : 30));
@@ -284,9 +312,13 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     certifications: true,
     training: true,
     liveCharts: true,
+    workExperience: true,
+    toolsUsed: true,
     videoPitch: true,
     education: true,
+    skills: true,
     preferences: true,
+    declaration: true,
     qrStamp: true,
   };
   const [visibleSections, setVisibleSections] = useState(initialSections);
@@ -322,9 +354,11 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       domain: domainName,
       trainingLevel,
       specialties: Array.isArray(stage2.specialties) && stage2.specialties.length > 0 ? stage2.specialties.slice(0, 3).join(", ") : (stage2.specialty || (specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName)),
-      roleTitle: stage1.currentRole || "",
+      roleTitle: stage2.jobTitle || stage1.currentRole || "",
       academyName,
       assessmentScore,
+      currentCompany: stage2.currentCompany || "",
+      projectDetails: stage2.projectDetails || "",
     }).options[0].text;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore, trainingLevel, stage2]);
@@ -384,9 +418,13 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       certifications: true,
       training: true,
       liveCharts: true,
+      workExperience: true,
+      toolsUsed: true,
       videoPitch: true,
       education: true,
+      skills: true,
       preferences: true,
+      declaration: true,
       qrStamp: true,
     });
     toast("Reset theme to template defaults.", "✓");
@@ -480,9 +518,19 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         academyName,
         academyLocality,
         domainName,
+        trainingLevel,
         trainingSpecialties,
         trainingDuration,
         specialtyCharts,
+        selectedPlatforms,
+        specialties: stage2.specialties,
+        isNonCertified,
+        city,
+        isExperienced,
+        workCompany,
+        workProjectDetails,
+        workTotalExperience,
+        workNoticePeriod,
         degree,
         collegeName,
         graduationYear,
@@ -509,11 +557,15 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       `ROLE: ${currentRoleTitle} | LOCATION: ${locality}`,
       `CONTACT: Mobile: ${mobile} | Email: ${email} | Live: ${liveResumeUrl}`,
       "",
-      visibleSections.objective ? `CAREER OBJECTIVE:\n${careerObjective}\n` : "",
+      visibleSections.objective ? `${isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}:\n${careerObjective}\n` : "",
       visibleSections.scorecard ? `TALENTERA VERIFIED SCORECARD:\n* Foundation Assessment: ${assessmentScore}/100 (${assessmentMedal})\n* Video Pitch AI Score: ${videoScore}/100 (${videoMedal})\n* Live Charts: ${totalCharts} charts (${overallAccuracy}% accuracy)\n` : "",
-      visibleSections.training ? `TRAINING FOUNDATION:\n* Academy: ${academyName} (${academyLocality}) - ${trainingSpecialties} (${trainingDuration})\n` : "",
+      !isExperienced && visibleSections.training ? `TRAINING FOUNDATION:\n* Academy: ${academyName} (${academyLocality}) - ${trainingSpecialties} (${trainingDuration})\n` : "",
+      isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails) ? `WORK EXPERIENCE:\n* ${currentRoleTitle}${workCompany ? ` · ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}\n${workProjectDetails ? `${workProjectDetails}\n` : ""}` : "",
+      isExperienced && visibleSections.toolsUsed && selectedPlatforms.length > 0 ? `TOOLS USED:\n* ${selectedPlatforms.join(" · ")}\n` : "",
       visibleSections.education ? `EDUCATION:\n* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `[${cgpa}]` : ""}\n` : "",
+      visibleSections.skills && resumeSkills.length > 0 ? `SKILLS:\n* ${resumeSkills.join(" · ")}\n` : "",
       visibleSections.preferences ? `WORK PREFERENCES:\n* Cities: ${preferredCities} | Shifts: ${shiftPreference}\n` : "",
+      visibleSections.declaration ? `DECLARATION:\n${declarationText}\nPlace: ${city || locality} | Date: ${declarationDate}\n${fullName}\n` : "",
     ].filter(Boolean).join("\n");
 
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
@@ -1180,9 +1232,13 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   { key: "certifications", label: "📜 Core Certifications" },
                   { key: "training", label: "🎓 Training Foundation" },
                   { key: "liveCharts", label: "💻 Live Chart Practice Table" },
+                  { key: "workExperience", label: "💼 Work Experience" },
+                  { key: "toolsUsed", label: "🧰 Tools Used" },
                   { key: "videoPitch", label: "🎤 Video Pitch Scorecard" },
                   { key: "education", label: "🎓 Academic Education" },
+                  { key: "skills", label: "🛠 Skills" },
                   { key: "preferences", label: "📍 Work Preferences" },
+                  { key: "declaration", label: "🖊 Declaration" },
                   { key: "qrStamp", label: "🛡 Talentera QR Stamp & ID" },
                 ].map((sec) => (
                   <label
@@ -1576,7 +1632,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {visibleSections.objective && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader(
-              "CAREER OBJECTIVE",
+              isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
               "📝",
               <button
                 type="button"
@@ -1674,8 +1730,8 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           </div>
         )}
 
-        {/* 4. TRAINING FOUNDATION */}
-        {visibleSections.training && (
+        {/* 4. TRAINING FOUNDATION (Fresher only - see WORK EXPERIENCE below for Experienced) */}
+        {!isExperienced && visibleSections.training && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("TRAINING FOUNDATION", "🎓")}
             <div style={{
@@ -1688,7 +1744,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {academyName} · {academyLocality}
               </div>
               <div style={{ fontSize: scale.base + 1, fontWeight: 800, color: "#0F1B3D", marginTop: 3 }}>
-                {trainingSpecialties}
+                {trainingFoundationLine}
               </div>
               <div style={{ fontSize: scale.base, color: "#475569", marginTop: 3 }}>
                 {trainingDuration} · Classroom · <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Academy-Verified</span>
@@ -1697,8 +1753,63 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           </div>
         )}
 
-        {/* 5. LIVE CHART PRACTICE - DEPARTMENT-WISE */}
-        {visibleSections.liveCharts && (
+        {/* WORK EXPERIENCE (Experienced only - replaces Training Foundation) */}
+        {isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workTotalExperience) && (
+          <div style={{ marginTop: scale.gap }}>
+            {renderSectionHeader("WORK EXPERIENCE", "💼")}
+            <div style={{
+              background: "#FAFAF8",
+              border: "1px solid #E2E8F0",
+              borderRadius: 8,
+              padding: "12px 14px",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                <div style={{ fontSize: scale.base + 1, fontWeight: 800, color: "#0F1B3D" }}>
+                  {currentRoleTitle}{workCompany ? ` · ${workCompany}` : ""}
+                </div>
+                {workTotalExperience && (
+                  <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>{workTotalExperience}</div>
+                )}
+              </div>
+              <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase", marginTop: 4 }}>
+                {domainName}{workNoticePeriod ? ` · Notice period: ${workNoticePeriod}` : ""}
+              </div>
+              {workProjectDetails && (
+                <div style={{ fontSize: scale.base, color: "#475569", marginTop: 6, lineHeight: lineHeightVal }}>
+                  {workProjectDetails}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TOOLS USED (Experienced only - replaces the Live Chart Practice table) */}
+        {isExperienced && visibleSections.toolsUsed && selectedPlatforms.length > 0 && (
+          <div style={{ marginTop: scale.gap }}>
+            {renderSectionHeader("TOOLS USED", "🧰")}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {selectedPlatforms.map((tool, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    background: "#FAFAF8",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: 999,
+                    padding: "5px 12px",
+                    fontSize: scale.base,
+                    fontWeight: 700,
+                    color: "#0F1B3D",
+                  }}
+                >
+                  {tool}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 5. LIVE CHART PRACTICE - DEPARTMENT-WISE (Fresher only - see TOOLS USED above for Experienced) */}
+        {!isExperienced && visibleSections.liveCharts && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("LIVE CHART PRACTICE · DEPARTMENT-WISE", "💻")}
 
@@ -1791,7 +1902,21 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           </div>
         )}
 
-        {/* 8. WORK PREFERENCES */}
+        {/* 8. SKILLS */}
+        {visibleSections.skills && resumeSkills.length > 0 && (
+          <div style={{ marginTop: scale.gap }}>
+            {renderSectionHeader("SKILLS", "🛠")}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {resumeSkills.map((skill) => (
+                <span key={skill} style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 999, padding: "6px 14px", fontSize: scale.base - 0.5, fontWeight: 700, color: "#0F1B3D" }}>
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 9. WORK PREFERENCES */}
         {visibleSections.preferences && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("WORK PREFERENCES", "📍")}
@@ -1800,6 +1925,23 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               <div><b>Cities open to:</b> {preferredCities}</div>
               <div><b>Relocation:</b> {relocationPref} · <b>Availability:</b> Immediately</div>
               <div><b>Shifts:</b> {shiftPreference} · <b>Trainee-role open:</b> Yes</div>
+            </div>
+          </div>
+        )}
+
+        {/* 10. DECLARATION */}
+        {visibleSections.declaration && (
+          <div style={{ marginTop: scale.gap }}>
+            {renderSectionHeader("DECLARATION", "🖊")}
+            <div style={{ fontSize: scale.base - 0.5, color: "#475569", lineHeight: lineHeightVal }}>
+              {declarationText}
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16, fontSize: scale.base - 0.5, color: "#0F1B3D" }}>
+              <div>Place: {city || locality}</div>
+              <div>Date: {declarationDate}</div>
+            </div>
+            <div style={{ textAlign: "right", marginTop: 10, fontSize: scale.base, fontWeight: 800, color: "#0F1B3D" }}>
+              {fullName}
             </div>
           </div>
         )}
