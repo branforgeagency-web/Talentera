@@ -16,6 +16,7 @@ const companyRoutes = require("./routes/company");
 const otpRoutes = require("./routes/otp");
 const aadhaarRoutes = require("./routes/aadhaar");
 const vapiInterviewRoutes = require("./routes/vapiInterview");
+const collegeRoutes = require("./routes/college");
 
 const app = express();
 
@@ -98,6 +99,7 @@ app.use("/api/aadhaar", aadhaarRoutes);
 // Not behind requireAuth - Vapi calls this server-to-server; see
 // routes/vapiInterview.js for how it authenticates the candidate instead.
 app.use("/api/vapi", vapiInterviewRoutes);
+app.use("/api/college", collegeRoutes);
 
 const { isGcpConfigured } = require("./config/gcpStorage");
 

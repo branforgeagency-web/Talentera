@@ -81,6 +81,102 @@ const CandidateSchema = new mongoose.Schema(
       default: [],
     },
 
+    // 🎓 College Placement Ecosystem Extension
+    collegeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "College",
+      default: null,
+      index: true,
+    },
+    isCollegeStudent: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    studentEnrollment: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        studentId: "",
+        rollNumber: "",
+        department: "",
+        degree: "",
+        yearOfStudy: "",
+        graduationYear: "",
+        cgpa: "",
+        percentage: "",
+        backlogsCount: 0,
+        marksheetsVault: [],
+      }),
+    },
+    rcmDomainSelection: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        primaryDomain: "Medical Coding",
+        primarySubSpecialties: [],
+        secondaryDomain: "",
+        secondarySubSpecialties: [],
+        workModePreference: "WFO",
+        shiftPreference: "Day Shift",
+        expectedSalary: "",
+        availability: "Immediate",
+      }),
+    },
+    collegeTrainingModules: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        domain: "Medical Coding",
+        status: "NOT_STARTED", // NOT_STARTED, IN_PROGRESS, COMPLETED
+        modules: [],
+        startedAt: null,
+        completedAt: null,
+        trainerName: "",
+        certificateUrl: null,
+      }),
+    },
+    verificationReadiness: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        checklist: {
+          mobile: false,
+          email: true,
+          college: false,
+          academics: false,
+          resume: false,
+          training: false,
+          certification: false,
+          assessment: false,
+          videoResume: false,
+        },
+        readinessStatus: "ENROLLED", // ENROLLED, PROFILE_COMPLETED, TRAINING_IN_PROGRESS, ASSESSMENT_PENDING, VERIFICATION_PENDING, VERIFIED, INTERVIEW_READY
+        verifiedBy: null,
+        verifiedAt: null,
+      }),
+    },
+    videoResume: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        videoUrl: null,
+        thumbnailUrl: null,
+        duration: 0,
+        status: "PENDING", // PENDING, COMPLETED
+        recordedAt: null,
+      }),
+    },
+    placementLifecycle: {
+      type: mongoose.Schema.Types.Mixed,
+      default: () => ({
+        currentStatus: "AVAILABLE", // AVAILABLE, SHORTLISTED, INTERVIEW_SCHEDULED, OFFER_EXTENDED, PLACED
+        activeInterviewsCount: 0,
+        placedCompanyId: null,
+        placedCompanyName: "",
+        placedRole: "",
+        placedCtc: "",
+        placedDate: null,
+        joiningDate: null,
+        offerLetterUrl: null,
+      }),
+    },
+
     resumeUrl: { type: String, default: null },
     resumeFileName: { type: String, default: null },
     resumeTemplate: {

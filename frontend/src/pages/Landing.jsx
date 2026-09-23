@@ -1028,7 +1028,8 @@ export default function Landing() {
             if (idx === 0) setHeroAudience("candidates");
             else if (idx === 1) setHeroAudience("companies");
             else if (idx === 2) setHeroAudience("academies");
-            else if (idx === 3) {
+            else if (idx === 3) navigate("/college/dashboard");
+            else if (idx === 4) {
               const el = document.getElementById("student-features") || document.getElementById("how-it-works");
               if (el) el.scrollIntoView({ behavior: "smooth" });
             }
@@ -1037,6 +1038,7 @@ export default function Landing() {
             { label: "For Candidates", icon: "fa-solid fa-user", link: "/candidates" },
             { label: "For Companies", icon: "fa-solid fa-briefcase", link: "/companies" },
             { label: "For Academies", icon: "fa-solid fa-landmark", link: "/academy" },
+            { label: "College Dashboard", icon: "fa-solid fa-building-columns", link: "/college/dashboard" },
             { label: "How it Works", icon: "fa-solid fa-circle-play", link: "#how-it-works" },
           ]}
         />

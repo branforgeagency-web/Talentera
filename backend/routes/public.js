@@ -125,7 +125,19 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
         verificationScore: scoring.score,
         badge: scoring.isGoldBadge,
         badgeLabel: scoring.badgeTier,
-        completedStages: c.completedStages || []
+        completedStages: c.completedStages || [],
+        // 🎓 College Placement Candidate Attributes
+        isCollegeStudent: Boolean(c.isCollegeStudent),
+        collegeId: c.collegeId || null,
+        collegeName: c.stage1?.collegeName || null,
+        department: c.studentEnrollment?.department || null,
+        degree: c.studentEnrollment?.degree || c.stage1?.degree || null,
+        graduationYear: c.studentEnrollment?.graduationYear || c.stage1?.graduationYear || null,
+        cgpa: c.studentEnrollment?.cgpa || c.stage1?.cgpa || null,
+        primaryDomain: c.rcmDomainSelection?.primaryDomain || (c.stage2 && c.stage2.domain) || "Medical Coding",
+        secondaryDomain: c.rcmDomainSelection?.secondaryDomain || null,
+        readinessStatus: c.verificationReadiness?.readinessStatus || (scoring.isGoldBadge ? "INTERVIEW_READY" : "VERIFIED"),
+        placementStatus: c.placementLifecycle?.currentStatus || "AVAILABLE",
       };
     });
 
@@ -172,6 +184,18 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       if (minScore && !Number.isNaN(Number(minScore))) {
         const min = Number(minScore);
         formatted = formatted.filter((c) => c.verificationScore >= min);
+      }
+      const { college, readiness, campusPool } = req.query;
+      if (college && String(college).trim()) {
+        const cNeedle = String(college).trim().toLowerCase();
+        formatted = formatted.filter((c) => (c.collegeName || "").toLowerCase().includes(cNeedle));
+      }
+      if (readiness && String(readiness).trim()) {
+        const rNeedle = String(readiness).trim().toUpperCase();
+        formatted = formatted.filter((c) => (c.readinessStatus || "").toUpperCase() === rNeedle);
+      }
+      if (campusPool === "true" || campusPool === "1") {
+        formatted = formatted.filter((c) => c.isCollegeStudent);
       }
     }
 
