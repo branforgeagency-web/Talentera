@@ -26,8 +26,13 @@ import VerifyCandidate from "./pages/VerifyCandidate.jsx";
 import TypographyShowcase from "./pages/TypographyShowcase.jsx";
 import Learn from "./pages/Learn.jsx";
 import CertLibrary from "./pages/CertLibrary.jsx";
+import ForColleges from "./pages/ForColleges.jsx";
+import CollegeLogin from "./pages/CollegeLogin.jsx";
+import CollegeRegister from "./pages/CollegeRegister.jsx";
+import CollegePortal from "./pages/CollegePortal.jsx";
 import RequireAuth from "./components/RequireAuth.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
+import CollegeRequireAuth from "./components/CollegeRequireAuth.jsx";
 
 export default function App() {
   return (
@@ -162,7 +167,29 @@ export default function App() {
       <Route path="/staff/*" element={<StaffHub />} />
       <Route path="/employee/login" element={<StaffLogin />} />
       <Route path="/employee/*" element={<StaffHub />} />
-      <Route path="/employee" element={<StaffHub />} />
+      {/* 06. College Placement Operating System */}
+      <Route path="/college" element={<ForColleges />} />
+      <Route path="/colleges" element={<ForColleges />} />
+      <Route path="/college/login" element={<CollegeLogin />} />
+      <Route path="/colleges/login" element={<CollegeLogin />} />
+      <Route path="/college/register" element={<CollegeRegister />} />
+      <Route path="/colleges/register" element={<CollegeRegister />} />
+      <Route
+        path="/college/*"
+        element={
+          <CollegeRequireAuth>
+            <CollegePortal />
+          </CollegeRequireAuth>
+        }
+      />
+      <Route
+        path="/colleges/*"
+        element={
+          <CollegeRequireAuth>
+            <CollegePortal />
+          </CollegeRequireAuth>
+        }
+      />
 
       {/* Catch-all redirect to Landing */}
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -2,6 +2,7 @@ const express = require("express");
 const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
 const Academy = require("../models/Academy");
+const College = require("../models/College");
 const AcademyBatch = require("../models/AcademyBatch");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
@@ -2761,4 +2762,85 @@ router.put("/retake-requests/:id/reject", requireStaffAuth, async (req, res) => 
   }
 });
 
+// ---------------------------------------------------------------------------
+// 🎓 College Placement Ecosystem Management for Staff Admins
+// ---------------------------------------------------------------------------
+
+// GET /api/staff/colleges - List registered colleges
+router.get("/colleges", requireStaffAuth, async (req, res) => {
+  try {
+    const { status, search } = req.query;
+    const query = {};
+    if (status && status !== "ALL") query.verificationStatus = status;
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { city: { $regex: search, $options: "i" } },
+        { placementOfficerEmail: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const colleges = await College.find(query).sort({ createdAt: -1 }).lean();
+    return res.json({ success: true, colleges });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT /api/staff/colleges/:id/verify - Approve or reject college KYC
+router.put("/colleges/:id/verify", requireStaffAuth, async (req, res) => {
+  try {
+    const { status, tier, rejectionReason } = req.body;
+    const college = await College.findById(req.params.id);
+    if (!college) return res.status(404).json({ message: "College not found." });
+
+    college.verificationStatus = status || "VERIFIED";
+    if (tier) college.tier = tier;
+    if (rejectionReason) college.rejectionReason = rejectionReason;
+    if (status === "VERIFIED") {
+      college.verifiedAt = new Date();
+      college.verifiedBy = req.staffId;
+    }
+
+    await college.save();
+
+    await recordAudit(req, {
+      action: "verify_college",
+      targetType: "college",
+      targetId: college._id,
+      summary: `Updated college ${college.name} status to ${college.verificationStatus}. Tier: ${college.tier}`,
+    });
+
+    return res.json({ success: true, message: `College status updated to ${college.verificationStatus}.`, college });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/staff/colleges/analytics - Campus RCM hiring platform metrics
+router.get("/colleges/analytics", requireStaffAuth, async (req, res) => {
+  try {
+    const [totalColleges, verifiedColleges, totalStudents, placedStudents] = await Promise.all([
+      College.countDocuments(),
+      College.countDocuments({ verificationStatus: "VERIFIED" }),
+      Candidate.countDocuments({ isCollegeStudent: true }),
+      Candidate.countDocuments({ isCollegeStudent: true, "placementLifecycle.currentStatus": "PLACED" }),
+    ]);
+
+    return res.json({
+      success: true,
+      analytics: {
+        totalColleges,
+        verifiedColleges,
+        totalStudents,
+        placedStudents,
+        overallPlacementRate: totalStudents > 0 ? Math.round((placedStudents / totalStudents) * 100) : 0,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;
+

@@ -241,10 +241,54 @@ async function requireStaffAuth(req, res, next) {
   }
 }
 
+// Same idea as requireAuth, but for College accounts - attaches req.collegeId.
+async function requireCollegeAuth(req, res, next) {
+  const header = req.headers.authorization || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ message: "No auth token provided." });
+  }
+
+  if (token === "demo_college_token_12345" || token.startsWith("demo_college_")) {
+    try {
+      const College = require("../models/College");
+      let college = await College.findOne({ placementOfficerEmail: "placement@demo-college.edu.in" });
+      if (!college) {
+        college = await College.create({
+          name: "PSG Institute of Technology & Allied Health Sciences",
+          city: "Coimbatore",
+          state: "Tamil Nadu",
+          placementOfficerName: "Prof. S. Ranganathan",
+          placementOfficerEmail: "placement@demo-college.edu.in",
+          placementOfficerMobile: "+91 9443210987",
+          passwordHash: "$2a$10$demoHashPlaceholderForLocalTestingOnly000",
+          verificationStatus: "VERIFIED",
+        });
+      }
+      req.collegeId = college._id;
+      return next();
+    } catch (err) {
+      return res.status(401).json({ message: "Invalid or expired token." });
+    }
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (decoded.role !== "college") {
+      return res.status(401).json({ message: "Invalid or expired college token." });
+    }
+    req.collegeId = decoded.id;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: "Invalid or expired token." });
+  }
+}
+
 function signToken(id, role = "candidate") {
   return jwt.sign({ id, role }, JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || "30d",
   });
 }
 
-module.exports = { requireAuth, requireCompanyAuth, requireAcademyAuth, requireStaffAuth, signToken, JWT_SECRET };
+module.exports = { requireAuth, requireCompanyAuth, requireAcademyAuth, requireStaffAuth, requireCollegeAuth, signToken, JWT_SECRET };

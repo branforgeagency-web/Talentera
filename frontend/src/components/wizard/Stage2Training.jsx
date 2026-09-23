@@ -576,11 +576,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       nonTrainedBackground: isNonTrained ? nonTrainedBackground : undefined,
       nonTrainedExposure: isNonTrained ? nonTrainedExposure : undefined,
       nonTrainedTargetRole: isNonTrained ? nonTrainedTargetRole : undefined,
-      openToSponsorship: isNonTrained ? openToSponsorship : undefined,
-      practicedCharts: isNonTrained && practicedCharts === null ? false : practicedCharts,
-      chartsCount: isNonTrained && practicedCharts !== true ? "0" : chartsCount,
-      totalChartsCount: isNonTrained && practicedCharts !== true ? "0" : chartsCount,
-      internshipDone: isNonTrained && internshipDone === null ? false : internshipDone,
+      practicedCharts: practicedCharts === null ? false : practicedCharts,
+      chartsCount: practicedCharts !== true ? "0" : (chartsCount || "0"),
+      totalChartsCount: practicedCharts !== true ? "0" : (chartsCount || "0"),
+      internshipDone: internshipDone === null ? false : internshipDone,
       internshipWhere: internshipWhere.trim(),
       internshipDuration: internshipDuration.trim(),
       internshipRole: internshipRole.trim(),
@@ -627,10 +626,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       missing.push("Training Level - specify under Others (Section 1.2)");
       errs.levelOther = "Please type your training level";
     }
-    if (specialties.length === 0 && !DOMAINS_WITHOUT_SPECIALTIES.includes(domain)) {
-      missing.push("Primary Specialty (Section 1.3)");
-      errs.specialties = "Please select at least 1 primary specialty";
-    }
     if (isFresherCandidate && trainingPath === "academy" && (!academyName || academyName.trim().length < 2)) {
       missing.push("Academy Name (Section 3)");
       errs.academyName = "Academy Name is mandatory";
@@ -663,7 +658,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       const msg = `Please fill all mandatory fields highlighted in red: ${missing.join(", ")}.`;
       setError(msg);
       toast(msg, "error", { title: "Mandatory Fields Required" });
-      if (errs.domain || errs.trainingLevel || errs.specialties || errs.levelOther) {
+      if (errs.domain || errs.trainingLevel || errs.levelOther) {
         window.scrollTo({ top: 200, behavior: "smooth" });
       } else {
         window.scrollTo({ top: 600, behavior: "smooth" });
@@ -1837,10 +1832,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             )}
 
             {!DOMAINS_WITHOUT_SPECIALTIES.includes(domain) && (
-            <div className={`s2-field ${formErrors.specialties ? "has-error" : ""}`}>
+            <div className="s2-field">
               <label>
-                1.3 · Specialties within your domain <span className="req">*</span>
-                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (pick up to 3)</span>
+                1.3 · Specialties within your domain
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)" }}> (Optional — pick up to 3)</span>
               </label>
               <div className="s2-tag-picker">
                 {specialties.map((spec) => (
@@ -2491,7 +2486,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           <div className="s2-section">
             <div className="s2-section-header">
               <div className="s2-section-num">4</div>
-              <div className="s2-section-title">Practical Exposure</div>
+              <div className="s2-section-title">
+                Practical Exposure <span style={{ fontSize: "12px", color: "var(--gray-mute)", fontWeight: 500 }}>(Optional)</span>
+              </div>
               <div className="s2-status-chip pending">PENDING · +3</div>
             </div>
 
@@ -2503,7 +2500,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             )}
 
             <div className="s2-field">
-              <label>Have you practiced on real or mock charts? <span className="req">*</span></label>
+              <label>
+                Have you practiced on real or mock charts?
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)" }}> (Optional)</span>
+              </label>
               <div style={{ display: "flex", gap: 8, maxWidth: 280 }}>
                 <div
                   className={`s2-option-item ${practicedCharts ? "selected" : ""}`}
@@ -2514,7 +2514,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   <div>Yes</div>
                 </div>
                 <div
-                  className={`s2-option-item ${!practicedCharts ? "selected" : ""}`}
+                  className={`s2-option-item ${!practicedCharts && practicedCharts !== null ? "selected" : ""}`}
                   style={{ flex: 1, justifyContent: "center" }}
                   onClick={() => setPracticedCharts(false)}
                 >
@@ -2526,7 +2526,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
             {practicedCharts && (
               <div className="s2-field">
-                <label>Total charts practiced <span className="req">*</span></label>
+                <label>
+                  Total charts practiced
+                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)" }}> (Optional)</span>
+                </label>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {CHART_PRACTICE_OPTIONS.map((cOpt) => (
                     <span

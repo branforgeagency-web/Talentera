@@ -243,10 +243,19 @@ export default function Footer() {
               </ul>
             </div>
 
-            {/* Column 4: Academies */}
+            {/* Column 4: Academies & Colleges */}
             <div className="tal-footer-col">
-              <h4 className="tal-col-heading">Academies</h4>
+              <h4 className="tal-col-heading">Institutions</h4>
               <ul className="tal-footer-links">
+                <li>
+                  <Link to="/colleges">
+                    <span>College Placement OS</span>
+                    <span className="tal-link-badge new">CAMPUS</span>
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/college/login">College Cell Login</Link>
+                </li>
                 <li>
                   <Link to="/academy">Academy Partnerships</Link>
                 </li>
