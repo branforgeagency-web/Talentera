@@ -858,7 +858,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">04</div>
-            <div><div className="stage-detail-name">Assessment · {(profile?.stage4?.foundationScore ?? profile?.stage4?.score) != null ? `${profile?.stage4?.medal || (profile?.stage4?.passed ? 'Passed' : 'Attempted')} ${profile?.stage4?.foundationScore ?? profile?.stage4?.score}/100` : 'Not Completed'}</div><div className="stage-detail-tag">+25 pts · Talentera-Proctored</div></div>
+            <div><div className="stage-detail-name">Assessment · {(profile?.stage4?.foundationScore ?? profile?.stage4?.score) != null ? `${(profile?.stage4?.medal && !String(profile.stage4.medal).toLowerCase().includes("practice")) ? profile.stage4.medal : (profile?.stage4?.passed ? 'Passed' : 'Attempted')} ${profile?.stage4?.foundationScore ?? profile?.stage4?.score}/100` : 'Not Completed'}</div><div className="stage-detail-tag">+25 pts · Talentera-Proctored</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(4)}><><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }} />Take Stage 04 Assessment</></button></div>
         </div>

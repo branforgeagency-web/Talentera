@@ -202,7 +202,7 @@ async function finalizeAiInterviewSession(candidate, session, status) {
     mockScore: mockFinalScore,
     score: combinedScore,
     overallScore: combinedScore,
-    medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
+    medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Verified") : null,
     status: isBothCompleted ? "completed" : "in_progress",
     endedEarly: status === "STOPPED",
     endedReason: status === "STOPPED" ? "USER_ENDED" : null,

@@ -18,6 +18,7 @@ import {
   Maximize2,
   Volume2,
 } from "lucide-react";
+import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMotionDetector";
 
 /**
  * AI Proctoring and Assessment Screen Component
@@ -70,6 +71,7 @@ export default function AiProctoringScreen({
   // 1. REFS & CAMERA / MEDIAPIPE STATE
   // ──────────────────────────────────────────────────────────────────────────
   const videoRef = useRef(null);
+  const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const animFrameRef = useRef(null);
   const landmarkerRef = useRef(null);
@@ -116,10 +118,25 @@ export default function AiProctoringScreen({
   const [attentionWarningsCount, setAttentionWarningsCount] = useState(0);
   const [isWarningActive, setIsWarningActive] = useState(false);
   const [currentWarningMessage, setCurrentWarningMessage] = useState("");
-  const [activeAnomalyType, setActiveAnomalyType] = useState(null); // 'turned_left' | 'turned_right' | 'pitch' | 'no_face'
+  const [activeAnomalyType, setActiveAnomalyType] = useState(null); // 'turned_left' | 'turned_right' | 'pitch' | 'no_face' | 'multiple_faces' | 'background_movement'
   const [yawRatio, setYawRatio] = useState(1.0);
   const [pitchRatio, setPitchRatio] = useState(1.0);
-  const [currentPosture, setCurrentPosture] = useState("centered"); // 'centered' | 'turned_left' | 'turned_right' | 'looking_up' | 'looking_down' | 'no_face'
+  const [currentPosture, setCurrentPosture] = useState("centered"); // 'centered' | 'turned_left' | 'turned_right' | 'looking_up' | 'looking_down' | 'no_face' | 'multiple_faces' | 'bg_movement'
+  const [bgMovementActive, setBgMovementActive] = useState(false);
+  const [faceCountVal, setFaceCountVal] = useState(1);
+  const motionDetectorRef = useRef(null);
+  const audioContextRef = useRef(null);
+
+  useEffect(() => {
+    motionDetectorRef.current = createMotionDetector({
+      width: 120,
+      height: 90,
+      checkIntervalMs: 80,
+      lumaDiffThreshold: 26,
+      motionRatioThreshold: 0.035,
+      minPixelsThreshold: 140,
+    });
+  }, []);
 
   // Tab-Switching & Focus Anti-Cheat
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
@@ -201,10 +218,10 @@ export default function AiProctoringScreen({
               delegate: "GPU",
             },
             runningMode: "VIDEO",
-            numFaces: 1,
-            minFaceDetectionConfidence: 0.5,
-            minFacePresenceConfidence: 0.5,
-            minTrackingConfidence: 0.5,
+            numFaces: 4,
+            minFaceDetectionConfidence: 0.45,
+            minFacePresenceConfidence: 0.45,
+            minTrackingConfidence: 0.45,
           });
           if (isMounted) setDelegateUsed("GPU");
         } catch (gpuErr) {
@@ -216,10 +233,10 @@ export default function AiProctoringScreen({
               delegate: "CPU",
             },
             runningMode: "VIDEO",
-            numFaces: 1,
-            minFaceDetectionConfidence: 0.5,
-            minFacePresenceConfidence: 0.5,
-            minTrackingConfidence: 0.5,
+            numFaces: 4,
+            minFaceDetectionConfidence: 0.45,
+            minFacePresenceConfidence: 0.45,
+            minTrackingConfidence: 0.45,
           });
           if (isMounted) setDelegateUsed("CPU (Fallback)");
         }
@@ -274,25 +291,27 @@ export default function AiProctoringScreen({
 
           try {
             const results = landmarker.detectForVideo(video, timestampMs);
-            const landmarks = results.faceLandmarks?.[0];
+            const faceLandmarksList = results.faceLandmarks || [];
+            const faceCount = faceLandmarksList.length;
+            setFaceCountVal(faceCount);
 
-            if (!landmarks || landmarks.length === 0) {
-              // Face Not Detected
-              handleLandmarkEvaluation({
-                anomaly: "no_face",
-                warningText: "⚠️ Face not detected! Please stay centered in frame",
-                posture: "no_face",
-                yaw: 1.0,
-                pitch: 1.0,
-                hud: null,
-              });
+            let detectedAnomaly = null;
+            let warningText = "";
+            let detectedPosture = "centered";
+            let calculatedYawRatio = 1.0;
+            let calculatedPitchRatio = 1.0;
+
+            // 1. STRICT SINGLE PERSON RULE: Exactly 1 person allowed in the frame
+            if (faceCount === 0) {
+              detectedAnomaly = "no_face";
+              warningText = "⚠️ Candidate face not detected! Only 1 person is allowed in the frame";
+              detectedPosture = "no_face";
+            } else if (faceCount > 1) {
+              detectedAnomaly = "multiple_faces";
+              warningText = `🚨 Multiple persons detected (${faceCount})! Only 1 person is allowed in the assessment`;
+              detectedPosture = "multiple_faces";
             } else {
-              // Extract Key Facial Landmarks:
-              // Landmark 1:   Nose Tip
-              // Landmark 234: Left Cheek
-              // Landmark 454: Right Cheek
-              // Landmark 10:  Forehead
-              // Landmark 152: Chin
+              const landmarks = faceLandmarksList[0];
               const nose = landmarks[1];
               const leftCheek = landmarks[234];
               const rightCheek = landmarks[454];
@@ -302,21 +321,14 @@ export default function AiProctoringScreen({
               // Head Turn (Yaw): Compare horizontal distance from nose to left cheek vs right cheek
               const distToLeftCheek = Math.hypot(nose.x - leftCheek.x, nose.y - leftCheek.y);
               const distToRightCheek = Math.hypot(rightCheek.x - nose.x, rightCheek.y - nose.y);
-              const calculatedYawRatio = distToLeftCheek / Math.max(0.0001, distToRightCheek);
+              calculatedYawRatio = distToLeftCheek / Math.max(0.0001, distToRightCheek);
 
               // Head Tilt / Looking Up/Down (Pitch): Compare distance from nose to forehead vs chin
               const distToForehead = Math.hypot(nose.x - forehead.x, nose.y - forehead.y);
               const distToChin = Math.hypot(chin.x - nose.x, chin.y - nose.y);
-              const calculatedPitchRatio = distToForehead / Math.max(0.0001, distToChin);
+              calculatedPitchRatio = distToForehead / Math.max(0.0001, distToChin);
 
               // Trigger warning conditions:
-              // - Ratio < 0.45 (Turned Right): "⚠️ Please look directly at the screen"
-              // - Ratio > 2.20 (Turned Left):  "⚠️ Please look directly at the screen"
-              // - Vertical ratio out of range [0.5, 2.2]: "⚠️ Keep your gaze centered on the interview"
-              let detectedAnomaly = null;
-              let warningText = "";
-              let detectedPosture = "centered";
-
               if (calculatedYawRatio < thresholds.YAW_MIN) {
                 detectedAnomaly = "turned_right";
                 detectedPosture = "turned_right";
@@ -328,20 +340,87 @@ export default function AiProctoringScreen({
               } else if (calculatedPitchRatio < thresholds.PITCH_MIN) {
                 detectedAnomaly = "pitch_up";
                 detectedPosture = "looking_up";
-                warningText = "⚠️ Keep your gaze centered on the interview";
+                warningText = "⚠️ Keep your gaze centered on the assessment";
               } else if (calculatedPitchRatio > thresholds.PITCH_MAX) {
                 detectedAnomaly = "pitch_down";
                 detectedPosture = "looking_down";
-                warningText = "⚠️ Keep your gaze centered on the interview";
+                warningText = "⚠️ Keep your gaze centered on the assessment";
+              }
+            }
+
+            // 2. STRICT BACKGROUND STILLNESS RULE: No movement allowed in the background
+            const motionResult = detectBackgroundMotion(
+              motionDetectorRef.current,
+              video,
+              faceCount > 0 ? faceLandmarksList[0] : null
+            );
+
+            setBgMovementActive(motionResult.isMotionDetected);
+
+            // If background motion is active, trigger proctoring warning
+            if (motionResult.isMotionDetected) {
+              if (!detectedAnomaly || detectedAnomaly === "pitch_up" || detectedAnomaly === "pitch_down") {
+                detectedAnomaly = "background_movement";
+                warningText = "🚨 Background movement / person detected! Background must remain completely still — only 1 person permitted.";
+                detectedPosture = "bg_movement";
+              }
+            }
+
+            handleLandmarkEvaluation({
+              anomaly: detectedAnomaly,
+              warningText,
+              posture: detectedPosture,
+              yaw: calculatedYawRatio,
+              pitch: calculatedPitchRatio,
+            });
+
+            // Real-time Visual Facial Landmark Tracking Dots & Boundary Canvas Render
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const dWidth = video.videoWidth || 640;
+              const dHeight = video.videoHeight || 480;
+              if (canvas.width !== dWidth || canvas.height !== dHeight) {
+                canvas.width = dWidth;
+                canvas.height = dHeight;
+              }
+              const ctx = canvas.getContext("2d");
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+              // Visual Red Perimeter Alert when Background Movement is Detected
+              if (motionResult.isMotionDetected) {
+                ctx.save();
+                ctx.strokeStyle = "rgba(239, 68, 68, 0.9)";
+                ctx.lineWidth = 6;
+                ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "rgba(220, 38, 38, 0.9)";
+                ctx.fillRect(canvas.width / 2 - 190, 16, 380, 32);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 12px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("🚨 ALERT: BACKGROUND MOVEMENT / PERSON DETECTED", canvas.width / 2, 37);
+                ctx.restore();
               }
 
-              handleLandmarkEvaluation({
-                anomaly: detectedAnomaly,
-                warningText,
-                posture: detectedPosture,
-                yaw: calculatedYawRatio,
-                pitch: calculatedPitchRatio,
-              });
+              if (faceCount > 0) {
+                faceLandmarksList.forEach((face, fIdx) => {
+                  const isPrimary = fIdx === 0;
+
+                  // Label extra person if detected
+                  if (!isPrimary) {
+                    const foreheadPt = face[10];
+                    if (foreheadPt) {
+                      ctx.save();
+                      ctx.font = "bold 13px sans-serif";
+                      ctx.fillStyle = "#ef4444";
+                      ctx.shadowColor = "rgba(0,0,0,0.9)";
+                      ctx.shadowBlur = 4;
+                      ctx.fillText(`🚨 UNAUTHORIZED PERSON #${fIdx + 1}`, foreheadPt.x * canvas.width - 60, Math.max(20, foreheadPt.y * canvas.height - 12));
+                      ctx.restore();
+                    }
+                  }
+                });
+              }
             }
           } catch (inferErr) {
             console.warn("FaceLandmarker detection loop error:", inferErr);
@@ -400,6 +479,31 @@ export default function AiProctoringScreen({
     [onSubmit, timeLimitSeconds]
   );
 
+  const playAlertTone = useCallback(() => {
+    try {
+      if (!audioContextRef.current) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) audioContextRef.current = new AudioCtx();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx && ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+      if (ctx && ctx.state === "running") {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.3);
+      }
+    } catch (e) {}
+  }, []);
+
   // ──────────────────────────────────────────────────────────────────────────
   // 7. DEBOUNCED WARNING & INFRACTION LOGGING (AUTO-SUBMITS AT 5 WARNINGS)
   // ──────────────────────────────────────────────────────────────────────────
@@ -414,8 +518,9 @@ export default function AiProctoringScreen({
         consecutiveAnomaliesRef.current += 1;
         consecutiveNormalsRef.current = 0;
 
-        // Debounce trigger: require consecutive anomalous frames to eliminate instantaneous blinks
-        if (consecutiveAnomaliesRef.current >= (thresholds.CONSECUTIVE_ANOMALIES || 3)) {
+        // Debounce trigger: require consecutive anomalous frames (fast 2-frame trigger for multiple faces and background movement)
+        const requiredFrames = (anomaly === "multiple_faces" || anomaly === "background_movement") ? 2 : (thresholds.CONSECUTIVE_ANOMALIES || 3);
+        if (consecutiveAnomaliesRef.current >= requiredFrames) {
           setIsWarningActive(true);
           setCurrentWarningMessage(warningText);
           setActiveAnomalyType(anomaly);
@@ -427,6 +532,7 @@ export default function AiProctoringScreen({
             attentionWarningsCountRef.current += 1;
             const currentCount = attentionWarningsCountRef.current;
             setAttentionWarningsCount(currentCount);
+            playAlertTone();
 
             // User requirement: "make it as 5 warning to autosubmit"
             if (currentCount >= 5) {
@@ -1109,6 +1215,21 @@ export default function AiProctoringScreen({
               }}
             />
 
+            {/* Real-time Facial Landmark Tracking Dots Canvas Overlay */}
+            <canvas
+              ref={canvasRef}
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                transform: "scaleX(-1)",
+                pointerEvents: "none",
+                zIndex: 15,
+              }}
+            />
+
             {/* Video Fallback / Loading Overlay */}
             {(!cameraActive || cameraError) && (
               <div
@@ -1178,28 +1299,79 @@ export default function AiProctoringScreen({
                 <span>{isWarningActive ? "ATTENTION" : "LIVE PROCTOR"}</span>
               </div>
 
-              {/* Posture Telemetry Pill */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  backgroundColor: "rgba(15, 23, 42, 0.85)",
-                  backdropFilter: "blur(12px)",
-                  padding: "4px 8px",
-                  borderRadius: 10,
-                  border: "1px solid rgba(51, 65, 85, 0.8)",
-                  fontSize: 10,
-                  fontFamily: "monospace",
-                  color: "#cbd5e1",
-                }}
-              >
-                <Activity style={{ width: 12, height: 12, color: "#38bdf8" }} />
-                <span style={{ color: currentPosture === "centered" ? "#34d399" : "#fcd34d", fontWeight: 700 }}>
-                  {currentPosture.replace("_", " ")}
-                </span>
-                <span style={{ color: "#475569" }}>|</span>
-                <span>Y: {yawRatio.toFixed(2)}</span>
+              {/* Multi-Telemetry Pills: 1-Person Security, Background Stillness & Posture */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {/* 1 Person Verified Pill */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    backgroundColor: "rgba(15, 23, 42, 0.85)",
+                    backdropFilter: "blur(12px)",
+                    padding: "4px 8px",
+                    borderRadius: 10,
+                    border: `1px solid ${faceCountVal > 1 ? "#ef4444" : faceCountVal === 0 ? "#f59e0b" : "rgba(52, 211, 153, 0.4)"}`,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: faceCountVal > 1 ? "#ef4444" : faceCountVal === 0 ? "#fcd34d" : "#34d399",
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: faceCountVal > 1 ? "#ef4444" : faceCountVal === 0 ? "#f59e0b" : "#34d399" }} />
+                  <span>{faceCountVal > 1 ? "🚨 MULTIPLE PERSONS" : faceCountVal === 0 ? "⚠️ NO PERSON" : "👤 1 PERSON"}</span>
+                </div>
+
+                {/* Background Movement Stillness Pill */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    backgroundColor: "rgba(15, 23, 42, 0.85)",
+                    backdropFilter: "blur(12px)",
+                    padding: "4px 8px",
+                    borderRadius: 10,
+                    border: `1px solid ${bgMovementActive ? "#ef4444" : "rgba(52, 211, 153, 0.4)"}`,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: bgMovementActive ? "#ef4444" : "#34d399",
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: bgMovementActive ? "#ef4444" : "#34d399" }} />
+                  <span>{bgMovementActive ? "🚨 BG MOTION / PERSON" : "🛡️ BG STILL"}</span>
+                </div>
+
+                {/* Posture Telemetry Pill */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    backgroundColor: "rgba(15, 23, 42, 0.85)",
+                    backdropFilter: "blur(12px)",
+                    padding: "4px 8px",
+                    borderRadius: 10,
+                    border: "1px solid rgba(51, 65, 85, 0.8)",
+                    fontSize: 10,
+                    fontFamily: "monospace",
+                    color: "#cbd5e1",
+                  }}
+                >
+                  <Activity style={{ width: 12, height: 12, color: currentPosture === "multiple_faces" || currentPosture === "bg_movement" ? "#ef4444" : "#38bdf8" }} />
+                  <span style={{ color: currentPosture === "centered" ? "#34d399" : currentPosture === "multiple_faces" || currentPosture === "bg_movement" ? "#ef4444" : "#fcd34d", fontWeight: 700 }}>
+                    {currentPosture === "multiple_faces"
+                      ? "MULTIPLE PERSONS"
+                      : currentPosture === "bg_movement"
+                      ? "BG MOTION / PERSON"
+                      : currentPosture.replace("_", " ")}
+                  </span>
+                  {currentPosture !== "multiple_faces" && currentPosture !== "bg_movement" && (
+                    <>
+                      <span style={{ color: "#475569" }}>|</span>
+                      <span>Y: {yawRatio.toFixed(2)}</span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 

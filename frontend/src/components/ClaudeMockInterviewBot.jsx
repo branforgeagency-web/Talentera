@@ -3,6 +3,7 @@ import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 import Vapi from "@vapi-ai/web";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
+import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMotionDetector";
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
 const INACTIVITY_TIMEOUT_SECONDS = 30;
@@ -18,7 +19,7 @@ const TOPIC_CONFIG = [
 const EVAL_LABELS = {
   correct: { label: "Strong Answer", color: "#15803D", bg: "#DCFCE7" },
   partial: { label: "Good Foundation", color: "#B45309", bg: "#FEF3C7" },
-  incorrect: { label: "Needs Practice", color: "#B91C1C", bg: "#FEE2E2" },
+  incorrect: { label: "Review Recommended", color: "#B91C1C", bg: "#FEE2E2" },
   no_answer: { label: "No Response (30s)", color: "#64748B", bg: "#F1F5F9" },
 };
 
@@ -217,26 +218,41 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
   // Candidate's own camera + mic preview.
   const candidateVideoRef = useRef(null);
+  const candidateCanvasRef = useRef(null);
   const candidateStreamRef = useRef(null);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState("");
 
   // AI Proctoring & Malpractice Detection States
-  const [proctorStatus, setProctorStatus] = useState("ok"); // "ok" | "head_turned" | "looking_away" | "no_face" | "multiple_faces" | "tab_switch"
+  const [proctorStatus, setProctorStatus] = useState("ok"); // "ok" | "head_turned" | "looking_away" | "no_face" | "multiple_faces" | "tab_switch" | "background_movement"
   const [proctorAlertMsg, setProctorAlertMsg] = useState("");
   const [isMalpracticeActive, setIsMalpracticeActive] = useState(false);
   const [proctorViolationsCount, setProctorViolationsCount] = useState(0);
   const [attentionWarningsCount, setAttentionWarningsCount] = useState(0);
   const [yawRatioVal, setYawRatioVal] = useState(1.0);
   const [pitchRatioVal, setPitchRatioVal] = useState(1.0);
-  const [gazePosture, setGazePosture] = useState("centered"); // "centered" | "turned_left" | "turned_right" | "looking_up" | "looking_down" | "away"
+  const [gazePosture, setGazePosture] = useState("centered"); // "centered" | "turned_left" | "turned_right" | "looking_up" | "looking_down" | "away" | "multiple_faces" | "bg_movement"
   const [facialLandmarks, setFacialLandmarks] = useState(null); // { leftCheek, rightCheek, forehead, chin, nose, leftEye, rightEye, mouth }
+  const [bgMovementActive, setBgMovementActive] = useState(false);
+  const [faceCountVal, setFaceCountVal] = useState(1);
+  const motionDetectorRef = useRef(null);
   const landmarkerRef = useRef(null);
   const animFrameRef = useRef(null);
   const proctorConsecutiveAnomaliesRef = useRef(0);
   const proctorConsecutiveNormalsRef = useRef(0);
   const lastToastTimeRef = useRef(0);
   const audioContextRef = useRef(null);
+
+  useEffect(() => {
+    motionDetectorRef.current = createMotionDetector({
+      width: 120,
+      height: 90,
+      checkIntervalMs: 80,
+      lumaDiffThreshold: 26,
+      motionRatioThreshold: 0.035,
+      minPixelsThreshold: 140,
+    });
+  }, []);
 
   // Inactivity state
   const [inactivitySecondsLeft, setInactivitySecondsLeft] = useState(INACTIVITY_TIMEOUT_SECONDS);
@@ -385,7 +401,10 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               delegate: "GPU",
             },
             runningMode: "VIDEO",
-            numFaces: 1,
+            numFaces: 4,
+            minFaceDetectionConfidence: 0.45,
+            minFacePresenceConfidence: 0.45,
+            minTrackingConfidence: 0.45,
           });
         } catch (gpuErr) {
           console.warn("GPU delegate failed, falling back to CPU delegate:", gpuErr);
@@ -395,7 +414,10 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               delegate: "CPU",
             },
             runningMode: "VIDEO",
-            numFaces: 1,
+            numFaces: 4,
+            minFaceDetectionConfidence: 0.45,
+            minFacePresenceConfidence: 0.45,
+            minTrackingConfidence: 0.45,
           });
         }
         if (!isRunning) {
@@ -420,16 +442,25 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             const startTimeMs = performance.now();
             try {
               const result = faceLandmarkerInstance.detectForVideo(video, startTimeMs);
-              const landmarks = result.faceLandmarks?.[0];
+              const faceLandmarksList = result.faceLandmarks || [];
+              const faceCount = faceLandmarksList.length;
+              setFaceCountVal(faceCount);
 
-              if (!landmarks || landmarks.length === 0) {
-                handleDetectionResult({
-                  issue: "no_face",
-                  alertText: "⚠️ Face not detected! Please stay centered in frame",
-                  posture: "away",
-                  landmarks: null,
-                });
+              let detectedIssue = null;
+              let posture = "centered";
+              let alertText = "";
+
+              // 1. STRICT SINGLE PERSON RULE: Exactly 1 person allowed in the frame
+              if (faceCount === 0) {
+                detectedIssue = "no_face";
+                alertText = "⚠️ Candidate face not detected! Only 1 person is allowed in the frame";
+                posture = "away";
+              } else if (faceCount > 1) {
+                detectedIssue = "multiple_faces";
+                alertText = `🚨 Multiple persons detected in frame (${faceCount})! Only 1 person is allowed in the interview`;
+                posture = "multiple_faces";
               } else {
+                const landmarks = faceLandmarksList[0];
                 const nose = landmarks[1];
                 const forehead = landmarks[10];
                 const chin = landmarks[152];
@@ -450,10 +481,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 setYawRatioVal(yawRatio);
                 setPitchRatioVal(pitchRatio);
 
-                let detectedIssue = null;
-                let posture = "centered";
-                let alertText = "";
-
                 if (yawRatio < 0.58) {
                   detectedIssue = "head_turned";
                   posture = "turned_right";
@@ -467,22 +494,87 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   posture = detectedIssue;
                   alertText = "⚠️ Keep your gaze centered on the interview";
                 }
+              }
 
-                handleDetectionResult({
-                  issue: detectedIssue,
-                  alertText,
-                  posture,
-                  landmarks: {
-                    nose: { x: (1 - nose.x) * 100, y: nose.y * 100 },
-                    forehead: { x: (1 - forehead.x) * 100, y: forehead.y * 100 },
-                    chin: { x: (1 - chin.x) * 100, y: chin.y * 100 },
-                    leftCheek: { x: (1 - leftCheek.x) * 100, y: leftCheek.y * 100 },
-                    rightCheek: { x: (1 - rightCheek.x) * 100, y: rightCheek.y * 100 },
-                    leftEye: { x: (1 - leftEye.x) * 100, y: leftEye.y * 100 },
-                    rightEye: { x: (1 - rightEye.x) * 100, y: rightEye.y * 100 },
-                    mouth: { x: (1 - mouth.x) * 100, y: mouth.y * 100 },
-                  },
-                });
+              // 2. STRICT BACKGROUND STILLNESS RULE: No movement allowed in the background
+              const motionResult = detectBackgroundMotion(
+                motionDetectorRef.current,
+                video,
+                faceCount > 0 ? faceLandmarksList[0] : null
+              );
+
+              setBgMovementActive(motionResult.isMotionDetected);
+
+              if (motionResult.isMotionDetected) {
+                if (!detectedIssue || detectedIssue === "looking_up" || detectedIssue === "looking_down") {
+                  detectedIssue = "background_movement";
+                  alertText = "🚨 Background movement / person detected! Background must remain completely still — only 1 person permitted.";
+                  posture = "bg_movement";
+                }
+              }
+
+              handleDetectionResult({
+                issue: detectedIssue,
+                alertText,
+                posture,
+                landmarks: faceCount > 0 ? {
+                  nose: { x: (1 - faceLandmarksList[0][1].x) * 100, y: faceLandmarksList[0][1].y * 100 },
+                  forehead: { x: (1 - faceLandmarksList[0][10].x) * 100, y: faceLandmarksList[0][10].y * 100 },
+                  chin: { x: (1 - faceLandmarksList[0][152].x) * 100, y: faceLandmarksList[0][152].y * 100 },
+                  leftCheek: { x: (1 - faceLandmarksList[0][234].x) * 100, y: faceLandmarksList[0][234].y * 100 },
+                  rightCheek: { x: (1 - faceLandmarksList[0][454].x) * 100, y: faceLandmarksList[0][454].y * 100 },
+                  leftEye: { x: (1 - faceLandmarksList[0][33].x) * 100, y: faceLandmarksList[0][33].y * 100 },
+                  rightEye: { x: (1 - faceLandmarksList[0][263].x) * 100, y: faceLandmarksList[0][263].y * 100 },
+                  mouth: { x: (1 - faceLandmarksList[0][13].x) * 100, y: faceLandmarksList[0][13].y * 100 },
+                } : null,
+              });
+
+              // Real-time Visual Facial Landmark Tracking Dots & Boundary Canvas Render
+              const canvas = candidateCanvasRef.current;
+              if (canvas) {
+                const dWidth = video.videoWidth || 640;
+                const dHeight = video.videoHeight || 480;
+                if (canvas.width !== dWidth || canvas.height !== dHeight) {
+                  canvas.width = dWidth;
+                  canvas.height = dHeight;
+                }
+                const ctx = canvas.getContext("2d");
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Visual Red Perimeter Alert when Background Movement is Detected
+                if (motionResult.isMotionDetected) {
+                  ctx.save();
+                  ctx.strokeStyle = "rgba(239, 68, 68, 0.9)";
+                  ctx.lineWidth = 6;
+                  ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+                  ctx.fillStyle = "rgba(220, 38, 38, 0.9)";
+                  ctx.fillRect(canvas.width / 2 - 190, 16, 380, 32);
+                  ctx.fillStyle = "#ffffff";
+                  ctx.font = "bold 12px sans-serif";
+                  ctx.textAlign = "center";
+                  ctx.fillText("🚨 ALERT: BACKGROUND MOVEMENT / PERSON DETECTED", canvas.width / 2, 37);
+                  ctx.restore();
+                }
+
+                if (faceCount > 0) {
+                  faceLandmarksList.forEach((face, fIdx) => {
+                    const isPrimary = fIdx === 0;
+
+                    if (!isPrimary) {
+                      const foreheadPt = face[10];
+                      if (foreheadPt) {
+                        ctx.save();
+                        ctx.font = "bold 13px sans-serif";
+                        ctx.fillStyle = "#ef4444";
+                        ctx.shadowColor = "rgba(0,0,0,0.9)";
+                        ctx.shadowBlur = 4;
+                        ctx.fillText(`🚨 UNAUTHORIZED PERSON #${fIdx + 1}`, foreheadPt.x * canvas.width - 60, Math.max(20, foreheadPt.y * canvas.height - 12));
+                        ctx.restore();
+                      }
+                    }
+                  });
+                }
               }
             } catch (evalErr) {
               console.warn("FaceLandmarker eval error:", evalErr);
@@ -502,7 +594,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         proctorConsecutiveAnomaliesRef.current += 1;
         proctorConsecutiveNormalsRef.current = 0;
 
-        if (proctorConsecutiveAnomaliesRef.current >= 4) {
+        const requiredFrames = (issue === "multiple_faces" || issue === "background_movement") ? 2 : 4;
+        if (proctorConsecutiveAnomaliesRef.current >= requiredFrames) {
           setIsMalpracticeActive(true);
           setProctorStatus(issue);
           setProctorAlertMsg(alertText);
@@ -1227,6 +1320,22 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   }}
                 />
 
+                {/* Real-time Facial Landmark Tracking Dots Canvas Overlay */}
+                <canvas
+                  ref={candidateCanvasRef}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    transform: "scaleX(-1)",
+                    pointerEvents: "none",
+                    zIndex: 15,
+                    display: cameraReady ? "block" : "none",
+                  }}
+                />
+
                 {!cameraReady && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "#94A3B8", padding: 24, background: "#0B192C" }}>
                     <i className="fa-solid fa-video-slash" style={{ fontSize: 32, marginBottom: 12, color: "#64748B" }}></i>
@@ -1242,43 +1351,86 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   </div>
                 )}
 
-                {/* Top-Right Gaze & Posture Status Pill */}
+                {/* Top-Right Multi-Telemetry Pills: 1-Person Security, Background Stillness & Posture */}
                 {cameraReady && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: 14,
-                      right: 14,
-                      zIndex: 20,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: 11,
-                      fontWeight: 800,
-                      padding: "5px 12px",
-                      borderRadius: 999,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                      background: isMalpracticeActive ? "rgba(239, 68, 68, 0.95)" : "rgba(15, 23, 42, 0.9)",
-                      color: isMalpracticeActive ? "#FFFFFF" : "#34D399",
-                      border: `1px solid ${isMalpracticeActive ? "#FCA5A5" : "rgba(52, 211, 153, 0.4)"}`,
-                    }}
-                  >
-                    <i className={`fa-solid ${isMalpracticeActive ? "fa-triangle-exclamation" : "fa-shield-halved"}`} style={{ color: isMalpracticeActive ? "#FEF08A" : "#34D399" }}></i>
-                    <span>
-                      {isMalpracticeActive
-                        ? gazePosture === "turned_left"
-                          ? "TURNED LEFT"
-                          : gazePosture === "turned_right"
-                          ? "TURNED RIGHT"
-                          : gazePosture === "looking_up"
-                          ? "LOOKING UP"
-                          : gazePosture === "looking_down"
-                          ? "LOOKING DOWN"
-                          : gazePosture === "away"
-                          ? "NO FACE DETECTED"
-                          : "OFF CENTER"
-                        : "GAZE CENTERED ✓"}
-                    </span>
+                  <div style={{ position: "absolute", top: 14, right: 14, zIndex: 20, display: "flex", alignItems: "center", gap: 6 }}>
+                    {/* 1 Person Verified Pill */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        backgroundColor: "rgba(15, 23, 42, 0.9)",
+                        padding: "5px 10px",
+                        borderRadius: 999,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                        border: `1px solid ${faceCountVal > 1 ? "#EF4444" : faceCountVal === 0 ? "#F59E0B" : "rgba(52, 211, 153, 0.4)"}`,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: faceCountVal > 1 ? "#EF4444" : faceCountVal === 0 ? "#FCD34D" : "#34D399",
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: faceCountVal > 1 ? "#EF4444" : faceCountVal === 0 ? "#F59E0B" : "#34D399" }} />
+                      <span>{faceCountVal > 1 ? "🚨 MULTIPLE PERSONS" : faceCountVal === 0 ? "⚠️ NO PERSON" : "👤 1 PERSON"}</span>
+                    </div>
+
+                    {/* Background Movement Stillness Pill */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        backgroundColor: "rgba(15, 23, 42, 0.9)",
+                        padding: "5px 10px",
+                        borderRadius: 999,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                        border: `1px solid ${bgMovementActive ? "#EF4444" : "rgba(52, 211, 153, 0.4)"}`,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        color: bgMovementActive ? "#EF4444" : "#34D399",
+                      }}
+                    >
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: bgMovementActive ? "#EF4444" : "#34D399" }} />
+                      <span>{bgMovementActive ? "🚨 BG MOTION / PERSON" : "🛡️ BG STILL"}</span>
+                    </div>
+
+                    {/* Posture Pill */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: "5px 12px",
+                        borderRadius: 999,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                        background: isMalpracticeActive ? "rgba(239, 68, 68, 0.95)" : "rgba(15, 23, 42, 0.9)",
+                        color: isMalpracticeActive ? "#FFFFFF" : "#34D399",
+                        border: `1px solid ${isMalpracticeActive ? "#FCA5A5" : "rgba(52, 211, 153, 0.4)"}`,
+                      }}
+                    >
+                      <i className={`fa-solid ${isMalpracticeActive ? "fa-triangle-exclamation" : "fa-shield-halved"}`} style={{ color: isMalpracticeActive ? "#FEF08A" : "#34D399" }}></i>
+                      <span>
+                        {isMalpracticeActive
+                          ? gazePosture === "turned_left"
+                            ? "TURNED LEFT"
+                            : gazePosture === "turned_right"
+                            ? "TURNED RIGHT"
+                            : gazePosture === "looking_up"
+                            ? "LOOKING UP"
+                            : gazePosture === "looking_down"
+                            ? "LOOKING DOWN"
+                            : gazePosture === "away"
+                            ? "NO FACE DETECTED"
+                            : gazePosture === "multiple_faces"
+                            ? "MULTIPLE PERSONS"
+                            : gazePosture === "bg_movement"
+                            ? "BG MOTION / PERSON"
+                            : "OFF CENTER"
+                          : "GAZE CENTERED ✓"}
+                      </span>
+                    </div>
                   </div>
                 )}
 
