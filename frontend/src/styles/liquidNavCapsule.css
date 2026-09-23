@@ -3,9 +3,11 @@
 .sticky-liquid-nav {
   position: relative;
   z-index: 100;
-  padding: 16px 24px 0;
+  padding: 16px 20px 0;
   margin-bottom: 24px;
   background: transparent !important;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .liquid-nav-scene {
@@ -13,6 +15,7 @@
   justify-content: center;
   align-items: center;
   width: 100%;
+  margin: 0 auto;
   background: transparent !important;
 }
 
@@ -22,11 +25,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 999px;
-  padding: 6px 8px 6px 16px;
+  padding: 6px 12px;
+  box-sizing: border-box;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow:
@@ -35,6 +39,7 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   max-width: 1240px;
   width: 100%;
+  margin: 0 auto;
 }
 
 .liquid-capsule-shell:hover {
@@ -44,27 +49,29 @@
     0 6px 16px rgba(2, 132, 199, 0.05);
 }
 
-/* Left side: Orb + Logo */
+/* Left side: Orb + Logo (Balanced 1-flex wing) */
 .liquid-nav-left {
   display: flex;
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  flex-shrink: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: flex-start;
 }
 
 .liquid-nav-logo {
-  height: 38px;
+  height: 34px;
   width: auto;
   display: block;
   object-fit: contain;
 }
 
-/* Glowing Liquid Orb Wrapper - Bigger and perfectly circular */
+/* Glowing Liquid Orb Wrapper */
 .liquid-orb-wrapper {
   position: relative;
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -74,8 +81,8 @@
 }
 
 .liquid-orb-canvas {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   pointer-events: none;
   filter: drop-shadow(0 2px 8px rgba(2, 132, 199, 0.4));
@@ -86,11 +93,13 @@
   transform: scale(1.08);
 }
 
-/* Center: Navigation Buttons */
+/* Center: Navigation Buttons (Centered between balanced wings) */
 .liquid-nav-buttons {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
 }
 
 /* Individual Button Capsule */
@@ -99,15 +108,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: 999px;
-  padding: 7px 16px;
+  height: 36px;
+  padding: 0 13px;
   color: #082553;
   font-family: var(--font-heading, "Space Grotesk", sans-serif);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
+  line-height: 1;
   cursor: pointer;
   overflow: hidden;
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -115,7 +126,7 @@
 }
 
 .liquid-btn-icon {
-  font-size: 13px;
+  font-size: 12px;
   color: #0284C7;
   transition: all 0.22s;
 }
@@ -155,7 +166,7 @@
   left: 140%;
 }
 
-/* Active Selected Button - Exact Warm Golden Amber from Mockup */
+/* Active Selected Button - Warm Golden Amber */
 .liquid-nav-btn.active {
   background: #FAB12F !important;
   border-color: #FAB12F !important;
@@ -169,42 +180,57 @@
   transform: scale(1.05);
 }
 
-/* Right Side Desktop Actions */
+/* Right Side Desktop Actions (Balanced 1-flex wing) */
 .liquid-nav-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-  padding-right: 4px;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .liquid-action-link {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
   color: #082553;
-  font-size: 13px;
+  font-family: var(--font-heading, "Space Grotesk", sans-serif);
+  font-size: 12.5px;
   font-weight: 700;
-  padding: 6px 10px;
-  border-radius: 8px;
-  transition: all 0.2s;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .liquid-action-link:hover {
   color: #0284C7;
   background: #F1F5F9;
+  border-color: #E2E8F0;
 }
 
 .liquid-action-cta {
-  font-size: 13px !important;
-  padding: 8px 18px !important;
+  height: 36px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  padding: 0 16px !important;
+  font-family: var(--font-heading, "Space Grotesk", sans-serif) !important;
+  font-size: 12.5px !important;
   font-weight: 700 !important;
+  line-height: 1 !important;
   background: #FAB12F !important;
   color: #082553 !important;
   border: none !important;
   border-radius: 999px !important;
-  box-shadow: 0 4px 12px rgba(250, 177, 47, 0.3) !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px !important;
+  box-shadow: 0 3px 10px rgba(250, 177, 47, 0.3) !important;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
   text-decoration: none !important;
   white-space: nowrap !important;
@@ -231,16 +257,61 @@
   display: none;
 }
 
-/* TABLET RESPONSIVE BREAKPOINT */
-@media (max-width: 990px) {
+/* INTERMEDIATE RESPONSIVE SCALING (1041px - 1240px Laptops) */
+@media (max-width: 1240px) {
+  .liquid-capsule-shell {
+    gap: 8px;
+    padding: 5px 10px;
+  }
+  .liquid-nav-buttons {
+    gap: 4px;
+  }
+  .liquid-nav-btn {
+    padding: 0 10px;
+    font-size: 11.5px;
+    gap: 5px;
+    height: 34px;
+  }
+  .liquid-btn-icon {
+    font-size: 11px;
+  }
+  .liquid-action-link {
+    font-size: 11.5px;
+    padding: 0 8px;
+    height: 34px;
+    gap: 4px;
+  }
+  .liquid-action-cta {
+    font-size: 11.5px !important;
+    padding: 0 13px !important;
+    height: 34px !important;
+    gap: 4px !important;
+  }
+  .liquid-nav-logo {
+    height: 28px;
+  }
+  .liquid-orb-wrapper,
+  .liquid-orb-canvas {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* TABLET & MOBILE RESPONSIVE BREAKPOINT */
+@media (max-width: 1040px) {
   .liquid-nav-actions {
     display: none;
   }
   .liquid-mobile-toggle {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .liquid-nav-buttons {
     display: none;
+  }
+  .liquid-capsule-shell {
+    justify-content: space-between;
   }
   .liquid-nav-buttons.mobile-open {
     display: flex;
@@ -255,11 +326,13 @@
     padding: 20px;
     box-shadow: 0 20px 48px rgba(8, 37, 83, 0.12);
     backdrop-filter: blur(24px);
+    z-index: 200;
   }
   .liquid-nav-buttons.mobile-open .liquid-nav-btn {
     width: 100%;
     justify-content: flex-start;
     padding: 12px 16px;
+    height: auto;
   }
   .liquid-mobile-ctas {
     display: flex;
@@ -278,4 +351,3 @@
     padding: 8px;
   }
 }
-

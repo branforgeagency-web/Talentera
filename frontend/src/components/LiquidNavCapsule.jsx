@@ -237,7 +237,8 @@ export default function LiquidNavCapsule({
         {/* Right Side: Desktop Action Buttons */}
         <div className="liquid-nav-actions">
           <Link to="/staff/login" className="liquid-action-link">
-            Employee Login
+            <i className="fa-solid fa-user-tie" style={{ fontSize: 11.5, opacity: 0.75 }} />
+            <span>Employee Login</span>
           </Link>
           <Link to="/companies/directory" className="btn-gold liquid-action-cta">
             Hire Verified Talent →
