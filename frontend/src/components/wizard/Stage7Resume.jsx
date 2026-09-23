@@ -205,7 +205,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Stage 4 Assessment from Database
   const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : null);
-  const assessmentMedal = stage4.medal || (assessmentScore !== null ? (assessmentScore >= 85 ? "Gold" : assessmentScore >= 70 ? "Silver" : assessmentScore >= 50 ? "Bronze" : "Verified") : "Pending");
+  const rawMedal = stage4.medal && !String(stage4.medal).toLowerCase().includes("practice") ? stage4.medal : null;
+  const assessmentMedal = rawMedal || (assessmentScore !== null ? (assessmentScore >= 85 ? "Gold" : assessmentScore >= 70 ? "Silver" : assessmentScore >= 50 ? "Bronze" : "Assessment") : "Pending");
 
   // Stage 5 Video Pitch from Database
   const videoScore = stage5.aiScore !== undefined ? stage5.aiScore : (stage5.score !== undefined ? stage5.score : null);
@@ -1861,8 +1862,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-sec-title">🏆 Talentera Verified Scorecard</div>
               <div className="s7-resume-score-strip">
                 {assessmentScore !== null && (
-                  <span className={`s7-score-badge ${assessmentMedal.toLowerCase()}`}>
-                    {assessmentMedal === "Gold" ? "🥇" : "🥈"} {assessmentMedal} · {assessmentScore}
+                  <span className={`s7-score-badge ${assessmentMedal.toLowerCase() === "gold" ? "gold" : assessmentMedal.toLowerCase() === "silver" ? "silver" : assessmentMedal.toLowerCase() === "bronze" ? "bronze" : ""}`}>
+                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentScore}
                   </span>
                 )}
                 {videoScore !== null && (
@@ -2207,7 +2208,11 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
               <div className="s7-resume-sec-title">🏆 Talentera Verified Scorecard</div>
               <div className="s7-resume-score-strip">
-                {assessmentScore !== null && <span className={`s7-score-badge ${assessmentMedal.toLowerCase()}`}>{assessmentMedal} · {assessmentScore}</span>}
+                {assessmentScore !== null && (
+                  <span className={`s7-score-badge ${assessmentMedal.toLowerCase() === "gold" ? "gold" : assessmentMedal.toLowerCase() === "silver" ? "silver" : assessmentMedal.toLowerCase() === "bronze" ? "bronze" : ""}`}>
+                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentScore}
+                  </span>
+                )}
                 {videoScore !== null && <span className={`s7-score-badge ${videoMedal.toLowerCase()}`}>🎤 {videoMedal} · {videoScore}</span>}
                 {totalCharts > 0 && <span className="s7-score-badge silver">💻 {totalCharts} charts · {Math.round(overallAccuracy)}%</span>}
                 <span className="s7-score-badge gold">🏆 {totalPoints}/100 Total</span>

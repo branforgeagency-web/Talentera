@@ -487,7 +487,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             <Section title="Assessment">
               <Row label="Topic / Domain" value={assessment.domain || assessment.topic || "RCM & Coding"} />
               <Row label="Proctored Score" value={`${assessment.foundationScore ?? assessment.score}%`} />
-              <Row label="Medal Tier" value={assessment.medal ? `${assessment.medal === "Gold" ? "🥇 Gold" : assessment.medal === "Silver" ? "🥈 Silver" : "🥉 Bronze"} (${assessment.medal})` : (assessment.foundationScore >= 70 ? "🥈 Silver" : "Needs Practice")} />
+              <Row label="Medal Tier" value={assessment.medal && !String(assessment.medal).toLowerCase().includes("practice") ? `${assessment.medal === "Gold" ? "🥇 Gold" : assessment.medal === "Silver" ? "🥈 Silver" : assessment.medal === "Bronze" ? "🥉 Bronze" : assessment.medal} (${assessment.medal})` : (assessment.foundationScore >= 85 ? "🥇 Gold" : assessment.foundationScore >= 70 ? "🥈 Silver" : assessment.foundationScore >= 50 ? "🥉 Bronze" : `Assessment (${assessment.foundationScore ?? assessment.score ?? 0}%)`)} />
               <Row label="Percentile" value={assessment.percentile ? `Top ${100 - assessment.percentile}% (${assessment.percentile}th percentile)` : "68th percentile"} />
               <Row label="Passed / Verified" value={(assessment.passed ?? (assessment.foundationScore >= 70)) ? "Yes ✓" : "No"} />
               {Array.isArray(assessment.sectionScores) && assessment.sectionScores.length > 0 && (

@@ -530,7 +530,7 @@ export function exportResumeWord(data) {
           <td style="padding: 6pt 8pt; border: 1pt solid ${borderColor}; background-color: ${lightBg}; width: 25%;">
             <div style="color: #64748B; font-size: 8pt; text-transform: uppercase; font-weight: bold;">Foundation Assessment</div>
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
-              ${assessmentMedal} Tier ${assessmentScore !== null ? `(${assessmentScore}/100)` : ""}
+              ${["Gold", "Silver", "Bronze"].includes(assessmentMedal) ? `${assessmentMedal} Tier` : "Assessment Score"} ${assessmentScore !== null ? `(${assessmentScore}/100)` : ""}
             </div>
             <div style="color: #166534; font-size: 8pt; font-weight: bold;">🟢 API Proctored</div>
           </td>

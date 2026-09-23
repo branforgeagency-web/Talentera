@@ -1034,7 +1034,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       else if (overallPct >= 50) calcPercentile = Math.max(30, 40 + Math.round((overallPct - 50) * 1.1));
       else calcPercentile = Math.max(10, Math.round(overallPct * 0.7));
 
-      const medalTier = overallPct >= 85 ? "Gold" : overallPct >= 70 ? "Silver" : overallPct >= 50 ? "Bronze" : "Needs Practice";
+      const medalTier = overallPct >= 85 ? "Gold" : overallPct >= 70 ? "Silver" : overallPct >= 50 ? "Bronze" : "Assessment";
 
       const isAutoSubmitted = Boolean(
         (reasonOrPayload && typeof reasonOrPayload === "object" && reasonOrPayload.isAutoSubmitted) ||
@@ -1051,7 +1051,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         correctCount: totalCorrect,
         totalQuestions: 10,
         percentile: calcPercentile,
-        medal: isAutoSubmitted ? "Needs Practice" : medalTier,
+        medal: isAutoSubmitted ? "Assessment" : medalTier,
         passed: isAutoSubmitted ? false : overallPct >= 70,
         verified: isAutoSubmitted ? false : overallPct >= 70,
         isAutoSubmitted,
@@ -1153,7 +1153,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         status: candidateScore >= 70 ? "strong" : "weak",
       }));
 
-  const currentMedal = isCompleted ? (stage4?.medal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : candidateScore >= 50 ? "Bronze" : "Needs Practice")) : "Unattempted";
+  const rawMedal = stage4?.medal && !String(stage4.medal).toLowerCase().includes("practice") ? stage4.medal : null;
+  const currentMedal = isCompleted ? (rawMedal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : candidateScore >= 50 ? "Bronze" : "Assessment")) : "Unattempted";
   const displayPercentile = isCompleted ? (stage4?.percentile || 68) : null;
 
   return (
@@ -1881,7 +1882,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
                 "I have 20 uninterrupted minutes available right now.",
-                "I am the only person in the room. No one else visible on camera.",
+                "I am the only person in the room. No one else allowed on camera and no movement in background.",
                 "I understand this is my Attempt 1 of 5 lifetime. First retake unlocks in 7 days.",
                 "My score is final on submission. Companies view this as verified — no negotiations.",
                 "I understand that tab-switching, phone use or looking away triggers an auto-submit.",
@@ -2105,7 +2106,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 Assessment Scorecard {isCompleted ? "(Verified)" : "(Pending Test)"}
               </div>
               <div style={{ background: isCompleted ? (candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6") : "#F2F3F5", color: isCompleted ? (candidateScore >= 70 ? "#1F7A3C" : "#E08E00") : "#8A91A3", padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
-                {isCompleted ? `${currentMedal.toUpperCase()} · ${candidateScore} / 100` : "PENDING SUBMISSION"}
+                {isCompleted ? (["Gold", "Silver", "Bronze"].includes(currentMedal) ? `${currentMedal.toUpperCase()} · ${candidateScore} / 100` : `ASSESSMENT · ${candidateScore} / 100`) : "PENDING SUBMISSION"}
               </div>
             </div>
 
@@ -2641,7 +2642,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6", color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00", padding: "6px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
                 <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "⚠️ Attempt Saved"}</span>
                 <span>·</span>
-                <span>{currentMedal} Medal Tier</span>
+                <span>{["Gold", "Silver", "Bronze"].includes(currentMedal) ? `${currentMedal} Medal Tier` : `Assessment Score: ${candidateScore}/100`}</span>
                 {displayPercentile && (
                   <>
                     <span>·</span>

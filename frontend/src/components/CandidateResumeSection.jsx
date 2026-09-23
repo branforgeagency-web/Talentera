@@ -208,7 +208,8 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
 
   // Stage 4 Assessment
   const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : (stage4.passed ? 85 : 30));
-  const assessmentMedal = stage4.medal || (assessmentScore >= 85 ? "Gold" : assessmentScore >= 70 ? "Silver" : assessmentScore >= 50 ? "Bronze" : "Needs Practice");
+  const rawMedal = stage4.medal && !String(stage4.medal).toLowerCase().includes("practice") ? stage4.medal : null;
+  const assessmentMedal = rawMedal || (assessmentScore >= 85 ? "Gold" : assessmentScore >= 70 ? "Silver" : assessmentScore >= 50 ? "Bronze" : "Assessment");
 
   // Stage 5 Video Pitch
   const videoScore = stage5.aiScore !== undefined ? stage5.aiScore : (stage5.score !== undefined ? stage5.score : (stage5.verified ? 80 : 1));
@@ -1671,7 +1672,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                🎯 {assessmentMedal} · {assessmentScore}
+                {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentScore}
               </span>
 
               <span style={{

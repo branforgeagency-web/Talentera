@@ -64,6 +64,14 @@ router.get("/profile", async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    if (candidate.stage4?.medal && String(candidate.stage4.medal).toLowerCase().includes("practice")) {
+      candidate.stage4.medal = "Assessment";
+      candidate.save().catch(() => {});
+    }
+    if (candidate.stage5?.medal && String(candidate.stage5.medal).toLowerCase().includes("practice")) {
+      candidate.stage5.medal = "Verified";
+      candidate.save().catch(() => {});
+    }
     const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
@@ -77,6 +85,14 @@ router.get("/me", async (req, res) => {
   try {
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    if (candidate.stage4?.medal && String(candidate.stage4.medal).toLowerCase().includes("practice")) {
+      candidate.stage4.medal = "Assessment";
+      candidate.save().catch(() => {});
+    }
+    if (candidate.stage5?.medal && String(candidate.stage5.medal).toLowerCase().includes("practice")) {
+      candidate.stage5.medal = "Verified";
+      candidate.save().catch(() => {});
+    }
     const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
@@ -629,7 +645,7 @@ router.put("/stage/:n", async (req, res) => {
       candidate.stage4.score = fScore;
       candidate.stage4.passed = fScore >= 70;
       candidate.stage4.verified = fScore >= 70;
-      candidate.stage4.medal = candidate.stage4.medal || (fScore >= 85 ? "Gold" : fScore >= 70 ? "Silver" : fScore >= 50 ? "Bronze" : "Needs Practice");
+      candidate.stage4.medal = candidate.stage4.medal && !String(candidate.stage4.medal).toLowerCase().includes("practice") ? candidate.stage4.medal : (fScore >= 85 ? "Gold" : fScore >= 70 ? "Silver" : fScore >= 50 ? "Bronze" : "Assessment");
       candidate.stage4.completedAt = candidate.stage4.completedAt || new Date();
     } else if (stageNum === 5) {
       const selfIntroScore = typeof req.body.aiScore === "number" ? req.body.aiScore : (typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null);
@@ -652,7 +668,7 @@ router.put("/stage/:n", async (req, res) => {
       if (calculatedScore !== null) {
         candidate.stage5.score = calculatedScore;
         candidate.stage5.overallScore = calculatedScore;
-        candidate.stage5.medal = calculatedScore >= 85 ? "Gold" : calculatedScore >= 70 ? "Silver" : calculatedScore >= 50 ? "Bronze" : "Needs Practice";
+        candidate.stage5.medal = calculatedScore >= 85 ? "Gold" : calculatedScore >= 70 ? "Silver" : calculatedScore >= 50 ? "Bronze" : "Verified";
         candidate.stage5.verified = calculatedScore >= 70;
       }
       if (req.body.clarityScore || req.body.clarity) candidate.stage5.clarityScore = req.body.clarityScore || req.body.clarity;
@@ -1242,7 +1258,7 @@ router.post(
         mockScore: mockScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
+        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Verified") : null,
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
@@ -1343,7 +1359,7 @@ router.post(
         mockScore: mockScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice") : null,
+        medal: combinedScore ? (combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Verified") : null,
         rubric: evaluation.rubric,
         answerNotes: evaluation.answerNotes,
         feedback: evaluation.feedback,
@@ -1720,7 +1736,7 @@ router.post(
         mockScore: finalScore,
         score: combinedScore,
         overallScore: combinedScore,
-        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Needs Practice",
+        medal: combinedScore >= 85 ? "Gold" : combinedScore >= 70 ? "Silver" : combinedScore >= 50 ? "Bronze" : "Verified",
         integrityScore: integrityScore,
         qaPairs: parsedQaPairs.length > 0 ? parsedQaPairs : (candidate.stage5?.qaPairs || []),
         proctorLogs: {
