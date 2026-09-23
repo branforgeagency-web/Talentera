@@ -168,7 +168,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   const jobMatches = (job, skip = []) => {
     const on = (key) => !skip.includes(key);
     if (on('location') && selectedLocation && job.location?.toLowerCase() !== selectedLocation.toLowerCase()) return false;
-    if (on('specialty') && selectedSpecialty && job.specialty !== selectedSpecialty) return false;
+    if (on('specialty') && selectedSpecialty && !String(job.specialty || "").split(" / ").map((s) => s.trim()).includes(selectedSpecialty)) return false;
     if (on('company') && selectedCompany && job.company !== selectedCompany) return false;
     if (on('project') && selectedProject && job.projectClient !== selectedProject) return false;
     if (on('workmode') && selectedWorkMode && (job.workMode || job.mode)?.toLowerCase() !== selectedWorkMode.toLowerCase()) return false;
@@ -198,7 +198,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
     return out;
   };
   const locationsList = uniq(jobsFor('location').map((j) => j.location), selectedLocation);
-  const specialtiesList = uniq(jobsFor('specialty').map((j) => j.specialty), selectedSpecialty);
+  const specialtiesList = uniq(jobsFor('specialty').flatMap((j) => String(j.specialty || "").split(" / ").map((s) => s.trim())), selectedSpecialty);
   const companyJobs = jobsFor('company');
   const companiesList = uniq(companyJobs.map((j) => j.company), selectedCompany);
   // Always offer these 3 RCM project/client tracks so Billing and AR Calling candidates can filter

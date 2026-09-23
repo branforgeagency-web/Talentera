@@ -192,6 +192,20 @@ const CandidateSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // Talentera Score (0-100), computed from Stages 1-6 only per the weighted
+    // point table in backend/utils/talenteraScore.js (Stage 7/8 are output-only,
+    // worth 0). Recomputed and persisted here whenever a stage is submitted or
+    // approved, so any consumer reading the candidate record directly (not just
+    // the academy dashboard routes that compute it live) sees the same number.
+    talenteraScore: {
+      type: Number,
+      default: 0,
+    },
+    talenteraScoreBreakdown: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
     // Set to false to stop "new job posted" emails (utils/jobAlerts.js). Default: on.
     jobAlertEmails: {
       type: Boolean,

@@ -224,17 +224,18 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         </div>
       ) : (
         <>
-          {["text", "gstin", "pan", "email", "url", "number"].includes(item.input) && (
+          {["text", "gstin", "pan", "email", "url", "number", "decimal"].includes(item.input) && (
             <div>
               <input
             type={item.input === "number" ? "number" : item.input === "email" ? "email" : item.input === "url" ? "url" : "text"}
+            inputMode={item.input === "decimal" ? "decimal" : undefined}
             className="conb-input"
             value={text}
             placeholder={item.placeholder}
             min={item.input === "number" ? 0 : undefined}
             maxLength={item.input === "gstin" ? 15 : item.input === "pan" ? 10 : undefined}
             onKeyDown={item.input === "number" ? (e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); } : undefined}
-            onChange={(e) => setText(item.input === "number" ? e.target.value.replace(/[^0-9.]/g, "") : isUpperType ? e.target.value.toUpperCase() : e.target.value)}
+            onChange={(e) => setText(item.input === "number" || item.input === "decimal" ? e.target.value.replace(/[^0-9.]/g, "") : isUpperType ? e.target.value.toUpperCase() : e.target.value)}
             onBlur={handleTextBlur}
           />
           {item.input === "gstin" && text.length === 15 && !error && (

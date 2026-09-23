@@ -411,7 +411,15 @@ router.put("/stage/:n", async (req, res) => {
         if (!courseOrSpec) {
           return res.status(400).json({ message: "Stage 2 incomplete: Primary Domain or Specialty is required." });
         }
-        if (trainingPath === "academy" || (!trainingPath && academyName)) {
+        // The Academy/Self/Non-Trained training-path picker (and its Academy Name field)
+        // is only ever shown to FRESHER candidates in the Stage 2 wizard (Stage2Training.jsx
+        // renders it inside `{isFresherCandidate && (...)}`). An Experienced candidate never
+        // sees or fills an Academy Name field, so this check must mirror that same gating -
+        // otherwise an Experienced candidate's default trainingPath ("academy") plus an
+        // always-empty academyName incorrectly blocks Stage 2 with an error for a field
+        // they were never shown.
+        const isFresherCandidate = !/exp/i.test(String(candidate.stage1?.experience || ""));
+        if (isFresherCandidate && (trainingPath === "academy" || (!trainingPath && academyName))) {
           if (!academyName || String(academyName).trim().length < 2) {
             return res.status(400).json({ message: "Stage 2 incomplete: Academy / Institute name is required." });
           }

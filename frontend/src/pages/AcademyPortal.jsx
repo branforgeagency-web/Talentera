@@ -54,6 +54,27 @@ import {
   PieChart,
 } from "lucide-react";
 
+// RCM Domain / Training Course options - kept in sync with the Bulk Upload &
+// Invite Engine's DEFAULT_COURSES list so "Domain" means the same thing
+// everywhere in the academy portal. "Other" lets an academy running a course
+// outside this fixed list type its own name in.
+const DOMAIN_OPTIONS = ["Medical Coding", "Medical Billing", "AR Calling", "Other"];
+
+// Ready-made "Batch 1(<Month> <Year>)" names for the current and next year, so
+// staff can pick a correctly-formatted batch name instead of typing it out by
+// hand. Kept in sync with the same list in UploadAndInvitesEngine.jsx. The
+// Assigned Batch field stays free text underneath this picker, so a second/third
+// batch in the same month (Batch 2, Batch 3, ...) can still be typed in directly.
+const EDIT_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function getEditBatchNameOptions() {
+  const year = new Date().getFullYear();
+  return [
+    ...EDIT_MONTH_ABBR.map((m) => `Batch 1(${m} ${year})`),
+    ...EDIT_MONTH_ABBR.map((m) => `Batch 1(${m} ${year + 1})`),
+  ];
+}
+const EDIT_BATCH_NAME_OPTIONS = getEditBatchNameOptions();
+
 export default function AcademyPortal() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,7 +179,7 @@ export default function AcademyPortal() {
 
   // Batch Creation Inputs
   const [newBatchCode, setNewBatchCode] = useState("");
-  const [newBatchCourse, setNewBatchCourse] = useState("HCC Coding Specialization");
+  const [newBatchCourse, setNewBatchCourse] = useState("Medical Coding");
   const [newBatchBranch, setNewBatchBranch] = useState("Coimbatore");
 
   // Other Form Inputs
@@ -233,12 +254,28 @@ export default function AcademyPortal() {
   const handleSaveCandidateEdit = async (e) => {
     e.preventDefault();
     if (!editCandidateModal) return;
+    if (!editCandidateModal.batchCode || !editCandidateModal.batchCode.trim()) {
+      showToast("Please enter an Assigned Batch (e.g. Batch 1(Jan 2026)).", "error");
+      return;
+    }
+    if (editCandidateModal.specialty === "Other" && !editCandidateModal.specialtyOther?.trim()) {
+      showToast('Please type the domain name for "Other".', "error");
+      return;
+    }
     setEditCandidateSaving(true);
     try {
+      const effectiveSpecialty = editCandidateModal.specialty === "Other" ? editCandidateModal.specialtyOther.trim() : editCandidateModal.specialty;
+      const payload = {
+        ...editCandidateModal,
+        specialty: effectiveSpecialty,
+        experienceRange: editCandidateModal.experience === "Experienced" ? editCandidateModal.experienceRange : "",
+        expectedSalaryLpa: editCandidateModal.experience === "Fresher" ? "" : editCandidateModal.expectedSalaryLpa,
+      };
+      delete payload.specialtyOther;
       const res = await fetch(`/api/academy/students/${editCandidateModal.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify(editCandidateModal),
+        body: JSON.stringify(payload),
       });
       const data = await safeJson(res);
       if (res.ok) {
@@ -607,18 +644,20 @@ export default function AcademyPortal() {
   const questions = dashData?.questions || [];
   const kpis = dashData?.kpis || {};
 
-  // Unique Batch Codes & Specializations for Filter Dropdowns
+  // Unique Batch Codes & Specializations for Filter Dropdowns.
+  // Only batch codes actually assigned to one of THIS academy's own candidates (`students`
+  // is already scoped server-side to candidates this academy added) - not every
+  // AcademyBatch record that exists, since a batch can be created via "+ Create Batch" and
+  // never actually get a student assigned to it. Listing those empty/unused batches here
+  // would clutter the filter with options that select nothing.
   const batchOptions = useMemo(() => {
     const list = new Set();
     students.forEach((s) => {
-      if (s.month) list.add(s.month.trim());
-      if (s.batch) list.add(s.batch.trim());
+      const b = (s.month || s.batch || "").trim();
+      if (b) list.add(b);
     });
-    batches.forEach((b) => {
-      if (b.code) list.add(b.code.trim());
-    });
-    return Array.from(list).filter(Boolean);
-  }, [students, batches]);
+    return Array.from(list).filter(Boolean).sort();
+  }, [students]);
 
   const specialtyOptions = useMemo(() => {
     const list = new Set();
@@ -860,7 +899,7 @@ export default function AcademyPortal() {
                 <MetricCard title="TOTAL CANDIDATES" val={kpis.totalStudents ?? students.length} sub={`${students.filter((s) => s.status === "placed").length} placed · ${liveProfilesData.length} live`} icon="fa-user-group" onClick={() => handleNavigateMod("candidates")} />
                 <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="8-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
                 <MetricCard title="AWAITING APPROVAL" val={pendingApprovalsCount} sub="Stage 2 & 5 actions" icon="fa-circle-check" color="#CA8A04" onClick={() => handleNavigateMod("approvals")} />
-                <MetricCard title="STUCK STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
+                <MetricCard title="INACTIVE STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
@@ -1244,16 +1283,22 @@ export default function AcademyPortal() {
                                       <button
                                         onClick={() => {
                                           setActionDropdownCandId(null);
+                                          const editExperience = /exp/i.test(String(c.type || c.experience || "")) ? "Experienced" : "Fresher";
+                                          const editDomainRaw = c.specialty || c.domain || "Medical Coding";
                                           setEditCandidateModal({
                                             id: c.id || c._id,
                                             name: c.name || "",
                                             email: c.email || "",
                                             mobile: (c.mobile || c.phone || "").replace(/\D/g, "").slice(-10),
-                                            batchCode: c.month || c.batch || batches[0]?.code || "JAN-HCC-01",
-                                            course: c.course || c.specialty || courses[0]?.title || "HCC Coding Specialization",
-                                            experience: c.type || c.experience || "Fresher",
+                                            batchCode: c.month || c.batch || "",
+                                            course: c.course || courses[0]?.title || "HCC Coding Specialization",
+                                            experience: editExperience,
+                                            experienceRange: c.experienceRange || "1 to 3",
+                                            expectedSalaryLpa: c.expectedSalaryLpa || "",
                                             city: c.city || "Coimbatore",
-                                            specialty: c.specialty || "HCC",
+                                            specialty: DOMAIN_OPTIONS.includes(editDomainRaw) ? editDomainRaw : "Other",
+                                            specialtyOther: DOMAIN_OPTIONS.includes(editDomainRaw) ? "" : editDomainRaw,
+                                            aadhaarLast4: "",
                                           });
                                         }}
                                         style={{
@@ -2075,14 +2120,14 @@ export default function AcademyPortal() {
             <form onSubmit={handleCreateBatch} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>BATCH CODE</label>
-                <input type="text" placeholder="e.g. APR-HCC-02" value={newBatchCode} onChange={(e) => setNewBatchCode(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
+                <input type="text" placeholder="e.g. Batch 1(Jan 2026)" value={newBatchCode} onChange={(e) => setNewBatchCode(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>COURSE SPECIALTY</label>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>COURSE</label>
                 <select value={newBatchCourse} onChange={(e) => setNewBatchCourse(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}>
-                  <option value="HCC Coding Specialization">HCC Coding Specialization</option>
-                  <option value="Medical Coding Foundation">Medical Coding Foundation</option>
-                  <option value="Inpatient DRG Specialization">Inpatient DRG Specialization</option>
+                  <option value="Medical Coding">Medical Coding</option>
+                  <option value="Medical Billing">Medical Billing</option>
+                  <option value="AR Calling">AR Calling</option>
                 </select>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
@@ -2239,38 +2284,31 @@ export default function AcademyPortal() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>ASSIGNED BATCH</label>
-                  <select
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>ASSIGNED BATCH *</label>
+                  <input
+                    type="text"
                     value={editCandidateModal.batchCode}
                     onChange={(e) => setEditCandidateModal({ ...editCandidateModal, batchCode: e.target.value })}
+                    placeholder="ex: Batch 1(Jan 2026)"
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                  <select
+                    value=""
+                    onChange={(e) => { if (e.target.value) setEditCandidateModal({ ...editCandidateModal, batchCode: e.target.value }); }}
+                    title="Quick pick a correctly-formatted batch name"
+                    style={{ width: "100%", marginTop: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 12, color: "#64748B" }}
                   >
-                    {batches.map((b) => (
-                      <option key={b._id || b.code} value={b.code}>
-                        {b.code} {b.course ? `(${b.course})` : ""}
+                    <option value="">Quick pick a batch name...</option>
+                    {EDIT_BATCH_NAME_OPTIONS.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
                       </option>
                     ))}
-                    <option value="JAN-HCC-01">JAN-HCC-01</option>
-                    <option value="FEB-ED-02">FEB-ED-02</option>
                   </select>
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE TYPE</label>
-                  <select
-                    value={editCandidateModal.experience}
-                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, experience: e.target.value })}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
-                  >
-                    <option value="Fresher">Fresher</option>
-                    <option value="Experienced">Experienced (1+ yrs)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>COURSE / SPECIALTY</label>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>TRAINING COURSE</label>
                   <input
                     type="text"
                     value={editCandidateModal.course}
@@ -2278,7 +2316,100 @@ export default function AcademyPortal() {
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
                   />
                 </div>
+              </div>
 
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE LEVEL</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[
+                      { value: "Fresher", label: "Fresher" },
+                      { value: "Experienced", label: "Experienced" },
+                    ].map((opt) => (
+                      <label
+                        key={opt.value}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          border: editCandidateModal.experience === opt.value ? "1.5px solid #06152A" : "1px solid #CBD5E1",
+                          background: editCandidateModal.experience === opt.value ? "#F1F5F9" : "#fff",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "#06152A",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editCandidateModal.experience === opt.value}
+                          onChange={() => setEditCandidateModal({ ...editCandidateModal, experience: opt.value })}
+                          style={{ width: 14, height: 14, cursor: "pointer" }}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>DOMAIN</label>
+                  <select
+                    value={editCandidateModal.specialty}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, specialty: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  >
+                    {DOMAIN_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  {editCandidateModal.specialty === "Other" && (
+                    <input
+                      type="text"
+                      value={editCandidateModal.specialtyOther}
+                      onChange={(e) => setEditCandidateModal({ ...editCandidateModal, specialtyOther: e.target.value })}
+                      placeholder="Type the domain name"
+                      style={{ width: "100%", marginTop: 6, padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {editCandidateModal.experience === "Experienced" && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE RANGE</label>
+                  <select
+                    value={editCandidateModal.experienceRange}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, experienceRange: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  >
+                    <option value="1 to 3">Experienced (1 to 3)</option>
+                    <option value="3 to 6">Experienced (3 to 6)</option>
+                    <option value="6 to 10">Experienced (6 to 10)</option>
+                    <option value="10+">Experienced (10+)</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: editCandidateModal.experience === "Fresher" ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                {editCandidateModal.experience !== "Fresher" && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPECTED CTC (LPA)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="2"
+                      max="30"
+                      value={editCandidateModal.expectedSalaryLpa}
+                      onChange={(e) => setEditCandidateModal({ ...editCandidateModal, expectedSalaryLpa: e.target.value })}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                    />
+                  </div>
+                )}
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>BRANCH / CITY</label>
                   <input
@@ -2287,6 +2418,22 @@ export default function AcademyPortal() {
                     onChange={(e) => setEditCandidateModal({ ...editCandidateModal, city: e.target.value })}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
                   />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>AADHAAR (LAST 4 DIGITS)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={12}
+                  value={editCandidateModal.aadhaarLast4}
+                  onChange={(e) => setEditCandidateModal({ ...editCandidateModal, aadhaarLast4: e.target.value.replace(/[^\d]/g, "").slice(0, 12) })}
+                  placeholder="e.g. 1234"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
+                  Optional - only used to flag duplicate candidate entries. Leave blank to keep whatever is already on file.
                 </div>
               </div>
 

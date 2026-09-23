@@ -23,7 +23,7 @@ const VALID_STAGE_IDS = ["1a", "1b", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 const JD_REQUIRED_FIELDS = [
   "roletitle",
-  "specialty",
+  "specialties",
   "level",
   "compmin",
   "compmax",
@@ -70,6 +70,17 @@ async function resolveJobTitle(jobId, companyDoc) {
   }
   const job = await Job.findOne({ jobId }).select("fields.roletitle").lean();
   return job?.fields?.roletitle || "Medical Coder";
+}
+
+// Companies can now pick MULTIPLE specialties for a single requisition (Primary specialty is a
+// multi-select "specialties" array). `specialty` (singular) is kept as a derived, joined display
+// string so the many existing places that read it as plain text - job search/filter, job alerts,
+// tag generation, listings - never need to change.
+function syncSpecialtyString(data) {
+  if (data && Array.isArray(data.specialties)) {
+    data.specialty = data.specialties.filter(Boolean).join(" / ");
+  }
+  return data;
 }
 
 function isEmptyValue(v) {
@@ -227,6 +238,9 @@ router.put("/stage/:id", async (req, res) => {
 
   const key = `stage${stageId}`;
   company[key] = { ...(company[key] || {}), ...req.body };
+  if (stageId === "9") {
+    syncSpecialtyString(company[key]);
+  }
   if (!company.completedStages.includes(stageId)) {
     company.completedStages.push(stageId);
   }
@@ -548,7 +562,7 @@ router.post("/jobs", async (req, res) => {
       });
     }
 
-    const fields = req.body || {};
+    const fields = syncSpecialtyString(req.body || {});
     const isFresherJobReq = String(fields.level || "").toLowerCase().includes("fresher") || (fields.expmin !== undefined && fields.expmin !== null && fields.expmin !== "" && Number(fields.expmin) === 0 && Number(fields.expmax || 0) <= 1);
     if (isFresherJobReq) {
       fields.notice = "";

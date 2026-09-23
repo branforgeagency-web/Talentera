@@ -355,15 +355,16 @@ export default function CompanyJobs() {
                       {REQUIRED_IDS.has(item.id) && <span style={{ color: "#DC2626" }}>*</span>}
                     </label>
 
-                    {["text", "number"].includes(item.input) && (
+                    {["text", "number", "decimal"].includes(item.input) && (
                       <input
-                        type={item.input}
+                        type={item.input === "number" ? "number" : "text"}
+                        inputMode={item.input === "decimal" ? "decimal" : undefined}
                         min={item.input === "number" ? 0 : undefined}
                         onKeyDown={item.input === "number" ? (e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); } : undefined}
                         style={inputStyle}
                         placeholder={item.placeholder}
                         value={form[item.id]}
-                        onChange={(e) => setField(item.id, item.input === "number" ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value)}
+                        onChange={(e) => setField(item.id, (item.input === "number" || item.input === "decimal") ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value)}
                       />
                     )}
 
