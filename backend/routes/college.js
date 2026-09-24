@@ -8,6 +8,7 @@ const Job = require("../models/Job");
 const Company = require("../models/Company");
 const Notification = require("../models/Notification");
 const { requireCollegeAuth, signToken } = require("../middleware/auth");
+const { upload, handleUpload } = require("../middleware/upload");
 const { authLimiter } = require("../middleware/rateLimit");
 const logger = require("../utils/logger");
 
@@ -211,6 +212,7 @@ router.get("/dashboard-kpis", requireCollegeAuth, async (req, res) => {
       selectedCount,
       joinedCount,
       pendingVerificationCount,
+      rejectedCount,
     ] = await Promise.all([
       Candidate.countDocuments({ collegeId }),
       Candidate.countDocuments({ collegeId, "rcmDomainSelection.primaryDomain": "Medical Coding" }),
@@ -250,6 +252,13 @@ router.get("/dashboard-kpis", requireCollegeAuth, async (req, res) => {
       Candidate.countDocuments({
         collegeId,
         "verificationReadiness.readinessStatus": "VERIFICATION_PENDING",
+      }),
+      Candidate.countDocuments({
+        collegeId,
+        $or: [
+          { "placementLifecycle.currentStatus": { $in: ["REJECTED", "rejected"] } },
+          { "placementLifecycle.rejected": true },
+        ],
       }),
     ]);
 
@@ -293,6 +302,7 @@ router.get("/dashboard-kpis", requireCollegeAuth, async (req, res) => {
       shortlisted: shortlistedCount,
       selected: selectedCount,
       joined: joinedCount,
+      rejected: rejectedCount,
       pendingVerification: pendingVerificationCount,
       readinessFunnel,
     };
@@ -338,6 +348,7 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
       backlogsCount,
       primaryDomain,
       secondaryDomain,
+      consentGiven,
     } = req.body;
 
     if (!name || !email || !mobile) {
@@ -347,6 +358,23 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
     const VALID_RCM_DOMAINS = ["Medical Coding", "Medical Billing", "AR Calling"];
     if (!primaryDomain || !VALID_RCM_DOMAINS.includes(primaryDomain)) {
       return res.status(400).json({ message: "Select the candidate's Primary RCM Domain (Medical Coding, Medical Billing, or AR Calling)." });
+    }
+
+    const VALID_GENDERS = ["Male", "Female", "Other"];
+    if (!gender || !VALID_GENDERS.includes(gender)) {
+      return res.status(400).json({ message: "Select the student's Gender (Male, Female, or Other)." });
+    }
+
+    if (!dob || !String(dob).trim()) {
+      return res.status(400).json({ message: "Date of Birth is required." });
+    }
+
+    if (!yearOfStudy || !String(yearOfStudy).trim()) {
+      return res.status(400).json({ message: "Current Year / Semester is required." });
+    }
+
+    if (!consentGiven) {
+      return res.status(400).json({ message: "Student consent is required before enrolling them." });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -376,6 +404,10 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(tempPassword, salt);
 
+    // No fabricated fallbacks below - every value here is either what the
+    // enrollment form actually captured, or an honest blank ("") rather than
+    // a realistic-looking made-up default. dob, gender, yearOfStudy and
+    // consentGiven are validated above and always real by this point.
     const newCandidate = await Candidate.create({
       email: normalizedEmail,
       mobile: cleanMobile,
@@ -386,14 +418,14 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
         fullName: name.trim(),
         mobile: cleanMobile,
         email: normalizedEmail,
-        dob: dob || "2003-05-15",
-        gender: gender || "Male",
-        city: city || college.city,
-        state: state || college.state,
+        dob,
+        gender,
+        city: city || "",
+        state: state || "",
         address: address || "",
-        degree: degree || "B.Sc",
+        degree: degree || "",
         collegeName: college.name,
-        graduationYear: graduationYear || "2026",
+        graduationYear: graduationYear || "",
         cgpa: cgpa || "",
         percentage: percentage || "",
         experience: "Fresher",
@@ -402,24 +434,26 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
       studentEnrollment: {
         studentId: studentId || "",
         rollNumber: rollNumber || "",
-        department: department || "Life Sciences",
-        degree: degree || "B.Sc",
-        yearOfStudy: yearOfStudy || "Final Year",
-        graduationYear: graduationYear || "2026",
+        department: department || "",
+        degree: degree || "",
+        yearOfStudy,
+        graduationYear: graduationYear || "",
         cgpa: cgpa || "",
         percentage: percentage || "",
         backlogsCount: Number(backlogsCount) || 0,
         marksheetsVault: [],
+        consentGiven: true,
+        consentGivenAt: new Date(),
       },
       rcmDomainSelection: {
         primaryDomain,
         primarySubSpecialties: [],
-        secondaryDomain: secondaryDomain || "Medical Billing",
+        secondaryDomain: secondaryDomain || "",
         secondarySubSpecialties: [],
         workModePreference: "WFO",
         shiftPreference: "Day Shift",
-        expectedSalary: "₹2.8L – ₹3.5L",
-        availability: "Immediate on Graduation",
+        expectedSalary: "",
+        availability: "",
       },
       verificationReadiness: {
         checklist: {
@@ -451,6 +485,38 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
     return res.status(500).json({ message: err.message || "Failed to add student." });
   }
 });
+
+// POST /api/college/students/:id/photo - Attach a student profile photo
+// (optional). Two-step upload: the student record is created first via
+// POST /students/add, then - only if a photo was actually chosen - this
+// endpoint uploads it and stores the real hosted URL in stage1.photoUrl,
+// the same field the platform's own candidate-side Aadhaar e-KYC flow uses
+// for a profile photo, so it surfaces wherever that field is already read.
+router.post(
+  "/students/:id/photo",
+  requireCollegeAuth,
+  upload.single("doc"),
+  handleUpload({ resourceType: "image" }),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "No photo uploaded." });
+      const student = await Candidate.findOne({ _id: req.params.id, collegeId: req.collegeId });
+      if (!student) return res.status(404).json({ message: "Student record not found in this college." });
+
+      student.stage1 = {
+        ...(student.stage1 || {}),
+        photoUrl: req.file.fileUrl,
+      };
+      student.markModified("stage1");
+      await student.save();
+
+      return res.json({ success: true, photoUrl: req.file.fileUrl, student });
+    } catch (err) {
+      logger.error(`Student photo upload error: ${err.message}`);
+      return res.status(500).json({ message: err.message || "Failed to upload photo." });
+    }
+  }
+);
 
 // GET /api/college/students/check-mobile?mobile=9876543210 - Live duplicate
 // check the Single Student Enrollment form calls on blur, so a placement
@@ -504,6 +570,39 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
         continue;
       }
 
+      // Gender, DOB, Current Year/Semester, and Consent are required for
+      // every enrolled student - same as the Single Student Enrollment
+      // form. A CSV row missing any of these is skipped with a specific
+      // error rather than silently filled in with a fake value.
+      const VALID_GENDERS = ["Male", "Female", "Other"];
+      const rawGender = (row.gender || row.Gender || "").trim();
+      if (!VALID_GENDERS.includes(rawGender)) {
+        errorCount++;
+        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing or invalid Gender (must be Male, Female, or Other)" });
+        continue;
+      }
+
+      const rawDob = (row.dob || row.DOB || row.dateOfBirth || row.DateOfBirth || "").trim();
+      if (!rawDob) {
+        errorCount++;
+        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing Date of Birth" });
+        continue;
+      }
+
+      const rawYearOfStudy = (row.yearOfStudy || row.YearOfStudy || row.currentYearSemester || row.CurrentYearSemester || "").trim();
+      if (!rawYearOfStudy) {
+        errorCount++;
+        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing Current Year / Semester" });
+        continue;
+      }
+
+      const rawConsent = String(row.consent || row.Consent || row.consentGiven || "").trim().toLowerCase();
+      if (!["yes", "true", "1", "y"].includes(rawConsent)) {
+        errorCount++;
+        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing student consent (Consent column must be Yes)" });
+        continue;
+      }
+
       // Duplicate Check
       const existing = await Candidate.findOne({ email: rawEmail });
       if (existing) {
@@ -512,9 +611,12 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
         continue;
       }
 
-      const domain = row.domain || row.Domain || row.primaryDomain || "Medical Coding";
-      const department = row.department || row.Department || "Life Sciences";
-      const degree = row.degree || row.Degree || "B.Sc";
+      // No fabricated fallbacks below - every value here is either what the
+      // CSV row actually provided, or an honest blank ("") rather than a
+      // realistic-looking made-up default (matches POST /students/add).
+      const domain = row.domain || row.Domain || row.primaryDomain || "";
+      const department = row.department || row.Department || "";
+      const degree = row.degree || row.Degree || "";
       const rollNumber = row.rollNumber || row.RollNumber || row.roll_no || "";
 
       await Candidate.create({
@@ -527,11 +629,13 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
           fullName: rawName,
           mobile: rawMobile,
           email: rawEmail,
-          city: college.city,
-          state: college.state,
+          dob: rawDob,
+          gender: rawGender,
+          city: row.city || row.City || "",
+          state: row.state || row.State || "",
           collegeName: college.name,
           degree,
-          graduationYear: row.graduationYear || "2026",
+          graduationYear: row.graduationYear || row.GraduationYear || "",
           cgpa: row.cgpa || row.CGPA || "",
           percentage: row.percentage || "",
           experience: "Fresher",
@@ -542,20 +646,22 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
           rollNumber,
           department,
           degree,
-          yearOfStudy: row.yearOfStudy || "Final Year",
-          graduationYear: row.graduationYear || "2026",
+          yearOfStudy: rawYearOfStudy,
+          graduationYear: row.graduationYear || row.GraduationYear || "",
           cgpa: row.cgpa || "",
           percentage: row.percentage || "",
           backlogsCount: Number(row.backlogs || row.backlogsCount || 0),
           marksheetsVault: [],
+          consentGiven: true,
+          consentGivenAt: new Date(),
         },
         rcmDomainSelection: {
           primaryDomain: domain,
           primarySubSpecialties: [],
-          secondaryDomain: row.secondaryDomain || "Medical Billing",
+          secondaryDomain: row.secondaryDomain || row.SecondaryDomain || "",
           workModePreference: "WFO",
           shiftPreference: "Day Shift",
-          availability: "Immediate on Graduation",
+          availability: "",
         },
         verificationReadiness: {
           checklist: {
@@ -624,6 +730,8 @@ router.get("/students", requireCollegeAuth, async (req, res) => {
       readiness = "",
       placementStatus = "",
       hasBacklogs = "",
+      gender = "",
+      graduationYear = "",
     } = req.query;
 
     const query = { collegeId };
@@ -651,12 +759,25 @@ router.get("/students", requireCollegeAuth, async (req, res) => {
       query["verificationReadiness.readinessStatus"] = readiness;
     }
     if (placementStatus) {
-      query["placementLifecycle.currentStatus"] = placementStatus;
+      if (placementStatus.toUpperCase() === "REJECTED") {
+        query.$or = [
+          { "placementLifecycle.currentStatus": { $in: ["REJECTED", "rejected"] } },
+          { "placementLifecycle.rejected": true },
+        ];
+      } else {
+        query["placementLifecycle.currentStatus"] = placementStatus;
+      }
     }
     if (hasBacklogs === "no") {
       query["studentEnrollment.backlogsCount"] = 0;
     } else if (hasBacklogs === "yes") {
       query["studentEnrollment.backlogsCount"] = { $gt: 0 };
+    }
+    if (gender) {
+      query["stage1.gender"] = gender;
+    }
+    if (graduationYear) {
+      query["studentEnrollment.graduationYear"] = graduationYear;
     }
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -916,6 +1037,12 @@ router.post("/interviews/schedule", requireCollegeAuth, async (req, res) => {
       return res.status(400).json({ message: "Candidate and Company Name are required." });
     }
 
+    const interviewCandidate = await Candidate.findOne({ _id: candidateId, collegeId: req.collegeId }).select("completedStages");
+    if (!interviewCandidate) return res.status(404).json({ message: "Student record not found in this college." });
+    if (!interviewCandidate.completedStages?.includes(4)) {
+      return res.status(400).json({ message: "This student hasn't completed the Talentera Assessment (Stage 4) yet - it's mandatory before scheduling an interview." });
+    }
+
     const interview = await InterviewPipeline.create({
       candidateId,
       collegeId: req.collegeId,
@@ -957,6 +1084,9 @@ router.post("/placements/record", requireCollegeAuth, async (req, res) => {
 
     const student = await Candidate.findOne({ _id: candidateId, collegeId: req.collegeId });
     if (!student) return res.status(404).json({ message: "Student record not found in this college." });
+    if (!student.completedStages?.includes(4)) {
+      return res.status(400).json({ message: "This student hasn't completed the Talentera Assessment (Stage 4) yet - it's mandatory before recording a placement." });
+    }
 
     student.placementLifecycle = {
       currentStatus: "PLACED",
@@ -979,6 +1109,87 @@ router.post("/placements/record", requireCollegeAuth, async (req, res) => {
     );
 
     return res.json({ success: true, message: `Congratulations! ${student.stage1?.fullName || "Student"} marked as PLACED.`, student });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/college/students/:id/reject - Mark student as Rejected in placement cycle
+router.post("/students/:id/reject", requireCollegeAuth, async (req, res) => {
+  try {
+    const { reason = "" } = req.body;
+    const student = await Candidate.findOne({ _id: req.params.id, collegeId: req.collegeId });
+    if (!student) return res.status(404).json({ message: "Student record not found in this college." });
+
+    student.placementLifecycle = {
+      ...(student.placementLifecycle || {}),
+      currentStatus: "REJECTED",
+      rejected: true,
+      rejectionReason: reason || "Not selected in recruitment cycle",
+      rejectedAt: new Date(),
+    };
+    student.markModified("placementLifecycle");
+    await student.save();
+
+    // Also update any active pipeline record to REJECTED
+    await InterviewPipeline.updateMany(
+      { candidateId: student._id, collegeId: req.collegeId },
+      { status: "REJECTED", notes: reason }
+    );
+
+    return res.json({ success: true, message: `${student.stage1?.fullName || "Student"} marked as REJECTED.`, student });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/college/students/:id/hold - Put a student's placement cycle On Hold
+// (e.g. exams, personal leave, pending document resubmission) without marking
+// them Rejected or losing their prior placement progress.
+router.post("/students/:id/hold", requireCollegeAuth, async (req, res) => {
+  try {
+    const { reason = "" } = req.body;
+    const student = await Candidate.findOne({ _id: req.params.id, collegeId: req.collegeId });
+    if (!student) return res.status(404).json({ message: "Student record not found in this college." });
+
+    student.placementLifecycle = {
+      ...(student.placementLifecycle || {}),
+      previousStatus: student.placementLifecycle?.currentStatus || "AVAILABLE",
+      currentStatus: "ON_HOLD",
+      holdReason: reason || "Placement paused by college staff",
+      heldAt: new Date(),
+    };
+    student.markModified("placementLifecycle");
+    await student.save();
+
+    await InterviewPipeline.updateMany(
+      { candidateId: student._id, collegeId: req.collegeId, status: { $in: ["SCHEDULED", "IN_PROGRESS"] } },
+      { status: "ON_HOLD", notes: reason }
+    );
+
+    return res.json({ success: true, message: `${student.stage1?.fullName || "Student"} placed ON HOLD.`, student });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/college/students/:id/resume - Take a student off On Hold, restoring
+// whatever placement status they were in before being held.
+router.post("/students/:id/resume", requireCollegeAuth, async (req, res) => {
+  try {
+    const student = await Candidate.findOne({ _id: req.params.id, collegeId: req.collegeId });
+    if (!student) return res.status(404).json({ message: "Student record not found in this college." });
+
+    student.placementLifecycle = {
+      ...(student.placementLifecycle || {}),
+      currentStatus: student.placementLifecycle?.previousStatus || "AVAILABLE",
+      holdReason: "",
+      heldAt: null,
+    };
+    student.markModified("placementLifecycle");
+    await student.save();
+
+    return res.json({ success: true, message: `${student.stage1?.fullName || "Student"} resumed from On Hold.`, student });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

@@ -2266,8 +2266,19 @@ router.post("/apply/:jobId", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
-  // Job search / apply eligibility gate: the overall verification score must be
-  // at least 75% (JOB_SEARCH_MIN_SCORE = 75). Mirrors the check in frontend/src/pages/Jobs.jsx.
+  // Job search / apply eligibility gate. Stage 4 (Talentera Assessment) is
+  // called out in models/Candidate.js as "mandatory, key verification gate",
+  // but the overall verification score alone doesn't actually enforce that -
+  // a candidate could reach 75%+ purely from stages 1/2/3/5/6 and apply (and
+  // even get hired) without ever sitting the Assessment. Require it
+  // explicitly, on top of the score check, so that can't happen.
+  // Mirrors the check in frontend/src/pages/Jobs.jsx.
+  if (!candidate.completedStages?.includes(4)) {
+    return res.status(403).json({
+      message: "Job applications require your Talentera Assessment (Stage 4) to be completed first. Finish it in your dashboard to unlock job search.",
+    });
+  }
+
   const eligibility = calculateVerificationScore(candidate.completedStages, candidate);
   if (eligibility.score < JOB_SEARCH_MIN_SCORE) {
     return res.status(403).json({

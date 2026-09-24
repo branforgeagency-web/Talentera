@@ -22,8 +22,14 @@ const DEFAULT_DEPARTMENTS = [
   { name: "Life Sciences & Biotechnology", degrees: ["B.Sc", "M.Sc"] },
   { name: "Allied Health Sciences", degrees: ["BPT", "B.Sc Nursing"] },
   { name: "Pharmacy", degrees: ["B.Pharm", "Pharm.D"] },
+  { name: "Medicine & Dentistry", degrees: ["MBBS", "BDS"] },
+  { name: "Nursing", degrees: ["B.Sc Nursing", "GNM"] },
   { name: "Commerce & Management", degrees: ["B.Com", "BBA"] },
   { name: "Computer Science & IT", degrees: ["BCA", "B.Sc CS"] },
+  { name: "Engineering", degrees: ["B.E", "B.Tech"] },
+  { name: "Arts & Humanities", degrees: ["BA"] },
+  { name: "Science", degrees: ["B.Sc"] },
+  { name: "Other", degrees: [] },
 ];
 
 const GRADUATION_YEAR_OPTIONS = [
@@ -193,6 +199,7 @@ export default function CollegePortal() {
     shortlisted: 0,
     selected: 0,
     joined: 0,
+    rejected: 0,
     pendingVerification: 0,
   });
 
@@ -204,6 +211,7 @@ export default function CollegePortal() {
   const [certificationsSummary, setCertificationsSummary] = useState({});
   const [assessmentsSummary, setAssessmentsSummary] = useState(null);
   const [drives, setDrives] = useState([]);
+  const [showAllJobs, setShowAllJobs] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [editCollegeForm, setEditCollegeForm] = useState({
     name: "",
@@ -218,23 +226,34 @@ export default function CollegePortal() {
   const [filterDomain, setFilterDomain] = useState("");
   const [filterReadiness, setFilterReadiness] = useState("");
   const [filterPlacement, setFilterPlacement] = useState("");
+  const [filterGender, setFilterGender] = useState("");
+  const [filterGraduationYear, setFilterGraduationYear] = useState("");
 
   // Modals & Sub-actions
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [showPlacementModal, setShowPlacementModal] = useState(false);
-  const [placementCandidate, setPlacementCandidate] = useState(null);
 
   // Bulk Upload state
-  const [csvText, setCsvText] = useState("");
   const [bulkProcessing, setBulkProcessing] = useState(false);
   const [bulkSummary, setBulkSummary] = useState(null);
+  // Real file-based bulk upload (drag-and-drop or browse), matching the
+  // Academy Portal's Bulk Upload CSV flow: pick/drop an actual .csv file,
+  // see a validated row-by-row preview, exclude anything that looks wrong,
+  // then confirm - instead of pasting raw CSV text into a box.
+  const [bulkFileName, setBulkFileName] = useState("");
+  const [bulkDragActive, setBulkDragActive] = useState(false);
+  const [bulkParsing, setBulkParsing] = useState(false);
+  const [bulkPreviewRows, setBulkPreviewRows] = useState(null);
+  const [bulkExcludedRows, setBulkExcludedRows] = useState(new Set());
 
   // Single Student state
   const [singleStudent, setSingleStudent] = useState({
     name: "",
     email: "",
     mobile: "",
+    gender: "",
+    dob: "",
+    currentYearSemester: "",
     department: "",
     degree: "",
     rollNumber: "",
@@ -243,10 +262,34 @@ export default function CollegePortal() {
     backlogsCount: 0,
     primaryDomain: "",
     secondaryDomain: "Medical Billing",
+    consentGiven: false,
   });
   const [degreeIsOther, setDegreeIsOther] = useState(false);
   const [departmentIsOther, setDepartmentIsOther] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+
+  // Optional Student Photo - kept as a separate File + preview URL rather
+  // than in singleStudent state, since it's uploaded via its own
+  // multipart POST /students/:id/photo call after the student record
+  // itself is created (mirrors how the candidate's own Aadhaar e-KYC
+  // photo flow works).
+  const [singleStudentPhotoFile, setSingleStudentPhotoFile] = useState(null);
+  const [singleStudentPhotoPreview, setSingleStudentPhotoPreview] = useState("");
+
+  // Click-to-enlarge: any student photo thumbnail (enrollment form preview
+  // or the profile modal avatar) sets this URL, which opens a full-size
+  // lightbox overlay above everything else, including the student modal.
+  const [enlargedPhotoUrl, setEnlargedPhotoUrl] = useState("");
+  const handleSingleStudentPhotoChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) {
+      setSingleStudentPhotoFile(null);
+      setSingleStudentPhotoPreview("");
+      return;
+    }
+    setSingleStudentPhotoFile(file);
+    setSingleStudentPhotoPreview(URL.createObjectURL(file));
+  };
 
   // Live "mobile already registered" check - debounced so it fires once the
   // placement officer pauses typing, not on every keystroke. "duplicate"
@@ -426,7 +469,7 @@ export default function CollegePortal() {
     if (activeTab === "jobs" || activeTab === "dashboard") {
       fetchDrives();
     }
-  }, [activeTab, search, filterDept, filterDomain, filterReadiness, filterPlacement]);
+  }, [activeTab, search, filterDept, filterDomain, filterReadiness, filterPlacement, filterGender, filterGraduationYear]);
 
   async function fetchTrainingCurriculum() {
     const token = localStorage.getItem("talentera_college_token");
@@ -534,6 +577,8 @@ export default function CollegePortal() {
       if (filterDomain) params.append("domain", filterDomain);
       if (filterReadiness) params.append("readiness", filterReadiness);
       if (filterPlacement) params.append("placementStatus", filterPlacement);
+      if (filterGender) params.append("gender", filterGender);
+      if (filterGraduationYear) params.append("graduationYear", filterGraduationYear);
 
       const res = await fetch(`/api/college/students?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -595,6 +640,23 @@ export default function CollegePortal() {
       return;
     }
 
+    if (!singleStudent.gender) {
+      toast("Select the student's Gender.", "!");
+      return;
+    }
+    if (!singleStudent.dob) {
+      toast("Date of Birth is required.", "!");
+      return;
+    }
+    if (!singleStudent.currentYearSemester) {
+      toast("Current Year / Semester is required.", "!");
+      return;
+    }
+    if (!singleStudent.consentGiven) {
+      toast("The student's consent checkbox must be checked before enrolling them.", "!");
+      return;
+    }
+
     setEnrolling(true);
     const token = localStorage.getItem("talentera_college_token");
 
@@ -605,17 +667,41 @@ export default function CollegePortal() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(singleStudent),
+        body: JSON.stringify({ ...singleStudent, yearOfStudy: singleStudent.currentYearSemester }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to enroll student.");
+
+      // Photo is optional - only attempt the upload if one was chosen, and
+      // only after the student record itself was created successfully, so
+      // an unrelated photo-upload failure never blocks the enrollment.
+      if (singleStudentPhotoFile && data.student?._id) {
+        try {
+          const photoForm = new FormData();
+          photoForm.append("doc", singleStudentPhotoFile);
+          const photoRes = await fetch(`/api/college/students/${data.student._id}/photo`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: photoForm,
+          });
+          if (!photoRes.ok) {
+            const photoErr = await photoRes.json().catch(() => ({}));
+            toast(`Student enrolled, but photo upload failed: ${photoErr.message || "unknown error"}`, "!");
+          }
+        } catch (photoErr) {
+          toast(`Student enrolled, but photo upload failed: ${photoErr.message}`, "!");
+        }
+      }
 
       toast(`Student ${singleStudent.name} successfully enrolled!`, "✓");
       setSingleStudent({
         name: "",
         email: "",
         mobile: "",
+        gender: "",
+        dob: "",
+        currentYearSemester: "",
         department: "",
         degree: "",
         rollNumber: "",
@@ -624,7 +710,10 @@ export default function CollegePortal() {
         backlogsCount: 0,
         primaryDomain: "",
         secondaryDomain: "Medical Billing",
+        consentGiven: false,
       });
+      setSingleStudentPhotoFile(null);
+      setSingleStudentPhotoPreview("");
       setDegreeIsOther(false);
       setDepartmentIsOther(false);
       setMobileCheckStatus("idle");
@@ -638,36 +727,127 @@ export default function CollegePortal() {
   }
 
   // Handle CSV Bulk Upload
-  async function handleBulkUpload() {
-    if (!csvText.trim()) {
-      toast("Please paste CSV data or use the sample template.", "!");
+  // Shared CSV-row parser used by the real file upload below.
+  function parseCsvRows(text) {
+    const lines = text.trim().split("\n");
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
+      if (cols.length < 2) continue;
+      const rowObj = {};
+      headers.forEach((h, idx) => {
+        rowObj[h] = cols[idx] || "";
+      });
+      rows.push(rowObj);
+    }
+    return rows;
+  }
+
+  // A row needs at least a name and one real contact method (email or
+  // mobile) to be enrollable - anything else the backend's own duplicate
+  // and validation checks catch at confirm time, but these two are worth
+  // flagging up front in the preview so staff aren't surprised later.
+  function validateBulkRow(row) {
+    if (!row.name || !row.name.trim()) return { isValid: false, reason: "Missing student name" };
+    const hasEmail = row.email && row.email.trim();
+    const hasMobile = row.mobile && row.mobile.replace(/\D/g, "").length === 10;
+    if (!hasEmail && !hasMobile) return { isValid: false, reason: "Missing email and valid 10-digit mobile" };
+    const VALID_GENDERS = ["male", "female", "other"];
+    if (!row.gender || !VALID_GENDERS.includes(row.gender.trim().toLowerCase())) {
+      return { isValid: false, reason: "Missing or invalid gender (Male/Female/Other)" };
+    }
+    if (!row.dob || !row.dob.trim()) return { isValid: false, reason: "Missing date of birth" };
+    if (!row.yearofstudy || !row.yearofstudy.trim()) return { isValid: false, reason: "Missing current year/semester" };
+    const consentVal = (row.consent || "").trim().toLowerCase();
+    if (!["yes", "true", "1", "y"].includes(consentVal)) {
+      return { isValid: false, reason: "Missing student consent (consent column must be Yes)" };
+    }
+    return { isValid: true, reason: "" };
+  }
+
+  function processBulkFile(file) {
+    if (!file) return;
+    if (!/\.csv$/i.test(file.name)) {
+      toast("Please upload a .csv file exported from Excel/Sheets.", "!");
+      return;
+    }
+    setBulkParsing(true);
+    setBulkSummary(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rows = parseCsvRows(String(e.target.result || ""));
+      if (rows.length === 0) {
+        toast("That file has no student rows to import.", "!");
+        setBulkParsing(false);
+        return;
+      }
+      const preview = rows.map((data, rowIndex) => ({ rowIndex, data, ...validateBulkRow(data) }));
+      setBulkPreviewRows(preview);
+      setBulkExcludedRows(new Set());
+      setBulkFileName(file.name);
+      setBulkParsing(false);
+    };
+    reader.onerror = () => {
+      toast("Couldn't read that file.", "!");
+      setBulkParsing(false);
+    };
+    reader.readAsText(file);
+  }
+
+  function handleBulkDrop(e) {
+    e.preventDefault();
+    setBulkDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processBulkFile(e.dataTransfer.files[0]);
+    }
+  }
+
+  function toggleExcludeBulkRow(rowIndex) {
+    setBulkExcludedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowIndex)) next.delete(rowIndex);
+      else next.add(rowIndex);
+      return next;
+    });
+  }
+
+  function clearBulkFile() {
+    setBulkPreviewRows(null);
+    setBulkExcludedRows(new Set());
+    setBulkFileName("");
+  }
+
+  function downloadBulkCsvTemplate() {
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      encodeURIComponent(
+        "name,email,mobile,gender,dob,yearOfStudy,rollNumber,department,degree,graduationYear,cgpa,backlogs,primaryDomain,consent\n" +
+        "Student Name,student@example.edu.in,9876543210,Male,2003-05-15,3rd Year / 6th Semester,ROLL001,Life Sciences & Biotechnology,B.Sc Biotechnology,2026,8.0,0,Medical Coding,Yes\n"
+      );
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    link.setAttribute("download", "talentera_college_student_upload_template.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  async function handleConfirmBulkUpload() {
+    if (!bulkPreviewRows || bulkPreviewRows.length === 0) return;
+    const studentsData = bulkPreviewRows
+      .filter((r) => r.isValid && !bulkExcludedRows.has(r.rowIndex))
+      .map((r) => r.data);
+
+    if (studentsData.length === 0) {
+      toast("No valid rows selected to enroll.", "!");
       return;
     }
 
     setBulkProcessing(true);
     setBulkSummary(null);
-
-    // Simple robust client-side CSV parser
-    const lines = csvText.trim().split("\n");
-    if (lines.length < 2) {
-      toast("CSV must contain a header row and at least 1 student row.", "!");
-      setBulkProcessing(false);
-      return;
-    }
-
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
-    const studentsData = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
-      if (cols.length < 2) continue;
-
-      const rowObj = {};
-      headers.forEach((h, idx) => {
-        rowObj[h] = cols[idx] || "";
-      });
-      studentsData.push(rowObj);
-    }
 
     const token = localStorage.getItem("talentera_college_token");
     try {
@@ -679,7 +859,7 @@ export default function CollegePortal() {
         },
         body: JSON.stringify({
           batchName: `Batch_${new Date().toLocaleDateString("en-GB").replace(/\//g, "-")}`,
-          fileName: "students_roster.csv",
+          fileName: bulkFileName || "students_roster.csv",
           studentsData,
         }),
       });
@@ -689,7 +869,7 @@ export default function CollegePortal() {
 
       toast(d.message, "✓");
       setBulkSummary(d.summary);
-      setCsvText("");
+      clearBulkFile();
       fetchCollegeData();
       fetchStudentsList();
     } catch (err) {
@@ -697,17 +877,6 @@ export default function CollegePortal() {
     } finally {
       setBulkProcessing(false);
     }
-  }
-
-  function loadSampleCsv() {
-    const sample = `name,email,mobile,rollNumber,department,degree,graduationYear,cgpa,backlogs,primaryDomain
-Deepak Sundaram,deepak.sundaram@demo.edu.in,9842100001,22LS01,Life Sciences & Biotechnology,B.Sc Biotechnology,2026,8.4,0,Medical Coding
-Kavitha Mohan,kavitha.mohan@demo.edu.in,9842100002,22LS02,Life Sciences & Biotechnology,B.Sc Biochemistry,2026,7.9,0,Medical Coding
-Praveen Kumar,praveen.kumar@demo.edu.in,9842100003,22AH01,Allied Health Sciences,BPT (Physiotherapy),2026,8.1,0,Medical Billing
-Swetha Raman,swetha.raman@demo.edu.in,9842100004,22CM01,Commerce & Management,B.Com,2026,7.6,0,AR Calling
-Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA,2026,8.0,0,AR Calling`;
-    setCsvText(sample);
-    toast("Sample CSV student roster loaded.", "ℹ");
   }
 
   // Toggle Readiness Status for Student
@@ -730,34 +899,6 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
         if (selectedStudent?._id === studentId) {
           setSelectedStudent(d.student);
         }
-      }
-    } catch (err) {
-      toast(err.message, "!");
-    }
-  }
-
-  // Record Placement
-  async function handleRecordPlacement(studentId, companyName, role, ctc) {
-    const token = localStorage.getItem("talentera_college_token");
-    try {
-      const res = await fetch("/api/college/placements/record", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          candidateId: studentId,
-          companyName,
-          role,
-          ctc,
-        }),
-      });
-      if (res.ok) {
-        toast("Placement confirmed & recorded!", "✓");
-        setShowPlacementModal(false);
-        fetchStudentsList();
-        fetchCollegeData();
       }
     } catch (err) {
       toast(err.message, "!");
@@ -955,30 +1096,35 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
           {/* ========================================================= */}
           {activeTab === "dashboard" && (
             <div>
-              {/* 12 Blueprint KPIs */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(175px, 1fr))", gap: 12, marginBottom: 24 }}>
+              {/* 13 Placement & Pipeline KPIs */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(165px, 1fr))", gap: 12, marginBottom: 24 }}>
                 {[
-                  { label: "Total Students", val: kpis.totalStudents, icon: "fa-users", color: "#0A1F3D", bg: "#F8FAFC" },
+                  { label: "Total Students", val: kpis.totalStudents, icon: "fa-users", color: "#0A1F3D", bg: "#F8FAFC", onClick: () => { setFilterPlacement(""); setActiveTab("students"); } },
                   { label: "Profiles Complete", val: kpis.profilesCompleted, icon: "fa-circle-check", color: "#0284C7", bg: "#F0F9FF" },
-                  { label: "Medical Coding", val: kpis.medicalCoding, icon: "fa-stethoscope", color: "#2563EB", bg: "#EFF6FF" },
-                  { label: "Medical Billing", val: kpis.medicalBilling, icon: "fa-file-invoice-dollar", color: "#16A34A", bg: "#F0FDF4" },
-                  { label: "AR Calling", val: kpis.arCalling, icon: "fa-headset", color: "#D97706", bg: "#FFFBEB" },
+                  { label: "Medical Coding", val: kpis.medicalCoding, icon: "fa-stethoscope", color: "#2563EB", bg: "#EFF6FF", onClick: () => { setFilterDomain("Medical Coding"); setActiveTab("students"); } },
+                  { label: "Medical Billing", val: kpis.medicalBilling, icon: "fa-file-invoice-dollar", color: "#16A34A", bg: "#F0FDF4", onClick: () => { setFilterDomain("Medical Billing"); setActiveTab("students"); } },
+                  { label: "AR Calling", val: kpis.arCalling, icon: "fa-headset", color: "#D97706", bg: "#FFFBEB", onClick: () => { setFilterDomain("AR Calling"); setActiveTab("students"); } },
                   { label: "Certified", val: kpis.certified, icon: "fa-certificate", color: "#7C3AED", bg: "#F5F3FF" },
                   { label: "Assessment Done", val: kpis.assessmentCompleted, icon: "fa-list-check", color: "#0D9488", bg: "#F0FDFA" },
-                  { label: "Interview Ready", val: kpis.interviewReady, icon: "fa-bolt", color: "#15803D", bg: "#DCFCE7", highlight: true },
-                  { label: "Shortlisted", val: kpis.shortlisted, icon: "fa-user-clock", color: "#4F46E5", bg: "#EEF2FF" },
-                  { label: "Selected", val: kpis.selected, icon: "fa-award", color: "#9333EA", bg: "#FAF5FF" },
-                  { label: "Joined (Placed)", val: kpis.joined, icon: "fa-handshake", color: "#059669", bg: "#ECFDF5", highlight: true },
-                  { label: "Pending Verif.", val: kpis.pendingVerification, icon: "fa-hourglass-half", color: "#EA580C", bg: "#FFF7ED" },
+                  { label: "Interview Ready", val: kpis.interviewReady, icon: "fa-bolt", color: "#15803D", bg: "#DCFCE7", highlight: true, onClick: () => { setFilterReadiness("INTERVIEW_READY"); setActiveTab("students"); } },
+                  { label: "Shortlisted", val: kpis.shortlisted, icon: "fa-user-clock", color: "#4F46E5", bg: "#EEF2FF", onClick: () => { setFilterPlacement("SHORTLISTED"); setActiveTab("students"); } },
+                  { label: "Selected", val: kpis.selected, icon: "fa-award", color: "#9333EA", bg: "#FAF5FF", onClick: () => { setFilterPlacement("SELECTED"); setActiveTab("students"); } },
+                  { label: "Joined (Placed)", val: kpis.joined, icon: "fa-handshake", color: "#059669", bg: "#ECFDF5", highlight: true, onClick: () => { setFilterPlacement("PLACED"); setActiveTab("students"); } },
+                  { label: "Rejected", val: kpis.rejected || 0, icon: "fa-circle-xmark", color: "#DC2626", bg: "#FEF2F2", highlight: (kpis.rejected || 0) > 0, onClick: () => { setFilterPlacement("REJECTED"); setActiveTab("students"); } },
+                  { label: "Pending Verif.", val: kpis.pendingVerification, icon: "fa-hourglass-half", color: "#EA580C", bg: "#FFF7ED", onClick: () => { setFilterReadiness("VERIFICATION_PENDING"); setActiveTab("students"); } },
                 ].map((kpi, idx) => (
                   <div
                     key={idx}
+                    onClick={kpi.onClick}
+                    title={kpi.onClick ? `Click to view ${kpi.label} students in Directory` : undefined}
                     style={{
                       background: kpi.bg,
                       borderRadius: 12,
                       padding: "14px 16px",
                       border: kpi.highlight ? `2px solid ${kpi.color}` : "1px solid #E2E8F0",
                       boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
+                      cursor: kpi.onClick ? "pointer" : "default",
+                      transition: "all 0.15s ease",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -1141,8 +1287,19 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                                 {s.verificationReadiness?.readinessStatus || "ENROLLED"}
                               </span>
                             </td>
-                            <td style={{ padding: "10px 12px", fontWeight: 700, color: s.placementLifecycle?.currentStatus === "PLACED" ? "#16A34A" : "#64748B" }}>
-                              {s.placementLifecycle?.currentStatus || "AVAILABLE"}
+                            <td style={{ padding: "10px 12px" }}>
+                              <span
+                                style={{
+                                  background: s.placementLifecycle?.currentStatus === "PLACED" ? "#DCFCE7" : s.placementLifecycle?.currentStatus === "REJECTED" ? "#FEE2E2" : "#F1F5F9",
+                                  color: s.placementLifecycle?.currentStatus === "PLACED" ? "#166534" : s.placementLifecycle?.currentStatus === "REJECTED" ? "#991B1B" : "#475569",
+                                  padding: "3px 8px",
+                                  borderRadius: 4,
+                                  fontWeight: 700,
+                                  fontSize: 11,
+                                }}
+                              >
+                                {s.placementLifecycle?.currentStatus || "AVAILABLE"}
+                              </span>
                             </td>
                             <td style={{ padding: "10px 12px" }}>
                               <button
@@ -1190,7 +1347,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                   style={{ padding: "9px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 12.5, background: "#FFF" }}
                 >
                   <option value="">All Departments</option>
-                  {(college?.departments || DEFAULT_DEPARTMENTS).map((d) => (
+                  {DEFAULT_DEPARTMENTS.map((d) => (
                     <option key={d.name} value={d.name}>{d.name}</option>
                   ))}
                 </select>
@@ -1226,10 +1383,34 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                   <option value="AVAILABLE">Available</option>
                   <option value="SHORTLISTED">Shortlisted</option>
                   <option value="INTERVIEW_SCHEDULED">Interview Scheduled</option>
+                  <option value="ON_HOLD">On Hold</option>
                   <option value="PLACED">Placed / Joined</option>
+                  <option value="REJECTED">Rejected</option>
                 </select>
 
-                {(search || filterDept || filterDomain || filterReadiness || filterPlacement) && (
+                <select
+                  value={filterGender}
+                  onChange={(e) => setFilterGender(e.target.value)}
+                  style={{ padding: "9px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 12.5, background: "#FFF" }}
+                >
+                  <option value="">All Genders</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+
+                <select
+                  value={filterGraduationYear}
+                  onChange={(e) => setFilterGraduationYear(e.target.value)}
+                  style={{ padding: "9px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 12.5, background: "#FFF" }}
+                >
+                  <option value="">All Graduation Years</option>
+                  {GRADUATION_YEAR_OPTIONS.map((yr) => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
+
+                {(search || filterDept || filterDomain || filterReadiness || filterPlacement || filterGender || filterGraduationYear) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1238,6 +1419,8 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                       setFilterDomain("");
                       setFilterReadiness("");
                       setFilterPlacement("");
+                      setFilterGender("");
+                      setFilterGraduationYear("");
                     }}
                     style={{ background: "#F1F5F9", color: "#64748B", border: "none", padding: "9px 12px", borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: "pointer" }}
                   >
@@ -1339,8 +1522,8 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                           <td style={{ padding: "12px 16px" }}>
                             <span
                               style={{
-                                background: s.placementLifecycle?.currentStatus === "PLACED" ? "#DCFCE7" : "#F1F5F9",
-                                color: s.placementLifecycle?.currentStatus === "PLACED" ? "#166534" : "#475569",
+                                background: s.placementLifecycle?.currentStatus === "PLACED" ? "#DCFCE7" : s.placementLifecycle?.currentStatus === "REJECTED" ? "#FEE2E2" : "#F1F5F9",
+                                color: s.placementLifecycle?.currentStatus === "PLACED" ? "#166534" : s.placementLifecycle?.currentStatus === "REJECTED" ? "#991B1B" : "#475569",
                                 padding: "4px 8px",
                                 borderRadius: 6,
                                 fontWeight: 700,
@@ -1351,6 +1534,10 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                                 <>
                                   <i className="fa-solid fa-handshake" style={{ marginRight: 4 }}></i> PLACED
                                 </>
+                              ) : s.placementLifecycle?.currentStatus === "REJECTED" ? (
+                                <>
+                                  <i className="fa-solid fa-circle-xmark" style={{ marginRight: 4 }}></i> REJECTED
+                                </>
                               ) : (
                                 s.placementLifecycle?.currentStatus || "AVAILABLE"
                               )}
@@ -1358,6 +1545,11 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                             {s.placementLifecycle?.placedCompanyName && (
                               <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 700, marginTop: 2 }}>
                                 @ {s.placementLifecycle.placedCompanyName}
+                              </div>
+                            )}
+                            {s.placementLifecycle?.rejectionReason && (
+                              <div style={{ fontSize: 10.5, color: "#DC2626", fontWeight: 600, marginTop: 2 }}>
+                                {s.placementLifecycle.rejectionReason}
                               </div>
                             )}
                           </td>
@@ -1369,16 +1561,6 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                                 style={{ background: "#0A1F3D", color: "#F5B41A", padding: "5px 10px", borderRadius: 6, border: "none", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
                               >
                                 View Profile
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setPlacementCandidate(s);
-                                  setShowPlacementModal(true);
-                                }}
-                                style={{ background: "#DCFCE7", color: "#166534", padding: "5px 10px", borderRadius: 6, border: "1px solid #86EFAC", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
-                              >
-                                Record Offer
                               </button>
                             </div>
                           </td>
@@ -1394,7 +1576,17 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                 <div style={{ position: "fixed", inset: 0, background: "rgba(10,31,61,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
                   <div style={{ background: "#FFFFFF", borderRadius: 16, width: "100%", maxWidth: 760, maxHeight: "90vh", overflowY: "auto", padding: 28, position: "relative" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", borderBottom: "1px solid #E2E8F0", paddingBottom: 14, marginBottom: 18 }}>
-                      <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                        {selectedStudent.stage1?.photoUrl && (
+                          <img
+                            src={selectedStudent.stage1.photoUrl}
+                            alt={selectedStudent.stage1?.fullName || selectedStudent.name}
+                            onClick={() => setEnlargedPhotoUrl(selectedStudent.stage1.photoUrl)}
+                            title="Click to view full size"
+                            style={{ width: 52, height: 52, borderRadius: "50%", objectFit: "cover", border: "1.5px solid #E2E8F0", flexShrink: 0, cursor: "pointer" }}
+                          />
+                        )}
+                        <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                           <h2 style={{ fontSize: 20, fontWeight: 900, color: "#0A1F3D", margin: 0 }}>
                             {selectedStudent.stage1?.fullName || selectedStudent.name}
@@ -1406,6 +1598,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         <span style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "block" }}>
                           Roll No: <strong>{selectedStudent.studentEnrollment?.rollNumber || "Not assigned"}</strong> · {selectedStudent.email} · {selectedStudent.mobile || selectedStudent.stage1?.phone}
                         </span>
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -1468,6 +1661,19 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         <div style={{ padding: "18px 14px", background: "#EFF6FF", borderRadius: 8, border: "1px dashed #93C5FD", textAlign: "center", color: "#1E40AF", fontSize: 12 }}>
                           <i className="fa-solid fa-circle-info" style={{ marginRight: 6 }}></i>
                           Video elevator pitch awaiting candidate upload through the student portal.
+                          <div style={{ marginTop: 10 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const dashboardUrl = `${window.location.origin}/dashboard?stage=5`;
+                                window.open(dashboardUrl, "_blank", "noopener,noreferrer");
+                                toast("Opened the candidate's dashboard at Stage 5 - the student will need to log in there themselves to upload the video.", "ℹ");
+                              }}
+                              style={{ background: "#0A1F3D", color: "#F5B41A", padding: "7px 16px", borderRadius: 6, border: "none", fontWeight: 800, fontSize: 11.5, cursor: "pointer" }}
+                            >
+                              Complete Video Pitch - Open Candidate Dashboard →
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1506,6 +1712,15 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         <div>Department: {selectedStudent.studentEnrollment?.department || "Life Sciences"}</div>
                         <div>CGPA: <strong>{selectedStudent.studentEnrollment?.cgpa || "8.2"}</strong> / Backlogs: <strong>{selectedStudent.studentEnrollment?.backlogsCount || 0}</strong></div>
                         <div>Graduation: {selectedStudent.studentEnrollment?.graduationYear || "2026"}</div>
+                        <div>Year / Semester: {selectedStudent.studentEnrollment?.yearOfStudy || "Not provided"}</div>
+                        <div>Gender: {selectedStudent.stage1?.gender || "Not provided"}</div>
+                        <div>Date of Birth: {selectedStudent.stage1?.dob || "Not provided"}</div>
+                        <div>
+                          Consent on File:{" "}
+                          <strong style={{ color: selectedStudent.studentEnrollment?.consentGiven ? "#16A34A" : "#DC2626" }}>
+                            {selectedStudent.studentEnrollment?.consentGiven ? "Yes" : "Not recorded"}
+                          </strong>
+                        </div>
                       </div>
 
                       <div style={{ background: "#FAFAF8", padding: 14, borderRadius: 8, border: "1px solid #E2E8F0" }}>
@@ -1517,19 +1732,124 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPlacementCandidate(selectedStudent);
-                          setShowPlacementModal(true);
-                          setSelectedStudent(null);
-                        }}
-                        style={{ padding: "9px 18px", borderRadius: 8, background: "#16A34A", color: "#FFFFFF", border: "none", fontWeight: 800, cursor: "pointer", fontSize: 12.5, display: "flex", alignItems: "center", gap: 6 }}
-                      >
-                        <i className="fa-solid fa-handshake"></i> Record Offer / Placement
-                      </button>
+                    {/* Placement Status Controls */}
+                    <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "14px 18px", marginBottom: 20 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            Current Placement Status
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                            <span style={{
+                              fontWeight: 800,
+                              fontSize: 12.5,
+                              color: selectedStudent.placementLifecycle?.currentStatus === "PLACED" ? "#15803D" : selectedStudent.placementLifecycle?.currentStatus === "REJECTED" ? "#991B1B" : selectedStudent.placementLifecycle?.currentStatus === "ON_HOLD" ? "#92400E" : "#0A1F3D",
+                              background: selectedStudent.placementLifecycle?.currentStatus === "PLACED" ? "#DCFCE7" : selectedStudent.placementLifecycle?.currentStatus === "REJECTED" ? "#FEE2E2" : selectedStudent.placementLifecycle?.currentStatus === "ON_HOLD" ? "#FEF3C7" : "#E2E8F0",
+                              padding: "2px 10px",
+                              borderRadius: 6,
+                            }}>
+                              {selectedStudent.placementLifecycle?.currentStatus === "ON_HOLD" ? "ON HOLD" : (selectedStudent.placementLifecycle?.currentStatus || "AVAILABLE")}
+                            </span>
+                            {selectedStudent.placementLifecycle?.rejectionReason && (
+                              <span style={{ fontSize: 11.5, color: "#DC2626", fontStyle: "italic" }}>
+                                Reason: &quot;{selectedStudent.placementLifecycle.rejectionReason}&quot;
+                              </span>
+                            )}
+                            {selectedStudent.placementLifecycle?.currentStatus === "ON_HOLD" && selectedStudent.placementLifecycle?.holdReason && (
+                              <span style={{ fontSize: 11.5, color: "#92400E", fontStyle: "italic" }}>
+                                Reason: &quot;{selectedStudent.placementLifecycle.holdReason}&quot;
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {selectedStudent.placementLifecycle?.currentStatus !== "REJECTED" && (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const reason = window.prompt("Enter rejection reason (e.g. Technical round failure, Candidate opted out, Ineligible):", "Not selected in recruitment cycle");
+                                if (reason === null) return;
+                                const token = localStorage.getItem("talentera_college_token");
+                                const res = await fetch(`/api/college/students/${selectedStudent._id}/reject`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ reason }),
+                                });
+                                if (res.ok) {
+                                  toast("Student marked as REJECTED.", "✓");
+                                  fetchCollegeData();
+                                  fetchStudentsList();
+                                  setSelectedStudent((prev) => ({
+                                    ...prev,
+                                    placementLifecycle: { ...prev.placementLifecycle, currentStatus: "REJECTED", rejectionReason: reason },
+                                  }));
+                                } else {
+                                  toast("Failed to update status", "!");
+                                }
+                              }}
+                              style={{ background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              <i className="fa-solid fa-circle-xmark" style={{ marginRight: 4 }}></i> Mark Rejected
+                            </button>
+                          )}
+                          {selectedStudent.placementLifecycle?.currentStatus === "ON_HOLD" ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const token = localStorage.getItem("talentera_college_token");
+                                const res = await fetch(`/api/college/students/${selectedStudent._id}/resume`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                });
+                                if (res.ok) {
+                                  const d = await res.json();
+                                  toast("Student resumed from On Hold.", "✓");
+                                  fetchCollegeData();
+                                  fetchStudentsList();
+                                  setSelectedStudent(d.student || null);
+                                } else {
+                                  toast("Failed to update status", "!");
+                                }
+                              }}
+                              style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              <i className="fa-solid fa-play" style={{ marginRight: 4 }}></i> Resume
+                            </button>
+                          ) : selectedStudent.placementLifecycle?.currentStatus !== "REJECTED" ? (
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const reason = window.prompt("Enter reason for putting this student on hold (e.g. Exams, Personal leave, Pending documents):", "");
+                                if (reason === null) return;
+                                const token = localStorage.getItem("talentera_college_token");
+                                const res = await fetch(`/api/college/students/${selectedStudent._id}/hold`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                                  body: JSON.stringify({ reason }),
+                                });
+                                if (res.ok) {
+                                  toast("Student placed ON HOLD.", "✓");
+                                  fetchCollegeData();
+                                  fetchStudentsList();
+                                  setSelectedStudent((prev) => ({
+                                    ...prev,
+                                    placementLifecycle: { ...prev.placementLifecycle, currentStatus: "ON_HOLD", holdReason: reason },
+                                  }));
+                                } else {
+                                  toast("Failed to update status", "!");
+                                }
+                              }}
+                              style={{ background: "#FFFBEB", color: "#92400E", border: "1px solid #FDE68A", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              <i className="fa-solid fa-pause" style={{ marginRight: 4 }}></i> Put On Hold
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
                       <button
                         type="button"
                         onClick={() => setSelectedStudent(null)}
@@ -1547,138 +1867,6 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
           {/* ========================================================= */}
           {/* GLOBAL PLACEMENT / OFFER RECORDING MODAL                  */}
           {/* ========================================================= */}
-          {showPlacementModal && (
-            <div style={{ position: "fixed", inset: 0, background: "rgba(10,31,61,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1100, padding: 20 }}>
-              <div style={{ background: "#FFFFFF", borderRadius: 16, width: "100%", maxWidth: 480, padding: 26, boxShadow: "0 20px 40px rgba(0,0,0,0.15)" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
-                  <div>
-                    <h3 style={{ fontSize: 17, fontWeight: 900, color: "#0A1F3D", margin: "0 0 2px" }}>
-                      Record Placement & Offer Letter
-                    </h3>
-                    <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
-                      Official stamping for institutional accreditation and campus records
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPlacementModal(false);
-                      setPlacementCandidate(null);
-                    }}
-                    style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#64748B" }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    const form = e.target;
-                    const candidateId = placementCandidate ? placementCandidate._id : form.selectedCandidateId?.value;
-                    if (!candidateId) {
-                      toast("Please select a student candidate.", "!");
-                      return;
-                    }
-                    handleRecordPlacement(
-                      candidateId,
-                      form.companyName.value,
-                      form.role.value,
-                      form.ctc.value
-                    );
-                  }}
-                  style={{ display: "flex", flexDirection: "column", gap: 12 }}
-                >
-                  {placementCandidate ? (
-                    <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8, padding: "10px 14px", fontSize: 12.5 }}>
-                      <div style={{ fontWeight: 800, color: "#1E40AF" }}>
-                        Candidate: {placementCandidate.stage1?.fullName || placementCandidate.name}
-                      </div>
-                      <div style={{ color: "#3B82F6", fontSize: 11.5, marginTop: 2 }}>
-                        Roll No: {placementCandidate.studentEnrollment?.rollNumber || "Not assigned"} · {placementCandidate.email}
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, marginBottom: 4, color: "#0A1F3D" }}>
-                        Select Candidate *
-                      </label>
-                      <select
-                        name="selectedCandidateId"
-                        required
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box", background: "#FFF" }}
-                      >
-                        <option value="">-- Choose Enrolled Student --</option>
-                        {students.map((s) => (
-                          <option key={s._id} value={s._id}>
-                            {s.stage1?.fullName || s.name} ({s.studentEnrollment?.rollNumber || "ID"} - {s.rcmDomainSelection?.primaryDomain || "RCM"})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div>
-                    <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, marginBottom: 4, color: "#0A1F3D" }}>
-                      Recruiting Healthcare Employer *
-                    </label>
-                    <input
-                      type="text"
-                      name="companyName"
-                      required
-                      placeholder="e.g. Optum Global Solutions / AGS Health / Omega Healthcare"
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, marginBottom: 4, color: "#0A1F3D" }}>
-                      Designation / Role *
-                    </label>
-                    <input
-                      type="text"
-                      name="role"
-                      required
-                      placeholder="e.g. Medical Coding Trainee / AR Specialist"
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box" }}
-                    />
-                  </div>
-
-                  <div>
-                    <label style={{ display: "block", fontSize: 11.5, fontWeight: 700, marginBottom: 4, color: "#0A1F3D" }}>
-                      Annual CTC Package (INR) *
-                    </label>
-                    <input
-                      type="text"
-                      name="ctc"
-                      required
-                      placeholder="e.g. ₹3.8 LPA"
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box" }}
-                    />
-                  </div>
-
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowPlacementModal(false);
-                        setPlacementCandidate(null);
-                      }}
-                      style={{ padding: "8px 14px", borderRadius: 6, border: "none", background: "#E2E8F0", cursor: "pointer", fontWeight: 700, fontSize: 12 }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      style={{ padding: "8px 18px", borderRadius: 6, border: "none", background: "#0A1F3D", color: "#F5B41A", cursor: "pointer", fontWeight: 800, fontSize: 12.5 }}
-                    >
-                      Confirm & Stamp Placement ✓
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
 
           {/* ========================================================= */}
           {/* MODULE: ADD SINGLE STUDENT                                */}
@@ -1781,6 +1969,43 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Gender *</label>
+                    <select
+                      required
+                      value={singleStudent.gender}
+                      onChange={(e) => setSingleStudent({ ...singleStudent, gender: e.target.value })}
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 6,
+                        border: "1.5px solid #CBD5E1",
+                        fontSize: 13,
+                        background: "#FFFFFF",
+                        color: singleStudent.gender ? "#0F172A" : "#64748B",
+                        boxSizing: "border-box",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="" disabled>Select gender…</option>
+                      <option value="Male" style={{ color: "#0F172A" }}>Male</option>
+                      <option value="Female" style={{ color: "#0F172A" }}>Female</option>
+                      <option value="Other" style={{ color: "#0F172A" }}>Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Date of Birth *</label>
+                    <input
+                      type="date"
+                      required
+                      value={singleStudent.dob}
+                      onChange={(e) => setSingleStudent({ ...singleStudent, dob: e.target.value })}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Degree Program *</label>
                     <SearchableSelect
                       required={!degreeIsOther}
@@ -1837,6 +2062,40 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box", marginTop: 6 }}
                       />
                     )}
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Current Year / Semester *</label>
+                    <input
+                      type="text"
+                      required
+                      value={singleStudent.currentYearSemester}
+                      onChange={(e) => setSingleStudent({ ...singleStudent, currentYearSemester: e.target.value })}
+                      placeholder="e.g. 3rd Year / 6th Semester"
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Student Photo (optional)</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      {singleStudentPhotoPreview && (
+                        <img
+                          src={singleStudentPhotoPreview}
+                          alt="Student preview"
+                          onClick={() => setEnlargedPhotoUrl(singleStudentPhotoPreview)}
+                          title="Click to view full size"
+                          style={{ width: 38, height: 38, borderRadius: "50%", objectFit: "cover", border: "1.5px solid #CBD5E1", flexShrink: 0, cursor: "pointer" }}
+                        />
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleSingleStudentPhotoChange}
+                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12, boxSizing: "border-box", background: "#FFFFFF" }}
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1917,6 +2176,21 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                   </div>
                 </div>
 
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
+                  <input
+                    type="checkbox"
+                    id="single-student-consent"
+                    required
+                    checked={singleStudent.consentGiven}
+                    onChange={(e) => setSingleStudent({ ...singleStudent, consentGiven: e.target.checked })}
+                    style={{ marginTop: 2, cursor: "pointer" }}
+                  />
+                  <label htmlFor="single-student-consent" style={{ fontSize: 12, color: "#334155", cursor: "pointer" }}>
+                    I confirm this student has consented to their personal and academic details being shared with
+                    the Talentera platform and prospective employers as part of the placement process. *
+                  </label>
+                </div>
+
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
                   <button
                     type="submit"
@@ -1953,71 +2227,182 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
           {/* ========================================================= */}
           {/* MODULE: BULK STUDENT UPLOAD                               */}
           {/* ========================================================= */}
-          {activeTab === "bulk_upload" && (
-            <div style={{ maxWidth: 860, margin: "0 auto", background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
+          {activeTab === "bulk_upload" && (() => {
+            const validCount = bulkPreviewRows ? bulkPreviewRows.filter((r) => r.isValid).length : 0;
+            const invalidCount = bulkPreviewRows ? bulkPreviewRows.length - validCount : 0;
+            const includedCount = bulkPreviewRows
+              ? bulkPreviewRows.filter((r) => r.isValid && !bulkExcludedRows.has(r.rowIndex)).length
+              : 0;
+            return (
+            <div style={{ maxWidth: 900, margin: "0 auto", background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>
-                    Bulk Student Enrollment (CSV / Excel Roster)
+                    Bulk Student Enrollment (CSV Roster)
                   </h3>
                   <span style={{ fontSize: 12.5, color: "#64748B" }}>
-                    Upload complete departmental rosters with automated duplication checks
+                    Upload a real CSV file, review every row before it&apos;s enrolled, then confirm
                   </span>
                 </div>
                 <button
                   type="button"
-                  onClick={loadSampleCsv}
+                  onClick={downloadBulkCsvTemplate}
                   style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", padding: "6px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                 >
-                  <i className="fa-solid fa-file-csv" style={{ marginRight: 6 }}></i> Load Sample CSV
+                  <i className="fa-solid fa-download" style={{ marginRight: 6 }}></i> Download CSV Template
                 </button>
               </div>
 
               <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#475569", marginBottom: 14 }}>
-                <strong>Supported Columns:</strong> <code>name, email, mobile, rollNumber, department, degree, graduationYear, cgpa, backlogs, primaryDomain</code>
+                <strong>Supported Columns:</strong> <code>name, email, mobile, gender, dob, yearOfStudy, rollNumber, department, degree, graduationYear, cgpa, backlogs, primaryDomain, consent</code>
               </div>
 
-              <textarea
-                rows={9}
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                placeholder="Paste CSV rows here or click 'Load Sample CSV' to test..."
-                style={{ width: "100%", padding: "12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontFamily: "monospace", fontSize: 12, boxSizing: "border-box", marginBottom: 16 }}
-              />
-
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, color: "#64748B" }}>
-                  Candidate records are automatically linked to your college with default login credentials.
-                </span>
-                <button
-                  type="button"
-                  disabled={bulkProcessing || !csvText.trim()}
-                  onClick={handleBulkUpload}
+              {!bulkPreviewRows ? (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setBulkDragActive(true);
+                  }}
+                  onDragLeave={() => setBulkDragActive(false)}
+                  onDrop={handleBulkDrop}
+                  onClick={() => document.getElementById("collegeBulkCsvInput")?.click()}
                   style={{
-                    background: "#0A1F3D",
-                    color: "#F5B41A",
-                    padding: "11px 24px",
-                    borderRadius: 8,
-                    border: "none",
-                    fontWeight: 800,
-                    fontSize: 13.5,
-                    cursor: bulkProcessing || !csvText.trim() ? "not-allowed" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
+                    background: bulkDragActive ? "#EFF6FF" : "#FAFAF8",
+                    border: `2px dashed ${bulkDragActive ? "#2563EB" : "#CBD5E1"}`,
+                    borderRadius: 12,
+                    padding: "44px 24px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    transition: "background 0.15s, border-color 0.15s",
                   }}
                 >
-                  {bulkProcessing ? (
+                  <input
+                    id="collegeBulkCsvInput"
+                    type="file"
+                    accept=".csv"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) processBulkFile(e.target.files[0]);
+                      e.target.value = "";
+                    }}
+                  />
+                  {bulkParsing ? (
                     <>
-                      <i className="fa-solid fa-circle-notch fa-spin"></i> Processing Roster…
+                      <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: 30, color: "#2563EB", marginBottom: 12, display: "block" }}></i>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0A1F3D" }}>Reading file…</div>
                     </>
                   ) : (
                     <>
-                      <i className="fa-solid fa-cloud-arrow-up"></i> Upload & Enroll Roster
+                      <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: 32, color: "#94A3B8", marginBottom: 12, display: "block" }}></i>
+                      <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0A1F3D", marginBottom: 4 }}>
+                        Drag & drop a CSV file here, or click to browse
+                      </div>
+                      <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
+                        Export your roster from Excel/Sheets as .csv, or start from the template above
+                      </p>
                     </>
                   )}
-                </button>
-              </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ fontSize: 12.5, color: "#334155" }}>
+                      <i className="fa-solid fa-file-csv" style={{ color: "#2563EB", marginRight: 6 }}></i>
+                      <strong>{bulkFileName}</strong> · {validCount} valid{invalidCount > 0 ? `, ${invalidCount} flagged` : ""} · {includedCount} selected to enroll
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearBulkFile}
+                      style={{ background: "#F1F5F9", color: "#334155", border: "none", padding: "6px 14px", borderRadius: 6, fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Choose a different file
+                    </button>
+                  </div>
+
+                  <div style={{ maxHeight: 340, overflowY: "auto", border: "1px solid #E2E8F0", borderRadius: 10, marginBottom: 16 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead style={{ position: "sticky", top: 0 }}>
+                        <tr style={{ background: "#F8FAFC", borderBottom: "1.5px solid #E2E8F0", textAlign: "left", color: "#475569" }}>
+                          <th style={{ padding: "8px 10px", width: 30 }}></th>
+                          <th style={{ padding: "8px 10px" }}>Name</th>
+                          <th style={{ padding: "8px 10px" }}>Email</th>
+                          <th style={{ padding: "8px 10px" }}>Mobile</th>
+                          <th style={{ padding: "8px 10px" }}>Gender</th>
+                          <th style={{ padding: "8px 10px" }}>Department</th>
+                          <th style={{ padding: "8px 10px" }}>Domain</th>
+                          <th style={{ padding: "8px 10px" }}>Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkPreviewRows.map((r) => {
+                          const included = r.isValid && !bulkExcludedRows.has(r.rowIndex);
+                          return (
+                            <tr key={r.rowIndex} style={{ borderBottom: "1px solid #F1F5F9", opacity: r.isValid ? 1 : 0.6 }}>
+                              <td style={{ padding: "6px 10px" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={included}
+                                  disabled={!r.isValid}
+                                  onChange={() => toggleExcludeBulkRow(r.rowIndex)}
+                                />
+                              </td>
+                              <td style={{ padding: "6px 10px", fontWeight: 700, color: "#0A1F3D" }}>{r.data.name || "—"}</td>
+                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.email || "—"}</td>
+                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.mobile || "—"}</td>
+                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.gender || "—"}</td>
+                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.department || "—"}</td>
+                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.primaryDomain || "—"}</td>
+                              <td style={{ padding: "6px 10px" }}>
+                                {r.isValid ? (
+                                  <span style={{ fontSize: 10.5, fontWeight: 800, background: "#DCFCE7", color: "#166534", padding: "2px 7px", borderRadius: 4 }}>Valid</span>
+                                ) : (
+                                  <span style={{ fontSize: 10.5, fontWeight: 800, background: "#FEE2E2", color: "#B91C1C", padding: "2px 7px", borderRadius: 4 }} title={r.reason}>{r.reason}</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 12, color: "#64748B" }}>
+                      Candidate records are automatically linked to your college with default login credentials. Duplicate mobile numbers are skipped automatically.
+                    </span>
+                    <button
+                      type="button"
+                      disabled={bulkProcessing || includedCount === 0}
+                      onClick={handleConfirmBulkUpload}
+                      style={{
+                        background: "#0A1F3D",
+                        color: "#F5B41A",
+                        padding: "11px 24px",
+                        borderRadius: 8,
+                        border: "none",
+                        fontWeight: 800,
+                        fontSize: 13.5,
+                        cursor: bulkProcessing || includedCount === 0 ? "not-allowed" : "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        whiteSpace: "nowrap",
+                        marginLeft: 12,
+                      }}
+                    >
+                      {bulkProcessing ? (
+                        <>
+                          <i className="fa-solid fa-circle-notch fa-spin"></i> Enrolling…
+                        </>
+                      ) : (
+                        <>
+                          <i className="fa-solid fa-cloud-arrow-up"></i> Confirm & Enroll {includedCount}
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {bulkSummary && (
                 <div style={{ marginTop: 20, background: "#F0FDF4", border: "1px solid #86EFAC", borderRadius: 10, padding: "16px 20px" }}>
@@ -2039,7 +2424,8 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================= */}
           {/* MODULE: RCM DOMAIN SPECIALIZATIONS                        */}
@@ -2273,8 +2659,28 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
           {/* ========================================================= */}
           {/* MODULE: JOB MATCHING & CORPORATE DRIVES                   */}
           {/* ========================================================= */}
-          {activeTab === "jobs" && (
+          {activeTab === "jobs" && (() => {
+            const matchedDrives = drives.filter((j) => j.matchedStudents > 0);
+            const visibleDrives = showAllJobs ? drives : matchedDrives;
+            return (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {drives.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ fontSize: 12.5, color: "#64748B", fontWeight: 700 }}>
+                    {showAllJobs
+                      ? `Showing all ${drives.length} confirmed corporate drive${drives.length === 1 ? "" : "s"}`
+                      : `Showing ${matchedDrives.length} drive${matchedDrives.length === 1 ? "" : "s"} matching your students' domains`}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllJobs((v) => !v)}
+                    style={{ background: showAllJobs ? "#0A1F3D" : "#FFFFFF", color: showAllJobs ? "#F5B41A" : "#0A1F3D", padding: "7px 16px", borderRadius: 8, border: "1.5px solid #0A1F3D", fontWeight: 800, fontSize: 12, cursor: "pointer" }}
+                  >
+                    {showAllJobs ? "Show Matched Jobs Only" : "Show All Jobs"}
+                  </button>
+                </div>
+              )}
+
               {drives.length === 0 ? (
                 <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "48px 24px", border: "1px solid #E2E8F0", textAlign: "center" }}>
                   <i className="fa-solid fa-briefcase" style={{ fontSize: 36, color: "#94A3B8", marginBottom: 14, display: "block" }}></i>
@@ -2285,8 +2691,25 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                     When healthcare employers approve and publish campus recruitment drives matching your student domains, they will automatically appear here live.
                   </p>
                 </div>
+              ) : visibleDrives.length === 0 ? (
+                <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "48px 24px", border: "1px solid #E2E8F0", textAlign: "center" }}>
+                  <i className="fa-solid fa-briefcase" style={{ fontSize: 36, color: "#94A3B8", marginBottom: 14, display: "block" }}></i>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: "#0A1F3D", margin: "0 0 6px" }}>
+                    No Drives Match Your Students&apos; Domains Yet
+                  </h3>
+                  <p style={{ fontSize: 13, color: "#64748B", maxWidth: 520, margin: "0 auto 14px", lineHeight: 1.5 }}>
+                    None of the {drives.length} active corporate drive{drives.length === 1 ? "" : "s"} line up with the RCM domains your enrolled students selected.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllJobs(true)}
+                    style={{ background: "#0A1F3D", color: "#F5B41A", padding: "8px 16px", borderRadius: 6, border: "none", fontWeight: 800, fontSize: 12, cursor: "pointer" }}
+                  >
+                    Show All Jobs
+                  </button>
+                </div>
               ) : (
-                drives.map((job) => (
+                visibleDrives.map((job) => (
                   <div key={job.id} style={{ background: "#FFFFFF", borderRadius: 14, padding: "20px 24px", border: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div>
                       <span style={{ fontSize: 11, fontWeight: 800, color: "#16A34A", background: "#DCFCE7", padding: "3px 8px", borderRadius: 4 }}>
@@ -2317,7 +2740,8 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                 ))
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================= */}
           {/* MODULE: CAMPUS INTERVIEW PIPELINE                         */}
@@ -2443,31 +2867,9 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                       Placed Students & Confirmed Offer Letters
                     </h3>
                     <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
-                      Live roster of students who received formal corporate placement offers - auto-synced when a company marks a candidate as hired, or logged manually below
+                      Live roster of students automatically synced the moment a recruiting company marks them as hired - no manual entry
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlacementCandidate(null);
-                      setShowPlacementModal(true);
-                    }}
-                    style={{
-                      background: "#0A1F3D",
-                      color: "#F5B41A",
-                      padding: "8px 16px",
-                      borderRadius: 8,
-                      border: "none",
-                      fontWeight: 800,
-                      fontSize: 12.5,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    <i className="fa-solid fa-plus"></i> Record New Placement
-                  </button>
                 </div>
 
                 <div style={{ overflowX: "auto" }}>
@@ -2490,17 +2892,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                           <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
                             <i className="fa-solid fa-handshake-slash" style={{ fontSize: 30, color: "#94A3B8", marginBottom: 10, display: "block" }}></i>
                             <div style={{ fontSize: 14, fontWeight: 800, color: "#0A1F3D" }}>No Placement Records Yet</div>
-                            <p style={{ fontSize: 12, margin: "4px 0 14px" }}>Click 'Record New Placement' to log confirmed campus offers.</p>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPlacementCandidate(null);
-                                setShowPlacementModal(true);
-                              }}
-                              style={{ background: "#0A1F3D", color: "#F5B41A", padding: "8px 16px", borderRadius: 6, border: "none", fontWeight: 800, fontSize: 12, cursor: "pointer" }}
-                            >
-                              + Record First Placement
-                            </button>
+                            <p style={{ fontSize: 12, margin: "4px 0 0" }}>This list fills in automatically as soon as a recruiting company marks one of your students as hired.</p>
                           </td>
                         </tr>
                       ) : (
@@ -2639,6 +3031,28 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
           )}
         </div>
       </main>
+
+      {/* Full-size photo lightbox - opened by clicking any student photo
+          thumbnail. Click the backdrop or the close button to dismiss. */}
+      {enlargedPhotoUrl && (
+        <div
+          onClick={() => setEnlargedPhotoUrl("")}
+          style={{ position: "fixed", inset: 0, background: "rgba(10,31,61,0.88)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 24, cursor: "zoom-out" }}
+        >
+          <img
+            src={enlargedPhotoUrl}
+            alt="Student photo - full size"
+            style={{ maxWidth: "90vw", maxHeight: "90vh", borderRadius: 10, boxShadow: "0 12px 40px rgba(0,0,0,0.5)" }}
+          />
+          <button
+            type="button"
+            onClick={() => setEnlargedPhotoUrl("")}
+            style={{ position: "fixed", top: 24, right: 28, background: "rgba(255,255,255,0.15)", color: "#FFFFFF", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "50%", width: 38, height: 38, fontSize: 18, cursor: "pointer" }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 }

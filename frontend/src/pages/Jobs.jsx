@@ -16,10 +16,17 @@ function getJobSearchEligibility(candidate) {
   const completedStages = candidate?.completedStages || [];
   const score = completedStages.reduce((sum, n) => sum + (STAGE_POINTS[n] || 0), 0);
   const remainingStages = WIZARD_STAGES.filter((s) => !completedStages.includes(s.num));
+  // Stage 4 (Talentera Assessment) is called out everywhere else as
+  // mandatory, but the overall score alone doesn't enforce that - a
+  // candidate can reach 75%+ from other stages without ever sitting the
+  // Assessment. Require it explicitly here too. Actually enforced
+  // server-side in backend/routes/candidate.js POST /apply/:jobId.
+  const hasAssessment = completedStages.includes(4);
   return {
     score,
     remainingStages,
-    isEligible: score >= JOB_SEARCH_MIN_SCORE,
+    hasAssessment,
+    isEligible: score >= JOB_SEARCH_MIN_SCORE && hasAssessment,
   };
 }
 
@@ -320,11 +327,15 @@ export default function Jobs() {
           >
             <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginBottom: 8 }}>
-              Job search unlocks with a verification score of {JOB_SEARCH_MIN_SCORE}%
+              {!eligibility.hasAssessment && eligibility.score >= JOB_SEARCH_MIN_SCORE
+                ? "Complete your Talentera Assessment to unlock job search"
+                : `Job search unlocks with a verification score of ${JOB_SEARCH_MIN_SCORE}%`}
             </h2>
             <p style={{ fontSize: 13.5, color: "#64748B", maxWidth: 480, margin: "0 auto 18px" }}>
-              To keep this pool trustworthy for employers, browsing and applying to roles is open to
-              candidates who have achieved a verification score of at least {JOB_SEARCH_MIN_SCORE}%.
+              {!eligibility.hasAssessment && eligibility.score >= JOB_SEARCH_MIN_SCORE
+                ? "Your verification score qualifies, but the Talentera Assessment (Stage 4) is mandatory before you can browse or apply to roles - it's the proctored test employers actually trust."
+                : `To keep this pool trustworthy for employers, browsing and applying to roles is open to
+              candidates who have achieved a verification score of at least ${JOB_SEARCH_MIN_SCORE}% and completed the Talentera Assessment.`}
             </p>
             <div style={{ maxWidth: 320, margin: "0 auto 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
