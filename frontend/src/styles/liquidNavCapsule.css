@@ -31,6 +31,7 @@
   border-radius: 999px;
   padding: 6px 12px;
   box-sizing: border-box;
+  overflow: hidden;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow:
@@ -55,7 +56,7 @@
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
   justify-content: flex-start;
 }
@@ -186,7 +187,7 @@
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  flex: 1 1 0;
+  flex: 0 1 auto;
   min-width: 0;
 }
 
@@ -257,48 +258,11 @@
   display: none;
 }
 
-/* INTERMEDIATE RESPONSIVE SCALING (1041px - 1240px Laptops) */
+/* TABLET & MOBILE RESPONSIVE BREAKPOINT - below this, the full desktop nav
+   (logo + 5 nav buttons + Employee Login + Hire Verified Talent) can no
+   longer fit on one row without squeezing, so it switches straight to the
+   hamburger menu instead of a half-squeezed in-between state. */
 @media (max-width: 1240px) {
-  .liquid-capsule-shell {
-    gap: 8px;
-    padding: 5px 10px;
-  }
-  .liquid-nav-buttons {
-    gap: 4px;
-  }
-  .liquid-nav-btn {
-    padding: 0 10px;
-    font-size: 11.5px;
-    gap: 5px;
-    height: 34px;
-  }
-  .liquid-btn-icon {
-    font-size: 11px;
-  }
-  .liquid-action-link {
-    font-size: 11.5px;
-    padding: 0 8px;
-    height: 34px;
-    gap: 4px;
-  }
-  .liquid-action-cta {
-    font-size: 11.5px !important;
-    padding: 0 13px !important;
-    height: 34px !important;
-    gap: 4px !important;
-  }
-  .liquid-nav-logo {
-    height: 28px;
-  }
-  .liquid-orb-wrapper,
-  .liquid-orb-canvas {
-    width: 32px;
-    height: 32px;
-  }
-}
-
-/* TABLET & MOBILE RESPONSIVE BREAKPOINT */
-@media (max-width: 1040px) {
   .liquid-nav-actions {
     display: none;
   }

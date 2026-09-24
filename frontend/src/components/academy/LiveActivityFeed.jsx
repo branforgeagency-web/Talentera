@@ -56,6 +56,8 @@ export default function LiveActivityFeed({ initialEvents = [], onSelectStudent, 
         return { bg: "#E0F2FE", color: "#0369A1", icon: "fa-comment-dots", label: "Chat Active" };
       case "applied":
         return { bg: "#EFF6FF", color: "#2563EB", icon: "fa-paper-plane", label: "Applied" };
+      case "rejected":
+        return { bg: "#FEF2F2", color: "#DC2626", icon: "fa-circle-xmark", label: "Rejected" };
       default:
         return { bg: "#F1F5F9", color: "#475569", icon: "fa-eye", label: "Viewed" };
     }
@@ -75,6 +77,7 @@ export default function LiveActivityFeed({ initialEvents = [], onSelectStudent, 
     { id: "offer_extended", label: "Offers" },
     { id: "interview_scheduled", label: "Interviews" },
     { id: "shortlisted", label: "Shortlisted" },
+    { id: "rejected", label: "Rejected" },
     { id: "locked", label: "Locks" },
     { id: "viewed", label: "Views" },
   ];
@@ -177,13 +180,19 @@ export default function LiveActivityFeed({ initialEvents = [], onSelectStudent, 
 
                   <div>
                     <div style={{ fontSize: 12, color: "#06152A" }}>
-                      <strong>{ev.candidateName}</strong> {ev.eventType === "offer_extended" ? "received offer from" : ev.eventType === "interview_scheduled" ? "interview scheduled at" : ev.eventType === "locked" ? "profile locked by" : ev.eventType === "shortlisted" ? "shortlisted by" : ev.eventType === "chatted" ? "chat initiated by" : "viewed by"}{" "}
-                      <strong style={{ color: "#2563EB" }}>{ev.companyName}</strong>
+                      <strong>{ev.candidateName}</strong> {ev.eventType === "offer_extended" ? "received offer from" : ev.eventType === "interview_scheduled" ? "interview scheduled at" : ev.eventType === "locked" ? "profile locked by" : ev.eventType === "shortlisted" ? "shortlisted by" : ev.eventType === "rejected" ? "application closed / rejected by" : ev.eventType === "chatted" ? "chat initiated by" : "viewed by"}{" "}
+                      <strong style={{ color: ev.eventType === "rejected" ? "#DC2626" : "#2563EB" }}>{ev.companyName}</strong>
                       {ev.eventMeta?.salary && <span style={{ marginLeft: 6, color: "#15803D", fontWeight: 800 }}>({ev.eventMeta.salary})</span>}
                       {ev.eventMeta?.interviewTime && <span style={{ marginLeft: 6, color: "#B45309", fontWeight: 700 }}>· {ev.eventMeta.interviewTime}</span>}
                       {ev.eventMeta?.lockExpiresIn && <span style={{ marginLeft: 6, color: "#DC2626", fontSize: 10 }}>· Expires in {ev.eventMeta.lockExpiresIn}</span>}
                     </div>
-                    <div style={{ fontSize: 10, color: "#64748B" }}>
+                    {ev.eventType === "rejected" && (ev.eventMeta?.reason || ev.eventMeta?.details) && (
+                      <div style={{ fontSize: 10.5, color: "#991B1B", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 4, padding: "2px 6px", marginTop: 3, display: "inline-block" }}>
+                        <strong>Reason:</strong> {ev.eventMeta.reason || "Qualifications mismatch"}
+                        {ev.eventMeta.details && <span style={{ color: "#7F1D1D", marginLeft: 4 }}>· {ev.eventMeta.details}</span>}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>
                       {ev.batchCode || "JAN-HCC-01"} · {ev.jobTitle || ev.courseTitle || "Medical Coder"}
                     </div>
                   </div>

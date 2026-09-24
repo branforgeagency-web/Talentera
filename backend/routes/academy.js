@@ -6,12 +6,13 @@ const StudentUpload = require("../models/StudentUpload");
 const StudentInvite = require("../models/StudentInvite");
 const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
+const { compute8Stages } = require("../utils/talenteraScore");
 const Application = require("../models/Application");
 const Notification = require("../models/Notification");
 const bcrypt = require("bcryptjs");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const { requireAcademyAuth, signToken } = require("../middleware/auth");
-const { upload } = require("../middleware/upload");
+const { upload, handleUpload } = require("../middleware/upload");
 const { authLimiter } = require("../middleware/rateLimit");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
@@ -166,136 +167,6 @@ function parseCsvBuffer(buffer) {
   return rows;
 }
 
-// Helper: Compute 8-stage verification details for candidate
-function compute8Stages(candidate) {
-  const completed = candidate.completedStages || [];
-  const s1 = candidate.stage1 || {};
-  const s2 = candidate.stage2 || {};
-  const s3 = candidate.stage3 || {};
-  const s4 = candidate.stage4 || {};
-  const s5 = candidate.stage5 || {};
-  const s6 = candidate.stage6 || {};
-  const s7 = candidate.stage7 || {};
-
-  const hasRealAadhaar = !!s1.aadhaarVerified && (!!s1.maskedAadhaar || !!s1.dob || !!s1.gender || !!s1.verificationMethod || !!s1.aadhaarNumber || !!s1.aadhaarDigits || !!s1.verifiedAt);
-  const stages = [
-    {
-      stageNumber: 1,
-      title: "Basic + Aadhaar",
-      description: "Real person, Indian ID verified",
-      whoDoesIt: "Student",
-      isDone: completed.includes(1) && hasRealAadhaar,
-      inProgress: !completed.includes(1) || !hasRealAadhaar,
-      score: (completed.includes(1) && hasRealAadhaar) ? "Aadhaar Verified ✓" : "Pending Aadhaar Verification",
-      meta: hasRealAadhaar ? (s1.city ? `${s1.fullName || "Candidate"} · ${s1.city}` : "Aadhaar Verified") : (s1.fullName ? `${s1.fullName} · ID Verification Pending` : "Identity Verification Pending"),
-      needsApproval: false,
-    },
-    {
-      stageNumber: 2,
-      title: "Academy & Training",
-      description: "Course, hours, Path B assessment",
-      whoDoesIt: "Student + Academy validates",
-      isDone: completed.includes(2) && !!s2.verified && !!s2.approvedAt,
-      inProgress: !(completed.includes(2) && s2.verified && s2.approvedAt),
-      score: (completed.includes(2) && s2.verified && s2.approvedAt)
-        ? "Academy Approved ✓"
-        : (s2.rejected || s2.status === "rejected" || s2.needsRevision)
-        ? "Revision Requested"
-        : "Pending Training & Sign-off",
-      meta: (s2.rejected || s2.status === "rejected" || s2.needsRevision)
-        ? `Revision: ${s2.rejectionReason || s2.feedback || "Needs Correction"}`
-        : s2.batch ? `${s2.batch} · ${s2.branch || "Training"}` : "Course Training",
-      needsApproval: !completed.includes(2) && !!s2.submittedForApproval && !s2.rejected && !s2.needsRevision && s2.status !== "rejected",
-    },
-    {
-      stageNumber: 3,
-      title: "Certifications",
-      description: "AAPC / AHIMA cert numbers verified",
-      whoDoesIt: "Student (auto-verified)",
-      isDone: completed.includes(3) && !!s3.certNo,
-      inProgress: !(completed.includes(3) && !!s3.certNo),
-      score: (completed.includes(3) && s3.certNo) ? (s3.certCode || s3.certName || "Certified ✓") : "Pending Certification",
-      meta: s3.certNo ? `Cert #${s3.certNo}` : "AAPC / AHIMA Credential",
-      needsApproval: false,
-    },
-    {
-      stageNumber: 4,
-      title: "Talentera Assessment",
-      description: "Foundation + specialty MCQ score",
-      whoDoesIt: "Student (proctored)",
-      isDone: completed.includes(4) && (s4.score !== undefined && s4.score !== null && !isNaN(Number(s4.score))),
-      inProgress: !(completed.includes(4) && s4.score !== undefined && s4.score !== null),
-      score: (s4.score !== undefined && s4.score !== null && !isNaN(Number(s4.score))) ? `${s4.score} / 100` : "Not Attempted",
-      meta: (s4.score !== undefined && s4.score !== null) ? (s4.score >= 80 ? "Top 10% Quartile" : "Passed") : "Not attempted",
-      needsApproval: false,
-    },
-    {
-      stageNumber: 5,
-      title: "Portfolio Video",
-      description: "2-min self-intro, AI-scored + employee-approved",
-      whoDoesIt: "Student → Talentera Employee reviews",
-      isDone: (completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected",
-      inProgress: !((completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected"),
-      score: ((completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected")
-        ? (s5.aiScore ? `AI Score ${(s5.aiScore / 10).toFixed(1)}/10 · Approved ✓` : "Video Approved ✓")
-        : (s5.rejected || s5.status === "rejected" || s5.needsRevision)
-        ? "Re-take Requested"
-        : (s5.videoUrl || s5.proctoredInterviewVideoUrl ? "Video Uploaded (Pending Review)" : "Video Pending"),
-      meta: (s5.rejected || s5.status === "rejected" || s5.needsRevision)
-        ? `Revision: ${s5.rejectionReason || s5.feedback || "Re-take Required"}`
-        : ((completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected")
-        ? "Approved by Talentera Team ✓"
-        : (s5.videoUrl || s5.proctoredInterviewVideoUrl ? "Awaiting Talentera Review" : "No Video Uploaded"),
-      needsApproval: false,
-      videoUrl: s5.videoUrl || s5.proctoredInterviewVideoUrl || "",
-    },
-    {
-      stageNumber: 6,
-      title: "Live Chart Practice",
-      description: "Sample coded charts uploaded",
-      whoDoesIt: "Student",
-      isDone: completed.includes(6) && (Number(s6.chartsCompleted) >= 10 || !!s6.accuracy),
-      inProgress: !(completed.includes(6) && (Number(s6.chartsCompleted) >= 10 || !!s6.accuracy)),
-      score: (completed.includes(6) && s6.accuracy) ? `${s6.accuracy}% Accuracy` : (completed.includes(6) && s6.chartsCompleted ? `${s6.chartsCompleted} Charts Audited` : "Pending Charts"),
-      meta: s6.chartsCompleted ? `${s6.chartsCompleted} Charts Audited` : "Medical Charts Practice",
-      needsApproval: false,
-    },
-    {
-      stageNumber: 7,
-      title: "References",
-      description: "Trainer + peer references",
-      whoDoesIt: "Student",
-      isDone: completed.includes(7) && Array.isArray(s7.references) && s7.references.length > 0,
-      inProgress: !(completed.includes(7) && Array.isArray(s7.references) && s7.references.length > 0),
-      score: (completed.includes(7) && Array.isArray(s7.references) && s7.references.length > 0) ? `${s7.references?.length || 2} References Verified` : "Pending References",
-      meta: (Array.isArray(s7.references) && s7.references.length > 0) ? "Trainer Endorsements" : "Professional References",
-      needsApproval: false,
-    },
-    {
-      stageNumber: 8,
-      title: "Review & Publish",
-      description: "Talentera Score generated · profile goes live",
-      whoDoesIt: "System",
-      isDone: completed.includes(8) && !!candidate.isSubmitted,
-      inProgress: !completed.includes(8),
-      score: (completed.includes(8) && candidate.isSubmitted) ? (s4.score !== undefined && s4.score !== null ? `Talentera Score: ${Math.min(99, Math.round(Number(s4.score) * 0.95 + 4))}` : "Verified Profile Live ✓") : "Verification in Progress",
-      meta: (completed.includes(8) && candidate.isSubmitted) ? "Profile Live & Matched" : "Verification in Progress",
-      needsApproval: false,
-    },
-  ];
-
-  const doneCount = stages.filter((st) => st.isDone).length;
-  const pct = Math.round((doneCount / 8) * 100);
-
-  return {
-    stages,
-    doneCount,
-    pct,
-    currentStageNumber: stages.findIndex((st) => !st.isDone) + 1 || 8,
-    isComplete: doneCount === 8,
-  };
-}
-
 // Generate matching variations for mobile numbers (digits only, 10-digit formats, +91, 0 prefixes)
 function getMobileQueryVariants(mobiles) {
   if (!mobiles) return [];
@@ -345,7 +216,17 @@ function buildMobileRegexFilters(mobiles) {
   return filters;
 }
 
-// Builds comprehensive filter matching candidate by academy ID, academy name, invited emails, AND invited mobile numbers
+// Builds a filter matching ONLY candidates this academy explicitly added - via
+// "Add Candidate" or "Bulk Upload CSV" (both stamp stage2.academyId and create a
+// StudentInvite), or anyone matched by an invite's email/candidateId/mobile.
+//
+// Deliberately NOT matched: a free-text stage2.academyName typed by a candidate
+// during their OWN self-service onboarding (Stage 2 "which academy trained you").
+// That field is unverified self-reported text - any candidate on the platform who
+// types this academy's exact name there would otherwise show up in this academy's
+// Candidates Directory even though the academy never added them. `academyName` is
+// kept as a parameter for backward compatibility with existing callers but is no
+// longer used to match candidates - do not reintroduce that regex match here.
 function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
   const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
   const invitedMobiles = invites.map((inv) => inv.mobile).filter(Boolean);
@@ -355,7 +236,6 @@ function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
 
   const orConditions = [
     { "stage2.academyId": academyId.toString() },
-    ...(academyName ? [{ "stage2.academyName": { $regex: new RegExp(`^${academyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") } }] : []),
     ...(invitedEmails.length > 0 ? [{ email: { $in: invitedEmails } }] : []),
     ...(candidateIds.length > 0 ? [{ _id: { $in: candidateIds } }] : []),
     ...(mobileVariants.length > 0 ? [
@@ -379,9 +259,12 @@ async function computeAcademyMetrics(academy) {
   const totalStudents = candidatesList.length;
   if (totalStudents === 0) return null;
 
-  const scoredStudents = candidatesList.filter((c) => c.stage4?.score);
+  // Talentera Score average (Stages 1-6 weighted, out of 100) - see
+  // backend/utils/talenteraScore.js - not just the raw Stage 4 MCQ percentage.
+  const candidateScores = candidatesList.map((c) => compute8Stages(c).talenteraScore);
+  const scoredStudents = candidateScores.filter((sc) => sc > 0);
   const avgScore = scoredStudents.length > 0
-    ? Math.round(scoredStudents.reduce((sum, c) => sum + parseInt(c.stage4.score, 10), 0) / scoredStudents.length)
+    ? Math.round(scoredStudents.reduce((sum, sc) => sum + sc, 0) / scoredStudents.length)
     : 0;
 
   const videoedStudents = candidatesList.filter((c) => c.stage5?.aiScore);
@@ -454,7 +337,8 @@ router.post("/register", authLimiter, async (req, res) => {
       existing.primaryAdmin = fullName || existing.primaryAdmin || "Academy Partner";
       existing.phone = cleanMobile || existing.phone;
       existing.passwordHash = passwordHash;
-      existing.isVerified = true;
+      if (existing.isVerified === undefined) existing.isVerified = false;
+      if (!existing.kycStatus) existing.kycStatus = "pending";
       academy = await existing.save();
     } else {
       academy = await Academy.create({
@@ -464,12 +348,13 @@ router.post("/register", authLimiter, async (req, res) => {
         primaryAdmin: fullName || "Academy Partner",
         phone: cleanMobile,
         passwordHash,
-        isVerified: true,
+        isVerified: false,
+        kycStatus: "pending",
         specialty: "Medical Coding",
         headquarters: "Coimbatore",
         branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
-        tier: "Verified Partner",
-        totalAlumni: "35,000+",
+        tier: "Partner Academy",
+        totalAlumni: "0",
         partnerSince: "Jan 2025",
         studentsUploaded: 0,
         verifiedPct: 0,
@@ -602,6 +487,10 @@ router.post("/demo-login", async (req, res) => {
         partnerSince: "Jan 2025",
         studentsUploaded: 0,
         verifiedPct: 0,
+        isVerified: true,
+        kycStatus: "verified",
+        kycVerifiedAt: new Date(),
+        kycNotes: "Pre-verified Sandbox Demo Partner.",
       });
     }
 
@@ -615,6 +504,181 @@ router.post("/demo-login", async (req, res) => {
   } catch (err) {
     logger.error(`Demo academy login DB error: ${err.message}`);
     res.status(500).json({ message: "Failed to log in demo academy account." });
+  }
+});
+
+// GET /api/academy/kyc - Fetch Academy Institutional KYC Data & Status (Protected)
+router.get("/kyc", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId).lean();
+    if (!academy) {
+      return res.status(404).json({ message: "Academy account not found." });
+    }
+
+    res.json({
+      kycStatus: academy.kycStatus || "pending",
+      kycSubmittedAt: academy.kycSubmittedAt || null,
+      kycVerifiedAt: academy.kycVerifiedAt || null,
+      kycNotes: academy.kycNotes || "",
+      kycRejectionReason: academy.kycRejectionReason || "",
+      kycData: academy.kycData || {},
+      isVerified: Boolean(academy.isVerified || academy.kycStatus === "verified"),
+      academy: {
+        _id: academy._id,
+        name: academy.name,
+        email: academy.email,
+        contactName: academy.contactName,
+        primaryAdmin: academy.primaryAdmin,
+        phone: academy.phone,
+        headquarters: academy.headquarters,
+        specialty: academy.specialty,
+        tier: academy.tier,
+      },
+    });
+  } catch (err) {
+    logger.error(`Get academy KYC error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch academy KYC details." });
+  }
+});
+
+// POST /api/academy/kyc/upload-doc - Upload one Institutional KYC proof document
+// (Certificate of Incorporation, PAN, GST, Accreditation letter) as an actual
+// file (PDF/image), stored via the shared upload pipeline (GCP / Cloudinary /
+// local disk fallback - see middleware/upload.js). Returns the real, servable
+// URL the frontend then saves onto the relevant kycData.<field>Url on submit,
+// and that same URL is what Staff see (and can open) in the KYC audit console.
+router.post(
+  "/kyc/upload-doc",
+  requireAcademyAuth,
+  upload.single("doc"),
+  handleUpload({ resourceType: "auto" }),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded." });
+      }
+      res.json({
+        success: true,
+        docUrl: req.file.fileUrl,
+        docName: req.file.originalname,
+      });
+    } catch (err) {
+      logger.error(`Academy KYC doc upload error: ${err.message}`);
+      res.status(500).json({ message: "Failed to upload document. Please try again." });
+    }
+  }
+);
+
+// POST /api/academy/kyc/submit - Submit Institutional KYC Details for Staff Review (Protected)
+router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) {
+      return res.status(404).json({ message: "Academy account not found." });
+    }
+
+    const {
+      legalEntityName,
+      registrationType,
+      cinOrRegistrationNumber,
+      yearEstablished,
+      website,
+      panNumber,
+      gstin,
+      signatoryName,
+      signatoryDesignation,
+      signatoryEmail,
+      signatoryMobile,
+      registeredAddress,
+      city,
+      state,
+      pincode,
+      primarySpecialty,
+      accreditations,
+      certifiedTrainedCount,
+      activeBatchesPerYear,
+      regCertificateUrl,
+      gstCertificateUrl,
+      panDocumentUrl,
+      accreditationDocumentUrl,
+      declarationAccepted,
+      submittedByName,
+    } = req.body;
+
+    if (!declarationAccepted) {
+      return res.status(400).json({ message: "You must accept the institutional declaration to submit KYC." });
+    }
+
+    // Save submitted KYC form data
+    academy.kycData = {
+      legalEntityName: (legalEntityName || academy.name || "").trim(),
+      registrationType: registrationType || "Private Limited",
+      cinOrRegistrationNumber: (cinOrRegistrationNumber || "").trim(),
+      yearEstablished: yearEstablished || "",
+      website: (website || "").trim(),
+      panNumber: (panNumber || "").toUpperCase().trim(),
+      gstin: (gstin || "").toUpperCase().trim(),
+      signatoryName: (signatoryName || academy.contactName || "").trim(),
+      signatoryDesignation: (signatoryDesignation || "Director").trim(),
+      signatoryEmail: (signatoryEmail || academy.email || "").toLowerCase().trim(),
+      signatoryMobile: (signatoryMobile || academy.phone || "").trim(),
+      registeredAddress: (registeredAddress || "").trim(),
+      city: (city || academy.headquarters || "").trim(),
+      state: (state || "").trim(),
+      pincode: (pincode || "").trim(),
+      primarySpecialty: (primarySpecialty || academy.specialty || "Medical Coding").trim(),
+      accreditations: Array.isArray(accreditations) ? accreditations : [],
+      certifiedTrainedCount: certifiedTrainedCount || "",
+      activeBatchesPerYear: activeBatchesPerYear || "",
+      regCertificateUrl: regCertificateUrl || "",
+      gstCertificateUrl: gstCertificateUrl || "",
+      panDocumentUrl: panDocumentUrl || "",
+      accreditationDocumentUrl: accreditationDocumentUrl || "",
+      declarationAccepted: true,
+      submittedByName: submittedByName || signatoryName || academy.contactName,
+      submittedAt: new Date(),
+    };
+
+    academy.kycStatus = "under_review";
+    academy.kycSubmittedAt = new Date();
+    academy.kycRejectionReason = "";
+
+    // Sync any core fields
+    if (legalEntityName) academy.name = legalEntityName.trim();
+    if (signatoryName) academy.contactName = signatoryName.trim();
+    if (signatoryMobile) academy.phone = signatoryMobile.trim();
+    if (city) academy.headquarters = city.trim();
+    if (primarySpecialty) academy.specialty = primarySpecialty.trim();
+
+    await academy.save();
+
+    // Log activity event
+    try {
+      await AcademyActivityEvent.create({
+        academyId: academy._id,
+        actionType: "kyc_submitted",
+        description: `Institutional KYC verification submitted for Staff Compliance audit by ${submittedByName || academy.contactName}.`,
+        metadata: {
+          submittedAt: new Date(),
+          panNumber: academy.kycData.panNumber,
+          gstin: academy.kycData.gstin,
+        },
+      });
+    } catch (eLog) {
+      logger.warn(`Failed to log KYC submit activity: ${eLog.message}`);
+    }
+
+    res.json({
+      success: true,
+      message: "Institutional KYC documents submitted successfully! Staff Compliance will review within 24-48 business hours.",
+      kycStatus: academy.kycStatus,
+      kycSubmittedAt: academy.kycSubmittedAt,
+      kycData: academy.kycData,
+      academy,
+    });
+  } catch (err) {
+    logger.error(`Academy KYC submission error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit KYC details. Please check all fields." });
   }
 });
 
@@ -661,7 +725,6 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
       const s3 = c.stage3 || {};
-      const s4 = c.stage4 || {};
       const s5 = c.stage5 || {};
       const nameParts = (s1.fullName || c.email.split("@")[0]).split(" ");
       const initials = nameParts.length >= 2 ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase() : nameParts[0].slice(0, 2).toUpperCase();
@@ -671,7 +734,6 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       const status = isPlaced ? "placed" : stageInfo.isComplete ? "verified" : stageInfo.doneCount > 0 ? "verifying" : "uploaded";
       const placementStatus = c.stage8?.placementStatus || (stageInfo.isComplete ? "Available for Placement" : `Stage ${stageInfo.currentStageNumber} in Progress`);
 
-      const hasTakenTest = s4.score !== undefined && s4.score !== null && !isNaN(Number(s4.score));
       const hasAiVideo = s5.aiScore !== undefined && s5.aiScore !== null && !isNaN(Number(s5.aiScore));
 
       return {
@@ -684,7 +746,10 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         month: s2.batch || "—",
         branch: s2.branch || s1.city || "—",
         status,
-        score: hasTakenTest ? `${s4.score} / 100` : "Not Attempted",
+        // Talentera Score (Stages 1-6 weighted, out of 100) - not the raw Stage 4
+        // MCQ percentage. See backend/utils/talenteraScore.js.
+        score: stageInfo.talenteraScore > 0 ? `${stageInfo.talenteraScore} / 100` : "Not Attempted",
+        talenteraScore: stageInfo.talenteraScore,
         completion: `${stageInfo.pct}%`,
         cert: s3.certName || s3.certCode || "—",
         placementStatus,
@@ -710,10 +775,12 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       };
     });
 
-    // Real KPI calculations
-    const scoredStudents = formattedStudents.filter((s) => s.score && s.score !== "Not Attempted" && s.score !== "0 / 100");
+    // Real KPI calculations - Talentera Score average (Stages 1-6 weighted, out of
+    // 100), counting every candidate with at least one graded stage done, not just
+    // those who scored on the Assessment specifically.
+    const scoredStudents = formattedStudents.filter((s) => s.talenteraScore > 0);
     const avgScore = scoredStudents.length > 0
-      ? Math.round(scoredStudents.reduce((sum, s) => sum + parseInt(s.score, 10), 0) / scoredStudents.length)
+      ? Math.round(scoredStudents.reduce((sum, s) => sum + s.talenteraScore, 0) / scoredStudents.length)
       : 0;
     const avgProfileComplete = formattedStudents.length > 0
       ? Math.round(formattedStudents.reduce((sum, s) => sum + parseInt(s.completion || "0", 10), 0) / formattedStudents.length)
@@ -734,6 +801,22 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     const invitesCount = await StudentInvite.countDocuments({ academyId: req.academyId });
     const signedUpCount = await StudentInvite.countDocuments({ academyId: req.academyId, status: "signed_up" });
 
+    // Real "reached company interview stage" count - candidates who have at
+    // least one Application that made it to interviewing or hired. This is
+    // cumulative on purpose (a candidate who was interviewed and then
+    // placed still counts here, same as "verifiedStudents" above still
+    // counts placed students) so the Analytics funnel's "Company Interviews"
+    // step reflects actual pipeline activity and updates the moment a
+    // candidate's application status changes - including once they're hired.
+    const candidateIds = candidatesList.map((c) => c._id);
+    const interviewStageApps = candidateIds.length
+      ? await Application.find({
+          candidateId: { $in: candidateIds },
+          status: { $in: ["interviewing", "hired"] },
+        }).distinct("candidateId")
+      : [];
+    const interviewsActive = interviewStageApps.length;
+
     res.json({
       academy,
       kpis: {
@@ -750,6 +833,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         invitesTotal: invitesCount,
         invitesSignedUp: signedUpCount,
         liveEventsCount: recentActivity.length,
+        interviewsActive,
       },
       students: formattedStudents,
       batches,
@@ -846,15 +930,24 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
 
     const seenEmails = new Set();
     const seenMobiles = new Set();
+    const seenAadhaarLast4 = new Set();
 
-    const existingCandidates = await Candidate.find({}, { email: 1, mobile: 1, "stage1.mobile": 1 }).lean();
+    const existingCandidates = await Candidate.find({}, { email: 1, mobile: 1, "stage1.mobile": 1, "stage1.maskedAadhaar": 1 }).lean();
     const existingEmailSet = new Set(existingCandidates.map((c) => (c.email || "").toLowerCase().trim()).filter(Boolean));
     const existingMobileSet = new Set();
+    // Only the LAST 4 DIGITS of Aadhaar are ever collected or stored here (never the full
+    // number) - matching the masked "XXXX XXXX 1234" format the rest of the app already
+    // uses for Aadhaar (see backend/utils/encryption.js). This is enough to flag likely
+    // duplicate candidate entries without the compliance/security exposure of handling
+    // full Aadhaar numbers in a CSV upload.
+    const existingAadhaarLast4Set = new Set();
     existingCandidates.forEach((c) => {
       const m1 = (c.mobile || "").replace(/\D/g, "");
       const m2 = (c.stage1?.mobile || "").replace(/\D/g, "");
       if (m1.length >= 10) existingMobileSet.add(m1.slice(-10));
       if (m2.length >= 10) existingMobileSet.add(m2.slice(-10));
+      const aadhaarDigits = (c.stage1?.maskedAadhaar || "").replace(/\D/g, "");
+      if (aadhaarDigits.length >= 4) existingAadhaarLast4Set.add(aadhaarDigits.slice(-4));
     });
 
     const previewRows = [];
@@ -873,6 +966,11 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
       const expectedSalaryLpa = Number(row.expected_salary_lpa || row.salary) || 5.0;
       const preferredCities = row.preferred_cities ? String(row.preferred_cities).split(";") : ["Chennai", "Coimbatore"];
       const currentExperienceYears = Number(row.current_experience_years || row.experience) || 0;
+      const age = Number(row.age) || 0;
+      // Accept a full Aadhaar number too, but only ever keep/compare the last 4 digits -
+      // the full value is discarded immediately and never stored or written to previewRows.
+      const aadhaarRaw = (row.aadhaar_last4 || row.aadhaar || row.aadhaar_number || "").replace(/\D/g, "");
+      const aadhaarLast4 = aadhaarRaw.slice(-4);
 
       const errors = [];
 
@@ -897,8 +995,19 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
         errors.push(`Mobile '${mobile}' is already registered in Talentera.`);
       }
 
+      if (aadhaarRaw) {
+        if (aadhaarLast4.length !== 4) {
+          errors.push("Aadhaar number looks invalid - please provide at least the last 4 digits.");
+        } else if (seenAadhaarLast4.has(aadhaarLast4)) {
+          errors.push(`Duplicate Aadhaar (last 4 digits: ${aadhaarLast4}) within this CSV.`);
+        } else if (existingAadhaarLast4Set.has(aadhaarLast4)) {
+          errors.push(`Aadhaar (last 4 digits: ${aadhaarLast4}) matches an already-registered candidate - possible duplicate entry.`);
+        }
+      }
+
       if (email) seenEmails.add(email);
       if (mobile) seenMobiles.add(mobile);
+      if (aadhaarLast4.length === 4) seenAadhaarLast4.add(aadhaarLast4);
 
       const isValid = errors.length === 0;
       if (isValid) acceptedCount++;
@@ -919,6 +1028,8 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
           expectedSalaryLpa,
           preferredCities,
           currentExperienceYears,
+          age,
+          aadhaarLast4,
         },
       });
     });
@@ -993,6 +1104,11 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
           stage1: {
             fullName: row.name,
             mobile: rawMobile || "",
+            age: Number(row.age) || undefined,
+            // Staff-entered from the CSV - only the last 4 digits, masked like a real
+            // eKYC result, but this is NOT a verified Aadhaar (aadhaarVerified stays
+            // false below) - it exists only so future uploads can flag likely duplicates.
+            maskedAadhaar: row.aadhaarLast4 && String(row.aadhaarLast4).length === 4 ? `XXXX XXXX ${row.aadhaarLast4}` : undefined,
             city: row.preferredCities?.[0] || "Coimbatore",
             experience: row.type === "experienced" ? "Experienced" : "Fresher",
             currentRole: row.course || "Medical Coding Trainee",
@@ -1018,6 +1134,10 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
           if (!candidate.mobile) candidate.mobile = rawMobile;
           if (!candidate.stage1) candidate.stage1 = {};
           if (!candidate.stage1.mobile) candidate.stage1.mobile = rawMobile;
+        }
+        if (Number(row.age) && !candidate.stage1?.age) {
+          if (!candidate.stage1) candidate.stage1 = {};
+          candidate.stage1.age = Number(row.age);
         }
         await candidate.save();
       }
@@ -1114,11 +1234,23 @@ async function handleAddSingleStudent(req, res) {
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
-    const { name, fullName, email, mobile, batch_id, batchCode, course_id, course, type, preferredSpecialty, expectedSalaryLpa, preferredCities, branch } = req.body;
+    const { name, fullName, email, mobile, batch_id, batchCode, course_id, course, type, experienceRange, preferredSpecialty, expectedSalaryLpa, preferredCities, branch, state, preferredState, aadhaar, aadhaarLast4: aadhaarLast4Input } = req.body;
     const studentName = (fullName || name || "").trim();
+    // Freshers have no specialty/experience range yet; only an "experienced" submission
+    // carries a real band (e.g. "1 to 3", "3 to 6" Years) - keep it out of stage1 otherwise.
+    const cleanExperienceRange = type === "experienced" && experienceRange ? String(experienceRange).trim() : "";
+    // Same policy as the Bulk CSV upload: accept a full Aadhaar number but only ever keep
+    // the last 4 digits (masked, like a real eKYC result) - enough to flag a likely
+    // duplicate candidate without storing/handling a full Aadhaar number outside the
+    // dedicated eKYC verification flow.
+    const aadhaarRaw = String(aadhaar || aadhaarLast4Input || "").replace(/\D/g, "");
+    const aadhaarLast4 = aadhaarRaw.slice(-4);
 
     if (!studentName || !email) {
       return res.status(400).json({ message: "Student full name and email are required." });
+    }
+    if (aadhaarRaw && aadhaarLast4.length !== 4) {
+      return res.status(400).json({ message: "Aadhaar number looks invalid - please provide at least the last 4 digits." });
     }
 
     const cleanEmail = email ? email.toLowerCase().trim() : "";
@@ -1140,6 +1272,15 @@ async function handleAddSingleStudent(req, res) {
     ];
 
     let candidate = findCandOr.length > 0 ? await Candidate.findOne({ $or: findCandOr }) : null;
+    const isNewCandidate = !candidate;
+
+    if (aadhaarLast4.length === 4) {
+      const aadhaarDup = await Candidate.findOne({ "stage1.maskedAadhaar": new RegExp(`${aadhaarLast4}$`) }).lean();
+      if (aadhaarDup && (!candidate || String(aadhaarDup._id) !== String(candidate._id))) {
+        return res.status(400).json({ message: `Aadhaar (last 4 digits: ${aadhaarLast4}) matches an already-registered candidate - possible duplicate entry.`, duplicate: true });
+      }
+    }
+
     if (candidate) {
       if (candidate.stage2?.academyId === academy._id.toString() && candidate.stage2?.batch === targetBatch) {
         return res.status(400).json({ message: `Student with email '${cleanEmail || candidate.email}' or mobile '${rawMobile || candidate.mobile}' is already registered in batch ${targetBatch}.`, duplicate: true });
@@ -1156,6 +1297,10 @@ async function handleAddSingleStudent(req, res) {
         if (!candidate.stage1) candidate.stage1 = {};
         if (!candidate.stage1.mobile) candidate.stage1.mobile = rawMobile;
       }
+      if (aadhaarLast4.length === 4 && !candidate.stage1?.maskedAadhaar) {
+        if (!candidate.stage1) candidate.stage1 = {};
+        candidate.stage1.maskedAadhaar = `XXXX XXXX ${aadhaarLast4}`;
+      }
       await candidate.save();
     } else {
       candidate = await Candidate.create({
@@ -1167,8 +1312,14 @@ async function handleAddSingleStudent(req, res) {
         stage1: {
           fullName: studentName,
           mobile: rawMobile || "",
+          // Staff-entered from the form - only the last 4 digits, masked like a real eKYC
+          // result, but NOT a verified Aadhaar (aadhaarVerified stays false below). Exists
+          // only so the duplicate check above can catch the same person being re-added.
+          maskedAadhaar: aadhaarLast4.length === 4 ? `XXXX XXXX ${aadhaarLast4}` : undefined,
           city: branch || preferredCities?.[0] || "Coimbatore",
+          state: state || preferredState || "Tamil Nadu",
           experience: type === "experienced" ? "Experienced" : "Fresher",
+          experienceRange: cleanExperienceRange,
           currentRole: targetCourse,
           aadhaarVerified: false,
         },
@@ -1190,6 +1341,8 @@ async function handleAddSingleStudent(req, res) {
     ];
 
     let invite = await StudentInvite.findOne({ academyId: academy._id, $or: inviteOr });
+    const isNewInvite = !invite;
+    const previousBatchCode = invite?.batchCode || "";
     if (!invite) {
       invite = await StudentInvite.create({
         academyId: academy._id,
@@ -1202,6 +1355,7 @@ async function handleAddSingleStudent(req, res) {
         preferredSpecialty: preferredSpecialty || "HCC",
         expectedSalaryLpa: Number(expectedSalaryLpa) || 5.0,
         preferredCities: preferredCities || ["Coimbatore"],
+        preferredState: state || preferredState || "Tamil Nadu",
         candidateId: candidate._id,
         status: "delivered",
         emailSentAt: new Date(),
@@ -1234,9 +1388,26 @@ async function handleAddSingleStudent(req, res) {
     academy.studentsUploaded += 1;
     await academy.save();
 
+    // Be honest about what actually happened: re-submitting the same email/mobile
+    // (e.g. re-uploading a sample CSV, or re-adding someone by mistake) doesn't
+    // create a duplicate invite - it reuses the existing candidate/invite record and
+    // just updates their batch/details. Without this, every submission looked like
+    // "success - new student added!" even when nothing new was created, which is
+    // exactly what made it look like added candidates were silently disappearing.
+    let message;
+    if (isNewCandidate && isNewInvite) {
+      message = `Student ${studentName} registered and invited successfully!`;
+    } else if (!isNewInvite && previousBatchCode && previousBatchCode !== targetBatch) {
+      message = `${studentName} was already invited (existing entry) - moved from batch ${previousBatchCode} to ${targetBatch} instead of creating a duplicate.`;
+    } else {
+      message = `${studentName} already has an existing candidate/invite record - details were updated instead of creating a duplicate entry.`;
+    }
+
     res.json({
       success: true,
-      message: `Student ${studentName} registered and invited successfully!`,
+      message,
+      isNewCandidate,
+      isNewInvite,
       student: candidate,
       invite,
     });
@@ -1437,7 +1608,24 @@ router.get("/invites", requireAcademyAuth, async (req, res) => {
       ];
     }
 
-    const invites = await StudentInvite.find(query).sort({ createdAt: -1 }).limit(100).lean();
+    const rawInvites = await StudentInvite.find(query).sort({ createdAt: -1 }).limit(200).lean();
+
+    // Once a candidate has a placement record (confirmed, pending confirmation, or
+    // even disputed), they've moved past "invited/onboarding" - leaving them in the
+    // Live Invites Tracker as "Delivered"/"Stalled" reads as if they never signed up,
+    // which is confusing. Drop anyone who already has a PlacementConfirmation.
+    const placedConfirmations = await PlacementConfirmation.find(
+      { academyId: req.academyId },
+      { candidateId: 1, candidateEmail: 1 }
+    ).lean();
+    const placedCandidateIds = new Set(placedConfirmations.map((p) => String(p.candidateId)).filter(Boolean));
+    const placedEmails = new Set(placedConfirmations.map((p) => (p.candidateEmail || "").toLowerCase()).filter(Boolean));
+
+    const invites = rawInvites
+      .filter((inv) => !(inv.candidateId && placedCandidateIds.has(String(inv.candidateId))))
+      .filter((inv) => !(inv.email && placedEmails.has(inv.email.toLowerCase())))
+      .slice(0, 100);
+
     res.json({ invites });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch student invites." });
@@ -1518,9 +1706,6 @@ router.get("/students/:id/stage-progress", requireAcademyAuth, async (req, res) 
 
     const stageData = compute8Stages(candidate);
     const videoUrl = candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || "";
-    const talenteraScore = candidate.stage4?.score !== undefined && candidate.stage4?.score !== null
-      ? `${candidate.stage4.score}/100`
-      : (candidate.stage8?.aiInterview?.result?.overallScore ? `${candidate.stage8.aiInterview.result.overallScore}/100` : null);
 
     res.json({
       candidateId: candidate._id,
@@ -1540,7 +1725,9 @@ router.get("/students/:id/stage-progress", requireAcademyAuth, async (req, res) 
       completedStages: candidate.completedStages || [],
       isVerified: candidate.isVerified,
       videoUrl,
-      talenteraScore,
+      // Talentera Score (Stages 1-6 weighted, out of 100) - numeric `talenteraScore`
+      // plus a ready-to-display string, both from compute8Stages via `...stageData`.
+      talenteraScoreLabel: `${stageData.talenteraScore}/100`,
       ...stageData,
     });
   } catch (err) {
@@ -1554,7 +1741,26 @@ router.put("/students/:id", requireAcademyAuth, async (req, res) => {
     const candidate = await Candidate.findById(req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
-    const { name, email, mobile, batchCode, course, experience, city, branch, specialty, expectedSalaryLpa } = req.body;
+    const { name, email, mobile, batchCode, course, experience, experienceRange, city, branch, specialty, expectedSalaryLpa, aadhaarLast4 } = req.body;
+
+    // Same policy as Bulk Upload / Add Single Student: never store a full Aadhaar
+    // number, only the last 4 digits (masked like a real eKYC result), and only to
+    // flag likely duplicate candidates - not as a verified Aadhaar.
+    let cleanAadhaarLast4 = "";
+    if (aadhaarLast4 !== undefined && aadhaarLast4 !== null && String(aadhaarLast4).trim() !== "") {
+      const aadhaarRaw = String(aadhaarLast4).replace(/\D/g, "");
+      cleanAadhaarLast4 = aadhaarRaw.slice(-4);
+      if (cleanAadhaarLast4.length !== 4) {
+        return res.status(400).json({ message: "Aadhaar number looks invalid - please provide at least the last 4 digits." });
+      }
+      const aadhaarDup = await Candidate.findOne({
+        _id: { $ne: candidate._id },
+        "stage1.maskedAadhaar": new RegExp(`${cleanAadhaarLast4}$`),
+      }).lean();
+      if (aadhaarDup) {
+        return res.status(400).json({ message: `Aadhaar (last 4 digits: ${cleanAadhaarLast4}) matches an already-registered candidate - possible duplicate entry.`, duplicate: true });
+      }
+    }
 
     if (name) {
       if (!candidate.stage1) candidate.stage1 = {};
@@ -1580,6 +1786,17 @@ router.put("/students/:id", requireAcademyAuth, async (req, res) => {
     if (experience) {
       if (!candidate.stage1) candidate.stage1 = {};
       candidate.stage1.experience = experience;
+      // Only Experienced candidates carry a range (e.g. "1 to 3" years); clear it
+      // for Freshers so a stale range never lingers after a type change.
+      if (experience === "Experienced") {
+        if (experienceRange) candidate.stage1.experienceRange = String(experienceRange).trim();
+      } else {
+        candidate.stage1.experienceRange = "";
+      }
+    }
+    if (cleanAadhaarLast4) {
+      if (!candidate.stage1) candidate.stage1 = {};
+      candidate.stage1.maskedAadhaar = `XXXX XXXX ${cleanAadhaarLast4}`;
     }
     if (city || branch) {
       if (!candidate.stage1) candidate.stage1 = {};
@@ -1591,6 +1808,14 @@ router.put("/students/:id", requireAcademyAuth, async (req, res) => {
       if (!candidate.stage1) candidate.stage1 = {};
       candidate.stage1.currentRole = specialty;
     }
+
+    // stage1 / stage2 are Mixed-typed fields - Mongoose only auto-detects a
+    // reassignment of the whole path (candidate.stage1 = {...}), not a mutation of
+    // an existing object's properties (candidate.stage1.fullName = ...). Every edit
+    // above mutates the existing object in place, so without this, .save() silently
+    // writes nothing for a candidate who already had stage1/stage2 data.
+    candidate.markModified("stage1");
+    candidate.markModified("stage2");
 
     await candidate.save();
 
@@ -1616,6 +1841,9 @@ router.put("/students/:id", requireAcademyAuth, async (req, res) => {
           mobile: candidate.mobile,
           batchCode: batchCode || candidate.stage2?.batch,
           course: course || candidate.stage2?.course,
+          ...(experience ? { type: experience === "Experienced" ? "experienced" : "fresher" } : {}),
+          ...(specialty ? { preferredSpecialty: specialty } : {}),
+          ...(expectedSalaryLpa !== undefined && expectedSalaryLpa !== "" ? { expectedSalaryLpa: Number(expectedSalaryLpa) || 5.0 } : {}),
         },
       }
     );
@@ -1791,12 +2019,38 @@ router.get("/students/:id/timeline", requireAcademyAuth, async (req, res) => {
     // 10. Company Activity Events
     const events = await AcademyActivityEvent.find({ candidateId: candidate._id }).sort({ createdAt: 1 }).lean();
     for (const ev of events) {
+      let title = `${ev.companyName || "Employer"} Activity`;
+      let badge = ev.eventType?.toUpperCase();
+      let description = `${ev.companyName || "Employer"} interacted with candidate for ${ev.jobTitle || "Medical Coder"} role.`;
+
+      if (ev.eventType === "viewed") {
+        title = `${ev.companyName || "Employer"} Viewed Profile`;
+      } else if (ev.eventType === "locked") {
+        title = `${ev.companyName || "Employer"} Locked Profile`;
+      } else if (ev.eventType === "applied") {
+        title = `Applied to ${ev.companyName || "Employer"}`;
+      } else if (ev.eventType === "shortlisted") {
+        title = `Shortlisted by ${ev.companyName || "Employer"}`;
+      } else if (ev.eventType === "interview_scheduled") {
+        title = `${ev.companyName || "Employer"} Scheduled Interview`;
+      } else if (ev.eventType === "offer_extended" || ev.eventType === "offer_accepted") {
+        title = `${ev.companyName || "Employer"} Extended Offer`;
+      } else if (ev.eventType === "rejected") {
+        title = `Application Closed / Rejected by ${ev.companyName || "Employer"}`;
+        const reasonStr = ev.eventMeta?.reason ? ` Reason: ${ev.eventMeta.reason}.` : "";
+        const detailsStr = ev.eventMeta?.details ? ` Notes: ${ev.eventMeta.details}.` : "";
+        description = `Application closed by ${ev.companyName || "Employer"} for ${ev.jobTitle || "Medical Coder"} role.${reasonStr}${detailsStr}`;
+        badge = "REJECTED";
+      }
+
       timeline.push({
         date: ev.createdAt,
-        title: `${ev.companyName || "Employer"} ${ev.eventType === "viewed" ? "Viewed Profile" : ev.eventType === "locked" ? "Locked Profile" : ev.eventType === "interview_scheduled" ? "Scheduled Interview" : "Extended Offer"}`,
-        description: `${ev.companyName || "Employer"} interacted with candidate for ${ev.jobTitle || "Medical Coder"} role.`,
+        title,
+        description,
         type: "company",
-        badge: ev.eventType?.toUpperCase(),
+        badge,
+        reason: ev.eventMeta?.reason || "",
+        details: ev.eventMeta?.details || "",
       });
     }
 
@@ -1820,12 +2074,11 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const scored = candidates.map((c) => {
-      const score = c.stage4?.score !== undefined && c.stage4?.score !== null && !isNaN(Number(c.stage4.score))
-        ? Number(c.stage4.score)
-        : (c.stage8?.aiInterview?.result?.overallScore && !isNaN(Number(c.stage8.aiInterview.result.overallScore))
-            ? Number(c.stage8.aiInterview.result.overallScore)
-            : null);
       const stageInfo = compute8Stages(c);
+      // Talentera Score (Stages 1-6 weighted, out of 100) - see
+      // backend/utils/talenteraScore.js. Stage 4/6's own sub-scores below are kept
+      // as informational breakdown fields, distinct from this composite score.
+      const score = stageInfo.talenteraScore;
       const foundationScore = c.stage4?.foundationScore !== undefined && c.stage4?.foundationScore !== null ? Number(c.stage4.foundationScore) : null;
       const specialtyScore = c.stage4?.specialtyScore !== undefined && c.stage4?.specialtyScore !== null ? Number(c.stage4.specialtyScore) : null;
       const chartAccuracy = c.stage6?.accuracy !== undefined && c.stage6?.accuracy !== null ? Number(c.stage6.accuracy) : null;
@@ -1845,15 +2098,15 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
         videoAiScore,
         verificationScore: stageInfo.pct,
         finalTalenteraScore: score,
-        status: stageInfo.isComplete ? "Verified" : (score !== null ? "Scored" : "In Progress"),
-        readyForPlacement: (score !== null && score >= 80 && stageInfo.pct >= 75) || c.status === "verified",
+        status: stageInfo.isComplete ? "Verified" : (score > 0 ? "Scored" : "In Progress"),
+        readyForPlacement: (score >= 80 && stageInfo.pct >= 75) || c.status === "verified",
       };
     });
 
-    const validScores = scored.filter((s) => s.score !== null).map((s) => s.score);
+    const validScores = scored.filter((s) => s.score > 0).map((s) => s.score);
     const avgScore = validScores.length > 0 ? Math.round(validScores.reduce((sum, v) => sum + v, 0) / validScores.length) : 0;
     const highestScore = validScores.length > 0 ? Math.max(...validScores) : 0;
-    const above80Count = scored.filter((s) => s.score !== null && s.score >= 80).length;
+    const above80Count = scored.filter((s) => s.score >= 80).length;
     const above90Count = scored.filter((s) => s.score !== null && s.score >= 90).length;
     const readyForPlacementCount = scored.filter((s) => s.readyForPlacement).length;
 
@@ -1910,7 +2163,8 @@ router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
     const liveProfiles = candidates
       .map((c) => {
         const stageInfo = compute8Stages(c);
-        const score = c.stage4?.score !== undefined && c.stage4?.score !== null ? Number(c.stage4.score) : null;
+        // Talentera Score (Stages 1-6 weighted, out of 100) - see backend/utils/talenteraScore.js.
+        const score = stageInfo.talenteraScore;
         const isLive = stageInfo.pct >= 75 || c.completedStages?.includes(8) || c.isSubmitted || c.isVerified;
 
         const candApps = applications.filter((a) => String(a.candidateId) === String(c._id));
@@ -1928,7 +2182,7 @@ router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
           batch: c.stage2?.batch || "—",
           course: c.stage2?.course || c.stage1?.currentRole || "Medical Coding",
           specialty: c.stage1?.currentRole || c.stage2?.course || "Medical Coding",
-          talenteraScore: score !== null ? `${score}%` : "Pending",
+          talenteraScore: score > 0 ? `${score}%` : "Pending",
           completionPct: stageInfo.pct,
           profileLiveDate: c.publishedAt || c.updatedAt || new Date(),
           companyViews,
@@ -2335,15 +2589,64 @@ router.get("/activity", requireAcademyAuth, async (req, res) => {
     const { batch_id, batchCode, event_types, eventType, candidateId, limit = 50 } = req.query;
     const query = { academyId: req.academyId };
 
+    let typeFilter = null; // null = no filter (all types)
     if (batch_id || batchCode) query.batchCode = batch_id || batchCode;
     if (candidateId) query.candidateId = candidateId;
-    if (eventType && eventType !== "all") query.eventType = eventType;
-    else if (event_types) {
-      const types = Array.isArray(event_types) ? event_types : String(event_types).split(",");
-      query.eventType = { $in: types };
+    if (eventType && eventType !== "all") {
+      typeFilter = [eventType];
+      query.eventType = eventType;
+    } else if (event_types) {
+      typeFilter = Array.isArray(event_types) ? event_types : String(event_types).split(",");
+      query.eventType = { $in: typeFilter };
     }
 
     const events = await AcademyActivityEvent.find(query).sort({ createdAt: -1 }).limit(Number(limit)).lean();
+
+    // Offers made before real "offer_extended" events were wired up (see
+    // backend/utils/academyEvents.js) have a PlacementConfirmation but no
+    // matching activity event, so a genuinely-placed candidate silently never
+    // shows up under the Offers tab. Backfill one synthetic "offer_extended"
+    // entry per placement that has no corresponding real event, instead of
+    // requiring a one-off DB migration.
+    const wantsOffers = !typeFilter || typeFilter.includes("offer_extended");
+    if (wantsOffers) {
+      const placementQuery = { academyId: req.academyId };
+      if (candidateId) placementQuery.candidateId = candidateId;
+      if (batch_id || batchCode) placementQuery.batchCode = batch_id || batchCode;
+
+      const [placements, existingOfferEvents] = await Promise.all([
+        PlacementConfirmation.find(placementQuery).lean(),
+        AcademyActivityEvent.find({
+          academyId: req.academyId,
+          eventType: { $in: ["offer_extended", "offer_accepted"] },
+        }, { candidateId: 1 }).lean(),
+      ]);
+      const candidatesWithRealOfferEvent = new Set(existingOfferEvents.map((e) => String(e.candidateId)));
+
+      const syntheticOfferEvents = placements
+        .filter((p) => !candidatesWithRealOfferEvent.has(String(p.candidateId)))
+        .map((p) => ({
+          _id: `placement_${p._id}`,
+          academyId: p.academyId,
+          candidateId: p.candidateId,
+          candidateName: p.candidateName,
+          companyId: p.companyId || null,
+          companyName: p.companyName,
+          applicationId: null,
+          jobTitle: p.role,
+          batchCode: p.batchCode || "",
+          courseTitle: p.courseTitle || "",
+          eventType: "offer_extended",
+          eventMeta: { salary: p.ctc },
+          createdAt: p.placedDate || p.createdAt,
+          updatedAt: p.updatedAt,
+        }));
+
+      events.push(...syntheticOfferEvents);
+      events.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      if (events.length > Number(limit)) events.length = Number(limit);
+    }
+
     res.json({ events, total: events.length });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch academy activity." });
@@ -2424,15 +2727,32 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
-    const kanban = { applied: [], shortlisted: [], interview: [], offer: [], joined: [] };
+    const kanban = { applied: [], shortlisted: [], interview: [], offer: [], joined: [], rejected: [] };
     if (candidates.length === 0) return res.json({ kanban });
 
     const candidateById = new Map(candidates.map((c) => [String(c._id), c]));
+    const candidateIds = candidates.map((c) => c._id);
+
+    // Fetch rejection events to cross-reference rejection reason and details if not on application
+    const rejectionEvents = await AcademyActivityEvent.find({
+      candidateId: { $in: candidateIds },
+      eventType: "rejected",
+    }).sort({ createdAt: -1 }).lean();
+    const rejectionEventByApp = new Map();
+    const rejectionEventByCandidate = new Map();
+    for (const evt of rejectionEvents) {
+      if (evt.applicationId && !rejectionEventByApp.has(String(evt.applicationId))) {
+        rejectionEventByApp.set(String(evt.applicationId), evt);
+      }
+      if (evt.candidateId && !rejectionEventByCandidate.has(String(evt.candidateId))) {
+        rejectionEventByCandidate.set(String(evt.candidateId), evt);
+      }
+    }
 
     // One card per student x company pairing (see the Academy Dashboard
     // roadmap's Phase 3 spec) - real Application documents, not a guess
     // keyed off the candidate's name.
-    const applications = await Application.find({ candidateId: { $in: candidates.map((c) => c._id) } })
+    const applications = await Application.find({ candidateId: { $in: candidateIds } })
       .populate("companyId", "companyName")
       .sort({ updatedAt: -1 })
       .lean();
@@ -2457,8 +2777,6 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
       if (batchCode && batch !== batchCode) continue;
       if (search && !name.toLowerCase().includes(search.toLowerCase())) continue;
       if (company && companyName.toLowerCase() !== String(company).toLowerCase()) continue;
-      if (app.status === "rejected") continue; // not part of the active pipeline board
-
       const card = {
         id: String(app._id),
         candidateId: c._id,
@@ -2466,7 +2784,11 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
         email: c.email,
         batch,
         course: c.stage2?.course || "",
-        score: c.stage4?.score ? `${c.stage4.score}%` : "",
+        // Talentera Score (Stages 1-6 weighted, out of 100) - see backend/utils/talenteraScore.js.
+        score: (() => {
+          const ts = compute8Stages(c).talenteraScore;
+          return ts > 0 ? `${ts}%` : "";
+        })(),
         avatar: name.slice(0, 2).toUpperCase(),
         company: companyName,
         updatedAt: app.updatedAt,
@@ -2486,6 +2808,16 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
         } else {
           kanban.offer.push({ ...hiredCard, statusLabel: "Offer Extended - Pending Confirmation" });
         }
+      } else if (app.status === "rejected") {
+        const evt = rejectionEventByApp.get(String(app._id)) || rejectionEventByCandidate.get(String(app.candidateId));
+        const rejectionReason = app.rejectionReason || evt?.eventMeta?.reason || "Candidate profile / criteria mismatch";
+        const rejectionDetails = app.rejectionDetails || evt?.eventMeta?.details || evt?.eventMeta?.notes || "";
+        kanban.rejected.push({
+          ...card,
+          statusLabel: "Rejected",
+          rejectionReason,
+          rejectionDetails,
+        });
       }
     }
 
@@ -2520,12 +2852,19 @@ router.get("/interviews/heatmap", requireAcademyAuth, async (req, res) => {
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     const baseFilter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
-    const candidateQuery = batchCode ? { $and: [baseFilter, { "stage2.batch": batchCode }] } : baseFilter;
+    const isAllBatches = !batchCode || batchCode === "ALL" || batchCode === "all" || batchCode === "All";
+    const candidateQuery = isAllBatches ? baseFilter : { $and: [baseFilter, { "stage2.batch": batchCode }] };
 
-    const candidates = await Candidate.find(candidateQuery).limit(50).lean();
+    const candidates = await Candidate.find(candidateQuery).limit(250).lean();
     const pipelineStages = Object.keys(HEATMAP_COLUMNS);
     if (candidates.length === 0) {
-      return res.json({ batchCode: batchCode || "", pipelineStages, matrix: [] });
+      return res.json({
+        batchCode: isAllBatches ? "ALL" : (batchCode || ""),
+        pipelineStages,
+        matrix: [],
+        batchSummary: [],
+        overallTotals: { totalStudents: 0, active: 0, interview: 0, offers: 0, joined: 0 },
+      });
     }
 
     const candidateIds = candidates.map((c) => c._id);
@@ -2562,13 +2901,54 @@ router.get("/interviews/heatmap", requireAcademyAuth, async (req, res) => {
         studentId: c._id,
         name: c.stage1?.fullName || c.email.split("@")[0],
         email: c.email,
-        batch: c.stage2?.batch || "",
-        course: c.stage2?.course || "",
+        batch: c.stage2?.batch || "General",
+        course: c.stage2?.course || "Medical Coding",
         stages,
       };
     });
 
-    res.json({ batchCode: batchCode || "", pipelineStages, matrix });
+    // Compute batch roll-up summary for overall comparison across all cohorts
+    const batchSummaryMap = new Map();
+    for (const row of matrix) {
+      const bKey = row.batch || "General";
+      if (!batchSummaryMap.has(bKey)) {
+        batchSummaryMap.set(bKey, {
+          batch: bKey,
+          course: row.course || "Medical Coding",
+          totalStudents: 0,
+          viewed: 0,
+          applied: 0,
+          shortlisted: 0,
+          interview: 0,
+          offer: 0,
+          joined: 0,
+        });
+      }
+      const b = batchSummaryMap.get(bKey);
+      b.totalStudents++;
+      if ((row.stages["Profile Viewed"] || 0) > 0) b.viewed++;
+      if ((row.stages["Applied"] || 0) > 0) b.applied++;
+      if ((row.stages["Shortlisted"] || 0) > 0) b.shortlisted++;
+      if ((row.stages["Interview"] || 0) > 0) b.interview++;
+      if ((row.stages["Offer Extended"] || 0) > 0) b.offer++;
+      if ((row.stages["Joined"] || 0) > 0) b.joined++;
+    }
+
+    const overallTotals = {
+      totalStudents: matrix.length,
+      active: matrix.filter((r) => Object.values(r.stages || {}).reduce((a, b) => a + b, 0) > 0).length,
+      interview: matrix.filter((r) => (r.stages?.Interview || 0) > 0).length,
+      offers: matrix.filter((r) => (r.stages?.["Offer Extended"] || 0) > 0).length,
+      joined: matrix.filter((r) => (r.stages?.Joined || 0) > 0).length,
+    };
+
+    res.json({
+      batchCode: isAllBatches ? "ALL" : batchCode,
+      pipelineStages,
+      matrix,
+      batchSummary: Array.from(batchSummaryMap.values()),
+      overallTotals,
+    });
   } catch (err) {
     logger.error(`Interview heatmap error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch interview heatmap." });
@@ -2647,11 +3027,17 @@ router.post("/placements/:id/confirm", requireAcademyAuth, async (req, res) => {
       const exists = (academy.placements || []).some((p) => p.studentName === confirmation.candidateName);
       if (!exists) {
         academy.placements.push({
+          candidateId: confirmation.candidateId || null,
           studentName: confirmation.candidateName,
-          role: confirmation.role || "Medical Coder",
-          company: confirmation.companyName || "Partner Employer",
-          city: confirmation.city || "Chennai",
-          ctc: confirmation.ctc || "₹5.5 LPA",
+          role: confirmation.role || "Not specified",
+          company: confirmation.companyName || "Not specified",
+          city: confirmation.city || "",
+          ctc: confirmation.ctc || "Not specified",
+          // This mirror-record only ever gets created from a real, verified
+          // platform hire (see PUT /applications/:id/status in company.js),
+          // so both of these are accurate, not placeholders.
+          placementSource: "Talentera Platform",
+          joiningStatus: "Joined",
           date: "Just now",
         });
         await academy.save();
@@ -2946,6 +3332,57 @@ router.post("/create-course", requireAcademyAuth, async (req, res) => {
   }
 });
 
+// PUT /api/academy/courses/:id - Edit an existing curriculum course
+router.put("/courses/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const course = academy.courses.id(req.params.id);
+    if (!course) return res.status(404).json({ message: "Course not found." });
+
+    const { title, category, duration, totalHrs, syllabus, status } = req.body;
+    if (title !== undefined) {
+      if (!String(title).trim()) return res.status(400).json({ message: "Course title cannot be empty." });
+      course.title = String(title).trim();
+    }
+    if (category !== undefined) course.category = String(category).trim();
+    if (duration !== undefined) course.duration = String(duration).trim();
+    if (totalHrs !== undefined) course.totalHrs = Number(totalHrs) || course.totalHrs;
+    if (status !== undefined) course.status = String(status).trim();
+    if (syllabus !== undefined) {
+      course.syllabus = Array.isArray(syllabus)
+        ? syllabus
+        : String(syllabus).split(",").map((s) => s.trim()).filter(Boolean);
+    }
+
+    await academy.save();
+    res.json({ success: true, message: "Course updated successfully!", course });
+  } catch (err) {
+    logger.error(`Update course error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update course." });
+  }
+});
+
+// DELETE /api/academy/courses/:id - Remove a curriculum course
+router.delete("/courses/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const course = academy.courses.id(req.params.id);
+    if (!course) return res.status(404).json({ message: "Course not found." });
+
+    const removedTitle = course.title;
+    course.deleteOne();
+    await academy.save();
+    res.json({ success: true, message: `Course "${removedTitle}" removed successfully.` });
+  } catch (err) {
+    logger.error(`Delete course error: ${err.message}`);
+    res.status(500).json({ message: "Failed to delete course." });
+  }
+});
+
 // POST /api/academy/add-question
 router.post("/add-question", requireAcademyAuth, async (req, res) => {
   try {
@@ -2972,25 +3409,112 @@ router.post("/add-question", requireAcademyAuth, async (req, res) => {
 });
 
 // POST /api/academy/add-placement
+// GET /api/academy/candidates/:id/placement-info - Looks up whether this
+// candidate already has a REAL, verified platform hire on file
+// (PlacementConfirmation, created from an actual company hiring them - see
+// PUT /applications/:id/status in company.js). Used purely to offer the
+// academy a genuine auto-fill suggestion in the "Confirm Placement" form -
+// never to fabricate a company/role/CTC that was never actually confirmed.
+router.get("/candidates/:id/placement-info", requireAcademyAuth, async (req, res) => {
+  try {
+    const confirmation = await PlacementConfirmation.findOne({
+      candidateId: req.params.id,
+      academyId: req.academyId,
+    }).sort({ createdAt: -1 });
+
+    if (!confirmation) {
+      return res.json({ found: false });
+    }
+
+    res.json({
+      found: true,
+      company: confirmation.companyName || "",
+      role: confirmation.role || "",
+      ctc: confirmation.ctc || "",
+    });
+  } catch (err) {
+    logger.error(`Get candidate placement-info error: ${err.message}`);
+    res.status(500).json({ message: "Failed to look up candidate placement info." });
+  }
+});
+
+// POST /api/academy/add-placement - Manually log a placement the academy is
+// confirming themselves. Every field is required from the request body on
+// purpose: nothing here is ever silently defaulted/fabricated - the academy
+// must actually type or select every value (company/role/CTC may start
+// pre-filled on the frontend from a real PlacementConfirmation record, but
+// that's a suggestion the academy can see and edit, not a server-side
+// fallback).
 router.post("/add-placement", requireAcademyAuth, async (req, res) => {
   try {
-    const { studentName, role, company, city, ctc } = req.body;
+    const { studentName, candidateId, role, company, ctc, placementSource, joiningStatus } = req.body;
+
+    const missing = [];
+    if (!studentName || !studentName.trim()) missing.push("candidate name");
+    if (!role || !role.trim()) missing.push("role");
+    if (!company || !company.trim()) missing.push("company");
+    if (!ctc || !String(ctc).trim()) missing.push("CTC");
+    if (!placementSource) missing.push("placement source");
+    if (!joiningStatus) missing.push("joining status");
+    if (missing.length > 0) {
+      return res.status(400).json({ message: `Please provide: ${missing.join(", ")}.` });
+    }
+
+    const VALID_SOURCES = ["Talentera Platform", "Campus Placement Drive", "Academy Referral", "Direct Company Outreach", "Other"];
+    const VALID_STATUSES = ["Offer Accepted", "Joined", "Yet to Join", "Declined"];
+    if (!VALID_SOURCES.includes(placementSource)) {
+      return res.status(400).json({ message: "Invalid placement source." });
+    }
+    if (!VALID_STATUSES.includes(joiningStatus)) {
+      return res.status(400).json({ message: "Invalid joining status." });
+    }
+
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
     const newPlacement = {
+      candidateId: candidateId || null,
       studentName: studentName.trim(),
-      role: role || "Medical Coder",
+      role: role.trim(),
       company: company.trim(),
-      city: city || "Chennai",
-      ctc: ctc || "₹5.5 LPA",
+      ctc: String(ctc).trim(),
+      placementSource,
+      joiningStatus,
       date: "Just now",
     };
 
     academy.placements.push(newPlacement);
     await academy.save();
+
+    // Reflect the confirmed placement on the candidate's own record too, so
+    // every dashboard count derived from candidate status - the "X placed"
+    // total, the batch PLACED %, the candidate list "Placed" filter, and the
+    // Analytics tab's funnel/conversion figures - updates immediately
+    // instead of only the Placements tab. Skip this when the academy marked
+    // the offer as "Declined": the candidate was not actually placed.
+    if (candidateId && joiningStatus !== "Declined") {
+      try {
+        const placedCandidate = await Candidate.findById(candidateId);
+        if (placedCandidate) {
+          placedCandidate.stage8 = {
+            ...(placedCandidate.stage8 || {}),
+            placementStatus: `Placed at ${company.trim()} — ${joiningStatus}`,
+            employer: company.trim(),
+            role: role.trim(),
+            ctc: String(ctc).trim(),
+            placementSource,
+            placedAt: placedCandidate.stage8?.placedAt || new Date(),
+          };
+          await placedCandidate.save();
+        }
+      } catch (syncErr) {
+        logger.warn(`Candidate placement status sync failed for ${candidateId}: ${syncErr.message}`);
+      }
+    }
+
     res.json({ success: true, message: "Placement record added!", placement: newPlacement });
   } catch (err) {
+    logger.error(`Add placement error: ${err.message}`);
     res.status(500).json({ message: "Failed to add placement." });
   }
 });
@@ -3011,6 +3535,17 @@ router.put("/settings", requireAcademyAuth, async (req, res) => {
     if (branches) {
       academy.branches = typeof branches === "string" ? branches.split(",").map((b) => b.trim()) : branches;
     }
+
+    // Keep the Institutional KYC record (the source of truth the Account
+    // Profile form now reads from, and what Staff see in the KYC audit
+    // dossier) in sync with any edits made here.
+    academy.kycData = academy.kycData || {};
+    if (name) academy.kycData.legalEntityName = name.trim();
+    if (primaryAdmin) academy.kycData.signatoryName = primaryAdmin.trim();
+    if (email) academy.kycData.signatoryEmail = email.trim().toLowerCase();
+    if (phone) academy.kycData.signatoryMobile = phone.trim();
+    if (headquarters) academy.kycData.city = headquarters.trim();
+    academy.markModified("kycData");
 
     await academy.save();
     res.json({ success: true, message: "Settings updated successfully!", academy });

@@ -9,7 +9,7 @@ export default function LiquidNavCapsule({
     { label: "For Candidates", icon: "fa-solid fa-user-graduate", link: "/candidates" },
     { label: "For Companies", icon: "fa-solid fa-building", link: "/companies" },
     { label: "For Academies", icon: "fa-solid fa-landmark", link: "/academy" },
-    { label: "College Dashboard", icon: "fa-solid fa-building-columns", link: "/college/dashboard" },
+    { label: "College Dashboard", icon: "fa-solid fa-building-columns", link: "/colleges" },
     { label: "How it Works", icon: "fa-solid fa-circle-play", link: "#how-it-works" }
   ]
 }) {

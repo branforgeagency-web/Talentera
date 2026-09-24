@@ -25,6 +25,14 @@ const ApplicationSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    rejectionReason: {
+      type: String,
+      default: "",
+    },
+    rejectionDetails: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );

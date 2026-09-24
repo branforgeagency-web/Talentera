@@ -661,6 +661,7 @@ export default function StaffHub() {
   };
 
   const [selectedKycId, setSelectedKycId] = useState(null);
+  const [kycQueueType, setKycQueueType] = useState("company"); // "company" | "academy" - which KYC queue the KYC Verification tab shows
   const [selectedCertId, setSelectedCertId] = useState(null);
   const [selectedJobId, setSelectedJobId] = useState(null);
 
@@ -746,6 +747,8 @@ export default function StaffHub() {
   const [candidatesLoading, setCandidatesLoading] = useState(false);
   const [candidateSearch, setCandidateSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("all");
+  const [candidateCertFilter, setCandidateCertFilter] = useState("all");
+  const [candidateReadinessFilter, setCandidateReadinessFilter] = useState("all");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [candidateModalTab, setCandidateModalTab] = useState("identity");
   const candidateTabsRef = useRef(null);
@@ -776,6 +779,9 @@ export default function StaffHub() {
   const [academySearch, setAcademySearch] = useState("");
   const [selectedAcademy, setSelectedAcademy] = useState(null);
   const [academyModalTab, setAcademyModalTab] = useState("profile");
+  const [academyAuditNotes, setAcademyAuditNotes] = useState("");
+  const [academyRejectionReason, setAcademyRejectionReason] = useState("");
+  const [academyTierSelect, setAcademyTierSelect] = useState("Verified Partner");
 
   // CRM + Data Department state
   const [crmSearch, setCrmSearch] = useState("");
@@ -1794,6 +1800,50 @@ export default function StaffHub() {
     }
   };
 
+  const handleAuditAcademyKyc = async (academyId, action) => {
+    if (action === "reject" && !academyRejectionReason.trim()) {
+      showToast("Please provide a rejection / revision reason.");
+      return;
+    }
+    setProcessingId(academyId);
+    try {
+      const res = await fetch("/api/staff/verify-academy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          academyId,
+          action,
+          notes: academyAuditNotes,
+          rejectionReason: academyRejectionReason,
+          tier: academyTierSelect,
+        }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(`Academy KYC ${action === "verify" ? "Approved & Verified" : "Revision Requested"}.`);
+        fetchAcademies(academySearch);
+        if (selectedAcademy && (selectedAcademy._id === academyId || selectedAcademy.id === academyId)) {
+          setSelectedAcademy((prev) => ({
+            ...prev,
+            kycStatus: action === "verify" ? "verified" : "rejected",
+            isVerified: action === "verify",
+            kycNotes: academyAuditNotes,
+            kycRejectionReason: action === "reject" ? academyRejectionReason : "",
+            kycVerifiedAt: action === "verify" ? new Date().toISOString() : null,
+            tier: action === "verify" ? academyTierSelect : prev.tier,
+          }));
+        }
+      } else {
+        showToast(data.message || "Failed to update Academy KYC.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to update Academy KYC.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleVerifyDoc = async (companyId, docId, isValid) => {
     try {
       const res = await fetch("/api/staff/verify-document", {
@@ -1962,6 +2012,11 @@ export default function StaffHub() {
     pending: (companyKycQueue || []).filter((c) => c.kycStatus === "pending" || c.kycStatus === "under_review").length,
     verified: (companyKycQueue || []).filter((c) => c.kycStatus === "verified").length,
     rejected: (companyKycQueue || []).filter((c) => c.kycStatus === "rejected").length,
+  };
+  const academyKycCounts = {
+    pending: (academiesList || []).filter((a) => !a.kycStatus || a.kycStatus === "pending" || a.kycStatus === "under_review").length,
+    verified: (academiesList || []).filter((a) => a.kycStatus === "verified").length,
+    rejected: (academiesList || []).filter((a) => a.kycStatus === "rejected").length,
   };
   const certCounts = {
     pending: (certificationQueue || []).filter((c) => c.certStatus === "pending").length,
@@ -2690,6 +2745,36 @@ export default function StaffHub() {
                 const cityMatch = (c.city || c.stage1?.city || "").toLowerCase().includes(q);
                 if (!nameMatch && !emailMatch && !mobileMatch && !academyMatch && !roleMatch && !cityMatch) return false;
               }
+
+              // Certification filter
+              if (candidateCertFilter !== "all") {
+                const certStr = (c.cert || c.stage3?.certName || c.stage3?.certCode || c.stage3?.certificationName || c.certification || "").toLowerCase();
+                const hasCert = c.completedStages?.includes(3) || (certStr !== "" && certStr !== "—" && !certStr.includes("non") && !certStr.includes("pending") && !certStr.includes("none"));
+                if (candidateCertFilter === "certified") {
+                  if (!hasCert) return false;
+                } else if (candidateCertFilter === "non_certified") {
+                  if (hasCert) return false;
+                } else {
+                  if (!certStr.includes(candidateCertFilter.toLowerCase())) return false;
+                }
+              }
+
+              // Job Readiness filter
+              if (candidateReadinessFilter !== "all") {
+                const rStatus = (c.verificationReadiness?.readinessStatus || "").toUpperCase();
+                const isHired = (m.hired || 0) > 0 || c.stage8?.placementStatus?.toLowerCase().includes("placed");
+                const isInterviewReady = rStatus === "INTERVIEW_READY" || c.isVerified || (c.completedStages?.length >= 6) || (m.shortlisted || 0) > 0 || (m.interviewing || 0) > 0;
+                const isAssessmentPending = rStatus === "ASSESSMENT_PENDING" || (!c.completedStages?.includes(4) && !c.stage4?.score);
+                const isInProgress = rStatus === "TRAINING_IN_PROGRESS" || rStatus === "VERIFICATION_PENDING" || (c.completedStages?.length >= 2 && c.completedStages?.length < 6);
+                const isEarly = rStatus === "ENROLLED" || !c.completedStages || c.completedStages.length < 2;
+
+                if (candidateReadinessFilter === "interview_ready" && (!isInterviewReady || isHired)) return false;
+                if (candidateReadinessFilter === "in_progress" && (!isInProgress || isHired)) return false;
+                if (candidateReadinessFilter === "assessment_pending" && (!isAssessmentPending || isHired)) return false;
+                if (candidateReadinessFilter === "early_onboarding" && (!isEarly || isHired)) return false;
+                if (candidateReadinessFilter === "placed" && !isHired) return false;
+              }
+
               return true;
             });
 
@@ -2866,6 +2951,36 @@ export default function StaffHub() {
                       <option value="shortlisted">Shortlisted Candidates ({totalShortlistedSum})</option>
                       <option value="interviewing">Interviewing ({totalInterviewingSum})</option>
                       <option value="hired">Hired Candidates ({totalHiredSum})</option>
+                    </select>
+
+                    <select
+                      className="staff-filter-select"
+                      aria-label="Certification Filter"
+                      value={candidateCertFilter}
+                      onChange={(e) => setCandidateCertFilter(e.target.value)}
+                    >
+                      <option value="all">Certification: All</option>
+                      <option value="certified">Certified (AAPC/AHIMA)</option>
+                      <option value="non_certified">Non-Certified / Pursuing</option>
+                      <option value="cpc">CPC / CPC-A</option>
+                      <option value="ccs">CCS / CCS-P</option>
+                      <option value="crc">CRC (Risk Adjustment)</option>
+                      <option value="cic">CIC / COC</option>
+                      <option value="cpb">CPB (Billing)</option>
+                    </select>
+
+                    <select
+                      className="staff-filter-select"
+                      aria-label="Job Readiness Filter"
+                      value={candidateReadinessFilter}
+                      onChange={(e) => setCandidateReadinessFilter(e.target.value)}
+                    >
+                      <option value="all">Job Readiness: All</option>
+                      <option value="interview_ready">Interview Ready (Gold / 80%+)</option>
+                      <option value="in_progress">In Training / In Progress</option>
+                      <option value="assessment_pending">Assessment Pending</option>
+                      <option value="early_onboarding">Early Onboarding (&lt; 25%)</option>
+                      <option value="placed">Placed &amp; Hired</option>
                     </select>
 
                     {/* VIEW TOGGLE */}
@@ -4341,9 +4456,10 @@ export default function StaffHub() {
                   pills={
                     <>
                       <StatPill count={academiesList.length} label="PARTNER ACADEMIES" tone="good" />
+                      <StatPill count={academiesList.filter((a) => a.kycStatus === "verified").length} label="KYC VERIFIED" tone="good" />
+                      <StatPill count={academiesList.filter((a) => a.kycStatus === "under_review" || a.kycStatus === "pending").length} label="PENDING KYC" tone="pending" />
                       <StatPill count={totalBatches} label="ACTIVE BATCHES" tone="pending" />
                       <StatPill count={totalEnrolled} label="STUDENT TRAINEES" tone="good" />
-                      <StatPill count={totalCourses} label="COURSES OFFERED" tone="pending" />
                     </>
                   }
                 />
@@ -4377,6 +4493,7 @@ export default function StaffHub() {
                           <th>Contact &amp; Admin</th>
                           <th>Campus &amp; Branches</th>
                           <th>Batches &amp; Trainees</th>
+                          <th>KYC Verification</th>
                           <th>Courses &amp; Placements</th>
                           <th>Partner Since</th>
                           <th style={{ textAlign: "right" }}>Actions</th>
@@ -4473,6 +4590,63 @@ export default function StaffHub() {
                                 </div>
                               </td>
                               <td>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 5,
+                                      fontSize: 10,
+                                      fontWeight: 800,
+                                      padding: "3px 8px",
+                                      borderRadius: 6,
+                                      textTransform: "uppercase",
+                                      width: "fit-content",
+                                      background:
+                                        ac.kycStatus === "verified"
+                                          ? "#DCFCE7"
+                                          : ac.kycStatus === "under_review"
+                                          ? "#DBEAFE"
+                                          : ac.kycStatus === "rejected"
+                                          ? "#FEE2E2"
+                                          : "#FEF3C7",
+                                      color:
+                                        ac.kycStatus === "verified"
+                                          ? "#15803D"
+                                          : ac.kycStatus === "under_review"
+                                          ? "#1E40AF"
+                                          : ac.kycStatus === "rejected"
+                                          ? "#B91C1C"
+                                          : "#B45309",
+                                    }}
+                                  >
+                                    <i
+                                      className={`fa-solid ${
+                                        ac.kycStatus === "verified"
+                                          ? "fa-shield-check"
+                                          : ac.kycStatus === "under_review"
+                                          ? "fa-clock"
+                                          : ac.kycStatus === "rejected"
+                                          ? "fa-triangle-exclamation"
+                                          : "fa-shield"
+                                      }`}
+                                    ></i>
+                                    {ac.kycStatus === "verified"
+                                      ? "VERIFIED"
+                                      : ac.kycStatus === "under_review"
+                                      ? "UNDER REVIEW"
+                                      : ac.kycStatus === "rejected"
+                                      ? "REVISION REQ"
+                                      : "PENDING"}
+                                  </span>
+                                  {ac.kycSubmittedAt && (
+                                    <span style={{ fontSize: 9.5, color: "#64748B" }}>
+                                      Submitted: {new Date(ac.kycSubmittedAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                   <span style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>
                                     {ac.coursesCount || (ac.courses || []).length} Course{(ac.coursesCount || 0) !== 1 ? "s" : ""}
@@ -4486,24 +4660,39 @@ export default function StaffHub() {
                                 <span style={{ fontSize: 11.5, color: "#64748B" }}>{ac.partnerSince || "2025"}</span>
                               </td>
                               <td style={{ textAlign: "right" }}>
-                                <button
-                                  type="button"
-                                  className="sf-action-btn"
-                                  onClick={() => {
-                                    setSelectedAcademy(ac);
-                                    setAcademyModalTab("profile");
-                                  }}
-                                  style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none" }}
-                                >
-                                  View Full Details
-                                </button>
+                                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn"
+                                    onClick={() => {
+                                      setSelectedAcademy(ac);
+                                      setAcademyModalTab(ac.kycStatus === "under_review" ? "kyc" : "profile");
+                                      setAcademyAuditNotes(ac.kycNotes || "");
+                                      setAcademyRejectionReason(ac.kycRejectionReason || "");
+                                      setAcademyTierSelect(ac.tier || "Verified Partner");
+                                    }}
+                                    style={{
+                                      background: ac.kycStatus === "under_review" ? "linear-gradient(135deg, #1E40AF 0%, #2563EB 100%)" : "var(--navy, #0A1F3D)",
+                                      color: "#fff",
+                                      border: "none",
+                                      padding: "6px 12px",
+                                      fontSize: 11.5,
+                                    }}
+                                  >
+                                    {ac.kycStatus === "under_review" ? (
+                                      <><i className="fa-solid fa-clipboard-check" style={{ marginRight: 5 }}></i> Audit KYC</>
+                                    ) : (
+                                      "View Details"
+                                    )}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
                         })}
                         {filteredAcademies.length === 0 && (
                           <tr>
-                            <td colSpan={7} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
+                            <td colSpan={8} style={{ textAlign: "center", padding: "48px 20px", color: "#64748B" }}>
                               <div style={{ fontSize: 28, marginBottom: 8, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
                               <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 15 }}>No academies found</div>
                               <div style={{ fontSize: 12, marginTop: 4 }}>Try clearing search keywords.</div>
@@ -6154,15 +6343,151 @@ export default function StaffHub() {
                 icon={<i className="fa-solid fa-magnifying-glass" style={{ color: "#2563EB" }}></i>}
                 accent="var(--navy, #0A1F3D)"
                 title="KYC Verification"
-                subtitle="Audit business registration, GSTIN, PAN, and KYC certificates submitted by employer accounts before granting the Gold Trust Badge."
+                subtitle={
+                  kycQueueType === "academy"
+                    ? "Audit institutional registration, GSTIN, PAN, and KYC certificates submitted by partner academies before granting the Verified Partner tier."
+                    : "Audit business registration, GSTIN, PAN, and KYC certificates submitted by employer accounts before granting the Gold Trust Badge."
+                }
                 pills={
                   <>
-                    <StatPill count={kycCounts.pending} label="PENDING" tone="pending" />
-                    <StatPill count={kycCounts.verified} label="VERIFIED" tone="good" />
-                    <StatPill count={kycCounts.rejected} label="REJECTED" tone="bad" />
+                    <StatPill count={kycQueueType === "academy" ? academyKycCounts.pending : kycCounts.pending} label="PENDING" tone="pending" />
+                    <StatPill count={kycQueueType === "academy" ? academyKycCounts.verified : kycCounts.verified} label="VERIFIED" tone="good" />
+                    <StatPill count={kycQueueType === "academy" ? academyKycCounts.rejected : kycCounts.rejected} label="REJECTED" tone="bad" />
                   </>
                 }
               />
+
+              {/* KYC SOURCE TOGGLE: Company KYC vs Academy KYC */}
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => setKycQueueType("company")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    border: kycQueueType === "company" ? "1px solid var(--navy, #0A1F3D)" : "1px solid #E2E8F0",
+                    background: kycQueueType === "company" ? "var(--navy, #0A1F3D)" : "#fff",
+                    color: kycQueueType === "company" ? "#fff" : "#475569",
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  <i className="fa-solid fa-building"></i> Company KYC
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "1px 7px",
+                      borderRadius: 999,
+                      background: kycQueueType === "company" ? "rgba(255,255,255,0.18)" : "#EEF2F7",
+                      color: kycQueueType === "company" ? "#fff" : "var(--navy, #0A1F3D)",
+                    }}
+                  >
+                    {kycCounts.pending}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKycQueueType("academy")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    border: kycQueueType === "academy" ? "1px solid var(--navy, #0A1F3D)" : "1px solid #E2E8F0",
+                    background: kycQueueType === "academy" ? "var(--navy, #0A1F3D)" : "#fff",
+                    color: kycQueueType === "academy" ? "#fff" : "#475569",
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  <i className="fa-solid fa-graduation-cap"></i> Academy KYC
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: "1px 7px",
+                      borderRadius: 999,
+                      background: kycQueueType === "academy" ? "rgba(255,255,255,0.18)" : "#EEF2F7",
+                      color: kycQueueType === "academy" ? "#fff" : "var(--navy, #0A1F3D)",
+                    }}
+                  >
+                    {academyKycCounts.pending}
+                  </span>
+                </button>
+              </div>
+
+              {/* ACADEMY KYC QUEUE - simple list; opens the existing Academy detail
+                  modal (KYC tab) for the full audit + approve/reject workflow. */}
+              {kycQueueType === "academy" && (
+                <div style={{ background: "#fff", borderRadius: 18, border: "1px solid var(--border-light, #E2E8F0)", overflow: "hidden" }}>
+                  {!(academiesList && academiesList.length) ? (
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted, #4A5568)", fontSize: 13 }}>
+                      No partner academies found.
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ padding: "14px 16px", borderBottom: "1px solid #EEF0F3", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <h3 style={{ fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)", fontSize: 12.5, fontWeight: 800, color: "var(--navy)", margin: 0, textTransform: "uppercase" }}>
+                          Registered Academies
+                        </h3>
+                        <span style={{ background: "#EEF2F7", color: "var(--navy, #0A1F3D)", fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)" }}>
+                          {academiesList.length}
+                        </span>
+                      </div>
+                      <div style={{ overflowY: "auto", maxHeight: 600 }}>
+                        {academiesList.map((ac) => {
+                          const isVerified = ac.kycStatus === "verified";
+                          const isRejected = ac.kycStatus === "rejected";
+                          const isUnderReview = ac.kycStatus === "under_review";
+                          return (
+                            <button
+                              key={ac._id || ac.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedAcademy(ac);
+                                setAcademyModalTab("kyc");
+                              }}
+                              style={{
+                                width: "100%",
+                                textAlign: "left",
+                                padding: "14px 16px",
+                                border: "none",
+                                borderBottom: "1px solid #F5F6F8",
+                                background: "transparent",
+                                cursor: "pointer",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 12,
+                                fontFamily: "var(--font-body, 'Manrope', sans-serif)"
+                              }}
+                            >
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontWeight: 700, fontSize: 13.5, color: "var(--navy)", marginBottom: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                  {toStr(ac.name, "Unnamed Academy")}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{toStr(ac.email, "N/A")} · {toStr(ac.headquarters, "India")}</div>
+                              </div>
+                              <span style={{ flexShrink: 0, fontSize: 9.5, fontWeight: 800, padding: "3px 8px", borderRadius: 4, background: isVerified ? "#DCFCE7" : isRejected ? "#FEE2E2" : isUnderReview ? "#DBEAFE" : "#FEF3C7", color: isVerified ? "#15803D" : isRejected ? "#B91C1C" : isUnderReview ? "#1E40AF" : "#B45309", fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)", textTransform: "uppercase" }}>
+                                {toStr(ac.kycStatus, "pending")}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {kycQueueType === "company" && (
               <div style={{ background: "#fff", borderRadius: 18, border: "1px solid var(--border-light, #E2E8F0)", overflow: "hidden" }}>
                 {!(companyKycQueue && companyKycQueue.length) ? (
                   <div style={{ padding: 40, textAlign: "center", color: "var(--text-muted, #4A5568)", fontSize: 13 }}>
@@ -6365,6 +6690,7 @@ export default function StaffHub() {
                   );
                 })()}
               </div>
+              )}
             </div>
           )}
 
@@ -11562,6 +11888,18 @@ export default function StaffHub() {
               <div className="staff-detail-tabs">
                 {[
                   { id: "profile", label: "Academy Profile" },
+                  {
+                    id: "kyc",
+                    label: `KYC Verification ${
+                      selectedAcademy.kycStatus === "under_review"
+                        ? "● (Audit Req)"
+                        : selectedAcademy.kycStatus === "verified"
+                        ? "✓ Verified"
+                        : selectedAcademy.kycStatus === "rejected"
+                        ? "⚠ Revision"
+                        : "○ Pending"
+                    }`,
+                  },
                   { id: "batches", label: `Batches (${(selectedAcademy.batches || []).length})` },
                   { id: "courses", label: `Courses (${(selectedAcademy.courses || []).length})` },
                   { id: "candidates", label: `Enrolled Candidates (${selectedAcademy.enrolledCandidatesCount || selectedAcademy.studentsUploaded || 0})` },
@@ -11585,6 +11923,316 @@ export default function StaffHub() {
 
             {/* MODAL BODY */}
             <div className="staff-detail-body">
+              {/* TAB: KYC VERIFICATION AUDIT */}
+              {academyModalTab === "kyc" && (() => {
+                const kd = selectedAcademy.kycData || {};
+                const isVerified = selectedAcademy.kycStatus === "verified";
+                const isUnderReview = selectedAcademy.kycStatus === "under_review";
+                const isRejected = selectedAcademy.kycStatus === "rejected";
+                const isPending = !selectedAcademy.kycStatus || selectedAcademy.kycStatus === "pending";
+
+                return (
+                  <div>
+                    {/* STATUS BANNER */}
+                    <div
+                      style={{
+                        padding: "16px 20px",
+                        borderRadius: 12,
+                        marginBottom: 20,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        background: isVerified ? "#DCFCE7" : isUnderReview ? "#DBEAFE" : isRejected ? "#FEE2E2" : "#FEF3C7",
+                        border: isVerified ? "1px solid #86EFAC" : isUnderReview ? "1px solid #93C5FD" : isRejected ? "1px solid #FCA5A5" : "1px solid #FCD34D",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 8,
+                            background: "#FFF",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 18,
+                            color: isVerified ? "#15803D" : isUnderReview ? "#1E40AF" : isRejected ? "#B91C1C" : "#B45309",
+                          }}
+                        >
+                          <i
+                            className={`fa-solid ${
+                              isVerified ? "fa-shield-check" : isUnderReview ? "fa-clock" : isRejected ? "fa-triangle-exclamation" : "fa-shield"
+                            }`}
+                          ></i>
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: 14, color: isVerified ? "#15803D" : isUnderReview ? "#1E40AF" : isRejected ? "#991B1B" : "#92400E" }}>
+                            {isVerified
+                              ? "INSTITUTIONAL KYC APPROVED & VERIFIED"
+                              : isUnderReview
+                              ? "KYC SUBMISSION AWAITING STAFF AUDIT"
+                              : isRejected
+                              ? "KYC REVISION REQUESTED / REJECTED"
+                              : "KYC NOT YET SUBMITTED"}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: isVerified ? "#166534" : isUnderReview ? "#1E3A8A" : isRejected ? "#7F1D1D" : "#78350F" }}>
+                            {selectedAcademy.kycSubmittedAt && <span>Submitted: {new Date(selectedAcademy.kycSubmittedAt).toLocaleString()} · </span>}
+                            {selectedAcademy.kycVerifiedAt && <span>Verified: {new Date(selectedAcademy.kycVerifiedAt).toLocaleString()} · </span>}
+                            Tier: <strong>{selectedAcademy.tier || "Verified Partner"}</strong>
+                          </div>
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 800,
+                          padding: "4px 10px",
+                          borderRadius: 999,
+                          textTransform: "uppercase",
+                          background: "#FFF",
+                          color: isVerified ? "#15803D" : isUnderReview ? "#1E40AF" : isRejected ? "#B91C1C" : "#B45309",
+                        }}
+                      >
+                        {(selectedAcademy.kycStatus || "PENDING").toUpperCase()}
+                      </span>
+                    </div>
+
+                    {/* PREVIOUS AUDIT NOTES / REJECTION REASON */}
+                    {selectedAcademy.kycNotes && (
+                      <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", padding: "10px 14px", borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
+                        <strong>Staff Audit Notes:</strong> {selectedAcademy.kycNotes}
+                      </div>
+                    )}
+                    {selectedAcademy.kycRejectionReason && (
+                      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", padding: "10px 14px", borderRadius: 8, marginBottom: 14, fontSize: 12 }}>
+                        <strong>Current Rejection / Revision Reason:</strong> {selectedAcademy.kycRejectionReason}
+                      </div>
+                    )}
+
+                    {/* SUBMITTED KYC DATA GRID */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 20 }}>
+                      {/* 1. Legal Entity */}
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", borderBottom: "1px solid #F1F5F9", paddingBottom: 6, marginBottom: 8 }}>
+                          <i className="fa-solid fa-building" style={{ marginRight: 6 }}></i> 1. Organization &amp; Registration
+                        </div>
+                        <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div><strong>Legal Entity:</strong> {kd.legalEntityName || selectedAcademy.name || "N/A"}</div>
+                          <div><strong>Type:</strong> {kd.registrationType || "Private Limited"}</div>
+                          <div><strong>CIN / Reg No:</strong> <span style={{ fontFamily: "monospace" }}>{kd.cinOrRegistrationNumber || "N/A"}</span></div>
+                          <div><strong>Year Est:</strong> {kd.yearEstablished || "2020"}</div>
+                          {kd.website && (
+                            <div>
+                              <strong>Website:</strong>{" "}
+                              <a href={kd.website} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB", textDecoration: "underline" }}>
+                                {kd.website}
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 2. Tax / Identifiers */}
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", borderBottom: "1px solid #F1F5F9", paddingBottom: 6, marginBottom: 8 }}>
+                          <i className="fa-solid fa-file-invoice" style={{ marginRight: 6 }}></i> 2. Tax Identification (PAN &amp; GSTIN)
+                        </div>
+                        <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div>
+                            <strong>PAN Number:</strong>{" "}
+                            <span style={{ fontFamily: "monospace", fontWeight: 700, background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
+                              {kd.panNumber || "Pending"}
+                            </span>
+                          </div>
+                          <div>
+                            <strong>GSTIN:</strong>{" "}
+                            <span style={{ fontFamily: "monospace", fontWeight: 700, background: "#F1F5F9", padding: "1px 6px", borderRadius: 4 }}>
+                              {kd.gstin || "N/A"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3. Authorized Signatory */}
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", borderBottom: "1px solid #F1F5F9", paddingBottom: 6, marginBottom: 8 }}>
+                          <i className="fa-solid fa-user-check" style={{ marginRight: 6 }}></i> 3. Authorized Signatory / Principal
+                        </div>
+                        <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div><strong>Signatory:</strong> {kd.signatoryName || selectedAcademy.contactName || "N/A"}</div>
+                          <div><strong>Designation:</strong> {kd.signatoryDesignation || "Director"}</div>
+                          <div><strong>Email:</strong> {kd.signatoryEmail || selectedAcademy.email}</div>
+                          <div><strong>Mobile:</strong> {kd.signatoryMobile || selectedAcademy.phone || "N/A"}</div>
+                        </div>
+                      </div>
+
+                      {/* 4. Registered Address */}
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", borderBottom: "1px solid #F1F5F9", paddingBottom: 6, marginBottom: 8 }}>
+                          <i className="fa-solid fa-location-dot" style={{ marginRight: 6 }}></i> 4. Physical Campus Address
+                        </div>
+                        <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div><strong>Address:</strong> {kd.registeredAddress || "Not provided"}</div>
+                          <div><strong>City / HQ:</strong> {kd.city || selectedAcademy.headquarters || "India"}</div>
+                          <div><strong>State &amp; PIN:</strong> {kd.state || "Tamil Nadu"} {kd.pincode ? ` - ${kd.pincode}` : ""}</div>
+                        </div>
+                      </div>
+
+                      {/* 5. Academic Credentials */}
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", borderBottom: "1px solid #F1F5F9", paddingBottom: 6, marginBottom: 8 }}>
+                          <i className="fa-solid fa-award" style={{ marginRight: 6 }}></i> 5. Training Track &amp; Accreditations
+                        </div>
+                        <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div><strong>Specialty:</strong> {kd.primarySpecialty || selectedAcademy.specialty || "Medical Coding"}</div>
+                          <div><strong>Total Trainees:</strong> {kd.certifiedTrainedCount || selectedAcademy.totalAlumni || "0"}</div>
+                          <div><strong>Batches / Year:</strong> {kd.activeBatchesPerYear || "12"}</div>
+                          <div style={{ marginTop: 4 }}>
+                            <strong>Accreditations:</strong>
+                            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 4 }}>
+                              {(kd.accreditations || ["AAPC Approved Education Partner"]).map((acc, aIdx) => (
+                                <span key={aIdx} style={{ fontSize: 10, background: "#EDE9FE", color: "#6D28D9", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>
+                                  {acc}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 6. Document Proofs */}
+                      <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", borderBottom: "1px solid #F1F5F9", paddingBottom: 6, marginBottom: 8 }}>
+                          <i className="fa-solid fa-paperclip" style={{ marginRight: 6 }}></i> 6. Document Proof Attachments
+                        </div>
+                        <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+                          {[
+                            { label: "Incorporation Certificate", val: kd.regCertificateUrl },
+                            { label: "Entity PAN Card", val: kd.panDocumentUrl },
+                            { label: "GST Certificate", val: kd.gstCertificateUrl },
+                            { label: "Accreditation Proof", val: kd.accreditationDocumentUrl },
+                          ].map((doc, dIdx) => (
+                            <div key={dIdx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ color: "#475569" }}>{doc.label}:</span>
+                              {doc.val ? (
+                                <a
+                                  href={getAssetUrl(doc.val)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: "#15803D", fontWeight: 700, fontSize: 11, textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: 3 }}
+                                >
+                                  <i className="fa-solid fa-circle-check"></i> View Proof
+                                </a>
+                              ) : (
+                                <span style={{ color: "#94A3B8", fontSize: 11 }}>Not uploaded</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* STAFF AUDIT DECISION ACTION PANEL */}
+                    <div style={{ background: "#F8FAFC", border: "1.5px solid #CBD5E1", borderRadius: 12, padding: 20 }}>
+                      <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>
+                        <i className="fa-solid fa-gavel" style={{ marginRight: 8, color: "#4F46E5" }}></i> Staff Compliance Audit Decision
+                      </h4>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>
+                            Internal Audit Notes (Visible on approval/rejection)
+                          </label>
+                          <input
+                            type="text"
+                            value={academyAuditNotes}
+                            onChange={(e) => setAcademyAuditNotes(e.target.value)}
+                            placeholder="e.g. Audited PAN and Incorporation certificates against MCA registry. Approved."
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 12 }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4 }}>
+                            Assigned Partner Tier
+                          </label>
+                          <select
+                            value={academyTierSelect}
+                            onChange={(e) => setAcademyTierSelect(e.target.value)}
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 12, background: "#FFF" }}
+                          >
+                            <option value="Partner Academy">Partner Academy</option>
+                            <option value="Verified Partner">Verified Partner</option>
+                            <option value="Premier Partner">Premier Partner</option>
+                            <option value="Elite Institute">Elite Institute</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#B91C1C", marginBottom: 4 }}>
+                          Rejection / Revision Reason (Required if requesting revision)
+                        </label>
+                        <input
+                          type="text"
+                          value={academyRejectionReason}
+                          onChange={(e) => setAcademyRejectionReason(e.target.value)}
+                          placeholder="e.g. Registered entity name mismatch with PAN card. Please update legal name and re-upload PAN copy."
+                          style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #FCA5A5", fontSize: 12 }}
+                        />
+                      </div>
+
+                      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          disabled={processingId === (selectedAcademy._id || selectedAcademy.id)}
+                          onClick={() => handleAuditAcademyKyc(selectedAcademy._id || selectedAcademy.id, "verify")}
+                          style={{
+                            background: "linear-gradient(135deg, #15803D 0%, #166534 100%)",
+                            color: "#fff",
+                            border: "none",
+                            padding: "10px 22px",
+                            borderRadius: 8,
+                            fontWeight: 800,
+                            fontSize: 13,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            boxShadow: "0 2px 6px rgba(21,128,61,0.25)",
+                          }}
+                        >
+                          <i className="fa-solid fa-check"></i> Approve &amp; Verify Academy KYC
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={processingId === (selectedAcademy._id || selectedAcademy.id)}
+                          onClick={() => handleAuditAcademyKyc(selectedAcademy._id || selectedAcademy.id, "reject")}
+                          style={{
+                            background: "#FFF",
+                            color: "#DC2626",
+                            border: "1.5px solid #FCA5A5",
+                            padding: "10px 20px",
+                            borderRadius: 8,
+                            fontWeight: 800,
+                            fontSize: 13,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                          }}
+                        >
+                          <i className="fa-solid fa-triangle-exclamation"></i> Request KYC Revision / Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* TAB: PROFILE */}
               {academyModalTab === "profile" && (
                 <div>

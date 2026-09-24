@@ -3,7 +3,7 @@ const crypto = require("crypto");
 
 const DepartmentSubSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  degrees: { type: [String], default: ["B.Sc", "B.Tech", "B.Com", "B.Pharm"] },
+  degrees: { type: [String], default: () => [] },
   studentCount: { type: Number, default: 0 },
 });
 
@@ -144,15 +144,13 @@ const CollegeSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Departments & Capacity
+    // Departments & Capacity - no fabricated default list. A college's
+    // participating departments and student counts are real data the
+    // college itself enters at registration (see CollegeRegister.jsx's
+    // department picker); an empty list here is honest until they do.
     departments: {
       type: [DepartmentSubSchema],
-      default: () => [
-        { name: "Life Sciences & Biotechnology", degrees: ["B.Sc Biotechnology", "M.Sc Biochemistry"], studentCount: 120 },
-        { name: "Allied Health Sciences", degrees: ["B.Sc Allied Health", "BPT"], studentCount: 90 },
-        { name: "Commerce & Management", degrees: ["B.Com", "BBA"], studentCount: 150 },
-        { name: "Computer Science & IT", degrees: ["BCA", "B.Sc CS"], studentCount: 110 },
-      ],
+      default: () => [],
     },
     totalStudentsCount: {
       type: Number,

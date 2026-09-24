@@ -12,10 +12,12 @@ import ApprovalsQueue from "../components/academy/ApprovalsQueue";
 import PlacementCertModal from "../components/academy/PlacementCertModal";
 import MonthlyReportModal from "../components/academy/MonthlyReportModal";
 import StudentDetailModal from "../components/academy/StudentDetailModal";
+import AcademyKycForm from "../components/academy/AcademyKycForm";
 import "../styles/academyOS.css";
 
 import {
   Home,
+  ShieldAlert,
   Users,
   UploadCloud,
   Layers,
@@ -54,6 +56,27 @@ import {
   PieChart,
 } from "lucide-react";
 
+// RCM Domain / Training Course options - kept in sync with the Bulk Upload &
+// Invite Engine's DEFAULT_COURSES list so "Domain" means the same thing
+// everywhere in the academy portal. "Other" lets an academy running a course
+// outside this fixed list type its own name in.
+const DOMAIN_OPTIONS = ["Medical Coding", "Medical Billing", "AR Calling", "Other"];
+
+// Ready-made "Batch 1(<Month> <Year>)" names for the current and next year, so
+// staff can pick a correctly-formatted batch name instead of typing it out by
+// hand. Kept in sync with the same list in UploadAndInvitesEngine.jsx. The
+// Assigned Batch field stays free text underneath this picker, so a second/third
+// batch in the same month (Batch 2, Batch 3, ...) can still be typed in directly.
+const EDIT_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function getEditBatchNameOptions() {
+  const year = new Date().getFullYear();
+  return [
+    ...EDIT_MONTH_ABBR.map((m) => `Batch 1(${m} ${year})`),
+    ...EDIT_MONTH_ABBR.map((m) => `Batch 1(${m} ${year + 1})`),
+  ];
+}
+const EDIT_BATCH_NAME_OPTIONS = getEditBatchNameOptions();
+
 export default function AcademyPortal() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,7 +90,9 @@ export default function AcademyPortal() {
   // Sync activeMod with URL pathname
   useEffect(() => {
     const path = location.pathname.replace(/\/$/, "");
-    if (path === "/academy/dashboard" || path === "/academy") {
+    if (path === "/academy/kyc") {
+      setActiveMod("kyc");
+    } else if (path === "/academy/dashboard" || path === "/academy") {
       setActiveMod("home");
     } else if (path.startsWith("/academy/candidates")) {
       setActiveMod("candidates");
@@ -101,6 +126,7 @@ export default function AcademyPortal() {
   const handleNavigateMod = (modId) => {
     setActiveMod(modId);
     const routeMap = {
+      kyc: "/academy/kyc",
       home: "/academy/dashboard",
       candidates: "/academy/candidates",
       upload: "/academy/upload",
@@ -139,6 +165,8 @@ export default function AcademyPortal() {
   const [candidateTypeFilter, setCandidateTypeFilter] = useState("All");
   const [candidateStageFilter, setCandidateStageFilter] = useState("All");
   const [candidateScoreFilter, setCandidateScoreFilter] = useState("All");
+  const [candidateCertFilter, setCandidateCertFilter] = useState("All");
+  const [candidateReadinessFilter, setCandidateReadinessFilter] = useState("All");
 
   // Sub-tab states for sub-modules
   const [interviewSubTab, setInterviewSubTab] = useState("kanban"); // 'kanban' | 'heatmap'
@@ -151,6 +179,8 @@ export default function AcademyPortal() {
   const [showMonthlyReportModal, setShowMonthlyReportModal] = useState(false);
   const [showCreateBatchModal, setShowCreateBatchModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
+  const [editCourseModal, setEditCourseModal] = useState(null); // { _id, title, category, duration, totalHrs, syllabus } | null
+  const [editCourseSaving, setEditCourseSaving] = useState(false);
   const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
   const [showAddPlacementModal, setShowAddPlacementModal] = useState(false);
   const [showDisputeModal, setShowDisputeModal] = useState({ open: false, placement: null, reason: "" });
@@ -158,7 +188,7 @@ export default function AcademyPortal() {
 
   // Batch Creation Inputs
   const [newBatchCode, setNewBatchCode] = useState("");
-  const [newBatchCourse, setNewBatchCourse] = useState("HCC Coding Specialization");
+  const [newBatchCourse, setNewBatchCourse] = useState("Medical Coding");
   const [newBatchBranch, setNewBatchBranch] = useState("Coimbatore");
 
   // Other Form Inputs
@@ -175,10 +205,63 @@ export default function AcademyPortal() {
   const [newQuestionMarks, setNewQuestionMarks] = useState("2");
 
   const [newStudentName, setNewStudentName] = useState("");
-  const [newStudentRole, setNewStudentRole] = useState("Sr Medical Coder");
-  const [newCompany, setNewCompany] = useState("Optum");
-  const [newCity, setNewCity] = useState("Chennai");
-  const [newCtc, setNewCtc] = useState("₹5.5 LPA");
+  const [newPlacementCandidateId, setNewPlacementCandidateId] = useState("");
+  const [newStudentRole, setNewStudentRole] = useState("");
+  const [newCompany, setNewCompany] = useState("");
+  const [newCtc, setNewCtc] = useState("");
+  const [newPlacementSource, setNewPlacementSource] = useState("");
+  const [newJoiningStatus, setNewJoiningStatus] = useState("");
+  const [placementAutoFilled, setPlacementAutoFilled] = useState({}); // { company, role, ctc } -> true when the value shown was pulled from a real platform hire record, not typed
+  const [placementLookupLoading, setPlacementLookupLoading] = useState(false);
+
+  const resetPlacementForm = () => {
+    setNewStudentName("");
+    setNewPlacementCandidateId("");
+    setNewStudentRole("");
+    setNewCompany("");
+    setNewCtc("");
+    setNewPlacementSource("");
+    setNewJoiningStatus("");
+    setPlacementAutoFilled({});
+  };
+
+  // Selecting a real candidate from the roster checks whether they already
+  // have a genuine, verified platform hire on file (PlacementConfirmation)
+  // and, only then, offers to pre-fill company/role/CTC from it - visibly
+  // marked as auto-filled and still fully editable. No candidate match, no
+  // fill: the fields simply stay blank for the academy to type themselves.
+  const handlePlacementCandidateSelect = async (studentId) => {
+    const student = students.find((s) => String(s.id) === String(studentId));
+    setNewPlacementCandidateId(studentId);
+    setNewStudentName(student ? student.name : "");
+    setNewCompany("");
+    setNewStudentRole("");
+    setNewCtc("");
+    setPlacementAutoFilled({});
+    if (!studentId) return;
+
+    setPlacementLookupLoading(true);
+    try {
+      const res = await fetch(`/api/academy/candidates/${studentId}/placement-info`, {
+        headers: { ...getAuthHeader() },
+      });
+      const data = await safeJson(res);
+      if (res.ok && data.found) {
+        setNewCompany(data.company || "");
+        setNewStudentRole(data.role || "");
+        setNewCtc(data.ctc || "");
+        setPlacementAutoFilled({
+          company: Boolean(data.company),
+          role: Boolean(data.role),
+          ctc: Boolean(data.ctc),
+        });
+      }
+    } catch (err) {
+      console.error("Placement info lookup error:", err);
+    } finally {
+      setPlacementLookupLoading(false);
+    }
+  };
 
   // Settings Edit Inputs
   const [setAcademyName, setSetAcademyName] = useState("");
@@ -233,12 +316,28 @@ export default function AcademyPortal() {
   const handleSaveCandidateEdit = async (e) => {
     e.preventDefault();
     if (!editCandidateModal) return;
+    if (!editCandidateModal.batchCode || !editCandidateModal.batchCode.trim()) {
+      showToast("Please enter an Assigned Batch (e.g. Batch 1(Jan 2026)).", "error");
+      return;
+    }
+    if (editCandidateModal.specialty === "Other" && !editCandidateModal.specialtyOther?.trim()) {
+      showToast('Please type the domain name for "Other".', "error");
+      return;
+    }
     setEditCandidateSaving(true);
     try {
+      const effectiveSpecialty = editCandidateModal.specialty === "Other" ? editCandidateModal.specialtyOther.trim() : editCandidateModal.specialty;
+      const payload = {
+        ...editCandidateModal,
+        specialty: effectiveSpecialty,
+        experienceRange: editCandidateModal.experience === "Experienced" ? editCandidateModal.experienceRange : "",
+        expectedSalaryLpa: editCandidateModal.experience === "Fresher" ? "" : editCandidateModal.expectedSalaryLpa,
+      };
+      delete payload.specialtyOther;
       const res = await fetch(`/api/academy/students/${editCandidateModal.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify(editCandidateModal),
+        body: JSON.stringify(payload),
       });
       const data = await safeJson(res);
       if (res.ok) {
@@ -269,12 +368,17 @@ export default function AcademyPortal() {
       if (data) {
         setDashData(data);
         if (data.academy) {
-          setSetAcademyName(data.academy.name || "");
-          setSetAdminName(data.academy.primaryAdmin || "");
-          setSetEmailAddr(data.academy.email || "");
-          setSetPhoneNum(data.academy.phone || "");
-          setSetSpecialtyName(data.academy.specialty || "Medical Coding");
-          setSetHQ(data.academy.headquarters || "");
+          // Account Profile now reads from the Institutional KYC record first
+          // (the data the academy actually submitted for Staff audit), falling
+          // back to the base account fields for anything not yet filled in
+          // there (e.g. before a first KYC submission).
+          const kd = data.academy.kycData || {};
+          setSetAcademyName(kd.legalEntityName || data.academy.name || "");
+          setSetAdminName(kd.signatoryName || data.academy.primaryAdmin || data.academy.contactName || "");
+          setSetEmailAddr(kd.signatoryEmail || data.academy.email || "");
+          setSetPhoneNum(kd.signatoryMobile || data.academy.phone || "");
+          setSetSpecialtyName(kd.primarySpecialty || data.academy.specialty || "Medical Coding");
+          setSetHQ(kd.city || data.academy.headquarters || "");
         }
       }
     } catch (err) {
@@ -450,6 +554,33 @@ export default function AcademyPortal() {
     }
   };
 
+  // Confirm a pending placement (a real, company-verified hire waiting on
+  // the academy's review) - moves it into the official Placement Records
+  // table and updates every count derived from it (Home KPIs, Analytics
+  // funnel). Does NOT touch anything the academy hasn't reviewed.
+  const [confirmingPlacementId, setConfirmingPlacementId] = useState(null);
+  const handleConfirmPendingPlacement = async (confirmationId) => {
+    setConfirmingPlacementId(confirmationId);
+    try {
+      const res = await fetch(`/api/academy/placements/${confirmationId}/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(data.message || "Placement confirmed!");
+        fetchPlacementConfirmations();
+        fetchDashboardData();
+      } else {
+        showToast(data.message || "Failed to confirm placement.", "error");
+      }
+    } catch (err) {
+      showToast("Error confirming placement.", "error");
+    } finally {
+      setConfirmingPlacementId(null);
+    }
+  };
+
   // Create Batch Form Submission
   const handleCreateBatch = async (e) => {
     e.preventDefault();
@@ -517,6 +648,62 @@ export default function AcademyPortal() {
     }
   };
 
+  // Edit Course
+  const handleUpdateCourse = async (e) => {
+    e.preventDefault();
+    if (!editCourseModal || !editCourseModal.title.trim()) return;
+    setEditCourseSaving(true);
+    try {
+      const res = await fetch(`/api/academy/courses/${editCourseModal._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          title: editCourseModal.title.trim(),
+          category: editCourseModal.category,
+          duration: editCourseModal.duration,
+          totalHrs: editCourseModal.totalHrs,
+          syllabus: editCourseModal.syllabus,
+        }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(data.message || "Course updated!");
+        setEditCourseModal(null);
+        fetchDashboardData();
+      } else {
+        showToast(data.message || "Failed to update course.", "error");
+      }
+    } catch (err) {
+      showToast("Error updating course.", "error");
+    } finally {
+      setEditCourseSaving(false);
+    }
+  };
+
+  // Delete Course
+  const handleDeleteCourse = async (courseId, title) => {
+    if (!window.confirm(`Remove "${title}" from the curriculum? This cannot be undone.`)) return;
+    setEditCourseSaving(true);
+    try {
+      const res = await fetch(`/api/academy/courses/${courseId}`, {
+        method: "DELETE",
+        headers: { ...getAuthHeader() },
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        showToast(data.message || "Course removed.");
+        setEditCourseModal(null);
+        fetchDashboardData();
+      } else {
+        showToast(data.message || "Failed to delete course.", "error");
+      }
+    } catch (err) {
+      showToast("Error deleting course.", "error");
+    } finally {
+      setEditCourseSaving(false);
+    }
+  };
+
   // Add Question
   const handleAddQuestion = async (e) => {
     e.preventDefault();
@@ -553,7 +740,10 @@ export default function AcademyPortal() {
   // Add Placement
   const handleAddPlacement = async (e) => {
     e.preventDefault();
-    if (!newStudentName.trim() || !newCompany.trim()) return;
+    if (!newStudentName.trim() || !newCompany.trim() || !newStudentRole.trim() || !newCtc.trim() || !newPlacementSource || !newJoiningStatus) {
+      showToast("Please fill in candidate, company, role, CTC, placement source, and joining status.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/academy/add-placement", {
@@ -561,17 +751,19 @@ export default function AcademyPortal() {
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           studentName: newStudentName.trim(),
-          role: newStudentRole,
+          candidateId: newPlacementCandidateId || null,
+          role: newStudentRole.trim(),
           company: newCompany.trim(),
-          city: newCity,
-          ctc: newCtc,
+          ctc: newCtc.trim(),
+          placementSource: newPlacementSource,
+          joiningStatus: newJoiningStatus,
         }),
       });
       const data = await safeJson(res);
       if (res.ok) {
         showToast(data.message || "Placement record recorded!");
         setShowAddPlacementModal(false);
-        setNewStudentName("");
+        resetPlacementForm();
         fetchDashboardData();
       } else {
         showToast(data.message || "Failed to record placement.", "error");
@@ -607,18 +799,20 @@ export default function AcademyPortal() {
   const questions = dashData?.questions || [];
   const kpis = dashData?.kpis || {};
 
-  // Unique Batch Codes & Specializations for Filter Dropdowns
+  // Unique Batch Codes & Specializations for Filter Dropdowns.
+  // Only batch codes actually assigned to one of THIS academy's own candidates (`students`
+  // is already scoped server-side to candidates this academy added) - not every
+  // AcademyBatch record that exists, since a batch can be created via "+ Create Batch" and
+  // never actually get a student assigned to it. Listing those empty/unused batches here
+  // would clutter the filter with options that select nothing.
   const batchOptions = useMemo(() => {
     const list = new Set();
     students.forEach((s) => {
-      if (s.month) list.add(s.month.trim());
-      if (s.batch) list.add(s.batch.trim());
+      const b = (s.month || s.batch || "").trim();
+      if (b) list.add(b);
     });
-    batches.forEach((b) => {
-      if (b.code) list.add(b.code.trim());
-    });
-    return Array.from(list).filter(Boolean);
-  }, [students, batches]);
+    return Array.from(list).filter(Boolean).sort();
+  }, [students]);
 
   const specialtyOptions = useMemo(() => {
     const list = new Set();
@@ -685,10 +879,22 @@ export default function AcademyPortal() {
         if (spec !== candidateSpecialtyFilter) return false;
       }
 
-      // 5. Candidate Type Filter (Fresher vs Experienced)
+      // 5. Candidate Type Filter (Fresher vs Experienced vs Certified vs Non-Certified)
       if (candidateTypeFilter !== "All") {
-        const type = (s.type || s.experience || "Fresher").toLowerCase();
-        if (type !== candidateTypeFilter.toLowerCase()) return false;
+        if (candidateTypeFilter === "Certified") {
+          const certStr = (s.cert || s.stage3?.certName || s.stage3?.certCode || s.stage3?.certificationName || "").toLowerCase();
+          const stage3Done = (s.stages && s.stages[2] && s.stages[2].isDone) || (s.stageBreakdown?.completedStages?.includes(3));
+          const hasCert = stage3Done || (certStr !== "" && certStr !== "—" && !certStr.includes("non") && !certStr.includes("pending") && !certStr.includes("none"));
+          if (!hasCert) return false;
+        } else if (candidateTypeFilter === "Non-Certified") {
+          const certStr = (s.cert || s.stage3?.certName || s.stage3?.certCode || s.stage3?.certificationName || "").toLowerCase();
+          const stage3Done = (s.stages && s.stages[2] && s.stages[2].isDone) || (s.stageBreakdown?.completedStages?.includes(3));
+          const hasCert = stage3Done || (certStr !== "" && certStr !== "—" && !certStr.includes("non") && !certStr.includes("pending") && !certStr.includes("none"));
+          if (hasCert) return false;
+        } else {
+          const type = (s.type || s.experience || "Fresher").toLowerCase();
+          if (type !== candidateTypeFilter.toLowerCase()) return false;
+        }
       }
 
       // 6. Stage Filter
@@ -708,6 +914,49 @@ export default function AcademyPortal() {
         if (candidateScoreFilter === "< 70%" && sc >= 70) return false;
       }
 
+      // 8. Certification Filter
+      if (candidateCertFilter !== "All") {
+        const certStr = (s.cert || s.stage3?.certName || s.stage3?.certCode || s.stage3?.certificationName || "").toLowerCase();
+        const stage3Done = (s.stages && s.stages[2] && s.stages[2].isDone) || (s.stageBreakdown?.completedStages?.includes(3));
+        const hasCert = stage3Done || (certStr !== "" && certStr !== "—" && !certStr.includes("non") && !certStr.includes("pending") && !certStr.includes("none"));
+
+        if (candidateCertFilter === "Certified") {
+          if (!hasCert) return false;
+        } else if (candidateCertFilter === "Non-Certified") {
+          if (hasCert) return false;
+        } else {
+          const target = candidateCertFilter.toLowerCase();
+          if (!certStr.includes(target) && !(s.specialty || "").toLowerCase().includes(target)) {
+            return false;
+          }
+        }
+      }
+
+      // 9. Job Readiness Filter
+      if (candidateReadinessFilter !== "All") {
+        const comp = typeof s.completion === "number" ? s.completion : parseInt(s.completion, 10) || 0;
+        const readinessStatus = (s.verificationReadiness?.readinessStatus || "").toUpperCase();
+        const isPlaced = s.status === "placed" || (s.placementStatus || "").toLowerCase().includes("placed");
+        const isLive = (comp === 100 || comp === "100%" || s.status === "verified" || s.status === "matched" || s.status === "shortlisted" || s.status === "interviewing");
+
+        if (candidateReadinessFilter === "Placed") {
+          if (!isPlaced) return false;
+        } else if (candidateReadinessFilter === "Interview Ready") {
+          const isInterviewReady = readinessStatus === "INTERVIEW_READY" || readinessStatus === "VERIFIED" || isLive || comp >= 80 || s.status === "verified";
+          if (!isInterviewReady || isPlaced) return false;
+        } else if (candidateReadinessFilter === "In Progress") {
+          const isInProgress = readinessStatus === "TRAINING_IN_PROGRESS" || readinessStatus === "VERIFICATION_PENDING" || (comp >= 25 && comp < 80);
+          if (!isInProgress || isPlaced) return false;
+        } else if (candidateReadinessFilter === "Assessment Pending") {
+          const stage4Done = s.stages?.[3]?.isDone;
+          const isAssessmentPending = readinessStatus === "ASSESSMENT_PENDING" || (!stage4Done && comp >= 25 && comp < 80);
+          if (!isAssessmentPending || isPlaced) return false;
+        } else if (candidateReadinessFilter === "Early Onboarding") {
+          const isEarly = readinessStatus === "ENROLLED" || s.status === "invited" || s.status === "pending_invite" || s.status === "uploaded" || comp < 25;
+          if (!isEarly || isPlaced) return false;
+        }
+      }
+
       return true;
     });
   }, [
@@ -719,6 +968,8 @@ export default function AcademyPortal() {
     candidateTypeFilter,
     candidateStageFilter,
     candidateScoreFilter,
+    candidateCertFilter,
+    candidateReadinessFilter,
   ]);
 
   if (loading) {
@@ -791,24 +1042,49 @@ export default function AcademyPortal() {
         <aside style={{ background: "#06152A", color: "#94A3B8", padding: "18px 12px", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "0 8px 6px", textTransform: "uppercase" }}>OPERATIONS</div>
-            <SidebarItem id="home" label="1. Home" icon="fa-house" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="candidates" label="2. Candidates" icon="fa-users" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={students.length > 0 ? students.length : undefined} />
-            <SidebarItem id="upload" label="3. Upload Candidates" icon="fa-cloud-arrow-up" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="invites" label="4. Invitations" icon="fa-paper-plane" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="approvals" label="6. Awaiting My Approval" icon="fa-circle-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" />
+            <SidebarItem
+              id="kyc"
+              label="KYC Verification"
+              icon="fa-shield-halved"
+              activeMod={activeMod}
+              setActiveMod={handleNavigateMod}
+              badge={
+                dashData?.academy?.kycStatus === "verified"
+                  ? "Verified"
+                  : dashData?.academy?.kycStatus === "under_review"
+                  ? "In Review"
+                  : dashData?.academy?.kycStatus === "rejected"
+                  ? "Action Req"
+                  : "Pending"
+              }
+              badgeColor={
+                dashData?.academy?.kycStatus === "verified"
+                  ? "#16A34A"
+                  : dashData?.academy?.kycStatus === "under_review"
+                  ? "#2563EB"
+                  : dashData?.academy?.kycStatus === "rejected"
+                  ? "#DC2626"
+                  : "#D97706"
+              }
+            />
+            <SidebarItem id="home" label="1. Home" icon="fa-house" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="candidates" label="2. Candidates" icon="fa-users" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={students.length > 0 ? students.length : undefined} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="upload" label="3. Upload Candidates" icon="fa-cloud-arrow-up" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="invites" label="4. Invitations" icon="fa-paper-plane" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="approvals" label="6. Awaiting My Approval" icon="fa-circle-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>TALENT & MATCHING</div>
-            <SidebarItem id="scores" label="7. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="profile_live" label="8. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" />
-            <SidebarItem id="company_activity" label="9. Company Activity" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" />
+            <SidebarItem id="scores" label="7. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="profile_live" label="8. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="company_activity" label="9. Company Activity" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>INSIGHTS & ADMIN</div>
-            <SidebarItem id="analytics" label="12. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} />
-            <SidebarItem id="notifications" label="13. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" />
-            <SidebarItem id="settings" label="14. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} />
+            <SidebarItem id="analytics" label="12. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="notifications" label="13. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="settings" label="14. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
           </div>
 
           <div onClick={() => { localStorage.removeItem("talentera_academy_token"); navigate("/academy/login"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, color: "rgba(255,255,255,0.5)", cursor: "pointer", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 16 }}>
@@ -818,6 +1094,222 @@ export default function AcademyPortal() {
 
         {/* ====== CONTENT AREA ====== */}
         <main style={{ padding: 24, overflowX: "hidden" }}>
+          {/* ========================================================= */}
+          {/* TOP WARNING TILE FOR KYC VERIFICATION */}
+          {/* ========================================================= */}
+          {dashData?.academy?.kycStatus !== "verified" && (
+            <div
+              style={{
+                background:
+                  dashData?.academy?.kycStatus === "rejected"
+                    ? "linear-gradient(135deg, #FEF2F2 0%, #FFF5F5 100%)"
+                    : dashData?.academy?.kycStatus === "under_review"
+                    ? "linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%)"
+                    : "linear-gradient(135deg, #FFFBEB 0%, #FEF9C3 100%)",
+                border:
+                  dashData?.academy?.kycStatus === "rejected"
+                    ? "1.5px solid #FCA5A5"
+                    : dashData?.academy?.kycStatus === "under_review"
+                    ? "1.5px solid #BFDBFE"
+                    : "1.5px solid #FCD34D",
+                borderRadius: 14,
+                padding: "16px 20px",
+                marginBottom: 20,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 14,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 10,
+                    background:
+                      dashData?.academy?.kycStatus === "rejected"
+                        ? "#FEE2E2"
+                        : dashData?.academy?.kycStatus === "under_review"
+                        ? "#DBEAFE"
+                        : "#FEF3C7",
+                    color:
+                      dashData?.academy?.kycStatus === "rejected"
+                        ? "#DC2626"
+                        : dashData?.academy?.kycStatus === "under_review"
+                        ? "#2563EB"
+                        : "#D97706",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 20,
+                    flexShrink: 0,
+                  }}
+                >
+                  {dashData?.academy?.kycStatus === "rejected" ? (
+                    <AlertTriangle size={22} />
+                  ) : dashData?.academy?.kycStatus === "under_review" ? (
+                    <Clock size={22} />
+                  ) : (
+                    <ShieldAlert size={22} />
+                  )}
+                </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <h4
+                      style={{
+                        margin: 0,
+                        fontSize: 14.5,
+                        fontWeight: 800,
+                        color:
+                          dashData?.academy?.kycStatus === "rejected"
+                            ? "#991B1B"
+                            : dashData?.academy?.kycStatus === "under_review"
+                            ? "#1E40AF"
+                            : "#92400E",
+                      }}
+                    >
+                      {dashData?.academy?.kycStatus === "rejected"
+                        ? "KYC Revision Required — Action Needed to Add Students"
+                        : dashData?.academy?.kycStatus === "under_review"
+                        ? "Institutional KYC Under Review — Verification In Progress"
+                        : "KYC Verification Required — Verify Institutional KYC to Add Students"}
+                    </h4>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        padding: "2px 8px",
+                        borderRadius: 6,
+                        textTransform: "uppercase",
+                        background:
+                          dashData?.academy?.kycStatus === "rejected"
+                            ? "#FEE2E2"
+                            : dashData?.academy?.kycStatus === "under_review"
+                            ? "#DBEAFE"
+                            : "#FEF3C7",
+                        color:
+                          dashData?.academy?.kycStatus === "rejected"
+                            ? "#B91C1C"
+                            : dashData?.academy?.kycStatus === "under_review"
+                            ? "#1E40AF"
+                            : "#B45309",
+                      }}
+                    >
+                      Status: {dashData?.academy?.kycStatus === "under_review" ? "Under Review" : dashData?.academy?.kycStatus === "rejected" ? "Revision Required" : "Pending Verification"}
+                    </span>
+                  </div>
+                  <p
+                    style={{
+                      margin: "4px 0 0",
+                      fontSize: 12.5,
+                      color:
+                        dashData?.academy?.kycStatus === "rejected"
+                          ? "#7F1D1D"
+                          : dashData?.academy?.kycStatus === "under_review"
+                          ? "#1E3A8A"
+                          : "#78350F",
+                    }}
+                  >
+                    {dashData?.academy?.kycStatus === "rejected"
+                      ? `Your KYC submission requires revision: "${dashData?.academy?.kycRejectionReason || "Please verify PAN/GSTIN details"}". Update your KYC details to add students and deploy candidates.`
+                      : dashData?.academy?.kycStatus === "under_review"
+                      ? "Your institutional KYC documents have been submitted to Staff Compliance for audit. Review turnaround is typically 24-48 business hours. Adding and deploying students will be unlocked once approved."
+                      : "You must complete and verify your institutional KYC before adding students and uploading candidate batches to the Talentera hiring network. Complete verification now to activate student onboarding."}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => handleNavigateMod("kyc")}
+                  style={{
+                    background:
+                      dashData?.academy?.kycStatus === "rejected"
+                        ? "#DC2626"
+                        : dashData?.academy?.kycStatus === "under_review"
+                        ? "#2563EB"
+                        : "#0A1F3D",
+                    color: "#fff",
+                    border: "none",
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.12)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {dashData?.academy?.kycStatus === "rejected" ? (
+                    <>Update KYC Form →</>
+                  ) : dashData?.academy?.kycStatus === "under_review" ? (
+                    <>View KYC Status →</>
+                  ) : (
+                    <>Complete KYC Verification →</>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ========================================================= */}
+          {/* KYC GATE: every module below is muted/locked until Talentera
+              Staff approve the academy's Institutional KYC. The KYC tab
+              itself is always reachable so the academy can submit/track it. */}
+          {/* ========================================================= */}
+          {dashData?.academy?.kycStatus !== "verified" && activeMod !== "kyc" ? (
+            <div
+              style={{
+                background: "#FFFFFF",
+                border: "1px solid #E2E8F0",
+                borderRadius: 16,
+                padding: "56px 32px",
+                textAlign: "center",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 14,
+              }}
+            >
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, color: "#B45309" }}>
+                <i className="fa-solid fa-lock"></i>
+              </div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#06152A" }}>This section is locked</h2>
+              <p style={{ margin: 0, maxWidth: 440, fontSize: 13, color: "#64748B", lineHeight: 1.6 }}>
+                {dashData?.academy?.kycStatus === "under_review"
+                  ? "Your Institutional KYC is with Talentera Staff for audit. All other sections unlock automatically the moment it's approved."
+                  : dashData?.academy?.kycStatus === "rejected"
+                  ? "Your Institutional KYC needs revision before the rest of the portal unlocks. Please update and resubmit it."
+                  : "Complete your Institutional KYC Verification first. Every other section unlocks automatically once Talentera Staff approve it."}
+              </p>
+              <button
+                type="button"
+                onClick={() => handleNavigateMod("kyc")}
+                style={{ background: "#06152A", color: "#FFFFFF", border: "none", padding: "10px 22px", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer", marginTop: 6 }}
+              >
+                {dashData?.academy?.kycStatus === "rejected" ? "Update KYC Form →" : dashData?.academy?.kycStatus === "under_review" ? "View KYC Status →" : "Go to KYC Verification →"}
+              </button>
+            </div>
+          ) : (
+            <>
+          {/* ========================================================= */}
+          {/* KYC VERIFICATION MODULE */}
+          {/* ========================================================= */}
+          {activeMod === "kyc" && (
+            <AcademyKycForm
+              academy={dashData?.academy}
+              onKycUpdated={fetchDashboardData}
+              showToast={showToast}
+            />
+          )}
+
           {/* ========================================================= */}
           {/* 1. HOME DASHBOARD */}
           {/* ========================================================= */}
@@ -860,62 +1352,25 @@ export default function AcademyPortal() {
                 <MetricCard title="TOTAL CANDIDATES" val={kpis.totalStudents ?? students.length} sub={`${students.filter((s) => s.status === "placed").length} placed · ${liveProfilesData.length} live`} icon="fa-user-group" onClick={() => handleNavigateMod("candidates")} />
                 <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="8-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
                 <MetricCard title="AWAITING APPROVAL" val={pendingApprovalsCount} sub="Stage 2 & 5 actions" icon="fa-circle-check" color="#CA8A04" onClick={() => handleNavigateMod("approvals")} />
-                <MetricCard title="STUCK STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
+                <MetricCard title="INACTIVE STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 24 }}>
                 <MetricCard title="PROFILES LIVE" val={liveProfilesData.length} sub="Visible to employers" icon="fa-shield-halved" color="#16A34A" onClick={() => handleNavigateMod("profile_live")} />
                 <MetricCard title="ACTIVE INTERVIEWS" val={kpis.interviewsActive || 0} sub="In hiring pipeline" icon="fa-diagram-project" color="#2563EB" onClick={() => handleNavigateMod("interviews")} />
-                <MetricCard title="PLACEMENTS" val={placements.length} sub="Verified retention" icon="fa-briefcase" color="#15803D" onClick={() => handleNavigateMod("placements")} />
+                <MetricCard
+                  title="PLACEMENTS"
+                  val={placements.length}
+                  sub={
+                    placementConfirmations.filter((c) => c.status === "pending").length > 0
+                      ? `${placementConfirmations.filter((c) => c.status === "pending").length} awaiting your confirmation`
+                      : "Verified retention"
+                  }
+                  icon="fa-briefcase"
+                  color="#15803D"
+                  onClick={() => handleNavigateMod("placements")}
+                />
               </div>
-
-              {/* STUCK STUDENTS ALERT PANEL */}
-              {stuckStudents.length > 0 && (
-                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 14, padding: "16px 20px", marginBottom: 24 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                      <span style={{ width: 28, height: 28, borderRadius: 8, background: "#FEE2E2", color: "#DC2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 900 }}>
-                        ⚠️
-                      </span>
-                      <div>
-                        <strong style={{ fontSize: 14, color: "#991B1B" }}>
-                          Students Need Attention ({stuckStudents.length} students haven't progressed in &gt;5 days)
-                        </strong>
-                        <div style={{ fontSize: 12, color: "#7F1D1D" }}>Candidates are stalled at their verification stage. Unblock them with a 1-click WhatsApp, SMS & Email reminder.</div>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleBulkNudge("all")}
-                      style={{ background: "#15803D", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
-                    >
-                      <Send style={{ width: 14, height: 14 }} />
-                      Send Bulk Reminder (WhatsApp, SMS & Email) ({stuckStudents.length})
-                    </button>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 10 }}>
-                    {stuckStudents.slice(0, 4).map((s) => (
-                      <div key={s.id} style={{ background: "#FFFFFF", borderRadius: 10, padding: "10px 14px", border: "1px solid #FECACA", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div>
-                          <strong style={{ fontSize: 13, color: "#0F172A", display: "block" }}>{s.name}</strong>
-                          <span style={{ fontSize: 11, color: "#991B1B", fontWeight: 700 }}>
-                            Stage {s.blockedStage} · Inactive for {s.daysIdle} days
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => handleSingleNudge(s.id, s.name)}
-                          style={{ background: "#15803D", color: "#fff", border: "none", padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-                          title="Dispatches reminder via WhatsApp, SMS & Email"
-                        >
-                          <Send style={{ width: 11, height: 11 }} />
-                          Remind
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Main Split: Active Batches + Live Feed */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
@@ -1029,9 +1484,9 @@ export default function AcademyPortal() {
               </div>
 
               {/* Advanced Filters Panel */}
-              <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: "12px 16px", display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr 1fr 1fr 1fr", gap: 10 }}>
+              <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "center" }}>
                 {/* Search */}
-                <div style={{ position: "relative" }}>
+                <div style={{ position: "relative", minWidth: 160 }}>
                   <Search style={{ width: 14, height: 14, position: "absolute", left: 10, top: 10, color: "#94A3B8" }} />
                   <input
                     type="text"
@@ -1043,7 +1498,7 @@ export default function AcademyPortal() {
                 </div>
 
                 {/* Batch Filter */}
-                <select value={candidateBatchFilter} onChange={(e) => setCandidateBatchFilter(e.target.value)} style={{ padding: "7px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }}>
+                <select value={candidateBatchFilter} onChange={(e) => setCandidateBatchFilter(e.target.value)} style={{ padding: "7px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1", background: candidateBatchFilter !== "All" ? "#FEF3C7" : "#FFFFFF" }}>
                   <option value="All">All Batches</option>
                   {batchOptions.map((b) => (
                     <option key={b} value={b}>{b}</option>
@@ -1051,7 +1506,7 @@ export default function AcademyPortal() {
                 </select>
 
                 {/* Specialty Filter */}
-                <select value={candidateSpecialtyFilter} onChange={(e) => setCandidateSpecialtyFilter(e.target.value)} style={{ padding: "7px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }}>
+                <select value={candidateSpecialtyFilter} onChange={(e) => setCandidateSpecialtyFilter(e.target.value)} style={{ padding: "7px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1", background: candidateSpecialtyFilter !== "All" ? "#FEF3C7" : "#FFFFFF" }}>
                   <option value="All">All Specializations</option>
                   {specialtyOptions.map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -1059,10 +1514,73 @@ export default function AcademyPortal() {
                 </select>
 
                 {/* Type Filter */}
-                <select value={candidateTypeFilter} onChange={(e) => setCandidateTypeFilter(e.target.value)} style={{ padding: "7px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }}>
+                <select
+                  aria-label="Candidate Type Filter"
+                  value={candidateTypeFilter}
+                  onChange={(e) => setCandidateTypeFilter(e.target.value)}
+                  style={{
+                    padding: "7px 10px",
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: candidateTypeFilter !== "All" ? "1px solid #E5A82E" : "1px solid #CBD5E1",
+                    background: candidateTypeFilter !== "All" ? "#FFFBEB" : "#FFFFFF",
+                    fontWeight: candidateTypeFilter !== "All" ? 700 : 500,
+                    color: candidateTypeFilter !== "All" ? "#B45309" : "#0F172A",
+                  }}
+                >
                   <option value="All">All Types</option>
                   <option value="Fresher">Fresher</option>
                   <option value="Experienced">Experienced</option>
+                  <option value="Certified">Certified</option>
+                  <option value="Non-Certified">Non-Certified</option>
+                </select>
+
+                {/* Certification Filter */}
+                <select
+                  aria-label="Certification Filter"
+                  value={candidateCertFilter}
+                  onChange={(e) => setCandidateCertFilter(e.target.value)}
+                  style={{
+                    padding: "7px 10px",
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: candidateCertFilter !== "All" ? "1px solid #E5A82E" : "1px solid #CBD5E1",
+                    background: candidateCertFilter !== "All" ? "#FFFBEB" : "#FFFFFF",
+                    fontWeight: candidateCertFilter !== "All" ? 700 : 500,
+                    color: candidateCertFilter !== "All" ? "#B45309" : "#0F172A",
+                  }}
+                >
+                  <option value="All">Certification: All</option>
+                  <option value="Certified">Certified (AAPC / AHIMA)</option>
+                  <option value="Non-Certified">Non-Certified / Pursuing</option>
+                  <option value="CPC">CPC / CPC-A</option>
+                  <option value="CCS">CCS / CCS-P</option>
+                  <option value="CRC">CRC (Risk Adjustment)</option>
+                  <option value="CIC">CIC / COC</option>
+                  <option value="CPB">CPB (Billing)</option>
+                </select>
+
+                {/* Job Readiness Filter */}
+                <select
+                  aria-label="Job Readiness Filter"
+                  value={candidateReadinessFilter}
+                  onChange={(e) => setCandidateReadinessFilter(e.target.value)}
+                  style={{
+                    padding: "7px 10px",
+                    fontSize: 12,
+                    borderRadius: 6,
+                    border: candidateReadinessFilter !== "All" ? "1px solid #3B82F6" : "1px solid #CBD5E1",
+                    background: candidateReadinessFilter !== "All" ? "#EFF6FF" : "#FFFFFF",
+                    fontWeight: candidateReadinessFilter !== "All" ? 700 : 500,
+                    color: candidateReadinessFilter !== "All" ? "#1D4ED8" : "#0F172A",
+                  }}
+                >
+                  <option value="All">Job Readiness: All</option>
+                  <option value="Interview Ready">Interview Ready (Gold / 80%+)</option>
+                  <option value="In Progress">In Training / In Progress</option>
+                  <option value="Assessment Pending">Assessment Pending (Stage 4-5)</option>
+                  <option value="Early Onboarding">Early Onboarding (&lt; 25%)</option>
+                  <option value="Placed">Placed &amp; Hired</option>
                 </select>
 
                 {/* Stage Filter */}
@@ -1081,6 +1599,36 @@ export default function AcademyPortal() {
                   <option value="70-79%">70-79% (Mid)</option>
                   <option value="< 70%">&lt; 70%</option>
                 </select>
+
+                {/* Clear Filters Button if any filter active */}
+                {(candidateSearch || candidateBatchFilter !== "All" || candidateSpecialtyFilter !== "All" || candidateTypeFilter !== "All" || candidateStageFilter !== "All" || candidateScoreFilter !== "All" || candidateCertFilter !== "All" || candidateReadinessFilter !== "All") && (
+                  <button
+                    onClick={() => {
+                      setCandidateSearch("");
+                      setCandidateBatchFilter("All");
+                      setCandidateSpecialtyFilter("All");
+                      setCandidateTypeFilter("All");
+                      setCandidateStageFilter("All");
+                      setCandidateScoreFilter("All");
+                      setCandidateCertFilter("All");
+                      setCandidateReadinessFilter("All");
+                    }}
+                    style={{
+                      padding: "7px 10px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      border: "1px dashed #CBD5E1",
+                      background: "#F8FAFC",
+                      color: "#64748B",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                    title="Reset all filters"
+                  >
+                    Reset Filters ✕
+                  </button>
+                )}
               </div>
 
               {/* Candidate Data Table */}
@@ -1126,6 +1674,13 @@ export default function AcademyPortal() {
                                   <div style={{ fontSize: 10, color: "#64748B" }}>
                                     TAL-{candIdShort} · {c.email}
                                   </div>
+                                  {c.cert && c.cert !== "—" && (
+                                    <div style={{ marginTop: 2 }}>
+                                      <span style={{ background: "#FEF3C7", color: "#92400E", padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
+                                        ★ {c.cert}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1244,16 +1799,22 @@ export default function AcademyPortal() {
                                       <button
                                         onClick={() => {
                                           setActionDropdownCandId(null);
+                                          const editExperience = /exp/i.test(String(c.type || c.experience || "")) ? "Experienced" : "Fresher";
+                                          const editDomainRaw = c.specialty || c.domain || "Medical Coding";
                                           setEditCandidateModal({
                                             id: c.id || c._id,
                                             name: c.name || "",
                                             email: c.email || "",
                                             mobile: (c.mobile || c.phone || "").replace(/\D/g, "").slice(-10),
-                                            batchCode: c.month || c.batch || batches[0]?.code || "JAN-HCC-01",
-                                            course: c.course || c.specialty || courses[0]?.title || "HCC Coding Specialization",
-                                            experience: c.type || c.experience || "Fresher",
+                                            batchCode: c.month || c.batch || "",
+                                            course: c.course || courses[0]?.title || "HCC Coding Specialization",
+                                            experience: editExperience,
+                                            experienceRange: c.experienceRange || "1 to 3",
+                                            expectedSalaryLpa: c.expectedSalaryLpa || "",
                                             city: c.city || "Coimbatore",
-                                            specialty: c.specialty || "HCC",
+                                            specialty: DOMAIN_OPTIONS.includes(editDomainRaw) ? editDomainRaw : "Other",
+                                            specialtyOther: DOMAIN_OPTIONS.includes(editDomainRaw) ? "" : editDomainRaw,
+                                            aadhaarLast4: "",
                                           });
                                         }}
                                         style={{
@@ -1658,15 +2219,28 @@ export default function AcademyPortal() {
                       cursor: "pointer",
                     }}
                   >
-                    Batch Heatmap
+                    Overall Batch Heatmap
                   </button>
                 </div>
               </div>
 
               {interviewSubTab === "kanban" ? (
-                <InterviewsKanban token={token} />
+                <InterviewsKanban
+                  token={token}
+                  onSelectStudent={(cand) => {
+                    const student = typeof cand === "object" ? cand : { _id: cand };
+                    setSelectedStudentForDetail(student);
+                  }}
+                />
               ) : (
-                <BatchInterviewHeatmap token={token} batches={batches} />
+                <BatchInterviewHeatmap
+                  token={token}
+                  batches={batches}
+                  onSelectStudent={(cand) => {
+                    const student = typeof cand === "object" ? cand : { _id: cand };
+                    setSelectedStudentForDetail(student);
+                  }}
+                />
               )}
             </div>
           )}
@@ -1684,7 +2258,7 @@ export default function AcademyPortal() {
                   </div>
                 </div>
 
-                <button className="btn btn-navy" style={{ fontSize: 12 }} onClick={() => setShowAddPlacementModal(true)}>
+                <button className="btn btn-navy" style={{ fontSize: 12 }} onClick={() => { resetPlacementForm(); setShowAddPlacementModal(true); }}>
                   <Plus style={{ width: 13, height: 13, marginRight: 4 }} />
                   Confirm Placement
                 </button>
@@ -1716,6 +2290,53 @@ export default function AcademyPortal() {
                 />
               </div>
 
+              {/* Pending Placement Confirmations - a real company hire has
+                  come in (see the company's own "Mark as Hired" action) but
+                  it only counts as an official, verified placement once the
+                  academy reviews and confirms it here. Until then it will
+                  NOT appear in the table below or in any placement count -
+                  that is what needs an academy action, not a bug. */}
+              {placementConfirmations.filter((c) => c.status === "pending").length > 0 && (
+                <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#B45309" }} />
+                    <h4 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#92400E" }}>
+                      Awaiting Your Confirmation ({placementConfirmations.filter((c) => c.status === "pending").length})
+                    </h4>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#92400E", marginBottom: 12 }}>
+                    A company has marked these candidates as hired. Review and confirm each one to add it to your verified Placement Records below - nothing is counted until you confirm it.
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {placementConfirmations.filter((c) => c.status === "pending").map((c) => (
+                      <div key={c._id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#FFFFFF", border: "1px solid #FDE68A", borderRadius: 8, padding: "10px 12px" }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>{c.candidateName}</div>
+                          <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                            {c.companyName} · {c.role || "Role not specified"} · {c.ctc || "CTC not specified"}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            onClick={() => setShowDisputeModal({ open: true, placement: { _id: c._id, studentName: c.candidateName, company: c.companyName }, reason: "" })}
+                            style={{ background: "#FEF2F2", color: "#991B1B", border: "1px solid #FECACA", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            Dispute
+                          </button>
+                          <button
+                            onClick={() => handleConfirmPendingPlacement(c._id)}
+                            disabled={confirmingPlacementId === c._id}
+                            style={{ background: "#15803D", color: "#fff", border: "none", padding: "6px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: confirmingPlacementId === c._id ? "default" : "pointer", opacity: confirmingPlacementId === c._id ? 0.6 : 1 }}
+                          >
+                            {confirmingPlacementId === c._id ? "Confirming…" : "Confirm Placement"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Placement Records Table */}
               <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 16 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}>
@@ -1725,6 +2346,7 @@ export default function AcademyPortal() {
                       <th style={{ padding: "10px 12px" }}>COMPANY</th>
                       <th style={{ padding: "10px 12px" }}>ROLE</th>
                       <th style={{ padding: "10px 12px" }}>CTC</th>
+                      <th style={{ padding: "10px 12px" }}>SOURCE</th>
                       <th style={{ padding: "10px 12px" }}>STATUS</th>
                       <th style={{ padding: "10px 12px", textAlign: "right" }}>ACTIONS</th>
                     </tr>
@@ -1732,7 +2354,7 @@ export default function AcademyPortal() {
                   <tbody>
                     {placements.length === 0 ? (
                       <tr>
-                        <td colSpan={6} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
+                        <td colSpan={7} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
                           No placement records added yet. Click "+ Confirm Placement" to log one!
                         </td>
                       </tr>
@@ -1742,13 +2364,26 @@ export default function AcademyPortal() {
                           <td style={{ padding: "10px 12px", fontWeight: 700, color: "#0F172A" }}>
                             {p.studentName || p.candidateName}
                           </td>
-                          <td style={{ padding: "10px 12px" }}>{p.company || p.companyName}</td>
-                          <td style={{ padding: "10px 12px" }}>{p.role || "Medical Coder"}</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 800, color: "#15803D" }}>{p.ctc}</td>
+                          <td style={{ padding: "10px 12px" }}>{p.company || p.companyName || "—"}</td>
+                          <td style={{ padding: "10px 12px" }}>{p.role || "—"}</td>
+                          <td style={{ padding: "10px 12px", fontWeight: 800, color: "#15803D" }}>{p.ctc || "—"}</td>
+                          <td style={{ padding: "10px 12px", fontSize: 11, color: "#334155" }}>{p.placementSource || "—"}</td>
                           <td style={{ padding: "10px 12px" }}>
-                            <span style={{ background: "#DCFCE7", color: "#15803D", padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
-                              Verified ✓
-                            </span>
+                            {(() => {
+                              const status = p.joiningStatus || "";
+                              const statusStyles = {
+                                "Joined": { bg: "#DCFCE7", color: "#15803D", label: "Joined ✓" },
+                                "Offer Accepted": { bg: "#DBEAFE", color: "#1D4ED8", label: "Offer Accepted" },
+                                "Yet to Join": { bg: "#FEF3C7", color: "#B45309", label: "Yet to Join" },
+                                "Declined": { bg: "#FEE2E2", color: "#B91C1C", label: "Declined" },
+                              };
+                              const st = statusStyles[status] || { bg: "#F1F5F9", color: "#64748B", label: status || "—" };
+                              return (
+                                <span style={{ background: st.bg, color: st.color, padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                                  {st.label}
+                                </span>
+                              );
+                            })()}
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -1926,7 +2561,10 @@ export default function AcademyPortal() {
               {/* Tab 1: Account Settings */}
               {settingsSubTab === "Account" && (
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 24, maxWidth: 640 }}>
-                  <h4 style={{ margin: "0 0 16px", fontSize: 14, fontWeight: 800, color: "#06152A" }}>Academy Profile</h4>
+                  <h4 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800, color: "#06152A" }}>Academy Profile</h4>
+                  <div style={{ fontSize: 11, color: "#64748B", marginBottom: 16 }}>
+                    Synced with your Institutional KYC submission. Editing here also updates your KYC record.
+                  </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div>
                       <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>ACADEMY NAME</label>
@@ -2006,8 +2644,25 @@ export default function AcademyPortal() {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {courses.map((c, i) => (
-                        <div key={i} style={{ border: "1px solid #F1F5F9", borderRadius: 8, padding: "8px 12px", background: "#F8FAFC" }}>
-                          <strong>{c.title}</strong> · {c.duration} ({c.totalHrs} hrs)
+                        <div
+                          key={c._id || i}
+                          onClick={() =>
+                            setEditCourseModal({
+                              _id: c._id,
+                              title: c.title || "",
+                              category: c.category || "Medical Coding",
+                              duration: c.duration || "3 MONTHS",
+                              totalHrs: c.totalHrs || 120,
+                              syllabus: Array.isArray(c.syllabus) ? c.syllabus.join(", ") : c.syllabus || "",
+                            })
+                          }
+                          style={{ border: "1px solid #F1F5F9", borderRadius: 8, padding: "8px 12px", background: "#F8FAFC", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                          title="Click to edit this course"
+                        >
+                          <span>
+                            <strong>{c.title}</strong> · {c.duration} ({c.totalHrs} hrs)
+                          </span>
+                          <i className="fa-solid fa-pen" style={{ fontSize: 11, color: "#94A3B8" }}></i>
                         </div>
                       ))}
                     </div>
@@ -2035,6 +2690,8 @@ export default function AcademyPortal() {
                 </div>
               )}
             </div>
+          )}
+            </>
           )}
         </main>
       </div>
@@ -2075,14 +2732,14 @@ export default function AcademyPortal() {
             <form onSubmit={handleCreateBatch} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>BATCH CODE</label>
-                <input type="text" placeholder="e.g. APR-HCC-02" value={newBatchCode} onChange={(e) => setNewBatchCode(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
+                <input type="text" placeholder="e.g. Batch 1(Jan 2026)" value={newBatchCode} onChange={(e) => setNewBatchCode(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>COURSE SPECIALTY</label>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>COURSE</label>
                 <select value={newBatchCourse} onChange={(e) => setNewBatchCourse(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}>
-                  <option value="HCC Coding Specialization">HCC Coding Specialization</option>
-                  <option value="Medical Coding Foundation">Medical Coding Foundation</option>
-                  <option value="Inpatient DRG Specialization">Inpatient DRG Specialization</option>
+                  <option value="Medical Coding">Medical Coding</option>
+                  <option value="Medical Billing">Medical Billing</option>
+                  <option value="AR Calling">AR Calling</option>
                 </select>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
@@ -2121,26 +2778,207 @@ export default function AcademyPortal() {
         </div>
       )}
 
+      {/* 5b. Edit Course Modal */}
+      {editCourseModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 20 }} onClick={() => setEditCourseModal(null)}>
+          <div style={{ background: "#FFFFFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <h4 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 800, color: "#06152A" }}>Edit Curriculum Course</h4>
+            <form onSubmit={handleUpdateCourse} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>COURSE TITLE</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Advanced Inpatient Coding"
+                  value={editCourseModal.title}
+                  onChange={(e) => setEditCourseModal((prev) => ({ ...prev, title: e.target.value }))}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>CATEGORY</label>
+                <input
+                  type="text"
+                  placeholder="e.g. HCC / Risk Adjustment"
+                  value={editCourseModal.category}
+                  onChange={(e) => setEditCourseModal((prev) => ({ ...prev, category: e.target.value }))}
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>DURATION</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 3 MONTHS"
+                    value={editCourseModal.duration}
+                    onChange={(e) => setEditCourseModal((prev) => ({ ...prev, duration: e.target.value }))}
+                    style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>TOTAL HOURS</label>
+                  <input
+                    type="number"
+                    placeholder="120"
+                    value={editCourseModal.totalHrs}
+                    onChange={(e) => setEditCourseModal((prev) => ({ ...prev, totalHrs: e.target.value }))}
+                    style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>SYLLABUS (COMMA-SEPARATED)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. ICD-10-CM, CPT Modifiers, Capstone"
+                  value={editCourseModal.syllabus}
+                  onChange={(e) => setEditCourseModal((prev) => ({ ...prev, syllabus: e.target.value }))}
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCourse(editCourseModal._id, editCourseModal.title)}
+                  disabled={editCourseSaving}
+                  style={{ background: "#FEF2F2", color: "#B91C1C", border: "1px solid #FECACA", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                >
+                  <i className="fa-solid fa-trash" style={{ marginRight: 6 }}></i> Remove Course
+                </button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button type="button" onClick={() => setEditCourseModal(null)} style={{ background: "#F1F5F9", color: "#475569", border: "none", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={editCourseSaving} style={{ background: "#06152A", color: "#FFFFFF", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                    {editCourseSaving ? "Saving…" : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 6. Add Placement Modal */}
       {showAddPlacementModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 20 }} onClick={() => setShowAddPlacementModal(false)}>
-          <div style={{ background: "#FFFFFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
-            <h4 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 800, color: "#06152A" }}>Confirm Student Placement</h4>
+          <div style={{ background: "#FFFFFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 460, maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <h4 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "#06152A" }}>Confirm Student Placement</h4>
+            <div style={{ fontSize: 11, color: "#64748B", marginBottom: 14 }}>
+              Only what you enter or select below gets saved - nothing is auto-filled unless clearly labeled.
+            </div>
             <form onSubmit={handleAddPlacement} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>STUDENT NAME</label>
-                <input type="text" placeholder="Candidate Name" value={newStudentName} onChange={(e) => setNewStudentName(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>CANDIDATE NAME</label>
+                <select
+                  value={newPlacementCandidateId}
+                  onChange={(e) => handlePlacementCandidateSelect(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
+                >
+                  <option value="">Select a candidate…</option>
+                  {students.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                {placementLookupLoading && (
+                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>Checking for an existing hire record…</div>
+                )}
               </div>
+
               <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>HIRING COMPANY</label>
-                <input type="text" placeholder="e.g. Optum" value={newCompany} onChange={(e) => setNewCompany(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>
+                  HIRING COMPANY
+                  {placementAutoFilled.company && (
+                    <span style={{ background: "#EFF6FF", color: "#1D4ED8", fontSize: 9.5, fontWeight: 800, padding: "1px 6px", borderRadius: 999 }}>
+                      Auto-filled from profile
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Optum"
+                  value={newCompany}
+                  onChange={(e) => { setNewCompany(e.target.value); setPlacementAutoFilled((prev) => ({ ...prev, company: false })); }}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
               </div>
+
               <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>CTC OFFERED</label>
-                <input type="text" placeholder="e.g. ₹5.5 LPA" value={newCtc} onChange={(e) => setNewCtc(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>
+                  ROLE
+                  {placementAutoFilled.role && (
+                    <span style={{ background: "#EFF6FF", color: "#1D4ED8", fontSize: 9.5, fontWeight: 800, padding: "1px 6px", borderRadius: 999 }}>
+                      Auto-filled from profile
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sr Medical Coder"
+                  value={newStudentRole}
+                  onChange={(e) => { setNewStudentRole(e.target.value); setPlacementAutoFilled((prev) => ({ ...prev, role: false })); }}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
               </div>
+
+              <div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>
+                  CTC OFFERED
+                  {placementAutoFilled.ctc && (
+                    <span style={{ background: "#EFF6FF", color: "#1D4ED8", fontSize: 9.5, fontWeight: 800, padding: "1px 6px", borderRadius: 999 }}>
+                      Auto-filled from profile
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. ₹5.5 LPA"
+                  value={newCtc}
+                  onChange={(e) => { setNewCtc(e.target.value); setPlacementAutoFilled((prev) => ({ ...prev, ctc: false })); }}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>PLACEMENT SOURCE</label>
+                <select
+                  value={newPlacementSource}
+                  onChange={(e) => setNewPlacementSource(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
+                >
+                  <option value="">Select how this placement came about…</option>
+                  <option value="Talentera Platform">Talentera Platform</option>
+                  <option value="Campus Placement Drive">Campus Placement Drive</option>
+                  <option value="Academy Referral">Academy Referral</option>
+                  <option value="Direct Company Outreach">Direct Company Outreach</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>JOINING STATUS</label>
+                <select
+                  value={newJoiningStatus}
+                  onChange={(e) => setNewJoiningStatus(e.target.value)}
+                  required
+                  style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
+                >
+                  <option value="">Select current status…</option>
+                  <option value="Offer Accepted">Offer Accepted</option>
+                  <option value="Joined">Joined</option>
+                  <option value="Yet to Join">Yet to Join</option>
+                  <option value="Declined">Declined</option>
+                </select>
+              </div>
+
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-                <button type="button" onClick={() => setShowAddPlacementModal(false)} style={{ background: "#F1F5F9", color: "#475569", border: "none", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
+                <button type="button" onClick={() => { setShowAddPlacementModal(false); resetPlacementForm(); }} style={{ background: "#F1F5F9", color: "#475569", border: "none", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
                   Cancel
                 </button>
                 <button type="submit" disabled={saving} style={{ background: "#15803D", color: "#FFFFFF", border: "none", padding: "8px 16px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>
@@ -2239,38 +3077,31 @@ export default function AcademyPortal() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>ASSIGNED BATCH</label>
-                  <select
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>ASSIGNED BATCH *</label>
+                  <input
+                    type="text"
                     value={editCandidateModal.batchCode}
                     onChange={(e) => setEditCandidateModal({ ...editCandidateModal, batchCode: e.target.value })}
+                    placeholder="ex: Batch 1(Jan 2026)"
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                  <select
+                    value=""
+                    onChange={(e) => { if (e.target.value) setEditCandidateModal({ ...editCandidateModal, batchCode: e.target.value }); }}
+                    title="Quick pick a correctly-formatted batch name"
+                    style={{ width: "100%", marginTop: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 12, color: "#64748B" }}
                   >
-                    {batches.map((b) => (
-                      <option key={b._id || b.code} value={b.code}>
-                        {b.code} {b.course ? `(${b.course})` : ""}
+                    <option value="">Quick pick a batch name...</option>
+                    {EDIT_BATCH_NAME_OPTIONS.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
                       </option>
                     ))}
-                    <option value="JAN-HCC-01">JAN-HCC-01</option>
-                    <option value="FEB-ED-02">FEB-ED-02</option>
                   </select>
                 </div>
 
                 <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE TYPE</label>
-                  <select
-                    value={editCandidateModal.experience}
-                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, experience: e.target.value })}
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
-                  >
-                    <option value="Fresher">Fresher</option>
-                    <option value="Experienced">Experienced (1+ yrs)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>COURSE / SPECIALTY</label>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>TRAINING COURSE</label>
                   <input
                     type="text"
                     value={editCandidateModal.course}
@@ -2278,7 +3109,100 @@ export default function AcademyPortal() {
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
                   />
                 </div>
+              </div>
 
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE LEVEL</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {[
+                      { value: "Fresher", label: "Fresher" },
+                      { value: "Experienced", label: "Experienced" },
+                    ].map((opt) => (
+                      <label
+                        key={opt.value}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          border: editCandidateModal.experience === opt.value ? "1.5px solid #06152A" : "1px solid #CBD5E1",
+                          background: editCandidateModal.experience === opt.value ? "#F1F5F9" : "#fff",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: "#06152A",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editCandidateModal.experience === opt.value}
+                          onChange={() => setEditCandidateModal({ ...editCandidateModal, experience: opt.value })}
+                          style={{ width: 14, height: 14, cursor: "pointer" }}
+                        />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>DOMAIN</label>
+                  <select
+                    value={editCandidateModal.specialty}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, specialty: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  >
+                    {DOMAIN_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                  {editCandidateModal.specialty === "Other" && (
+                    <input
+                      type="text"
+                      value={editCandidateModal.specialtyOther}
+                      onChange={(e) => setEditCandidateModal({ ...editCandidateModal, specialtyOther: e.target.value })}
+                      placeholder="Type the domain name"
+                      style={{ width: "100%", marginTop: 6, padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                    />
+                  )}
+                </div>
+              </div>
+
+              {editCandidateModal.experience === "Experienced" && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPERIENCE RANGE</label>
+                  <select
+                    value={editCandidateModal.experienceRange}
+                    onChange={(e) => setEditCandidateModal({ ...editCandidateModal, experienceRange: e.target.value })}
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  >
+                    <option value="1 to 3">Experienced (1 to 3)</option>
+                    <option value="3 to 6">Experienced (3 to 6)</option>
+                    <option value="6 to 10">Experienced (6 to 10)</option>
+                    <option value="10+">Experienced (10+)</option>
+                  </select>
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: editCandidateModal.experience === "Fresher" ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                {editCandidateModal.experience !== "Fresher" && (
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>EXPECTED CTC (LPA)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      min="2"
+                      max="30"
+                      value={editCandidateModal.expectedSalaryLpa}
+                      onChange={(e) => setEditCandidateModal({ ...editCandidateModal, expectedSalaryLpa: e.target.value })}
+                      style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                    />
+                  </div>
+                )}
                 <div>
                   <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>BRANCH / CITY</label>
                   <input
@@ -2287,6 +3211,22 @@ export default function AcademyPortal() {
                     onChange={(e) => setEditCandidateModal({ ...editCandidateModal, city: e.target.value })}
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
                   />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 4 }}>AADHAAR (LAST 4 DIGITS)</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={12}
+                  value={editCandidateModal.aadhaarLast4}
+                  onChange={(e) => setEditCandidateModal({ ...editCandidateModal, aadhaarLast4: e.target.value.replace(/[^\d]/g, "").slice(0, 12) })}
+                  placeholder="e.g. 1234"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
+                  Optional - only used to flag duplicate candidate entries. Leave blank to keep whatever is already on file.
                 </div>
               </div>
 
@@ -2315,11 +3255,12 @@ export default function AcademyPortal() {
 }
 
 // Subcomponent: Sidebar Nav Item
-function SidebarItem({ id, label, icon, activeMod, setActiveMod, badge, badgeColor = "#E5A82E" }) {
+function SidebarItem({ id, label, icon, activeMod, setActiveMod, badge, badgeColor = "#E5A82E", locked = false }) {
   const isActive = activeMod === id;
   return (
     <div
       onClick={() => setActiveMod(id)}
+      title={locked ? "Locked until Institutional KYC is verified by Talentera Staff" : undefined}
       style={{
         display: "flex",
         justifyContent: "space-between",
@@ -2329,30 +3270,35 @@ function SidebarItem({ id, label, icon, activeMod, setActiveMod, badge, badgeCol
         cursor: "pointer",
         fontSize: 12,
         fontWeight: isActive ? 800 : 600,
-        color: isActive ? "#FFFFFF" : "#94A3B8",
+        color: locked ? "rgba(148, 163, 184, 0.5)" : isActive ? "#FFFFFF" : "#94A3B8",
         background: isActive ? "rgba(229, 168, 46, 0.15)" : "transparent",
         borderLeft: isActive ? "3px solid #E5A82E" : "3px solid transparent",
         marginBottom: 2,
         transition: "all 0.15s ease",
+        opacity: locked ? 0.6 : 1,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <i className={`fa-solid ${icon}`} style={{ width: 14, color: isActive ? "#E5A82E" : "inherit" }}></i>
+        <i className={`fa-solid ${icon}`} style={{ width: 14, color: locked ? "inherit" : isActive ? "#E5A82E" : "inherit" }}></i>
         <span>{label}</span>
       </div>
-      {badge !== undefined && (
-        <span
-          style={{
-            background: badgeColor,
-            color: "#FFFFFF",
-            fontSize: 10,
-            fontWeight: 900,
-            padding: "1px 6px",
-            borderRadius: 999,
-          }}
-        >
-          {badge}
-        </span>
+      {locked ? (
+        <i className="fa-solid fa-lock" style={{ fontSize: 10, color: "rgba(148, 163, 184, 0.6)" }}></i>
+      ) : (
+        badge !== undefined && (
+          <span
+            style={{
+              background: badgeColor,
+              color: "#FFFFFF",
+              fontSize: 10,
+              fontWeight: 900,
+              padding: "1px 6px",
+              borderRadius: 999,
+            }}
+          >
+            {badge}
+          </span>
+        )
       )}
     </div>
   );

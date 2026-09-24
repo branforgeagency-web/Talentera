@@ -23,7 +23,7 @@ const VALID_STAGE_IDS = ["1a", "1b", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 const JD_REQUIRED_FIELDS = [
   "roletitle",
-  "specialty",
+  "specialties",
   "level",
   "compmin",
   "compmax",
@@ -70,6 +70,17 @@ async function resolveJobTitle(jobId, companyDoc) {
   }
   const job = await Job.findOne({ jobId }).select("fields.roletitle").lean();
   return job?.fields?.roletitle || "Medical Coder";
+}
+
+// Companies can now pick MULTIPLE specialties for a single requisition (Primary specialty is a
+// multi-select "specialties" array). `specialty` (singular) is kept as a derived, joined display
+// string so the many existing places that read it as plain text - job search/filter, job alerts,
+// tag generation, listings - never need to change.
+function syncSpecialtyString(data) {
+  if (data && Array.isArray(data.specialties)) {
+    data.specialty = data.specialties.filter(Boolean).join(" / ");
+  }
+  return data;
 }
 
 function isEmptyValue(v) {
@@ -227,6 +238,9 @@ router.put("/stage/:id", async (req, res) => {
 
   const key = `stage${stageId}`;
   company[key] = { ...(company[key] || {}), ...req.body };
+  if (stageId === "9") {
+    syncSpecialtyString(company[key]);
+  }
   if (!company.completedStages.includes(stageId)) {
     company.completedStages.push(stageId);
   }
@@ -548,7 +562,7 @@ router.post("/jobs", async (req, res) => {
       });
     }
 
-    const fields = req.body || {};
+    const fields = syncSpecialtyString(req.body || {});
     const isFresherJobReq = String(fields.level || "").toLowerCase().includes("fresher") || (fields.expmin !== undefined && fields.expmin !== null && fields.expmin !== "" && Number(fields.expmin) === 0 && Number(fields.expmax || 0) <= 1);
     if (isFresherJobReq) {
       fields.notice = "";
@@ -724,6 +738,8 @@ router.get("/applications", async (req, res) => {
       jobId: app.jobId,
       jobTitle: jobTitleByJobId[app.jobId] || "Untitled role",
       coverNote: app.coverNote,
+      rejectionReason: app.rejectionReason || "",
+      rejectionDetails: app.rejectionDetails || "",
       createdAt: app.createdAt,
       isKycVerified,
       candidate: {
@@ -817,6 +833,10 @@ router.put("/applications/:id/status", async (req, res) => {
 
   const previousStatus = application.status;
   application.status = status;
+  if (status === "rejected") {
+    application.rejectionReason = req.body.reason || req.body.rejectionReason || application.rejectionReason || "";
+    application.rejectionDetails = req.body.details || req.body.rejectionDetails || application.rejectionDetails || "";
+  }
   await application.save();
 
   // Candidate lifecycle email - previously the only email this app ever
@@ -902,7 +922,10 @@ router.put("/applications/:id/status", async (req, res) => {
       const eventMeta = {};
       if (status === "interviewing" && req.body.interviewTime) eventMeta.interviewTime = req.body.interviewTime;
       if (status === "hired" && req.body.ctc) eventMeta.salary = req.body.ctc;
-      if (status === "rejected" && req.body.reason) eventMeta.reason = req.body.reason;
+      if (status === "rejected") {
+        if (req.body.reason || req.body.rejectionReason) eventMeta.reason = req.body.reason || req.body.rejectionReason;
+        if (req.body.details || req.body.rejectionDetails) eventMeta.details = req.body.details || req.body.rejectionDetails;
+      }
 
       await emitAcademyEvent({
         candidate,
@@ -958,6 +981,35 @@ router.put("/applications/:id/status", async (req, res) => {
         } catch (placementErr) {
           logger.warn(`Placement confirmation wiring failed for application ${application._id}: ${placementErr.message}`);
         }
+      }
+    }
+
+    // Same real-hire wiring for a COLLEGE-sourced candidate: reflect the
+    // hire on their own placementLifecycle so the College Portal's
+    // "Placements & Offer Letters" table (routes/college.js's students
+    // list, filtered on placementLifecycle.currentStatus === "PLACED")
+    // picks it up automatically - no placement officer has to manually
+    // re-type what the company already entered. Only real, company-entered
+    // values are ever written here; a CTC the company didn't provide is
+    // left blank rather than guessed, same as the academy-side wiring above.
+    if (status === "hired" && candidate && candidate.collegeId) {
+      try {
+        const collegeCandidate = await Candidate.findById(candidate._id);
+        if (collegeCandidate) {
+          collegeCandidate.placementLifecycle = {
+            ...(collegeCandidate.placementLifecycle || {}),
+            currentStatus: "PLACED",
+            placedCompanyId: req.companyId,
+            placedCompanyName: companyName,
+            placedRole: roleTitle,
+            placedCtc: req.body.ctc || collegeCandidate.placementLifecycle?.placedCtc || "",
+            placedDate: collegeCandidate.placementLifecycle?.placedDate || new Date(),
+          };
+          collegeCandidate.markModified("placementLifecycle");
+          await collegeCandidate.save();
+        }
+      } catch (collegePlacementErr) {
+        logger.warn(`College placement lifecycle sync failed for application ${application._id}: ${collegePlacementErr.message}`);
       }
     }
   }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { safeJson } from "../../utils/safeJson.js";
 
 export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent, onSelectCandidate }) {
-  const [kanban, setKanban] = useState({ applied: [], shortlisted: [], interview: [], offer: [], joined: [] });
+  const [kanban, setKanban] = useState({ applied: [], shortlisted: [], interview: [], offer: [], joined: [], rejected: [] });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("All");
@@ -40,6 +40,7 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
     { id: "interview", label: "Interview Scheduled", color: "#B45309", bg: "#FFFBEB", badgeBg: "#FEF3C7", icon: "fa-calendar-check" },
     { id: "offer", label: "Offer Extended", color: "#C2410C", bg: "#FFF7ED", badgeBg: "#FFEDD5", icon: "fa-file-signature" },
     { id: "joined", label: "Joined & Placed", color: "#15803D", bg: "#F0FDF4", badgeBg: "#DCFCE7", icon: "fa-circle-check" },
+    { id: "rejected", label: "Rejected", color: "#DC2626", bg: "#FEF2F2", badgeBg: "#FEE2E2", icon: "fa-circle-xmark" },
   ];
 
   const allCards = [
@@ -48,6 +49,7 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
     ...kanban.interview,
     ...kanban.offer,
     ...kanban.joined,
+    ...(kanban.rejected || []),
   ];
 
   const uniqueCompanies = Array.from(new Set(allCards.map((c) => c.company).filter(Boolean)));
@@ -101,10 +103,12 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(6, minmax(200px, 1fr))",
+          overflowX: "auto",
           gap: 12,
           minHeight: 520,
           alignItems: "start",
+          paddingBottom: 14,
         }}
       >
         {columns.map((col) => {
@@ -222,6 +226,44 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
                       {card.ctc && (
                         <div style={{ fontSize: 10, color: "#15803D", fontWeight: 800, marginBottom: 4 }}>
                           💰 CTC: {card.ctc}
+                        </div>
+                      )}
+
+                      {/* Rejection Details Callout (Reason & Details) */}
+                      {(col.id === "rejected" || card.rejectionReason) && (
+                        <div
+                          style={{
+                            background: "#FEF2F2",
+                            border: "1px solid #FECACA",
+                            borderRadius: 6,
+                            padding: "6px 8px",
+                            marginBottom: 6,
+                            marginTop: 4,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 800, color: "#991B1B" }}>
+                            <i className="fa-solid fa-circle-xmark" style={{ fontSize: 10 }}></i>
+                            <span>Rejection Reason:</span>
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: "#B91C1C", marginTop: 2, lineHeight: 1.35 }}>
+                            {card.rejectionReason || "Candidate profile / criteria mismatch"}
+                          </div>
+                          {card.rejectionDetails && (
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "#7F1D1D",
+                                marginTop: 4,
+                                background: "#FFFFFF",
+                                padding: "4px 6px",
+                                borderRadius: 4,
+                                border: "1px dashed #FCA5A5",
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              <strong>Notes:</strong> {card.rejectionDetails}
+                            </div>
+                          )}
                         </div>
                       )}
 
