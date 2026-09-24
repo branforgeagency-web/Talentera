@@ -717,16 +717,38 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
                 </div>
               ) : (
                 timeline.map((ev, i) => (
-                  <div key={i} style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 12, background: "#FFFFFF", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>
+                  <div key={i} style={{ border: ev.badge === "REJECTED" ? "1px solid #FECACA" : "1px solid #E2E8F0", borderRadius: 10, padding: 12, background: ev.badge === "REJECTED" ? "#FFFBFB" : "#FFFFFF", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: ev.badge === "REJECTED" ? "#991B1B" : "#0F172A" }}>
                         {ev.title || "Candidate Journey Milestone"}
                       </div>
                       <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
                         {ev.description} {ev.date ? `· ${new Date(ev.date).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}` : ""}
                       </div>
+                      {ev.badge === "REJECTED" && (ev.reason || ev.details) && (
+                        <div style={{ marginTop: 6, padding: "6px 10px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, fontSize: 11 }}>
+                          <span style={{ fontWeight: 800, color: "#991B1B" }}>Rejection Reason: </span>
+                          <span style={{ color: "#B91C1C", fontWeight: 600 }}>{ev.reason || "Qualifications mismatch"}</span>
+                          {ev.details && (
+                            <div style={{ marginTop: 3, color: "#7F1D1D", fontSize: 10.5 }}>
+                              <strong>Notes:</strong> {ev.details}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#15803D", background: "#DCFCE7", padding: "3px 8px", borderRadius: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: ev.badge === "REJECTED" ? "#DC2626" : "#15803D",
+                        background: ev.badge === "REJECTED" ? "#FEE2E2" : "#DCFCE7",
+                        padding: "3px 8px",
+                        borderRadius: 6,
+                        border: ev.badge === "REJECTED" ? "1px solid #FECACA" : "none",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {ev.badge || "LOGGED"}
                     </span>
                   </div>

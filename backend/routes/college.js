@@ -43,10 +43,30 @@ router.post("/register", authLimiter, async (req, res) => {
       return res.status(400).json({ message: "Please fill in all required college and placement officer details." });
     }
 
+    // Same 10-digit-only rule the frontend enforces on this field - kept
+    // here too so the API itself rejects a non-numeric or wrong-length
+    // mobile number regardless of what submitted the request.
+    const cleanPlacementMobile = String(placementOfficerMobile).replace(/\D/g, "");
+    if (cleanPlacementMobile.length !== 10) {
+      return res.status(400).json({ message: "Mobile number must be exactly 10 digits." });
+    }
+
     const normalizedEmail = placementOfficerEmail.toLowerCase().trim();
     const existing = await College.findOne({ placementOfficerEmail: normalizedEmail });
     if (existing) {
       return res.status(400).json({ message: "A college placement account with this email is already registered." });
+    }
+
+    // Landline is optional, but if the college provided one it must be a
+    // real digits-and-hyphen phone number (e.g. "0422-2574000"), not
+    // arbitrary text - mirrors the frontend's own input restriction.
+    let cleanLandline = "";
+    if (collegeContactPhone && String(collegeContactPhone).trim()) {
+      cleanLandline = String(collegeContactPhone).trim();
+      const landlineDigits = cleanLandline.replace(/\D/g, "");
+      if (!/^[\d-]+$/.test(cleanLandline) || landlineDigits.length < 6 || landlineDigits.length > 12) {
+        return res.status(400).json({ message: "College campus landline must be a valid phone number (digits and hyphens only)." });
+      }
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -62,10 +82,10 @@ router.post("/register", authLimiter, async (req, res) => {
       city: city.trim(),
       state: state.trim(),
       pincode: pincode || "",
-      collegeContactPhone: collegeContactPhone || "",
+      collegeContactPhone: cleanLandline,
       placementOfficerName: placementOfficerName.trim(),
       placementOfficerEmail: normalizedEmail,
-      placementOfficerMobile: placementOfficerMobile.trim(),
+      placementOfficerMobile: cleanPlacementMobile,
       alternateContact: alternateContact || "",
       passwordHash,
       verificationStatus: "UNDER_REVIEW", // Submitted -> Under Review -> Verified
@@ -324,6 +344,11 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
       return res.status(400).json({ message: "Student Name, Email, and Mobile number are required." });
     }
 
+    const VALID_RCM_DOMAINS = ["Medical Coding", "Medical Billing", "AR Calling"];
+    if (!primaryDomain || !VALID_RCM_DOMAINS.includes(primaryDomain)) {
+      return res.status(400).json({ message: "Select the candidate's Primary RCM Domain (Medical Coding, Medical Billing, or AR Calling)." });
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await Candidate.findOne({ email: normalizedEmail });
     if (existing) {
@@ -332,6 +357,21 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
 
     // Default temporary password: Welcome@<last4ofMobile> or Welcome@2026
     const cleanMobile = mobile.replace(/[^\d]/g, "");
+
+    if (cleanMobile.length !== 10) {
+      return res.status(400).json({ message: "Mobile number must be exactly 10 digits." });
+    }
+
+    // Same duplicate check used by the Academy bulk-upload flow - matches
+    // against both the top-level mobile field and stage1.mobile, by last 10
+    // digits, so a student already on the platform under either field is
+    // caught before a second account is silently created for them.
+    const existingByMobile = await Candidate.findOne({
+      $or: [{ mobile: { $regex: `${cleanMobile}$` } }, { "stage1.mobile": { $regex: `${cleanMobile}$` } }],
+    });
+    if (existingByMobile) {
+      return res.status(400).json({ message: `A student with mobile number ${cleanMobile} already exists in the Talentera platform.` });
+    }
     const tempPassword = `Talentera@${cleanMobile.slice(-4) || "2026"}`;
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(tempPassword, salt);
@@ -372,7 +412,7 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
         marksheetsVault: [],
       },
       rcmDomainSelection: {
-        primaryDomain: primaryDomain || "Medical Coding",
+        primaryDomain,
         primarySubSpecialties: [],
         secondaryDomain: secondaryDomain || "Medical Billing",
         secondarySubSpecialties: [],
@@ -409,6 +449,26 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Add student error: ${err.message}`);
     return res.status(500).json({ message: err.message || "Failed to add student." });
+  }
+});
+
+// GET /api/college/students/check-mobile?mobile=9876543210 - Live duplicate
+// check the Single Student Enrollment form calls on blur, so a placement
+// officer sees "already exists" before they submit, not only after. Uses
+// the same last-10-digit match as the real check in POST /students/add.
+router.get("/students/check-mobile", requireCollegeAuth, async (req, res) => {
+  try {
+    const cleanMobile = String(req.query.mobile || "").replace(/\D/g, "");
+    if (cleanMobile.length !== 10) {
+      return res.json({ exists: false });
+    }
+    const existingByMobile = await Candidate.findOne({
+      $or: [{ mobile: { $regex: `${cleanMobile}$` } }, { "stage1.mobile": { $regex: `${cleanMobile}$` } }],
+    }).select("_id");
+    return res.json({ exists: Boolean(existingByMobile) });
+  } catch (err) {
+    logger.error(`Check mobile error: ${err.message}`);
+    return res.status(500).json({ message: "Failed to check mobile number." });
   }
 });
 
@@ -891,15 +951,19 @@ router.post("/placements/record", requireCollegeAuth, async (req, res) => {
     if (!candidateId || !companyName) {
       return res.status(400).json({ message: "Student and Company Name are required." });
     }
+    if (!role || !String(role).trim()) {
+      return res.status(400).json({ message: "Role / Designation is required." });
+    }
 
     const student = await Candidate.findOne({ _id: candidateId, collegeId: req.collegeId });
     if (!student) return res.status(404).json({ message: "Student record not found in this college." });
 
     student.placementLifecycle = {
       currentStatus: "PLACED",
+      placedCompanyId: student.placementLifecycle?.placedCompanyId || null,
       placedCompanyName: companyName,
-      placedRole: role || "Medical Coding Executive",
-      placedCtc: ctc || "₹3.8 LPA",
+      placedRole: role,
+      placedCtc: ctc || "",
       placedDate: new Date(),
       joiningDate: joiningDate ? new Date(joiningDate) : null,
       offerLetterUrl: offerLetterUrl || null,
@@ -1035,12 +1099,16 @@ router.get("/certifications-summary", requireCollegeAuth, async (req, res) => {
     const collegeId = req.collegeId;
     const candidates = await Candidate.find({ collegeId }).select("stage3").lean();
 
+    // Domain-tagged so the college dashboard can group credentials by RCM
+    // domain (Medical Coding / Medical Billing) instead of one flat list -
+    // matches how AAPC/AHIMA actually classify these certifications.
     const counts = {
-      CPC: { name: "Certified Professional Coder (AAPC)", certified: 0, pursuing: 0 },
-      CIC: { name: "Certified Inpatient Coder (AAPC)", certified: 0, pursuing: 0 },
-      CPB: { name: "Certified Professional Biller (AAPC)", certified: 0, pursuing: 0 },
-      CRC: { name: "Certified Risk Adjustment Coder (AAPC)", certified: 0, pursuing: 0 },
-      CCS: { name: "Certified Coding Specialist (AHIMA)", certified: 0, pursuing: 0 },
+      CPC: { name: "Certified Professional Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
+      COC: { name: "Certified Outpatient Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
+      CIC: { name: "Certified Inpatient Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
+      CRC: { name: "Certified Risk Adjustment Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
+      CCS: { name: "Certified Coding Specialist (AHIMA)", domain: "Medical Coding", certified: 0, pursuing: 0 },
+      CPB: { name: "Certified Professional Biller (AAPC)", domain: "Medical Billing", certified: 0, pursuing: 0 },
     };
 
     candidates.forEach((c) => {
@@ -1120,60 +1188,85 @@ router.get("/drives", requireCollegeAuth, async (req, res) => {
       .limit(20)
       .lean();
 
-    // Also fetch legacy first JDs published by companies
+    // Also fetch legacy first JDs published by companies - gated on
+    // jdApprovalStatus === "approved" exactly like the public job board
+    // (routes/public.js GET /jobs) and models/Company.js's own jdApprovalStatus
+    // comment require. This was missing here, so an unreviewed or even a
+    // staff-REJECTED legacy JD could still show to colleges as a "Confirmed
+    // Corporate Drive" - that's the real bug behind postings that looked
+    // like mock data.
     const companiesWithFirstJd = await Company.find({
       jdPublished: true,
       isVerified: true,
+      jdApprovalStatus: "approved",
       "stage9.roletitle": { $exists: true, $ne: "" },
     })
       .select("companyName stage9 createdAt")
       .limit(10)
       .lean();
 
+    // Only real, employer-entered values are ever shown here - no
+    // fabricated role/location/CTC/openings placeholders. A posting missing
+    // its role title is skipped rather than shown with a made-up name, and
+    // every other missing field is labeled honestly instead of guessed.
     const formattedDrives = [];
 
     jobs.forEach((j) => {
       const f = j.fields || {};
+      if (!f.roletitle || !String(f.roletitle).trim()) return; // no real role on this posting - skip it
+
       formattedDrives.push({
         id: j._id,
-        company: j.companyId?.companyName || "Healthcare RCM Partner",
-        role: f.roletitle || "Medical Coder Trainee",
-        domain: f.specialty || "Medical Coding",
-        location: f.location || "Chennai / Remote",
-        ctc: f.compmin && f.compmax ? `₹${f.compmin}L – ₹${f.compmax}L LPA` : "₹3.5L – ₹4.5L LPA",
-        openings: f.openings || 15,
+        company: j.companyId?.companyName || "Employer name unavailable",
+        role: f.roletitle.trim(),
+        domain: f.specialty || null,
+        location: f.location || "Location not specified",
+        ctc: f.compmin && f.compmax ? `₹${f.compmin}L – ₹${f.compmax}L LPA` : "CTC not disclosed",
+        openings: f.openings || null,
         deadline: "Active Drive",
       });
     });
 
     companiesWithFirstJd.forEach((c) => {
       const s9 = c.stage9 || {};
+      if (!s9.roletitle || !String(s9.roletitle).trim()) return; // guarded by the query above, but be explicit
+
       formattedDrives.push({
         id: c._id,
-        company: c.companyName || "Corporate Recruiter",
-        role: s9.roletitle || "Junior Medical Coding Trainee",
-        domain: s9.specialty || "Medical Coding",
-        location: s9.location || "Pan-India",
-        ctc: s9.compmin && s9.compmax ? `₹${s9.compmin}L – ₹${s9.compmax}L LPA` : "₹3.2L – ₹4.0L LPA",
-        openings: s9.openings || 10,
+        company: c.companyName || "Employer name unavailable",
+        role: s9.roletitle.trim(),
+        domain: s9.specialty || null,
+        location: s9.location || "Location not specified",
+        ctc: s9.compmin && s9.compmax ? `₹${s9.compmin}L – ₹${s9.compmax}L LPA` : "CTC not disclosed",
+        openings: s9.openings || null,
         deadline: "Campus Recruitment",
       });
     });
 
-    // Count matched students in college for each drive
+    // Count matched students in college for each drive - matched strictly
+    // against that drive's own domain. A drive with no domain on file
+    // shows 0 matched rather than silently borrowing the general "Medical
+    // Coding" bucket's count, which would overstate the match.
     const candidateDomainCounts = await Candidate.aggregate([
       { $match: { collegeId: new (require("mongoose").Types.ObjectId)(collegeId) } },
       { $group: { _id: "$rcmDomainSelection.primaryDomain", count: { $sum: 1 } } },
     ]);
 
+    // Normalize (trim + lowercase) on both sides before matching, so a
+    // stray space or casing difference between a job's specialty field and
+    // a candidate's stored domain never causes a silent mismatch (or a
+    // silent OVER-match) - this is what previously let a Medical Billing
+    // candidate get counted against a Medical Coding drive.
+    const normDomain = (v) => String(v || "").trim().toLowerCase();
     const domainMap = {};
     candidateDomainCounts.forEach((d) => {
-      if (d._id) domainMap[d._id] = d.count;
+      const key = normDomain(d._id);
+      if (key) domainMap[key] = (domainMap[key] || 0) + d.count;
     });
 
     const drivesWithMatch = formattedDrives.map((d) => ({
       ...d,
-      matchedStudents: domainMap[d.domain] || domainMap["Medical Coding"] || 0,
+      matchedStudents: d.domain ? (domainMap[normDomain(d.domain)] || 0) : 0,
     }));
 
     return res.json({ success: true, drives: drivesWithMatch });

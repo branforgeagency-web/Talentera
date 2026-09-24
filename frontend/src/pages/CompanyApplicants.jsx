@@ -40,6 +40,7 @@ export default function CompanyApplicants() {
   const [jobFilter, setJobFilter] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
   const [selectedApp, setSelectedApp] = useState(null);
+  const [rejectingApp, setRejectingApp] = useState(null);
 
   useEffect(() => {
     fetchApplications();
@@ -75,19 +76,64 @@ export default function CompanyApplicants() {
     }
   }
 
-  async function updateStatus(appId, status) {
+  async function updateStatus(appId, status, customReason = null, customDetails = null) {
     setUpdatingId(appId);
     try {
-      const res = await companyApi.put(`/company/applications/${appId}/status`, { status });
-      const nextStatus = res.data.application.status;
-      setApplications((prev) => prev.map((a) => (a._id === appId ? { ...a, status: nextStatus } : a)));
-      setSelectedApp((prev) => (prev && prev._id === appId ? { ...prev, status: nextStatus } : prev));
-      toast(`Marked as ${status}.`, "✓");
+      const res = await companyApi.put(`/company/applications/${appId}/status`, {
+        status,
+        reason: customReason || undefined,
+        details: customDetails || undefined,
+      });
+      const updatedApp = res.data.application;
+      const nextStatus = updatedApp?.status || status;
+      const finalReason = customReason !== null ? customReason : (updatedApp?.rejectionReason || "");
+      const finalDetails = customDetails !== null ? customDetails : (updatedApp?.rejectionDetails || "");
+
+      setApplications((prev) =>
+        prev.map((a) =>
+          a._id === appId
+            ? {
+                ...a,
+                ...updatedApp,
+                status: nextStatus,
+                rejectionReason: status === "rejected" ? finalReason : a.rejectionReason,
+                rejectionDetails: status === "rejected" ? finalDetails : a.rejectionDetails,
+              }
+            : a
+        )
+      );
+      setSelectedApp((prev) =>
+        prev && prev._id === appId
+          ? {
+              ...prev,
+              ...updatedApp,
+              status: nextStatus,
+              rejectionReason: status === "rejected" ? finalReason : prev.rejectionReason,
+              rejectionDetails: status === "rejected" ? finalDetails : prev.rejectionDetails,
+            }
+          : prev
+      );
+      toast(status === "rejected" ? "Application rejected & reason recorded." : `Marked as ${status}.`, "✓");
     } catch (err) {
       toast(err.response?.data?.message || "Couldn't update status.", "!");
     } finally {
       setUpdatingId(null);
     }
+  }
+
+  function handleStatusSelect(app, nextStatus) {
+    if (nextStatus === "rejected") {
+      setRejectingApp(app);
+    } else {
+      updateStatus(app._id, nextStatus);
+    }
+  }
+
+  async function handleConfirmRejection(reason, details) {
+    if (!rejectingApp) return;
+    const appId = rejectingApp._id;
+    await updateStatus(appId, "rejected", reason, details);
+    setRejectingApp(null);
   }
 
   const jobOptions = [...new Set(applications.map((a) => a.jobId))].map((jobId) => ({
@@ -259,6 +305,51 @@ export default function CompanyApplicants() {
                         {app.coverNote}
                       </div>
                     )}
+
+                    {(app.status === "rejected" || app.rejectionReason) && (
+                      <div
+                        style={{
+                          marginTop: 8,
+                          background: "#FEF2F2",
+                          border: "1px solid #FECACA",
+                          borderRadius: 8,
+                          padding: "8px 12px",
+                        }}
+                      >
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 3 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: "#991B1B", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                            <i className="fa-solid fa-circle-xmark"></i> Rejection Reason:
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRejectingApp(app);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: "#DC2626",
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                              padding: 0,
+                            }}
+                          >
+                            Edit Reason
+                          </button>
+                        </div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#B91C1C" }}>
+                          {app.rejectionReason || "Qualifications / Criteria mismatch"}
+                        </div>
+                        {app.rejectionDetails && (
+                          <div style={{ fontSize: 11, color: "#7F1D1D", marginTop: 4, background: "#FFF", padding: "4px 8px", borderRadius: 4, border: "1px dashed #FCA5A5" }}>
+                            <strong>Notes:</strong> {app.rejectionDetails}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
@@ -269,7 +360,7 @@ export default function CompanyApplicants() {
                       value={app.status}
                       disabled={updatingId === app._id}
                       onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => updateStatus(app._id, e.target.value)}
+                      onChange={(e) => handleStatusSelect(app, e.target.value)}
                       style={{ fontSize: 12.5, padding: "6px 10px", borderRadius: 8, border: "1px solid #CBD5E1", fontWeight: 600, color: "var(--navy)" }}
                     >
                       {STATUS_OPTIONS.map((s) => (
@@ -289,8 +380,20 @@ export default function CompanyApplicants() {
           application={selectedApp}
           canViewScoresAndCerts={canViewScoresAndCerts}
           updatingId={updatingId}
-          onStatusChange={(status) => updateStatus(selectedApp._id, status)}
+          onStatusChange={(status) => handleStatusSelect(selectedApp, status)}
+          onEditRejection={() => setRejectingApp(selectedApp)}
           onClose={() => setSelectedApp(null)}
+        />
+      )}
+
+      {rejectingApp && (
+        <RejectionReasonModal
+          application={rejectingApp}
+          initialReason={rejectingApp.rejectionReason || ""}
+          initialDetails={rejectingApp.rejectionDetails || ""}
+          updating={updatingId === rejectingApp._id}
+          onClose={() => setRejectingApp(null)}
+          onConfirm={(reason, details) => handleConfirmRejection(reason, details)}
         />
       )}
     </div>
@@ -303,7 +406,7 @@ export default function CompanyApplicants() {
 // certification, assessment, video intro, live-chart audit, self summary,
 // employment status) was already coming back from GET /company/applications
 // but had nowhere to render. Clicking a card opens this instead.
-function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onClose }) {
+function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onEditRejection, onClose }) {
   const c = application.candidate || {};
   const basic = c.basicInfo || {};
   const training = c.training || {};
@@ -581,6 +684,44 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             <Row label="Completed stages" value={(c.completedStages || []).length ? c.completedStages.join(", ") : "None yet"} />
           </Section>
 
+          {(application.status === "rejected" || application.rejectionReason) && (
+            <Section title="Rejection reason & notes">
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, color: "#991B1B", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                    <i className="fa-solid fa-circle-xmark"></i> Status: Rejected
+                  </span>
+                  {onEditRejection && (
+                    <button
+                      type="button"
+                      onClick={onEditRejection}
+                      style={{
+                        background: "#FFFFFF",
+                        border: "1px solid #FCA5A5",
+                        color: "#DC2626",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "3px 8px",
+                        borderRadius: 5,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Edit Reason
+                    </button>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#B91C1C" }}>
+                  {application.rejectionReason || "Qualifications / Criteria mismatch"}
+                </div>
+                {application.rejectionDetails && (
+                  <div style={{ fontSize: 12, color: "#7F1D1D", marginTop: 6, background: "#FFF", padding: "8px 10px", borderRadius: 6, border: "1px dashed #FCA5A5", lineHeight: 1.4 }}>
+                    <strong>Feedback / Details:</strong> {application.rejectionDetails}
+                  </div>
+                )}
+              </div>
+            </Section>
+          )}
+
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1px solid #E5E7EB" }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Move to:</span>
             <select
@@ -595,6 +736,245 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </select>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// Dedicated modal for companies to input and refine the rejection reason and details
+function RejectionReasonModal({ application, initialReason = "", initialDetails = "", updating = false, onClose, onConfirm }) {
+  const PRESET_REASONS = [
+    "Education Mismatch (Non-Life Science / Ineligible Degree)",
+    "Missing Mandatory Certifications / Keywords (CPC / ICD-10 / CPT / HCPCS)",
+    "Experience Criteria Mismatch (Fresher drive requires 0–2 yrs)",
+    "Location / Relocation Mismatch (Outside preferred cities)",
+    "Assessment / Technical Coding Score Below Bar (<70%)",
+    "Candidate Communication / Language Requirement Not Met",
+    "Position Already Filled / Requisition Closed",
+    "Notice Period / Immediate Joining Required",
+    "Other / Custom Reason",
+  ];
+
+  const [selectedPreset, setSelectedPreset] = useState(
+    PRESET_REASONS.includes(initialReason) ? initialReason : (initialReason ? "Other / Custom Reason" : PRESET_REASONS[0])
+  );
+  const [customReason, setCustomReason] = useState(
+    initialReason || PRESET_REASONS[0]
+  );
+  const [details, setDetails] = useState(initialDetails || "");
+
+  const candidateName =
+    application?.candidate?.basicInfo?.fullName ||
+    application?.candidate?.basic?.fullName ||
+    application?.candidateName ||
+    "the candidate";
+  const jobTitle = application?.jobTitle || application?.jobId || "Role";
+
+  const handleSelectPreset = (preset) => {
+    setSelectedPreset(preset);
+    if (preset !== "Other / Custom Reason") {
+      setCustomReason(preset);
+    } else {
+      setCustomReason("");
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const finalReason = customReason.trim() || selectedPreset || "Qualifications / Criteria mismatch";
+    onConfirm(finalReason, details.trim());
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(15, 23, 42, 0.65)",
+        backdropFilter: "blur(4px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: "#FFFFFF",
+          borderRadius: 14,
+          maxWidth: 540,
+          width: "100%",
+          boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08)",
+          overflow: "hidden",
+          border: "1px solid #FECACA",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ background: "#FEF2F2", padding: "18px 22px", borderBottom: "1px solid #FEE2E2", display: "flex", alignItems: "flex-start", gap: 14 }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: "50%",
+              background: "#FEE2E2",
+              color: "#DC2626",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 18,
+              flexShrink: 0,
+            }}
+          >
+            <i className="fa-solid fa-circle-xmark"></i>
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#991B1B" }}>
+              Reject Application
+            </h3>
+            <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#7F1D1D", lineHeight: 1.4 }}>
+              Record rejection reason for <strong>{candidateName}</strong> for <strong>{jobTitle}</strong>. This feedback will be displayed on the candidate pipeline and the academy's dashboard.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ background: "none", border: "none", color: "#991B1B", fontSize: 18, cursor: "pointer", padding: "0 4px" }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Form Body */}
+        <form onSubmit={handleSubmit} style={{ padding: "20px 24px" }}>
+          {/* Quick Preset Selector */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+              Select Reason Category / Preset:
+            </label>
+            <select
+              value={selectedPreset}
+              onChange={(e) => handleSelectPreset(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid #CBD5E1",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#0F172A",
+                background: "#F8FAFC",
+              }}
+            >
+              {PRESET_REASONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Reason Input Box */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+              Reason for Rejection <span style={{ color: "#DC2626" }}>*</span>:
+            </label>
+            <input
+              type="text"
+              required
+              value={customReason}
+              onChange={(e) => setCustomReason(e.target.value)}
+              placeholder="e.g. Education mismatch - requires B.Sc / B.Pharm degree"
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid #CBD5E1",
+                fontSize: 13,
+                color: "#0F172A",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* Additional Details Textarea */}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+              Additional Details / Constructive Notes (Optional):
+            </label>
+            <textarea
+              rows={3}
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Add specific notes, test scores, or guidance for the academy coordinator..."
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid #CBD5E1",
+                fontSize: 13,
+                color: "#0F172A",
+                resize: "vertical",
+                boxSizing: "border-box",
+              }}
+            />
+            <span style={{ fontSize: 11, color: "#64748B", display: "block", marginTop: 4 }}>
+              Visible to the partner academy to help coach and redirect talent.
+            </span>
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, paddingTop: 14, borderTop: "1px solid #F1F5F9" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={updating}
+              style={{
+                padding: "9px 18px",
+                borderRadius: 8,
+                border: "1px solid #CBD5E1",
+                background: "#FFF",
+                color: "#475569",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updating || !customReason.trim()}
+              style={{
+                padding: "9px 20px",
+                borderRadius: 8,
+                border: "none",
+                background: "#DC2626",
+                color: "#FFFFFF",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: updating ? "not-allowed" : "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                boxShadow: "0 2px 4px rgba(220, 38, 38, 0.25)",
+              }}
+            >
+              {updating ? (
+                <>
+                  <i className="fa-solid fa-spinner fa-spin"></i> Saving...
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-circle-xmark"></i> Confirm Rejection
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

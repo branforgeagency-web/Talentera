@@ -34,16 +34,105 @@ const TRAINING_COURSE_OPTIONS = [
   { title: "Other" },
 ];
 
-const POPULAR_CITIES = [
-  "Coimbatore",
-  "Chennai",
-  "Bengaluru",
-  "Hyderabad",
-  "Mumbai",
-  "Pune",
-  "Kochi",
-  "Delhi NCR",
-];
+const STATE_CITY_MAP = {
+  "Tamil Nadu": [
+    "Coimbatore", "Chennai", "Madurai", "Tiruchirappalli (Trichy)", "Salem", 
+    "Tirunelveli", "Erode", "Vellore", "Tiruppur", "Thanjavur", "Dindigul", 
+    "Nagercoil", "Kanchipuram", "Hosur", "Karur", "Cuddalore", "Kumbakonam"
+  ],
+  "Karnataka": [
+    "Bengaluru", "Mysuru", "Mangaluru", "Hubballi-Dharwad", "Belagavi", 
+    "Davanagere", "Ballari", "Shivamogga", "Tumakuru", "Udupi", "Bidar"
+  ],
+  "Telangana": [
+    "Hyderabad", "Warangal", "Nizamabad", "Karimnagar", "Ramagundam", 
+    "Khammam", "Mahbubnagar", "Nalgonda"
+  ],
+  "Andhra Pradesh": [
+    "Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Kurnool", 
+    "Rajahmundry", "Tirupati", "Kakinada", "Anantapur", "Eluru"
+  ],
+  "Maharashtra": [
+    "Mumbai", "Pune", "Nagpur", "Nashik", "Thane", 
+    "Navi Mumbai", "Aurangabad", "Solapur", "Kolhapur", "Amravati"
+  ],
+  "Kerala": [
+    "Kochi", "Thiruvananthapuram", "Kozhikode", "Thrissur", "Kollam", 
+    "Palakkad", "Alappuzha", "Kannur", "Kottayam", "Malappuram"
+  ],
+  "Delhi (NCT)": [
+    "Delhi NCR", "New Delhi", "Noida", "Gurugram", "Faridabad", "Ghaziabad"
+  ],
+  "Uttar Pradesh": [
+    "Noida", "Greater Noida", "Ghaziabad", "Lucknow", "Kanpur", 
+    "Agra", "Varanasi", "Prayagraj", "Meerut", "Bareilly", "Aligarh"
+  ],
+  "Haryana": [
+    "Gurugram", "Faridabad", "Panipat", "Ambala", "Karnal", 
+    "Rohtak", "Hisar", "Sonipat", "Panchkula"
+  ],
+  "Gujarat": [
+    "Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", 
+    "Jamnagar", "Gandhinagar", "Junagadh"
+  ],
+  "West Bengal": [
+    "Kolkata", "Howrah", "Durgapur", "Asansol", "Siliguri", "Bardhaman"
+  ],
+  "Rajasthan": [
+    "Jaipur", "Jodhpur", "Kota", "Bikaner", "Ajmer", "Udaipur", "Bhilwara"
+  ],
+  "Madhya Pradesh": [
+    "Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain", "Sagar"
+  ],
+  "Punjab": [
+    "Chandigarh", "Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda"
+  ],
+  "Odisha": [
+    "Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur"
+  ],
+  "Bihar": [
+    "Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga"
+  ],
+  "Assam": [
+    "Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Nagaon"
+  ],
+  "Chhattisgarh": [
+    "Raipur", "Bhilai", "Bilaspur", "Korba", "Durg"
+  ],
+  "Jharkhand": [
+    "Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Deoghar"
+  ],
+  "Uttarakhand": [
+    "Dehradun", "Haridwar", "Roorkee", "Haldwani", "Rishikesh"
+  ],
+  "Goa": [
+    "Panaji", "Margao", "Vasco da Gama", "Mapusa"
+  ],
+  "Puducherry": [
+    "Puducherry", "Karaikal"
+  ],
+  "Chandigarh": [
+    "Chandigarh"
+  ],
+  "Jammu & Kashmir": [
+    "Srinagar", "Jammu", "Anantnag"
+  ],
+  "Himachal Pradesh": [
+    "Shimla", "Dharamshala", "Solan", "Mandi"
+  ],
+  "Tripura": ["Agartala"],
+  "Meghalaya": ["Shillong"],
+  "Manipur": ["Imphal"],
+  "Nagaland": ["Kohima", "Dimapur"],
+  "Mizoram": ["Aizawl"],
+  "Sikkim": ["Gangtok"],
+  "Arunachal Pradesh": ["Itanagar"],
+  "Ladakh": ["Leh", "Kargil"],
+  "Andaman and Nicobar Islands": ["Port Blair"],
+  "Other": ["Other City"]
+};
+
+const POPULAR_CITIES = Object.values(STATE_CITY_MAP).flat();
 
 // Ready-made "Batch 1(<Month> <Year>)" names for the current and next year, so
 // staff can pick a correctly-formatted batch name instead of typing it out by
@@ -105,9 +194,30 @@ export default function UploadAndInvitesEngine({
   const [singleSpecialty, setSingleSpecialty] = useState("Medical Coding");
   const [singleSpecialtyOther, setSingleSpecialtyOther] = useState("");
   const [singleSalary, setSingleSalary] = useState("5.0");
+  const [singleState, setSingleState] = useState("Tamil Nadu");
   const [singleCity, setSingleCity] = useState("Coimbatore");
   const [singleAadhaar, setSingleAadhaar] = useState("");
   const [singleSaving, setSingleSaving] = useState(false);
+
+  const handleStateChange = (newState) => {
+    setSingleState(newState);
+    const citiesInState = STATE_CITY_MAP[newState] || [];
+    if (!citiesInState.includes(singleCity)) {
+      setSingleCity(citiesInState[0] || "");
+    }
+  };
+
+  const handleCityChange = (newCity) => {
+    setSingleCity(newCity);
+    for (const [st, cities] of Object.entries(STATE_CITY_MAP)) {
+      if (cities.includes(newCity)) {
+        if (singleState !== st) {
+          setSingleState(st);
+        }
+        break;
+      }
+    }
+  };
 
   // Invites Tracker State
   const [invites, setInvites] = useState([]);
@@ -304,6 +414,8 @@ export default function UploadAndInvitesEngine({
           experienceRange: singleType === "experienced" ? singleExperienceRange : "",
           preferredSpecialty: effectiveSpecialty,
           expectedSalaryLpa: singleType === "fresher" ? "" : singleSalary,
+          state: singleState,
+          preferredState: singleState,
           preferredCities: [singleCity],
           branch: singleCity,
           aadhaar: singleAadhaar,
@@ -875,23 +987,40 @@ export default function UploadAndInvitesEngine({
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: singleType === "fresher" ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 20 }}>
-              {singleType !== "fresher" && (
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
-                    EXPECTED CTC (LPA)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.5"
-                    min="2"
-                    max="30"
-                    value={singleSalary}
-                    onChange={(e) => setSingleSalary(e.target.value)}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
-                  />
-                </div>
-              )}
+            {singleType !== "fresher" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  EXPECTED CTC (LPA)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="2"
+                  max="30"
+                  value={singleSalary}
+                  onChange={(e) => setSingleSalary(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  PREFERRED STATE
+                </label>
+                <select
+                  value={singleState}
+                  onChange={(e) => handleStateChange(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
+                >
+                  {Object.keys(STATE_CITY_MAP).map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               <div>
                 <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
@@ -899,10 +1028,10 @@ export default function UploadAndInvitesEngine({
                 </label>
                 <select
                   value={singleCity}
-                  onChange={(e) => setSingleCity(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  onChange={(e) => handleCityChange(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
                 >
-                  {POPULAR_CITIES.map((city) => (
+                  {(STATE_CITY_MAP[singleState] || []).map((city) => (
                     <option key={city} value={city}>
                       {city}
                     </option>

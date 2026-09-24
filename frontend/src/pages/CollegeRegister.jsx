@@ -15,11 +15,21 @@ const COLLEGE_TYPES = [
   "Other",
 ];
 
-const DEFAULT_DEPARTMENTS = [
-  { name: "Life Sciences & Biotechnology", degrees: ["B.Sc Biotechnology", "M.Sc Biochemistry"], studentCount: 120 },
-  { name: "Allied Health Sciences", degrees: ["B.Sc Allied Health", "BPT"], studentCount: 90 },
-  { name: "Commerce & Management", degrees: ["B.Com", "BBA"], studentCount: 150 },
-  { name: "Computer Science & IT", degrees: ["BCA", "B.Sc CS"], studentCount: 110 },
+// Common RCM-feeder department names for the picker below - the college
+// can also always type a custom name ("Other"). No default selection or
+// student count is ever pre-filled; every entry here must be added by the
+// college itself.
+const DEPARTMENT_NAME_OPTIONS = [
+  "Life Sciences & Biotechnology",
+  "Allied Health Sciences",
+  "Nursing",
+  "Pharmacy",
+  "Paramedical Sciences",
+  "Medical Lab Technology",
+  "Physiotherapy",
+  "Commerce & Management",
+  "Computer Science & IT",
+  "Arts & Humanities",
 ];
 
 export default function CollegeRegister() {
@@ -47,14 +57,77 @@ export default function CollegeRegister() {
     alternateContact: "",
     password: "",
     confirmPassword: "",
-    departments: DEFAULT_DEPARTMENTS,
+    departments: [],
   });
 
   const updateField = (k, v) => setFormData((prev) => ({ ...prev, [k]: v }));
 
+  // --- Department picker: dropdown + manual "Other" typing, and each
+  // added department stays editable (student count) or removable. Nothing
+  // is added until the college explicitly clicks "Add Department".
+  const [deptNameChoice, setDeptNameChoice] = useState("");
+  const [deptNameOther, setDeptNameOther] = useState("");
+  const [deptIsOther, setDeptIsOther] = useState(false);
+  const [deptStudentCount, setDeptStudentCount] = useState("");
+  const [editingDeptIndex, setEditingDeptIndex] = useState(null);
+
+  const resetDeptPicker = () => {
+    setDeptNameChoice("");
+    setDeptNameOther("");
+    setDeptIsOther(false);
+    setDeptStudentCount("");
+    setEditingDeptIndex(null);
+  };
+
+  const handleAddOrUpdateDepartment = () => {
+    const name = (deptIsOther ? deptNameOther : deptNameChoice).trim();
+    if (!name) {
+      toast("Select or type a department name.", "!");
+      return;
+    }
+    const count = Math.max(0, Number(deptStudentCount) || 0);
+
+    setFormData((prev) => {
+      const departments = [...prev.departments];
+      const dupIndex = departments.findIndex((d, i) => d.name.toLowerCase() === name.toLowerCase() && i !== editingDeptIndex);
+      if (dupIndex !== -1) {
+        toast(`"${name}" is already in your department list.`, "!");
+        return prev;
+      }
+      if (editingDeptIndex !== null) {
+        departments[editingDeptIndex] = { ...departments[editingDeptIndex], name, studentCount: count };
+      } else {
+        departments.push({ name, degrees: [], studentCount: count });
+      }
+      return { ...prev, departments };
+    });
+    resetDeptPicker();
+  };
+
+  const handleEditDepartment = (i) => {
+    const d = formData.departments[i];
+    const isKnown = DEPARTMENT_NAME_OPTIONS.includes(d.name);
+    setEditingDeptIndex(i);
+    setDeptIsOther(!isKnown);
+    setDeptNameChoice(isKnown ? d.name : "");
+    setDeptNameOther(isKnown ? "" : d.name);
+    setDeptStudentCount(String(d.studentCount ?? ""));
+  };
+
+  const handleRemoveDepartment = (i) => {
+    setFormData((prev) => ({ ...prev, departments: prev.departments.filter((_, idx) => idx !== i) }));
+    if (editingDeptIndex === i) resetDeptPicker();
+  };
+
   async function handleRegister(e) {
     if (e) e.preventDefault();
     setError("");
+
+    if (formData.departments.length === 0) {
+      setError("Add at least one participating department.");
+      toast("Add at least one participating department.", "!");
+      return;
+    }
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match.");
@@ -788,10 +861,12 @@ export default function CollegeRegister() {
                     </label>
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
+                      maxLength={10}
                       value={formData.placementOfficerMobile}
-                      onChange={(e) => updateField("placementOfficerMobile", e.target.value)}
-                      placeholder="+91 9876543210"
+                      onChange={(e) => updateField("placementOfficerMobile", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="9876543210"
                       style={{
                         width: "100%",
                         padding: "11px 14px",
@@ -823,9 +898,11 @@ export default function CollegeRegister() {
                     College Campus Landline / Desk Phone
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="tel"
+                    maxLength={12}
                     value={formData.collegeContactPhone}
-                    onChange={(e) => updateField("collegeContactPhone", e.target.value)}
+                    onChange={(e) => updateField("collegeContactPhone", e.target.value.replace(/[^\d-]/g, "").slice(0, 12))}
                     placeholder="0422-2574000"
                     style={{
                       width: "100%",
@@ -936,24 +1013,165 @@ export default function CollegeRegister() {
                 >
                   Selected Participating Departments ({formData.departments.length})
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                  {formData.departments.map((d, i) => (
-                    <span
-                      key={i}
+
+                {formData.departments.length === 0 ? (
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginBottom: 10 }}>
+                    No departments added yet — pick one below and click Add.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                    {formData.departments.map((d, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: editingDeptIndex === i ? "rgba(229,168,46,0.15)" : "rgba(255,255,255,0.06)",
+                          border: editingDeptIndex === i ? "1px solid #E5A82E" : "1px solid rgba(255,255,255,0.12)",
+                          padding: "5px 8px 5px 12px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          color: "#FAF7F0",
+                          fontWeight: 600,
+                        }}
+                      >
+                        <i className="fa-solid fa-graduation-cap" style={{ color: "#E5A82E" }}></i>
+                        {d.name} ({d.studentCount} students)
+                        <button
+                          type="button"
+                          onClick={() => handleEditDepartment(i)}
+                          title="Edit"
+                          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.6)", cursor: "pointer", padding: 2, fontSize: 12, lineHeight: 1 }}
+                        >
+                          <i className="fa-solid fa-pen"></i>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveDepartment(i)}
+                          title="Remove"
+                          style={{ background: "none", border: "none", color: "#F87171", cursor: "pointer", padding: 2, fontSize: 13, lineHeight: 1 }}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add / Edit picker - dropdown with a manual "Other" option */}
+                <div style={{ display: "grid", gridTemplateColumns: "1.3fr 0.8fr auto", gap: 8, alignItems: "end" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4, textTransform: "uppercase" }}>
+                      Department
+                    </label>
+                    <select
+                      value={deptIsOther ? "__other__" : deptNameChoice}
+                      onChange={(e) => {
+                        if (e.target.value === "__other__") {
+                          setDeptIsOther(true);
+                          setDeptNameChoice("");
+                        } else {
+                          setDeptIsOther(false);
+                          setDeptNameChoice(e.target.value);
+                        }
+                      }}
                       style={{
-                        background: "rgba(255,255,255,0.06)",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        padding: "5px 12px",
-                        borderRadius: 6,
-                        fontSize: 12,
+                        width: "100%",
+                        padding: "9px 10px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 8,
                         color: "#FAF7F0",
-                        fontWeight: 600,
+                        fontSize: 13,
+                        boxSizing: "border-box",
                       }}
                     >
-                      <i className="fa-solid fa-graduation-cap" style={{ marginRight: 6, color: "#E5A82E" }}></i>
-                      {d.name} ({d.studentCount} students)
-                    </span>
-                  ))}
+                      <option value="" disabled>Select department…</option>
+                      {DEPARTMENT_NAME_OPTIONS.map((n) => (
+                        <option key={n} value={n} style={{ color: "#0A1F3D" }}>{n}</option>
+                      ))}
+                      <option value="__other__" style={{ color: "#0A1F3D" }}>Other (type below)</option>
+                    </select>
+                    {deptIsOther && (
+                      <input
+                        type="text"
+                        value={deptNameOther}
+                        onChange={(e) => setDeptNameOther(e.target.value)}
+                        placeholder="Type department name"
+                        style={{
+                          width: "100%",
+                          marginTop: 6,
+                          padding: "9px 10px",
+                          background: "rgba(0,0,0,0.3)",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          borderRadius: 8,
+                          color: "#FAF7F0",
+                          fontSize: 13,
+                          boxSizing: "border-box",
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.5)", marginBottom: 4, textTransform: "uppercase" }}>
+                      Student Count
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={deptStudentCount}
+                      onChange={(e) => setDeptStudentCount(e.target.value)}
+                      placeholder="e.g. 60"
+                      style={{
+                        width: "100%",
+                        padding: "9px 10px",
+                        background: "rgba(0,0,0,0.3)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        borderRadius: 8,
+                        color: "#FAF7F0",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={handleAddOrUpdateDepartment}
+                      style={{
+                        background: "#E5A82E",
+                        color: "#0A1F3D",
+                        border: "none",
+                        padding: "9px 14px",
+                        borderRadius: 8,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {editingDeptIndex !== null ? "Save" : "+ Add"}
+                    </button>
+                    {editingDeptIndex !== null && (
+                      <button
+                        type="button"
+                        onClick={resetDeptPicker}
+                        style={{
+                          background: "rgba(255,255,255,0.08)",
+                          color: "#FAF7F0",
+                          border: "1px solid rgba(255,255,255,0.15)",
+                          padding: "9px 12px",
+                          borderRadius: 8,
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

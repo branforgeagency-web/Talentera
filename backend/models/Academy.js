@@ -23,11 +23,32 @@ const QuestionSubSchema = new mongoose.Schema({
 });
 
 const PlacementSubSchema = new mongoose.Schema({
+  // Optional link to the real candidate record, when the academy picked one
+  // from their roster instead of typing a name (lets us look up a genuine
+  // platform-hire record to offer as an auto-fill suggestion).
+  candidateId: { type: mongoose.Schema.Types.ObjectId, ref: "Candidate", default: null },
   studentName: { type: String, required: true },
-  role: { type: String, default: "Sr Medical Coder" },
-  company: { type: String, default: "Optum" },
-  city: { type: String, default: "Chennai" },
-  ctc: { type: String, default: "₹5.5 LPA" },
+  // No fabricated defaults here on purpose: every field below must be a
+  // value the academy actually typed or selected (or that was pulled from a
+  // real PlacementConfirmation record and clearly labeled as auto-filled on
+  // the frontend) - never a silent placeholder like "Optum" / "₹5.5 LPA".
+  role: { type: String, required: true },
+  company: { type: String, required: true },
+  city: { type: String, default: "" },
+  ctc: { type: String, required: true },
+  // How this placement came about - the academy explicitly selects one.
+  placementSource: {
+    type: String,
+    enum: ["Talentera Platform", "Campus Placement Drive", "Academy Referral", "Direct Company Outreach", "Other"],
+    required: true,
+  },
+  // Where the candidate stands on actually starting the job - explicitly
+  // selected by the academy, not assumed "Verified" the moment it's logged.
+  joiningStatus: {
+    type: String,
+    enum: ["Offer Accepted", "Joined", "Yet to Join", "Declined"],
+    required: true,
+  },
   date: { type: String, default: "Recently" },
 });
 
@@ -102,12 +123,25 @@ const AcademySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Account & Institutional KYC Verification fields
+    kycStatus: {
+      type: String,
+      enum: ["pending", "under_review", "verified", "rejected"],
+      default: "pending",
+    },
+    kycSubmittedAt: { type: Date, default: null },
+    kycVerifiedAt: { type: Date, default: null },
+    kycNotes: { type: String, default: "" },
+    kycRejectionReason: { type: String, default: "" },
+    kycData: { type: mongoose.Schema.Types.Mixed, default: {} },
     courses: [CourseSubSchema],
     questions: [QuestionSubSchema],
     placements: [PlacementSubSchema],
   },
   { timestamps: true }
 );
+
+AcademySchema.index({ kycStatus: 1 });
 
 // Never leak passwordHash in JSON responses
 AcademySchema.set("toJSON", {

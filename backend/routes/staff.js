@@ -4,6 +4,7 @@ const Company = require("../models/Company");
 const Academy = require("../models/Academy");
 const College = require("../models/College");
 const AcademyBatch = require("../models/AcademyBatch");
+const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const Application = require("../models/Application");
 const Job = require("../models/Job");
 const Staff = require("../models/Staff");
@@ -2210,6 +2211,10 @@ router.put("/applications/:id/status", requireStaffAuth, async (req, res) => {
     const app = await Application.findById(req.params.id).populate("companyId", "companyName");
     if (!app) return res.status(404).json({ message: "Application not found." });
     app.status = status;
+    if (status === "rejected") {
+      app.rejectionReason = req.body.reason || req.body.rejectionReason || app.rejectionReason || "";
+      app.rejectionDetails = req.body.details || req.body.rejectionDetails || app.rejectionDetails || "";
+    }
     await app.save();
 
     try {
@@ -2261,8 +2266,12 @@ router.put("/applications/:id/status", requireStaffAuth, async (req, res) => {
 // GET /api/staff/academies - Full Academy Directory with courses, batches, and candidate enrollments
 router.get("/academies", requireStaffAuth, async (req, res) => {
   try {
-    const { search, limit = 500, page = 1 } = req.query;
+    const { search, kycStatus, limit = 500, page = 1 } = req.query;
     const query = {};
+
+    if (kycStatus && kycStatus.trim()) {
+      query.kycStatus = kycStatus.trim();
+    }
 
     if (search && search.trim()) {
       const q = search.trim();
@@ -2282,13 +2291,14 @@ router.get("/academies", requireStaffAuth, async (req, res) => {
     const maxLimit = Math.min(1000, Math.max(1, Number(limit) || 100));
     const skip = (Math.max(1, Number(page)) - 1) * maxLimit;
 
-    const [rawAcademies, total, batches, candidates] = await Promise.all([
+    const [rawAcademies, total, batches, candidates, allAcademies] = await Promise.all([
       Academy.find(query).sort({ updatedAt: -1, createdAt: -1 }).skip(skip).limit(maxLimit).lean(),
       Academy.countDocuments(query),
       AcademyBatch.find().sort({ createdAt: -1 }).lean(),
       Candidate.find({ "stage2.academyName": { $exists: true } })
         .select("_id email stage1 stage2 completedStages createdAt")
         .lean(),
+      Academy.find({}).select("kycStatus").lean(),
     ]);
 
     const batchesByAcademy = new Map();
@@ -2335,6 +2345,13 @@ router.get("/academies", requireStaffAuth, async (req, res) => {
         partnerSince: ac.partnerSince || "Jan 2025",
         studentsUploaded: ac.studentsUploaded || acCandidates.length,
         verifiedPct: ac.verifiedPct || 94,
+        isVerified: Boolean(ac.isVerified || ac.kycStatus === "verified"),
+        kycStatus: ac.kycStatus || "pending",
+        kycSubmittedAt: ac.kycSubmittedAt || null,
+        kycVerifiedAt: ac.kycVerifiedAt || null,
+        kycNotes: ac.kycNotes || "",
+        kycRejectionReason: ac.kycRejectionReason || "",
+        kycData: ac.kycData || {},
         courses: ac.courses || [],
         coursesCount: (ac.courses || []).length,
         questions: ac.questions || [],
@@ -2350,12 +2367,19 @@ router.get("/academies", requireStaffAuth, async (req, res) => {
       };
     });
 
+    const verifiedKycCount = allAcademies.filter((a) => a.kycStatus === "verified").length;
+    const pendingKycCount = allAcademies.filter((a) => a.kycStatus === "under_review" || a.kycStatus === "pending").length;
+    const rejectedKycCount = allAcademies.filter((a) => a.kycStatus === "rejected").length;
+
     res.json({
       academies,
       total,
       page: Number(page),
       totalPages: Math.ceil(total / maxLimit),
       totalBatches: batches.length,
+      verifiedKycCount,
+      pendingKycCount,
+      rejectedKycCount,
     });
   } catch (err) {
     logger.error(`List academies error: ${err.message}`);
@@ -2390,6 +2414,69 @@ router.get("/academies/:id", requireStaffAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Get academy detail error: ${err.message}`);
     res.status(500).json({ message: "Failed to fetch academy details." });
+  }
+});
+
+// POST /api/staff/verify-academy - Approve or reject Academy KYC (Protected)
+router.post("/verify-academy", requireStaffAuth, async (req, res) => {
+  try {
+    const { academyId, action, notes, rejectionReason, tier } = req.body;
+    const academy = await Academy.findById(academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    if (action === "verify") {
+      academy.kycStatus = "verified";
+      academy.isVerified = true;
+      academy.kycVerifiedAt = new Date();
+      academy.kycNotes = notes || "Institutional KYC audited and approved by Staff Auditor.";
+      academy.kycRejectionReason = "";
+      if (tier) academy.tier = tier;
+    } else if (action === "reject") {
+      academy.kycStatus = "rejected";
+      academy.isVerified = false;
+      academy.kycRejectionReason = rejectionReason || "Institutional KYC documents require revision. Please update details.";
+      academy.kycNotes = notes || "";
+    } else {
+      return res.status(400).json({ message: "Invalid action. Must be 'verify' or 'reject'." });
+    }
+
+    await academy.save();
+
+    await recordAudit(req, {
+      action: action === "verify" ? "verify_academy_kyc" : "reject_academy_kyc",
+      targetType: "academy",
+      targetId: academy._id,
+      summary: `${action === "verify" ? "Approved" : "Rejected"} KYC for academy "${academy.name}" (${academy.email}). Status: ${academy.kycStatus}`,
+      meta: { action, notes, rejectionReason, tier },
+    });
+
+    try {
+      await AcademyActivityEvent.create({
+        academyId: academy._id,
+        actionType: action === "verify" ? "kyc_approved" : "kyc_rejected",
+        description:
+          action === "verify"
+            ? `Institutional KYC approved by Staff Auditor (${req.staffName || "Staff"}). Full candidate deployment unlocked.`
+            : `Institutional KYC rejected / revision requested by Staff Auditor (${req.staffName || "Staff"}). Reason: ${rejectionReason || "Revision required"}`,
+        metadata: {
+          staffName: req.staffName || "Staff Auditor",
+          verifiedAt: new Date(),
+          notes: notes || "",
+          rejectionReason: rejectionReason || "",
+        },
+      });
+    } catch (actErr) {
+      logger.warn(`Failed to create AcademyActivityEvent on KYC verify: ${actErr.message}`);
+    }
+
+    res.json({
+      success: true,
+      message: `Academy KYC ${action === "verify" ? "approved" : "rejected"} successfully.`,
+      academy,
+    });
+  } catch (err) {
+    logger.error(`Verify academy KYC error: ${err.message}`);
+    res.status(500).json({ message: "Failed to verify academy KYC." });
   }
 });
 

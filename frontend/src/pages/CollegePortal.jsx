@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast.jsx";
 
@@ -26,6 +26,20 @@ const DEFAULT_DEPARTMENTS = [
   { name: "Computer Science & IT", degrees: ["BCA", "B.Sc CS"] },
 ];
 
+const GRADUATION_YEAR_OPTIONS = [
+  "2030",
+  "2029",
+  "2028",
+  "2027",
+  "2026",
+  "2025",
+  "2024",
+  "2023",
+  "2022",
+  "2021",
+  "2020",
+];
+
 const MODULES_MAP = {
   dashboard: { title: "Placement KPI Dashboard", icon: "fa-chart-pie" },
   students: { title: "Students Directory & Profiles", icon: "fa-users" },
@@ -40,6 +54,125 @@ const MODULES_MAP = {
   placements: { title: "Placements & Offer Letters", icon: "fa-handshake" },
   reports: { title: "NAAC & NBA Accreditation Reports", icon: "fa-file-lines" },
 };
+
+// Searchable dropdown - a text field that filters a long option list as you
+// type, click-to-select, with an "Other" row at the bottom so nothing on a
+// long medical/allied-health list ever blocks a program that isn't on it.
+// Selecting "Other" calls onChange("__other__") and the caller reveals its
+// own manual text input.
+function SearchableSelect({ options, value, onChange, placeholder, required }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    function handleOutsideClick(e) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const filtered = query.trim()
+    ? options.filter((o) => o.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <div
+        onClick={() => setOpen((v) => !v)}
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen((v) => !v); } }}
+        style={{
+          width: "100%",
+          padding: "9px 12px",
+          borderRadius: 6,
+          border: "1.5px solid #CBD5E1",
+          fontSize: 13,
+          background: "#FFF",
+          boxSizing: "border-box",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          cursor: "pointer",
+          color: value ? "#0F172A" : "#94A3B8",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {value || placeholder}
+        </span>
+        <i className={`fa-solid fa-chevron-${open ? "up" : "down"}`} style={{ fontSize: 10, color: "#94A3B8", marginLeft: 8, flexShrink: 0 }}></i>
+      </div>
+      {/* Hidden native input so the browser's own required-field validation still fires on submit */}
+      <input type="text" required={required} value={value} readOnly tabIndex={-1} style={{ position: "absolute", opacity: 0, height: 0, width: "100%", pointerEvents: "none" }} />
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: "#FFFFFF",
+            border: "1px solid #CBD5E1",
+            borderRadius: 8,
+            boxShadow: "0 10px 28px rgba(15,23,42,0.14)",
+            zIndex: 60,
+            maxHeight: 280,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ padding: 8, borderBottom: "1px solid #E2E8F0" }}>
+            <input
+              type="text"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search…"
+              style={{ width: "100%", padding: "7px 9px", borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box" }}
+            />
+          </div>
+          <div style={{ overflowY: "auto" }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: "10px 12px", fontSize: 12.5, color: "#94A3B8" }}>No matches</div>
+            ) : (
+              filtered.map((o) => (
+                <div
+                  key={o}
+                  onClick={() => { onChange(o); setOpen(false); setQuery(""); }}
+                  style={{
+                    padding: "8px 12px",
+                    fontSize: 13,
+                    cursor: "pointer",
+                    background: o === value ? "#EFF6FF" : "transparent",
+                    color: o === value ? "#2563EB" : "#0F172A",
+                    fontWeight: o === value ? 700 : 500,
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                >
+                  {o}
+                </div>
+              ))
+            )}
+            <div
+              onClick={() => { onChange("__other__"); setOpen(false); setQuery(""); }}
+              onMouseDown={(e) => e.preventDefault()}
+              style={{ padding: "8px 12px", fontSize: 12.5, fontWeight: 700, color: "#2563EB", cursor: "pointer", borderTop: "1px solid #E2E8F0" }}
+            >
+              <i className="fa-solid fa-plus" style={{ marginRight: 6 }}></i>
+              Other (type manually)
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function CollegePortal() {
   const navigate = useNavigate();
@@ -102,16 +235,127 @@ export default function CollegePortal() {
     name: "",
     email: "",
     mobile: "",
-    department: "Life Sciences & Biotechnology",
-    degree: "B.Sc Biotechnology",
+    department: "",
+    degree: "",
     rollNumber: "",
-    graduationYear: "2026",
-    cgpa: "8.2",
+    graduationYear: "",
+    cgpa: "",
     backlogsCount: 0,
-    primaryDomain: "Medical Coding",
+    primaryDomain: "",
     secondaryDomain: "Medical Billing",
   });
+  const [degreeIsOther, setDegreeIsOther] = useState(false);
+  const [departmentIsOther, setDepartmentIsOther] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
+
+  // Live "mobile already registered" check - debounced so it fires once the
+  // placement officer pauses typing, not on every keystroke. "duplicate"
+  // blocks submission; the real, authoritative check still happens again on
+  // the server in handleSingleStudentSubmit's POST /students/add.
+  const [mobileCheckStatus, setMobileCheckStatus] = useState("idle"); // idle | checking | duplicate | available
+  useEffect(() => {
+    const digits = singleStudent.mobile.replace(/\D/g, "");
+    if (digits.length !== 10) {
+      setMobileCheckStatus("idle");
+      return;
+    }
+    setMobileCheckStatus("checking");
+    const token = localStorage.getItem("talentera_college_token");
+    const timer = setTimeout(() => {
+      fetch(`/api/college/students/check-mobile?mobile=${digits}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => setMobileCheckStatus(data.exists ? "duplicate" : "available"))
+        .catch(() => setMobileCheckStatus("idle"));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [singleStudent.mobile]);
+
+  // Degree programs and departments feeding into RCM (Medical Coding /
+  // Billing / AR Calling) roles - a broad, searchable medical & allied
+  // health catalogue, with "Other" always available so a college can still
+  // type a program not listed here.
+  const DEGREE_PROGRAM_OPTIONS = [
+    "MBBS",
+    "BDS (Bachelor of Dental Surgery)",
+    "BAMS (Ayurvedic Medicine & Surgery)",
+    "BHMS (Homeopathic Medicine & Surgery)",
+    "BUMS (Unani Medicine & Surgery)",
+    "BSMS (Siddha Medicine & Surgery)",
+    "BVSc (Bachelor of Veterinary Science)",
+    "B.Sc Nursing",
+    "Post Basic B.Sc Nursing",
+    "GNM (General Nursing & Midwifery)",
+    "ANM (Auxiliary Nurse Midwifery)",
+    "B.Pharm (Bachelor of Pharmacy)",
+    "D.Pharm (Diploma in Pharmacy)",
+    "Pharm.D (Doctor of Pharmacy)",
+    "BPT (Bachelor of Physiotherapy)",
+    "BOT (Bachelor of Occupational Therapy)",
+    "B.Sc Biotechnology",
+    "B.Sc Life Sciences",
+    "B.Sc Microbiology",
+    "B.Sc Biochemistry",
+    "B.Sc Zoology",
+    "B.Sc Botany",
+    "B.Sc Genetics",
+    "B.Sc Allied Health Sciences",
+    "B.Sc Medical Lab Technology (MLT)",
+    "B.Sc Radiology & Imaging Technology",
+    "B.Sc Cardiac Care Technology",
+    "B.Sc Operation Theatre Technology",
+    "B.Sc Anesthesia Technology",
+    "B.Sc Dialysis Technology",
+    "B.Sc Respiratory Therapy",
+    "B.Sc Optometry",
+    "BASLP (Audiology & Speech Language Pathology)",
+    "B.Sc Nutrition & Dietetics",
+    "BHA / BHM (Hospital Administration)",
+    "B.Sc Public Health",
+    "MD / MS (Postgraduate Medicine)",
+    "MDS (Master of Dental Surgery)",
+    "M.Pharm (Master of Pharmacy)",
+    "MPT (Master of Physiotherapy)",
+    "MPH (Master of Public Health)",
+    "MHA (Master of Hospital Administration)",
+    "M.Sc Biotechnology / Life Sciences",
+    "M.Sc Microbiology",
+    "M.Sc Medical Lab Technology",
+  ];
+  const DEPARTMENT_OPTIONS = [
+    "General Medicine (MBBS)",
+    "Dental Sciences",
+    "Ayurveda (AYUSH)",
+    "Homeopathy (AYUSH)",
+    "Unani Medicine (AYUSH)",
+    "Siddha Medicine (AYUSH)",
+    "Veterinary Science",
+    "Nursing",
+    "Pharmacy",
+    "Physiotherapy",
+    "Occupational Therapy",
+    "Life Sciences & Biotechnology",
+    "Microbiology",
+    "Biochemistry",
+    "Zoology",
+    "Botany",
+    "Genetics",
+    "Paramedical Sciences",
+    "Allied Health Sciences",
+    "Medical Lab Technology",
+    "Radiology & Imaging Technology",
+    "Cardiac Care Technology",
+    "Operation Theatre Technology",
+    "Anesthesia Technology",
+    "Dialysis Technology",
+    "Respiratory Therapy",
+    "Optometry",
+    "Audiology & Speech Language Pathology",
+    "Nutrition & Dietetics",
+    "Public Health",
+    "Hospital Administration",
+  ];
 
   // Fetch initial profile & KPIs
   useEffect(() => {
@@ -345,6 +589,12 @@ export default function CollegePortal() {
   // Handle Single Student Enroll
   async function handleSingleStudentSubmit(e) {
     e.preventDefault();
+
+    if (mobileCheckStatus === "duplicate") {
+      toast("This mobile number is already registered. Use a different number.", "!");
+      return;
+    }
+
     setEnrolling(true);
     const token = localStorage.getItem("talentera_college_token");
 
@@ -366,15 +616,18 @@ export default function CollegePortal() {
         name: "",
         email: "",
         mobile: "",
-        department: "Life Sciences & Biotechnology",
-        degree: "B.Sc Biotechnology",
+        department: "",
+        degree: "",
         rollNumber: "",
-        graduationYear: "2026",
-        cgpa: "8.0",
+        graduationYear: "",
+        cgpa: "",
         backlogsCount: 0,
-        primaryDomain: "Medical Coding",
+        primaryDomain: "",
         secondaryDomain: "Medical Billing",
       });
+      setDegreeIsOther(false);
+      setDepartmentIsOther(false);
+      setMobileCheckStatus("idle");
       fetchCollegeData();
       fetchStudentsList();
     } catch (err) {
@@ -1151,7 +1404,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                           </span>
                         </div>
                         <span style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "block" }}>
-                          Roll No: <strong>{selectedStudent.studentEnrollment?.rollNumber || "22LS01"}</strong> · {selectedStudent.email} · {selectedStudent.mobile || selectedStudent.stage1?.phone}
+                          Roll No: <strong>{selectedStudent.studentEnrollment?.rollNumber || "Not assigned"}</strong> · {selectedStudent.email} · {selectedStudent.mobile || selectedStudent.stage1?.phone}
                         </span>
                       </div>
                       <button
@@ -1342,7 +1595,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         Candidate: {placementCandidate.stage1?.fullName || placementCandidate.name}
                       </div>
                       <div style={{ color: "#3B82F6", fontSize: 11.5, marginTop: 2 }}>
-                        Roll No: {placementCandidate.studentEnrollment?.rollNumber || "22LS01"} · {placementCandidate.email}
+                        Roll No: {placementCandidate.studentEnrollment?.rollNumber || "Not assigned"} · {placementCandidate.email}
                       </div>
                     </div>
                   ) : (
@@ -1386,7 +1639,6 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                       type="text"
                       name="role"
                       required
-                      defaultValue="Medical Coding Trainee"
                       placeholder="e.g. Medical Coding Trainee / AR Specialist"
                       style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box" }}
                     />
@@ -1400,7 +1652,6 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                       type="text"
                       name="ctc"
                       required
-                      defaultValue="₹3.8 LPA"
                       placeholder="e.g. ₹3.8 LPA"
                       style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, boxSizing: "border-box" }}
                     />
@@ -1484,12 +1735,36 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Mobile Number *</label>
                     <input
                       type="tel"
+                      inputMode="numeric"
                       required
+                      maxLength={10}
                       value={singleStudent.mobile}
-                      onChange={(e) => setSingleStudent({ ...singleStudent, mobile: e.target.value })}
+                      onChange={(e) => setSingleStudent({ ...singleStudent, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) })}
                       placeholder="9876543210"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 6,
+                        border: mobileCheckStatus === "duplicate" ? "1.5px solid #DC2626" : "1.5px solid #CBD5E1",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
                     />
+                    {mobileCheckStatus === "checking" && (
+                      <span style={{ fontSize: 11, color: "#94A3B8", marginTop: 4, display: "block" }}>Checking…</span>
+                    )}
+                    {mobileCheckStatus === "duplicate" && (
+                      <span style={{ fontSize: 11.5, color: "#DC2626", fontWeight: 700, marginTop: 4, display: "block" }}>
+                        <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 4 }}></i>
+                        Mobile number already exists
+                      </span>
+                    )}
+                    {mobileCheckStatus === "available" && (
+                      <span style={{ fontSize: 11.5, color: "#16A34A", fontWeight: 700, marginTop: 4, display: "block" }}>
+                        <i className="fa-solid fa-circle-check" style={{ marginRight: 4 }}></i>
+                        Available
+                      </span>
+                    )}
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>College Roll Number *</label>
@@ -1507,38 +1782,89 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Degree Program *</label>
-                    <input
-                      type="text"
-                      required
-                      value={singleStudent.degree}
-                      onChange={(e) => setSingleStudent({ ...singleStudent, degree: e.target.value })}
-                      placeholder="e.g. B.Sc Biotechnology / B.Pharm"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    <SearchableSelect
+                      required={!degreeIsOther}
+                      options={DEGREE_PROGRAM_OPTIONS}
+                      value={degreeIsOther ? "" : singleStudent.degree}
+                      placeholder="Select degree program…"
+                      onChange={(val) => {
+                        if (val === "__other__") {
+                          setDegreeIsOther(true);
+                          setSingleStudent({ ...singleStudent, degree: "" });
+                        } else {
+                          setDegreeIsOther(false);
+                          setSingleStudent({ ...singleStudent, degree: val });
+                        }
+                      }}
                     />
+                    {degreeIsOther && (
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        value={singleStudent.degree}
+                        onChange={(e) => setSingleStudent({ ...singleStudent, degree: e.target.value })}
+                        placeholder="Type the degree program"
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box", marginTop: 6 }}
+                      />
+                    )}
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Department *</label>
-                    <input
-                      type="text"
-                      required
-                      value={singleStudent.department}
-                      onChange={(e) => setSingleStudent({ ...singleStudent, department: e.target.value })}
-                      placeholder="Life Sciences & Biotechnology"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                    <SearchableSelect
+                      required={!departmentIsOther}
+                      options={DEPARTMENT_OPTIONS}
+                      value={departmentIsOther ? "" : singleStudent.department}
+                      placeholder="Select department…"
+                      onChange={(val) => {
+                        if (val === "__other__") {
+                          setDepartmentIsOther(true);
+                          setSingleStudent({ ...singleStudent, department: "" });
+                        } else {
+                          setDepartmentIsOther(false);
+                          setSingleStudent({ ...singleStudent, department: val });
+                        }
+                      }}
                     />
+                    {departmentIsOther && (
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        value={singleStudent.department}
+                        onChange={(e) => setSingleStudent({ ...singleStudent, department: e.target.value })}
+                        placeholder="Type the department"
+                        style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box", marginTop: 6 }}
+                      />
+                    )}
                   </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Graduation Year</label>
-                    <input
-                      type="number"
+                    <select
                       value={singleStudent.graduationYear}
                       onChange={(e) => setSingleStudent({ ...singleStudent, graduationYear: e.target.value })}
-                      placeholder="2026"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
-                    />
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 6,
+                        border: "1.5px solid #CBD5E1",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                        background: "#FFFFFF",
+                        color: singleStudent.graduationYear ? "#0F172A" : "#64748B",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value="">Select graduation year…</option>
+                      {GRADUATION_YEAR_OPTIONS.map((yr) => (
+                        <option key={yr} value={yr} style={{ color: "#0F172A" }}>
+                          {yr}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Cumulative CGPA</label>
@@ -1566,10 +1892,12 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Primary RCM Domain *</label>
                     <select
+                      required
                       value={singleStudent.primaryDomain}
                       onChange={(e) => setSingleStudent({ ...singleStudent, primaryDomain: e.target.value })}
                       style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, background: "#FFF", boxSizing: "border-box" }}
                     >
+                      <option value="" disabled>Select the domain this candidate applied for…</option>
                       <option value="Medical Coding">Medical Coding</option>
                       <option value="Medical Billing">Medical Billing</option>
                       <option value="AR Calling">AR Calling</option>
@@ -1840,28 +2168,61 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-                  {Object.keys(certificationsSummary).length === 0 ? (
-                    <div style={{ gridColumn: "1 / -1", padding: 30, textAlign: "center", color: "#64748B", fontSize: 12.5 }}>
-                      No certification records yet. Verified AAPC/AHIMA credentials will populate here automatically.
-                    </div>
-                  ) : (
-                    Object.entries(certificationsSummary).map(([code, c]) => (
-                      <div key={code} style={{ background: "#F8FAFC", padding: "14px 18px", borderRadius: 10, border: "1px solid #E2E8F0" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: 13, fontWeight: 900, color: "#7C3AED" }}>{code}</span>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 4 }}>
-                            {c.certified} Verified
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0A1F3D", margin: "6px 0 2px" }}>{c.name}</div>
-                        <div style={{ fontSize: 11.5, color: "#64748B" }}>
-                          {c.pursuing} in preparation / registered
-                        </div>
+                {Object.keys(certificationsSummary).length === 0 ? (
+                  <div style={{ padding: 30, textAlign: "center", color: "#64748B", fontSize: 12.5 }}>
+                    No certification records yet. Verified AAPC/AHIMA credentials will populate here automatically.
+                  </div>
+                ) : (
+                  (() => {
+                    // Group the flat certification list by RCM domain
+                    // (Medical Coding / Medical Billing / …) instead of one
+                    // undifferentiated grid, so a college can see at a
+                    // glance which credentials belong to which track.
+                    const grouped = {};
+                    Object.entries(certificationsSummary).forEach(([code, c]) => {
+                      const domain = c.domain || "Other Credentials";
+                      if (!grouped[domain]) grouped[domain] = [];
+                      grouped[domain].push({ code, ...c });
+                    });
+                    const domainOrder = ["Medical Coding", "Medical Billing", "AR Calling", "Other Credentials"];
+                    const domains = Object.keys(grouped).sort(
+                      (a, b) => (domainOrder.indexOf(a) === -1 ? 99 : domainOrder.indexOf(a)) - (domainOrder.indexOf(b) === -1 ? 99 : domainOrder.indexOf(b))
+                    );
+
+                    return (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                        {domains.map((domain) => (
+                          <div key={domain}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                              <span style={{ fontSize: 12.5, fontWeight: 900, color: "#0A1F3D", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                                {domain}
+                              </span>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "#64748B", background: "#F1F5F9", padding: "2px 8px", borderRadius: 4 }}>
+                                {grouped[domain].length} certification{grouped[domain].length === 1 ? "" : "s"}
+                              </span>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+                              {grouped[domain].map((c) => (
+                                <div key={c.code} style={{ background: "#F8FAFC", padding: "14px 18px", borderRadius: 10, border: "1px solid #E2E8F0" }}>
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ fontSize: 13, fontWeight: 900, color: "#7C3AED" }}>{c.code}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 4 }}>
+                                      {c.certified} Verified
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0A1F3D", margin: "6px 0 2px" }}>{c.name}</div>
+                                  <div style={{ fontSize: 11.5, color: "#64748B" }}>
+                                    {c.pursuing} in preparation / registered
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  )}
-                </div>
+                    );
+                  })()
+                )}
               </div>
             </div>
           )}
@@ -1935,7 +2296,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         {job.role} · {job.company}
                       </h3>
                       <div style={{ fontSize: 12.5, color: "#64748B" }}>
-                        📍 {job.location} · 💰 <strong>{job.ctc}</strong> · 👥 {job.openings} Openings · ⏳ {job.deadline}
+                        📍 {job.location} · 💰 <strong>{job.ctc}</strong> · 👥 {job.openings != null ? `${job.openings} Openings` : "Openings not specified"} · ⏳ {job.deadline}
                       </div>
                     </div>
                     <div style={{ textAlign: "right" }}>
@@ -2014,33 +2375,61 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
           {/* ========================================================= */}
           {/* MODULE: PLACEMENTS & OFFER LETTERS                        */}
           {/* ========================================================= */}
-          {activeTab === "placements" && (
+          {activeTab === "placements" && (() => {
+            const placedStudents = students.filter(
+              (s) => s.placementLifecycle?.currentStatus === "PLACED"
+            );
+            const parseCtcLpa = (val) => {
+              if (!val) return null;
+              const m = String(val).match(/(\d+(\.\d+)?)/);
+              return m ? parseFloat(m[1]) : null;
+            };
+            const ctcValues = placedStudents
+              .map((s) => parseCtcLpa(s.placementLifecycle?.placedCtc))
+              .filter((v) => v !== null && !Number.isNaN(v));
+            const avgCtcDisplay =
+              ctcValues.length > 0
+                ? `₹${(ctcValues.reduce((a, b) => a + b, 0) / ctcValues.length).toFixed(1)} LPA`
+                : "—";
+            const maxCtcDisplay =
+              ctcValues.length > 0 ? `₹${Math.max(...ctcValues).toFixed(1)} LPA` : "—";
+            const formatPlacementDate = (d) => {
+              if (!d) return "—";
+              try {
+                const dt = new Date(d);
+                if (Number.isNaN(dt.getTime())) return "—";
+                return dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+              } catch {
+                return "—";
+              }
+            };
+            return (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* Placements KPI Strip */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
                 <div style={{ background: "#FFFFFF", padding: 16, borderRadius: 12, border: "1px solid #E2E8F0" }}>
                   <div style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>Total Placed Candidates</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: "#166534", marginTop: 4 }}>{kpis.joined || kpis.selected || 0}</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: "#166534", marginTop: 4 }}>{placedStudents.length}</div>
                   <span style={{ fontSize: 11, color: "#16A34A" }}>Verified Campus Offers</span>
                 </div>
                 <div style={{ background: "#FFFFFF", padding: 16, borderRadius: 12, border: "1px solid #E2E8F0" }}>
                   <div style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>Average CTC Package</div>
                   <div style={{ fontSize: 24, fontWeight: 900, color: "#0A1F3D", marginTop: 4 }}>
-                    {(kpis.joined || kpis.selected) > 0 ? "₹3.8 LPA" : "—"}
+                    {avgCtcDisplay}
                   </div>
-                  <span style={{ fontSize: 11, color: "#64748B" }}>Healthcare RCM Baseline</span>
+                  <span style={{ fontSize: 11, color: "#64748B" }}>Across Recorded Offers</span>
                 </div>
                 <div style={{ background: "#FFFFFF", padding: 16, borderRadius: 12, border: "1px solid #E2E8F0" }}>
                   <div style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>Highest Package</div>
                   <div style={{ fontSize: 24, fontWeight: 900, color: "#7C3AED", marginTop: 4 }}>
-                    {(kpis.joined || kpis.selected) > 0 ? "₹5.2 LPA" : "—"}
+                    {maxCtcDisplay}
                   </div>
-                  <span style={{ fontSize: 11, color: "#7C3AED" }}>Certified Specialty Coder</span>
+                  <span style={{ fontSize: 11, color: "#7C3AED" }}>Top Recorded Offer</span>
                 </div>
                 <div style={{ background: "#FFFFFF", padding: 16, borderRadius: 12, border: "1px solid #E2E8F0" }}>
                   <div style={{ fontSize: 12, color: "#64748B", fontWeight: 700 }}>Placement Rate</div>
                   <div style={{ fontSize: 24, fontWeight: 900, color: "#2563EB", marginTop: 4 }}>
-                    {kpis.interviewReady > 0 ? Math.round(((kpis.joined + kpis.selected) / kpis.interviewReady) * 100) : 0}%
+                    {kpis.interviewReady > 0 ? Math.round((placedStudents.length / kpis.interviewReady) * 100) : 0}%
                   </div>
                   <span style={{ fontSize: 11, color: "#2563EB" }}>Of Interview-Ready Batch</span>
                 </div>
@@ -2054,7 +2443,7 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                       Placed Students & Confirmed Offer Letters
                     </h3>
                     <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
-                      Live roster of students who received formal corporate placement offers
+                      Live roster of students who received formal corporate placement offers - auto-synced when a company marks a candidate as hired, or logged manually below
                     </p>
                   </div>
                   <button
@@ -2091,13 +2480,14 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                         <th style={{ padding: "10px 14px" }}>Recruiting Employer</th>
                         <th style={{ padding: "10px 14px" }}>Designation</th>
                         <th style={{ padding: "10px 14px" }}>Annual CTC</th>
+                        <th style={{ padding: "10px 14px" }}>Placement Date</th>
                         <th style={{ padding: "10px 14px" }}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {students.filter((s) => s.placementLifecycle?.status === "PLACED" || s.placementLifecycle?.status === "JOINED" || s.placementLifecycle?.placedCompany || s.verificationReadiness?.readinessStatus === "PLACED" || s.verificationReadiness?.readinessStatus === "JOINED").length === 0 ? (
+                      {placedStudents.length === 0 ? (
                         <tr>
-                          <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
+                          <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
                             <i className="fa-solid fa-handshake-slash" style={{ fontSize: 30, color: "#94A3B8", marginBottom: 10, display: "block" }}></i>
                             <div style={{ fontSize: 14, fontWeight: 800, color: "#0A1F3D" }}>No Placement Records Yet</div>
                             <p style={{ fontSize: 12, margin: "4px 0 14px" }}>Click 'Record New Placement' to log confirmed campus offers.</p>
@@ -2114,44 +2504,51 @@ Vigneshwaran R,vignesh.r@demo.edu.in,9842100005,22IT01,Computer Science & IT,BCA
                           </td>
                         </tr>
                       ) : (
-                        students
-                          .filter((s) => s.placementLifecycle?.status === "PLACED" || s.placementLifecycle?.status === "JOINED" || s.placementLifecycle?.placedCompany || s.verificationReadiness?.readinessStatus === "PLACED" || s.verificationReadiness?.readinessStatus === "JOINED")
-                          .map((s) => (
+                        placedStudents.map((s) => {
+                          const isJoined =
+                            s.placementLifecycle?.joiningDate &&
+                            new Date(s.placementLifecycle.joiningDate) <= new Date();
+                          return (
                             <tr key={s._id} style={{ borderBottom: "1px solid #E2E8F0" }}>
                               <td style={{ padding: "10px 14px", fontWeight: 800, color: "#0A1F3D" }}>
                                 {s.stage1?.fullName || s.name}
                               </td>
                               <td style={{ padding: "10px 14px", color: "#64748B" }}>
-                                {s.studentEnrollment?.rollNumber || "22LS01"} · {s.studentEnrollment?.department || "Life Sciences"}
+                                {s.studentEnrollment?.rollNumber || "—"} · {s.studentEnrollment?.department || "—"}
                               </td>
                               <td style={{ padding: "10px 14px" }}>
                                 <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#EFF6FF", color: "#2563EB" }}>
-                                  {s.rcmDomainSelection?.primaryDomain || "Medical Coding"}
+                                  {s.rcmDomainSelection?.primaryDomain || "—"}
                                 </span>
                               </td>
                               <td style={{ padding: "10px 14px", fontWeight: 800, color: "#0A1F3D" }}>
-                                {s.placementLifecycle?.placedCompany || "Optum Global Solutions"}
+                                {s.placementLifecycle?.placedCompanyName || "—"}
                               </td>
                               <td style={{ padding: "10px 14px", color: "#334155" }}>
-                                {s.placementLifecycle?.placedRole || "Medical Coding Trainee"}
+                                {s.placementLifecycle?.placedRole || "—"}
                               </td>
                               <td style={{ padding: "10px 14px", fontWeight: 900, color: "#16A34A" }}>
-                                {s.placementLifecycle?.placedPackageCtc || "₹3.8 LPA"}
+                                {s.placementLifecycle?.placedCtc || "Not disclosed"}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "#334155" }}>
+                                {formatPlacementDate(s.placementLifecycle?.placedDate)}
                               </td>
                               <td style={{ padding: "10px 14px" }}>
-                                <span style={{ fontSize: 11, fontWeight: 800, background: "#DCFCE7", color: "#166534", padding: "3px 8px", borderRadius: 4 }}>
-                                  OFFER ACCEPTED
+                                <span style={{ fontSize: 11, fontWeight: 800, background: isJoined ? "#DCFCE7" : "#FEF9C3", color: isJoined ? "#166534" : "#92400E", padding: "3px 8px", borderRadius: 4 }}>
+                                  {isJoined ? "JOINED" : "PLACED - OFFER CONFIRMED"}
                                 </span>
                               </td>
                             </tr>
-                          ))
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================= */}
           {/* MODULE: REPORTS & ACCREDITATION (NAAC / NBA)              */}
