@@ -77,6 +77,7 @@ describe("Academy OS Endpoints Suite (Phases 1-4)", () => {
           },
         ])
       );
+      PlacementConfirmation.find = jest.fn().mockReturnValue(mockChain([]));
 
       const res = await request(app)
         .get("/api/academy/invites")
@@ -247,6 +248,7 @@ describe("Academy OS Endpoints Suite (Phases 1-4)", () => {
           },
         ])
       );
+      PlacementConfirmation.find = jest.fn().mockReturnValue(mockChain([]));
 
       const res = await request(app)
         .get("/api/academy/activity")
