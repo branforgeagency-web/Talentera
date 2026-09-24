@@ -45,7 +45,13 @@ const InterviewQuestionSchema = new mongoose.Schema(
     // Healthcare domain this interview question belongs to
     domain: {
       type: String,
-      enum: ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "General"],
+      // "Front Office" is kept only for backward compatibility with
+      // questions staff already tagged under that older internal label -
+      // new questions should use "Eligibility & Verification", the exact
+      // label candidates see and pick in Stage 2 Training. Both are treated
+      // as the same domain when matching questions to a candidate - see
+      // getDomainQueryAliases() in utils/aiInterviewSession.js.
+      enum: ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "Eligibility & Verification", "General"],
       default: "Medical Coding",
       index: true,
     },

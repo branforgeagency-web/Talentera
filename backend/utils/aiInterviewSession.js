@@ -15,6 +15,25 @@ function normalizeQText(text = "") {
   return String(text || "").toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 }
 
+// Candidates pick their Stage 2 training domain from Stage2Training.jsx
+// using these exact labels. The InterviewQuestion bank historically used
+// "Front Office" for what candidates see as "Eligibility & Verification" -
+// this maps a candidate's selected domain to every InterviewQuestion.domain
+// value that should count as a match, so a candidate is never silently
+// matched to zero domain-specific questions just because staff tagged a
+// question under the older label (or vice versa).
+const DOMAIN_QUERY_ALIASES = {
+  "Eligibility & Verification": ["Eligibility & Verification", "Front Office"],
+  "Front Office": ["Front Office", "Eligibility & Verification"],
+  "AR Calling": ["AR Calling", "Accounts Receivable"],
+  "Accounts Receivable": ["Accounts Receivable", "AR Calling"],
+};
+
+function getDomainQueryAliases(domain) {
+  if (!domain) return [];
+  return DOMAIN_QUERY_ALIASES[domain] || [domain];
+}
+
 function shuffleArray(array) {
   const arr = [...array];
   for (let i = arr.length - 1; i > 0; i--) {
@@ -60,6 +79,7 @@ function formatQuestionItem(q, idx) {
 async function buildFreshAiInterviewSession(candidate) {
   const candidateName = candidate.stage1?.fullName || "Candidate";
   const candidateDomain = candidate.stage2?.domain || "Medical Coding";
+  const domainQueryAliases = getDomainQueryAliases(candidateDomain);
   const role = candidate.stage1?.currentRole || candidateDomain;
   const experienceYears = candidate.stage1?.experience ?? null;
 
@@ -67,7 +87,7 @@ async function buildFreshAiInterviewSession(candidate) {
   const allActiveBankQuestions = await InterviewQuestion.find({
     active: true,
     $or: [
-      { domain: candidateDomain },
+      { domain: { $in: domainQueryAliases } },
       { domain: "General" },
       { domain: { $exists: false } },
       { domain: null },
@@ -86,8 +106,8 @@ async function buildFreshAiInterviewSession(candidate) {
 
   // Prioritize domain-matched questions over generic ones
   dedupedBank.sort((a, b) => {
-    const aMatch = a.domain === candidateDomain ? 1 : 0;
-    const bMatch = b.domain === candidateDomain ? 1 : 0;
+    const aMatch = domainQueryAliases.includes(a.domain) ? 1 : 0;
+    const bMatch = domainQueryAliases.includes(b.domain) ? 1 : 0;
     return bMatch - aMatch;
   });
 
@@ -220,4 +240,4 @@ async function finalizeAiInterviewSession(candidate, session, status) {
   return result;
 }
 
-module.exports = { buildFreshAiInterviewSession, finalizeAiInterviewSession };
+module.exports = { buildFreshAiInterviewSession, finalizeAiInterviewSession, getDomainQueryAliases };

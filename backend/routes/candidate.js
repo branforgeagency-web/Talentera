@@ -15,7 +15,7 @@ const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
 const { getMessiTurn, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
-const { buildFreshAiInterviewSession, finalizeAiInterviewSession } = require("../utils/aiInterviewSession");
+const { buildFreshAiInterviewSession, finalizeAiInterviewSession, getDomainQueryAliases } = require("../utils/aiInterviewSession");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
@@ -1130,6 +1130,8 @@ router.get("/interview-questions", async (req, res) => {
       domain = candidate?.stage2?.domain || "Medical Coding";
     }
 
+    const domainQueryAliases = getDomainQueryAliases(domain);
+
     const queryFilter = {
       active: true,
       mode: { $in: [mode, "both"] },
@@ -1137,7 +1139,7 @@ router.get("/interview-questions", async (req, res) => {
 
     if (domain) {
       queryFilter.$or = [
-        { domain },
+        { domain: { $in: domainQueryAliases } },
         { domain: "General" },
         { domain: { $exists: false } },
         { domain: null },
@@ -1148,10 +1150,10 @@ router.get("/interview-questions", async (req, res) => {
       .select("_id text domain")
       .lean();
 
-    // Prioritize exact domain matches first
+    // Prioritize exact (or aliased) domain matches first
     rawQuestions.sort((a, b) => {
-      const aMatch = a.domain === domain ? 1 : 0;
-      const bMatch = b.domain === domain ? 1 : 0;
+      const aMatch = domainQueryAliases.includes(a.domain) ? 1 : 0;
+      const bMatch = domainQueryAliases.includes(b.domain) ? 1 : 0;
       return bMatch - aMatch;
     });
 

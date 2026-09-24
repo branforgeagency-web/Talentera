@@ -48,12 +48,13 @@ const MEDIAPIPE_MODEL_PATH = "https://storage.googleapis.com/mediapipe-models/fa
 
 // Calibrated geometric ratio thresholds with increased tolerance for left/right head turn
 export const DEFAULT_PROCTOR_THRESHOLDS = {
-  YAW_MIN: 0.44,   // Ratio < 0.44 (Turned Right) - increased tolerance for natural head movement
-  YAW_MAX: 2.28,   // Ratio > 2.28 (Turned Left)  - increased tolerance for natural head movement
+  YAW_MIN: 0.44,   // Ratio < 0.44 (Turned Right) - reverted to original, moderate tolerance
+  YAW_MAX: 2.66,   // Ratio > 2.66 (Turned Left)  - a bit more liberal than the original 2.28
   PITCH_MIN: 0.62, // Ratio < 0.62 (Looking Up)   - kept as is
   PITCH_MAX: 1.75, // Ratio > 1.75 (Looking Down) - kept as is
   CONSECUTIVE_ANOMALIES: 3, // 3 consecutive anomalous frames (~50ms) to trigger warning
   CONSECUTIVE_NORMALS: 2,   // 2 consecutive normal frames to clear
+  MIN_WARNING_DISPLAY_MS: 2500, // Warning banner stays visible at least this long, even if posture corrects immediately
 };
 
 export default function AiProctoringScreen({
@@ -80,6 +81,7 @@ export default function AiProctoringScreen({
   const consecutiveAnomaliesRef = useRef(0);
   const consecutiveNormalsRef = useRef(0);
   const lastInfractionTimestampRef = useRef(0);
+  const warningShownAtRef = useRef(0); // timestamp the warning banner last became visible - used to enforce a minimum on-screen duration
 
   // ──────────────────────────────────────────────────────────────────────────
   // 2. QUESTION & TIMER STATE
@@ -505,7 +507,7 @@ export default function AiProctoringScreen({
   }, []);
 
   // ──────────────────────────────────────────────────────────────────────────
-  // 7. DEBOUNCED WARNING & INFRACTION LOGGING (AUTO-SUBMITS AT 5 WARNINGS)
+  // 7. DEBOUNCED WARNING & INFRACTION LOGGING (AUTO-SUBMITS AT 10 WARNINGS)
   // ──────────────────────────────────────────────────────────────────────────
   const handleLandmarkEvaluation = useCallback(
     ({ anomaly, warningText, posture, yaw, pitch }) => {
@@ -521,6 +523,9 @@ export default function AiProctoringScreen({
         // Debounce trigger: require consecutive anomalous frames (fast 2-frame trigger for multiple faces and background movement)
         const requiredFrames = (anomaly === "multiple_faces" || anomaly === "background_movement") ? 2 : (thresholds.CONSECUTIVE_ANOMALIES || 3);
         if (consecutiveAnomaliesRef.current >= requiredFrames) {
+          if (consecutiveAnomaliesRef.current === requiredFrames) {
+            warningShownAtRef.current = Date.now();
+          }
           setIsWarningActive(true);
           setCurrentWarningMessage(warningText);
           setActiveAnomalyType(anomaly);
@@ -534,12 +539,13 @@ export default function AiProctoringScreen({
             setAttentionWarningsCount(currentCount);
             playAlertTone();
 
-            // User requirement: "make it as 5 warning to autosubmit"
-            if (currentCount >= 5) {
+            // Increased tolerance for natural movement/distraction - auto-submit
+            // only after 10 logged attention warnings (was 5).
+            if (currentCount >= 10) {
               setIsWarningActive(true);
-              setCurrentWarningMessage("🚨 PROCTOR VIOLATION: Maximum 5 Attention Warnings Exceeded! Auto-submitting assessment...");
+              setCurrentWarningMessage("🚨 PROCTOR VIOLATION: Maximum 10 Attention Warnings Exceeded! Auto-submitting assessment...");
               setTimeout(() => {
-                triggerSubmit("Proctor Policy Violation: Maximum 5 Attention Warnings Exceeded");
+                triggerSubmit("Proctor Policy Violation: Maximum 10 Attention Warnings Exceeded");
               }, 400);
             }
           }
@@ -548,8 +554,11 @@ export default function AiProctoringScreen({
         // Normal alignment detected
         consecutiveNormalsRef.current += 1;
 
-        // Require consecutive normal frames to clear the warning banner
-        if (consecutiveNormalsRef.current >= (thresholds.CONSECUTIVE_NORMALS || 2)) {
+        // Require consecutive normal frames AND a minimum on-screen duration
+        // before clearing the warning banner, so it stays readable a bit
+        // longer instead of flashing away the instant posture corrects.
+        const heldLongEnough = Date.now() - warningShownAtRef.current >= (thresholds.MIN_WARNING_DISPLAY_MS || 0);
+        if (consecutiveNormalsRef.current >= (thresholds.CONSECUTIVE_NORMALS || 2) && heldLongEnough) {
           consecutiveAnomaliesRef.current = 0;
           setIsWarningActive(false);
           setCurrentWarningMessage("");
@@ -758,17 +767,17 @@ export default function AiProctoringScreen({
               borderRadius: 10,
               border: attentionWarningsCount === 0
                 ? "1px solid #334155"
-                : attentionWarningsCount < 3
+                : attentionWarningsCount < 6
                 ? "1px solid rgba(245, 158, 11, 0.5)"
                 : "1.5px solid #ef4444",
               backgroundColor: attentionWarningsCount === 0
                 ? "rgba(30, 41, 59, 0.8)"
-                : attentionWarningsCount < 3
+                : attentionWarningsCount < 6
                 ? "rgba(245, 158, 11, 0.15)"
                 : "rgba(239, 68, 68, 0.2)",
               color: attentionWarningsCount === 0
                 ? "#cbd5e1"
-                : attentionWarningsCount < 3
+                : attentionWarningsCount < 6
                 ? "#fcd34d"
                 : "#fca5a5",
               fontSize: 12,
@@ -782,7 +791,7 @@ export default function AiProctoringScreen({
               <ShieldAlert style={{ width: 16, height: 16, color: "#fbbf24" }} />
             )}
             <span>
-              Telemetry Warnings: <strong style={{ fontFamily: "monospace", fontSize: 13.5 }}>{attentionWarningsCount} / 5</strong>
+              Telemetry Warnings: <strong style={{ fontFamily: "monospace", fontSize: 13.5 }}>{attentionWarningsCount} / 10</strong>
             </span>
           </div>
 
@@ -1405,7 +1414,7 @@ export default function AiProctoringScreen({
                   <AlertTriangle style={{ width: 22, height: 22, color: "#ffffff", flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 9.5, fontWeight: 900, textTransform: "uppercase", color: "#fde68a" }}>
-                      Warning #{attentionWarningsCount} / 5
+                      Warning #{attentionWarningsCount} / 10
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 800, margin: "2px 0 0", color: "#ffffff" }}>
                       {currentWarningMessage || "⚠️ Please keep your gaze centered"}
