@@ -683,6 +683,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   // never leaves a course selected that doesn't belong to that combination.
   const handleStreamChange = (stream) => {
     setEducationStream(stream);
+    if (stream === "Other") {
+      // No preset course list for "Other" - the candidate types their own
+      // qualification, so leave the field empty for them to fill in.
+      setDegree("");
+      return;
+    }
     const options = getCourseOptions(qualification, stream);
     setDegree(options[0]);
   };
@@ -690,8 +696,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   // Handle qualification (10th/12th/Diploma/UG/PG) change - re-derives the
   // course list for the new level, keeping Course Name always valid for
   // whatever qualification + stream combination is currently selected.
+  // When the stream is "Other" the candidate is typing their own course
+  // name manually, so this must never overwrite what they've typed.
   const handleQualificationChange = (newQualification) => {
     setQualification(newQualification);
+    if (educationStream === "Other") return;
     const options = getCourseOptions(newQualification, educationStream);
     setDegree(options[0]);
   };
@@ -2970,7 +2979,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               <label>
                 Academic Stream <span className="req">*</span>
               </label>
-              <div className={`choice-row ${formErrors.educationStream ? "has-error" : ""}`}>
+              <div className={`choice-row ${formErrors.educationStream ? "has-error" : ""}`} style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
                 <div
                   className={`choice ${educationStream === "Life Science" ? "selected" : ""}`}
                   onClick={() => {
@@ -2994,6 +3003,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="choice-icon">📚</div>
                   <div className="choice-title">Non-Life Science</div>
                   <div className="choice-sub">B.Com · B.Tech · BCA · BBA · Arts</div>
+                </div>
+                <div
+                  className={`choice ${educationStream === "Other" ? "selected" : ""}`}
+                  onClick={() => {
+                    handleStreamChange("Other");
+                    if (formErrors.educationStream) setFormErrors((prev) => ({ ...prev, educationStream: null }));
+                  }}
+                >
+                  <div className="choice-check">{educationStream === "Other" ? "✓" : ""}</div>
+                  <div className="choice-icon">✏️</div>
+                  <div className="choice-title">Other</div>
+                  <div className="choice-sub">Not listed - enter your own qualification</div>
                 </div>
               </div>
               {formErrors.educationStream && <div className="field-error-msg">⚠️ {formErrors.educationStream}</div>}
@@ -3019,19 +3040,31 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <label>
                   Course Name <span className="req">*</span>
                 </label>
-                <select
-                  value={degree}
-                  onChange={(e) => {
-                    setDegree(e.target.value);
-                    if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
-                  }}
-                >
-                  {getCourseOptions(qualification, educationStream).map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                {educationStream === "Other" ? (
+                  <input
+                    type="text"
+                    value={degree}
+                    onChange={(e) => {
+                      setDegree(e.target.value);
+                      if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
+                    }}
+                    placeholder="Type your qualification / course name"
+                  />
+                ) : (
+                  <select
+                    value={degree}
+                    onChange={(e) => {
+                      setDegree(e.target.value);
+                      if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
+                    }}
+                  >
+                    {getCourseOptions(qualification, educationStream).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {formErrors.degree && <div className="field-error-msg">⚠️ {formErrors.degree}</div>}
               </div>
             </div>

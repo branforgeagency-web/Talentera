@@ -81,6 +81,137 @@ export function calculateRealStageScore(profile) {
   return Math.min(100, Math.max(0, score));
 }
 
+// Per-stage score breakdown for the "Why is my score X?" analytics view.
+// Mirrors calculateRealStageScore's logic exactly, but returns earned/max
+// points per stage plus a concrete tip for improving that stage's score.
+export function getScoreBreakdown(profile) {
+  if (!profile) profile = {};
+  const completedStages = Array.isArray(profile.completedStages) ? profile.completedStages : [];
+  const rows = [];
+
+  // Stage 1
+  {
+    const done = completedStages.includes(1) || profile.stage1?.aadhaarVerified || profile.stage1?.fullName || profile.stage1?.fullname;
+    rows.push({
+      num: 1,
+      name: 'Identity Verification',
+      max: 5,
+      earned: done ? 5 : 0,
+      tip: done ? 'Fully earned — your identity is verified.' : 'Verify your mobile via Aadhaar OTP and fill in your basic identity details in Stage 1 to earn 5 points.',
+    });
+  }
+
+  // Stage 2
+  {
+    const done = completedStages.includes(2) || profile.stage2?.academyName || profile.stage2?.instituteName || profile.stage2?.domain;
+    rows.push({
+      num: 2,
+      name: 'Foundation & Academics',
+      max: 15,
+      earned: done ? 15 : 0,
+      tip: done ? 'Fully earned — your academy and training domain are on file.' : 'Add your academy/institute name, training domain and specialties in Stage 2 to earn 15 points.',
+    });
+  }
+
+  // Stage 3
+  {
+    const hasCert = completedStages.includes(3) || (profile.stage3?.certifications?.length > 0) || profile.stage3?.certCode;
+    const verified = profile.stage3?.certStatus === 'verified' || profile.stage3?.status === 'verified' || profile.stage3?.verified === true;
+    let earned = 0, tip;
+    if (hasCert && verified) {
+      earned = 20;
+      tip = 'Fully earned — your certification is API-verified.';
+    } else if (hasCert) {
+      earned = 15;
+      tip = 'Your certification is on file but still pending verification — get it verified to unlock the remaining 5 points.';
+    } else {
+      earned = 0;
+      tip = 'Add at least one certification (e.g. CPC, CCS, CPB) in Stage 3 to earn up to 20 points.';
+    }
+    rows.push({ num: 3, name: 'Certifications', max: 20, earned, tip });
+  }
+
+  // Stage 4
+  {
+    const hasScore = completedStages.includes(4) || profile.stage4?.score !== undefined || profile.stage4?.foundationScore !== undefined;
+    let earned = 0, tip;
+    if (hasScore) {
+      const fScore = profile.stage4?.foundationScore !== undefined ? Number(profile.stage4.foundationScore) : (profile.stage4?.score !== undefined ? Number(profile.stage4.score) : 0);
+      if (profile.stage4?.passed === true || fScore >= 70) {
+        earned = 25;
+        tip = 'Fully earned — you passed the Stage 4 domain assessment.';
+      } else if (fScore > 0) {
+        earned = Math.round((fScore / 100) * 25);
+        tip = `You scored ${fScore}/100 on the assessment — retake it and aim for 70+ to unlock the full 25 points.`;
+      } else {
+        earned = 15;
+        tip = 'Retake the Stage 4 assessment and aim for 70+ to earn the full 25 points.';
+      }
+    } else {
+      tip = 'Take the Stage 4 domain assessment (proctored) to earn up to 25 points.';
+    }
+    rows.push({ num: 4, name: 'Domain Assessment', max: 25, earned, tip });
+  }
+
+  // Stage 5
+  {
+    const done = completedStages.includes(5) || profile.stage5?.overallScore != null || profile.stage5?.verified;
+    rows.push({
+      num: 5,
+      name: 'Video Pitch & AI Communication',
+      max: 10,
+      earned: done ? 10 : 0,
+      tip: done ? 'Fully earned — your video pitch is on file.' : 'Record and submit your Stage 5 video pitch to earn 10 points.',
+    });
+  }
+
+  // Stage 6
+  {
+    const hasCharts = completedStages.includes(6) || (profile.stage6?.totalCharts || 0) > 0 || profile.stage6?.evidencePath;
+    let earned = 0, tip;
+    if (hasCharts) {
+      const s6 = profile.stage6 || {};
+      const opt = (s6.evidencePath || s6.option || '').toLowerCase();
+      if (opt === 'c' || opt.includes('self') || opt === 'declare') {
+        earned = 8;
+        tip = 'Your charts are self-declared (8/10 pts) — switch to API-verified or academy-verified evidence in Stage 6 to unlock the full 10 points.';
+      } else {
+        earned = 10;
+        tip = 'Fully earned — your live chart evidence is on file.';
+      }
+    } else {
+      tip = 'Log your live coding/billing charts with evidence in Stage 6 to earn up to 10 points.';
+    }
+    rows.push({ num: 6, name: 'Live Charts Audit', max: 10, earned, tip });
+  }
+
+  // Stage 7
+  {
+    const done = completedStages.includes(7) || profile.stage7?.objective || profile.stage7?.skills || profile.manualResume || profile.resumeUrl;
+    rows.push({
+      num: 7,
+      name: 'Resume Studio',
+      max: 10,
+      earned: done ? 10 : 0,
+      tip: done ? 'Fully earned — your resume is built.' : 'Build your resume in Stage 7 Resume Studio to earn 10 points.',
+    });
+  }
+
+  // Stage 8
+  {
+    const done = completedStages.includes(8) || profile.stage8?.liveForHiring !== undefined || profile.stage8?.employmentStatus;
+    rows.push({
+      num: 8,
+      name: 'Placement & Live For Hiring',
+      max: 5,
+      earned: done ? 5 : 0,
+      tip: done ? 'Fully earned — your placement preferences are configured.' : 'Set your placement preferences and go live for hiring in Stage 8 to earn 5 points.',
+    });
+  }
+
+  return rows;
+}
+
 export default function CandidateDashboard({ profile: propProfile, onEditStage }) {
   const navigate = useNavigate();
   const { logout } = useAuth();
@@ -113,6 +244,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const [toastMessage, setToastMessage] = useState(null);
   const [referralModal, setReferralModal] = useState({ open: false, title: '', sub: '', link: '' });
   const [showReferralInfoModal, setShowReferralInfoModal] = useState(false);
+  const [showScoreBreakdownModal, setShowScoreBreakdownModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('modern');
   const [jobLocationFilter, setJobLocationFilter] = useState('');
   const [jobSpecialtyFilter, setJobSpecialtyFilter] = useState('');
@@ -637,7 +769,11 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               </button>
             </div>
           </div>
-          <div style={{"textAlign":"center"}}>
+          <div
+            style={{ textAlign: 'center', cursor: 'pointer' }}
+            onClick={() => setShowScoreBreakdownModal(true)}
+            title="Click to see how your score is calculated and how to improve it"
+          >
             <div
               className="stamp-ring"
               style={{
@@ -654,6 +790,9 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             </div>
             <div style={{ marginTop: '8px', fontSize: '11px', fontWeight: '800', color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               {profileScore >= 75 ? 'Gold Verified' : 'Passport Score'}
+            </div>
+            <div style={{ marginTop: '6px', fontSize: '10.5px', fontWeight: 700, color: 'var(--gold-lite)' }}>
+              <i className="fa-solid fa-chart-simple" style={{ marginRight: 5 }} />View score breakdown
             </div>
           </div>
         </div>
@@ -1544,6 +1683,53 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="modal-footer">
               <div className="hint">Fair play: points vest once your friend verifies their profile · self-referrals are blocked.</div>
               <button className="cta" onClick={() => { setShowReferralInfoModal(false); if (navigator.clipboard) { navigator.clipboard.writeText(referralLink); triggerToast('Link copied. Ready to share.'); } }}><><i className="fa-solid fa-clipboard" style={{ marginRight: 6 }} />Copy</> My Link →</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showScoreBreakdownModal && (
+        <div className="modal-overlay show" onClick={() => setShowScoreBreakdownModal(false)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="ico-lg"><i className="fa-solid fa-chart-pie" /></div>
+              <div style={{ flex: 1 }}>
+                <div className="title">Your {profileScore}/100 Score — Full Breakdown</div>
+                <div className="sub">Exactly where every point comes from, and how to earn the rest</div>
+              </div>
+              <button className="close" onClick={() => setShowScoreBreakdownModal(false)}><i className="fa-solid fa-xmark" /></button>
+            </div>
+
+            <div className="modal-body">
+              <p style={{ fontSize: '12.5px', color: 'var(--gray-txt)', lineHeight: '1.6', margin: '0 0 20px' }}>Your Passport Score is calculated live across all 8 verification stages. Complete a stage — or upgrade a partially-scored one — and this number updates instantly.</p>
+
+              {getScoreBreakdown(profile).map((row) => {
+                const pct = row.max > 0 ? Math.round((row.earned / row.max) * 100) : 0;
+                const complete = row.earned >= row.max;
+                return (
+                  <div className="modal-step" key={row.num} style={{ borderLeftColor: complete ? 'var(--green, #1FA34A)' : 'var(--gold)' }}>
+                    <div className="modal-step-head">
+                      <div className="modal-step-num">{String(row.num).padStart(2, '0')}</div>
+                      <div style={{ flex: 1 }}>
+                        <div className="modal-step-title">{row.name}</div>
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 900, color: complete ? 'var(--green, #1FA34A)' : 'var(--navy)' }}>{row.earned} / {row.max} pts</div>
+                    </div>
+                    <div style={{ height: '6px', borderRadius: '4px', background: 'var(--border)', overflow: 'hidden', margin: '0 0 8px 44px' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: complete ? 'linear-gradient(90deg,#1FA34A,#45C97A)' : 'var(--grad-gold)', borderRadius: '4px', transition: 'width 0.4s ease' }} />
+                    </div>
+                    <div className="modal-step-body">
+                      {complete ? <><i className="fa-solid fa-circle-check" style={{ color: 'var(--green, #1FA34A)', marginRight: 6 }} /></> : <><i className="fa-solid fa-lightbulb" style={{ color: 'var(--gold)', marginRight: 6 }} /></>}
+                      {row.tip}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="modal-footer">
+              <div className="hint">Points update automatically the moment you complete or improve a stage — no re-verification needed.</div>
+              <button className="cta" onClick={() => { setShowScoreBreakdownModal(false); handleOpenStagesWizard(1); }}><><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Improve My Score</></button>
             </div>
           </div>
         </div>

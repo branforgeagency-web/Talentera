@@ -2001,6 +2001,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       onChange={(e) => setNonTrainedBackground(e.target.value)}
                     >
                       <option value="Life Sciences / Medical / Allied Health Graduate">Life Sciences / Medical / Allied Health Graduate</option>
+                      <option value="Non-Life Science Graduate">Non-Life Science Graduate</option>
                       <option value="Pharmacy / Nursing / Physiotherapy Graduate">Pharmacy / Nursing / Physiotherapy Graduate</option>
                       <option value="Commerce / Finance / Accounts Graduate (B.Com, BBA)">Commerce / Finance / Accounts Graduate (B.Com, BBA)</option>
                       <option value="Engineering / Computer Science / IT / BCA Graduate">Engineering / Computer Science / IT / BCA Graduate</option>
