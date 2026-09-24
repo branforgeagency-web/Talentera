@@ -1304,7 +1304,7 @@ router.post("/interview-questions", requireStaffAuth, async (req, res) => {
       mode: ["video", "audio", "both"].includes(mode) ? mode : "both",
       order: Number.isFinite(Number(order)) ? Number(order) : 0,
       active: active !== false,
-      domain: ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "General"].includes(domain) ? domain : "Medical Coding",
+      domain: ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "Eligibility & Verification", "General"].includes(domain) ? domain : "Medical Coding",
       topic: (topic || "").trim(),
       keywords: Array.isArray(keywords) && keywords.length === 3 ? keywords : undefined,
     });
@@ -1348,7 +1348,7 @@ router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
     if (mode !== undefined && ["video", "audio", "both"].includes(mode)) question.mode = mode;
     if (order !== undefined && Number.isFinite(Number(order))) question.order = Number(order);
     if (active !== undefined) question.active = Boolean(active);
-    if (domain !== undefined && ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "General"].includes(domain)) {
+    if (domain !== undefined && ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "Eligibility & Verification", "General"].includes(domain)) {
       question.domain = domain;
     }
     if (topic !== undefined) question.topic = topic.trim();

@@ -7340,8 +7340,15 @@ export default function StaffHub() {
             const videoCount = interviewQuestions.filter((q) => q.mode === "both" || q.mode === "video").length;
             const audioCount = interviewQuestions.filter((q) => q.mode === "both" || q.mode === "audio").length;
 
+            // "Eligibility & Verification" is the current label; some older
+            // questions may still be tagged with the legacy "Front Office"
+            // label they shared a domain with - treat them as the same
+            // bucket so filtering by the tab doesn't hide older rows.
+            const domainFilterAliases = interviewDomainFilter === "Eligibility & Verification"
+              ? ["Eligibility & Verification", "Front Office"]
+              : [interviewDomainFilter];
             const filteredInterviewQs = interviewQuestions.filter((q) => {
-              if (interviewDomainFilter !== "all" && (q.domain || "General") !== interviewDomainFilter) return false;
+              if (interviewDomainFilter !== "all" && !domainFilterAliases.includes(q.domain || "General")) return false;
               if (questionModeFilter !== "all" && q.mode !== questionModeFilter) return false;
               if (questionStatusFilter === "active" && !q.active) return false;
               if (questionStatusFilter === "inactive" && q.active) return false;
@@ -7358,7 +7365,7 @@ export default function StaffHub() {
               { id: "Medical Coding", label: "Medical Coding", icon: "fa-stethoscope" },
               { id: "Medical Billing", label: "Medical Billing", icon: "fa-file-invoice-dollar" },
               { id: "Accounts Receivable", label: "Accounts Receivable", icon: "fa-chart-line" },
-              { id: "Front Office", label: "Front Office / Access", icon: "fa-hospital-user" },
+              { id: "Eligibility & Verification", label: "Eligibility & Verification", icon: "fa-hospital-user" },
               { id: "General", label: "General Healthcare", icon: "fa-notes-medical" },
             ];
 
@@ -8056,7 +8063,7 @@ export default function StaffHub() {
                           <option value="Medical Coding">Medical Coding</option>
                           <option value="Medical Billing">Medical Billing</option>
                           <option value="Accounts Receivable">Accounts Receivable</option>
-                          <option value="Front Office">Front Office</option>
+                          <option value="Eligibility & Verification">Eligibility & Verification</option>
                           <option value="General">General RCM</option>
                         </select>
 
@@ -8653,7 +8660,7 @@ export default function StaffHub() {
                   <option value="Medical Coding">Medical Coding</option>
                   <option value="Medical Billing">Medical Billing</option>
                   <option value="Accounts Receivable">Accounts Receivable</option>
-                  <option value="Front Office">Front Office</option>
+                  <option value="Eligibility & Verification">Eligibility & Verification</option>
                   <option value="General">General RCM</option>
                 </select>
                 <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>

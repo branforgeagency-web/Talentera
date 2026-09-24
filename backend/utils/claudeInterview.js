@@ -253,6 +253,15 @@ const DOMAIN_INTERVIEW_BANKS = {
   ],
 };
 
+// Aliases so a candidate's Stage 2-selected domain always resolves to a
+// bank, even where the label candidates see differs from this bank's
+// internal key ("Eligibility & Verification" is shown to candidates in
+// Stage2Training.jsx; "AR Calling" is used at initial signup) - mirrors
+// getDomainQueryAliases() in utils/aiInterviewSession.js, which does the
+// same for the staff-editable InterviewQuestion database bank.
+DOMAIN_INTERVIEW_BANKS["Eligibility & Verification"] = DOMAIN_INTERVIEW_BANKS["Front Office"];
+DOMAIN_INTERVIEW_BANKS["AR Calling"] = DOMAIN_INTERVIEW_BANKS["Accounts Receivable"];
+
 const FALLBACK_QUESTION_BANK = [
   ...DOMAIN_INTERVIEW_BANKS["Medical Coding"],
   ...DOMAIN_INTERVIEW_BANKS["Medical Billing"],
@@ -425,6 +434,9 @@ const DOMAIN_PROMPT_TOPICS = {
     "5. Point-of-Service (POS) Collections & Patient Scheduling Optimization",
   ],
 };
+// Same aliasing as DOMAIN_INTERVIEW_BANKS above, for the LLM prompt topics.
+DOMAIN_PROMPT_TOPICS["Eligibility & Verification"] = DOMAIN_PROMPT_TOPICS["Front Office"];
+DOMAIN_PROMPT_TOPICS["AR Calling"] = DOMAIN_PROMPT_TOPICS["Accounts Receivable"];
 
 /**
  * Generate or fetch structured interview questions tailored to candidate domain

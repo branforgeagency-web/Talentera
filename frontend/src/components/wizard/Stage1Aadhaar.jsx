@@ -21,7 +21,53 @@ const POPULAR_CITIES = [
   "Bhubaneswar", "Visakhapatnam", "Trichy", "Madurai", "Salem"
 ];
 
-const LIFE_SCIENCE_COURSES = [
+// Course Name options are keyed by BOTH the Academic Stream (Life Science /
+// Non-Life Science) and the Highest Qualification level (10th / 12th /
+// Diploma / UG / PG), so the Course Name dropdown only ever shows options
+// that actually make sense together - a 10th-pass candidate never sees
+// "B.Pharm", and a PG candidate never sees an undergraduate-only degree.
+const TENTH_COURSE_OPTIONS = [
+  "SSLC / 10th Standard (State Board)",
+  "10th - CBSE",
+  "10th - ICSE",
+  "10th - NIOS / Open School",
+  "Other 10th Board",
+];
+
+const TWELFTH_LIFE_SCIENCE_COURSES = [
+  "12th - Biology (PCB)",
+  "12th - Science (PCMB)",
+  "12th - Science (PCB + Computer Science)",
+  "Vocational - Health Sciences (12th)",
+  "Other 12th (Life Science)",
+];
+
+const TWELFTH_NON_LIFE_SCIENCE_COURSES = [
+  "12th - Commerce",
+  "12th - Arts / Humanities",
+  "12th - Science (PCM)",
+  "12th - Vocational",
+  "Other 12th (Non-Life Science)",
+];
+
+const DIPLOMA_LIFE_SCIENCE_COURSES = [
+  "Diploma in Pharmacy (D.Pharm)",
+  "Diploma in Nursing (GNM / ANM)",
+  "Diploma in Medical Lab Technology (DMLT)",
+  "Diploma in Radiography / X-Ray Technology",
+  "Diploma in Optometry",
+  "Other Diploma (Life Science)",
+];
+
+const DIPLOMA_NON_LIFE_SCIENCE_COURSES = [
+  "Diploma in Computer Applications",
+  "Diploma in Engineering (Polytechnic)",
+  "Diploma in Business Administration",
+  "Diploma in Commerce / Accounting",
+  "Other Diploma (Non-Life Science)",
+];
+
+const UG_LIFE_SCIENCE_COURSES = [
   "B.Sc. Nursing",
   "B.Sc. Biotechnology",
   "B.Sc. Microbiology",
@@ -31,15 +77,22 @@ const LIFE_SCIENCE_COURSES = [
   "B.Sc. MLT (Medical Lab Technology)",
   "B.Sc. HIM / Health Information Management",
   "B.Sc. Genetics / Bioinformatics",
-  "B.Pharm / M.Pharm (Pharmacy)",
-  "Pharm.D (Doctor of Pharmacy)",
+  "B.Pharm (Bachelor of Pharmacy)",
   "BPT (Bachelor of Physiotherapy)",
   "BAMS / BHMS / BDS / MBBS (Medical / Allied Health)",
-  "M.Sc. Life Sciences / Biotech / Microbiology",
-  "Other Life Science Degree",
+  "Other Life Science UG Degree",
 ];
 
-const NON_LIFE_SCIENCE_COURSES = [
+const PG_LIFE_SCIENCE_COURSES = [
+  "M.Sc. Life Sciences / Biotech / Microbiology",
+  "M.Pharm (Master of Pharmacy)",
+  "Pharm.D (Doctor of Pharmacy)",
+  "MPT (Master of Physiotherapy)",
+  "MD / MS / MDS (Medical / Dental)",
+  "Other Life Science PG Degree",
+];
+
+const UG_NON_LIFE_SCIENCE_COURSES = [
   "B.Com (General / Computer Applications / Finance)",
   "B.Com (Hons.)",
   "B.Sc. Computer Science / IT / Maths / Physics",
@@ -48,10 +101,35 @@ const NON_LIFE_SCIENCE_COURSES = [
   "BCA (Bachelor of Computer Applications)",
   "BBA / BBM (Business Administration)",
   "B.A. (Bachelor of Arts)",
-  "MCA / M.Tech / MBA",
-  "Diploma in Any Branch",
-  "Other Non-Life Science Degree",
+  "Other Non-Life Science UG Degree",
 ];
+
+const PG_NON_LIFE_SCIENCE_COURSES = [
+  "MCA (Master of Computer Applications)",
+  "M.Tech (Master of Technology)",
+  "MBA (Master of Business Administration)",
+  "M.Com (Master of Commerce)",
+  "M.A. (Master of Arts)",
+  "Other Non-Life Science PG Degree",
+];
+
+// Returns the Course Name options for a given Highest Qualification level
+// and Academic Stream. Falls back to the UG list for an unrecognized/blank
+// qualification, since UG is the platform's most common case.
+function getCourseOptions(qualification, stream) {
+  const isLifeScience = stream === "Life Science";
+  if (qualification === "10th") return TENTH_COURSE_OPTIONS;
+  if (qualification === "12th") {
+    return isLifeScience ? TWELFTH_LIFE_SCIENCE_COURSES : TWELFTH_NON_LIFE_SCIENCE_COURSES;
+  }
+  if (qualification === "Diploma") {
+    return isLifeScience ? DIPLOMA_LIFE_SCIENCE_COURSES : DIPLOMA_NON_LIFE_SCIENCE_COURSES;
+  }
+  if (qualification === "PG · Postgraduate") {
+    return isLifeScience ? PG_LIFE_SCIENCE_COURSES : PG_NON_LIFE_SCIENCE_COURSES;
+  }
+  return isLifeScience ? UG_LIFE_SCIENCE_COURSES : UG_NON_LIFE_SCIENCE_COURSES;
+}
 
 const MONTH_OPTIONS = [
   { val: "01", label: "01 · Jan" },
@@ -428,9 +506,26 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [bestTimeToContact, setBestTimeToContact] = useState(
     existingData?.bestTimeToContact || "Anytime"
   );
-  const [preferredContactMethod, setPreferredContactMethod] = useState(
-    existingData?.preferredContactMethod || "WhatsApp"
-  );
+  // Multi-select - a candidate can be reached via more than one method, so
+  // this is an array of keys now rather than a single string. Older saved
+  // profiles may still have a single string value here (from before this
+  // was multi-select) - normalize that into a one-item array on load.
+  const [preferredContactMethods, setPreferredContactMethods] = useState(() => {
+    const existing = existingData?.preferredContactMethod;
+    if (Array.isArray(existing) && existing.length > 0) return existing;
+    if (typeof existing === "string" && existing) return [existing];
+    return ["WhatsApp"];
+  });
+  const toggleContactMethod = (key) => {
+    setPreferredContactMethods((prev) => {
+      if (prev.includes(key)) {
+        // Keep at least one selected - this field is required.
+        if (prev.length === 1) return prev;
+        return prev.filter((k) => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
 
   // 3. SECTION 3 · EXPERIENCE LEVEL
   const [experience, setExperience] = useState(
@@ -583,14 +678,22 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
-  // Handle stream change default degree
+  // Handle stream change default degree - also re-derives the course list
+  // from the currently selected Highest Qualification, so switching stream
+  // never leaves a course selected that doesn't belong to that combination.
   const handleStreamChange = (stream) => {
     setEducationStream(stream);
-    if (stream === "Life Science") {
-      setDegree(LIFE_SCIENCE_COURSES[0]);
-    } else {
-      setDegree(NON_LIFE_SCIENCE_COURSES[1]);
-    }
+    const options = getCourseOptions(qualification, stream);
+    setDegree(options[0]);
+  };
+
+  // Handle qualification (10th/12th/Diploma/UG/PG) change - re-derives the
+  // course list for the new level, keeping Course Name always valid for
+  // whatever qualification + stream combination is currently selected.
+  const handleQualificationChange = (newQualification) => {
+    setQualification(newQualification);
+    const options = getCourseOptions(newQualification, educationStream);
+    setDegree(options[0]);
   };
 
   // Tag picker helpers
@@ -1138,7 +1241,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       isWhatsAppSame,
       email: email.trim(),
       bestTimeToContact,
-      preferredContactMethod,
+      preferredContactMethod: preferredContactMethods,
 
       // Experience
       experience,
@@ -2565,10 +2668,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   ].map((item) => (
                     <div
                       key={item.key}
-                      className={`option-item ${preferredContactMethod === item.key ? "selected" : ""}`}
-                      onClick={() => setPreferredContactMethod(item.key)}
+                      className={`option-item ${preferredContactMethods.includes(item.key) ? "selected" : ""}`}
+                      onClick={() => toggleContactMethod(item.key)}
                     >
-                      <div className="dot"></div>
+                      <div className="box">{preferredContactMethods.includes(item.key) ? "✓" : ""}</div>
                       <div>{item.label}</div>
                     </div>
                   ))}
@@ -2903,7 +3006,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 </label>
                 <select
                   value={qualification}
-                  onChange={(e) => setQualification(e.target.value)}
+                  onChange={(e) => handleQualificationChange(e.target.value)}
                 >
                   <option>UG · Undergraduate</option>
                   <option>PG · Postgraduate</option>
@@ -2923,7 +3026,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
                   }}
                 >
-                  {(educationStream === "Life Science" ? LIFE_SCIENCE_COURSES : NON_LIFE_SCIENCE_COURSES).map((c) => (
+                  {getCourseOptions(qualification, educationStream).map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
