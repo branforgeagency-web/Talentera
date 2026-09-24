@@ -128,7 +128,7 @@ const handleUpload = (options = {}) => {
   return async (req, res, next) => {
     if (!req.file) return next();
 
-    const userSubdir = String(req.candidateId || req.companyId || req.academyId || "anon");
+    const userSubdir = String(req.candidateId || req.companyId || req.academyId || req.collegeId || "anon");
     const folderName = options.folder || `talentera/${userSubdir}`;
     const resourceType = options.resourceType || "auto";
 
