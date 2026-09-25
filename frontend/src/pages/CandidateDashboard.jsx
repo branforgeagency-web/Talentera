@@ -217,6 +217,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const sidebarRef = useRef(null);
+  const notifDropdownRef = useRef(null);
 
   // Sign out and redirect to homepage
   const handleSignOut = () => {
@@ -263,6 +264,9 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const [invites, setInvites] = useState([]);
   const [referrals, setReferrals] = useState([]);
   const [vaultDocs, setVaultDocs] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
   const triggerToast = (msg) => {
     setToastMessage(msg);
@@ -325,12 +329,57 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         setVaultDocs(resVault.data?.documentVault || resVault.data?.documents || resVault.data?.vault || []);
       } catch (e) {}
 
+      try {
+        const resNotif = await api.get('/candidate/notifications');
+        setNotifications(resNotif.data?.notifications || []);
+        setUnreadNotifCount(resNotif.data?.unreadCount || 0);
+      } catch (e) { /* notification bell is non-critical - ignore fetch errors */ }
+
     } catch (err) {
       console.error('Error loading dashboard data:', err);
     } finally {
       setLoading(false);
     }
   };
+
+  // Human-friendly relative time for the notification dropdown ("5m ago", "3h ago", ...)
+  const timeAgo = (dateStr) => {
+    if (!dateStr) return '';
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(dateStr).toLocaleDateString();
+  };
+
+  const handleToggleNotifDropdown = () => {
+    setShowNotifDropdown((prev) => !prev);
+  };
+
+  const handleMarkAllNotifsRead = async () => {
+    if (unreadNotifCount === 0) return;
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadNotifCount(0);
+    try {
+      await api.post('/candidate/notifications/mark-read', {});
+    } catch (e) { /* local state is already updated optimistically above */ }
+  };
+
+  // Close the notification dropdown on any click outside it
+  useEffect(() => {
+    if (!showNotifDropdown) return;
+    const handleOutsideClick = (e) => {
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target)) {
+        setShowNotifDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showNotifDropdown]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -502,7 +551,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     <div className="app">
       {/* Toast Notification */}
       {toastMessage && (
-        <div id="toast" style={{ display: 'block' }}>
+        <div id="toast" className="toast show">
           {toastMessage}
         </div>
       )}
@@ -548,8 +597,42 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <input type="text" placeholder="Search jobs, stages, badges..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '200px', color: '#FFFFFF' }} />
           </div>
 
-          <div className="top-notif" onClick={() => triggerToast("You have no unread notifications.")}>
-            <i className="fa-solid fa-bell" />
+          <div className="top-notif-wrap" ref={notifDropdownRef}>
+            <div className="top-notif" onClick={handleToggleNotifDropdown}>
+              <i className="fa-solid fa-bell" />
+              {unreadNotifCount > 0 && (
+                <span className="top-notif-badge">{unreadNotifCount > 9 ? '9+' : unreadNotifCount}</span>
+              )}
+            </div>
+
+            {showNotifDropdown && (
+              <div className="notif-dropdown">
+                <div className="notif-dropdown-header">
+                  <span>Notifications</span>
+                  {unreadNotifCount > 0 && (
+                    <button type="button" className="notif-mark-all-btn" onClick={handleMarkAllNotifsRead}>
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                <div className="notif-dropdown-list">
+                  {notifications.length === 0 ? (
+                    <div className="notif-empty">You have no notifications yet.</div>
+                  ) : (
+                    notifications.slice(0, 20).map((n) => (
+                      <div key={n._id} className={`notif-item ${n.read ? '' : 'unread'}`}>
+                        <div className="notif-item-top">
+                          <span className="notif-item-title">{n.title}</span>
+                          <span className="notif-item-time">{timeAgo(n.createdAt)}</span>
+                        </div>
+                        <div className="notif-item-message">{n.message}</div>
+                        {n.senderName && <div className="notif-item-sender">{n.senderName}</div>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="top-user" onClick={() => setActiveTab('profile')}>

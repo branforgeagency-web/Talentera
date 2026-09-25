@@ -134,9 +134,9 @@ export default function AiProctoringScreen({
       width: 120,
       height: 90,
       checkIntervalMs: 80,
-      lumaDiffThreshold: 26,
-      motionRatioThreshold: 0.035,
-      minPixelsThreshold: 140,
+      lumaDiffThreshold: 34, // needs a bigger per-pixel brightness change to count as movement
+      motionRatioThreshold: 0.07, // needs ~2x more of the background to change before flagging
+      minPixelsThreshold: 260,
     });
   }, []);
 
@@ -520,8 +520,10 @@ export default function AiProctoringScreen({
         consecutiveAnomaliesRef.current += 1;
         consecutiveNormalsRef.current = 0;
 
-        // Debounce trigger: require consecutive anomalous frames (fast 2-frame trigger for multiple faces and background movement)
-        const requiredFrames = (anomaly === "multiple_faces" || anomaly === "background_movement") ? 2 : (thresholds.CONSECUTIVE_ANOMALIES || 3);
+        // Debounce trigger: require consecutive anomalous frames (fast 2-frame trigger only for multiple faces -
+        // a real second person is a serious concern; background movement uses the normal debounce since
+        // small, everyday movements shouldn't be treated as urgently as an unauthorized person appearing)
+        const requiredFrames = anomaly === "multiple_faces" ? 2 : (thresholds.CONSECUTIVE_ANOMALIES || 3);
         if (consecutiveAnomaliesRef.current >= requiredFrames) {
           if (consecutiveAnomaliesRef.current === requiredFrames) {
             warningShownAtRef.current = Date.now();

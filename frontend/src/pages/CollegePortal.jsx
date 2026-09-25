@@ -920,15 +920,17 @@ export default function CollegePortal() {
         }}
       >
         {/* Brand */}
-        <div style={{ padding: "20px 22px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 8, background: "#F5B41A", color: "#0A1F3D", display: "grid", placeItems: "center", fontWeight: 900, fontSize: 16 }}>
-              <i className="fa-solid fa-building-columns"></i>
-            </div>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 900, color: "#FFFFFF", letterSpacing: "0.5px" }}>TALENTERA</div>
-              <div style={{ fontSize: 10.5, color: "#F5B41A", fontWeight: 700, textTransform: "uppercase" }}>COLLEGE OS · PLACEMENT</div>
-            </div>
+        <div
+          style={{ padding: "18px 22px", borderBottom: "1px solid rgba(255,255,255,0.08)", cursor: "pointer" }}
+          onClick={() => setActiveTab("dashboard")}
+        >
+          <img
+            src="/logo-white.png"
+            alt="Talentera"
+            style={{ height: 28, width: "auto", maxWidth: "100%", objectFit: "contain", display: "block" }}
+          />
+          <div style={{ fontSize: 9.5, color: "#F5B41A", fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 7 }}>
+            COLLEGE OS · PLACEMENT
           </div>
         </div>
 

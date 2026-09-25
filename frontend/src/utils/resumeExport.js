@@ -234,6 +234,16 @@ export function exportResumeWord(data) {
   const lightBg = isBw ? "#F9FAFB" : "#F8FAFC";
   const borderColor = isBw ? "#111111" : "#CBD5E1";
 
+  // Star ratings shown on the scorecard in place of raw /100 numbers
+  const starsFor = (score) => {
+    const n = Math.max(0, Math.min(5, Math.round((Number(score) || 0) / 100 * 5)));
+    return { count: n, display: "★".repeat(n) + "☆".repeat(5 - n) };
+  };
+  const assessmentStars = assessmentScore !== null ? starsFor(assessmentScore) : null;
+  const chartStars = starsFor(overallAccuracy);
+  const totalStars = starsFor(totalPoints).count;
+  const totalStarsDisplay = starsFor(totalPoints).display;
+
   // Skills chips + declaration paragraph - generated from the candidate's own domain,
   // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
   const resumeSkills = buildResumeSkills({ domain: domainName, specialties, certified: !isNonCertified });
@@ -530,7 +540,7 @@ export function exportResumeWord(data) {
           <td style="padding: 6pt 8pt; border: 1pt solid ${borderColor}; background-color: ${lightBg}; width: 25%;">
             <div style="color: #64748B; font-size: 8pt; text-transform: uppercase; font-weight: bold;">Foundation Assessment</div>
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
-              ${["Gold", "Silver", "Bronze"].includes(assessmentMedal) ? `${assessmentMedal} Tier` : "Assessment Score"} ${assessmentScore !== null ? `(${assessmentScore}/100)` : ""}
+              ${["Gold", "Silver", "Bronze"].includes(assessmentMedal) ? `${assessmentMedal} Tier` : "Assessment Score"} ${assessmentStars ? `(${assessmentStars.display} ${assessmentStars.count}/5)` : ""}
             </div>
             <div style="color: #166534; font-size: 8pt; font-weight: bold;">🟢 API Proctored</div>
           </td>
@@ -546,12 +556,12 @@ export function exportResumeWord(data) {
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
               ${chartTier} Tier (${totalCharts} charts)
             </div>
-            <div style="color: #475569; font-size: 8pt;">${overallAccuracy}% Accuracy Verified</div>
+            <div style="color: #475569; font-size: 8pt;">${chartStars.display} ${chartStars.count}/5 Accuracy Verified</div>
           </td>
           <td style="padding: 6pt 8pt; border: 1.5pt solid ${secAccentColor}; background-color: ${isBw ? "#FFFFFF" : "#FFFBEB"}; width: 25%; text-align: center;">
             <div style="color: ${primaryColor}; font-size: 8.5pt; text-transform: uppercase; font-weight: bold;">Total Verification</div>
             <div style="font-size: 15pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
-              ${totalPoints}/100
+              ${totalStarsDisplay} ${totalStars}/5
             </div>
             <div style="color: #166534; font-size: 8pt; font-weight: bold;">100% Genuine Profile</div>
           </td>

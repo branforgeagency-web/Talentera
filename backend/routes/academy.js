@@ -6,9 +6,11 @@ const StudentUpload = require("../models/StudentUpload");
 const StudentInvite = require("../models/StudentInvite");
 const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
-const { compute8Stages } = require("../utils/talenteraScore");
+const { compute8Stages, TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
 const Application = require("../models/Application");
 const Notification = require("../models/Notification");
+const RetakeRequest = require("../models/RetakeRequest");
+const { sendRetakeApprovedEmail } = require("../utils/emailService");
 const bcrypt = require("bcryptjs");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const { requireAcademyAuth, signToken } = require("../middleware/auth");
@@ -62,10 +64,14 @@ async function sendCandidateReminderNotification({ candidate, academy, reminderT
   let subject = `Action Required: Profile Verification Reminder - ${academyName}`;
   let title = "Talentera Profile Reminder";
   let contentHtml = "";
+  // Plain-text gist of the same message, shown in the candidate's in-app notification
+  // bell (the HTML above is email-only).
+  let notifMessage = `${academyName} sent you a reminder to complete your pending verification stages.`;
 
   if (reminderType === "portfolio_video" || reminderType === "video") {
     subject = `Action Required: Upload your Portfolio Video (Stage 5) - ${academyName}`;
     title = "Portfolio Video Reminder";
+    notifMessage = `${academyName} is asking you to record and upload your 2-minute Portfolio Video (Stage 5) on Talentera.`;
     contentHtml = `
       <p style="color: #475569; font-size: 15px; line-height: 1.5;">Hi ${candidateName},</p>
       <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your academy <strong>${academyName}</strong> has sent a reminder requesting you to record and upload your <strong>2-minute Portfolio Video (Stage 5)</strong> on Talentera.</p>
@@ -73,9 +79,26 @@ async function sendCandidateReminderNotification({ candidate, academy, reminderT
       <p style="margin: 24px 0;"><a href="${APP_URL}/login" style="background:#0A1F3D;color:#E5A82E;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Record / Upload Video Now →</a></p>
       <p style="color: #64748B; font-size: 13px;">This reminder was dispatched via Email, SMS, and WhatsApp by ${academyName}.</p>
     `;
+  } else if (reminderType === "boost_score") {
+    // Sent from the candidate tracker's "Boost Score" action for anyone scoring below
+    // TALENTERA_PASS_PERCENTAGE - a plain nudge to log back in and keep completing
+    // Stages 1-8 (does not reset/unlock anything, unlike the Retake action).
+    const stageInfo = compute8Stages(candidate);
+    const currentScore = stageInfo.talenteraScore;
+    subject = `Action Required: Raise Your Talentera Score to ${TALENTERA_PASS_PERCENTAGE}%+ - ${academyName}`;
+    title = "Complete Your Stages to Reach the Interview Pass Mark";
+    notifMessage = `Your Talentera Score is ${currentScore}%, below the ${TALENTERA_PASS_PERCENTAGE}% pass mark. ${academyName} is asking you to continue Stages 1-8 to raise it.`;
+    contentHtml = `
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Hi ${candidateName},</p>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your current Talentera Score is <strong>${currentScore}%</strong>, which is below the <strong>${TALENTERA_PASS_PERCENTAGE}%</strong> pass mark required to become eligible for employer interviews.</p>
+      <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your academy <strong>${academyName}</strong> is asking you to log back in to your Talentera dashboard and continue completing Stages 1 through 8 (Identity, Academy Training, Certifications, Assessment, Portfolio Video, Live Chart Practice, References, and Review) - each completed stage raises your score.</p>
+      <p style="margin: 24px 0;"><a href="${APP_URL}/login" style="background:#0A1F3D;color:#E5A82E;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Login & Continue Your Stages →</a></p>
+      <p style="color: #64748B; font-size: 13px;">This reminder was dispatched via Email, SMS, and WhatsApp by ${academyName}.</p>
+    `;
   } else {
     subject = `Reminder: Complete Your Talentera Verification - ${academyName}`;
     title = "Complete Your Profile Verification";
+    notifMessage = `${academyName} sent you a reminder to complete your pending verification stages on Talentera.`;
     contentHtml = `
       <p style="color: #475569; font-size: 15px; line-height: 1.5;">Hi ${candidateName},</p>
       <p style="color: #475569; font-size: 15px; line-height: 1.5;">Your training partner <strong>${academyName}</strong> has sent you a reminder to complete your pending verification stages on Talentera.</p>
@@ -92,6 +115,21 @@ async function sendCandidateReminderNotification({ candidate, academy, reminderT
     subject,
     html: wrapEmailTemplate(title, contentHtml),
   }).catch((err) => logger.warn(`Reminder email failed for ${candidate.email}: ${err.message}`));
+
+  // 1b. In-App Notification (shows up in the candidate's own notification bell,
+  // same event as the email above).
+  try {
+    await Notification.create({
+      recipientType: "candidate",
+      recipientId: String(candidate._id),
+      title,
+      message: notifMessage,
+      type: "reminder",
+      meta: { source: "academy", senderName: academyName, action: `reminder_${reminderType || "general"}` },
+    });
+  } catch (notifErr) {
+    logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+  }
 
   // 2. Log SMS & WhatsApp notification
   logger.info(`[MULTI-CHANNEL REMINDER DISPATCHED - EMAIL, SMS, WHATSAPP] Candidate: ${candidateName} (${candidate.email}, ${mobile}) | Academy: ${academyName} | Type: ${reminderType || "general"}`);
@@ -118,8 +156,9 @@ async function sendCandidateReminderNotification({ candidate, academy, reminderT
   }
 }
 
-// Helper to parse CSV line respecting quotes
-function parseCsvLine(text) {
+// Helper to parse CSV line respecting quotes. `delimiter` defaults to "," but
+// callers pass whatever parseCsvBuffer auto-detected for this file (see below).
+function parseCsvLine(text, delimiter = ",") {
   const result = [];
   let cur = "";
   let inQuotes = false;
@@ -132,7 +171,7 @@ function parseCsvLine(text) {
       } else {
         inQuotes = !inQuotes;
       }
-    } else if (c === "," && !inQuotes) {
+    } else if (c === delimiter && !inQuotes) {
       result.push(cur.trim().replace(/^["']|["']$/g, ""));
       cur = "";
     } else {
@@ -143,19 +182,87 @@ function parseCsvLine(text) {
   return result;
 }
 
+// Auto-detects the field delimiter from a CSV header line. Excel exports
+// CSVs with "," in US/UK locales but ";" in most of the rest of the world
+// (including India, when the system list-separator is a comma) - without
+// this, a semicolon-delimited file silently parses as ONE giant column per
+// row, every field comes back blank, and every row fails validation.
+function detectCsvDelimiter(headerLine) {
+  const candidates = [",", ";", "\t"];
+  let best = ",";
+  let bestCount = 0;
+  for (const d of candidates) {
+    // Count occurrences outside quoted spans so a quoted field containing
+    // the delimiter doesn't skew the count.
+    const count = parseCsvLine(headerLine, d).length - 1;
+    if (count > bestCount) {
+      bestCount = count;
+      best = d;
+    }
+  }
+  return best;
+}
+
 // Helper to parse CSV buffer into row objects
 function parseCsvBuffer(buffer) {
-  const text = buffer.toString("utf-8");
-  const lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
+  // Excel/Sheets "renamed to .csv" guard: a real .xlsx file is actually a ZIP archive
+  // (magic bytes 50 4B 03 04) - if a user edits the sample template and saves it
+  // without truly exporting as CSV (or just renames an .xlsx to .csv), decoding it as
+  // UTF-8 text produces garbage that silently fails every field. Fail fast with a clear,
+  // actionable message instead of rendering a wall of fake "Needs Fix" rows.
+  if (buffer.length >= 4 && buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04) {
+    const err = new Error("Uploaded file is an Excel workbook (.xlsx), not a CSV.");
+    err.userMessage =
+      "This file looks like an Excel workbook saved with a .csv name, not an actual CSV. In Excel, use File > Save As > CSV (Comma delimited) - don't just rename the file extension - then upload that file.";
+    throw err;
+  }
+
+  let text = buffer.toString("utf-8");
+  // Strip a UTF-8 byte-order-mark (BOM) if present - Excel's "CSV UTF-8" export option
+  // prepends one, which otherwise corrupts only the very first header cell (e.g. "name"
+  // silently becomes "\ufeffname"), breaking just that column's matching.
+  if (text.charCodeAt(0) === 0xfeff) {
+    text = text.slice(1);
+  }
+
+  let lines = text.split(/\r?\n/).filter((line) => line.trim() !== "");
   if (lines.length <= 1) return [];
 
-  const headers = parseCsvLine(lines[0]).map((h) =>
+  // Excel, on many non-US locales, prepends a literal "sep=;" (or "sep=,") directive
+  // line above the real header row when it saves a CSV whose list separator isn't a
+  // comma - it's a hint for Excel itself on reopen, not part of the data. Left in
+  // place it gets read as the header row, every column comes back unrecognized, and
+  // the real header row is misparsed as the first data row.
+  const sepDirectiveMatch = lines[0].trim().match(/^sep=(.)$/i);
+  let delimiter;
+  if (sepDirectiveMatch) {
+    delimiter = sepDirectiveMatch[1];
+    lines = lines.slice(1);
+    if (lines.length <= 1) return [];
+  } else {
+    delimiter = detectCsvDelimiter(lines[0]);
+  }
+
+  const headers = parseCsvLine(lines[0], delimiter).map((h) =>
     h.toLowerCase().replace(/[\s_-]+/g, "_")
   );
+
+  // If none of the expected student-data columns show up after parsing, this isn't
+  // valid CSV text at all (wrong file, corrupted save, unsupported encoding, etc.) -
+  // fail with a clear message instead of silently producing all-blank rows.
+  const knownHeaderHints = ["name", "email", "mobile", "phone", "course", "batch"];
+  const hasKnownHeader = headers.some((h) => knownHeaderHints.some((hint) => h.includes(hint)));
+  if (!hasKnownHeader) {
+    const err = new Error("CSV header row not recognized.");
+    err.userMessage =
+      "We couldn't recognize any expected columns (name, email, mobile, etc.) in this file's first row. Please start from the downloaded sample template, keep its header row unchanged, and save as a plain CSV file before uploading.";
+    throw err;
+  }
+
   const rows = [];
 
   for (let i = 1; i < lines.length; i++) {
-    const values = parseCsvLine(lines[i]);
+    const values = parseCsvLine(lines[i], delimiter);
     if (values.length < 2) continue;
 
     const row = {};
@@ -979,8 +1086,17 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
       }
 
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      // "example.com" is the reserved placeholder domain used by the downloadable
+      // sample CSV template (Priya Subramanian, Karthik Raja, Ananya Roy, etc.) - a
+      // row still using it means that sample row wasn't replaced with a real student
+      // before uploading. Reject it outright rather than let a fictional "candidate"
+      // get stored as real (and, since sample rows always look the same, potentially
+      // block a genuinely new student later on a false "already registered" match).
+      const isSampleTemplateEmail = /@example\.com$/i.test(email);
       if (!email || !emailRegex.test(email)) {
         errors.push("Invalid email format.");
+      } else if (isSampleTemplateEmail) {
+        errors.push(`'${email}' is the sample template's placeholder email - replace this row with the real student's details before uploading.`);
       } else if (seenEmails.has(email)) {
         errors.push(`Duplicate email '${email}' within this CSV.`);
       } else if (existingEmailSet.has(email)) {
@@ -1058,7 +1174,7 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
     });
   } catch (err) {
     logger.error(`Upload CSV parse error: ${err.message}`);
-    res.status(500).json({ message: "Failed to parse and validate student CSV." });
+    res.status(err.userMessage ? 400 : 500).json({ message: err.userMessage || "Failed to parse and validate student CSV." });
   }
 });
 
@@ -1248,6 +1364,11 @@ async function handleAddSingleStudent(req, res) {
 
     if (!studentName || !email) {
       return res.status(400).json({ message: "Student full name and email are required." });
+    }
+    // Same guard as the bulk CSV upload: never let the sample template's own
+    // placeholder email ("@example.com") get saved as a real candidate.
+    if (/@example\.com$/i.test(String(email).trim())) {
+      return res.status(400).json({ message: "That email is the sample template's placeholder address - please enter the real student's email instead." });
     }
     if (aadhaarRaw && aadhaarLast4.length !== 4) {
       return res.status(400).json({ message: "Aadhaar number looks invalid - please provide at least the last 4 digits." });
@@ -1575,7 +1696,7 @@ router.post("/upload-students", requireAcademyAuth, upload.single("file"), async
     });
   } catch (err) {
     logger.error(`Upload students error: ${err.message}`);
-    res.status(500).json({ message: "Failed to upload students." });
+    res.status(err.userMessage ? 400 : 500).json({ message: err.userMessage || "Failed to upload students." });
   }
 });
 
@@ -2341,6 +2462,78 @@ router.post("/students/:id/nudge", requireAcademyAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Send student reminder error: ${err.message}`);
     res.status(500).json({ message: "Failed to send reminder." });
+  }
+});
+
+// PUT /api/academy/students/:id/grant-retake - Academy-initiated assessment retake for a
+// candidate whose Talentera Score is below the pass mark (TALENTERA_PASS_PERCENTAGE).
+// Re-unlocks Stage 4 (Talentera Assessment, the highest-weighted gradable stage) the same
+// way the Staff Hub's retake-request approval does, and logs it as an already-APPROVED
+// RetakeRequest so it shows up in the same audit trail/history as staff-approved retakes.
+router.put("/students/:id/grant-retake", requireAcademyAuth, async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.params.id);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    const academy = await Academy.findById(req.academyId);
+    const stageInfo = compute8Stages(candidate);
+    const candidateName = candidate.stage1?.fullName || candidate.email;
+    const previousScore = stageInfo.talenteraScore;
+
+    const retakeReq = await RetakeRequest.create({
+      candidateId: candidate._id,
+      candidateEmail: candidate.email,
+      candidateName,
+      candidateMobile: candidate.stage1?.mobile || candidate.mobile || "",
+      stage: 4,
+      assessmentType: "Talentera AAPC / RCM Assessment (Stage 4)",
+      currentScore: previousScore,
+      reason: `Academy-initiated retake - Talentera Score ${previousScore}% is below the ${TALENTERA_PASS_PERCENTAGE}% pass mark for interview eligibility.`,
+      status: "APPROVED",
+      reviewedBy: academy?.name ? `${academy.name} (Academy)` : "Academy",
+      reviewNotes: "Retake granted directly from the Academy candidate tracker.",
+      reviewedAt: new Date(),
+    });
+
+    // Re-unlock Stage 4 on the candidate record (mirrors the Staff Hub approval reset).
+    candidate.stage4 = null;
+    candidate.completedStages = (candidate.completedStages || []).filter((n) => n !== 4);
+    candidate.markModified("stage4");
+    candidate.markModified("completedStages");
+    await candidate.save();
+
+    try {
+      await sendRetakeApprovedEmail({
+        toEmail: candidate.email,
+        candidateName,
+        employeeNotes: `Your academy has granted you a retake for the Talentera Assessment so you can reach the ${TALENTERA_PASS_PERCENTAGE}% score needed for interview eligibility.`,
+        assessmentType: "Talentera AAPC / RCM Assessment (Stage 4)",
+      });
+    } catch (emailErr) {
+      logger.warn(`Failed to send academy-granted retake email: ${emailErr.message}`);
+    }
+
+    try {
+      await Notification.create({
+        recipientType: "candidate",
+        recipientId: String(candidate._id),
+        title: "Retake Approved ✅",
+        message: `Your academy (${academy?.name || "your academy"}) granted you a retake of the Talentera Assessment (Stage 4) so you can raise your score above the ${TALENTERA_PASS_PERCENTAGE}% pass mark. Log back in to attempt it again.`,
+        type: "retake_approved",
+        meta: { source: "academy", senderName: academy?.name || "Your Academy", action: "grant_retake", actionType: "stage_4", actionLabel: "Retake Now" },
+      });
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
+
+    res.json({
+      success: true,
+      message: `Retake granted to ${candidateName}. Stage 4 (Assessment) unlocked and notification email sent.`,
+      request: retakeReq,
+    });
+  } catch (err) {
+    logger.error(`Academy grant retake error: ${err.message}`);
+    res.status(500).json({ message: "Failed to grant assessment retake." });
   }
 });
 
