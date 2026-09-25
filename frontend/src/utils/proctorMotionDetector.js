@@ -106,9 +106,11 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
       const faceH = maxY - minY;
 
       // Candidate's body bounds: from above forehead down to bottom of frame, plus shoulder width
-      exclLeft = Math.max(0, Math.floor((minX - faceW * 0.55) * width));
-      exclRight = Math.min(width - 1, Math.ceil((maxX + faceW * 0.55) * width));
-      exclTop = Math.max(0, Math.floor((minY - faceH * 0.35) * height));
+      // (padding widened so normal shifting/gesturing stays inside the "candidate" mask
+      // instead of being misread as background motion)
+      exclLeft = Math.max(0, Math.floor((minX - faceW * 0.75) * width));
+      exclRight = Math.min(width - 1, Math.ceil((maxX + faceW * 0.75) * width));
+      exclTop = Math.max(0, Math.floor((minY - faceH * 0.5) * height));
       exclBottom = height - 1;
       hasCandidateMask = true;
     }
@@ -162,8 +164,9 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
     if (frameMotion) {
       detector.consecutiveMotionFrames++;
       detector.consecutiveStillFrames = 0;
-      // Trigger after 2 consecutive motion samples (~180ms)
-      if (detector.consecutiveMotionFrames >= 2) {
+      // Trigger after 3 consecutive motion samples (~240ms) - was 2 (~180ms),
+      // widened so brief/small movements don't immediately flag as sustained motion
+      if (detector.consecutiveMotionFrames >= 3) {
         detector.isMotionActive = true;
       }
     } else {

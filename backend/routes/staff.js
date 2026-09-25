@@ -2784,6 +2784,25 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
       logger.warn(`Failed to send retake approval email: ${emailErr.message}`);
     }
 
+    // 4b. In-App Notification (shows up in the candidate's own notification bell)
+    try {
+      await Notification.create({
+        recipientType: "candidate",
+        recipientId: String(candidate._id),
+        title: "Retake Approved ✅",
+        message: `Your request to retake the ${assessmentTitle} has been approved${notes ? `: ${notes}` : "."} Log back in to your dashboard to attempt it again.`,
+        type: "retake_approved",
+        meta: {
+          source: "admin",
+          action: "approve_assessment_retake",
+          actionType: Number(retakeReq.stage) === 5 ? "stage_5" : "stage_4",
+          actionLabel: "Retake Now",
+        },
+      });
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
+
     // 5. Audit Log
     await recordAudit(req, {
       action: "approve_assessment_retake",
@@ -2828,6 +2847,19 @@ router.put("/retake-requests/:id/reject", requireStaffAuth, async (req, res) => 
       });
     } catch (emailErr) {
       logger.warn(`Failed to send retake rejection email: ${emailErr.message}`);
+    }
+
+    try {
+      await Notification.create({
+        recipientType: "candidate",
+        recipientId: String(retakeReq.candidateId),
+        title: "Retake Request Declined",
+        message: `Your assessment retake request was declined.${notes ? ` Reason: ${notes}` : ""}`,
+        type: "retake_rejected",
+        meta: { source: "admin", action: "reject_assessment_retake", actionType: "stage_4", actionLabel: "View Assessment" },
+      });
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
     }
 
     await recordAudit(req, {

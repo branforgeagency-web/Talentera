@@ -306,6 +306,17 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     return Math.min(100, Math.max(pts, candidateObj.score || 0));
   }, [stage1, stage2, stage3, certificationsList, isNonCertified, assessmentScore, stage5, videoScore, totalCharts, stage6, candidateObj]);
 
+  // Star ratings shown on the scorecard in place of raw /100 numbers
+  const starsFor = (score) => {
+    const n = Math.max(0, Math.min(5, Math.round((Number(score) || 0) / 100 * 5)));
+    return { count: n, display: "★".repeat(n) + "☆".repeat(5 - n) };
+  };
+  const assessmentStars = assessmentScore !== null ? starsFor(assessmentScore) : null;
+  const videoStars = videoScore !== null ? starsFor(videoScore) : null;
+  const chartStars = starsFor(overallAccuracy);
+  const totalStars = starsFor(totalPoints).count;
+  const totalStarsDisplay = starsFor(totalPoints).display;
+
   // Verified Fields Count
   const verifiedFieldsCount = useMemo(() => {
     let count = 0;
@@ -1863,21 +1874,21 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-score-strip">
                 {assessmentScore !== null && (
                   <span className={`s7-score-badge ${assessmentMedal.toLowerCase() === "gold" ? "gold" : assessmentMedal.toLowerCase() === "silver" ? "silver" : assessmentMedal.toLowerCase() === "bronze" ? "bronze" : ""}`}>
-                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentScore}
+                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
                   </span>
                 )}
                 {videoScore !== null && (
                   <span className={`s7-score-badge ${videoMedal.toLowerCase()}`}>
-                    🎤 {videoMedal} · {videoScore}
+                    🎤 {videoMedal} · {videoStars.display} {videoStars.count}/5
                   </span>
                 )}
                 {totalCharts > 0 && (
                   <span className="s7-score-badge silver">
-                    💻 {totalCharts} charts · {Math.round(overallAccuracy)}%
+                    💻 {totalCharts} charts · {chartStars.display} {chartStars.count}/5
                   </span>
                 )}
                 <span className="s7-score-badge gold">
-                  🏆 {totalPoints}/100 Total
+                  {totalStarsDisplay} {totalStars}/5
                 </span>
                 <span style={{ fontSize: 11, color: "#3A425A", fontStyle: "italic", marginLeft: "auto" }}>
                   Scan QR above to verify live
@@ -2210,12 +2221,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-resume-score-strip">
                 {assessmentScore !== null && (
                   <span className={`s7-score-badge ${assessmentMedal.toLowerCase() === "gold" ? "gold" : assessmentMedal.toLowerCase() === "silver" ? "silver" : assessmentMedal.toLowerCase() === "bronze" ? "bronze" : ""}`}>
-                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentScore}
+                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
                   </span>
                 )}
-                {videoScore !== null && <span className={`s7-score-badge ${videoMedal.toLowerCase()}`}>🎤 {videoMedal} · {videoScore}</span>}
-                {totalCharts > 0 && <span className="s7-score-badge silver">💻 {totalCharts} charts · {Math.round(overallAccuracy)}%</span>}
-                <span className="s7-score-badge gold">🏆 {totalPoints}/100 Total</span>
+                {videoScore !== null && <span className={`s7-score-badge ${videoMedal.toLowerCase()}`}>🎤 {videoMedal} · {videoStars.display} {videoStars.count}/5</span>}
+                {totalCharts > 0 && <span className="s7-score-badge silver">💻 {totalCharts} charts · {chartStars.display} {chartStars.count}/5</span>}
+                <span className="s7-score-badge gold">{totalStarsDisplay} {totalStars}/5</span>
               </div>
 
               {certificationsList.length > 0 && (

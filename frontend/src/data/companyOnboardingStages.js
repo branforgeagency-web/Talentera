@@ -213,7 +213,7 @@ export const JOB_POSTING_STAGE = {
     { id: "expmax", name: "Experience — maximum (yrs)", tag: "opt", input: "number" },
     { id: "edumin", name: "Education minimum", tag: "opt", input: "select", options: ["Any", "12th pass", "Diploma", "Bachelor's (any)", "Bachelor's (life sciences)", "Bachelor's (nursing/paramedical)", "Master's"] },
     { id: "shift", name: "Shift", tag: "must", input: "select", options: ["Day", "Night", "Rotational", "Flexible"] },
-    { id: "certs", name: "Certifications required", tag: "opt", input: "multi", options: ["CPC", "CPC-A", "COC", "CRC", "CCS", "CCA", "CIC", "CDIP", "CCDS", "CCS-P", "Non-Certified"] },
+    { id: "certs", name: "Certifications (optional)", tag: "opt", input: "multi", options: ["CPC", "CPC-A", "COC", "CRC", "CCS", "CCA", "CIC", "CDIP", "CCDS", "CCS-P", "Non-Certified"] },
     { id: "reqtools", name: "Tools / EHR required", tag: "opt", input: "multi", options: EHR_TOOLS },
     { id: "languages", name: "Languages required", tag: "must", input: "multi", options: ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam", "Marathi", "Bengali"] },
     { id: "location", name: "Location", tag: "must", input: "text" },

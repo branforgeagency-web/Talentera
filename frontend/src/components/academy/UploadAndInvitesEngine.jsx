@@ -18,8 +18,11 @@ const DEFAULT_COURSES = [
 // training tracks an academy is likely to run.
 const TRAINING_COURSE_OPTIONS = [
   { title: "Medical Coding" },
+  { title: "Basic Medical Coding" },
   { title: "Medical Billing" },
   { title: "AR Calling" },
+  { title: "AMCT" },
+  { title: "CPC" },
   { title: "HCC Coding / Risk Adjustment" },
   { title: "E/M Coding" },
   { title: "IP-DRG Coding" },

@@ -141,7 +141,13 @@ export default function CompanyJobs() {
       setForm(emptyFormState());
       fetchJobs();
     } catch (err) {
-      toast(err.response?.data?.message || "Couldn't post this job.", "!");
+      const missingIds = err.response?.data?.missing;
+      if (Array.isArray(missingIds) && missingIds.length > 0) {
+        const missingNames = missingIds.map((id) => STAGE9.items.find((i) => i.id === id)?.name || id);
+        toast(`Fill in: ${missingNames.join(", ")}`, "!");
+      } else {
+        toast(err.response?.data?.message || "Couldn't post this job.", "!");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -331,7 +337,10 @@ export default function CompanyJobs() {
                             const checked = e.target.checked;
                             setForm((prev) => ({
                               ...prev,
-                              level: checked ? "Fresher only" : "",
+                              // Unchecking must never leave the required "Hiring level" field
+                              // blank - fall back to the most permissive valid selection instead
+                              // of "", so an unrelated toggle can't silently break Publish.
+                              level: checked ? "Fresher only" : (prev.level === "Fresher only" ? "Open to both" : prev.level),
                               notice: checked ? "" : prev.notice,
                               expmin: checked ? "" : prev.expmin,
                               expmax: checked ? "" : prev.expmax,

@@ -34,6 +34,13 @@ const STAGE_SCORE_WEIGHTS = {
   8: 0, // Review & Publish (output only)
 };
 
+// Minimum Talentera Score (out of 100) a candidate needs to be eligible for
+// employer matching / interviews. Below this, academies and staff can grant
+// the candidate a retake (currently: re-unlock Stage 4, the highest-weighted
+// gradable stage) instead of the candidate staying stuck. Keep this in sync
+// with TALENTERA_PASS_PERCENTAGE in frontend/src/pages/AcademyPortal.jsx.
+const TALENTERA_PASS_PERCENTAGE = 75;
+
 /**
  * Computes the Talentera Score (0-100) from a stage-completion array (as
  * produced by compute8Stages below - each item needs only { stageNumber,
@@ -188,4 +195,4 @@ function compute8Stages(candidate) {
   };
 }
 
-module.exports = { STAGE_SCORE_WEIGHTS, calculateTalenteraScore, compute8Stages };
+module.exports = { STAGE_SCORE_WEIGHTS, TALENTERA_PASS_PERCENTAGE, calculateTalenteraScore, compute8Stages };

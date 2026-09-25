@@ -62,6 +62,13 @@ import {
 // outside this fixed list type its own name in.
 const DOMAIN_OPTIONS = ["Medical Coding", "Medical Billing", "AR Calling", "Other"];
 
+// Minimum Talentera Score (%) a candidate needs to be eligible for employer
+// matching / interviews. Below this, the candidate tracker offers a one-click
+// Retake so the academy can unlock Stage 4 (Assessment) for another attempt
+// instead of the candidate staying stuck. Keep in sync with
+// TALENTERA_PASS_PERCENTAGE in backend/utils/talenteraScore.js.
+const TALENTERA_PASS_PERCENTAGE = 75;
+
 // Ready-made "Batch 1(<Month> <Year>)" names for the current and next year, so
 // staff can pick a correctly-formatted batch name instead of typing it out by
 // hand. Kept in sync with the same list in UploadAndInvitesEngine.jsx. The
@@ -523,6 +530,7 @@ export default function AcademyPortal() {
       showToast("Error sending reminder.", "error");
     }
   };
+
 
   // Submit Placement Dispute
   const handleDisputeSubmit = async () => {
@@ -1656,7 +1664,8 @@ export default function AcademyPortal() {
                     ) : (
                       filteredCandidates.map((c) => {
                         const candIdShort = String(c.id || c._id || "").slice(-6).toUpperCase();
-                        const scoreVal = c.score && c.score !== "—" ? parseInt(c.score, 10) : null;
+                        const hasScoreValue = c.score && c.score !== "—" && c.score !== "Not Attempted";
+                        const scoreVal = hasScoreValue ? parseInt(c.score, 10) : null;
                         const isLive = (c.completion === 100 || c.completion === "100%" || c.status === "verified");
 
                         return (
@@ -1710,9 +1719,19 @@ export default function AcademyPortal() {
 
                             {/* Score */}
                             <td style={{ padding: "12px 14px" }}>
-                              {scoreVal ? (
-                                <span style={{ background: scoreVal >= 80 ? "#DCFCE7" : "#FEF3C7", color: scoreVal >= 80 ? "#15803D" : "#B45309", padding: "2px 8px", borderRadius: 6, fontWeight: 800, fontSize: 11 }}>
-                                  {scoreVal}% (Passed)
+                              {scoreVal !== null ? (
+                                <span
+                                  style={{
+                                    background: scoreVal >= TALENTERA_PASS_PERCENTAGE ? "#DCFCE7" : "#FEE2E2",
+                                    color: scoreVal >= TALENTERA_PASS_PERCENTAGE ? "#15803D" : "#B91C1C",
+                                    padding: "2px 8px",
+                                    borderRadius: 6,
+                                    fontWeight: 800,
+                                    fontSize: 11,
+                                  }}
+                                  title={`Interview pass mark: ${TALENTERA_PASS_PERCENTAGE}%`}
+                                >
+                                  {scoreVal}% {scoreVal >= TALENTERA_PASS_PERCENTAGE ? "(Passed)" : "(Below Pass Mark)"}
                                 </span>
                               ) : (
                                 <span style={{ color: "#94A3B8", fontSize: 11 }}>Pending</span>
@@ -1728,9 +1747,15 @@ export default function AcademyPortal() {
 
                             {/* Match & Interview */}
                             <td style={{ padding: "12px 14px" }}>
-                              <div style={{ fontSize: 11, color: "#0F172A", fontWeight: 700 }}>
-                                {c.placementStatus || (c.status === "placed" ? "Placed" : isLive ? "In Matchmaking Pool" : "In Verification")}
-                              </div>
+                              {c.status !== "placed" && scoreVal !== null && scoreVal < TALENTERA_PASS_PERCENTAGE ? (
+                                <div style={{ fontSize: 11, color: "#B91C1C", fontWeight: 700 }}>
+                                  Not Eligible - Below {TALENTERA_PASS_PERCENTAGE}% Pass Mark
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: 11, color: "#0F172A", fontWeight: 700 }}>
+                                  {c.placementStatus || (c.status === "placed" ? "Placed" : isLive ? "In Matchmaking Pool" : "In Verification")}
+                                </div>
+                              )}
                               <div style={{ fontSize: 10, color: "#64748B" }}>
                                 {c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Stage ${c.completion || "0%"}`)}
                               </div>
@@ -1753,6 +1778,29 @@ export default function AcademyPortal() {
                                   <Send style={{ width: 11, height: 11 }} />
                                   Remind
                                 </button>
+
+                                {scoreVal !== null && scoreVal < TALENTERA_PASS_PERCENTAGE && (
+                                  <button
+                                    onClick={() => handleSingleNudge(c.id || c._id, c.name, "boost_score")}
+                                    style={{
+                                      background: "rgba(180, 83, 9, 0.08)",
+                                      color: "#B45309",
+                                      border: "1px solid rgba(180, 83, 9, 0.3)",
+                                      padding: "5px 10px",
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                    }}
+                                    title={`Email ${c.name || "the candidate"} to log in and continue Stages 1-8 to raise their score above ${TALENTERA_PASS_PERCENTAGE}%`}
+                                  >
+                                    <Send style={{ width: 11, height: 11 }} />
+                                    Boost Score
+                                  </button>
+                                )}
 
                                 <div style={{ position: "relative" }}>
                                   <button

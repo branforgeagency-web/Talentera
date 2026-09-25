@@ -216,6 +216,9 @@ button { border: none; background: none; }
   width: 300px;
 }
 
+.top-notif-wrap {
+  position: relative;
+}
 .top-notif {
   width: 40px;
   height: 40px;
@@ -236,8 +239,7 @@ button { border: none; background: none; }
   border-color: var(--gold);
   transform: scale(1.05);
 }
-.top-notif::after {
-  content: '3';
+.top-notif-badge {
   position: absolute;
   top: -2px;
   right: -2px;
@@ -249,6 +251,94 @@ button { border: none; background: none; }
   border-radius: 10px;
   border: 2px solid var(--navy-darker);
   box-shadow: 0 2px 6px rgba(239, 68, 68, 0.5);
+  line-height: 1.4;
+}
+
+.notif-dropdown {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: var(--navy-darker);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  z-index: 500;
+}
+.notif-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--white);
+  font-weight: 800;
+  font-size: 13px;
+}
+.notif-mark-all-btn {
+  background: transparent;
+  border: none;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+.notif-mark-all-btn:hover {
+  text-decoration: underline;
+}
+.notif-dropdown-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+.notif-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12.5px;
+}
+.notif-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.notif-item:last-child {
+  border-bottom: none;
+}
+.notif-item.unread {
+  background: rgba(245, 166, 35, 0.08);
+}
+.notif-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.notif-item-title {
+  color: var(--white);
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+.notif-item-time {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.notif-item-message {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 11.5px;
+  line-height: 1.45;
+  margin-top: 4px;
+}
+.notif-item-sender {
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 6px;
 }
 
 .top-user {

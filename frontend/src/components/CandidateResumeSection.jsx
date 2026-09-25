@@ -283,6 +283,17 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     return Math.min(100, Math.max(pts, 58));
   }, [candidateObj.score, stage1, stage2, certificationsList, assessmentScore, videoScore, totalCharts]);
 
+  // Star ratings shown on the scorecard in place of raw /100 numbers
+  const starsFor = (score) => {
+    const n = Math.max(0, Math.min(5, Math.round((Number(score) || 0) / 100 * 5)));
+    return { count: n, display: "★".repeat(n) + "☆".repeat(5 - n) };
+  };
+  const assessmentStars = starsFor(assessmentScore);
+  const videoStars = starsFor(videoScore);
+  const chartStars = starsFor(overallAccuracy);
+  const totalStars = starsFor(totalPoints).count;
+  const totalStarsDisplay = starsFor(totalPoints).display;
+
   // Template and Theme State
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
     if (stage7Data.template) return stage7Data.template;
@@ -1672,7 +1683,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentScore}
+                {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
               </span>
 
               <span style={{
@@ -1683,7 +1694,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                🎤 {videoMedal} · {videoScore}
+                🎤 {videoMedal} · {videoStars.display} {videoStars.count}/5
               </span>
 
               <span style={{
@@ -1694,7 +1705,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                💻 {totalCharts} charts · {overallAccuracy}%
+                💻 {totalCharts} charts · {chartStars.display} {chartStars.count}/5
               </span>
 
               <span style={{
@@ -1705,7 +1716,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                🏆 {totalPoints}/100 Total
+                {totalStarsDisplay} {totalStars}/5
               </span>
 
               <span style={{ fontSize: 11, color: "#64748B", fontStyle: "italic", marginLeft: "auto" }}>
