@@ -11,6 +11,8 @@ jest.mock("../models/StudentInvite");
 jest.mock("../models/AcademyActivityEvent");
 jest.mock("../models/PlacementConfirmation");
 jest.mock("../models/Application");
+jest.mock("../models/Notification");
+jest.mock("../models/RetakeRequest");
 jest.mock("../utils/logger", () => ({
   info: jest.fn(),
   warn: jest.fn(),
@@ -24,6 +26,8 @@ const Candidate = require("../models/Candidate");
 const StudentInvite = require("../models/StudentInvite");
 const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
+const Notification = require("../models/Notification");
+const RetakeRequest = require("../models/RetakeRequest");
 const academyRoutes = require("../routes/academy");
 const { signToken } = require("../middleware/auth");
 
@@ -51,6 +55,13 @@ describe("Academy OS Endpoints Suite (Phases 1-4)", () => {
     jest.clearAllMocks();
     Candidate.countDocuments = jest.fn().mockResolvedValue(20);
     StudentInvite.findOne = jest.fn().mockResolvedValue(null);
+    StudentInvite.updateMany = jest.fn().mockResolvedValue({ acknowledged: true });
+    Notification.create = jest.fn().mockResolvedValue({});
+    Notification.find = jest.fn().mockReturnValue(mockChain([]));
+    Notification.findByIdAndUpdate = jest.fn().mockResolvedValue({});
+    Notification.updateMany = jest.fn().mockResolvedValue({ acknowledged: true });
+    RetakeRequest.create = jest.fn().mockResolvedValue({});
+    RetakeRequest.find = jest.fn().mockReturnValue(mockChain([]));
     Academy.findById = jest.fn().mockReturnValue(
       mockChain({
         _id: mockAcademyId,
@@ -203,6 +214,17 @@ describe("Academy OS Endpoints Suite (Phases 1-4)", () => {
     });
 
     test("POST /api/academy/students/bulk-nudge triggers notification to all stuck candidates", async () => {
+      Candidate.find = jest.fn().mockReturnValue(
+        mockChain([
+          {
+            _id: "c1",
+            email: "student@apexacademy.in",
+            mobile: "+919876543210",
+            stage1: { fullName: "Stuck Student", mobile: "+919876543210" },
+          },
+        ])
+      );
+
       const res = await request(app)
         .post("/api/academy/students/bulk-nudge")
         .set("Authorization", `Bearer ${validToken}`)
