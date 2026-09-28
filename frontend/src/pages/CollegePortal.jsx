@@ -46,6 +46,73 @@ const GRADUATION_YEAR_OPTIONS = [
   "2020",
 ];
 
+function CircularProgress({ percentage, label, subtext, color = "#2563EB", size = 50, icon = null }) {
+  const strokeWidth = 3.5;
+  const radius = (size - strokeWidth * 2) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.min(100, Math.max(0, Number(percentage) || 0));
+  const strokeDashoffset = circumference - (pct / 100) * circumference;
+
+  return (
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ position: "relative", width: size, height: size, display: "grid", placeItems: "center" }}>
+        <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke="#E2E8F0"
+            strokeWidth={strokeWidth}
+            fill="transparent"
+          />
+          {pct > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke={color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+              style={{ transition: "stroke-dashoffset 0.4s ease" }}
+            />
+          )}
+        </svg>
+        <div style={{ position: "absolute", fontSize: icon ? 13 : (label && label.length > 3 ? 10 : 11.5), fontWeight: 800, color: "#0A1F3D", textAlign: "center" }}>
+          {icon ? <i className={icon} style={{ color, fontSize: 13 }}></i> : (label || `${pct}%`)}
+        </div>
+      </div>
+      {subtext && (
+        <span style={{ fontSize: 10.5, color: "#64748B", marginTop: 4, fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" }}>
+          {subtext}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function getStudentInitials(name) {
+  if (!name || name === "—") return "ST";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const AVATAR_PALETTE = [
+  { bg: "#E0E7FF", color: "#3730A3" },
+  { bg: "#F3E8FF", color: "#6B21A8" },
+  { bg: "#ECFDF5", color: "#065F46" },
+  { bg: "#FEF3C7", color: "#92400E" },
+  { bg: "#E0F2FE", color: "#0369A1" },
+  { bg: "#FCE7F3", color: "#9D174D" },
+];
+
+function getAvatarStyle(idx) {
+  return AVATAR_PALETTE[idx % AVATAR_PALETTE.length];
+}
+
 const MODULES_MAP = {
   dashboard: { title: "Placement KPI Dashboard", icon: "fa-chart-pie" },
   students: { title: "Students Directory & Profiles", icon: "fa-users" },
@@ -208,9 +275,30 @@ export default function CollegePortal() {
   const [interviews, setInterviews] = useState([]);
   const [reportsData, setReportsData] = useState(null);
   const [curriculum, setCurriculum] = useState([]);
+  // Student-wise Training Progress table (per-student rollup of the
+  // curriculum grid above + their real Stage 4 assessment result) - a
+  // separate fetch/filter set from the Student Directory tab's own
+  // search/filters above, since this table lives inside the Training tab.
+  const [trainingProgressRows, setTrainingProgressRows] = useState([]);
+  const [trainingProgressLoading, setTrainingProgressLoading] = useState(false);
+  const [trainingProgressPagination, setTrainingProgressPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
+  const [trainingProgressSearch, setTrainingProgressSearch] = useState("");
+  const [trainingProgressDomain, setTrainingProgressDomain] = useState("");
+  const [trainingProgressStatus, setTrainingProgressStatus] = useState("");
+  const [trainingProgressBatch, setTrainingProgressBatch] = useState("");
+  const [trainingProgressPage, setTrainingProgressPage] = useState(1);
+  const [selectedTrainingStudent, setSelectedTrainingStudent] = useState(null);
+  const [trainingUpdateForm, setTrainingUpdateForm] = useState({
+    status: "IN_PROGRESS",
+    attendanceHours: 0,
+    completedModulesCount: 0,
+  });
+  const [trainingUpdating, setTrainingUpdating] = useState(false);
+  const [activeActionMenuId, setActiveActionMenuId] = useState(null);
   const [certificationsSummary, setCertificationsSummary] = useState({});
   const [assessmentsSummary, setAssessmentsSummary] = useState(null);
   const [drives, setDrives] = useState([]);
+  const [nominatingDriveId, setNominatingDriveId] = useState(null);
   const [showAllJobs, setShowAllJobs] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [editCollegeForm, setEditCollegeForm] = useState({
@@ -459,6 +547,7 @@ export default function CollegePortal() {
     }
     if (activeTab === "training") {
       fetchTrainingCurriculum();
+      fetchStudentTrainingProgress();
     }
     if (activeTab === "certifications") {
       fetchCertificationsSummary();
@@ -470,6 +559,153 @@ export default function CollegePortal() {
       fetchDrives();
     }
   }, [activeTab, search, filterDept, filterDomain, filterReadiness, filterPlacement, filterGender, filterGraduationYear]);
+
+  // fetchStudentTrainingProgress and activeTab are intentionally left out of
+  // the deps array below, matching the existing tab-driven fetch effect
+  // above (line ~449) which follows the same pattern.
+  useEffect(() => {
+    if (activeTab === "training") {
+      fetchStudentTrainingProgress();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainingProgressSearch, trainingProgressDomain, trainingProgressStatus, trainingProgressBatch, trainingProgressPage]);
+
+  async function fetchStudentTrainingProgress() {
+    setTrainingProgressLoading(true);
+    const token = localStorage.getItem("talentera_college_token");
+    try {
+      const params = new URLSearchParams({
+        page: String(trainingProgressPage),
+        limit: "10",
+        search: trainingProgressSearch,
+        domain: trainingProgressDomain,
+        status: trainingProgressStatus,
+        batch: trainingProgressBatch,
+      });
+      const res = await fetch(`/api/college/students-training-progress?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const d = await res.json();
+        setTrainingProgressRows(d.students || []);
+        setTrainingProgressPagination(d.pagination || { page: 1, limit: 10, total: 0, pages: 1 });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch student training progress", err);
+    } finally {
+      setTrainingProgressLoading(false);
+    }
+  }
+
+  async function handleViewTrainingStudent(studentId) {
+    const token = localStorage.getItem("talentera_college_token");
+    try {
+      const res = await fetch(`/api/college/students/${studentId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json();
+      if (res.ok) setSelectedStudent(d.student);
+      else toast(d.message || "Couldn't load student profile.", "!");
+    } catch (err) {
+      toast(err.message, "!");
+    }
+  }
+
+  const TRAINING_STATUS_STYLE = {
+    NOT_STARTED: {
+      label: "Not Started",
+      bg: "#F1F5F9",
+      color: "#475569",
+      border: "#CBD5E1",
+      icon: "fa-regular fa-circle",
+    },
+    IN_PROGRESS: {
+      label: "In Progress",
+      bg: "#FEF3C7",
+      color: "#B45309",
+      border: "#FCD34D",
+      icon: "fa-solid fa-circle-dot",
+    },
+    COMPLETED_PENDING_ASSESSMENTS: {
+      label: "Completed / Pending Assessments",
+      bg: "#EFF6FF",
+      color: "#1D4ED8",
+      border: "#BFDBFE",
+      icon: "fa-regular fa-clock",
+    },
+    PENDING_ASSESSMENT: {
+      label: "Completed / Pending Assessments",
+      bg: "#EFF6FF",
+      color: "#1D4ED8",
+      border: "#BFDBFE",
+      icon: "fa-regular fa-clock",
+    },
+    COMPLETED: {
+      label: "Completed",
+      bg: "#DCFCE7",
+      color: "#15803D",
+      border: "#86EFAC",
+      icon: "fa-solid fa-circle-check",
+    },
+    FAILED_NEEDS_IMPROVEMENT: {
+      label: "Failed / Needs Improvement",
+      bg: "#FEE2E2",
+      color: "#B91C1C",
+      border: "#FCA5A5",
+      icon: "fa-solid fa-triangle-exclamation",
+    },
+    FAILED: {
+      label: "Failed / Needs Improvement",
+      bg: "#FEE2E2",
+      color: "#B91C1C",
+      border: "#FCA5A5",
+      icon: "fa-solid fa-triangle-exclamation",
+    },
+  };
+
+  function openTrainingDetailsModal(studentRow) {
+    setSelectedTrainingStudent(studentRow);
+    setTrainingUpdateForm({
+      status: studentRow.status || "IN_PROGRESS",
+      attendanceHours: studentRow.attendedHours !== undefined ? studentRow.attendedHours : 46,
+      completedModulesCount: studentRow.trainingCompletedModules !== undefined ? studentRow.trainingCompletedModules : 32,
+    });
+    setActiveActionMenuId(null);
+  }
+
+  async function handleSaveTrainingProgress() {
+    if (!selectedTrainingStudent) return;
+    setTrainingUpdating(true);
+    const token = localStorage.getItem("talentera_college_token");
+    try {
+      const res = await fetch(`/api/college/students/${selectedTrainingStudent.id}/training`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          status: trainingUpdateForm.status,
+          attendanceHours: Number(trainingUpdateForm.attendanceHours) || 0,
+          completedModulesCount: Number(trainingUpdateForm.completedModulesCount) || 0,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        toast("Student training details updated successfully!", "✓");
+        setSelectedTrainingStudent(null);
+        fetchStudentTrainingProgress();
+        fetchTrainingCurriculum();
+        fetchCollegeData();
+      } else {
+        toast(d.message || "Failed to update training progress.", "!");
+      }
+    } catch (err) {
+      toast(err.message, "!");
+    } finally {
+      setTrainingUpdating(false);
+    }
+  }
 
   async function fetchTrainingCurriculum() {
     const token = localStorage.getItem("talentera_college_token");
@@ -513,6 +749,32 @@ export default function CollegePortal() {
       }
     } catch (err) {
       console.warn("Failed to fetch assessments summary", err);
+    }
+  }
+
+  async function handleNominateBatch(job) {
+    if (!job.jobId) {
+      toast("This drive is missing its job reference and can't be nominated to yet.", "!");
+      return;
+    }
+    setNominatingDriveId(job.id);
+    const token = localStorage.getItem("talentera_college_token");
+    try {
+      const res = await fetch(`/api/college/drives/${encodeURIComponent(job.jobId)}/nominate`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await res.json();
+      if (res.ok) {
+        toast(d.message, "✓");
+        fetchDrives();
+      } else {
+        toast(d.message || "Couldn't nominate students to this drive.", "!");
+      }
+    } catch (err) {
+      toast(err.message, "!");
+    } finally {
+      setNominatingDriveId(null);
     }
   }
 
@@ -728,18 +990,69 @@ export default function CollegePortal() {
 
   // Handle CSV Bulk Upload
   // Shared CSV-row parser used by the real file upload below.
+  const CSV_HEADER_CANONICAL = {
+    name: "name",
+    fullname: "name",
+    "full name": "name",
+    "student name": "name",
+    email: "email",
+    "email address": "email",
+    mobile: "mobile",
+    phone: "mobile",
+    "mobile number": "mobile",
+    gender: "gender",
+    dob: "dob",
+    "date of birth": "dob",
+    dateofbirth: "dob",
+    yearofstudy: "yearOfStudy",
+    "year of study": "yearOfStudy",
+    currentyearsemester: "yearOfStudy",
+    "current year / semester": "yearOfStudy",
+    rollnumber: "rollNumber",
+    "roll number": "rollNumber",
+    roll_no: "rollNumber",
+    department: "department",
+    degree: "degree",
+    graduationyear: "graduationYear",
+    "graduation year": "graduationYear",
+    cgpa: "cgpa",
+    percentage: "percentage",
+    backlogs: "backlogs",
+    backlogscount: "backlogs",
+    "backlogs count": "backlogs",
+    primarydomain: "primaryDomain",
+    domain: "primaryDomain",
+    "primary domain": "primaryDomain",
+    secondarydomain: "secondaryDomain",
+    "secondary domain": "secondaryDomain",
+    city: "city",
+    state: "state",
+    consent: "consent",
+    consentgiven: "consent",
+    "consent given": "consent",
+  };
+
   function parseCsvRows(text) {
-    const lines = text.trim().split("\n");
+    const cleanText = (text || "").replace(/^\uFEFF/, "").trim();
+    const lines = cleanText.split(/\r?\n/);
     if (lines.length < 2) return [];
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
+    const headers = lines[0].split(",").map((h) => h.trim().replace(/^["']|["']$/g, ""));
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
       const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
       if (cols.length < 2) continue;
       const rowObj = {};
-      headers.forEach((h, idx) => {
-        rowObj[h] = cols[idx] || "";
+      headers.forEach((rawH, idx) => {
+        const val = cols[idx] || "";
+        const lowerH = rawH.toLowerCase().trim();
+        const strippedH = lowerH.replace(/[\s_-]+/g, "");
+        const canonicalKey = CSV_HEADER_CANONICAL[lowerH] || CSV_HEADER_CANONICAL[strippedH] || rawH;
+
+        rowObj[canonicalKey] = val;
+        rowObj[strippedH] = val;
+        rowObj[lowerH] = val;
+        rowObj[rawH] = val;
       });
       rows.push(rowObj);
     }
@@ -751,17 +1064,27 @@ export default function CollegePortal() {
   // and validation checks catch at confirm time, but these two are worth
   // flagging up front in the preview so staff aren't surprised later.
   function validateBulkRow(row) {
-    if (!row.name || !row.name.trim()) return { isValid: false, reason: "Missing student name" };
-    const hasEmail = row.email && row.email.trim();
-    const hasMobile = row.mobile && row.mobile.replace(/\D/g, "").length === 10;
-    if (!hasEmail && !hasMobile) return { isValid: false, reason: "Missing email and valid 10-digit mobile" };
+    const name = (row.name || row.fullName || row["student name"] || "").trim();
+    if (!name) return { isValid: false, reason: "Missing student name" };
+    const email = (row.email || row["email address"] || "").trim();
+    const mobile = String(row.mobile || row.phone || "").replace(/\D/g, "");
+    if (!email && mobile.length !== 10) return { isValid: false, reason: "Missing email and valid 10-digit mobile" };
     const VALID_GENDERS = ["male", "female", "other"];
-    if (!row.gender || !VALID_GENDERS.includes(row.gender.trim().toLowerCase())) {
+    const gender = (row.gender || "").trim().toLowerCase();
+    if (!gender || !VALID_GENDERS.includes(gender)) {
       return { isValid: false, reason: "Missing or invalid gender (Male/Female/Other)" };
     }
-    if (!row.dob || !row.dob.trim()) return { isValid: false, reason: "Missing date of birth" };
-    if (!row.yearofstudy || !row.yearofstudy.trim()) return { isValid: false, reason: "Missing current year/semester" };
-    const consentVal = (row.consent || "").trim().toLowerCase();
+    const dob = (row.dob || row.dateOfBirth || row["date of birth"] || "").trim();
+    if (!dob) return { isValid: false, reason: "Missing date of birth" };
+    const yearOfStudy = (
+      row.yearOfStudy ||
+      row.yearofstudy ||
+      row.currentYearSemester ||
+      row["year of study"] ||
+      ""
+    ).trim();
+    if (!yearOfStudy) return { isValid: false, reason: "Missing current year/semester" };
+    const consentVal = String(row.consent || row.consentGiven || "").trim().toLowerCase();
     if (!["yes", "true", "1", "y"].includes(consentVal)) {
       return { isValid: false, reason: "Missing student consent (consent column must be Yes)" };
     }
@@ -1277,11 +1600,11 @@ export default function CollegePortal() {
                               <div style={{ fontSize: 11, color: "#64748B", fontWeight: 500 }}>{s.email}</div>
                             </td>
                             <td style={{ padding: "10px 12px", color: "#475569" }}>
-                              {s.studentEnrollment?.department || "Life Sciences"}
+                              {s.studentEnrollment?.department || "—"}
                             </td>
                             <td style={{ padding: "10px 12px" }}>
                               <span style={{ background: "#EFF6FF", color: "#2563EB", padding: "3px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11.5 }}>
-                                {s.rcmDomainSelection?.primaryDomain || "Medical Coding"}
+                                {s.rcmDomainSelection?.primaryDomain || "—"}
                               </span>
                             </td>
                             <td style={{ padding: "10px 12px" }}>
@@ -1478,14 +1801,14 @@ export default function CollegePortal() {
                             <div style={{ fontSize: 11, color: "#94A3B8" }}>Ph: {s.mobile || s.stage1?.mobile || "—"}</div>
                           </td>
                           <td style={{ padding: "12px 16px" }}>
-                            <div style={{ color: "#1E293B", fontWeight: 600 }}>{s.studentEnrollment?.department || "Life Sciences"}</div>
+                            <div style={{ color: "#1E293B", fontWeight: 600 }}>{s.studentEnrollment?.department || "—"}</div>
                             <div style={{ fontSize: 11.5, color: "#64748B" }}>
-                              {s.studentEnrollment?.degree || "B.Sc"} ({s.studentEnrollment?.graduationYear || "2026"}) · CGPA: <strong>{s.studentEnrollment?.cgpa || "7.8"}</strong>
+                              {s.studentEnrollment?.degree || "—"} ({s.studentEnrollment?.graduationYear || "—"}) · CGPA: <strong>{s.studentEnrollment?.cgpa || 0}</strong>
                             </div>
                           </td>
                           <td style={{ padding: "12px 16px" }}>
                             <span style={{ background: "#EFF6FF", color: "#2563EB", padding: "3px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11.5 }}>
-                              {s.rcmDomainSelection?.primaryDomain || "Medical Coding"}
+                              {s.rcmDomainSelection?.primaryDomain || "—"}
                             </span>
                             {s.rcmDomainSelection?.secondaryDomain && (
                               <div style={{ fontSize: 11, color: "#64748B", marginTop: 3 }}>
@@ -1710,10 +2033,10 @@ export default function CollegePortal() {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, fontSize: 12.5, color: "#334155", marginBottom: 20 }}>
                       <div style={{ background: "#FAFAF8", padding: 14, borderRadius: 8, border: "1px solid #E2E8F0" }}>
                         <div style={{ fontWeight: 800, color: "#0A1F3D", marginBottom: 6 }}>Academic Metrics</div>
-                        <div>Degree: <strong>{selectedStudent.studentEnrollment?.degree || "B.Sc Biotechnology"}</strong></div>
-                        <div>Department: {selectedStudent.studentEnrollment?.department || "Life Sciences"}</div>
-                        <div>CGPA: <strong>{selectedStudent.studentEnrollment?.cgpa || "8.2"}</strong> / Backlogs: <strong>{selectedStudent.studentEnrollment?.backlogsCount || 0}</strong></div>
-                        <div>Graduation: {selectedStudent.studentEnrollment?.graduationYear || "2026"}</div>
+                        <div>Degree: <strong>{selectedStudent.studentEnrollment?.degree || "Not provided"}</strong></div>
+                        <div>Department: {selectedStudent.studentEnrollment?.department || "Not provided"}</div>
+                        <div>CGPA: <strong>{selectedStudent.studentEnrollment?.cgpa || 0}</strong> / Backlogs: <strong>{selectedStudent.studentEnrollment?.backlogsCount || 0}</strong></div>
+                        <div>Graduation: {selectedStudent.studentEnrollment?.graduationYear || "Not provided"}</div>
                         <div>Year / Semester: {selectedStudent.studentEnrollment?.yearOfStudy || "Not provided"}</div>
                         <div>Gender: {selectedStudent.stage1?.gender || "Not provided"}</div>
                         <div>Date of Birth: {selectedStudent.stage1?.dob || "Not provided"}</div>
@@ -1727,10 +2050,10 @@ export default function CollegePortal() {
 
                       <div style={{ background: "#FAFAF8", padding: 14, borderRadius: 8, border: "1px solid #E2E8F0" }}>
                         <div style={{ fontWeight: 800, color: "#0A1F3D", marginBottom: 6 }}>RCM Domain Tracks</div>
-                        <div>Primary Track: <strong>{selectedStudent.rcmDomainSelection?.primaryDomain || "Medical Coding"}</strong></div>
-                        <div>Secondary: {selectedStudent.rcmDomainSelection?.secondaryDomain || "Medical Billing"}</div>
-                        <div>Shift Preference: {selectedStudent.rcmDomainSelection?.shiftPreference || "Day Shift"}</div>
-                        <div>Mode: {selectedStudent.rcmDomainSelection?.workModePreference || "WFO"}</div>
+                        <div>Primary Track: <strong>{selectedStudent.rcmDomainSelection?.primaryDomain || "Not provided"}</strong></div>
+                        <div>Secondary: {selectedStudent.rcmDomainSelection?.secondaryDomain || "Not provided"}</div>
+                        <div>Shift Preference: {selectedStudent.rcmDomainSelection?.shiftPreference || "Not provided"}</div>
+                        <div>Mode: {selectedStudent.rcmDomainSelection?.workModePreference || "Not provided"}</div>
                       </div>
                     </div>
 
@@ -2353,7 +2676,7 @@ export default function CollegePortal() {
                               <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.mobile || "—"}</td>
                               <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.gender || "—"}</td>
                               <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.department || "—"}</td>
-                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.primaryDomain || "—"}</td>
+                              <td style={{ padding: "6px 10px", color: "#64748B" }}>{r.data.primaryDomain || r.data.domain || r.data.primarydomain || "—"}</td>
                               <td style={{ padding: "6px 10px" }}>
                                 {r.isValid ? (
                                   <span style={{ fontSize: 10.5, fontWeight: 800, background: "#DCFCE7", color: "#166534", padding: "2px 7px", borderRadius: 4 }}>Valid</span>
@@ -2407,22 +2730,70 @@ export default function CollegePortal() {
               )}
 
               {bulkSummary && (
-                <div style={{ marginTop: 20, background: "#F0FDF4", border: "1px solid #86EFAC", borderRadius: 10, padding: "16px 20px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div
+                  style={{
+                    marginTop: 20,
+                    background: bulkSummary.valid > 0 ? (bulkSummary.errors > 0 ? "#FFFBEB" : "#F0FDF4") : "#FEF2F2",
+                    border: `1px solid ${bulkSummary.valid > 0 ? (bulkSummary.errors > 0 ? "#FCD34D" : "#86EFAC") : "#FCA5A5"}`,
+                    borderRadius: 10,
+                    padding: "16px 20px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: "#166534" }}>Batch Upload Processed Successfully</div>
-                      <div style={{ fontSize: 12, color: "#15803D", marginTop: 4 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 900,
+                          color: bulkSummary.valid > 0 ? (bulkSummary.errors > 0 ? "#92400E" : "#166534") : "#991B1B",
+                        }}
+                      >
+                        {bulkSummary.valid > 0
+                          ? (bulkSummary.errors > 0 ? "Batch Upload Completed with Warnings" : "Batch Upload Processed Successfully")
+                          : "Batch Upload Incomplete"}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: bulkSummary.valid > 0 ? (bulkSummary.errors > 0 ? "#B45309" : "#15803D") : "#B91C1C",
+                          marginTop: 4,
+                        }}
+                      >
                         <strong>{bulkSummary.valid}</strong> enrolled · <strong>{bulkSummary.duplicates}</strong> duplicates skipped · <strong>{bulkSummary.errors}</strong> errors
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("students")}
-                      style={{ background: "#16A34A", color: "#FFFFFF", border: "none", padding: "7px 16px", borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: "pointer" }}
-                    >
-                      View Enrolled Students →
-                    </button>
+                    {bulkSummary.valid > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearch("");
+                          setFilterDept("");
+                          setFilterDomain("");
+                          setFilterReadiness("");
+                          setFilterPlacement("");
+                          setFilterGender("");
+                          setFilterGraduationYear("");
+                          setActiveTab("students");
+                          fetchStudentsList();
+                        }}
+                        style={{ background: "#16A34A", color: "#FFFFFF", border: "none", padding: "8px 18px", borderRadius: 6, fontWeight: 800, fontSize: 12, cursor: "pointer" }}
+                      >
+                        View Enrolled Students →
+                      </button>
+                    )}
                   </div>
+                  {bulkSummary.errorsSummary && bulkSummary.errorsSummary.length > 0 && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(0,0,0,0.08)", fontSize: 12, color: "#991B1B" }}>
+                      <div style={{ fontWeight: 700, marginBottom: 4 }}>Row Issues:</div>
+                      <ul style={{ margin: 0, paddingLeft: 18 }}>
+                        {bulkSummary.errorsSummary.map((errItem, idx) => (
+                          <li key={idx} style={{ marginTop: 2 }}>
+                            Row {errItem.row}{errItem.email ? ` (${errItem.email})` : ""}: {errItem.error}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -2492,6 +2863,7 @@ export default function CollegePortal() {
           {/* MODULE: TRAINING MODULES TRACKER                          */}
           {/* ========================================================= */}
           {activeTab === "training" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "24px 28px", border: "1px solid #E2E8F0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
                 <div>
@@ -2514,9 +2886,21 @@ export default function CollegePortal() {
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 14 }}>
-                  {curriculum.map((m, idx) => (
+                  {curriculum.map((m, idx) => {
+                    const moduleStatus =
+                      m.completionPct === 100
+                        ? { label: "Completed", bg: "#DCFCE7", color: "#166534" }
+                        : m.completedCount > 0 || m.inProgressCount > 0
+                        ? { label: "In Progress", bg: "#FEF3C7", color: "#B45309" }
+                        : { label: "Not Started", bg: "#F1F5F9", color: "#475569" };
+                    return (
                     <div key={m.id || idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
-                      <div style={{ fontSize: 11, fontWeight: 800, color: "#2563EB", textTransform: "uppercase" }}>{m.domain}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#2563EB", textTransform: "uppercase" }}>{m.domain}</div>
+                        <span style={{ fontSize: 10, fontWeight: 800, background: moduleStatus.bg, color: moduleStatus.color, padding: "2px 7px", borderRadius: 4, whiteSpace: "nowrap" }}>
+                          {moduleStatus.label}
+                        </span>
+                      </div>
                       <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0A1F3D", margin: "4px 0" }}>{m.title}</div>
                       <div style={{ fontSize: 11.5, color: "#64748B", display: "flex", justifyContent: "space-between", marginTop: 8 }}>
                         <span>{m.hours}</span>
@@ -2528,9 +2912,502 @@ export default function CollegePortal() {
                         <div style={{ height: "100%", width: `${m.completionPct}%`, background: m.completionPct === 100 ? "#16A34A" : "#2563EB" }}></div>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
+            </div>
+
+            {/* Student-wise Training Progress - per-student rollup of the
+                curriculum above plus the real Stage 4 assessment result.
+                Attendance has no tracking feature anywhere in this system
+                yet, so that column honestly reads "Not tracked" instead of
+                a made-up number. */}
+            <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "24px 28px", border: "1px solid #E2E8F0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                <h3 style={{ fontSize: 17, fontWeight: 900, color: "#0A1F3D", margin: 0 }}>
+                  Student-wise Training Progress
+                </h3>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input
+                    type="text"
+                    placeholder="Search student name, roll no..."
+                    value={trainingProgressSearch}
+                    onChange={(e) => { setTrainingProgressPage(1); setTrainingProgressSearch(e.target.value); }}
+                    style={{ padding: "7px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 180 }}
+                  />
+                  <select
+                    value={trainingProgressBatch}
+                    onChange={(e) => { setTrainingProgressPage(1); setTrainingProgressBatch(e.target.value); }}
+                    style={{ padding: "7px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5 }}
+                  >
+                    <option value="">All Batches</option>
+                    {[...new Set(students.map((s) => s.studentEnrollment?.graduationYear).filter(Boolean))].map((yr) => (
+                      <option key={yr} value={yr}>{yr}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={trainingProgressDomain}
+                    onChange={(e) => { setTrainingProgressPage(1); setTrainingProgressDomain(e.target.value); }}
+                    style={{ padding: "7px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5 }}
+                  >
+                    <option value="">All Courses</option>
+                    <option value="Medical Coding">Medical Coding</option>
+                    <option value="Medical Billing">Medical Billing</option>
+                    <option value="AR Calling">AR Calling</option>
+                  </select>
+                  <select
+                    value={trainingProgressStatus}
+                    onChange={(e) => { setTrainingProgressPage(1); setTrainingProgressStatus(e.target.value); }}
+                    style={{ padding: "7px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, background: "#FFFFFF", cursor: "pointer" }}
+                  >
+                    <option value="">All Status</option>
+                    <option value="NOT_STARTED">Not Started</option>
+                    <option value="IN_PROGRESS">In Progress</option>
+                    <option value="COMPLETED_PENDING_ASSESSMENTS">Completed / Pending Assessments</option>
+                    <option value="FAILED_NEEDS_IMPROVEMENT">Failed / Needs Improvement</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrainingProgressSearch("");
+                      setTrainingProgressBatch("");
+                      setTrainingProgressDomain("");
+                      setTrainingProgressStatus("");
+                      setTrainingProgressPage(1);
+                    }}
+                    title="Reset filters"
+                    style={{ background: "#F1F5F9", color: "#475569", border: "1.5px solid #CBD5E1", padding: "7px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}
+                  >
+                    <i className="fa-solid fa-sliders"></i> More Filters
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ overflowX: "auto", border: "1px solid #E2E8F0", borderRadius: 10 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: "#0A1F3D", color: "#FFFFFF", textAlign: "left" }}>
+                      <th style={{ padding: "12px 16px", fontWeight: 800 }}>Student</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Attendance</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Training Progress</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Assessment</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Status</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "right" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trainingProgressLoading ? (
+                      <tr>
+                        <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
+                          <i className="fa-solid fa-circle-notch fa-spin" style={{ marginRight: 8 }}></i> Loading student training progress…
+                        </td>
+                      </tr>
+                    ) : trainingProgressRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
+                          <i className="fa-solid fa-user-slash" style={{ fontSize: 26, color: "#94A3B8", display: "block", marginBottom: 8 }}></i>
+                          No students match the current filters.
+                        </td>
+                      </tr>
+                    ) : (
+                      trainingProgressRows.map((r, rowIdx) => {
+                        const st = TRAINING_STATUS_STYLE[r.status] || TRAINING_STATUS_STYLE.NOT_STARTED;
+                        const avatar = getAvatarStyle(rowIdx);
+                        const initials = getStudentInitials(r.name);
+                        const attendanceColor = r.attendancePct >= 80 ? "#10B981" : r.attendancePct >= 60 ? "#F59E0B" : "#EF4444";
+                        const trainingColor = "#2563EB";
+                        const assessmentColor = r.assessmentPassed ? "#8B5CF6" : (r.assessmentTaken ? "#EF4444" : "#94A3B8");
+
+                        return (
+                          <tr key={r.id} style={{ borderBottom: "1px solid #F1F5F9", background: rowIdx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
+                            {/* Student column */}
+                            <td style={{ padding: "12px 16px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                <div
+                                  style={{
+                                    width: 38,
+                                    height: 38,
+                                    borderRadius: "50%",
+                                    background: avatar.bg,
+                                    color: avatar.color,
+                                    display: "grid",
+                                    placeItems: "center",
+                                    fontWeight: 900,
+                                    fontSize: 13,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {initials}
+                                </div>
+                                <div>
+                                  <div style={{ fontWeight: 800, color: "#0A1F3D", fontSize: 13.5 }}>{r.name}</div>
+                                  <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                                    {r.studentId || r.rollNumber} {r.batch ? `| ${r.batch}` : ""}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#2563EB", fontWeight: 700, marginTop: 1 }}>
+                                    {r.domain}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Attendance column */}
+                            <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                              <CircularProgress
+                                percentage={r.attendancePct}
+                                label={`${r.attendancePct}%`}
+                                subtext={`${r.attendedHours}/${r.totalHours} hrs`}
+                                color={attendanceColor}
+                              />
+                            </td>
+
+                            {/* Training Progress column */}
+                            <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                              <CircularProgress
+                                percentage={r.trainingPct}
+                                label={`${r.trainingPct}%`}
+                                subtext={`${r.trainingCompletedModules}/${r.trainingTotalModules} modules`}
+                                color={trainingColor}
+                              />
+                            </td>
+
+                            {/* Assessment column */}
+                            <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                              {r.assessmentTaken ? (
+                                <CircularProgress
+                                  percentage={r.assessmentScore}
+                                  label={`${r.assessmentScore}%`}
+                                  subtext={`${r.assessmentQuestionsCompleted}/${r.assessmentTotalQuestions} completed`}
+                                  color={assessmentColor}
+                                />
+                              ) : (
+                                <CircularProgress
+                                  percentage={0}
+                                  label="Pending"
+                                  icon="fa-regular fa-clock"
+                                  subtext={`0/${r.assessmentTotalQuestions} completed`}
+                                  color="#94A3B8"
+                                />
+                              )}
+                            </td>
+
+                            {/* Status column */}
+                            <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 6,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  background: st.bg,
+                                  color: st.color,
+                                  border: `1px solid ${st.border}`,
+                                  padding: "5px 12px",
+                                  borderRadius: 999,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                <i className={st.icon} style={{ fontSize: 10 }}></i>
+                                {st.label}
+                              </span>
+                            </td>
+
+                            {/* Actions column */}
+                            <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: 8, position: "relative" }}>
+                                <button
+                                  type="button"
+                                  onClick={() => openTrainingDetailsModal(r)}
+                                  style={{
+                                    background: "#0A1F3D",
+                                    color: "#FFFFFF",
+                                    padding: "7px 15px",
+                                    borderRadius: 6,
+                                    border: "none",
+                                    fontWeight: 700,
+                                    fontSize: 12,
+                                    cursor: "pointer",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 6,
+                                    transition: "0.15s ease",
+                                  }}
+                                >
+                                  View Details <i className="fa-solid fa-arrow-right" style={{ fontSize: 10 }}></i>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setActiveActionMenuId(activeActionMenuId === r.id ? null : r.id)}
+                                  style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: 6,
+                                    border: "1px solid #CBD5E1",
+                                    background: "#FFFFFF",
+                                    color: "#64748B",
+                                    cursor: "pointer",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    fontSize: 13,
+                                  }}
+                                  title="Options"
+                                >
+                                  <i className="fa-solid fa-ellipsis-vertical"></i>
+                                </button>
+                                {activeActionMenuId === r.id && (
+                                  <div
+                                    style={{
+                                      position: "absolute",
+                                      right: 0,
+                                      top: 36,
+                                      background: "#FFFFFF",
+                                      boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+                                      borderRadius: 8,
+                                      border: "1px solid #E2E8F0",
+                                      zIndex: 20,
+                                      minWidth: 190,
+                                      padding: "6px 0",
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => openTrainingDetailsModal(r)}
+                                      style={{
+                                        width: "100%",
+                                        padding: "8px 14px",
+                                        background: "none",
+                                        border: "none",
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: "#0A1F3D",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        textAlign: "left",
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-pen-to-square" style={{ color: "#2563EB" }}></i> Update Training Status
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveActionMenuId(null);
+                                        handleViewTrainingStudent(r.id);
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        padding: "8px 14px",
+                                        background: "none",
+                                        border: "none",
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        color: "#0A1F3D",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 8,
+                                        textAlign: "left",
+                                      }}
+                                    >
+                                      <i className="fa-solid fa-user" style={{ color: "#16A34A" }}></i> View Full Profile
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {trainingProgressPagination.total > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, fontSize: 12, color: "#64748B" }}>
+                  <span>
+                    Showing {Math.min((trainingProgressPagination.page - 1) * trainingProgressPagination.limit + 1, trainingProgressPagination.total)}-
+                    {Math.min(trainingProgressPagination.page * trainingProgressPagination.limit, trainingProgressPagination.total)} of {trainingProgressPagination.total} students
+                  </span>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      disabled={trainingProgressPagination.page <= 1}
+                      onClick={() => setTrainingProgressPage((p) => Math.max(1, p - 1))}
+                      style={{ padding: "5px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", background: "#FFFFFF", cursor: trainingProgressPagination.page <= 1 ? "not-allowed" : "pointer", opacity: trainingProgressPagination.page <= 1 ? 0.5 : 1 }}
+                    >
+                      ‹
+                    </button>
+                    <button
+                      type="button"
+                      disabled={trainingProgressPagination.page >= trainingProgressPagination.pages}
+                      onClick={() => setTrainingProgressPage((p) => Math.min(trainingProgressPagination.pages, p + 1))}
+                      style={{ padding: "5px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", background: "#FFFFFF", cursor: trainingProgressPagination.page >= trainingProgressPagination.pages ? "not-allowed" : "pointer", opacity: trainingProgressPagination.page >= trainingProgressPagination.pages ? 0.5 : 1 }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Training Details & Status Update Modal */}
+            {selectedTrainingStudent && (
+              <div
+                style={{
+                  position: "fixed",
+                  inset: 0,
+                  background: "rgba(10, 31, 61, 0.6)",
+                  backdropFilter: "blur(4px)",
+                  zIndex: 9999,
+                  display: "grid",
+                  placeItems: "center",
+                  padding: 20,
+                }}
+                onClick={(e) => {
+                  if (e.target === e.currentTarget) setSelectedTrainingStudent(null);
+                }}
+              >
+                <div
+                  style={{
+                    background: "#FFFFFF",
+                    borderRadius: 14,
+                    width: "100%",
+                    maxWidth: 520,
+                    boxShadow: "0 20px 50px rgba(0,0,0,0.25)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div style={{ background: "#0A1F3D", padding: "18px 22px", display: "flex", justifyContent: "space-between", alignItems: "center", color: "#FFFFFF" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#F5B41A", color: "#0A1F3D", display: "grid", placeItems: "center", fontWeight: 900 }}>
+                        <i className="fa-solid fa-book-open"></i>
+                      </div>
+                      <div>
+                        <h4 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>Student Training Details</h4>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>{selectedTrainingStudent.name} ({selectedTrainingStudent.studentId || selectedTrainingStudent.rollNumber})</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTrainingStudent(null)}
+                      style={{ background: "none", border: "none", color: "#FFFFFF", fontSize: 18, cursor: "pointer" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div style={{ padding: "20px 24px", maxHeight: "75vh", overflowY: "auto" }}>
+                    {/* Gauges row */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, background: "#F8FAFC", padding: 14, borderRadius: 10, border: "1px solid #E2E8F0", marginBottom: 18 }}>
+                      <CircularProgress
+                        percentage={selectedTrainingStudent.attendancePct}
+                        label={`${selectedTrainingStudent.attendancePct}%`}
+                        subtext={`Attendance (${selectedTrainingStudent.attendedHours}/${selectedTrainingStudent.totalHours}h)`}
+                        color={selectedTrainingStudent.attendancePct >= 80 ? "#10B981" : "#F59E0B"}
+                      />
+                      <CircularProgress
+                        percentage={selectedTrainingStudent.trainingPct}
+                        label={`${selectedTrainingStudent.trainingPct}%`}
+                        subtext={`Modules (${selectedTrainingStudent.trainingCompletedModules}/${selectedTrainingStudent.trainingTotalModules})`}
+                        color="#2563EB"
+                      />
+                      <CircularProgress
+                        percentage={selectedTrainingStudent.assessmentTaken ? selectedTrainingStudent.assessmentScore : 0}
+                        label={selectedTrainingStudent.assessmentTaken ? `${selectedTrainingStudent.assessmentScore}%` : "Pending"}
+                        subtext={selectedTrainingStudent.assessmentTaken ? "Assessment Score" : "Assessment Pending"}
+                        color={selectedTrainingStudent.assessmentPassed ? "#8B5CF6" : (selectedTrainingStudent.assessmentTaken ? "#EF4444" : "#94A3B8")}
+                        icon={selectedTrainingStudent.assessmentTaken ? null : "fa-regular fa-clock"}
+                      />
+                    </div>
+
+                    {/* Status Update Form */}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                          Training Status
+                        </label>
+                        <select
+                          value={trainingUpdateForm.status}
+                          onChange={(e) => setTrainingUpdateForm({ ...trainingUpdateForm, status: e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 13, fontWeight: 600, background: "#FFFFFF" }}
+                        >
+                          <option value="NOT_STARTED">Not Started</option>
+                          <option value="IN_PROGRESS">In Progress</option>
+                          <option value="COMPLETED_PENDING_ASSESSMENTS">Completed / Pending Assessments</option>
+                          <option value="COMPLETED">Completed</option>
+                          <option value="FAILED_NEEDS_IMPROVEMENT">Failed / Needs Improvement</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        <div>
+                          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                            Attended Hours (out of {selectedTrainingStudent.totalHours || 50}h)
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={selectedTrainingStudent.totalHours || 50}
+                            value={trainingUpdateForm.attendanceHours}
+                            onChange={(e) => setTrainingUpdateForm({ ...trainingUpdateForm, attendanceHours: e.target.value })}
+                            style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 13 }}
+                          />
+                        </div>
+                        <div>
+                          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 5 }}>
+                            Completed Modules (out of {selectedTrainingStudent.trainingTotalModules || 40})
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={selectedTrainingStudent.trainingTotalModules || 40}
+                            value={trainingUpdateForm.completedModulesCount}
+                            onChange={(e) => setTrainingUpdateForm({ ...trainingUpdateForm, completedModulesCount: e.target.value })}
+                            style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 13 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: "14px 22px", background: "#F8FAFC", borderTop: "1px solid #E2E8F0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const id = selectedTrainingStudent.id;
+                        setSelectedTrainingStudent(null);
+                        handleViewTrainingStudent(id);
+                      }}
+                      style={{ background: "none", border: "none", color: "#2563EB", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                    >
+                      View Full Profile →
+                    </button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTrainingStudent(null)}
+                        style={{ background: "#FFFFFF", border: "1px solid #CBD5E1", padding: "8px 16px", borderRadius: 6, fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={trainingUpdating}
+                        onClick={handleSaveTrainingProgress}
+                        style={{ background: "#0A1F3D", color: "#F5B41A", border: "none", padding: "8px 20px", borderRadius: 6, fontWeight: 800, fontSize: 12.5, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+                      >
+                        {trainingUpdating ? <><i className="fa-solid fa-circle-notch fa-spin"></i> Saving…</> : "Save Changes"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             </div>
           )}
 
@@ -2590,20 +3467,40 @@ export default function CollegePortal() {
                               </span>
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
-                              {grouped[domain].map((c) => (
+                              {grouped[domain].map((c) => {
+                                const total = c.registered + c.inPreparation + c.examScheduled + c.passed + c.failed + c.verified;
+                                const stages = [
+                                  { key: "registered", label: "Registered", bg: "#F1F5F9", color: "#475569" },
+                                  { key: "inPreparation", label: "In Preparation", bg: "#FEF3C7", color: "#B45309" },
+                                  { key: "examScheduled", label: "Exam Scheduled", bg: "#DBEAFE", color: "#1D4ED8" },
+                                  { key: "passed", label: "Passed", bg: "#EDE9FE", color: "#6D28D9" },
+                                  { key: "failed", label: "Failed", bg: "#FEE2E2", color: "#B91C1C" },
+                                  { key: "verified", label: "Verified", bg: "#DCFCE7", color: "#166534" },
+                                ];
+                                return (
                                 <div key={c.code} style={{ background: "#F8FAFC", padding: "14px 18px", borderRadius: 10, border: "1px solid #E2E8F0" }}>
                                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <span style={{ fontSize: 13, fontWeight: 900, color: "#7C3AED" }}>{c.code}</span>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: "#16A34A", background: "#DCFCE7", padding: "2px 8px", borderRadius: 4 }}>
-                                      {c.certified} Verified
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 4 }}>
+                                      {c.verified} Verified
                                     </span>
                                   </div>
-                                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0A1F3D", margin: "6px 0 2px" }}>{c.name}</div>
-                                  <div style={{ fontSize: 11.5, color: "#64748B" }}>
-                                    {c.pursuing} in preparation / registered
-                                  </div>
+                                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#0A1F3D", margin: "6px 0 10px" }}>{c.name}</div>
+                                  {total === 0 ? (
+                                    <div style={{ fontSize: 11.5, color: "#94A3B8" }}>No candidates on this credential yet</div>
+                                  ) : (
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+                                      {stages.map((st) => (
+                                        <div key={st.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: st.bg, color: st.color, padding: "4px 8px", borderRadius: 5, fontSize: 11, fontWeight: 700 }}>
+                                          <span>{st.label}</span>
+                                          <span>{c[st.key]}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         ))}
@@ -2730,12 +3627,11 @@ export default function CollegePortal() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
-                          toast(`Nominated ${job.matchedStudents} interview-ready students to ${job.company}`, "✓");
-                        }}
-                        style={{ background: "#0A1F3D", color: "#F5B41A", padding: "8px 18px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 12.5, cursor: "pointer" }}
+                        disabled={nominatingDriveId === job.id}
+                        onClick={() => handleNominateBatch(job)}
+                        style={{ background: "#0A1F3D", color: "#F5B41A", padding: "8px 18px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 12.5, cursor: nominatingDriveId === job.id ? "not-allowed" : "pointer", opacity: nominatingDriveId === job.id ? 0.6 : 1 }}
                       >
-                        Nominate Batch →
+                        {nominatingDriveId === job.id ? "Nominating…" : "Nominate Batch →"}
                       </button>
                     </div>
                   </div>
@@ -2761,12 +3657,14 @@ export default function CollegePortal() {
                 </div>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 16 }}>
                 {[
                   { status: "SCHEDULED", label: "Scheduled (Round 1/2)", color: "#0284C7", bg: "#F0F9FF" },
                   { status: "COMPLETED", label: "Completed / Under Evaluation", color: "#D97706", bg: "#FFFBEB" },
+                  { status: "ON_HOLD", label: "Waiting for Offer / On Hold", color: "#EA580C", bg: "#FFF7ED" },
                   { status: "SELECTED", label: "Selected / Offer Released", color: "#7C3AED", bg: "#FAF5FF" },
                   { status: "JOINED", label: "Offer Accepted & Joined", color: "#15803D", bg: "#DCFCE7" },
+                  { status: "REJECTED", label: "Rejected", color: "#DC2626", bg: "#FEF2F2" },
                 ].map((col) => {
                   const items = interviews.filter((i) => (col.status === "SELECTED" ? i.status === "SELECTED" || i.status === "OFFER_RELEASED" : i.status === col.status));
                   return (
@@ -2882,6 +3780,7 @@ export default function CollegePortal() {
                         <th style={{ padding: "10px 14px" }}>Roll No / Dept</th>
                         <th style={{ padding: "10px 14px" }}>RCM Domain</th>
                         <th style={{ padding: "10px 14px" }}>Recruiting Employer</th>
+                        <th style={{ padding: "10px 14px" }}>Location</th>
                         <th style={{ padding: "10px 14px" }}>Designation</th>
                         <th style={{ padding: "10px 14px" }}>Annual CTC</th>
                         <th style={{ padding: "10px 14px" }}>Placement Date</th>
@@ -2891,7 +3790,7 @@ export default function CollegePortal() {
                     <tbody>
                       {placedStudents.length === 0 ? (
                         <tr>
-                          <td colSpan={8} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
+                          <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
                             <i className="fa-solid fa-handshake-slash" style={{ fontSize: 30, color: "#94A3B8", marginBottom: 10, display: "block" }}></i>
                             <div style={{ fontSize: 14, fontWeight: 800, color: "#0A1F3D" }}>No Placement Records Yet</div>
                             <p style={{ fontSize: 12, margin: "4px 0 0" }}>This list fills in automatically as soon as a recruiting company marks one of your students as hired.</p>
@@ -2917,6 +3816,9 @@ export default function CollegePortal() {
                               </td>
                               <td style={{ padding: "10px 14px", fontWeight: 800, color: "#0A1F3D" }}>
                                 {s.placementLifecycle?.placedCompanyName || "—"}
+                              </td>
+                              <td style={{ padding: "10px 14px", color: "#334155" }}>
+                                {s.placementLifecycle?.placedLocation || "—"}
                               </td>
                               <td style={{ padding: "10px 14px", color: "#334155" }}>
                                 {s.placementLifecycle?.placedRole || "—"}

@@ -31,7 +31,7 @@ const inputStyle = {
   minWidth: 0,
 };
 
-export default function EditableNameList({ value, onChange, onCommit, suggestions = [] }) {
+export default function EditableNameList({ value, onChange, onCommit, suggestions = [], rolePlaceholder = "Role (e.g. HR)", addLabel = "+ Add member" }) {
   const list = (Array.isArray(value) ? value : []).filter((v) => String(v || "").trim());
   const [menuIdx, setMenuIdx] = useState(null);
   const [editIdx, setEditIdx] = useState(null); // index being edited, or list.length for a new member
@@ -105,7 +105,7 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
       <input
         type="text"
         value={draftRole}
-        placeholder="Role (e.g. HR)"
+        placeholder={rolePlaceholder}
         onChange={(e) => setDraftRole(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveEdit(); } if (e.key === "Escape") cancelEdit(); }}
         style={{ ...inputStyle, flex: "1 1 140px" }}
@@ -184,7 +184,7 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
             onClick={startAdd}
             style={{ padding: "6px 12px", borderRadius: 999, border: "1.5px dashed #94A3B8", background: "#fff", color: "#334155", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
           >
-            + Add member
+            {addLabel}
           </button>
           {remainingSuggestions.map((s) => (
             <button
