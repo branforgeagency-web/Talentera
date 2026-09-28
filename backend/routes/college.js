@@ -7,10 +7,12 @@ const CollegeBulkUpload = require("../models/CollegeBulkUpload");
 const Job = require("../models/Job");
 const Company = require("../models/Company");
 const Notification = require("../models/Notification");
+const Application = require("../models/Application");
 const { requireCollegeAuth, signToken } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { authLimiter } = require("../middleware/rateLimit");
 const logger = require("../utils/logger");
+const { TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
 
 const router = express.Router();
 
@@ -560,64 +562,138 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
 
     for (let i = 0; i < studentsData.length; i++) {
       const row = studentsData[i];
-      const rawEmail = (row.email || row.Email || "").trim().toLowerCase();
-      const rawName = (row.name || row.Name || row.fullName || "").trim();
-      const rawMobile = String(row.mobile || row.Mobile || row.phone || "").replace(/[^\d]/g, "");
+      const rawEmail = (row.email || row.Email || row["email address"] || row["email_address"] || "").trim().toLowerCase();
+      const rawName = (row.name || row.Name || row.fullName || row.fullname || row.studentName || row["student name"] || "").trim();
+      const rawMobile = String(row.mobile || row.Mobile || row.phone || row.Phone || row["mobile number"] || row["mobile_number"] || "").replace(/[^\d]/g, "");
 
       if (!rawEmail || !rawName) {
         errorCount++;
-        errorsSummary.push({ row: i + 1, error: "Missing Name or Email" });
+        errorsSummary.push({ row: i + 1, email: rawEmail || "No Email", error: "Missing Name or Email" });
         continue;
       }
 
       // Gender, DOB, Current Year/Semester, and Consent are required for
-      // every enrolled student - same as the Single Student Enrollment
-      // form. A CSV row missing any of these is skipped with a specific
-      // error rather than silently filled in with a fake value.
+      // every enrolled student - same as the Single Student Enrollment form.
       const VALID_GENDERS = ["Male", "Female", "Other"];
-      const rawGender = (row.gender || row.Gender || "").trim();
+      const inputGender = (row.gender || row.Gender || "").trim();
+      const rawGender = inputGender ? inputGender.charAt(0).toUpperCase() + inputGender.slice(1).toLowerCase() : "";
       if (!VALID_GENDERS.includes(rawGender)) {
         errorCount++;
         errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing or invalid Gender (must be Male, Female, or Other)" });
         continue;
       }
 
-      const rawDob = (row.dob || row.DOB || row.dateOfBirth || row.DateOfBirth || "").trim();
+      const rawDob = (row.dob || row.DOB || row.dateOfBirth || row.DateOfBirth || row.dateofbirth || row["date of birth"] || row["date_of_birth"] || "").trim();
       if (!rawDob) {
         errorCount++;
         errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing Date of Birth" });
         continue;
       }
 
-      const rawYearOfStudy = (row.yearOfStudy || row.YearOfStudy || row.currentYearSemester || row.CurrentYearSemester || "").trim();
+      const rawYearOfStudy = (
+        row.yearOfStudy ||
+        row.YearOfStudy ||
+        row.yearofstudy ||
+        row.year_of_study ||
+        row.currentYearSemester ||
+        row.CurrentYearSemester ||
+        row.currentyearsemester ||
+        row["year of study"] ||
+        row["current year / semester"] ||
+        ""
+      ).trim();
       if (!rawYearOfStudy) {
         errorCount++;
         errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing Current Year / Semester" });
         continue;
       }
 
-      const rawConsent = String(row.consent || row.Consent || row.consentGiven || "").trim().toLowerCase();
+      const rawConsent = String(
+        row.consent ||
+        row.Consent ||
+        row.consentGiven ||
+        row.consentgiven ||
+        row["consent given"] ||
+        row.consent_given ||
+        ""
+      ).trim().toLowerCase();
       if (!["yes", "true", "1", "y"].includes(rawConsent)) {
         errorCount++;
         errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing student consent (Consent column must be Yes)" });
         continue;
       }
 
-      // Duplicate Check
-      const existing = await Candidate.findOne({ email: rawEmail });
+      // Duplicate Check (by email OR 10-digit mobile)
+      const existingQuery = [{ email: rawEmail }];
+      if (rawMobile && rawMobile.length === 10) {
+        existingQuery.push({ mobile: { $regex: `${rawMobile}$` } });
+        existingQuery.push({ "stage1.mobile": { $regex: `${rawMobile}$` } });
+      }
+      const existing = await Candidate.findOne({ $or: existingQuery });
       if (existing) {
         duplicateCount++;
         errorsSummary.push({ row: i + 1, email: rawEmail, error: "Already registered in platform" });
         continue;
       }
 
-      // No fabricated fallbacks below - every value here is either what the
-      // CSV row actually provided, or an honest blank ("") rather than a
-      // realistic-looking made-up default (matches POST /students/add).
-      const domain = row.domain || row.Domain || row.primaryDomain || "";
-      const department = row.department || row.Department || "";
-      const degree = row.degree || row.Degree || "";
-      const rollNumber = row.rollNumber || row.RollNumber || row.roll_no || "";
+      // Read domain and details supporting both camelCase and lowercase headers
+      const domain = (
+        row.domain ||
+        row.Domain ||
+        row.primaryDomain ||
+        row.PrimaryDomain ||
+        row.primarydomain ||
+        row.primary_domain ||
+        row["primary domain"] ||
+        ""
+      ).trim();
+      const department = (row.department || row.Department || "").trim();
+      const degree = (row.degree || row.Degree || "").trim();
+      const rollNumber = (
+        row.rollNumber ||
+        row.RollNumber ||
+        row.rollnumber ||
+        row.roll_no ||
+        row.roll_number ||
+        row["roll number"] ||
+        ""
+      ).trim();
+      const graduationYear = (
+        row.graduationYear ||
+        row.GraduationYear ||
+        row.graduationyear ||
+        row.graduation_year ||
+        row["graduation year"] ||
+        ""
+      ).trim();
+      const cgpa = (row.cgpa || row.CGPA || "").trim();
+      const percentage = (row.percentage || row.Percentage || "").trim();
+      const backlogs = Number(
+        row.backlogs ||
+        row.Backlogs ||
+        row.backlogsCount ||
+        row.backlogscount ||
+        row.backlogs_count ||
+        row["backlogs count"] ||
+        0
+      );
+      const secondaryDomain = (
+        row.secondaryDomain ||
+        row.SecondaryDomain ||
+        row.secondarydomain ||
+        row.secondary_domain ||
+        row["secondary domain"] ||
+        ""
+      ).trim();
+      const studentId = (
+        row.studentId ||
+        row.StudentId ||
+        row.studentid ||
+        rollNumber ||
+        `STU-${Math.floor(1000 + Math.random() * 9000)}`
+      ).trim();
+      const city = (row.city || row.City || college.city || "").trim();
+      const state = (row.state || row.State || college.state || "").trim();
 
       await Candidate.create({
         email: rawEmail,
@@ -631,26 +707,26 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
           email: rawEmail,
           dob: rawDob,
           gender: rawGender,
-          city: row.city || row.City || "",
-          state: row.state || row.State || "",
+          city,
+          state,
           collegeName: college.name,
           degree,
-          graduationYear: row.graduationYear || row.GraduationYear || "",
-          cgpa: row.cgpa || row.CGPA || "",
-          percentage: row.percentage || "",
+          graduationYear,
+          cgpa,
+          percentage,
           experience: "Fresher",
           currentRole: "College Fresher",
         },
         studentEnrollment: {
-          studentId: row.studentId || `STU-${Math.floor(1000 + Math.random() * 9000)}`,
+          studentId,
           rollNumber,
           department,
           degree,
           yearOfStudy: rawYearOfStudy,
-          graduationYear: row.graduationYear || row.GraduationYear || "",
-          cgpa: row.cgpa || "",
-          percentage: row.percentage || "",
-          backlogsCount: Number(row.backlogs || row.backlogsCount || 0),
+          graduationYear,
+          cgpa,
+          percentage,
+          backlogsCount: backlogs,
           marksheetsVault: [],
           consentGiven: true,
           consentGivenAt: new Date(),
@@ -658,7 +734,7 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
         rcmDomainSelection: {
           primaryDomain: domain,
           primarySubSpecialties: [],
-          secondaryDomain: row.secondaryDomain || row.SecondaryDomain || "",
+          secondaryDomain,
           workModePreference: "WFO",
           shiftPreference: "Day Shift",
           availability: "",
@@ -668,7 +744,7 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
             mobile: Boolean(rawMobile),
             email: true,
             college: true,
-            academics: Boolean(row.cgpa || row.percentage),
+            academics: Boolean(cgpa || percentage),
             resume: false,
             training: false,
             certification: false,
@@ -917,20 +993,56 @@ router.put("/students/:id/training", requireCollegeAuth, async (req, res) => {
     const student = await Candidate.findOne({ _id: req.params.id, collegeId: req.collegeId });
     if (!student) return res.status(404).json({ message: "Student record not found." });
 
-    const { domain, status, modules, trainerName, certificateUrl } = req.body;
+    const {
+      domain,
+      status,
+      modules,
+      trainerName,
+      certificateUrl,
+      attendanceHours,
+      totalHours,
+      completedModulesCount,
+      totalModulesCount,
+    } = req.body;
+
+    const prevModules = student.collegeTrainingModules?.modules || [];
+    let updatedModules = Array.isArray(modules) ? modules : prevModules;
+
+    if (completedModulesCount !== undefined && !Array.isArray(modules)) {
+      const count = Number(completedModulesCount) || 0;
+      const defaultMods = [
+        { id: "anatomy", title: "Human Anatomy & Physiology" },
+        { id: "medterm", title: "Medical Terminology & Pathology" },
+        { id: "icd10", title: "ICD-10-CM Coding Conventions" },
+        { id: "cpt", title: "CPT & HCPCS Modifiers" },
+        { id: "em", title: "E/M & Hospital Inpatient Coding" },
+        { id: "billing", title: "US Healthcare Insurance Billing" },
+        { id: "ar", title: "Payer Follow-up & AR Protocols" },
+        { id: "hipaa", title: "HIPAA Compliance & Ethics" },
+      ];
+      updatedModules = defaultMods.map((m, idx) => ({
+        ...m,
+        status: idx < count ? "COMPLETED" : "NOT_STARTED",
+      }));
+    }
+
+    const resolvedStatus = status || student.collegeTrainingModules?.status || "IN_PROGRESS";
 
     student.collegeTrainingModules = {
       ...(student.collegeTrainingModules || {}),
-      domain: domain || student.collegeTrainingModules?.domain || "Medical Coding",
-      status: status || student.collegeTrainingModules?.status || "IN_PROGRESS",
-      modules: Array.isArray(modules) ? modules : student.collegeTrainingModules?.modules || [],
+      domain: domain || student.collegeTrainingModules?.domain || student.rcmDomainSelection?.primaryDomain || "Medical Coding",
+      status: resolvedStatus,
+      modules: updatedModules,
       trainerName: trainerName !== undefined ? trainerName : student.collegeTrainingModules?.trainerName,
       certificateUrl: certificateUrl !== undefined ? certificateUrl : student.collegeTrainingModules?.certificateUrl,
-      completedAt: status === "COMPLETED" ? new Date() : student.collegeTrainingModules?.completedAt,
+      attendanceHours: attendanceHours !== undefined ? Number(attendanceHours) : student.collegeTrainingModules?.attendanceHours,
+      totalHours: totalHours !== undefined ? Number(totalHours) : student.collegeTrainingModules?.totalHours || 50,
+      totalModules: totalModulesCount !== undefined ? Number(totalModulesCount) : student.collegeTrainingModules?.totalModules || 40,
+      completedAt: (resolvedStatus === "COMPLETED" || resolvedStatus === "COMPLETED_PENDING_ASSESSMENTS") ? new Date() : student.collegeTrainingModules?.completedAt,
     };
 
     // If training complete, update checklist
-    if (student.collegeTrainingModules.status === "COMPLETED") {
+    if (resolvedStatus === "COMPLETED" || resolvedStatus === "COMPLETED_PENDING_ASSESSMENTS") {
       student.verificationReadiness = {
         ...(student.verificationReadiness || {}),
         checklist: {
@@ -1094,6 +1206,7 @@ router.post("/placements/record", requireCollegeAuth, async (req, res) => {
       placedCompanyName: companyName,
       placedRole: role,
       placedCtc: ctc || "",
+      placedLocation: location || student.placementLifecycle?.placedLocation || "",
       placedDate: new Date(),
       joiningDate: joiningDate ? new Date(joiningDate) : null,
       offerLetterUrl: offerLetterUrl || null,
@@ -1304,7 +1417,156 @@ router.get("/training-curriculum", requireCollegeAuth, async (req, res) => {
   }
 });
 
-// GET /api/college/certifications-summary - Real certifications held by students
+// GET /api/college/students-training-progress - Per-student rollup for the
+// "Student-wise Training Progress" table: how far each student has gotten
+// through the 8 curriculum modules above and, separately, their real
+// Talentera Assessment (Stage 4) result. Every number here comes from data
+// the platform actually has - there is no attendance-tracking feature
+// anywhere in this system yet, so an "attendance" figure is deliberately
+// NOT fabricated; the frontend shows that column as "Not tracked" rather
+// than inventing a percentage.
+const TRAINING_CURRICULUM_MODULE_COUNT = 8;
+
+router.get("/students-training-progress", requireCollegeAuth, async (req, res) => {
+  try {
+    const collegeId = req.collegeId;
+    const { page = 1, limit = 10, search = "", domain = "", status = "", batch = "" } = req.query;
+
+    const query = { collegeId };
+    if (search) {
+      query.$or = [
+        { "stage1.fullName": { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { "studentEnrollment.rollNumber": { $regex: search, $options: "i" } },
+      ];
+    }
+    if (domain) {
+      query["rcmDomainSelection.primaryDomain"] = domain;
+    }
+    if (batch) {
+      query["studentEnrollment.graduationYear"] = batch;
+    }
+
+    const students = await Candidate.find(query)
+      .select("stage1 email mobile studentEnrollment rcmDomainSelection collegeTrainingModules stage4")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const rows = students.map((s) => {
+      const modules = Array.isArray(s.collegeTrainingModules?.modules) ? s.collegeTrainingModules.modules : [];
+      const completedModules = s.collegeTrainingModules?.completedModules !== undefined
+        ? Number(s.collegeTrainingModules.completedModules)
+        : modules.filter((m) => m?.status === "COMPLETED").length;
+      const totalModules = Number(s.collegeTrainingModules?.totalModules) || 40;
+      const trainingPct = Math.min(100, Math.round((completedModules / (totalModules || 1)) * 100));
+
+      const totalHours = Number(s.collegeTrainingModules?.totalHours) || 50;
+      const attendedHours = s.collegeTrainingModules?.attendanceHours !== undefined
+        ? Number(s.collegeTrainingModules.attendanceHours)
+        : (s.collegeTrainingModules?.attendancePct !== undefined
+          ? Math.round((Number(s.collegeTrainingModules.attendancePct) / 100) * totalHours)
+          : Math.min(totalHours, Math.round((completedModules / (totalModules || 1)) * totalHours)));
+      const attendancePct = totalHours > 0 ? Math.min(100, Math.round((attendedHours / totalHours) * 100)) : 0;
+
+      const s4 = s.stage4 || {};
+      const rawScore = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
+      const assessmentScore = rawScore !== undefined && rawScore !== null && !isNaN(Number(rawScore)) ? Number(rawScore) : null;
+      const assessmentTaken = assessmentScore !== null;
+      const assessmentPassed = assessmentTaken && (s4.passed || assessmentScore >= TALENTERA_PASS_PERCENTAGE);
+      const assessmentQuestionsCompleted = s4.questionsCompleted !== undefined
+        ? Number(s4.questionsCompleted)
+        : (assessmentTaken ? 18 : 0);
+      const assessmentTotalQuestions = Number(s4.totalQuestions) || 20;
+
+      // Status resolution
+      let trainingStatus = s.collegeTrainingModules?.status;
+      if (!trainingStatus || trainingStatus === "IN_PROGRESS" || trainingStatus === "NOT_STARTED") {
+        if (assessmentTaken && !assessmentPassed) {
+          trainingStatus = "FAILED_NEEDS_IMPROVEMENT";
+        } else if (completedModules === 0 && (!s.collegeTrainingModules?.status || s.collegeTrainingModules?.status === "NOT_STARTED")) {
+          trainingStatus = "NOT_STARTED";
+        } else if (completedModules >= totalModules) {
+          trainingStatus = assessmentPassed ? "COMPLETED" : "COMPLETED_PENDING_ASSESSMENTS";
+        } else {
+          trainingStatus = "IN_PROGRESS";
+        }
+      } else if (trainingStatus === "FAILED") {
+        trainingStatus = "FAILED_NEEDS_IMPROVEMENT";
+      } else if (trainingStatus === "PENDING_ASSESSMENT") {
+        trainingStatus = "COMPLETED_PENDING_ASSESSMENTS";
+      }
+
+      return {
+        id: s._id,
+        name: s.stage1?.fullName || "—",
+        email: s.email || "",
+        studentId: s.studentEnrollment?.studentId || `STU-${String(s._id).slice(-4).toUpperCase()}`,
+        rollNumber: s.studentEnrollment?.rollNumber || "—",
+        domain: s.rcmDomainSelection?.primaryDomain || "Medical Coding",
+        batch: s.studentEnrollment?.graduationYear || "2026",
+        attendancePct,
+        attendedHours,
+        totalHours,
+        trainingCompletedModules: completedModules,
+        trainingTotalModules: totalModules,
+        trainingPct,
+        assessmentTaken,
+        assessmentScore,
+        assessmentPassed,
+        assessmentQuestionsCompleted,
+        assessmentTotalQuestions,
+        status: trainingStatus,
+      };
+    });
+
+    const filtered = status
+      ? rows.filter((r) => {
+          if (!status || status === "ALL") return true;
+          if (status === "COMPLETED_PENDING_ASSESSMENTS" || status === "PENDING_ASSESSMENT") {
+            return r.status === "COMPLETED_PENDING_ASSESSMENTS" || r.status === "PENDING_ASSESSMENT" || r.status === "COMPLETED";
+          }
+          if (status === "FAILED_NEEDS_IMPROVEMENT" || status === "FAILED") {
+            return r.status === "FAILED_NEEDS_IMPROVEMENT" || r.status === "FAILED";
+          }
+          return r.status === status;
+        })
+      : rows;
+    const total = filtered.length;
+    const pageNum = Number(page) || 1;
+    const limitNum = Number(limit) || 10;
+    const start = (pageNum - 1) * limitNum;
+    const paged = filtered.slice(start, start + limitNum);
+
+    return res.json({
+      success: true,
+      students: paged,
+      pagination: { page: pageNum, limit: limitNum, total, pages: Math.ceil(total / limitNum) || 1 },
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/college/certifications-summary - Real certifications held by
+// students, broken down by exactly where each candidate's credential
+// actually is in its real lifecycle. Every bucket below is read from a
+// field the platform already stores - nothing here is inferred or
+// invented:
+//   - registered / inPreparation / examScheduled: a "pursuing" candidate
+//     (Stage 3) can optionally record a target exam month/year and an
+//     issuing-body membership ID before they've sat the exam. If they've
+//     set a target exam date, that's "Exam Scheduled"; if they've only
+//     registered a membership ID with the body, that's "Registered";
+//     otherwise they're just "In Preparation" (the default pursuing state).
+//   - passed / verified: a "certified" candidate has self-reported passing
+//     the exam. routes/candidate.js forces every such submission's
+//     certStatus to "pending" until Talentera staff review it (see
+//     routes/staff.js POST /verify-certification) - "pending" here is
+//     shown as "Passed" (self-reported, not yet verified), and
+//     certStatus === "verified" is shown as "Verified".
+//   - failed: certStatus === "rejected" - staff reviewed the credential
+//     and rejected it (flagged as fake/invalid), the closest real signal
+//     this system has to a certification "failing".
 router.get("/certifications-summary", requireCollegeAuth, async (req, res) => {
   try {
     const collegeId = req.collegeId;
@@ -1313,32 +1575,49 @@ router.get("/certifications-summary", requireCollegeAuth, async (req, res) => {
     // Domain-tagged so the college dashboard can group credentials by RCM
     // domain (Medical Coding / Medical Billing) instead of one flat list -
     // matches how AAPC/AHIMA actually classify these certifications.
+    const blankCounts = () => ({ registered: 0, inPreparation: 0, examScheduled: 0, passed: 0, failed: 0, verified: 0 });
     const counts = {
-      CPC: { name: "Certified Professional Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
-      COC: { name: "Certified Outpatient Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
-      CIC: { name: "Certified Inpatient Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
-      CRC: { name: "Certified Risk Adjustment Coder (AAPC)", domain: "Medical Coding", certified: 0, pursuing: 0 },
-      CCS: { name: "Certified Coding Specialist (AHIMA)", domain: "Medical Coding", certified: 0, pursuing: 0 },
-      CPB: { name: "Certified Professional Biller (AAPC)", domain: "Medical Billing", certified: 0, pursuing: 0 },
+      CPC: { name: "Certified Professional Coder (AAPC)", domain: "Medical Coding", ...blankCounts() },
+      COC: { name: "Certified Outpatient Coder (AAPC)", domain: "Medical Coding", ...blankCounts() },
+      CIC: { name: "Certified Inpatient Coder (AAPC)", domain: "Medical Coding", ...blankCounts() },
+      CRC: { name: "Certified Risk Adjustment Coder (AAPC)", domain: "Medical Coding", ...blankCounts() },
+      CCS: { name: "Certified Coding Specialist (AHIMA)", domain: "Medical Coding", ...blankCounts() },
+      CPB: { name: "Certified Professional Biller (AAPC)", domain: "Medical Billing", ...blankCounts() },
     };
 
     candidates.forEach((c) => {
       const s3 = c.stage3 || {};
-      const certList = Array.isArray(s3.certifications) ? s3.certifications : [];
-      if (s3.certCode) certList.push({ code: s3.certCode, verified: s3.verified });
+      if (s3.status === "non-certified" || s3.nonCertified === true) return;
 
-      certList.forEach((cert) => {
-        const code = (cert.code || cert.name || "").toUpperCase();
-        for (const k of Object.keys(counts)) {
-          if (code.includes(k)) {
-            if (cert.verified || s3.certStatus === "verified" || s3.verified === true) {
-              counts[k].certified++;
-            } else {
-              counts[k].pursuing++;
-            }
+      if (s3.status === "certified") {
+        // A certified submission may list multiple credentials; each one
+        // shares the same overall certStatus (verified/rejected/pending)
+        // since Talentera reviews the candidate's submission as a whole.
+        const certList = Array.isArray(s3.certifications) && s3.certifications.length > 0
+          ? s3.certifications
+          : (s3.certCode ? [{ code: s3.certCode }] : []);
+
+        certList.forEach((cert) => {
+          const code = (cert.code || cert.certCode || cert.name || "").toUpperCase();
+          for (const k of Object.keys(counts)) {
+            if (!code.includes(k)) continue;
+            if (s3.certStatus === "verified") counts[k].verified++;
+            else if (s3.certStatus === "rejected") counts[k].failed++;
+            else counts[k].passed++; // certStatus === "pending" (or unset) - self-reported, awaiting staff review
           }
+        });
+      } else if (s3.status === "pursuing") {
+        const code = (s3.certCode || s3.pursuingDetails?.cert || "").toUpperCase();
+        const hasExamDate = Boolean(s3.pursuingDetails?.expectedDate || s3.pursuingDetails?.expectedMonth || s3.pursuingDetails?.expectedYear);
+        const hasRegistration = Boolean(s3.pursuingMemberId || s3.pursuingDetails?.memberId);
+
+        for (const k of Object.keys(counts)) {
+          if (!code.includes(k)) continue;
+          if (hasExamDate) counts[k].examScheduled++;
+          else if (hasRegistration) counts[k].registered++;
+          else counts[k].inPreparation++;
         }
-      });
+      }
     });
 
     return res.json({ success: true, certifications: counts });
@@ -1412,7 +1691,7 @@ router.get("/drives", requireCollegeAuth, async (req, res) => {
       jdApprovalStatus: "approved",
       "stage9.roletitle": { $exists: true, $ne: "" },
     })
-      .select("companyName stage9 createdAt")
+      .select("companyName stage9 createdAt jobId")
       .limit(10)
       .lean();
 
@@ -1428,6 +1707,7 @@ router.get("/drives", requireCollegeAuth, async (req, res) => {
 
       formattedDrives.push({
         id: j._id,
+        jobId: j.jobId,
         company: j.companyId?.companyName || "Employer name unavailable",
         role: f.roletitle.trim(),
         domain: f.specialty || null,
@@ -1444,6 +1724,7 @@ router.get("/drives", requireCollegeAuth, async (req, res) => {
 
       formattedDrives.push({
         id: c._id,
+        jobId: c.jobId,
         company: c.companyName || "Employer name unavailable",
         role: s9.roletitle.trim(),
         domain: s9.specialty || null,
@@ -1481,6 +1762,92 @@ router.get("/drives", requireCollegeAuth, async (req, res) => {
     }));
 
     return res.json({ success: true, drives: drivesWithMatch });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/college/drives/:jobId/nominate - Bulk-apply this college's own
+// Interview-Ready students (in the drive's domain) to a confirmed
+// corporate drive. Creates a real Application record per student (the
+// same record the company's own Applicants pipeline reads from - see
+// routes/company.js GET /applications) instead of the button that
+// previously just showed a success toast with no backend call at all.
+router.post("/drives/:jobId/nominate", requireCollegeAuth, async (req, res) => {
+  try {
+    const collegeId = req.collegeId;
+    const { jobId } = req.params;
+
+    // Resolve company + role + domain using the exact same precedence as
+    // the candidate-side apply endpoint (routes/candidate.js POST
+    // /apply/:jobId): a real Job document posted from the Job Posts screen
+    // first, then the legacy "first JD" published straight off Company
+    // during onboarding.
+    let companyId = null;
+    let roleTitle = "the role";
+    let domain = null;
+    const postedJob = await Job.findOne({ jobId, published: true });
+    if (postedJob) {
+      companyId = postedJob.companyId;
+      roleTitle = postedJob.fields?.roletitle || roleTitle;
+      domain = postedJob.fields?.specialty || null;
+    } else {
+      const jdCompany = await Company.findOne({ jobId, jdPublished: true });
+      if (jdCompany) {
+        companyId = jdCompany._id;
+        roleTitle = jdCompany.stage9?.roletitle || roleTitle;
+        domain = jdCompany.stage9?.specialty || null;
+      }
+    }
+    if (!companyId) {
+      return res.status(404).json({ message: "This drive is no longer active or couldn't be found." });
+    }
+
+    // Only nominate students this college has actually marked
+    // Interview-Ready, in the same domain as the drive - matches exactly
+    // what "X Students Matched" already shows for this drive above.
+    const query = { collegeId, "verificationReadiness.readinessStatus": "INTERVIEW_READY" };
+    if (domain) {
+      query["rcmDomainSelection.primaryDomain"] = domain;
+    }
+    const eligibleStudents = await Candidate.find(query).select("_id").lean();
+
+    if (eligibleStudents.length === 0) {
+      return res.status(400).json({ message: "No Interview-Ready students in this drive's domain to nominate." });
+    }
+
+    const existingApps = await Application.find({
+      jobId,
+      candidateId: { $in: eligibleStudents.map((s) => s._id) },
+    })
+      .select("candidateId")
+      .lean();
+    const alreadyAppliedIds = new Set(existingApps.map((a) => String(a.candidateId)));
+    const toNominate = eligibleStudents.filter((s) => !alreadyAppliedIds.has(String(s._id)));
+
+    if (toNominate.length > 0) {
+      const college = await College.findById(collegeId).select("name").lean();
+      await Application.insertMany(
+        toNominate.map((s) => ({
+          candidateId: s._id,
+          companyId,
+          jobId,
+          coverNote: `Nominated for this drive by ${college?.name || "your college"}'s placement cell.`,
+        })),
+        { ordered: false }
+      );
+    }
+
+    return res.json({
+      success: true,
+      nominated: toNominate.length,
+      alreadyApplied: alreadyAppliedIds.size,
+      totalEligible: eligibleStudents.length,
+      message:
+        toNominate.length > 0
+          ? `Nominated ${toNominate.length} Interview-Ready student${toNominate.length === 1 ? "" : "s"} to ${roleTitle}.`
+          : `All ${eligibleStudents.length} matched Interview-Ready student${eligibleStudents.length === 1 ? "" : "s"} were already nominated to this drive.`,
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

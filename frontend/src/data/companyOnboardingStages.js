@@ -88,9 +88,18 @@ export const ONBOARDING_STAGES = [
     sub: "Add the people who will hire alongside you",
     items: [
       { id: "tadmin", name: "Admin user details", tag: "must", input: "name-email" },
-      { id: "trecruiters", name: "Recruiters list (CSV)", tag: "opt", input: "file" },
-      { id: "thiringmanagers", name: "Hiring managers list (CSV)", tag: "opt", input: "file" },
-      { id: "tcalendar", name: "Calendar provider preference", tag: "opt", input: "select", options: ["Google", "Outlook", "Skip"] },
+      { id: "trecruiters", name: "Recruiters", desc: "Add each recruiter's name and designation", tag: "opt", input: "people-list" },
+      { id: "thiringmanagers", name: "Hiring Managers", desc: "Add each hiring manager's name and designation", tag: "opt", input: "people-list" },
+      {
+        id: "tcalendar",
+        name: "Calendar provider preference",
+        tag: "opt",
+        input: "select",
+        options: ["Google", "Outlook", "Skip", "Other"],
+        allowManualEntry: true,
+        manualEntryOption: "Other",
+        manualEntryPlaceholder: "Enter your calendar platform (e.g. Zoho Calendar, Apple Calendar)",
+      },
     ],
   },
   {
@@ -145,7 +154,15 @@ export const ONBOARDING_STAGES = [
     items: [
       { id: "rroles", name: "Roles needing custom weights", tag: "opt", input: "multi", options: ROLE_TITLES },
       { id: "rweights", name: "Per-role weight breakdown", tag: "opt", input: "textarea", maxlength: 800, placeholder: "Distribute 100 points across ICD / CPT / Specialty / Communication / Behaviour" },
-      { id: "rpolicy", name: "Override approval policy", tag: "opt", input: "select", options: ["Auto-any", "HR Head", "Hiring Manager", "Both"] },
+      {
+        id: "rpolicy",
+        name: "Override approval policy",
+        tag: "opt",
+        input: "select",
+        options: ["Auto-any", "HR Head", "Hiring Manager", "Both", "Manual Entry"],
+        allowManualEntry: true,
+        manualEntryPlaceholder: "Designation who approves overrides (e.g. VP of Talent Acquisition)",
+      },
     ],
   },
   {

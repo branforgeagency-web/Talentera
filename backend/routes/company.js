@@ -72,6 +72,19 @@ async function resolveJobTitle(jobId, companyDoc) {
   return job?.fields?.roletitle || "Medical Coder";
 }
 
+// Same resolution pattern as resolveJobTitle above (legacy Company-level
+// "first JD" vs. a real Job doc) but for the job's Location field, so a
+// hire can carry along WHERE the role is based - see the College Portal's
+// "Placed Students & Confirmed Offer Letters" table, which had Company Name
+// but no Location, and routes/college.js's placementLifecycle.placedLocation.
+async function resolveJobLocation(jobId, companyDoc) {
+  if (companyDoc?.jdPublished && companyDoc.jobId === jobId) {
+    return companyDoc.stage9?.location || "";
+  }
+  const job = await Job.findOne({ jobId }).select("fields.location").lean();
+  return job?.fields?.location || "";
+}
+
 // Companies can now pick MULTIPLE specialties for a single requisition (Primary specialty is a
 // multi-select "specialties" array). `specialty` (singular) is kept as a derived, joined display
 // string so the many existing places that read it as plain text - job search/filter, job alerts,
@@ -852,6 +865,7 @@ router.put("/applications/:id/status", async (req, res) => {
     const company = await Company.findById(req.companyId).select("companyName stage9 jobId jdPublished").lean();
     const companyName = company?.companyName || "Employer";
     const roleTitle = await resolveJobTitle(application.jobId, company);
+    const jobLocation = await resolveJobLocation(application.jobId, company);
 
     // In-app Candidate Notification from Company
     try {
@@ -1003,6 +1017,7 @@ router.put("/applications/:id/status", async (req, res) => {
             placedCompanyName: companyName,
             placedRole: roleTitle,
             placedCtc: req.body.ctc || collegeCandidate.placementLifecycle?.placedCtc || "",
+            placedLocation: jobLocation || collegeCandidate.placementLifecycle?.placedLocation || "",
             placedDate: collegeCandidate.placementLifecycle?.placedDate || new Date(),
           };
           collegeCandidate.markModified("placementLifecycle");

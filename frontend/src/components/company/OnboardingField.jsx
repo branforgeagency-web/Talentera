@@ -20,6 +20,14 @@ function badgeStyle(tag) {
   return { background: "#FEF3C7", color: "#D97706" };
 }
 
+const MANUAL_ENTRY_PREFIX = "Manual Entry: ";
+function isManualEntrySelected(val, trigger = "Manual Entry") {
+  return val === trigger || (typeof val === "string" && val.startsWith(MANUAL_ENTRY_PREFIX));
+}
+function manualEntryDesignation(val) {
+  return typeof val === "string" && val.startsWith(MANUAL_ENTRY_PREFIX) ? val.slice(MANUAL_ENTRY_PREFIX.length) : "";
+}
+
 function isFieldEmpty(input, val) {
   if (val === undefined || val === null) return true;
   if (typeof val === "string") return val.trim() === "";
@@ -37,6 +45,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
   const [text, setText] = useState(() => (typeof value === "string" ? value : ""));
   const [nameEmail, setNameEmail] = useState(() => (value && typeof value === "object" && !Array.isArray(value) ? value : { name: "", email: "" }));
   const [multiVal, setMultiVal] = useState(() => (Array.isArray(value) ? value : []));
+  const [manualDesignation, setManualDesignation] = useState(() => manualEntryDesignation(typeof value === "string" ? value : ""));
   const [fileInfo, setFileInfo] = useState(() => {
     if (!value) return null;
     if (typeof value === "string" && value.trim() !== "") return { docUrl: value, docName: item.name };
@@ -51,6 +60,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
   React.useEffect(() => {
     if (typeof value === "string") {
       setText(value);
+      setManualDesignation(manualEntryDesignation(value));
     } else if (typeof value === "number") {
       setText(String(value));
     } else {
@@ -154,6 +164,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
     (typeof text === "string" && text.trim().length > 0) ||
     (typeof text === "number") ||
     (item.input === "multi" && Array.isArray(multiVal) && multiVal.length > 0) ||
+    (item.input === "people-list" && Array.isArray(multiVal) && multiVal.length > 0) ||
     (item.input === "file" && Boolean(fileInfo && (fileInfo.docUrl || fileInfo.docName || fileInfo.url || fileInfo.fileUrl))) ||
     (item.input === "name-email" && Boolean(nameEmail?.name && String(nameEmail.name).trim() && nameEmail?.email && String(nameEmail.email).trim()));
 
@@ -278,21 +289,51 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         />
       )}
 
-      {item.input === "select" && (
-        <select
-          className="conb-input"
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            commit(e.target.value);
-          }}
-        >
-          <option value="">Select…</option>
-          {(item.options || []).map((opt) => (
-            <option key={opt} value={opt}>{opt}</option>
-          ))}
-        </select>
-      )}
+      {item.input === "select" && (() => {
+        const manualTrigger = item.manualEntryOption || "Manual Entry";
+        const manualSelected = item.allowManualEntry && isManualEntrySelected(text, manualTrigger);
+        return (
+        <div>
+          <select
+            className="conb-input"
+            value={manualSelected ? manualTrigger : text}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (item.allowManualEntry && val === manualTrigger) {
+                const trimmed = manualDesignation.trim();
+                const combined = trimmed ? `${MANUAL_ENTRY_PREFIX}${trimmed}` : manualTrigger;
+                setText(combined);
+                commit(combined);
+              } else {
+                setText(val);
+                commit(val);
+              }
+            }}
+          >
+            <option value="">Select…</option>
+            {(item.options || []).map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+          {manualSelected && (
+            <input
+              type="text"
+              className="conb-input"
+              style={{ marginTop: 8 }}
+              placeholder={item.manualEntryPlaceholder || "Enter details"}
+              value={manualDesignation}
+              onChange={(e) => setManualDesignation(e.target.value)}
+              onBlur={() => {
+                const trimmed = manualDesignation.trim();
+                const combined = trimmed ? `${MANUAL_ENTRY_PREFIX}${trimmed}` : manualTrigger;
+                setText(combined);
+                commit(combined);
+              }}
+            />
+          )}
+        </div>
+        );
+      })()}
 
       {item.input === "textarea" && (
         <>
@@ -333,6 +374,16 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             </button>
           ))}
         </div>
+      )}
+
+      {item.input === "people-list" && (
+        <EditableNameList
+          value={multiVal}
+          onChange={setMultiVal}
+          onCommit={commit}
+          rolePlaceholder="Designation (e.g. Talent Acquisition Lead)"
+          addLabel={`+ Add ${item.id === "thiringmanagers" ? "hiring manager" : "recruiter"}`}
+        />
       )}
 
       {item.input === "file" && (
