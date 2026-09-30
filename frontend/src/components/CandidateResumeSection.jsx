@@ -4,7 +4,7 @@ import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
 import { joinUnique } from "../utils/resumeSubtitle.js";
 import { getMedalTier, medalLabel, medalBadgeStyle } from "../utils/medalBadge.js";
-import { buildResumeSkills, buildDeclarationText } from "../utils/resumeSkills.js";
+import { buildResumeSkills } from "../utils/resumeSkills.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
 // 7 Verified Resume Templates matching Talentera standards
@@ -161,7 +161,24 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   const trainingSpecialties = Array.isArray(stage2.specialties) && stage2.specialties.length > 0
     ? stage2.specialties.join(" · ")
     : (stage2.specialty || domainName || "Medical Billing · Intermediate Medical Coding · Inpatient Coding");
-  const trainingDuration = stage2.duration || stage2.totalHours ? `${stage2.duration || "200 – 400 hrs"}${stage2.totalHours ? ` · ${stage2.totalHours} hours` : ""}` : "200 – 400 hrs";
+  const trainingSpan = (() => {
+    const sm = parseInt(stage2.startMonth, 10);
+    const sy = parseInt(stage2.startYear, 10);
+    const em = parseInt(stage2.endMonth, 10);
+    const ey = parseInt(stage2.endYear, 10);
+    if (!sm || !sy || !em || !ey) return null;
+    const months = (ey - sy) * 12 + (em - sm) + 1;
+    if (months <= 0) return null;
+    if (months >= 12) {
+      const yrs = Math.floor(months / 12);
+      const rem = months % 12;
+      return `${yrs} yr${yrs > 1 ? "s" : ""}${rem ? ` ${rem} mo` : ""}`;
+    }
+    return `${months} mo${months > 1 ? "s" : ""}`;
+  })();
+  const trainingDuration = trainingSpan
+    ? `${trainingSpan}${stage2.totalHours ? ` · ${stage2.totalHours}` : ""}`
+    : (stage2.totalHours || stage2.duration || "200 – 400 hrs");
   // // Accounts Receivable and Eligibility & Verification candidates don't pick a coding specialty (Stage 2 hides that field for them), so trainingSpecialties for them is only ever the placeholder fallback (e.g. "Eligibility & Verification General") - showing it alongside the domain and level was redundant/confusing. For those two domains, show the domain and a labeled training level instead.
   const NO_SPECIALTY_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
   const trainingFoundationLine = NO_SPECIALTY_DOMAINS.includes(domainName)
@@ -197,14 +214,12 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     return [];
   }, [stage3, isNonCertified]);
 
-  // Skills chips + declaration paragraph - generated from the candidate's own domain,
+  // Skills chips - generated from the candidate's own domain,
   // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
   const resumeSkills = useMemo(
     () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
     [stage2.domain, domainName, stage2.specialties, isNonCertified]
   );
-  const declarationText = useMemo(() => buildDeclarationText({ fullName, city }), [fullName, city]);
-  const declarationDate = useMemo(() => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), []);
 
   // Stage 4 Assessment
   const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : (stage4.passed ? 85 : 30));
@@ -274,13 +289,21 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   const totalPoints = useMemo(() => {
     if (candidateObj.score) return candidateObj.score;
     let pts = 0;
-    if (stage1.aadhaarVerified || stage1.fullName) pts += 10;
-    if (stage2.academyName || stage2.courseName) pts += 15;
+    if (stage1.aadhaarVerified || stage1.fullName) pts += 15;
+    if (stage2.academyName || stage2.courseName) {
+      const rawScore = stage2.academyAssessmentScore ?? stage2.assessmentScore ?? stage2.score;
+      let step3Pts = 5;
+      if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+        const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
+        step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
+      }
+      pts += 10 + step3Pts;
+    }
     if (certificationsList.length > 0) pts += 15;
     if (assessmentScore !== null) pts += Math.round((assessmentScore / 100) * 20);
-    if (videoScore !== null) pts += 10;
-    if (totalCharts > 0) pts += 15;
-    return Math.min(100, Math.max(pts, 58));
+    if (videoScore !== null) pts += 15;
+    if (totalCharts > 0) pts += 20;
+    return Math.min(100, Math.max(pts, 0));
   }, [candidateObj.score, stage1, stage2, certificationsList, assessmentScore, videoScore, totalCharts]);
 
   // Star ratings shown on the scorecard in place of raw /100 numbers
@@ -330,7 +353,6 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     education: true,
     skills: true,
     preferences: true,
-    declaration: true,
     qrStamp: true,
   };
   const [visibleSections, setVisibleSections] = useState(initialSections);
@@ -436,7 +458,6 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       education: true,
       skills: true,
       preferences: true,
-      declaration: true,
       qrStamp: true,
     });
     toast("Reset theme to template defaults.", "✓");
@@ -577,7 +598,6 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       visibleSections.education ? `EDUCATION:\n* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `[${cgpa}]` : ""}\n` : "",
       visibleSections.skills && resumeSkills.length > 0 ? `SKILLS:\n* ${resumeSkills.join(" · ")}\n` : "",
       visibleSections.preferences ? `WORK PREFERENCES:\n* Cities: ${preferredCities} | Shifts: ${shiftPreference}\n` : "",
-      visibleSections.declaration ? `DECLARATION:\n${declarationText}\nPlace: ${city || locality} | Date: ${declarationDate}\n${fullName}\n` : "",
     ].filter(Boolean).join("\n");
 
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
@@ -1250,7 +1270,6 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   { key: "education", label: "🎓 Academic Education" },
                   { key: "skills", label: "🛠 Skills" },
                   { key: "preferences", label: "📍 Work Preferences" },
-                  { key: "declaration", label: "🖊 Declaration" },
                   { key: "qrStamp", label: "🛡 Talentera QR Stamp & ID" },
                 ].map((sec) => (
                   <label
@@ -1937,23 +1956,6 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               <div><b>Cities open to:</b> {preferredCities}</div>
               <div><b>Relocation:</b> {relocationPref} · <b>Availability:</b> Immediately</div>
               <div><b>Shifts:</b> {shiftPreference} · <b>Trainee-role open:</b> Yes</div>
-            </div>
-          </div>
-        )}
-
-        {/* 10. DECLARATION */}
-        {visibleSections.declaration && (
-          <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("DECLARATION", "🖊")}
-            <div style={{ fontSize: scale.base - 0.5, color: "#475569", lineHeight: lineHeightVal }}>
-              {declarationText}
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 16, fontSize: scale.base - 0.5, color: "#0F1B3D" }}>
-              <div>Place: {city || locality}</div>
-              <div>Date: {declarationDate}</div>
-            </div>
-            <div style={{ textAlign: "right", marginTop: 10, fontSize: scale.base, fontWeight: 800, color: "#0F1B3D" }}>
-              {fullName}
             </div>
           </div>
         )}

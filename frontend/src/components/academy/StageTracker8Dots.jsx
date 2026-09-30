@@ -11,7 +11,6 @@ export default function StageTracker8Dots({ stages = [], size = 10, showLabels =
     { num: 5, title: "5. Portfolio Video", desc: "2-Min Video & AI Score" },
     { num: 6, title: "6. Live Chart Practice", desc: "10 Coded Medical Charts" },
     { num: 7, title: "7. References", desc: "Trainer & Peer Endorsements" },
-    { num: 8, title: "8. Review & Publish", desc: "Talentera Score & Live Profile" },
   ];
 
   const stageList = defaultStageDefs.map((def, idx) => {
@@ -97,7 +96,7 @@ export default function StageTracker8Dots({ stages = [], size = 10, showLabels =
 
       {showLabels && (
         <div style={{ fontSize: 10, color: "#64748B", fontWeight: 700 }}>
-          {stageList.filter((s) => s.isDone).length}/8 stages completed
+          {stageList.filter((s) => s.isDone).length}/7 stages completed
         </div>
       )}
     </div>

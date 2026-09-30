@@ -14,13 +14,14 @@ const { calculateVerificationScore } = require("../utils/verificationScore");
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
-const { getMessiTurn, computeHeuristicAnswerEvaluation } = require("../utils/claudeInterview");
+const { getMessiTurn, computeHeuristicAnswerEvaluation, generateCareerObjective } = require("../utils/claudeInterview");
 const { buildFreshAiInterviewSession, finalizeAiInterviewSession, getDomainQueryAliases } = require("../utils/aiInterviewSession");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
 const logger = require("../utils/logger");
 const { computeStage6Result } = require("../utils/stage6Score");
+const { computeCandidateReadiness } = require("../utils/studentReadiness");
 
 const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
@@ -837,29 +838,17 @@ router.put("/stage/:n", async (req, res) => {
       };
       candidate.resumeTemplate = template;
 
-      if (!Array.isArray(candidate.documentVault)) {
-        candidate.documentVault = [];
+      // The "Talentera Verified Resume (<template>)" vault card duplicated the
+      // "STAGE 07 - Verified Resume" card the Document Vault already shows from
+      // profile.stage7 data - stop creating it, and remove any already-saved copy
+      // so a candidate's vault self-heals the next time Stage 07 is saved.
+      if (Array.isArray(candidate.documentVault)) {
+        const staleResumeIdx = candidate.documentVault.findIndex((d) => d.id === "verified_resume_stage7");
+        if (staleResumeIdx >= 0) {
+          candidate.documentVault.splice(staleResumeIdx, 1);
+          candidate.markModified("documentVault");
+        }
       }
-      const resumeVaultId = "verified_resume_stage7";
-      const existingResumeIdx = candidate.documentVault.findIndex((d) => d.id === resumeVaultId);
-      const resumeDocName = `${(candidate.stage1?.fullName || "Candidate").replace(/\s+/g, "_")}_Talentera_Verified_Resume.pdf`;
-      const resumeVaultItem = {
-        id: resumeVaultId,
-        title: `Talentera Verified Resume (${template.replace(/_/g, " ").toUpperCase()})`,
-        docType: "Talentera Verified Resume",
-        docUrl: req.body.resumeUrl || null,
-        docName: resumeDocName,
-        uploadedAt: new Date(),
-        verified: true,
-        template,
-      };
-
-      if (existingResumeIdx >= 0) {
-        candidate.documentVault[existingResumeIdx] = { ...candidate.documentVault[existingResumeIdx], ...resumeVaultItem };
-      } else {
-        candidate.documentVault.push(resumeVaultItem);
-      }
-      candidate.markModified("documentVault");
       candidate.markModified("stage7");
     } else if (stageNum === 8) {
       const s8 = candidate.stage8 || {};
@@ -1046,7 +1035,7 @@ router.post("/video-platform/sync", async (req, res) => {
 });
 
 // GET /api/candidate/assessment-questions?domain=...
-// Fetches the 5 syllabus sections and 10 questions tailored to candidate's domain
+// Fetches the 5 syllabus sections and 25 questions tailored to candidate's domain
 router.get("/assessment-questions", async (req, res) => {
   try {
     let domain = req.query.domain;
@@ -1055,23 +1044,31 @@ router.get("/assessment-questions", async (req, res) => {
       domain = candidate?.stage2?.domain || "Medical Coding";
     }
 
-    // Auto-seed default assessment questions if database has none
+    // Auto-seed default assessment questions if database has fewer than 25-per-domain standard (100 total)
     const count = await AssessmentQuestion.countDocuments();
-    if (count === 0 && Array.isArray(DEFAULT_ASSESSMENT_QUESTIONS) && DEFAULT_ASSESSMENT_QUESTIONS.length > 0) {
+    if (count < DEFAULT_ASSESSMENT_QUESTIONS.length && Array.isArray(DEFAULT_ASSESSMENT_QUESTIONS) && DEFAULT_ASSESSMENT_QUESTIONS.length > 0) {
       try {
+        await AssessmentQuestion.deleteMany({});
         await AssessmentQuestion.insertMany(DEFAULT_ASSESSMENT_QUESTIONS, { ordered: false });
       } catch (e) {
         logger.warn("Auto-seed default assessment questions in candidate route notice:", e.message);
       }
     }
 
-    let dbQuestions = await AssessmentQuestion.find({ domain, active: true })
+    // The AssessmentQuestion domain enum (and seed data) uses older labels for two
+    // domains than what candidates pick in Stage2Training.jsx ("Front Office" vs.
+    // "Eligibility & Verification", "AR Calling" vs. "Accounts Receivable") - without
+    // this alias lookup, a candidate in one of those domains would match zero DB/seed
+    // questions and silently fall through to the tiny Medical Coding default.
+    const domainAliases = getDomainQueryAliases(domain);
+
+    let dbQuestions = await AssessmentQuestion.find({ domain: { $in: domainAliases }, active: true })
       .sort({ sectionOrder: 1, order: 1 })
       .lean();
 
     // Fallback to memory defaults if none in DB for this specific domain
     if (!dbQuestions || dbQuestions.length === 0) {
-      dbQuestions = DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => q.domain === domain);
+      dbQuestions = DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => domainAliases.includes(q.domain));
       if (dbQuestions.length === 0) {
         dbQuestions = DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => q.domain === "Medical Coding");
       }
@@ -1850,6 +1847,12 @@ router.get("/vault", async (req, res) => {
 
     let vault = Array.isArray(candidate.documentVault) ? [...candidate.documentVault] : [];
 
+    // Drop the legacy duplicate "Talentera Verified Resume (<template>)" card - it
+    // duplicated the "Stage 07 - Verified Resume" card built further below from
+    // stage7 data. Filtering here (rather than only when Stage 07 next saves) clears
+    // it immediately for candidates whose vault already has the stale record.
+    vault = vault.filter((d) => d.id !== "verified_resume_stage7");
+
     // 1. Stage 1: ID Proofs & Uploaded Resume
     if (candidate.stage1?.idProofUrl && !vault.some(d => d.docUrl === candidate.stage1.idProofUrl || d.id === 's1_id_proof')) {
       vault.push({
@@ -2099,7 +2102,8 @@ router.post(
         expiryDate: req.body.expiryDate || "",
       };
 
-      const existingVault = Array.isArray(candidate.documentVault) ? candidate.documentVault : [];
+      const existingVault = (Array.isArray(candidate.documentVault) ? candidate.documentVault : [])
+        .filter((d) => d.id !== "verified_resume_stage7");
       candidate.documentVault = [docItem, ...existingVault];
 
       // If this was an AAPC or professional certification, link onto stage 3
@@ -2138,7 +2142,7 @@ router.delete("/vault/document/:docId", async (req, res) => {
 
     const currentVault = Array.isArray(candidate.documentVault) ? candidate.documentVault : [];
     candidate.documentVault = currentVault.filter(
-      (d) => d.id !== docId && d._id?.toString() !== docId && d.docUrl !== docId
+      (d) => d.id !== docId && d._id?.toString() !== docId && d.docUrl !== docId && d.id !== "verified_resume_stage7"
     );
 
     candidate.markModified("documentVault");
@@ -2184,7 +2188,66 @@ router.post(
   }
 );
 
+// Lightweight in-memory rate limit for the AI career objective generator - a
+// handful of candidate-triggered Claude API calls per minute is expected
+// usage; this just guards against accidental rapid double-clicks / retries.
+const careerObjectiveHits = new Map();
+function tooManyCareerObjectiveRequests(candidateId) {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxHits = 8;
+  const hits = (careerObjectiveHits.get(candidateId) || []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  careerObjectiveHits.set(candidateId, hits);
+  return hits.length > maxHits;
+}
+
+// POST /api/candidate/stage7/generate-objective - AI (Claude) career objective
+// + professional summary generator for the Stage 07 Resume Builder sidebar.
+// Candidate supplies free-text notes about themselves/their goals; combined
+// with their verified Talentera profile facts, the result is returned for
+// the candidate to review and optionally insert into their Career Objective
+// textarea themselves (never saved automatically).
+router.post("/stage7/generate-objective", async (req, res) => {
+  try {
+    if (tooManyCareerObjectiveRequests(req.candidateId)) {
+      return res.status(429).json({ message: "Please wait a moment before generating again." });
+    }
+
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Not found." });
+
+    const candidateNotes = String(req.body?.candidateNotes || "").trim().slice(0, 800);
+    const p = req.body?.profile && typeof req.body.profile === "object" ? req.body.profile : {};
+
+    const profile = {
+      fullName: candidate.stage1?.fullName || candidate.fullName || "",
+      roleTitle: String(p.roleTitle || "").slice(0, 120),
+      domain: String(p.domain || "").slice(0, 120),
+      trainingLevel: String(p.trainingLevel || "").slice(0, 80),
+      specialties: String(p.specialties || "").slice(0, 200),
+      level: p.level === "experienced" ? "experienced" : "fresher",
+      years: Number.isFinite(Number(p.years)) ? Number(p.years) : undefined,
+      status: ["certified", "pursuing", "non-certified"].includes(p.status) ? p.status : undefined,
+      certCodes: Array.isArray(p.certCodes) ? p.certCodes.map((c) => String(c || "").slice(0, 40)).slice(0, 10) : [],
+      academyName: String(p.academyName || "").slice(0, 120),
+      assessmentScore: Number.isFinite(Number(p.assessmentScore)) ? Number(p.assessmentScore) : undefined,
+      totalCharts: Number.isFinite(Number(p.totalCharts)) ? Number(p.totalCharts) : undefined,
+      accuracy: Number.isFinite(Number(p.accuracy)) ? Number(p.accuracy) : undefined,
+      currentCompany: String(p.currentCompany || "").slice(0, 120),
+      projectDetails: String(p.projectDetails || "").slice(0, 300),
+    };
+
+    const result = await generateCareerObjective({ profile, candidateNotes });
+    res.json(result);
+  } catch (err) {
+    logger.error(`generate-objective error: ${err.message}`);
+    res.status(500).json({ message: "Could not generate a career objective right now. Please try again." });
+  }
+});
+
 // GET /api/candidate/resume-data - locked, verified data the resume templates read from
+
 router.get("/resume-data", async (req, res) => {
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });

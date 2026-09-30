@@ -327,6 +327,7 @@ function InterviewerVideoAvatar({ state = "waiting", size = "normal" }) {
 
 export default function Stage5VideoPitch({ stage, existingData, candidate, onSaved }) {
   const [mode, setMode] = useState("overview"); // "overview" | "record_intro" | "start_mock"
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const toast = useToast();
 
   // Load candidate Stage 5 state
@@ -508,14 +509,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const [mockRecordingTime, setMockRecordingTime] = useState(0);
   const [mockLiveTranscript, setMockLiveTranscript] = useState("");
   const [mockVideos, setMockVideos] = useState({});
-
-  // Section 4: Optional Bonus Videos
-  const [showPassionModal, setShowPassionModal] = useState(false);
-  const [passionVideoUrl, setPassionVideoUrl] = useState(stage5?.passionVideoUrl || "");
-  const [passionScore, setPassionScore] = useState(stage5?.passionScore || (stage5?.passionVideoUrl ? 88 : null));
-  const [showRegionalModal, setShowRegionalModal] = useState(false);
-  const [selectedRegionalLang, setSelectedRegionalLang] = useState(stage5?.regionalLanguage || "Hindi");
-  const [regionalVideoUrl, setRegionalVideoUrl] = useState(stage5?.regionalVideoUrl || "");
 
   // Retake Request State
   const [showRetakeModal, setShowRetakeModal] = useState(false);
@@ -1333,23 +1326,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   };
 
   // ══════════════════════════════════════════════════════════════════════════
-  // SECTION 4: PASSION & REGIONAL BONUS VIDEOS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  const handleSavePassionVideo = () => {
-    setPassionVideoUrl("recorded_passion_30s.mp4");
-    setPassionScore(88);
-    setShowPassionModal(false);
-    toast("🔥 Passion Signal (+2 Bonus Points) recorded and attached!", "✓");
-  };
-
-  const handleSaveRegionalVideo = () => {
-    setRegionalVideoUrl(`recorded_${selectedRegionalLang.toLowerCase()}_60s.mp4`);
-    setShowRegionalModal(false);
-    toast(`🌏 Multilingual Badge (${selectedRegionalLang}) recorded and unlocked!`, "✓");
-  };
-
-  // ══════════════════════════════════════════════════════════════════════════
   // RETAKE WORKFLOW & MODAL
   // ══════════════════════════════════════════════════════════════════════════
 
@@ -1604,13 +1580,10 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <span style={{ background: "rgba(255,255,255,0.14)", padding: "5px 12px", borderRadius: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", backdropFilter: "blur(6px)" }}>
-                STAGE 05 OF 08 · {isCompleted ? "COMPLETED" : "ACTIVE"}
+                STAGE 05 OF 07 · {isCompleted ? "COMPLETED" : "ACTIVE"}
               </span>
               <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 12px", borderRadius: 20, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
-                +10 POINTS
-              </span>
-              <span style={{ background: "rgba(255,255,255,0.14)", padding: "5px 12px", borderRadius: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" }}>
-                ~15 MIN
+                +15 POINTS
               </span>
             </div>
 
@@ -1621,27 +1594,9 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               Where the HR meets you before the HR meets you.
             </div>
             <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 16, maxWidth: 640, lineHeight: 1.6 }}>
-              Communication is the #1 filter for US-facing RCM roles. Record a 60-second self-introduction plus a 5-question AI mock interview. Talentera AI scores your clarity, fluency, confidence and content — companies watch this before they ever pick up a phone.
+              Record a self-introduction and AI mock interview — Talentera AI scores your clarity, fluency and confidence before companies ever call.
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 22 }}>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "16px 14px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#FFFFFF" }}>3 videos</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>2 required · 1 bonus</div>
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "16px 14px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#FFFFFF" }}>5 dimensions</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>Talentera AI scored</div>
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "16px 14px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#FFFFFF" }}>Face-verified</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>matches your Aadhaar</div>
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "16px 14px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#FFFFFF" }}>~15 min</div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)", marginTop: 3 }}>your time</div>
-              </div>
-            </div>
           </div>
 
           {/* ID RECAP BANNER (100% REAL DATA FROM STAGES 1-4) */}
@@ -1734,9 +1689,16 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
           {/* HOW STAGE 05 WORKS CARD */}
           <div style={{ background: "#FFFFFF", borderRadius: 16, padding: "24px 26px", boxShadow: "0 2px 10px rgba(15,27,61,.05)", marginBottom: 18, border: "1px solid #E5E7EB" }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-              How Stage 05 Works
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                How Stage 05 Works
+              </div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
             </div>
+            {showHowItWorks && (
+            <>
             <div style={{ fontSize: 10.5, letterSpacing: 1.5, color: "var(--gold-deep)", textTransform: "uppercase", fontWeight: 700, marginTop: 8 }}>
               WHY IT MATTERS · WHAT'S CAPTURED · HOW AI SCORES · WHAT COMPANIES SEE
             </div>
@@ -1766,7 +1728,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   </div>
                 </div>
                 <div style={{ fontSize: 12.5, color: "var(--gray-txt)", lineHeight: 1.55 }}>
-                  A 60-second self-introduction + a 5-question AI mock interview + an optional 30-second "Why RCM?" passion piece. Live-record or upload — companies see the trust badge either way.
+                  A 60-second self-introduction + a 5-question AI mock interview. Live-record or upload — companies see the trust badge either way.
                 </div>
               </div>
 
@@ -1798,6 +1760,8 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             <div style={{ background: "var(--navy)", color: "var(--gold-pale, #FFF6E0)", padding: "12px 16px", borderRadius: 12, fontStyle: "italic", fontSize: 12.5, marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: "var(--gold)", fontSize: 16 }}>🔐</span>
@@ -1809,13 +1773,11 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "linear-gradient(135deg, #FFF6E0, #FFF9E0)", padding: "12px 20px", borderRadius: 12, marginBottom: 16, border: "1px solid #FFEBB0" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, background: "#FFFFFF", padding: "8px 14px", borderRadius: 20, border: "1px solid #E5E7EB", fontSize: 11.5, color: "#8A91A3" }}>
               <span>Progress:</span>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: isHardwareReady ? "var(--gold)" : "#E5E7EB" }}></span>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: introVideoUrl ? "var(--gold)" : "#E5E7EB" }}></span>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: Object.keys(mockAnswers).length > 0 ? "var(--gold)" : "#E5E7EB" }}></span>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: isCompleted ? "var(--gold)" : "#E5E7EB" }}></span>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: isCompleted ? "var(--gold)" : "#E5E7EB" }}></span>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: isHardwareReady ? "var(--gold)" : "#E5E7EB" }} title="Studio Check"></span>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: hasRealSelfIntro ? "var(--gold)" : "#E5E7EB" }} title="Self-Introduction"></span>
+              <span style={{ width: 9, height: 9, borderRadius: "50%", background: isCompleted ? "var(--gold)" : "#E5E7EB" }} title="Mock Interview"></span>
               <span style={{ marginLeft: 6, fontWeight: 700, color: "var(--navy)" }}>
-                {isCompleted ? "Completed" : introVideoUrl ? "Section 3 of 5" : "Section 1 of 5"}
+                {isCompleted ? "Completed" : hasRealSelfIntro ? "Section 3 of 3" : isHardwareReady ? "Section 2 of 3" : "Section 1 of 3"}
               </span>
             </div>
             <div style={{ color: "#1F7A3C", fontWeight: 700, fontSize: 11.5, marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
@@ -1828,7 +1790,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               Your Stage 05 information
             </h2>
             <div style={{ color: "var(--gold-deep)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>
-              GET STUDIO-READY · RECORD · YOU EARN +10 POINTS
+              GET STUDIO-READY · RECORD · YOU EARN +15 POINTS
             </div>
           </div>
 
@@ -2522,85 +2484,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             )}
           </div>
 
-          {/* ═══════ SECTION 4 · WHY RCM (OPTIONAL BONUS) ═══════ */}
-          <div style={{ background: "#FAFAF7", padding: "22px 24px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed #E5E7EB" }}>
-              <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                4
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                ❤ "Why RCM?" · 30 seconds (Optional bonus)
-              </div>
-              <div style={{ background: passionVideoUrl ? "#E8F5E9" : "#F2F3F5", color: passionVideoUrl ? "#1F7A3C" : "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5 }}>
-                {passionVideoUrl ? "🔥 PASSION RECORDED" : "OPTIONAL BONUS"}
-              </div>
-            </div>
-
-            <div style={{ background: "linear-gradient(135deg, #FFE4E1, #FFF5F1)", border: "1.5px dashed #E67E22", borderRadius: 12, padding: "18px 22px", display: "grid", gridTemplateColumns: "60px 1fr auto", gap: 16, alignItems: "center" }}>
-              <div style={{ width: 60, height: 60, background: "#E67E22", color: "#FFFFFF", borderRadius: 14, display: "grid", placeItems: "center", fontSize: 26 }}>
-                ❤
-              </div>
-              <div>
-                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>
-                  Speak from the heart — 30 seconds of passion
-                </div>
-                <div style={{ fontSize: 11.5, color: "var(--gray-txt)", marginTop: 6, lineHeight: 1.5 }}>
-                  <span style={{ background: "#FFF6E0", color: "var(--gold-deep)", padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, marginRight: 4, letterSpacing: 0.3 }}>+2 BONUS</span>
-                  <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, marginRight: 4, letterSpacing: 0.3 }}>HIGHER VISIBILITY</span>
-                  Companies love passion-driven candidates. Distinguishes committed-to-RCM from any-job-will-do. Adds a "🔥 Passion Signal" badge to your profile.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPassionModal(true)}
-                style={{
-                  background: "transparent",
-                  color: "var(--gold-deep)",
-                  border: "1.5px solid var(--gold)",
-                  padding: "11px 20px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
-              >
-                {passionVideoUrl ? "✓ Recorded · Redo" : "Record 30s →"}
-              </button>
-            </div>
-
-            {/* REGIONAL LANGUAGE BONUS */}
-            <div style={{ background: "linear-gradient(135deg, #E8F0FE, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 22px", display: "grid", gridTemplateColumns: "60px 1fr auto", gap: 16, alignItems: "center", marginTop: 12 }}>
-              <div style={{ width: 60, height: 60, background: "#1A4FB8", color: "#FFFFFF", borderRadius: 14, display: "grid", placeItems: "center", fontSize: 26 }}>
-                🌏
-              </div>
-              <div>
-                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14 }}>
-                  Regional language video (Optional)
-                </div>
-                <div style={{ fontSize: 11.5, color: "var(--gray-txt)", marginTop: 6, lineHeight: 1.5 }}>
-                  <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, marginRight: 4 }}>+1 BONUS</span>
-                  <span style={{ background: "#FFF6E0", color: "var(--gold-deep)", padding: "2px 8px", borderRadius: 6, fontSize: 10, fontWeight: 800, marginRight: 4 }}>MULTILINGUAL BADGE</span>
-                  Record 60 sec in Hindi / Tamil / Telugu / Malayalam / Kannada / Arabic. Zero impact on English scoring. Unlocks regional-market companies.
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRegionalModal(true)}
-                style={{
-                  background: "transparent",
-                  color: "#1A4FB8",
-                  border: "1.5px solid #1A4FB8",
-                  padding: "11px 20px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
-              >
-                {regionalVideoUrl ? `✓ ${selectedRegionalLang} Added` : "Add regional →"}
-              </button>
-            </div>
-          </div>
 
           {/* ══════════════════════════════════════════════════════════════ */}
           {/* RESULTS & SUBMISSION SECTION                                    */}
@@ -2832,16 +2715,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 <span style={{ background: isCompleted ? "rgba(31,122,60,.25)" : "rgba(255,255,255,.1)", color: isCompleted ? "#7ED87E" : "#94A3B8", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
                   {isCompleted ? "🟢 Live Verified" : "⏳ Verification on Completion"}
                 </span>
-                {passionVideoUrl && (
-                  <span style={{ background: "rgba(245,180,26,.2)", color: "var(--gold)", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
-                    🔥 Passion {passionScore || 88}
-                  </span>
-                )}
-                {regionalVideoUrl && (
-                  <span style={{ background: "rgba(26,79,184,.25)", color: "#7AB0FF", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
-                    🌏 {selectedRegionalLang}
-                  </span>
-                )}
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 12, fontFamily: "'JetBrains Mono', monospace" }}>
@@ -2861,7 +2734,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   Content: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.contentRelevance) : "—"}</b> {displayRubric ? barString(displayRubric.contentRelevance) : "—"}
                 </div>
                 <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)", padding: "3px 0" }}>
-                  {isCompleted ? "▶ Play 3 videos · 📝 Full captions" : "⏳ Submissions pending"}
+                  {isCompleted ? "▶ Play 2 videos · 📝 Full captions" : "⏳ Submissions pending"}
                 </div>
               </div>
 
@@ -2936,6 +2809,23 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   <>
                     <button
                       type="button"
+                      onClick={() => handleSubmitAllVideos(false)}
+                      disabled={isSubmittingStage5}
+                      style={{
+                        background: "transparent",
+                        color: "#64748B",
+                        padding: "11px 20px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        border: "1.5px solid #E5E7EB",
+                        cursor: isSubmittingStage5 ? "default" : "pointer",
+                      }}
+                    >
+                      Complete this stage later
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleSubmitAllVideos(true)}
                       disabled={isSubmittingStage5}
                       style={{
@@ -2968,107 +2858,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* PASSION BONUS MODAL                                                */}
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {showPassionModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,.75)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }}>
-          <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 520, width: "100%", padding: 24, boxShadow: "0 12px 36px rgba(0,0,0,.25)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>
-                ❤ "Why RCM?" 30s Passion Video
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPassionModal(false)}
-                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A91A3" }}
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{ fontSize: 13, color: "var(--gray-txt)", lineHeight: 1.5, marginBottom: 16 }}>
-              Share in 30 seconds what genuinely excites you about medical coding and US healthcare. Companies look for authentic passion that sets you apart.
-            </div>
-            <div style={{ background: "#000", aspectRatio: "16/9", borderRadius: 10, display: "grid", placeItems: "center", color: "#FFFFFF", marginBottom: 16 }}>
-              <span style={{ fontSize: 36 }}>🎥</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setShowPassionModal(false)}
-                style={{ background: "#F2F3F5", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSavePassionVideo}
-                style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}
-              >
-                Save & Attach (+2 Bonus Points)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {/* REGIONAL LANGUAGE MODAL                                            */}
-      {/* ══════════════════════════════════════════════════════════════════ */}
-      {showRegionalModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,.75)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }}>
-          <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 520, width: "100%", padding: 24, boxShadow: "0 12px 36px rgba(0,0,0,.25)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>
-                🌏 Regional Language Video (Optional)
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowRegionalModal(false)}
-                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A91A3" }}
-              >
-                ✕
-              </button>
-            </div>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--navy)", display: "block", marginBottom: 6 }}>
-                Select Your Regional Language:
-              </label>
-              <select
-                value={selectedRegionalLang}
-                onChange={(e) => setSelectedRegionalLang(e.target.value)}
-                style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #E5E7EB", fontSize: 13, fontWeight: 700 }}
-              >
-                <option value="Hindi">Hindi (हिंदी)</option>
-                <option value="Tamil">Tamil (தமிழ்)</option>
-                <option value="Telugu">Telugu (తెలుగు)</option>
-                <option value="Malayalam">Malayalam (മലയാളം)</option>
-                <option value="Kannada">Kannada (ಕನ್ನಡ)</option>
-                <option value="Arabic">Arabic (العربية)</option>
-              </select>
-            </div>
-            <div style={{ background: "#000", aspectRatio: "16/9", borderRadius: 10, display: "grid", placeItems: "center", color: "#FFFFFF", marginBottom: 16 }}>
-              <span style={{ fontSize: 36 }}>🎥</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setShowRegionalModal(false)}
-                style={{ background: "#F2F3F5", border: "none", padding: "8px 16px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveRegionalVideo}
-                style={{ background: "#1A4FB8", color: "#FFFFFF", border: "none", padding: "8px 20px", borderRadius: 8, fontSize: 12.5, fontWeight: 800, cursor: "pointer" }}
-              >
-                Save & Unlock Multilingual Badge
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* RETAKE REQUEST MODAL                                               */}

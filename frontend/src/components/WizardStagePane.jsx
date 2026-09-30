@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import api from "../api/client";
-import { HIRING_TICKER, HIRING_COMPANIES, RCM_INDUSTRY_STATS } from "../data/hiringCompanies";
+import { HIRING_TICKER, RCM_INDUSTRY_STATS } from "../data/hiringCompanies";
 
 const STAGE_ICONS = {
   user: <i className="fa-solid fa-user"></i>,
@@ -21,9 +20,7 @@ const RULE_ICONS = {
 };
 
 export default function WizardStagePane({ stage, isDone, children, onPrev, prevNum, onBackToDashboard }) {
-  const navigate = useNavigate();
   const [ticker, setTicker] = useState(HIRING_TICKER);
-  const [companies, setCompanies] = useState(HIRING_COMPANIES);
   const [industryStats, setIndustryStats] = useState(RCM_INDUSTRY_STATS);
 
   useEffect(() => {
@@ -33,9 +30,6 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
       .then((res) => {
         if (!isMounted || !res.data) return;
         if (res.data.ticker) setTicker(res.data.ticker);
-        if (Array.isArray(res.data.companies) && res.data.companies.length > 0) {
-          setCompanies(res.data.companies);
-        }
         if (Array.isArray(res.data.industryStats) && res.data.industryStats.length > 0) {
           setIndustryStats(res.data.industryStats);
         }
@@ -79,8 +73,12 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
         <section className="wiz-hero">
           <div className="wiz-hero-icon">{STAGE_ICONS[stage.icon] || "•"}</div>
           <div className="wiz-hero-pills">
-            <span className="wiz-meta-pill">STAGE 0{stage.num} OF 08 {!isDone && "· ACTIVE"}</span>
-            <span className="wiz-meta-pill wiz-meta-pill-pts">+{stage.pts} POINTS</span>
+            <span className="wiz-meta-pill">STAGE 0{stage.num} OF 07 {!isDone && "· ACTIVE"}</span>
+            {stage.pts > 0 ? (
+              <span className="wiz-meta-pill wiz-meta-pill-pts">+{stage.pts} POINTS</span>
+            ) : (
+              <span className="wiz-meta-pill wiz-meta-pill-pts">OUTPUT STAGE</span>
+            )}
             <span className="wiz-meta-pill">~{stage.mins} MIN</span>
             {isDone && <span className="wiz-meta-pill wiz-meta-pill-done">✓ COMPLETED</span>}
             {stage.isOptional && <span className="wiz-meta-pill" style={{ background: "#DCFCE7", color: "#15803D", fontWeight: 800 }}>OPTIONAL (SELF-TRAINED)</span>}
@@ -118,7 +116,9 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
         <section className="wiz-form-panel">
           <div className="wiz-form-panel-head">
             <div className="wiz-form-panel-title">Your Stage 0{stage.num} information</div>
-            <div className="wiz-form-panel-sub">FILL IN · WE VERIFY · YOU EARN +{stage.pts} POINTS</div>
+            <div className="wiz-form-panel-sub">
+              {stage.pts > 0 ? `FILL IN · WE VERIFY · YOU EARN +${stage.pts} POINTS` : "FILL IN · WE PACKAGE YOUR VERIFIED CREDENTIALS"}
+            </div>
           </div>
           {children}
         </section>
@@ -143,37 +143,6 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
         <div className="wiz-rail-context">
           <div className="wiz-rail-eyebrow">WHY THIS STAGE MATTERS</div>
           <p>{stage.context}</p>
-        </div>
-
-        <div className="wiz-rail-section-head">
-          <span>HIRING RIGHT NOW</span>
-          <Link to="/jobs" style={{ textDecoration: "none", color: "inherit", fontWeight: 600 }}>
-            See all {ticker.companiesHiring} →
-          </Link>
-        </div>
-        <div className="wiz-rail-companies">
-          {companies.map((c) => (
-            <div
-              className="wiz-rail-company"
-              key={c.name}
-              onClick={() => navigate("/jobs")}
-              style={{ cursor: "pointer" }}
-              title="Click to explore open positions"
-            >
-              <div className="wiz-rail-company-avatar" style={{ background: c.gradient }}>{c.initial}</div>
-              <div className="wiz-rail-company-body">
-                <div className="wiz-rail-company-name">
-                  {c.name} {c.hot && <span className="wiz-rail-hot"><i className="fa-solid fa-fire"></i> Hot</span>}
-                </div>
-                <div className="wiz-rail-company-meta">{c.location} · {c.salary}</div>
-                <div className="wiz-rail-company-tags">
-                  {c.tags && c.tags.map((t) => <span key={t} className="wiz-rail-tag">{t}</span>)}
-                  <span className="wiz-rail-tag wiz-rail-tag-roles">{c.openRoles} roles</span>
-                </div>
-                <div className="wiz-rail-company-note">{c.note}</div>
-              </div>
-            </div>
-          ))}
         </div>
 
         <div className="wiz-rail-industry">

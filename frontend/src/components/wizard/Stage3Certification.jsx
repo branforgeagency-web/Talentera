@@ -39,16 +39,6 @@ const BODIES_BY_REGION = {
   ],
 };
 
-const GLOBAL_MARKETS = [
-  { id: "in", flag: "🇮🇳", label: "India offshore RCM (default)", tail: "CPC · CDC recognized" },
-  { id: "us", flag: "🇺🇸", label: "United States — offshore night shift", tail: "CPC · CRC · CDC recognized" },
-  { id: "uk", flag: "🇬🇧", label: "United Kingdom", tail: "May need UK-specific coding cert" },
-  { id: "ae", flag: "🇦🇪", label: "UAE · Saudi · Middle East", tail: "AAPC recognized in most healthcare hubs" },
-  { id: "ca", flag: "🇨🇦", label: "Canada", tail: "May need CHIMA equivalent" },
-  { id: "au", flag: "🇦🇺", label: "Australia", tail: "May need HIMAA equivalent" },
-  { id: "global", flag: "🌐", label: "Any global remote / hybrid opportunity", tail: "We'll surface anything with visa sponsorship" },
-];
-
 const MONTH_OPTIONS = [
   { val: "01", label: "01 · Jan" },
   { val: "02", label: "02 · Feb" },
@@ -82,14 +72,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   const isPursuingFromStage2 = s2.trainingPath === "pursuing" || candidate?.stage2?.trainingPath === "pursuing" || candidate?.trainingPath === "pursuing";
 
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
   // SECTION 1 · CERTIFICATION STATUS
   const [status, setStatus] = useState(
     existingData.certType === "non-certified" || existingData.nonCertified || existingData.isCertified === false
       ? "non-certified"
       : existingData.status || existingData.certType || (isPursuingFromStage2 ? "pursuing" : "certified")
   );
-
-  const isMarketsOptional = status === "pursuing" || status === "non-certified" || isPursuingFromStage2;
 
   // SECTION 2 · CERTIFICATION REGION & BODY
   const [selectedRegion, setSelectedRegion] = useState("us");
@@ -153,6 +143,9 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   // Credential verification URL and Real vs Fake verification state
   const [certUrl, setCertUrl] = useState(existingData.certUrl || "");
+  const [certPercentage, setCertPercentage] = useState(
+    existingData.certPercentage ?? existingData.certifications?.[0]?.percentage ?? ""
+  );
   const [verificationResult, setVerificationResult] = useState(existingData.verificationResult || null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifyError, setVerifyError] = useState("");
@@ -179,6 +172,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           expiryDate: existingData.expiryDate || "",
           memberId: existingData.memberId,
           certUrl: existingData.certUrl || "",
+          percentage: existingData.certPercentage ?? null,
           isReal,
           trustScore: existingData.trustScore || (isReal ? 98 : 70),
           verificationResult: existingData.verificationResult || null,
@@ -221,12 +215,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   // issuing body (e.g. AAPC) even though the certification exam itself hasn't been passed yet.
   const [pursuingMemberId, setPursuingMemberId] = useState(existingData.pursuingMemberId || "");
 
-  // SECTION 5 · GLOBAL MARKETS
-  const [selectedMarkets, setSelectedMarkets] = useState(
-    Array.isArray(existingData.targetMarkets)
-      ? existingData.targetMarkets
-      : ["in", "us", "ae", "global"]
-  );
+  // Global Markets picker UI removed — target markets now always default to the standard set.
+  const selectedMarkets = Array.isArray(existingData.targetMarkets)
+    ? existingData.targetMarkets
+    : ["in", "us", "ae", "global"];
 
   // UI state
   const [isVaultOpen, setIsVaultOpen] = useState(false);
@@ -248,18 +240,6 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     const bInfo = CERT_LIBRARY[bKey] || CERT_LIBRARY.aapc;
     if (bInfo?.certs?.length > 0) {
       setSelectedCertCode(bInfo.certs[0].code);
-    }
-  }
-
-  function handleToggleMarket(marketId) {
-    if (selectedMarkets.includes(marketId)) {
-      if (!isMarketsOptional && selectedMarkets.length === 1) {
-        toast("Please keep at least one market selected.", "!");
-        return;
-      }
-      setSelectedMarkets(selectedMarkets.filter((m) => m !== marketId));
-    } else {
-      setSelectedMarkets([...selectedMarkets, marketId]);
     }
   }
 
@@ -300,6 +280,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           expiryDate: formattedExpiry,
           memberId: memberId.trim(),
           certUrl: certUrl.trim(),
+          percentage: certPercentage !== "" ? Number(certPercentage) : null,
           isReal,
           trustScore: verificationResult?.trustScore || 70,
           verificationResult,
@@ -331,6 +312,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       expiryMonth,
       expiryYear,
       expiryDate: isCertified ? (finalStack[0]?.expiryDate || formattedExpiry) : "",
+      certPercentage: isCertified ? (finalStack[0]?.percentage ?? (certPercentage !== "" ? Number(certPercentage) : null)) : null,
       isActive,
       lastCeuMonth,
       lastCeuYear,
@@ -408,6 +390,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       expiryDate: formattedExpiry,
       memberId: memberId.trim(),
       certUrl: certUrl.trim(),
+      percentage: certPercentage !== "" ? Number(certPercentage) : null,
       isReal,
       trustScore: verificationResult?.trustScore || 70,
       verificationResult,
@@ -489,7 +472,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
     try {
       const payload = buildPayload(false);
       const res = await api.put("/candidate/stage/3", payload);
-      toast("Stage 03 · Certification saved successfully! (+20 pts)", "✓");
+      toast("Stage 03 · Certification saved successfully! (+15 pts)", "✓");
       if (onSaved) onSaved(res.data, { advance: true, nextStage: 4 });
     } catch (err) {
       console.error(err);
@@ -1529,34 +1512,13 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           <div className="s3-hero">
             <div className="s3-hero-icon">🏆</div>
             <div className="s3-hero-badges">
-              <span className="s3-hero-chip">STAGE 03 OF 08 · ACTIVE</span>
-              <span className="s3-hero-chip gold">+20 POINTS</span>
-              <span className="s3-hero-chip">~10 MIN</span>
+              <span className="s3-hero-chip">STAGE 03 OF 07 · ACTIVE</span>
+              <span className="s3-hero-chip gold">+15 POINTS</span>
             </div>
             <h1 className="s3-hero-title" style={{ color: "#ffffff" }}>Certification</h1>
             <div className="s3-hero-subtitle">The badge that follows your name — verified globally.</div>
             <div className="s3-hero-desc">
-              Add every professional certification you hold — from AAPC and AHIMA to BMSC,
-              DANB, HIMAA, CHIMA and beyond. We verify each one at its source, so your
-              credentials carry the weight they deserve on every hiring team's screen.
-            </div>
-            <div className="s3-hero-tiles">
-              <div className="s3-hero-tile">
-                <div className="big">80+</div>
-                <div className="small">certifications in library</div>
-              </div>
-              <div className="s3-hero-tile">
-                <div className="big">API-Verified</div>
-                <div className="small">AAPC + AHIMA at source</div>
-              </div>
-              <div className="s3-hero-tile">
-                <div className="big">Multi-cert</div>
-                <div className="small">stack all your credentials</div>
-              </div>
-              <div className="s3-hero-tile">
-                <div className="big">Global</div>
-                <div className="small">US · UK · CA · AU · UAE</div>
-              </div>
+              Add every certification you hold — we verify each one at its source, so it carries real weight on every hiring team's screen.
             </div>
           </div>
 
@@ -1573,7 +1535,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
           {/* HOW STAGE 03 WORKS */}
           <div className="s3-card">
-            <div className="s3-card-title">How Stage 03 Works</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="s3-card-title">How Stage 03 Works</div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
             <div className="s3-card-eyebrow">WHY IT MATTERS · WHAT WE VERIFY · GLOBAL · WHAT COMPANIES SEE</div>
 
             <div className="s3-rules-grid">
@@ -1622,6 +1591,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             <div className="s3-consent-pill">
               <span className="ico">🌐</span>
@@ -1645,7 +1616,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
           <div className="s3-form-header">
             <h2>Your Stage 03 information</h2>
-            <div className="sub">FILL IN · WE VERIFY · YOU EARN +20 POINTS</div>
+            <div className="sub">FILL IN · WE VERIFY · YOU EARN +15 POINTS</div>
           </div>
 
           {error && (
@@ -1962,6 +1933,26 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </div>
               </div>
 
+              <div className="s3-field" style={{ maxWidth: 320 }}>
+                <label>Exam Score / Percentage Achieved (optional)</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    placeholder="e.g. 88"
+                    value={certPercentage}
+                    onChange={(e) => setCertPercentage(e.target.value)}
+                    style={{ paddingRight: 30 }}
+                  />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "var(--gray-mute)", fontSize: 13, fontWeight: 700, pointerEvents: "none" }}>
+                    %
+                  </span>
+                </div>
+                <div className="s3-helper">Your exam score, shown on your resume and verified profile if provided.</div>
+              </div>
+
               <div className="s3-field">
                 <label>Last CEU Completed (Month & Year)</label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxWidth: 360 }}>
@@ -2122,7 +2113,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                             )}
                           </div>
                           <div className="meta">
-                            {item.body} · {item.region} · Issued {item.issueDate || "—"} · Renews {item.expiryDate || "—"}
+                            {item.body} · {item.region} · Issued {item.issueDate || "—"} · Renews {item.expiryDate || "—"}{Number.isFinite(item.percentage) ? ` · Score ${item.percentage}%` : ""}
                           </div>
                         </div>
                         <div className="s3-cert-mini-id">ID ****{item.memberId ? item.memberId.slice(-4) : "—"}</div>
@@ -2148,11 +2139,11 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             </div>
           )}
 
-          {/* SECTION 3 · PURSUING DETAILS (Visible if pursuing) */}
+          {/* SECTION 3 · PURSUING DETAILS (Visible if pursuing) — shown as step 2 since it's mutually exclusive with the Certified/Non-Certified sections */}
           {status === "pursuing" && (
             <div className="s3-section">
               <div className="s3-section-header">
-                <div className="s3-section-num">3</div>
+                <div className="s3-section-num">2</div>
                 <div className="s3-section-title">Pursuing Details</div>
                 <div className="s3-status-chip active">IN PROGRESS · +10</div>
               </div>
@@ -2245,11 +2236,11 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             </div>
           )}
 
-          {/* SECTION 4 · NON-CERTIFIED (Visible if non-certified) */}
+          {/* SECTION 4 · NON-CERTIFIED (Visible if non-certified) — shown as step 2 since it's mutually exclusive with the Certified/Pursuing sections */}
           {status === "non-certified" && (
             <div className="s3-section">
               <div className="s3-section-header">
-                <div className="s3-section-num">4</div>
+                <div className="s3-section-num">2</div>
                 <div className="s3-section-title">Non-Certified Decision</div>
                 <div className="s3-status-chip pending">NOTICE</div>
               </div>
@@ -2281,42 +2272,6 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </div>
               </div>
             </div>
-          )}
-
-          {/* SECTION 5 · GLOBAL MARKETS (hidden for non-certified candidates) */}
-          {status !== "non-certified" && (
-          <div className="s3-section">
-            <div className="s3-section-header">
-              <div className="s3-section-num">5</div>
-              <div className="s3-section-title">Global Markets — where should your certs work?</div>
-              <div className="s3-status-chip">
-                {selectedMarkets.length > 0 ? "DONE · +3" : isMarketsOptional ? "OPTIONAL" : "REQUIRED"}
-              </div>
-            </div>
-
-            <div className="s3-field">
-              <label>
-                I'd like to be surfaced to companies in {isMarketsOptional ? <span className="s3-helper" style={{ fontWeight: 500, fontStyle: "normal" }}>(Optional)</span> : <span className="req">*</span>}
-              </label>
-              <div className="s3-helper" style={{ marginBottom: 8 }}>
-                Pick every market where you want to be considered. Your certs get matched to the right regional bodies.
-              </div>
-              <div className="s3-option-list">
-                {GLOBAL_MARKETS.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`s3-option-item ${selectedMarkets.includes(m.id) ? "selected" : ""}`}
-                    onClick={() => handleToggleMarket(m.id)}
-                  >
-                    <div className="box">{selectedMarkets.includes(m.id) ? "✓" : ""}</div>
-                    <span className="flag">{m.flag}</span>
-                    <div>{m.label}</div>
-                    <div className="tail">{m.tail}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
           )}
 
           {/* STICKY BOTTOM BAR */}

@@ -303,7 +303,7 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
         {/* Tab Navigation Bar */}
         <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC", padding: "0 24px", overflowX: "auto" }}>
           {[
-            { id: "stages", label: `8-Stage Verification (${pct}%)`, icon: CheckCircle2 },
+            { id: "stages", label: `7-Stage Verification (${pct}%)`, icon: CheckCircle2 },
             { id: "profile", label: "Candidate Info", icon: UserCheck },
             { id: "credentials", label: "Assessment & Certs", icon: Award },
             { id: "video", label: "Portfolio Video", icon: Video },
@@ -340,7 +340,7 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
 
         {/* Modal Body */}
         <div style={{ padding: 24, overflowY: "auto", flex: 1, background: "#FFFFFF" }}>
-          {/* TAB 1: 8-STAGE VERIFICATION */}
+          {/* TAB 1: 7-STAGE VERIFICATION */}
           {activeTab === "stages" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>

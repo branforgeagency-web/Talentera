@@ -13,6 +13,7 @@ const { upload, handleUpload } = require("../middleware/upload");
 const { authLimiter } = require("../middleware/rateLimit");
 const logger = require("../utils/logger");
 const { TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
+const { computeCandidateReadiness } = require("../utils/studentReadiness");
 
 const router = express.Router();
 
@@ -867,9 +868,20 @@ router.get("/students", requireCollegeAuth, async (req, res) => {
       Candidate.countDocuments(query),
     ]);
 
+    const enrichedStudents = students.map((s) => {
+      const computedStatus = computeCandidateReadiness(s);
+      return {
+        ...s,
+        verificationReadiness: {
+          ...(s.verificationReadiness || {}),
+          readinessStatus: computedStatus,
+        },
+      };
+    });
+
     return res.json({
       success: true,
-      students,
+      students: enrichedStudents,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -892,6 +904,16 @@ router.get("/students/:id", requireCollegeAuth, async (req, res) => {
 
     if (!student) {
       return res.status(404).json({ message: "Student record not found in your college roster." });
+    }
+
+    const computedStatus = computeCandidateReadiness(student);
+    if (student.verificationReadiness?.readinessStatus !== computedStatus) {
+      student.verificationReadiness = {
+        ...(student.verificationReadiness || {}),
+        readinessStatus: computedStatus,
+      };
+      student.markModified("verificationReadiness");
+      await student.save();
     }
 
     const interviews = await InterviewPipeline.find({ candidateId: student._id }).sort({ createdAt: -1 });
@@ -1074,23 +1096,15 @@ router.put("/students/:id/verification", requireCollegeAuth, async (req, res) =>
     const updatedChecklist = { ...currentChecklist, ...(checklistUpdates || {}) };
 
     // Auto-calculate Readiness Status if not explicitly forced
-    let newReadiness = readinessStatus || student.verificationReadiness?.readinessStatus || "ENROLLED";
-    if (!readinessStatus) {
-      const allChecksPass =
-        updatedChecklist.college &&
-        updatedChecklist.academics &&
-        updatedChecklist.training &&
-        updatedChecklist.assessment;
-
-      if (allChecksPass) {
-        newReadiness = "INTERVIEW_READY";
-      } else if (updatedChecklist.assessment) {
-        newReadiness = "VERIFICATION_PENDING";
-      } else if (updatedChecklist.training) {
-        newReadiness = "ASSESSMENT_PENDING";
-      } else if (updatedChecklist.academics) {
-        newReadiness = "TRAINING_IN_PROGRESS";
-      }
+    let newReadiness = readinessStatus;
+    if (!newReadiness) {
+      newReadiness = computeCandidateReadiness({
+        ...student.toObject(),
+        verificationReadiness: {
+          ...(student.verificationReadiness || {}),
+          checklist: updatedChecklist,
+        },
+      });
     }
 
     student.verificationReadiness = {

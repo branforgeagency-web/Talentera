@@ -94,7 +94,7 @@ export default function ForCandidates() {
     },
     {
       q: "3. What does Talentera verify?",
-      a: "Talentera verifies key parts of your professional profile through an 8-stage, 100-point verification process, including identity, education, certifications, skills, communication, chart auditing, resume quality, and your verified profile."
+      a: "Talentera verifies key parts of your professional profile through a 7-stage, 100-point verification process, including identity, education, certifications, skills, communication, chart auditing, resume quality, and your verified profile."
     },
     {
       q: "4. How can I prove my medical coding skills to employers?",
@@ -156,12 +156,6 @@ export default function ForCandidates() {
       name: "ATS Resume Score",
       desc: "Build an ATS-friendly medical coding resume that clearly highlights your experience, certifications, skills, and professional strengths.",
       icon: "fa-solid fa-file-lines"
-    },
-    {
-      num: "08",
-      name: "Verified Profile Badge",
-      desc: "Complete the verification process and receive a Verified Profile Badge that makes your Talentera profile easier for employers to identify.",
-      icon: "fa-solid fa-shield-halved"
     }
   ];
 
@@ -264,7 +258,7 @@ export default function ForCandidates() {
           </h1>
 
           <p className="fc-hero-sub">
-            Create your verified profile, complete the 8-stage assessment, and unlock direct access to 342+ verified RCM companies across India—opening the door to real US healthcare jobs for medical coders. Zero fees. Full privacy.
+            Create your verified profile, complete the 7-stage assessment, and unlock direct access to 342+ verified RCM companies across India—opening the door to real US healthcare jobs for medical coders. Zero fees. Full privacy.
           </p>
 
           <div className="fc-hero-ctas">
@@ -360,18 +354,18 @@ export default function ForCandidates() {
         </div>
       </section>
 
-      {/* SECTION 3: 8 STAGES GRID */}
+      {/* SECTION 3: 7 STAGES GRID */}
       <section className="fc-section" style={{ background: "#ffffff" }}>
         <div className="container">
           <div className="fc-section-head">
-            <div className="fc-section-eyebrow">THE 8-STAGE VERIFICATION PROCESS</div>
+            <div className="fc-section-eyebrow">THE 7-STAGE VERIFICATION PROCESS</div>
             <h2 className="fc-section-title">
-              8 Stages. 100 Verification Points. <span className="fc-text-gold">One Trusted Profile.</span>
+              7 Stages. 100 Verification Points. <span className="fc-text-gold">One Trusted Profile.</span>
             </h2>
             <p className="fc-section-sub">
               Finding the right US healthcare jobs for medical coders starts with a profile that clearly shows who you are, what you know, and what you can do.
               <br />
-              Talentera's 8-stage verification process covers 100 verification points across your identity, education, certifications, skills, communication, coding ability, resume, and professional profile — helping you present your qualifications with greater clarity and confidence to healthcare employers.
+              Talentera's 7-stage verification process covers 100 verification points across your identity, education, certifications, skills, communication, coding ability, resume, and professional profile — helping you present your qualifications with greater clarity and confidence to healthcare employers.
             </p>
           </div>
 
@@ -389,7 +383,7 @@ export default function ForCandidates() {
           {/* Meaning for Candidates Box */}
           <div className="fc-fasttrack-box">
             <div style={{ maxWidth: 760 }}>
-              <div className="fc-fasttrack-title">What Does Talentera's 8-Stage Verification Mean for Candidates?</div>
+              <div className="fc-fasttrack-title">What Does Talentera's 7-Stage Verification Mean for Candidates?</div>
               <div className="fc-fasttrack-desc" style={{ marginTop: 8, lineHeight: 1.6 }}>
                 It brings your identity, education, certifications, skills, assessments, and professional information together in one candidate profile.
                 <br />

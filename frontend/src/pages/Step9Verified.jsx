@@ -144,7 +144,7 @@ export default function Step9Verified({ profile, onOpenDashboard }) {
               margin: "0 auto 24px",
             }}
           >
-            All 8 stages complete. Your profile has just entered the Talentera Verified Pool — the only RCM
+            All 7 stages complete. Your profile has just entered the Talentera Verified Pool — the only RCM
             hiring pool in India where every candidate is gate-verified before companies ever see them.
           </p>
 

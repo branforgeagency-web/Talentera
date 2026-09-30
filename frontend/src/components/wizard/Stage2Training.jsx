@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
@@ -203,6 +203,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       : "Fresher");
 
   // FORM STATES (Initialized from existingData or empty)
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [domain, setDomain] = useState(existingData.domain || "");
   // A saved level that isn't one of the preset pills was typed in under "Others"
   const savedLevelIsCustom = Boolean(existingData.trainingLevel) && !ALL_TRAINING_LEVELS.includes(existingData.trainingLevel);
@@ -332,7 +333,24 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [totalHours, setTotalHours] = useState(existingData.totalHours || existingData.duration || "");
   const [modeOfTraining, setModeOfTraining] = useState(existingData.modeOfTraining || "");
   const [certificateId, setCertificateId] = useState(existingData.certificateId || "");
-  const [academyScore] = useState(existingData.academyAssessmentScore || "—");
+  const rawAcademyScore = existingData.academyAssessmentScore ?? existingData.assessmentScore ?? existingData.score;
+  const [academyScore] = useState(
+    rawAcademyScore !== undefined && rawAcademyScore !== null && rawAcademyScore !== "" ? rawAcademyScore : "—"
+  );
+
+  const step3Points = useMemo(() => {
+    if (trainingPath === "non_trained") return 5;
+    if (trainingPath === "self") return academyName ? 5 : 0;
+    if (academyScore !== "—" && academyScore !== "" && academyScore !== null && academyScore !== undefined) {
+      const num = Number(String(academyScore).replace(/[^0-9.]/g, ""));
+      if (!isNaN(num)) {
+        if (num >= 80) return 5;
+        if (num >= 60) return 4;
+        return 3;
+      }
+    }
+    return 5;
+  }, [trainingPath, academyName, academyScore]);
 
   // Section 4 · Practical Exposure
   const [practicedCharts, setPracticedCharts] = useState(
@@ -810,7 +828,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         }
         .s2-hero-tiles {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 12px;
           margin-top: 22px;
         }
@@ -1615,34 +1633,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           <div className="s2-hero">
             <div className="s2-hero-icon">🎓</div>
             <div className="s2-hero-badges">
-              <span className="s2-hero-chip">STAGE 02 OF 08 · ACTIVE</span>
+              <span className="s2-hero-chip">STAGE 02 OF 07 · ACTIVE</span>
               <span className="s2-hero-chip gold">+15 POINTS</span>
-              <span className="s2-hero-chip">~15 MIN</span>
             </div>
             <h1 className="s2-hero-title" style={{ color: "#ffffff" }}>Foundation</h1>
             <div className="s2-hero-subtitle">Where you learned it. Where you earned it.</div>
             <div className="s2-hero-desc">
-              You tell us where you trained, what you specialized in, and how deeply.
-              Your academy verifies it back from their Talentera dashboard — so your
-              training pedigree carries real weight on every company shortlist.
-            </div>
-            <div className="s2-hero-tiles">
-              <div className="s2-hero-tile">
-                <div className="big">400+</div>
-                <div className="small">RCM academies mapped</div>
-              </div>
-              <div className="s2-hero-tile">
-                <div className="big">Verified</div>
-                <div className="small">by your academy</div>
-              </div>
-              <div className="s2-hero-tile">
-                <div className="big">Live sign-off</div>
-                <div className="small">from academy dashboard</div>
-              </div>
-              <div className="s2-hero-tile">
-                <div className="big">~15 min</div>
-                <div className="small">your time</div>
-              </div>
+              Where you trained and what you specialized in — verified by your academy, carrying real weight on every company shortlist.
             </div>
           </div>
 
@@ -1659,7 +1656,14 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
           {/* HOW STAGE 02 WORKS */}
           <div className="s2-card">
-            <div className="s2-card-title">How Stage 02 Works</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="s2-card-title">How Stage 02 Works</div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
             <div className="s2-card-eyebrow">WHY IT MATTERS · WHAT WE VERIFY · WHAT COMPANIES SEE</div>
 
             <div className="s2-rules-grid">
@@ -1710,6 +1714,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             <div className="s2-consent-pill">
               <span className="ico">🎓</span>
@@ -1943,12 +1949,12 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   ? "Self-Trained Platform & Learning Sources"
                   : "Academy Details"}
               </div>
-              <div className="s2-status-chip pending">
+              <div className={`s2-status-chip ${trainingPath === "non_trained" || (trainingPath === "self" && academyName) || (academyScore !== "—" && academyScore !== "") ? "completed" : "pending"}`}>
                 {trainingPath === "non_trained"
                   ? "COMPLETED · +5"
                   : trainingPath === "self"
-                  ? (academyName ? "COMPLETED" : "PENDING")
-                  : "PENDING · +5"}
+                  ? (academyName ? "COMPLETED · +5" : "PENDING")
+                  : (academyScore !== "—" && academyScore !== "" ? `VERIFIED · +${step3Points}` : "PENDING · +5")}
               </div>
             </div>
 
@@ -2173,24 +2179,34 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 {/* Row 2: Batch / Roll Number & Certificate ID */}
                 <div className="s2-row">
                   <div className="s2-field">
-                    <label>Batch / Roll Number <span className="req">*</span></label>
+                    <label>
+                      Batch / Roll Number
+                      <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)", marginLeft: 6 }}>
+                        (Optional)
+                      </span>
+                    </label>
                     <input
                       type="text"
                       value={batch}
                       onChange={(e) => setBatch(e.target.value)}
-                      placeholder="e.g. APX-2601-012 / Roll No"
+                      placeholder="e.g. APX-2601-012 / Roll No (Optional)"
                     />
-                    <div className="s2-helper">Your academy cross-checks this against their student roster.</div>
+                    <div className="s2-helper">Optional: Cross-checked against student roster if available.</div>
                   </div>
                   <div className="s2-field">
-                    <label>Certificate ID <span className="req">*</span></label>
+                    <label>
+                      Certificate ID
+                      <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)", marginLeft: 6 }}>
+                        (Optional)
+                      </span>
+                    </label>
                     <input
                       type="text"
                       value={certificateId}
                       onChange={(e) => setCertificateId(e.target.value)}
-                      placeholder="e.g. CERT-2026-HCC-0187"
+                      placeholder="e.g. CERT-2026-HCC-0187 (Optional)"
                     />
-                    <div className="s2-helper">Unique ID from your academy. Duplicate IDs are auto-flagged.</div>
+                    <div className="s2-helper">Optional: Unique ID from your academy if issued. Duplicate IDs are auto-flagged.</div>
                   </div>
                 </div>
 
@@ -2281,9 +2297,44 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   <label>
                     Academy Assessment Score <span className="lock">🔒 Populated by academy — read-only</span>
                   </label>
-                  <input type="text" className="locked" value={academyScore} readOnly />
-                  <div className="s2-helper">
-                    Your score can only be set by your academy or by Talentera's proctored assessment. Never self-declared.
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <input
+                      type="text"
+                      className="locked"
+                      value={academyScore !== "—" && !String(academyScore).includes("%") ? `${academyScore}%` : academyScore}
+                      readOnly
+                      style={{ maxWidth: 140, fontWeight: 700 }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        background: step3Points === 5 ? "#DCFCE7" : step3Points === 4 ? "#FEF3C7" : "#FEE2E2",
+                        color: step3Points === 5 ? "#15803D" : step3Points === 4 ? "#D97706" : "#DC2626",
+                        border: `1px solid ${step3Points === 5 ? "#86EFAC" : step3Points === 4 ? "#FDE68A" : "#FECACA"}`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                      }}
+                    >
+                      <span>Allocates +{step3Points} pts</span>
+                    </span>
+                  </div>
+                  <div className="s2-helper" style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div>Your score can only be set by your academy or by Talentera's proctored assessment. Never self-declared.</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", fontSize: 11, marginTop: 2 }}>
+                      <span style={{ background: "#F1F5F9", padding: "2px 7px", borderRadius: 4, color: "#334155" }}>
+                        ≥ 80% → <strong>5 points</strong>
+                      </span>
+                      <span style={{ background: "#F1F5F9", padding: "2px 7px", borderRadius: 4, color: "#334155" }}>
+                        60% – 80% → <strong>4 points</strong>
+                      </span>
+                      <span style={{ background: "#F1F5F9", padding: "2px 7px", borderRadius: 4, color: "#334155" }}>
+                        &lt; 60% → <strong>3 points</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
 

@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast.jsx";
+import {
+  READINESS_LEVELS,
+  READINESS_DESCRIPTIONS,
+  getStudentComputedReadiness,
+  getReadinessStageIndex,
+} from "../utils/studentReadiness.js";
 
 const DOMAINS_CONFIG = [
   { id: "Medical Coding", label: "Medical Coding", icon: "fa-stethoscope", color: "#2563EB", bg: "#EFF6FF" },
   { id: "Medical Billing", label: "Medical Billing", icon: "fa-file-invoice-dollar", color: "#16A34A", bg: "#F0FDF4" },
   { id: "AR Calling", label: "AR Calling", icon: "fa-headset", color: "#D97706", bg: "#FFFBEB" },
-];
-
-const READINESS_LEVELS = [
-  { id: "ENROLLED", label: "1. Enrolled", color: "#64748B", bg: "#F1F5F9" },
-  { id: "PROFILE_COMPLETED", label: "2. Profile Complete", color: "#0284C7", bg: "#E0F2FE" },
-  { id: "TRAINING_IN_PROGRESS", label: "3. Training Active", color: "#7C3AED", bg: "#F5F3FF" },
-  { id: "ASSESSMENT_PENDING", label: "4. Assessment Pending", color: "#D97706", bg: "#FEF3C7" },
-  { id: "VERIFICATION_PENDING", label: "5. Verification Pending", color: "#EA580C", bg: "#FFEDD5" },
-  { id: "VERIFIED", label: "6. Verified Candidate", color: "#059669", bg: "#D1FAE5" },
-  { id: "INTERVIEW_READY", label: "7. Interview Ready", color: "#15803D", bg: "#DCFCE7", isFinal: true },
 ];
 
 const DEFAULT_DEPARTMENTS = [
@@ -1917,7 +1913,7 @@ export default function CollegePortal() {
                             {selectedStudent.stage1?.fullName || selectedStudent.name}
                           </h2>
                           <span style={{ fontSize: 11, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 4 }}>
-                            {selectedStudent.verificationReadiness?.readinessStatus || "ENROLLED"}
+                            {getStudentComputedReadiness(selectedStudent)}
                           </span>
                         </div>
                         <span style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "block" }}>
@@ -1934,34 +1930,67 @@ export default function CollegePortal() {
                       </button>
                     </div>
 
-                    {/* Readiness Controls */}
+                    {/* Readiness Controls - Auto-Selected from Real Backend Data */}
                     <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14, marginBottom: 18 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: "#0A1F3D", marginBottom: 6 }}>
-                        Current Readiness Stage:
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 800, color: "#0A1F3D" }}>
+                            Current Readiness Stage:
+                          </span>
+                          <span style={{ fontSize: 10.5, fontWeight: 700, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 12, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                            <i className="fa-solid fa-circle-check" style={{ fontSize: 9 }}></i>
+                            Auto-Selected (Real Backend Progress)
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 11, color: "#64748B" }}>
+                          Stage {getReadinessStageIndex(getStudentComputedReadiness(selectedStudent)) + 1} of 7
+                        </span>
                       </div>
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                        {READINESS_LEVELS.map((r) => {
-                          const isCur = (selectedStudent.verificationReadiness?.readinessStatus || "ENROLLED") === r.id;
+                        {READINESS_LEVELS.map((r, idx) => {
+                          const computedStatus = getStudentComputedReadiness(selectedStudent);
+                          const activeIdx = getReadinessStageIndex(computedStatus);
+                          const isCur = computedStatus === r.id;
+                          const isPast = idx < activeIdx;
                           return (
-                            <button
+                            <div
                               key={r.id}
-                              type="button"
-                              onClick={() => handleToggleReadiness(selectedStudent._id, r.id)}
                               style={{
-                                background: isCur ? r.color : "#FFFFFF",
-                                color: isCur ? "#FFFFFF" : "#334155",
-                                border: `1px solid ${r.color}`,
-                                padding: "5px 12px",
+                                background: isCur ? r.color : isPast ? "#F0FDF4" : "#FFFFFF",
+                                color: isCur ? "#FFFFFF" : isPast ? "#166534" : "#475569",
+                                border: `1px solid ${isCur ? r.color : isPast ? "#86EFAC" : "#E2E8F0"}`,
+                                padding: "6px 12px",
                                 borderRadius: 6,
                                 fontSize: 11.5,
-                                fontWeight: 700,
-                                cursor: "pointer",
+                                fontWeight: isCur ? 800 : 600,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 6,
+                                boxShadow: isCur ? "0 2px 6px rgba(0,0,0,0.12)" : "none",
+                                cursor: "default",
+                                transition: "all 0.2s ease",
                               }}
                             >
+                              {isCur ? (
+                                <i className="fa-solid fa-circle-dot" style={{ fontSize: 10 }}></i>
+                              ) : isPast ? (
+                                <i className="fa-solid fa-check" style={{ fontSize: 10, color: "#16A34A" }}></i>
+                              ) : (
+                                <i className="fa-regular fa-circle" style={{ fontSize: 10, color: "#94A3B8" }}></i>
+                              )}
                               {r.label}
-                            </button>
+                              {isCur && (
+                                <span style={{ fontSize: 9.5, background: "rgba(255,255,255,0.25)", padding: "1px 5px", borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                  Active
+                                </span>
+                              )}
+                            </div>
                           );
                         })}
+                      </div>
+                      <div style={{ marginTop: 10, fontSize: 11.5, color: "#475569", display: "flex", alignItems: "center", gap: 6 }}>
+                        <i className="fa-solid fa-circle-info" style={{ color: "#2563EB" }}></i>
+                        <span>{READINESS_DESCRIPTIONS[getStudentComputedReadiness(selectedStudent)] || "Candidate progress tracked automatically from backend verification milestones."}</span>
                       </div>
                     </div>
 
@@ -3779,6 +3808,7 @@ export default function CollegePortal() {
                         <th style={{ padding: "10px 14px" }}>Student</th>
                         <th style={{ padding: "10px 14px" }}>Roll No / Dept</th>
                         <th style={{ padding: "10px 14px" }}>RCM Domain</th>
+                        <th style={{ padding: "10px 14px" }}>Company Selected</th>
                         <th style={{ padding: "10px 14px" }}>Recruiting Employer</th>
                         <th style={{ padding: "10px 14px" }}>Location</th>
                         <th style={{ padding: "10px 14px" }}>Designation</th>
@@ -3790,7 +3820,7 @@ export default function CollegePortal() {
                     <tbody>
                       {placedStudents.length === 0 ? (
                         <tr>
-                          <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
+                          <td colSpan={10} style={{ padding: 40, textAlign: "center", color: "#64748B" }}>
                             <i className="fa-solid fa-handshake-slash" style={{ fontSize: 30, color: "#94A3B8", marginBottom: 10, display: "block" }}></i>
                             <div style={{ fontSize: 14, fontWeight: 800, color: "#0A1F3D" }}>No Placement Records Yet</div>
                             <p style={{ fontSize: 12, margin: "4px 0 0" }}>This list fills in automatically as soon as a recruiting company marks one of your students as hired.</p>
@@ -3813,6 +3843,9 @@ export default function CollegePortal() {
                                 <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: "#EFF6FF", color: "#2563EB" }}>
                                   {s.rcmDomainSelection?.primaryDomain || "—"}
                                 </span>
+                              </td>
+                              <td style={{ padding: "10px 14px", fontWeight: 700, color: "#334155" }}>
+                                {s.stage8?.currentEmployment?.companyName || "—"}
                               </td>
                               <td style={{ padding: "10px 14px", fontWeight: 800, color: "#0A1F3D" }}>
                                 {s.placementLifecycle?.placedCompanyName || "—"}

@@ -2,7 +2,7 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { joinUnique } from "./resumeSubtitle.js";
 import { getMedalTier, medalBadgeHtml } from "./medalBadge.js";
-import { buildResumeSkills, buildDeclarationText } from "./resumeSkills.js";
+import { buildResumeSkills } from "./resumeSkills.js";
 
 /**
  * Export a DOM element directly to a high-resolution A4 PDF document.
@@ -244,11 +244,9 @@ export function exportResumeWord(data) {
   const totalStars = starsFor(totalPoints).count;
   const totalStarsDisplay = starsFor(totalPoints).display;
 
-  // Skills chips + declaration paragraph - generated from the candidate's own domain,
+  // Skills chips - generated from the candidate's own domain,
   // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
   const resumeSkills = buildResumeSkills({ domain: domainName, specialties, certified: !isNonCertified });
-  const declarationText = buildDeclarationText({ fullName, city });
-  const declarationDate = new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   const skillsHtml = resumeSkills.length
     ? `
     <div style="margin-top: 14pt;">
@@ -268,30 +266,6 @@ export function exportResumeWord(data) {
       </table>
     </div>`
     : "";
-  const declarationHtml = `
-    <div style="margin-top: 14pt;">
-      <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
-        <tr>
-          <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🖊 DECLARATION
-          </td>
-        </tr>
-      </table>
-      <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
-        <tr>
-          <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
-            <div style="color: #334155;">${declarationText}</div>
-            <table style="width: 100%; margin-top: 10pt;">
-              <tr>
-                <td style="color: #64748B;">Place: ${city || locality}</td>
-                <td style="text-align: right; color: #64748B;">Date: ${declarationDate}</td>
-              </tr>
-            </table>
-            <div style="text-align: right; margin-top: 8pt; font-weight: bold; color: ${primaryColor};">${fullName}</div>
-          </td>
-        </tr>
-      </table>
-    </div>`;
 
 
   // Build Certifications section
@@ -659,8 +633,6 @@ export function exportResumeWord(data) {
         </tr>
       </table>
     </div>
-
-    ${declarationHtml}
 
     <!-- FOOTER / AUDIT TRAIL -->
     <div style="border-top: 1pt solid ${borderColor}; margin-top: 20pt; padding-top: 8pt; text-align: center; font-size: 8.5pt; color: #64748B;">

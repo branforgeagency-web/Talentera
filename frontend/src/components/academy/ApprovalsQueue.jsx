@@ -24,6 +24,7 @@ export default function ApprovalsQueue({ token, onApprovalChanged }) {
   const [rejectModal, setRejectModal] = useState({ open: false, item: null, reason: "" });
   const [actionLoading, setActionLoading] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [stage2Scores, setStage2Scores] = useState({});
 
   const fetchApprovals = async () => {
     setLoading(true);
@@ -54,13 +55,17 @@ export default function ApprovalsQueue({ token, onApprovalChanged }) {
   const handleApprove = async (item) => {
     setActionLoading(true);
     try {
+      const chosenScore = stage2Scores[item.id] !== undefined ? stage2Scores[item.id] : item.assessmentScore;
       const res = await fetch(`/api/academy/approvals/${item.id}/approve`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ stageNumber: item.stageNumber }),
+        body: JSON.stringify({
+          stageNumber: item.stageNumber,
+          assessmentScore: item.stageNumber === 2 && chosenScore !== undefined ? Number(chosenScore) : undefined,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -446,16 +451,39 @@ export default function ApprovalsQueue({ token, onApprovalChanged }) {
 
                   {/* Stage 2 Details */}
                   {item.stageNumber === 2 && (
-                    <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap", fontSize: 11, color: "#334155" }}>
-                      <span style={{ background: "#EFF6FF", padding: "3px 8px", borderRadius: 6, border: "1px solid #BFDBFE", fontWeight: 700, color: "#1D4ED8" }}>
-                        Training Hours: 120 hrs (Path B)
-                      </span>
-                      <span style={{ background: "#F0FDF4", padding: "3px 8px", borderRadius: 6, border: "1px solid #BBF7D0", fontWeight: 700, color: "#15803D" }}>
-                        Attendance: 96%
-                      </span>
-                      <span style={{ color: "#64748B" }}>
-                        Batch Duration: 12 Weeks · Active
-                      </span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+                      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: "#334155" }}>
+                        <span style={{ background: "#EFF6FF", padding: "3px 8px", borderRadius: 6, border: "1px solid #BFDBFE", fontWeight: 700, color: "#1D4ED8" }}>
+                          Training Hours: 120 hrs (Path B)
+                        </span>
+                        <span style={{ background: "#F0FDF4", padding: "3px 8px", borderRadius: 6, border: "1px solid #BBF7D0", fontWeight: 700, color: "#15803D" }}>
+                          Attendance: 96%
+                        </span>
+                        <span style={{ color: "#64748B" }}>
+                          Batch Duration: 12 Weeks · Active
+                        </span>
+                      </div>
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#F8FAFC", padding: "6px 10px", borderRadius: 6, border: "1px solid #E2E8F0", width: "fit-content" }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: "#0F172A" }}>Academy Assessment Score:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={stage2Scores[item.id] !== undefined ? stage2Scores[item.id] : (item.assessmentScore ?? 85)}
+                          onChange={(e) => setStage2Scores({ ...stage2Scores, [item.id]: e.target.value })}
+                          style={{ width: 55, padding: "2px 6px", fontSize: 12, fontWeight: 700, border: "1px solid #CBD5E1", borderRadius: 4, textAlign: "center" }}
+                        />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#475569" }}>%</span>
+                        {(() => {
+                          const val = Number(stage2Scores[item.id] !== undefined ? stage2Scores[item.id] : (item.assessmentScore ?? 85));
+                          const pts = val >= 80 ? 5 : val >= 60 ? 4 : 3;
+                          return (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: pts === 5 ? "#15803D" : pts === 4 ? "#D97706" : "#DC2626", background: pts === 5 ? "#DCFCE7" : pts === 4 ? "#FEF3C7" : "#FEE2E2", padding: "2px 8px", borderRadius: 4 }}>
+                              Allocates +{pts} pts ({val >= 80 ? "≥80% → 5 pts" : val >= 60 ? "60%–80% → 4 pts" : "<60% → 3 pts"})
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
 

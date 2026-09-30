@@ -2604,6 +2604,8 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
           itemDescription: `Verify training hours and Path B assessment for ${s1.fullName || "Candidate"}.`,
           submittedAt: c.createdAt || new Date(),
           type: "training_validation",
+          stage2: s2,
+          assessmentScore: s2.academyAssessmentScore ?? s2.assessmentScore ?? s2.score ?? 85,
         });
       }
 
@@ -2650,8 +2652,14 @@ router.post("/approvals/:stage_id/approve", requireAcademyAuth, async (req, res)
     const targetStage = stagePart === "stage5" || req.body.stageNumber === 5 ? 5 : 2;
 
     if (targetStage === 2) {
+      const assessmentScore = req.body.assessmentScore !== undefined ? req.body.assessmentScore : (req.body.score !== undefined ? req.body.score : req.body.academyAssessmentScore);
       candidate.stage2 = {
         ...(candidate.stage2 || {}),
+        ...(assessmentScore !== undefined && assessmentScore !== null && assessmentScore !== "" ? {
+          assessmentScore: assessmentScore,
+          academyAssessmentScore: assessmentScore,
+          score: assessmentScore,
+        } : {}),
         verified: true,
         rejected: false,
         needsRevision: false,

@@ -47,10 +47,21 @@ const TALENTERA_PASS_PERCENTAGE = 75;
  * isDone }). Pure function, no DB access, so it's safe to call from a
  * read-only .lean() query result or a live Mongoose document either way.
  */
-function calculateTalenteraScore(stages) {
+function calculateTalenteraScore(stages, candidate = null) {
   const breakdown = (stages || []).map((st) => {
     const maxPoints = STAGE_SCORE_WEIGHTS[st.stageNumber] || 0;
-    const points = st.isDone ? maxPoints : 0;
+    let points = st.isDone ? maxPoints : 0;
+    if (st.isDone && st.stageNumber === 2 && candidate) {
+      const s2 = candidate.stage2 || {};
+      const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "—"
+        ? s2.academyAssessmentScore
+        : (s2.assessmentScore !== undefined && s2.assessmentScore !== null ? s2.assessmentScore : s2.score);
+      if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+        const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
+        const step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
+        points = (maxPoints - 5) + step3Pts;
+      }
+    }
     return { stageNumber: st.stageNumber, title: st.title, maxPoints, points, isDone: !!st.isDone };
   });
   const score = breakdown.reduce((sum, b) => sum + b.points, 0);
@@ -167,7 +178,7 @@ function compute8Stages(candidate) {
   // Talentera Score is derived from Stages 1-6 only (Stage 7/8 are output-only,
   // 0 points) - compute it now, before building Stage 8's own display text,
   // since Stage 8's "Review & Publish" summary shows this exact number.
-  const { score: talenteraScore, breakdown: scoreBreakdown } = calculateTalenteraScore(stages);
+  const { score: talenteraScore, breakdown: scoreBreakdown } = calculateTalenteraScore(stages, candidate);
 
   stages.push({
     stageNumber: 8,

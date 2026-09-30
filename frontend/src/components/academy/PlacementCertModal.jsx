@@ -136,7 +136,7 @@ export default function PlacementCertModal({ certData, onClose }) {
               {certData.studentName}
             </div>
             <div style={{ fontSize: 13, color: "#475569", margin: "16px auto 0", maxWidth: 520, lineHeight: 1.6 }}>
-              has successfully completed 8-stage verification and has been officially recruited as
+              has successfully completed 7-stage verification and has been officially recruited as
             </div>
 
             {/* Role & Company Highlight */}
