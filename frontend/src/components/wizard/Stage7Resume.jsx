@@ -5,7 +5,7 @@ import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
 import { joinUnique } from "../../utils/resumeSubtitle.js";
 import { getMedalTier, medalLabel, medalBadgeStyle } from "../../utils/medalBadge.js";
-import { buildResumeSkills, buildDeclarationText } from "../../utils/resumeSkills.js";
+import { buildResumeSkills } from "../../utils/resumeSkills.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
 // Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
@@ -116,7 +116,7 @@ const RESUME_TEMPLATES = [
   },
 ];
 
-export default function Stage7Resume({ stage, existingData, candidate, onSaved, onNavigateStage }) {
+export default function Stage7Resume({ stage, existingData, candidate, onSaved, onNavigateStage, onGoToDashboard }) {
   const toast = useToast();
   const resumePrintRef = useRef(null);
 
@@ -160,7 +160,24 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   const trainingSpecialties = Array.isArray(stage2.specialties) && stage2.specialties.length > 0
     ? stage2.specialties.join(" + ")
     : (stage2.specialty || domainName || "Medical Coding");
-  const trainingDuration = stage2.duration || stage2.totalHours ? `${stage2.duration || "Course Completed"}${stage2.totalHours ? ` · ${stage2.totalHours} hours` : ""}` : "Course Completed";
+  const trainingSpan = (() => {
+    const sm = parseInt(stage2.startMonth, 10);
+    const sy = parseInt(stage2.startYear, 10);
+    const em = parseInt(stage2.endMonth, 10);
+    const ey = parseInt(stage2.endYear, 10);
+    if (!sm || !sy || !em || !ey) return null;
+    const months = (ey - sy) * 12 + (em - sm) + 1;
+    if (months <= 0) return null;
+    if (months >= 12) {
+      const yrs = Math.floor(months / 12);
+      const rem = months % 12;
+      return `${yrs} yr${yrs > 1 ? "s" : ""}${rem ? ` ${rem} mo` : ""}`;
+    }
+    return `${months} mo${months > 1 ? "s" : ""}`;
+  })();
+  const trainingDuration = trainingSpan
+    ? `${trainingSpan}${stage2.totalHours ? ` · ${stage2.totalHours}` : ""}`
+    : (stage2.totalHours || stage2.duration || "Course Completed");
   // // Accounts Receivable and Eligibility & Verification candidates don't pick a coding specialty (Stage 2 hides that field for them), so trainingSpecialties for them is only ever the placeholder fallback (e.g. "Eligibility & Verification General") - showing it alongside the domain and level was redundant/confusing. For those two domains, show the domain and a labeled training level instead.
   const NO_SPECIALTY_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
   const trainingFoundationLine = NO_SPECIALTY_DOMAINS.includes(domainName)
@@ -189,19 +206,18 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         memberId: stage3.memberId || "",
         issueDate: stage3.issueDate || "",
         expiryDate: stage3.expiryDate || "",
+        percentage: Number.isFinite(Number(stage3.certPercentage)) ? Number(stage3.certPercentage) : null,
       }];
     }
     return [];
   }, [stage3, isNonCertified]);
 
-  // Skills chips + declaration paragraph - generated from the candidate's own domain,
+  // Skills chips - generated from the candidate's own domain,
   // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
   const resumeSkills = useMemo(
     () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
     [stage2.domain, domainName, stage2.specialties, isNonCertified]
   );
-  const declarationText = useMemo(() => buildDeclarationText({ fullName, city }), [fullName, city]);
-  const declarationDate = useMemo(() => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), []);
 
   // Stage 4 Assessment from Database
   const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : null);
@@ -293,15 +309,23 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   // Total Genuine Points Calculation
   const totalPoints = useMemo(() => {
     let pts = 0;
-    if (stage1.aadhaarVerified || stage1.fullName) pts += 5;
-    if (stage2.academyName || stage2.courseName || stage2.domain) pts += 15;
-    if (stage3.certStatus === "verified" || (certificationsList.length > 0 && !isNonCertified)) pts += 20;
-    if (assessmentScore !== null && assessmentScore >= 70) pts += 25;
-    else if (assessmentScore !== null && assessmentScore > 0) pts += Math.round((assessmentScore / 100) * 25);
-    if (stage5.videoUrl || (videoScore !== null && videoScore >= 70)) pts += 10;
+    if (stage1.aadhaarVerified || stage1.fullName) pts += 15;
+    if (stage2.academyName || stage2.courseName || stage2.domain) {
+      const rawScore = stage2.academyAssessmentScore ?? stage2.assessmentScore ?? stage2.score;
+      let step3Pts = 5;
+      if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+        const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
+        step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
+      }
+      pts += 10 + step3Pts;
+    }
+    if (stage3.certStatus === "verified" || (certificationsList.length > 0 && !isNonCertified)) pts += 15;
+    if (assessmentScore !== null && assessmentScore >= 70) pts += 20;
+    else if (assessmentScore !== null && assessmentScore > 0) pts += Math.round((assessmentScore / 100) * 20);
+    if (stage5.videoUrl || (videoScore !== null && videoScore >= 70)) pts += 15;
     if (totalCharts > 0) {
       const opt = (stage6.evidencePath || stage6.option || "").toLowerCase();
-      pts += opt === "a" || opt.includes("api") || opt === "practicode" ? 20 : opt === "b" || opt.includes("upload") ? 15 : opt === "c" || opt.includes("declare") ? 8 : 10;
+      pts += opt === "a" || opt.includes("api") || opt === "practicode" ? 20 : opt === "b" || opt.includes("upload") ? 20 : opt === "c" || opt.includes("declare") ? 16 : 20;
     }
     return Math.min(100, Math.max(pts, candidateObj.score || 0));
   }, [stage1, stage2, stage3, certificationsList, isNonCertified, assessmentScore, stage5, videoScore, totalCharts, stage6, candidateObj]);
@@ -337,6 +361,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     specialtyCharts.forEach(() => { count += 2; });
     return Math.max(count, 18);
   }, [fullName, mobile, email, locality, degree, collegeName, graduationYear, academyName, domainName, trainingSpecialties, certificationsList, assessmentScore, videoScore, totalCharts, specialtyCharts]);
+
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   // Template selection state
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
@@ -417,11 +443,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore, trainingLevel, stage2]);
 
-  const aiObjectiveOptions = useMemo(
-    () => objectiveSet.options.map((o, i) => ({ id: i + 1, tag: o.tag, label: `🤖 AI Option ${i + 1}`, text: o.text })),
-    [objectiveSet]
-  );
-
   const cleanObjectiveString = (str) => {
     if (!str) return "";
     return str
@@ -434,34 +455,60 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   };
 
   const objectiveKey = `${domainName}|${trainingLevel}|${objectiveSet.level}|${objectiveSet.status}`;
-  const [selectedAiIdx, setSelectedAiIdx] = useState(0);
   const [careerObjective, setCareerObjective] = useState(() => {
     const saved = stage7Data.objective || stage7Data.summary;
-    // A saved objective written for a different domain / training level / experience is stale - rebuild it.
+    // A saved objective written for a different domain / training level / experience is stale - discard it.
     const stale = stage7Data.objectiveKey && stage7Data.objectiveKey !== objectiveKey;
     if (saved && !stale && !isLegacyAutoObjective(saved)) return cleanObjectiveString(saved);
-    return aiObjectiveOptions[0].text;
+    return "";
   });
-
-  // Regenerate fresh AI options counter
-  const [aiGenSeed, setAiGenSeed] = useState(0);
 
   const [formErrors, setFormErrors] = useState({});
 
-  function handleRegenerateAi() {
-    setAiGenSeed((prev) => prev + 1);
-    const newOptions = objectiveSet.alternates;
-    const picked = newOptions[aiGenSeed % newOptions.length];
-    setCareerObjective(picked);
-    if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
-    toast("Generated fresh AI objective variation based on your database record!", "✓");
-  }
+  // --- AI Career Objective Assistant (Claude-powered) ---------------------
+  const [aiNotes, setAiNotes] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState(null); // { objective, summary, source }
+  const [aiError, setAiError] = useState("");
 
-  function handleSelectAiOption(idx) {
-    setSelectedAiIdx(idx);
-    setCareerObjective(aiObjectiveOptions[idx].text);
+  const handleGenerateAiObjective = async () => {
+    setAiGenerating(true);
+    setAiError("");
+    try {
+      const { years: expYears } = getExperienceLevel(stage1, candidateObj);
+      const res = await api.post("/candidate/stage7/generate-objective", {
+        candidateNotes: aiNotes,
+        profile: {
+          roleTitle: stage2.jobTitle || stage1.currentRole || "",
+          domain: domainName,
+          trainingLevel,
+          specialties: trainingSpecialties,
+          level: objectiveSet.level,
+          years: expYears,
+          status: objectiveSet.status,
+          certCodes: certificationsList.map((c) => c.code || c.name),
+          academyName,
+          assessmentScore,
+          totalCharts,
+          accuracy: overallAccuracy,
+          currentCompany: stage2.currentCompany || "",
+          projectDetails: stage2.projectDetails || "",
+        },
+      });
+      setAiResult(res.data);
+    } catch (err) {
+      setAiError(err.response?.data?.message || "Could not generate a career objective right now. Please try again.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleUseAiText = (text) => {
+    if (!text) return;
+    setCareerObjective(text);
     if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
-  }
+    toast("Added to your Career Objective. Scroll up to review & edit.", "✓");
+  };
 
   // Version history state from Database or initialized
   const versionHistory = useMemo(() => {
@@ -492,6 +539,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Live Hiring Companies from database API
   const [liveCompanies, setLiveCompanies] = useState([]);
+  const [tickerData, setTickerData] = useState(null);
   useEffect(() => {
     let isMounted = true;
     api
@@ -501,6 +549,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         if (Array.isArray(res.data.companies) && res.data.companies.length > 0) {
           setLiveCompanies(res.data.companies);
         }
+        if (res.data.ticker) setTickerData(res.data.ticker);
       })
       .catch((err) => {
         console.debug("Live hiring activity sync:", err.message);
@@ -515,6 +564,50 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   const [showFullPreviewModal, setShowFullPreviewModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // Go Live activation state (Career Passport go-live, formerly Stage 08)
+  const stage8Data = candidateObj.stage8 || {};
+  const realCompaniesCount = tickerData?.companiesHiring || (liveCompanies.length > 0 ? liveCompanies.length : 0);
+  const [isLiveActive, setIsLiveActive] = useState(() => Boolean(candidateObj.isSubmitted || stage8Data.isLive || candidateObj.completedStages?.includes(8)));
+  const [activating, setActivating] = useState(false);
+  const [consents, setConsents] = useState({
+    verifiedPool: true,
+    interviewTracking: true,
+    lifetimePassport: true,
+  });
+  const allConsented = consents.verifiedPool && consents.interviewTracking && consents.lifetimePassport;
+
+  async function handleGoLive() {
+    if (!allConsented) {
+      toast("Please review and accept all consent items above to activate your live profile.", "!");
+      const el = document.getElementById("s7-golive-consents-block");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    setActivating(true);
+    try {
+      const payload = {
+        consent: true,
+        isLive: true,
+        dpdpConsent: true,
+        preferences: stage8Data.preferences || {},
+        activatedAt: new Date(),
+        totalPoints,
+      };
+      const res = await api.put("/candidate/stage/8", payload);
+      await api.post("/candidate/submit").catch(() => {});
+      setIsLiveActive(true);
+      toast("🎊 CONGRATULATIONS! You are now LIVE in the Talentera Verified Pool!", "✓");
+      if (onSaved) {
+        onSaved(res.data, { advance: false, nextStage: null });
+      }
+    } catch (err) {
+      console.error("Failed to go live:", err);
+      toast(err.response?.data?.message || "Failed to activate Career Passport. Please try again.", "!");
+    } finally {
+      setActivating(false);
+    }
+  }
 
   // Copy Live URL
   function handleCopyLiveUrl() {
@@ -636,7 +729,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         "------------------------------------------------------------------",
         "CORE CERTIFICATIONS",
         "------------------------------------------------------------------",
-        ...certificationsList.map((c) => `* ${c.body || 'AAPC'} ${c.code || c.name} (Member ID: ${c.memberId || 'Verified'}) - Valid through: ${c.expiryDate || 'Active'}`),
+        ...certificationsList.map((c) => `* ${c.body || 'AAPC'} ${c.code || c.name} (Member ID: ${c.memberId || 'Verified'}) - Valid through: ${c.expiryDate || 'Active'}${Number.isFinite(c.percentage) ? ` - Score: ${c.percentage}%` : ''}`),
         ""
       ].join("\n") : "",
       "------------------------------------------------------------------",
@@ -665,13 +758,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       "------------------------------------------------------------------",
       `* Locations: ${preferredCities}`,
       `* Relocation: ${relocationPref} | Availability: Immediate | Shifts: ${shiftPreference}`,
-      "",
-      "------------------------------------------------------------------",
-      "DECLARATION",
-      "------------------------------------------------------------------",
-      declarationText,
-      `Place: ${city || locality} | Date: ${declarationDate}`,
-      fullName,
       "",
       "==================================================================",
       `Verified by Talentera Automated Credential Engine | Live at ${liveResumeUrl}`,
@@ -733,10 +819,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       };
 
       const res = await api.put("/candidate/stage/7", payload);
-      toast(advanceToStage8 ? "Stage 07 saved! Proceeding to Stage 08 · Career Passport..." : "Resume theme & content saved successfully!", "✓");
+      toast(advanceToStage8 ? "Resume saved! Scroll down to go live." : "Resume theme & content saved successfully!", "✓");
 
       if (onSaved) {
-        onSaved(res.data, { advance: advanceToStage8, nextStage: 8 });
+        onSaved(res.data, { advance: false, nextStage: null });
       }
     } catch (err) {
       console.error("Failed to save stage 7:", err);
@@ -977,22 +1063,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         }
         .s7-template-card.selected .s7-template-check { background: #F5B41A; border-color: #F5B41A; color: #0F1B3D; font-weight: 800; }
 
-        /* AI OBJECTIVE */
-        .s7-ai-suggestion {
-          background: #FFFFFF;
-          border: 1.5px solid #E5E7EB;
-          border-radius: 10px;
-          padding: 14px 16px;
-          margin-bottom: 8px;
-          cursor: pointer;
-          transition: .15s;
-        }
-        .s7-ai-suggestion:hover { border-color: #F5B41A; background: #FFF6E0; }
-        .s7-ai-suggestion.selected { border-color: #F5B41A; background: #FFF6E0; }
-        .s7-ai-suggestion-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-        .s7-ai-suggestion-label { background: #1A4FB8; color: #FFFFFF; font-size: 9.5px; font-weight: 800; padding: 2px 8px; border-radius: 6px; letter-spacing: .5px; }
-        .s7-ai-suggestion-hint { font-size: 10.5px; color: #8A91A3; font-style: italic; }
-        .s7-ai-suggestion-txt { font-size: 13px; color: #0F1B3D; line-height: 1.5; font-style: italic; }
+        /* CAREER OBJECTIVE */
         .s7-obj-editor { background: #FFFFFF; border: 1.5px solid #F5B41A; border-radius: 10px; padding: 14px 16px; margin-top: 10px; }
         .s7-obj-editor textarea { width: 100%; border: none; outline: none; font-size: 13px; color: #0F1B3D; line-height: 1.5; resize: vertical; min-height: 70px; font-family: inherit; }
         .s7-obj-editor.has-error {
@@ -1013,7 +1084,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           gap: 4px;
         }
         .s7-obj-editor-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E7EB; font-size: 11px; color: #8A91A3; }
-        .s7-regen-btn { background: #EEF2FF; color: #1A4FB8; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; display: flex; align-items: center; gap: 4px; }
 
         /* LOCKED ROWS */
         .s7-locked-sections { display: flex; flex-direction: column; gap: 10px; }
@@ -1326,6 +1396,65 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
         /* RIGHT COMPANION */
         .s7-right-rail { min-width: 0; }
+
+        /* AI CAREER OBJECTIVE ASSISTANT */
+        .s7-ai-widget {
+          background: linear-gradient(180deg, #FFFDF5 0%, #FFFFFF 100%);
+          border: 1.5px solid #F5B41A;
+          border-radius: 14px;
+          padding: 16px;
+          margin-top: 16px;
+        }
+        .s7-ai-widget-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+        .s7-ai-widget-icon { font-size: 20px; line-height: 1; }
+        .s7-ai-widget-title { font-weight: 800; color: #0F1B3D; font-size: 13.5px; }
+        .s7-ai-widget-sub { font-size: 11.5px; color: #8A91A3; margin-top: 2px; line-height: 1.4; }
+        .s7-ai-widget-input {
+          width: 100%;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          padding: 10px 12px;
+          font-size: 12.5px;
+          color: #0F1B3D;
+          font-family: inherit;
+          resize: vertical;
+          min-height: 60px;
+          outline: none;
+          box-sizing: border-box;
+        }
+        .s7-ai-widget-input:focus { border-color: #F5B41A; }
+        .s7-ai-widget-btn {
+          width: 100%;
+          margin-top: 10px;
+          background: #0F1B3D;
+          color: #F5B41A;
+          border: none;
+          border-radius: 8px;
+          padding: 10px 14px;
+          font-weight: 800;
+          font-size: 12.5px;
+          cursor: pointer;
+        }
+        .s7-ai-widget-btn:disabled { opacity: 0.6; cursor: wait; }
+        .s7-ai-widget-btn:not(:disabled):hover { background: #16224A; }
+        .s7-ai-widget-error { color: #DC2626; font-size: 11.5px; font-weight: 700; margin-top: 10px; }
+        .s7-ai-widget-results { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+        .s7-ai-widget-result-card { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 10px; padding: 10px 12px; }
+        .s7-ai-widget-result-label { font-size: 10.5px; font-weight: 800; color: #F5B41A; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+        .s7-ai-widget-result-text { font-size: 12px; color: #0F1B3D; line-height: 1.5; }
+        .s7-ai-widget-use-btn {
+          margin-top: 8px;
+          background: #FFF7E0;
+          color: #0F1B3D;
+          border: 1px solid #F5B41A;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-size: 11.5px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .s7-ai-widget-use-btn:hover { background: #F5B41A; }
+        .s7-ai-widget-note { font-size: 10.5px; color: #8A91A3; margin-top: 10px; text-align: center; }
         .s7-passport-card {
           background: linear-gradient(135deg, #0F1B3D, #1E3A8A);
           color: #FFFFFF;
@@ -1362,6 +1491,65 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         .s7-hot-stat { background: #FFF6E0; padding: 12px; border-radius: 10px; text-align: center; }
         .s7-hot-stat .big { font-size: 18px; font-weight: 800; color: #0F1B3D; }
         .s7-hot-stat .small { font-size: 10px; color: #3A425A; margin-top: 2px; }
+
+        /* GO LIVE · CAREER PASSPORT ACTIVATION (formerly Stage 08) */
+        .s7-golive-section { background: #FAFAF7; padding: 24px 26px; border-radius: 14px; margin-top: 24px; margin-bottom: 16px; border: 1px solid #E5E7EB; }
+        .s7-golive-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed #E5E7EB; }
+        .s7-golive-section-num { width: 32px; height: 32px; background: #F5B41A; color: #0F1B3D; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+        .s7-golive-section-title { font-size: 16px; font-weight: 800; color: #0F1B3D; flex: 1; }
+        .s7-golive-no-pts-chip { background: #F2F3F5; color: #8A91A3; padding: 3px 10px; border-radius: 12px; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; font-style: italic; }
+
+        .s7-golive-consent-list { display: flex; flex-direction: column; gap: 10px; }
+        .s7-golive-consent-item {
+          display: grid;
+          grid-template-columns: 24px 1fr;
+          gap: 12px;
+          padding: 14px 16px;
+          background: #FFFFFF;
+          border: 1.5px solid #E5E7EB;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: .15s;
+        }
+        .s7-golive-consent-item:hover { border-color: #FFEBB0; background: #FDF6E4; }
+        .s7-golive-consent-item.checked { border-color: #1F7A3C; background: #E8F5E9; }
+        .s7-golive-consent-box { width: 22px; height: 22px; border: 2px solid #E5E7EB; border-radius: 5px; display: grid; place-items: center; margin-top: 1px; }
+        .s7-golive-consent-item.checked .s7-golive-consent-box { background: #1F7A3C; border-color: #1F7A3C; color: #FFFFFF; font-weight: 800; font-size: 14px; }
+        .s7-golive-consent-item .txt { font-size: 13px; color: #0F1B3D; line-height: 1.5; }
+        .s7-golive-consent-item .sub { font-size: 11.5px; color: #8A91A3; margin-top: 4px; font-style: italic; line-height: 1.5; }
+
+        .s7-golive-block {
+          background: linear-gradient(135deg, #0F1B3D, #1E3A8A);
+          color: #FFFFFF;
+          border-radius: 16px;
+          padding: 32px;
+          text-align: center;
+          margin-top: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+        .s7-golive-kicker { color: #F5B41A; font-size: 11.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+        .s7-golive-title { font-size: 30px; font-weight: 800; margin: 8px 0 6px; line-height: 1.1; }
+        .s7-golive-sub { font-size: 14px; color: #FFF6E0; font-style: italic; }
+        .s7-golive-btn {
+          background: linear-gradient(135deg, #F5B41A, #DAA520);
+          color: #0F1B3D;
+          padding: 20px 60px;
+          border-radius: 14px;
+          font-size: 22px;
+          font-weight: 800;
+          border: none;
+          cursor: pointer;
+          letter-spacing: 1px;
+          margin-top: 22px;
+          box-shadow: 0 10px 30px rgba(245,180,26,.5);
+          text-transform: uppercase;
+          transition: transform .15s ease;
+        }
+        .s7-golive-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 34px rgba(245,180,26,.6); }
+        .s7-golive-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .s7-golive-note { font-size: 12px; color: rgba(255,255,255,.75); margin-top: 14px; line-height: 1.5; }
+        .s7-golive-dash-link { display: inline-block; margin-top: 16px; background: transparent; border: none; color: #F5B41A; font-size: 12.5px; font-weight: 700; cursor: pointer; text-decoration: underline; }
       `}</style>
 
       {/* Main Layout Grid */}
@@ -1379,24 +1567,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           <div className="s7-hero">
             <div className="s7-hero-icon">📄</div>
             <div className="s7-hero-badges">
-              <span className="s7-hero-chip">STAGE 07 OF 08 · ACTIVE</span>
+              <span className="s7-hero-chip">STAGE 07 OF 07 · FINAL</span>
               <span className="s7-hero-chip green">🏆 {totalPoints}/100 SCORE {totalPoints >= 75 ? "VERIFIED" : "IN PROGRESS"}</span>
-              <span className="s7-hero-chip">~5 MIN</span>
               <span className="s7-hero-chip gold">OUTPUT · NO POINTS</span>
             </div>
             <h1 className="s7-hero-title" style={{ color: "#FFFFFF" }}>Resume</h1>
             <div className="s7-hero-subtitle">You don't write it. Talentera builds it from everything you've already proven.</div>
             <div className="s7-hero-desc">
-              Every line in your resume is auto-pulled from Stages 01–06. You cannot type
-              unverified claims — Naukri lets you lie, Talentera doesn't. Pick a template.
-              Write your Career Objective (the only editable field). Download, share the
-              live URL, or let HRs scan the QR to verify at source.
-            </div>
-            <div className="s7-hero-tiles">
-              <div className="s7-hero-tile"><div className="big">Auto-built</div><div className="small">from your Stage 01–06 data</div></div>
-              <div className="s7-hero-tile"><div className="big">6 templates</div><div className="small">profile auto-matched</div></div>
-              <div className="s7-hero-tile"><div className="big">Live URL</div><div className="small">always current, sharable</div></div>
-              <div className="s7-hero-tile"><div className="big">QR verified</div><div className="small">tamper-proof</div></div>
+              Every line is auto-pulled from Stages 01 to 06 and verified — download it, share the live URL, or let HRs scan the QR to verify at source.
             </div>
           </div>
 
@@ -1419,7 +1597,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
           {/* How Stage 07 Works Card */}
           <div className="s7-card">
-            <div className="s7-card-title">How Stage 07 Works</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="s7-card-title">How Stage 07 Works</div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
             <div className="s7-card-eyebrow">WHY WE BUILD IT · WHAT'S ON IT · WHAT COMPANIES SEE · NO POINTS</div>
             <div className="s7-rules-grid">
               <div className="s7-rule-tile">
@@ -1447,6 +1632,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 </div>
               </div>
             </div>
+            </>
+            )}
             <div className="s7-consent-pill">
               <span style={{ color: "#F5B41A", fontSize: 16 }}>🛡</span>
               <span><i>Every downloaded PDF carries a Talentera Verified watermark + candidate ID + tamper-proof cryptographic hash. HRs can validate authenticity at any time.</i></span>
@@ -1659,22 +1846,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             </div>
 
             <div style={{ fontSize: 12.5, color: "#3A425A", marginBottom: 12, fontStyle: "italic", lineHeight: 1.55 }}>
-              Talentera AI has generated 3 objectives based on your profile — pick one or edit. Everything else on your resume is locked and pulled from prior stages.
+              Write your career objective in your own words. Everything else on your resume is locked and pulled from prior stages.
             </div>
-
-            {aiObjectiveOptions.map((opt, idx) => (
-              <div
-                key={opt.id}
-                onClick={() => handleSelectAiOption(idx)}
-                className={`s7-ai-suggestion ${selectedAiIdx === idx ? "selected" : ""}`}
-              >
-                <div className="s7-ai-suggestion-head">
-                  <span className="s7-ai-suggestion-label">{opt.label}</span>
-                  <span className="s7-ai-suggestion-hint">{opt.tag}</span>
-                </div>
-                <div className="s7-ai-suggestion-txt">"{opt.text}"</div>
-              </div>
-            ))}
 
             <div className={`s7-obj-editor ${formErrors.careerObjective ? "has-error" : ""}`}>
               <textarea
@@ -1684,16 +1857,13 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                   if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
                 }}
                 maxLength={500}
-                placeholder="Edit the selected option, or write your own from scratch..."
+                placeholder="Write your career objective here..."
               />
               {formErrors.careerObjective && (
                 <div className="s7-field-error-msg">⚠️ {formErrors.careerObjective}</div>
               )}
               <div className="s7-obj-editor-footer">
-                <span>{careerObjective.length} / 500 characters · Editing AI Option {selectedAiIdx + 1}</span>
-                <button type="button" onClick={handleRegenerateAi} className="s7-regen-btn">
-                  🔄 Regenerate 3 more options
-                </button>
+                <span>{careerObjective.length} / 500 characters</span>
               </div>
             </div>
           </div>
@@ -1742,7 +1912,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                     {certificationsList.length > 0 ? (
                       certificationsList.map((c, i) => (
                         <span key={i}>
-                          <b>{c.code || c.name}</b> ({c.body || "AAPC"}{c.memberId ? ` · ID ****${String(c.memberId).slice(-4)}` : ""}{c.expiryDate ? ` · Valid until ${c.expiryDate}` : ""}){i < certificationsList.length - 1 ? " · " : ""}
+                          <b>{c.code || c.name}</b> ({c.body || "AAPC"}{c.memberId ? ` · ID ****${String(c.memberId).slice(-4)}` : ""}{c.expiryDate ? ` · Valid until ${c.expiryDate}` : ""}{Number.isFinite(c.percentage) ? ` · Score ${c.percentage}%` : ""}){i < certificationsList.length - 1 ? " · " : ""}
                         </span>
                       ))
                     ) : isNonCertified ? (
@@ -1904,7 +2074,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                       <div key={idx} className="s7-r-block">
                         <div className="k">{cert.body || "AAPC"} · {cert.name || cert.code}</div>
                         <div className="v">Member ID {cert.memberId ? `****${String(cert.memberId).slice(-4)}` : "Verified Credential"}</div>
-                        <div className="details">{cert.issueDate ? `Issued ${cert.issueDate} · ` : ""}{cert.expiryDate ? `Valid until ${cert.expiryDate} · ` : ""}🟢 API-Verified</div>
+                        <div className="details">{cert.issueDate ? `Issued ${cert.issueDate} · ` : ""}{cert.expiryDate ? `Valid until ${cert.expiryDate} · ` : ""}{Number.isFinite(cert.percentage) ? `Score ${cert.percentage}% · ` : ""}🟢 API-Verified</div>
                       </div>
                     ))}
                   </div>
@@ -2014,19 +2184,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 <b>Shifts:</b> {shiftPreference} · <b>Trainee-role open:</b> Yes
               </div>
 
-              {/* Declaration */}
-              <div className="s7-resume-sec-title">🖊 Declaration</div>
-              <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
-                {declarationText}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 11.5, color: "#0F1B3D" }}>
-                <div>Place: {city || locality}</div>
-                <div>Date: {declarationDate}</div>
-              </div>
-              <div style={{ textAlign: "right", marginTop: 8, fontSize: 12.5, fontWeight: 800, color: "#0F1B3D" }}>
-                {fullName}
-              </div>
-
               {/* Watermark & Cryptographic Footer */}
               <div style={{ borderTop: "1px dashed #E5E7EB", marginTop: 20, paddingTop: 12, textAlign: "center" }}>
                 <div style={{ fontSize: 10.5, color: "#8A91A3", fontStyle: "italic" }}>
@@ -2127,8 +2284,74 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 Preview full page
               </button>
               <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
-                {saving ? "Saving..." : "Continue to Stage 08 · Career Passport →"}
+                {saving ? "Saving..." : "Save Resume"}
               </button>
+            </div>
+          </div>
+
+          {/* GO LIVE · DPDP CONSENT + CAREER PASSPORT ACTIVATION */}
+          <div className="s7-golive-section">
+            <div className="s7-golive-section-header">
+              <div className="s7-golive-section-num">🚀</div>
+              <div className="s7-golive-section-title">Go live · your explicit permission to activate</div>
+              <div className="s7-golive-no-pts-chip">FINAL STEP</div>
+            </div>
+
+            <div id="s7-golive-consents-block" className="s7-golive-consent-list">
+              <div
+                onClick={() => setConsents((prev) => ({ ...prev, verifiedPool: !prev.verifiedPool }))}
+                className={`s7-golive-consent-item ${consents.verifiedPool ? "checked" : ""}`}
+              >
+                <div className="s7-golive-consent-box">{consents.verifiedPool ? "✓" : ""}</div>
+                <div>
+                  <div className="txt"><b>I consent to my verified profile being visible in the Talentera Verified Pool.</b></div>
+                  <div className="sub">Matched RCM companies can view my resume + scorecards. They see verified data only — never my Aadhaar number, PAN, full address, or private contact until they formally shortlist and I accept.</div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setConsents((prev) => ({ ...prev, interviewTracking: !prev.interviewTracking }))}
+                className={`s7-golive-consent-item ${consents.interviewTracking ? "checked" : ""}`}
+              >
+                <div className="s7-golive-consent-box">{consents.interviewTracking ? "✓" : ""}</div>
+                <div>
+                  <div className="txt"><b>I consent to Talentera auto-tracking every interview I attend through the platform.</b></div>
+                  <div className="sub">The Application Tracker logs each company interaction: round, date, result, feedback. Other companies see only an anonymized aggregate (3 applications · 1 shortlist), never specific feedback or salary offers.</div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setConsents((prev) => ({ ...prev, lifetimePassport: !prev.lifetimePassport }))}
+                className={`s7-golive-consent-item ${consents.lifetimePassport ? "checked" : ""}`}
+              >
+                <div className="s7-golive-consent-box">{consents.lifetimePassport ? "✓" : ""}</div>
+                <div>
+                  <div className="txt"><b>I understand my Talentera account is lifetime — updates itself as my career progresses.</b></div>
+                  <div className="sub">Every future job, promotion, cert renewal, and chart practice updates my Career Passport automatically. I can pause visibility, edit preferences, or request full deletion anytime.</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="s7-golive-block">
+              <div className="s7-golive-kicker">{isLiveActive ? "Status: Live & Active" : "Final Step · Ready to Launch"}</div>
+              <div className="s7-golive-title">{isLiveActive ? "Your Career Passport is Live!" : "Ready to make it public?"}</div>
+              <div className="s7-golive-sub">One click. {realCompaniesCount} hiring partners. Career Passport activated.</div>
+              <button
+                type="button"
+                onClick={handleGoLive}
+                disabled={activating || !allConsented}
+                className="s7-golive-btn"
+              >
+                {activating ? "Activating..." : isLiveActive ? "✓ LIVE FOR HIRING" : "🚀 GO LIVE FOR HIRING"}
+              </button>
+              <div className="s7-golive-note">
+                You can pause visibility anytime after going live. This is not a permanent commitment — it is just the moment your profile becomes discoverable.
+              </div>
+              {isLiveActive && onGoToDashboard && (
+                <button type="button" onClick={onGoToDashboard} className="s7-golive-dash-link">
+                  Go to my dashboard →
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2136,6 +2359,62 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         {/* Right Companion Rail */}
         <div className="s7-right-rail" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
           <WizardCompanionRail stageNum={7} candidate={candidate} />
+
+          {/* AI Career Objective Assistant - Claude-powered generator */}
+          <div className="s7-ai-widget">
+            <div className="s7-ai-widget-header">
+              <span className="s7-ai-widget-icon">✨</span>
+              <div>
+                <div className="s7-ai-widget-title">AI Career Objective Assistant</div>
+                <div className="s7-ai-widget-sub">Tell it about yourself, generate your own objective & summary</div>
+              </div>
+            </div>
+
+            <textarea
+              className="s7-ai-widget-input"
+              value={aiNotes}
+              onChange={(e) => setAiNotes(e.target.value)}
+              maxLength={800}
+              placeholder="Optional: add a few details - what role you want, strengths, goals, anything you'd like mentioned..."
+              rows={3}
+            />
+
+            <button
+              type="button"
+              className="s7-ai-widget-btn"
+              onClick={handleGenerateAiObjective}
+              disabled={aiGenerating}
+            >
+              {aiGenerating ? "Generating..." : aiResult ? "↻ Regenerate" : "✨ Generate with AI"}
+            </button>
+
+            {aiError && <div className="s7-ai-widget-error">⚠️ {aiError}</div>}
+
+            {aiResult && (
+              <div className="s7-ai-widget-results">
+                {aiResult.objective && (
+                  <div className="s7-ai-widget-result-card">
+                    <div className="s7-ai-widget-result-label">Career Objective</div>
+                    <div className="s7-ai-widget-result-text">{aiResult.objective}</div>
+                    <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.objective)}>
+                      + Add to Career Objective
+                    </button>
+                  </div>
+                )}
+                {aiResult.summary && (
+                  <div className="s7-ai-widget-result-card">
+                    <div className="s7-ai-widget-result-label">Professional Summary</div>
+                    <div className="s7-ai-widget-result-text">{aiResult.summary}</div>
+                    <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.summary)}>
+                      + Add to Career Objective
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="s7-ai-widget-note">You choose what to keep - nothing is added automatically.</div>
+          </div>
         </div>
       </div>
 
@@ -2237,7 +2516,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                       <div key={idx} className="s7-r-block">
                         <div className="k">{cert.body || "AAPC"} · {cert.name || cert.code}</div>
                         <div className="v">Member ID {cert.memberId ? `****${String(cert.memberId).slice(-4)}` : "Verified"}</div>
-                        <div className="details">{cert.issueDate ? `Issued ${cert.issueDate} · ` : ""}{cert.expiryDate ? `Valid until ${cert.expiryDate} · ` : ""}🟢 API-Verified</div>
+                        <div className="details">{cert.issueDate ? `Issued ${cert.issueDate} · ` : ""}{cert.expiryDate ? `Valid until ${cert.expiryDate} · ` : ""}{Number.isFinite(cert.percentage) ? `Score ${cert.percentage}% · ` : ""}🟢 API-Verified</div>
                       </div>
                     ))}
                   </div>
@@ -2302,18 +2581,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                   </div>
                 </>
               )}
-
-              <div className="s7-resume-sec-title">🖊 Declaration</div>
-              <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.6, marginTop: 4 }}>
-                {declarationText}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 14, fontSize: 11.5, color: "#0F1B3D" }}>
-                <div>Place: {city || locality}</div>
-                <div>Date: {declarationDate}</div>
-              </div>
-              <div style={{ textAlign: "right", marginTop: 8, fontSize: 12.5, fontWeight: 800, color: "#0F1B3D" }}>
-                {fullName}
-              </div>
             </div>
           </div>
         </div>

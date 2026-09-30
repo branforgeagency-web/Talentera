@@ -377,7 +377,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
   const HOW_CARDS = [
     { icon: "fa-solid fa-chart-bar", title: "Why chart exposure matters most", text: "A fresher with 250 verified charts at 87% accuracy is dramatically different from one who only has classroom theory. Companies hiring for production roles rank candidates by chart exposure first, certification second. This is the moat." },
     { icon: "fa-solid fa-link", title: "How you prove it — 4 paths", text: "A Platform-reported figures · B Academy signs off your chart log · C Self-declare (partial credit) · D No exposure yet (honest but limits visibility). Each path has its own trust level and score multiplier." },
-    { icon: "fa-solid fa-calculator", title: "How your score is made", text: "Volume 40 · Accuracy 30 · Breadth 10 · Speed 10 · Recency 10 — all from the numbers you enter on this page — then multiplied by your evidence trust level. Up to 10 points go to your Career Passport." },
+    { icon: "fa-solid fa-calculator", title: "How your score is made", text: "Volume 40 · Accuracy 30 · Breadth 10 · Speed 10 · Recency 10 — all from the numbers you enter on this page — then multiplied by your evidence trust level. Up to 20 points go to your Career Passport." },
     { icon: "fa-solid fa-shield-halved", title: "Anti-fraud stack", text: "Academy cross-check within 7 days · timeline plausibility checks (500 charts in 30 days = auto-review) · 5% random audit · HR challenge system. Verified frauds get a 'Volume Disputed' badge permanently." },
   ];
 
@@ -408,9 +408,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               <div style={{ width: 42, height: 42, borderRadius: 12, background: "#F59E0B", display: "flex", alignItems: "center", justifyContent: "center", color: "#0F172A", fontSize: 18 }}>
                 <i className="fa-solid fa-chart-line" />
               </div>
-              <span style={{ background: "#FEF3C7", color: "#92400E", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>STAGE 06 OF 08 · ACTIVE</span>
-              <span style={{ background: "#FDE68A", color: "#B45309", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>UP TO +{STAGE6_MAX_POINTS} POINTS</span>
-              <span style={{ background: "rgba(255,255,255,0.18)", color: "#FFFFFF", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>~10 MIN</span>
+              <span style={{ background: "#FEF3C7", color: "#92400E", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>STAGE 06 OF 07 · ACTIVE</span>
+              <span style={{ background: "#FDE68A", color: "#B45309", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>UP TO +20 POINTS</span>
               <span style={{ background: "linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)", color: "#FFFFFF", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 5 }}>
                 <i className="fa-solid fa-star" style={{ fontSize: 9 }} /> CO-FLAGSHIP
               </span>
@@ -421,7 +420,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
             <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.02em", margin: "0 0 6px 0", color: "#FFFFFF" }}>Live Chart</h1>
             <div style={{ fontSize: 15, fontStyle: "italic", fontWeight: 500, color: "#E0E7FF", marginBottom: 12 }}>Real charts. Real accuracy. Real proof.</div>
             <p style={{ fontSize: 13, color: "#DBEAFE", lineHeight: 1.6, maxWidth: 880, margin: 0 }}>
-              Tell us the charts you have actually coded — per specialty, with accuracy, time per chart and when you last coded. Your Live Chart score and tier are calculated only from what you enter on this page.
+              Tell us the charts you have actually coded — your Live Chart score and tier are calculated only from what you enter here.
             </p>
           </div>
 
@@ -485,7 +484,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
 
             <div style={{ marginBottom: 28 }}>
               <h2 style={{ fontSize: 26, fontWeight: 900, color: "var(--navy, #0F172A)", margin: "0 0 6px 0" }}>Your Stage 06 information</h2>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--gold, #F59E0B)", letterSpacing: "0.08em", textTransform: "uppercase" }}>PROVE IT · WE SCORE IT · YOU EARN UP TO +{STAGE6_MAX_POINTS} POINTS</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--gold, #F59E0B)", letterSpacing: "0.08em", textTransform: "uppercase" }}>PROVE IT · WE SCORE IT · YOU EARN UP TO +20 POINTS</div>
             </div>
 
             {/* 1. EVIDENCE PATH */}
@@ -728,7 +727,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <div style={{ textAlign: "center", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 16, padding: "22px 16px" }}>
                   <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.06em", textTransform: "uppercase" }}>Live Chart Score</div>
                   <div style={{ fontSize: 54, fontWeight: 900, color: scoreColor, lineHeight: 1.1, margin: "6px 0 2px" }}>{result.stageScore}<span style={{ fontSize: 20, color: "#94A3B8" }}> /100</span></div>
-                  <div style={{ display: "inline-block", background: "#FEF3C7", color: "#92400E", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, margin: "6px 0" }}>+{result.points} / {result.maxPoints} Passport points</div>
+                  <div style={{ display: "inline-block", background: "#FEF3C7", color: "#92400E", padding: "4px 12px", borderRadius: 999, fontSize: 12, fontWeight: 800, margin: "6px 0" }}>+{Math.round((result.points / 10) * 20)} / 20 Passport points</div>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 6 }}>
                     {tier === "None" ? "No tier yet" : `${tier} tier`} · {pathMeta.title}
                   </div>

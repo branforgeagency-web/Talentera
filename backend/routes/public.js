@@ -76,7 +76,7 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
     let candidatesList = await Candidate.find().limit(1000).lean();
 
     let formatted = candidatesList.map((c) => {
-      const scoring = calculateVerificationScore(c.completedStages || []);
+      const scoring = calculateVerificationScore(c.completedStages || [], c);
       const stage1 = c.stage1 || {};
       const stage2 = c.stage2 || {};
       const stage3 = c.stage3 || {};
@@ -397,7 +397,7 @@ router.get("/verify/candidate/:id", async (req, res) => {
     return res.status(404).json({ message: "Candidate credential not found." });
   }
 
-  const scoring = calculateVerificationScore(candidate.completedStages || []);
+  const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
   const stage1 = candidate.stage1 || {};
   const stage2 = candidate.stage2 || {};
   const stage3 = candidate.stage3 || {};

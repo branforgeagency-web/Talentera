@@ -47,9 +47,32 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       stageScores[1] = STAGE_POINTS[1];
       verifiedStages.push(1);
     } else if (stage === 2) {
-      score += STAGE_POINTS[2];
-      stageScores[2] = STAGE_POINTS[2];
-      verifiedStages.push(2);
+      if (!candidate) {
+        score += STAGE_POINTS[2];
+        stageScores[2] = STAGE_POINTS[2];
+        verifiedStages.push(2);
+      } else {
+        const s2 = candidate.stage2 || {};
+        const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "—"
+          ? s2.academyAssessmentScore
+          : (s2.assessmentScore !== undefined && s2.assessmentScore !== null ? s2.assessmentScore : s2.score);
+
+        let step3Pts = 5;
+        if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+          const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
+          if (numScore >= 80) {
+            step3Pts = 5;
+          } else if (numScore >= 60) {
+            step3Pts = 4;
+          } else {
+            step3Pts = 3;
+          }
+        }
+        const pts2 = (STAGE_POINTS[2] - 5) + step3Pts;
+        score += pts2;
+        stageScores[2] = pts2;
+        verifiedStages.push(2);
+      }
     } else if (stage === 3) {
       // Certification verification: only award full points if audit verified;
       // a submitted-but-not-yet-audited certification earns partial credit.

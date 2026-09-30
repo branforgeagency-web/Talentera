@@ -12,7 +12,6 @@ import Stage4Assessment from "../components/wizard/Stage4Assessment.jsx";
 import Stage5VideoPitch from "../components/wizard/Stage5VideoPitch.jsx";
 import Stage6LiveCharts from "../components/wizard/Stage6LiveCharts.jsx";
 import Stage7Resume from "../components/wizard/Stage7Resume.jsx";
-import Stage8Track from "../components/wizard/Stage8Track.jsx";
 import Step9Verified from "./Step9Verified.jsx";
 import CandidateDashboard from "./CandidateDashboard.jsx";
 
@@ -24,7 +23,6 @@ const STAGE_COMPONENTS = {
   5: Stage5VideoPitch,
   6: Stage6LiveCharts,
   7: Stage7Resume,
-  8: Stage8Track,
 };
 
 export function isStageUnlocked(stageNum, completedStages = [], isSelfTrained = false) {
@@ -70,19 +68,19 @@ export default function CandidateWizard() {
         // Determine the earliest incomplete stage in sequential order
         const isSelf = isStage6Optional(candidateObj);
         let firstIncompleteStage = 1;
-        for (let i = 1; i <= 8; i++) {
+        for (let i = 1; i <= 7; i++) {
           if (!completed.includes(i)) {
             firstIncompleteStage = i;
             break;
           }
         }
-        if (completed.length >= 8) firstIncompleteStage = 8;
+        if (completed.length >= 8) firstIncompleteStage = 7;
 
         const savedActiveStage = Number(localStorage.getItem("talentera_active_stage"));
 
         if (
           stageParam >= 1 &&
-          stageParam <= 8 &&
+          stageParam <= 7 &&
           (isStageUnlocked(stageParam, completed, isSelf) || completed.includes(stageParam))
         ) {
           setActiveStageId(stageParam);
@@ -93,7 +91,7 @@ export default function CandidateWizard() {
           }
         } else if (
           savedActiveStage >= 1 &&
-          savedActiveStage <= 8 &&
+          savedActiveStage <= 7 &&
           (isStageUnlocked(savedActiveStage, completed, isSelf) || completed.includes(savedActiveStage))
         ) {
           setActiveStageId(savedActiveStage);
@@ -175,7 +173,7 @@ export default function CandidateWizard() {
     }
 
     let nextIncomplete = 1;
-    for (let i = 1; i <= 8; i++) {
+    for (let i = 1; i <= 7; i++) {
       if (!completed.includes(i)) {
         nextIncomplete = i;
         break;
@@ -272,7 +270,7 @@ export default function CandidateWizard() {
         isSelfTrained={isSelfTrained}
       />
 
-      {activeStageId >= 1 && activeStageId <= 8 ? (
+      {activeStageId >= 1 && activeStageId <= 7 ? (
         <div style={{ flex: 1, minWidth: 0, padding: "20px 28px", overflowY: "auto", height: "100vh" }}>
           {canViewDashboard && (
             <div style={{ marginBottom: 14 }}>
@@ -339,16 +337,8 @@ export default function CandidateWizard() {
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : activeStageId === 7 ? (
-            <Stage7Resume
-              stage={activeStage}
-              existingData={existingData}
-              candidate={candidateObj}
-              onSaved={handleStageSaved}
-              onNavigateStage={handleSelectStage}
-            />
           ) : (
-            <Stage8Track
+            <Stage7Resume
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}

@@ -313,7 +313,7 @@ const ADAPTIVE_BANKS = {
   },
 };
 
-// Practice Test Sample Questions (3 warm-up questions)
+// Practice Test Sample Questions (10 warm-up questions)
 const PRACTICE_QUESTIONS = [
   {
     id: "prac_1",
@@ -338,7 +338,63 @@ const PRACTICE_QUESTIONS = [
     options: ["5 characters", "7 characters", "9 characters", "4 characters"],
     correct: 1,
     explanation: "ICD-10-CM diagnosis codes can contain up to 7 alphanumeric characters (e.g., S82.101A).",
+  },  {
+    id: "prac_4",
+    topic: "Practice Skeletal System",
+    question: "Which body system is primarily responsible for producing red and white blood cells?",
+    options: ["Digestive system", "Skeletal system (bone marrow)", "Respiratory system", "Integumentary system"],
+    correct: 1,
+    explanation: "Red and white blood cells are produced in the bone marrow, part of the skeletal system.",
   },
+  {
+    id: "prac_5",
+    topic: "Practice Prefixes",
+    question: "What does the medical prefix 'brady-' mean, as in 'bradycardia'?",
+    options: ["Fast", "Slow", "Large", "Absent"],
+    correct: 1,
+    explanation: "'Brady-' means slow; bradycardia refers to an abnormally slow heart rate.",
+  },
+  {
+    id: "prac_6",
+    topic: "Practice CPT Modifiers",
+    question: "Which CPT modifier indicates a bilateral procedure was performed?",
+    options: ["Modifier -50", "Modifier -25", "Modifier -59", "Modifier -76"],
+    correct: 0,
+    explanation: "Modifier -50 designates that an identical procedure was performed on both sides of the body during the same operative session.",
+  },
+  {
+    id: "prac_7",
+    topic: "Practice Billing Terms",
+    question: "In medical billing, what does 'EOB' stand for?",
+    options: ["Estimate of Billing", "Explanation of Benefits", "End of Balance", "Electronic Office Billing"],
+    correct: 1,
+    explanation: "EOB stands for Explanation of Benefits, a statement showing how a claim was processed and what the patient owes.",
+  },
+  {
+    id: "prac_8",
+    topic: "Practice Provider Identifiers",
+    question: "What is the standard number of digits in a National Provider Identifier (NPI)?",
+    options: ["8 digits", "9 digits", "10 digits", "12 digits"],
+    correct: 2,
+    explanation: "The NPI is a unique 10-digit identifier assigned to healthcare providers under HIPAA.",
+  },
+  {
+    id: "prac_9",
+    topic: "Practice AR Basics",
+    question: "In accounts receivable, what does 'AR aging' track?",
+    options: ["How long a physician has practiced medicine", "How long an unpaid claim or balance has remained outstanding", "The age of the patient", "How old the billing software is"],
+    correct: 1,
+    explanation: "AR aging measures the length of time claims or balances have been outstanding, typically grouped into buckets like 0-30, 31-60, 61-90 days, etc.",
+  },
+  {
+    id: "prac_10",
+    topic: "Practice HIPAA Basics",
+    question: "Under HIPAA, what does 'PHI' stand for?",
+    options: ["Patient Health Insurance", "Protected Health Information", "Personal Hospital Identifier", "Primary Health Indicator"],
+    correct: 1,
+    explanation: "PHI stands for Protected Health Information - individually identifiable health data protected under HIPAA.",
+  },
+
 ];
 
 export default function Stage4Assessment({ stage, existingData, candidate, onSaved }) {
@@ -346,6 +402,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
   const [localResult, setLocalResult] = useState(null);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   // Load candidate stage 4 state
   const stage4 = localResult || candidate?.stage4 || existingData || null;
@@ -430,10 +487,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     certLabel = `${s3CertCode || certName} Certified${certStatus === "verified" ? " · Verified" : ""}`;
   }
 
-  // Build full 10-question test bank (5 sections x 2 questions for this domain)
+  // Build full 25-question test bank (5 sections x 5 questions for this domain)
   const fullTestQuestions = React.useMemo(() => {
-    return domainSections.flatMap((sec) => sec.questions || []);
-  }, [domainSections]);
+    const fromSections = domainSections.flatMap((sec) => sec.questions || []);
+    // Safety net: if the fetched/derived question set is abnormally short (incomplete
+    // seed data, a stale DB record, a malformed server response, etc.), never let the
+    // candidate sit a truncated test - fall back to the full local 25-question bank.
+    if (fromSections.length < 15) {
+      console.warn(`Assessment question bank too short (${fromSections.length}) for domain "${candidateDomain}" - using local fallback bank.`);
+      return getDomainQuestions(candidateDomain);
+    }
+    return fromSections;
+  }, [domainSections, candidateDomain]);
 
   // UI State: 6 Checkbox rules (start fresh without mock pre-fill)
   const [checkedRules, setCheckedRules] = useState([false, false, false, false, false, false]);
@@ -765,23 +830,26 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     };
   }, [retakeRequest?.status]);
 
-  // Test Runner State (20 minutes for 10 questions)
+  // Test Runner State (45 minutes for 25 questions)
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState({});
   const [flaggedQuestions, setFlaggedQuestions] = useState({});
-  const [timeRemaining, setTimeRemaining] = useState(20 * 60);
+  const [timeRemaining, setTimeRemaining] = useState(45 * 60);
   const [tabSwitchWarnings, setTabSwitchWarnings] = useState(0);
   const [showTabWarningBanner, setShowTabWarningBanner] = useState(false);
   const [submittingTest, setSubmittingTest] = useState(false);
 
-  // Practice Runner State
+  // Practice Runner State (10 minutes for 10 warm-up questions)
   const [practiceQIndex, setPracticeQIndex] = useState(0);
   const [practiceAnswers, setPracticeAnswers] = useState({});
-  const [practiceTimeRemaining, setPracticeTimeRemaining] = useState(5 * 60);
+  const [practiceTimeRemaining, setPracticeTimeRemaining] = useState(10 * 60);
 
   // Real or Proctor Camera Stream
   const videoRef = useRef(null);
   const [webcamActive, setWebcamActive] = useState(false);
+
+  // "Complete this stage later" checkpoint
+  const [savingForLater, setSavingForLater] = useState(false);
 
   function toggleRule(index) {
     setCheckedRules((prev) => {
@@ -792,11 +860,13 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   }
 
   const handleSaveAndFinishLater = async () => {
+    setSavingForLater(true);
     try {
       await api.put("/candidate/stage/4", { isDraft: true });
     } catch (e) {
       console.warn("Draft save fallback:", e);
     }
+    setSavingForLater(false);
     toast("✓ Stage 04 progress saved. You can finish your assessment later.", "✓");
     if (onSaved) {
       onSaved(null, { advance: false });
@@ -959,7 +1029,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     setCurrentQIndex(0);
     setUserAnswers({});
     setFlaggedQuestions({});
-    setTimeRemaining(20 * 60);
+    setTimeRemaining(45 * 60);
     setTabSwitchWarnings(0);
     setShowTabWarningBanner(false);
     setIsTestRunning(true);
@@ -976,7 +1046,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     }
     setPracticeQIndex(0);
     setPracticeAnswers({});
-    setPracticeTimeRemaining(5 * 60);
+    setPracticeTimeRemaining(10 * 60);
     setIsPracticeRunning(true);
   }
 
@@ -989,7 +1059,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       let finalReason = typeof reasonOrPayload === "string" ? reasonOrPayload : (reasonOrPayload?.submissionReason || "Normal Submission");
       let finalTabSwitches = tabSwitchWarnings;
       let finalAttentionWarnings = 0;
-      let finalTimeSpent = 20 * 60 - timeRemaining;
+      let finalTimeSpent = 45 * 60 - timeRemaining;
 
       if (reasonOrPayload && typeof reasonOrPayload === "object") {
         if (reasonOrPayload.answers) finalAnswers = reasonOrPayload.answers;
@@ -1049,7 +1119,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         foundationScore: overallPct,
         score: overallPct,
         correctCount: totalCorrect,
-        totalQuestions: 10,
+        totalQuestions: totalQuestions || 25,
         percentile: calcPercentile,
         medal: isAutoSubmitted ? "Assessment" : medalTier,
         passed: isAutoSubmitted ? false : overallPct >= 70,
@@ -1218,13 +1288,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               <span style={{ background: "rgba(255,255,255,0.14)", padding: "5px 12px", borderRadius: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase", backdropFilter: "blur(6px)" }}>
-                STAGE 04 OF 08 · {isCompleted ? "COMPLETED" : "ACTIVE"}
+                STAGE 04 OF 07 · {isCompleted ? "COMPLETED" : "ACTIVE"}
               </span>
               <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 12px", borderRadius: 20, fontSize: 10.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
-                +25 POINTS
-              </span>
-              <span style={{ background: "rgba(255,255,255,0.14)", padding: "5px 12px", borderRadius: 20, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.2, textTransform: "uppercase" }}>
-                ~20 MIN TEST
+                +20 POINTS
               </span>
             </div>
 
@@ -1235,27 +1302,9 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               Proctored. Timed. Talentera-scored. The score companies actually trust.
             </div>
             <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 13.5, marginTop: 14, maxWidth: 640, lineHeight: 1.6 }}>
-              Self-rated skills mean nothing to a hiring manager. Talentera's proctored assessment is the only credible signal. 10 questions, adaptive to what you trained on. Auto-graded. Final. And visible on every future company shortlist.
+              A proctored, auto-graded assessment — the only credible skills signal companies actually trust.
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 22 }}>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "14px 12px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#FFFFFF" }}>10 Qs</div>
-                <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>Adaptive to domain</div>
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "14px 12px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#FFFFFF" }}>20 min</div>
-                <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>Single-attempt window</div>
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "14px 12px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#FFFFFF" }}>15 layers</div>
-                <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>Anti-cheat active</div>
-              </div>
-              <div style={{ background: "rgba(255,255,255,0.12)", padding: "14px 12px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(8px)" }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: "#FFFFFF" }}>Per-topic</div>
-                <div style={{ fontSize: 10.5, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>Companies filter by sec</div>
-              </div>
-            </div>
           </div>
 
           {/* ID RECAP BANNER (100% REAL DATA FROM STAGES 1-3) */}
@@ -1350,9 +1399,16 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
           {/* HOW STAGE 04 WORKS CARD */}
           <div style={{ background: "#FFFFFF", borderRadius: 16, padding: "24px 26px", boxShadow: "0 2px 10px rgba(15,27,61,0.05)", marginBottom: 18, border: "1px solid #E5E7EB" }}>
-            <h3 style={{ fontSize: 19, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-              How Stage 04 Works
-            </h3>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h3 style={{ fontSize: 19, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                How Stage 04 Works
+              </h3>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
             <div style={{ fontSize: 10.5, letterSpacing: "1.5px", color: "#C99413", textTransform: "uppercase", fontWeight: 700, marginTop: 6, marginBottom: 16 }}>
               WHY PROCTORED · WHAT'S TESTED · ANTI-CHEAT · WHAT COMPANIES SEE
             </div>
@@ -1406,6 +1462,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             <div style={{ background: "var(--navy)", color: "#FFF6E0", padding: "12px 16px", borderRadius: 12, fontStyle: "italic", fontSize: 12, marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ color: "var(--gold)", fontSize: 15 }}>🔐</span>
@@ -1434,7 +1492,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               Your Stage 04 information
             </h2>
             <div style={{ color: "#C99413", fontSize: 11, fontWeight: 700, letterSpacing: "1.5px", textTransform: "uppercase", marginTop: 4 }}>
-              GET READY · TAKE THE TEST · YOU EARN +25 POINTS
+              GET READY · TAKE THE TEST · YOU EARN +20 POINTS
             </div>
           </div>
 
@@ -1756,14 +1814,14 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             )}
           </div>
 
-          {/* ═══════ SCREEN 2 · WHAT YOU'LL TAKE (10 Qs · 5 SECTIONS x 2 Qs) ═══════ */}
+          {/* ═══════ SCREEN 2 · WHAT YOU'LL TAKE (10 Qs · 5 SECTIONS x 2 Qs) + PRACTICE WARM-UP, COMBINED ═══════ */}
           <div style={{ background: "#FAFAF7", padding: "20px 22px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: "1px dashed #E5E7EB" }}>
               <div style={{ width: 30, height: 30, background: "var(--gold)", color: "var(--navy)", borderRadius: 8, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 14 }}>
                 2
               </div>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                What You'll Take — 5 sections (10 questions total)
+                What You'll Take — 5 sections (25 questions total)
               </div>
               <div style={{ background: "#FFF6E0", color: "#C99413", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 800 }}>
                 PROFILE-ADAPTIVE
@@ -1795,8 +1853,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   <span style={{ background: "#FFF6E0", color: "#C99413", padding: "3px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
                     {candidateDomain}
                   </span>
-                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13 }}>{sec.questions?.length || 2} Qs</div>
-                  <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 700 }}>{sec.time || "4 min"}</div>
+                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13 }}>{sec.questions?.length || 5} Qs</div>
+                  <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 700 }}>{sec.time || "9 min"}</div>
                 </div>
               ))}
 
@@ -1805,71 +1863,88 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 <div style={{ color: "var(--gold)", fontWeight: 800, fontSize: 13, letterSpacing: 0.5, textTransform: "uppercase" }}>
                   Total Assessment
                 </div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>10 Qs</div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>20 min</div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{fullTestQuestions.length || 25} Qs</div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>45 min</div>
               </div>
-            </div>
-          </div>
 
-          {/* ═══════ SCREEN 3 · PRACTICE CARD ═══════ */}
-          <div style={{ background: "#FAFAF7", padding: "20px 22px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: "1px dashed #E5E7EB" }}>
-              <div style={{ width: 30, height: 30, background: "var(--gold)", color: "var(--navy)", borderRadius: 8, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 14 }}>
-                3
-              </div>
-              <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                Practice Test — 5 minute warm-up (optional but recommended)
-              </div>
-              {practiceCompleted ? (
-                <div style={{ background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
-                  <span>✓</span> COMPLETED
-                </div>
-              ) : (
-                <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700 }}>
-                  NOT TAKEN
+              {!isCompleted && (
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
+                  <button
+                    type="button"
+                    onClick={handleSaveAndFinishLater}
+                    disabled={savingForLater}
+                    style={{
+                      background: "transparent",
+                      color: "#8A91A3",
+                      border: "1.5px solid #E5E7EB",
+                      padding: "8px 16px",
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: savingForLater ? "default" : "pointer",
+                    }}
+                  >
+                    {savingForLater ? "Saving..." : "Complete this stage later"}
+                  </button>
                 </div>
               )}
-            </div>
 
-            <div style={{ background: "linear-gradient(135deg, #EEF2FF, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 20px", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 16, alignItems: "center" }}>
-              <div style={{ width: 54, height: 54, background: "#1A4FB8", color: "#FFFFFF", borderRadius: 12, display: "grid", placeItems: "center", fontSize: 24, boxShadow: "0 4px 12px rgba(26,79,184,0.25)" }}>
-                🏋
-              </div>
-              <div>
-                <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14.5 }}>Try 3 sample questions first — no score, no risk</div>
-                <div style={{ fontSize: 12.5, color: "#3A425A", marginTop: 4, lineHeight: 1.5, maxWidth: 520 }}>
-                  Same proctored environment, anti-cheat active, same interface — but nothing gets saved. Just to prove your setup works before the real test.
+              {/* PRACTICE WARM-UP — merged into this section as an optional note, no longer its own step */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12, paddingTop: 12, borderTop: "1px dashed #E5E7EB" }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
+                  Optional warm-up — 10 minute practice test before you start
                 </div>
-                <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
-                  <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>3 questions</span>
-                  <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>5 min</span>
-                  <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>Not scored</span>
-                </div>
+                {practiceCompleted ? (
+                  <div style={{ background: "#DCFCE7", color: "#166534", border: "1px solid #86EFAC", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span>✓</span> COMPLETED
+                  </div>
+                ) : (
+                  <div style={{ background: "#F2F3F5", color: "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700 }}>
+                    NOT TAKEN
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={handleStartPractice}
-                style={{
-                  background: "transparent",
-                  color: "#1A4FB8",
-                  border: "1.5px solid #1A4FB8",
-                  padding: "10px 18px",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontWeight: 800,
-                  cursor: "pointer",
-                }}
-              >
-                {practiceCompleted ? "Practice Again →" : "Start Practice →"}
-              </button>
+
+              <div style={{ background: "linear-gradient(135deg, #EEF2FF, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 20px", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 16, alignItems: "center" }}>
+                <div style={{ width: 54, height: 54, background: "#1A4FB8", color: "#FFFFFF", borderRadius: 12, display: "grid", placeItems: "center", fontSize: 24, boxShadow: "0 4px 12px rgba(26,79,184,0.25)" }}>
+                  🏋
+                </div>
+                <div>
+                  <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14.5 }}>Try 10 sample practice questions first — no score, no risk</div>
+                  <div style={{ fontSize: 12.5, color: "#3A425A", marginTop: 4, lineHeight: 1.5, maxWidth: 520 }}>
+                    Same proctored environment, anti-cheat active, same interface — but nothing gets saved. Just to prove your setup works before the real test.
+                  </div>
+                  <div style={{ marginTop: 8, display: "flex", gap: 6 }}>
+                    <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>10 questions</span>
+                    <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>10 min</span>
+                    <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>Not scored</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleStartPractice}
+                  style={{
+                    background: "transparent",
+                    color: "#1A4FB8",
+                    border: "1.5px solid #1A4FB8",
+                    padding: "10px 18px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  {practiceCompleted ? "Practice Again →" : "Start Practice →"}
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* ═══════ SCREEN 4 · RULES AGREEMENT (START UNCHECKED) ═══════ */}
+          {/* ═══════ SCREEN 3 (was 4) · RULES AGREEMENT (START UNCHECKED) ═══════ */}
           <div id="stage4-rules-section" style={{ background: "#FAFAF7", padding: "20px 22px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: "1px dashed #E5E7EB" }}>
               <div style={{ width: 30, height: 30, background: "var(--gold)", color: "var(--navy)", borderRadius: 8, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 14 }}>
-                4
+                3
               </div>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
                 Rules You Agree To — check all 6 to unlock Start
@@ -1881,7 +1956,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                "I have 20 uninterrupted minutes available right now.",
+                "I have 45 uninterrupted minutes available right now.",
                 "I am the only person in the room. No one else allowed on camera and no movement in background.",
                 "I understand this is my Attempt 1 of 5 lifetime. First retake unlocks in 7 days.",
                 "My score is final on submission. Companies view this as verified — no negotiations.",
@@ -1929,11 +2004,11 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
           </div>
 
-          {/* ═══════ SCREEN 5 · START TEST / RETAKE WORKFLOW ═══════ */}
+          {/* ═══════ SCREEN 4 (was 5) · START TEST / RETAKE WORKFLOW ═══════ */}
           <div style={{ background: "#FAFAF7", padding: "20px 22px", borderRadius: 14, marginBottom: 24, border: "1px solid #E5E7EB" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, paddingBottom: 12, borderBottom: "1px dashed #E5E7EB" }}>
               <div style={{ width: 30, height: 30, background: "var(--gold)", color: "var(--navy)", borderRadius: 8, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 14 }}>
-                5
+                4
               </div>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
                 {isCompleted ? "Assessment Status · Completed" : "Ready? Launch the proctored test"}
@@ -1962,14 +2037,14 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   ? "Assessment Auto-Submitted & Locked"
                   : isCompleted
                   ? `Assessment Score: ${candidateScore}/100 (${currentMedal})`
-                  : "Start My Assessment (10 Questions)"}
+                  : `Start My Assessment (${fullTestQuestions.length || 25} Questions)`}
               </div>
               <div style={{ color: isAutoSubmitted ? "#FCA5A5" : "#FFF6E0", fontStyle: "italic", fontSize: 13 }}>
                 {isAutoSubmitted
                   ? `Violation: ${autoSubmitReason} · Attempt terminated.`
                   : isCompleted
                   ? "Attempt 1 of 5 Completed · Recorded on Talentera Database"
-                  : "Opens locked proctored testing window · 20 min · anti-cheat live"}
+                  : "Opens locked proctored testing window · 45 min · anti-cheat live"}
               </div>
 
               {isCompleted ? (
@@ -2096,7 +2171,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               {isCompleted ? "Your Stage 04 Results" : "Your Assessment Status"}
             </div>
             <div style={{ fontSize: 12, color: "#8A91A3", marginTop: 4, fontStyle: "italic" }}>
-              {isCompleted ? "Verified on MongoDB database · Visible on candidate and company profiles" : "Complete the 10-question test above to record your official score and earn +25 points"}
+              {isCompleted ? "Verified on MongoDB database · Visible on candidate and company profiles" : "Complete the 25-question test above to record your official score and earn +20 points"}
             </div>
           </div>
 
@@ -2400,7 +2475,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
           candidateName={candidateName}
           candidateRole={candidateRole}
           domainTitle={candidateDomain}
-          timeLimitSeconds={20 * 60}
+          timeLimitSeconds={45 * 60}
           initialAnswers={userAnswers}
           onSubmit={handleAutoSubmit}
           onCancel={() => setIsTestRunning(false)}
@@ -2417,10 +2492,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div>
                 <span style={{ background: "#EEF2FF", color: "#1A4FB8", padding: "3px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>
-                  PRACTICE WARM-UP (3 QUESTIONS)
+                  PRACTICE WARM-UP (10 QUESTIONS)
                 </span>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginTop: 4 }}>
-                  Question {practiceQIndex + 1} of 3
+                  Question {practiceQIndex + 1} of {PRACTICE_QUESTIONS.length}
                 </div>
               </div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#1A4FB8", fontFamily: "monospace" }}>

@@ -1396,11 +1396,12 @@ router.delete("/interview-questions/:id", requireStaffAuth, async (req, res) => 
 // Stage 4 Assessment Questions (Multiple-Choice Questions by Domain)
 // ---------------------------------------------------------------------------
 
-// Helper: auto-seed defaults if DB is empty
+// Helper: auto-seed defaults if DB has fewer questions than the 25-per-domain standard (100 total)
 async function ensureDefaultAssessmentQuestions() {
   const count = await AssessmentQuestion.countDocuments();
-  if (count === 0 && Array.isArray(DEFAULT_ASSESSMENT_QUESTIONS) && DEFAULT_ASSESSMENT_QUESTIONS.length > 0) {
+  if (count < DEFAULT_ASSESSMENT_QUESTIONS.length && Array.isArray(DEFAULT_ASSESSMENT_QUESTIONS) && DEFAULT_ASSESSMENT_QUESTIONS.length > 0) {
     try {
+      await AssessmentQuestion.deleteMany({});
       await AssessmentQuestion.insertMany(DEFAULT_ASSESSMENT_QUESTIONS, { ordered: false });
       logger.info(`Auto-seeded ${DEFAULT_ASSESSMENT_QUESTIONS.length} default Stage 4 assessment questions.`);
     } catch (e) {
@@ -1564,7 +1565,7 @@ router.delete("/assessment-questions/:id", requireStaffAuth, async (req, res) =>
   }
 });
 
-// POST /api/staff/assessment-questions/reset-defaults - Re-populate with 40 standard domain questions
+// POST /api/staff/assessment-questions/reset-defaults - Re-populate with 100 standard domain questions (25 per domain)
 router.post("/assessment-questions/reset-defaults", requireStaffAuth, async (req, res) => {
   try {
     const domain = req.body.domain;

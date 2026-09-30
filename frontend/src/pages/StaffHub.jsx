@@ -2898,7 +2898,7 @@ export default function StaffHub() {
                     <div>
                       <div className="sf-bento-kpi-val">{verifiedTotal}</div>
                       <div className="sf-bento-kpi-label">Gold Verified Talent</div>
-                      <div className="sf-bento-kpi-sub">Complete 8-stage verified profiles</div>
+                      <div className="sf-bento-kpi-sub">Complete 7-stage verified profiles</div>
                     </div>
                   </div>
 
@@ -3080,7 +3080,7 @@ export default function StaffHub() {
                             <th>Identity &amp; Aadhaar</th>
                             <th>Partner Academy</th>
                             <th>Specialty / Role</th>
-                            <th>8-Stage Progress</th>
+                            <th>7-Stage Progress</th>
                             <th>Proctored Score</th>
                             <th>Job Pipeline</th>
                             <th>Status</th>

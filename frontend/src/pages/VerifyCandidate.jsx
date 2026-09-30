@@ -199,7 +199,7 @@ export default function VerifyCandidate() {
                   icon="✓" color="#059669" bg="rgba(16,185,129,0.06)"
                   title="Stage 1: Government Identity (e-KYC)"
                   detail={`Aadhaar verified • Name: ${name} • Phone: ${mobile}`}
-                  points={5}
+                  points={15}
                 />
 
                 {/* Academy Training */}
@@ -221,7 +221,7 @@ export default function VerifyCandidate() {
                       done icon="✓" color="#9333EA" bg="rgba(147,51,234,0.06)"
                       title="Stage 3: Professional Accreditation — Staff Verified"
                       detail={`${certification?.certName || certification?.name || "Certification"} (${certification?.issuingBody || "Issuing body"} · ID ending ${String(certification?.memberId || "").slice(-4) || "****"})`}
-                      points={20}
+                      points={15}
                     />
                   ) : certification?.certStatus === "rejected" ? (
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(220,38,38,0.06)", border: "1px solid rgba(220,38,38,0.25)" }}>
@@ -260,7 +260,16 @@ export default function VerifyCandidate() {
                   icon="✓" color="#D97706" bg="rgba(217,119,6,0.06)"
                   title="Stage 4: Skill Assessment Score"
                   detail={`Proctored Score: ${assessment?.foundationScore ?? assessment?.score ?? "N/A"}/100 • Topic: ${assessment?.topic || "Domain Competency"}`}
-                  points={25}
+                  points={20}
+                />
+
+                {/* Video Pitch */}
+                <StageStatusRow
+                  done={completedStages.includes(5)}
+                  icon="✓" color="#EC4899" bg="rgba(236,72,153,0.06)"
+                  title="Stage 5: Video Pitch & AI Communication"
+                  detail={`Video Pitch • Score: ${videoIntro?.overallScore != null ? `${videoIntro.overallScore}/100` : (completedStages.includes(5) ? "Recorded" : "Pending")}`}
+                  points={15}
                 />
 
                 {/* Live Charts Performance */}
@@ -269,7 +278,7 @@ export default function VerifyCandidate() {
                   icon="✓" color="#4F46E5" bg="rgba(79,70,229,0.06)"
                   title="Stage 6: Live Performance Audit"
                   detail={`Accuracy Score: ${liveCharts?.accuracyScore ?? "N/A"}% • Charts Audited: ${liveCharts?.liveChartsAudited ?? liveCharts?.chartsAudited ?? "N/A"}`}
-                  points={10}
+                  points={20}
                 />
               </div>
             </div>

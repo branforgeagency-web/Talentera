@@ -1,5 +1,4 @@
 import React from "react";
-import { useToast } from "../Toast.jsx";
 
 const STAGE_CONFIGS = {
   1: {
@@ -54,13 +53,6 @@ const STAGE_CONFIGS = {
         line: "CDC required · you qualify ✓",
       },
     ],
-    whyTitle: "Why Identity First",
-    stats: [
-      { big: "30s", small: "avg OTP delivery" },
-      { big: "0 leaks", small: "industry record" },
-      { big: "3×", small: "candidate trust" },
-      { big: "100%", small: "verified pool" },
-    ],
   },
   2: {
     eyebrow: "CAREER PASSPORT",
@@ -113,13 +105,6 @@ const STAGE_CONFIGS = {
         tags: [{ text: "Dental", type: "gold" }, { text: "CDC", type: "green" }, { text: "4 roles", type: "blue" }],
         line: "CDC required · you qualify ✓",
       },
-    ],
-    whyTitle: "Why Training Pedigree Matters",
-    stats: [
-      { big: "400+", small: "academies mapped" },
-      { big: "3.2×", small: "faster shortlist" },
-      { big: "+₹85k", small: "avg salary lift" },
-      { big: "Direct", small: "academy sign-off" },
     ],
   },
   3: {
@@ -174,19 +159,12 @@ const STAGE_CONFIGS = {
         line: "CDC required · you qualify ✓",
       },
     ],
-    whyTitle: "Why Certification Matters",
-    stats: [
-      { big: "4×", small: "higher shortlist rate" },
-      { big: "87%", small: "HRs filter certified only" },
-      { big: "+₹1.2L", small: "avg CTC uplift" },
-      { big: "80+", small: "certs recognized" },
-    ],
   },
   4: {
     eyebrow: "CAREER PASSPORT",
     title: (props) => `Passport Score · ${props.score || props.candidate?.score || 50}/100`,
     status: "🧪 Stage 04 · Assessment active",
-    desc: "This is the biggest single-stage points jump (+25 pts). A Silver or Gold Assessment score puts you in the top 20% of candidates on every company search.",
+    desc: "This is a flagship points jump (+20 pts). A Silver or Gold Assessment score puts you in the top 20% of candidates on every company search.",
     companies: [
       {
         logo: "O",
@@ -233,13 +211,6 @@ const STAGE_CONFIGS = {
         tags: [{ text: "Dental", type: "gold" }, { text: "CDC", type: "green" }, { text: "4 roles", type: "blue" }],
         line: "Min 70 required · you qualify ✓",
       },
-    ],
-    whyTitle: "Why Assessment Matters",
-    stats: [
-      { big: "+25 pts", small: "single stage boost" },
-      { big: "94%", small: "cheat-free accuracy" },
-      { big: "5×", small: "direct test shortlists" },
-      { big: "Silver/Gold", small: "priority hiring tier" },
     ],
   },
   5: {
@@ -294,13 +265,6 @@ const STAGE_CONFIGS = {
         line: "CDC required · you qualify ✓",
       },
     ],
-    whyTitle: "Why Video Pitch Matters",
-    stats: [
-      { big: "3×", small: "more HR callbacks" },
-      { big: "2 min", small: "saves 3 rounds" },
-      { big: "Top 10%", small: "fluency tier" },
-      { big: "AI-scored", small: "confidence metric" },
-    ],
   },
   6: {
     eyebrow: "CAREER PASSPORT",
@@ -354,19 +318,12 @@ const STAGE_CONFIGS = {
         line: "Accuracy ≥ 85% required · you qualify ✓",
       },
     ],
-    whyTitle: "Why Chart Audits Matter",
-    stats: [
-      { big: "95%+", small: "audit accuracy" },
-      { big: "5 charts", small: "live simulator" },
-      { big: "Zero", small: "guess interviews" },
-      { big: "Immediate", small: "job offers" },
-    ],
   },
   7: {
     eyebrow: "CAREER PASSPORT",
     title: (props) => `🏆 ${props.candidate?.score || 85} / 100`,
     status: "📄 Stage 07 · Resume Builder active",
-    desc: "You've completed the proof stages. Stage 07 (Resume) is auto-built from your authenticated credentials. Stage 08 (Career Passport) is one click away.",
+    desc: "You've completed the proof stages. Stage 07 (Resume) is auto-built from your authenticated credentials. Activating your Career Passport is one click away.",
     companies: [
       {
         logo: "O",
@@ -413,13 +370,6 @@ const STAGE_CONFIGS = {
         tags: [{ text: "Dental", type: "gold" }, { text: "CDC", type: "green" }, { text: "4 roles", type: "blue" }],
         line: "Verified resume required · you qualify ✓",
       },
-    ],
-    whyTitle: "Why Verified Resume Wins",
-    stats: [
-      { big: "3×", small: "shortlists via Live link" },
-      { big: "Zero", small: "fake claims possible" },
-      { big: "6 formats", small: "auto-picked templates" },
-      { big: "Live QR", small: "one-click verification" },
     ],
   },
   8: {
@@ -474,13 +424,6 @@ const STAGE_CONFIGS = {
         line: "Verified talent pool · ready to interview ✓",
       },
     ],
-    whyTitle: "Your Verification Stack",
-    stats: [
-      { big: "100%", small: "tamper-proof passport" },
-      { big: "Live", small: "search visibility" },
-      { big: "Direct", small: "company shortlisting" },
-      { big: "0 fee", small: "for candidates" },
-    ],
   },
 };
 
@@ -492,7 +435,6 @@ export default function WizardCompanionRail({
   isCompleted = false,
   isLiveActive = false,
 }) {
-  const toast = useToast();
   const cfg = STAGE_CONFIGS[stageNum] || STAGE_CONFIGS[1];
 
   const title = typeof cfg.title === "function"
@@ -506,11 +448,6 @@ export default function WizardCompanionRail({
   const desc = typeof cfg.desc === "function"
     ? cfg.desc({ candidate, certCount, score, isCompleted, isLiveActive })
     : cfg.desc;
-
-  const handleSeeAllJobs = (e) => {
-    e.preventDefault();
-    toast("Browse all verified hiring partner roles in the Jobs tab.", "ℹ");
-  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, width: "100%" }}>
@@ -563,168 +500,6 @@ export default function WizardCompanionRail({
         </div>
       </div>
 
-      {/* ─── 2. HIRING RIGHT NOW CARD ─── */}
-      <div
-        style={{
-          background: "#FFFFFF",
-          padding: "18px 20px",
-          borderRadius: 14,
-          border: "1px solid #E5E7EB",
-          boxShadow: "0 4px 14px rgba(15, 27, 61, 0.04)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 11,
-            letterSpacing: 1.5,
-            color: "#D97706",
-            textTransform: "uppercase",
-            fontWeight: 800,
-            marginBottom: 12,
-          }}
-        >
-          <span>HIRING RIGHT NOW</span>
-          <a
-            href="/jobs"
-            onClick={handleSeeAllJobs}
-            style={{
-              color: "#64748B",
-              fontSize: 11,
-              fontWeight: 700,
-              textDecoration: "none",
-              letterSpacing: 0.5,
-              cursor: "pointer",
-            }}
-          >
-            SEE ALL →
-          </a>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          {cfg.companies.map((comp, idx) => (
-            <div
-              key={comp.name + idx}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "38px 1fr",
-                gap: 12,
-                padding: "11px 0",
-                borderBottom: idx === cfg.companies.length - 1 ? "none" : "1px dashed #E5E7EB",
-                alignItems: "center",
-              }}
-            >
-              <div
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 10,
-                  display: "grid",
-                  placeItems: "center",
-                  fontWeight: 800,
-                  fontSize: 14,
-                  color: "#FFFFFF",
-                  background: comp.logoBg,
-                  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                }}
-              >
-                {comp.logo}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--navy, #0F1B3D)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span>{comp.name}</span>
-                  {comp.hot && (
-                    <span
-                      style={{
-                        background: "#DC2626",
-                        color: "#FFFFFF",
-                        padding: "1px 6px",
-                        borderRadius: 5,
-                        fontSize: 8.5,
-                        fontWeight: 800,
-                        letterSpacing: 0.5,
-                      }}
-                    >
-                      HOT
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                  {comp.meta}
-                </div>
-                <div style={{ display: "flex", gap: 5, marginTop: 5, flexWrap: "wrap" }}>
-                  {comp.tags.map((tag, tIdx) => (
-                    <span
-                      key={tIdx}
-                      style={{
-                        fontSize: 9.5,
-                        padding: "2px 7px",
-                        borderRadius: 5,
-                        fontWeight: 700,
-                        background:
-                          tag.type === "green"
-                            ? "#DCFCE7"
-                            : tag.type === "blue"
-                            ? "#EFF6FF"
-                            : "#FEF3C7",
-                        color:
-                          tag.type === "green"
-                            ? "#15803D"
-                            : tag.type === "blue"
-                            ? "#1D4ED8"
-                            : "#B45309",
-                      }}
-                    >
-                      {tag.text}
-                    </span>
-                  ))}
-                </div>
-                <div style={{ fontSize: 10.5, color: "#16A34A", marginTop: 5, fontWeight: 700 }}>
-                  {comp.line}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ─── 3. WHY IT MATTERS CARD ─── */}
-      <div
-        style={{
-          background: "#FFFFFF",
-          padding: "18px 20px",
-          borderRadius: 14,
-          border: "1px solid #E5E7EB",
-          boxShadow: "0 4px 14px rgba(15, 27, 61, 0.04)",
-        }}
-      >
-        <div style={{ fontSize: 11, letterSpacing: 1.5, color: "#0F1B3D", textTransform: "uppercase", fontWeight: 800, marginBottom: 12 }}>
-          {cfg.whyTitle}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          {cfg.stats.map((stat, sIdx) => (
-            <div
-              key={sIdx}
-              style={{
-                background: "#FFFBEB",
-                border: "1px solid #FEF3C7",
-                padding: "12px 8px",
-                borderRadius: 10,
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: 17, fontWeight: 800, color: "var(--navy, #0F1B3D)" }}>
-                {stat.big}
-              </div>
-              <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 2 }}>
-                {stat.small}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

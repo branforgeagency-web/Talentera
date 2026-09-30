@@ -469,6 +469,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [aadhaarPincode, setAadhaarPincode] = useState(initAadhaar.pincode);
   const [aadhaarPhoto, setAadhaarPhoto] = useState(initAadhaar.photoUrl);
   const [isAadhaarVerified, setIsAadhaarVerified] = useState(initAadhaar.isVerified);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   // Message Central eKYCNow DigiLocker State
   const [mcSession, setMcSession] = useState(() => {
@@ -1438,7 +1439,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         }
         .hero-tiles {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 12px;
           margin-top: 22px;
         }
@@ -2233,40 +2234,26 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           <div className="hero">
             <div className="hero-icon">🛡</div>
             <div className="hero-badges">
-              <span className="hero-chip">STAGE 01 OF 08 · ACTIVE</span>
+              <span className="hero-chip">STAGE 01 OF 07 · ACTIVE</span>
               <span className="hero-chip gold">+15 POINTS</span>
-              <span className="hero-chip">~10 MIN</span>
             </div>
             <h1 className="hero-title" style={{ color: "#ffffff" }}>Identity</h1>
             <div className="hero-subtitle">Verified once. Trusted forever.</div>
             <div className="hero-desc">
-              Aadhaar-lock your name, date of birth and address. Add your contact
-              and preferred work locations. Every stage that follows builds on
-              top of this — no verified identity, no verified career.
-            </div>
-            <div className="hero-tiles">
-              <div className="hero-tile">
-                <div className="big">UIDAI</div>
-                <div className="small">Aadhaar gateway</div>
-              </div>
-              <div className="hero-tile">
-                <div className="big">30 sec</div>
-                <div className="small">avg OTP delivery</div>
-              </div>
-              <div className="hero-tile">
-                <div className="big">SOC 2 + DPDP</div>
-                <div className="small">your data, encrypted</div>
-              </div>
-              <div className="hero-tile">
-                <div className="big">~10 min</div>
-                <div className="small">your time</div>
-              </div>
+              Aadhaar-lock your name, date of birth, address and contact — every stage that follows builds on top of this.
             </div>
           </div>
 
           {/* HOW STAGE 01 WORKS */}
           <div className="stage01-card">
-            <div className="stage01-card-title">How Stage 01 Works</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="stage01-card-title">How Stage 01 Works</div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
             <div className="stage01-card-eyebrow">WHY IT MATTERS · WHAT WE LOCK · WHAT'S PRIVATE</div>
 
             <div className="rules-grid">
@@ -2319,6 +2306,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 </div>
               </div>
             </div>
+            </>
+            )}
 
             <div className="consent-pill">
               <span className="ico">🔐</span>
@@ -2356,7 +2345,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               <div className="section-num">1</div>
               <div className="section-title">Aadhaar Identity Verification</div>
               <div className={`status-chip ${isAadhaarVerified ? "" : "active"}`}>
-                {isAadhaarVerified ? "✓ VERIFIED · +5" : "MANDATORY · +5"}
+                {isAadhaarVerified ? "✓ VERIFIED · +15" : "MANDATORY · +15"}
               </div>
             </div>
             {formErrors.aadhaar && (

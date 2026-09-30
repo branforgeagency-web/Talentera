@@ -195,7 +195,7 @@ export default function Footer() {
                   <Link to="/login">Candidate Portal Login</Link>
                 </li>
                 <li>
-                  <Link to="/dashboard">8-Stage Verification Wizard</Link>
+                  <Link to="/dashboard">7-Stage Verification Wizard</Link>
                 </li>
                 <li>
                   <Link to="/resume">
@@ -392,7 +392,7 @@ export default function Footer() {
 
               <h4>4. HIPAA Compliance &amp; Assessment Test Data</h4>
               <p>
-                All sample patient charts and coding audits used in our 8-Stage proctored evaluations are synthetic 
+                All sample patient charts and coding audits used in our 7-Stage proctored evaluations are synthetic 
                 and de-identified according to the HIPAA Safe Harbor standard (45 CFR § 164.514). No Protected Health 
                 Information (PHI) from live hospital systems is ever accepted or stored.
               </p>

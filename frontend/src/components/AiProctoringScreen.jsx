@@ -673,6 +673,7 @@ export default function AiProctoringScreen({
 
   const answeredCount = Object.keys(answers).length;
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
+  const allAnswered = questions.length > 0 && answeredCount >= questions.length;
 
   // ──────────────────────────────────────────────────────────────────────────
   // 10. RENDER COMPONENT
@@ -1136,31 +1137,43 @@ export default function AiProctoringScreen({
                     </button>
                   )}
 
-                  {/* Submit Assessment Button */}
+                  {/* Submit Assessment Button - muted until every question has an answer */}
                   <button
                     type="button"
                     onClick={() => triggerSubmit("Voluntary Candidate Final Submit")}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !allAnswered}
+                    title={allAnswered ? "" : `Answer all ${questions.length} questions to submit (${answeredCount} / ${questions.length} answered)`}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: 7,
                       padding: "10px 22px",
                       borderRadius: 10,
-                      background: isLastQuestion
+                      background: !allAnswered
+                        ? "#334155"
+                        : isLastQuestion
                         ? "linear-gradient(135deg, #10b981, #059669)"
                         : "linear-gradient(135deg, #059669, #047857)",
-                      color: "#ffffff",
+                      color: !allAnswered ? "#94a3b8" : "#ffffff",
                       fontSize: 13,
                       fontWeight: 800,
                       border: "none",
-                      cursor: isSubmitting ? "wait" : "pointer",
-                      boxShadow: "0 4px 14px rgba(16, 185, 129, 0.35)",
+                      cursor: isSubmitting ? "wait" : !allAnswered ? "not-allowed" : "pointer",
+                      opacity: !allAnswered ? 0.6 : 1,
+                      boxShadow: allAnswered ? "0 4px 14px rgba(16, 185, 129, 0.35)" : "none",
                       transition: "all 0.15s ease",
                     }}
                   >
                     <CheckCircle2 style={{ width: 16, height: 16 }} />
-                    <span>{isSubmitting ? "Submitting..." : isLastQuestion ? "Submit Assessment" : "Submit Test"}</span>
+                    <span>
+                      {isSubmitting
+                        ? "Submitting..."
+                        : !allAnswered
+                        ? `Answer All to Submit (${answeredCount}/${questions.length})`
+                        : isLastQuestion
+                        ? "Submit Assessment"
+                        : "Submit Test"}
+                    </span>
                   </button>
                 </div>
               </div>

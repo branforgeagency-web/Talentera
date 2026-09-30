@@ -6,7 +6,7 @@
  * components/wizard/ — these stages are bespoke enough (multi-step certs,
  * OTP flow, option cards) that a single generic field renderer would lose
  * fidelity to the source design. This file only carries the metadata that's
- * genuinely shared/list-shaped across all 8 stages.
+ * genuinely shared/list-shaped across all 7 stages.
  *
  * Point values match backend/utils/verificationScore.js exactly — do not
  * change pts here without updating STAGE_POINTS server-side too.
@@ -24,7 +24,7 @@ const RAW_WIZARD_STAGES = [
     num: 1,
     short: "Basic Info",
     long: "Basic Info + Aadhaar OTP",
-    pts: 5,
+    pts: 15,
     mins: 3,
     icon: "user",
     intro:
@@ -101,7 +101,7 @@ const RAW_WIZARD_STAGES = [
     num: 3,
     short: "Certification",
     long: "Stage 03 · Certification",
-    pts: 20,
+    pts: 15,
     mins: 4,
     icon: "award",
     intro:
@@ -142,7 +142,7 @@ const RAW_WIZARD_STAGES = [
     num: 4,
     short: "Assessment",
     long: "Talentera Assessments",
-    pts: 25,
+    pts: 20,
     mins: 45,
     icon: "clip",
     intro:
@@ -178,7 +178,7 @@ const RAW_WIZARD_STAGES = [
     num: 5,
     short: "Communication + Video",
     long: "Communication + Video Interview",
-    pts: 10,
+    pts: 15,
     mins: 10,
     icon: "video",
     intro:
@@ -250,7 +250,7 @@ const RAW_WIZARD_STAGES = [
     num: 7,
     short: "Build Resume",
     long: "Your Verified Resume",
-    pts: 10,
+    pts: 0,
     mins: 5,
     icon: "clip",
     intro:
@@ -282,42 +282,6 @@ const RAW_WIZARD_STAGES = [
     context:
       "Companies trust the Talentera format because every line is backed by a completed, verified stage — not a self-written claim.",
   },
-  {
-    num: 8,
-    short: "Track",
-    long: "Live Interview Track",
-    pts: 5,
-    mins: 8,
-    icon: "trend",
-    intro:
-      "Past interview performance predicts future. Companies that shortlist you see whether you've done 0 interviews or 10 — and what percentage you cleared. This stage activates that track.",
-    rules: [
-      {
-        type: "why",
-        title: "Why an interview track exists",
-        body: "A candidate who has been through 8 real company interviews and cleared 5 is dramatically different from one who has zero history. Companies value this signal a lot. The track auto-captures every Talentera-routed interview so you build proof of interview-readiness over time.",
-      },
-      {
-        type: "check",
-        title: "What gets captured",
-        body: "For each interview: round number, type (HR / tech / ops / final), date, result (selected / rejected / on-hold), and any anonymized feedback. You see the full track in your dashboard with company names; companies viewing your profile see anonymized summaries.",
-      },
-      {
-        type: "lock",
-        title: "Your privacy on this track",
-        body: "Companies see only: \"3 interviews · 2 cleared\" — never the specific company or feedback. You can request anonymization or full deletion at any time. Right-to-be-forgotten honored. Consent is mandatory to enter the Verified Pool.",
-      },
-    ],
-    trustChips: [
-      { num: "Auto", label: "interview capture" },
-      { num: "Anon", label: "company view" },
-      { num: "Delete", label: "anytime" },
-      { num: "~2 min", label: "your time" },
-    ],
-    theme: { p1: "#A855F7", p2: "#D946EF" },
-    context:
-      "Every interview Talentera routes you to from here on starts building your track record, boosting your shortlist visibility with top employers.",
-  },
 ];
 
 export const WIZARD_STAGES = RAW_WIZARD_STAGES.map((s) => ({
@@ -326,10 +290,13 @@ export const WIZARD_STAGES = RAW_WIZARD_STAGES.map((s) => ({
   skippable: SKIPPABLE_STAGE_NUMS.includes(s.num),
 }));
 
-export const STAGE_POINTS = WIZARD_STAGES.reduce((acc, s) => {
-  acc[s.num] = s.pts;
-  return acc;
-}, {});
+export const STAGE_POINTS = {
+  8: 0,
+  ...WIZARD_STAGES.reduce((acc, s) => {
+    acc[s.num] = s.pts;
+    return acc;
+  }, {}),
+};
 
 export const GOLD_BADGE_THRESHOLD = 75;
 

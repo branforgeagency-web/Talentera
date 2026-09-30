@@ -1358,7 +1358,7 @@ export default function AcademyPortal() {
               {/* 7 KPI Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
                 <MetricCard title="TOTAL CANDIDATES" val={kpis.totalStudents ?? students.length} sub={`${students.filter((s) => s.status === "placed").length} placed · ${liveProfilesData.length} live`} icon="fa-user-group" onClick={() => handleNavigateMod("candidates")} />
-                <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="8-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
+                <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="7-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
                 <MetricCard title="AWAITING APPROVAL" val={pendingApprovalsCount} sub="Stage 2 & 5 actions" icon="fa-circle-check" color="#CA8A04" onClick={() => handleNavigateMod("approvals")} />
                 <MetricCard title="INACTIVE STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
               </div>
@@ -1434,7 +1434,7 @@ export default function AcademyPortal() {
                 <div>
                   <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>Candidates Directory</h3>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    Manage and track every student from initial upload through 8-stage verification to final placement.
+                    Manage and track every student from initial upload through 7-stage verification to final placement.
                   </div>
                 </div>
 
@@ -1647,7 +1647,7 @@ export default function AcademyPortal() {
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>CANDIDATE</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>BATCH & SPECIALTY</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>TYPE</th>
-                      <th style={{ padding: "12px 14px", fontWeight: 700 }}>8-STAGE PROGRESS</th>
+                      <th style={{ padding: "12px 14px", fontWeight: 700 }}>7-STAGE PROGRESS</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>SCORE</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>STATUS</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>MATCH & INTERVIEW</th>
@@ -1707,7 +1707,7 @@ export default function AcademyPortal() {
                               </span>
                             </td>
 
-                            {/* 8-Stage Progress */}
+                            {/* 7-Stage Progress */}
                             <td style={{ padding: "12px 14px" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <StageTracker8Dots stages={c.stages || []} size={13} onDotClick={() => setSelectedStudentForDetail(c)} />
@@ -1959,20 +1959,20 @@ export default function AcademyPortal() {
           )}
 
           {/* ========================================================= */}
-          {/* 5. 8-STAGE VERIFICATION TRACKER */}
+          {/* 5. 7-STAGE VERIFICATION TRACKER */}
           {/* ========================================================= */}
           {activeMod === "verification" && (
             <div className="space-y-6">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>8-Stage Verification Tracker</h3>
+                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>7-Stage Verification Tracker</h3>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    Comprehensive cohort progress monitoring across all 8 stages of Talentera talent verification.
+                    Comprehensive cohort progress monitoring across all 7 stages of Talentera talent verification.
                   </div>
                 </div>
               </div>
 
-              {/* 8 Stages Grid */}
+              {/* 7 Stages Grid */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
                 {[
                   { num: 1, title: "Basic + Aadhaar", desc: "Indian ID verified", who: "Candidate", count: students.filter((s) => (s.stages || [])[0]?.isDone).length },

@@ -67,7 +67,7 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
                 <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : (isOptional ? "· OPTIONAL" : ""))}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
-              <span className="wiz-nav-item-pts">+{s.pts}</span>
+              <span className="wiz-nav-item-pts">{s.pts > 0 ? `+${s.pts}` : "0"}</span>
             </button>
           );
         })}

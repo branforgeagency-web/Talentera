@@ -125,7 +125,7 @@ router.post("/live-verify/:sessionId/capture", async (req, res) => {
 
       candidate.markModified("stage1");
       await candidate.save();
-      scoring = calculateVerificationScore(candidate.completedStages);
+      scoring = calculateVerificationScore(candidate.completedStages, candidate);
     }
 
     res.json({
@@ -299,7 +299,7 @@ router.post(
       candidate.markModified("stage1");
       await candidate.save();
 
-      const scoring = calculateVerificationScore(candidate.completedStages);
+      const scoring = calculateVerificationScore(candidate.completedStages, candidate);
 
       res.json({
         success: true,
@@ -446,7 +446,7 @@ router.post("/messagecentral/fetch-document", async (req, res) => {
     candidate.markModified("stage1");
     await candidate.save();
 
-    const scoring = calculateVerificationScore(candidate.completedStages);
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
 
     res.json({
       success: true,

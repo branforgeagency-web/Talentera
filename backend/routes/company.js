@@ -722,7 +722,7 @@ router.get("/applications", async (req, res) => {
       ? `${rawEmail.substring(0, 2)}***@${rawEmail.split("@")[1] || "domain.com"} 🔒`
       : "🔒 Contact Locked";
 
-    const scoring = calculateVerificationScore(candidate.completedStages || []);
+    const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
     const canViewScoresAndCerts = Boolean(plan.viewCandidateScoresAndCerts);
 
     // Real live-chart exposure straight from Stage 6 (0 when the candidate has none / chose "no charts")

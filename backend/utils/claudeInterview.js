@@ -1111,10 +1111,102 @@ Return STRICT JSON only:
   return computeHeuristicFinalReport({ candidateName, role, questionRecords });
 }
 
+
+// ---------------------------------------------------------------------------
+// Career Objective / Professional Summary Generator (Stage 7 Resume Builder)
+// ---------------------------------------------------------------------------
+// Candidate-facing "AI Career Objective Assistant" widget: the candidate types
+// a few free-text details about themselves/their goals, and this combines that
+// with their verified Talentera profile facts (domain, training level, cert
+// status, assessment score, etc.) to draft a career objective + professional
+// summary the candidate can review, edit, and insert into their resume.
+function heuristicCareerObjective(profile = {}, candidateNotes = "") {
+  const role = profile.roleTitle || (profile.domain ? `${profile.domain} Professional` : "Medical Coding Specialist");
+  const level = profile.level === "experienced" ? "Experienced" : "Detail-oriented, newly-trained";
+  const domain = profile.domain || "medical coding and billing";
+  const cert = profile.status === "certified" ? "certified" : profile.status === "pursuing" ? "certification-track" : "trained";
+  const notesPart = candidateNotes ? ` ${String(candidateNotes).trim().replace(/\s+/g, " ")}` : "";
+  const objective = `${level} ${role} with a strong foundation in ${domain}, seeking to contribute accuracy, compliance awareness, and reliable turnaround to a growing healthcare revenue cycle team.${notesPart}`.trim();
+  const summary = `${cert.charAt(0).toUpperCase() + cert.slice(1)} ${role.toLowerCase()} trained through Talentera's verified program${profile.academyName ? ` at ${profile.academyName}` : ""}${profile.totalCharts ? `, with hands-on practice across ${profile.totalCharts}+ live charts` : ""}${profile.assessmentScore ? ` and a ${profile.assessmentScore}/100 domain assessment score` : ""}. Focused on ${domain} with strong attention to detail and a commitment to continuous learning.`;
+  return { objective, summary };
+}
+
+async function generateCareerObjective({ profile = {}, candidateNotes = "" }) {
+  const key = apiKey();
+  const notes = String(candidateNotes || "").trim().slice(0, 800);
+
+  if (key) {
+    try {
+      const profileLines = [
+        profile.fullName ? `Name: ${profile.fullName}` : "",
+        profile.roleTitle ? `Target role: ${profile.roleTitle}` : "",
+        profile.domain ? `Domain / specialty: ${profile.domain}` : "",
+        profile.trainingLevel ? `Training level: ${profile.trainingLevel}` : "",
+        profile.specialties ? `Specialties: ${profile.specialties}` : "",
+        profile.level ? `Experience level: ${profile.level === "experienced" ? "Experienced" : "Fresher / recent graduate"}${profile.years ? ` (${profile.years} yrs)` : ""}` : "",
+        profile.status ? `Certification status: ${profile.status}` : "",
+        Array.isArray(profile.certCodes) && profile.certCodes.length ? `Certifications: ${profile.certCodes.filter(Boolean).join(", ")}` : "",
+        profile.academyName ? `Trained at: ${profile.academyName}` : "",
+        profile.assessmentScore ? `Domain assessment score: ${profile.assessmentScore}/100` : "",
+        profile.totalCharts ? `Live chart practice volume: ${profile.totalCharts} charts${profile.accuracy ? ` at ${profile.accuracy}% accuracy` : ""}` : "",
+        profile.currentCompany ? `Current/previous employer: ${profile.currentCompany}` : "",
+        profile.projectDetails ? `Project/work details: ${profile.projectDetails}` : "",
+      ].filter(Boolean).join("\n");
+
+      const prompt = `You are helping a candidate on the Talentera medical coding/billing recruitment platform write their own resume career objective and professional summary, in their own voice.
+
+Verified candidate profile facts (from their Talentera stages - use only what is relevant, do not invent facts not given here or by the candidate):
+${profileLines || "(no additional verified profile facts provided)"}
+
+What the candidate said about themselves / their goals in their own words:
+"${notes || "(candidate did not add extra notes - rely on the verified profile facts above)"}"
+
+Write two short pieces of resume text:
+1. "objective" - a 2-3 sentence, first-person-toned (but written in resume style, not literally "I") career objective for the top of their resume, specific to their domain and goals.
+2. "summary" - a 2-3 sentence professional summary highlighting their verified training, certification status, and readiness for the role.
+
+Rules:
+- Do NOT fabricate employers, certifications, scores, or experience not present in the profile facts or candidate notes.
+- Do NOT mention "Talentera" by name in the output text.
+- Keep each field under 500 characters.
+- Return STRICT JSON only, no markdown: {"objective": string, "summary": string}`;
+
+      const response = await axios.post(
+        ANTHROPIC_URL,
+        {
+          model: MODEL,
+          max_tokens: 400,
+          system: "You are a concise, accurate resume-writing assistant. You never invent facts and always return strict JSON.",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.6,
+        },
+        { headers: authHeaders(key), timeout: 20000 }
+      );
+
+      const text = response.data?.content?.[0]?.text || "";
+      const match = text.match(/\{[\s\S]*\}/);
+      if (match) {
+        const parsed = JSON.parse(match[0]);
+        const objective = String(parsed.objective || "").trim().slice(0, 500);
+        const summary = String(parsed.summary || "").trim().slice(0, 500);
+        if (objective || summary) {
+          return { objective, summary, source: "ai" };
+        }
+      }
+    } catch (err) {
+      console.warn("generateCareerObjective LLM notice, using heuristic template:", err.message);
+    }
+  }
+
+  const fallback = heuristicCareerObjective(profile, notes);
+  return { ...fallback, source: "template" };
+}
+
 module.exports = {
   generateInterviewQuestions,
   getMessiTurn,
   generateFinalReport,
+  generateCareerObjective,
   detectQuickIntent,
   computeHeuristicAnswerEvaluation,
   pickRandomFallbackQuestions,
