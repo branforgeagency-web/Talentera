@@ -22,7 +22,7 @@ const UPLOAD_DOC_TYPES = [
   { id: 'Other Credential', label: 'Other Professional Credential', icon: '📁' },
 ];
 
-export default function CandidateDocumentsSection({ candidate, onVaultUpdated }) {
+export default function CandidateDocumentsSection({ candidate, onVaultUpdated, onNavigateToResume }) {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -192,7 +192,9 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
         id: 's7_master_resume',
         title: 'Talentera Verified Master Resume',
         docType: 'Resume / CV',
-        docUrl: profile.resumeUrl || profile.stage7?.resumeUrl || null,
+        docUrl: null,
+        isMasterResume: true,
+        liveUrl: profile.resumeUrl || profile.stage7?.resumeUrl || null,
         docName: profile.resumeFileName || profile.stage7?.resumeFileName || 'Talentera_Verified_Resume.pdf',
         uploadedAt: profile.stage7?.updatedAt || profile.updatedAt || new Date().toISOString(),
         status: 'verified',
@@ -743,7 +745,47 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
                     marginTop: 6,
                   }}>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      {docUrl ? (
+                      {doc.isMasterResume ? (
+                        <>
+                          <button
+                            onClick={() => onNavigateToResume && onNavigateToResume()}
+                            style={{
+                              background: '#F1F5F9',
+                              border: '1px solid #CBD5E1',
+                              borderRadius: 6,
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#1E293B',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            👁️ Preview
+                          </button>
+
+                          <button
+                            onClick={() => onNavigateToResume && onNavigateToResume()}
+                            style={{
+                              background: '#0F1B3D',
+                              border: 'none',
+                              borderRadius: 6,
+                              padding: '6px 12px',
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: '#FFFFFF',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
+                            }}
+                          >
+                            ⬇️ Download
+                          </button>
+                        </>
+                      ) : docUrl ? (
                         <>
                           <button
                             onClick={() => setPreviewDoc(doc)}
@@ -882,7 +924,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                           <button
-                            onClick={() => setPreviewDoc(doc)}
+                            onClick={() => (doc.isMasterResume ? (onNavigateToResume && onNavigateToResume()) : setPreviewDoc(doc))}
                             style={{
                               background: '#F1F5F9',
                               border: '1px solid #CBD5E1',
@@ -895,7 +937,23 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
                           >
                             Preview
                           </button>
-                          {docUrl && (
+                          {doc.isMasterResume ? (
+                            <button
+                              onClick={() => onNavigateToResume && onNavigateToResume()}
+                              style={{
+                                background: '#0F1B3D',
+                                color: '#FFFFFF',
+                                border: 'none',
+                                borderRadius: 4,
+                                padding: '4px 8px',
+                                fontSize: 11.5,
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Download
+                            </button>
+                          ) : docUrl && (
                             <a
                               href={docUrl}
                               target="_blank"

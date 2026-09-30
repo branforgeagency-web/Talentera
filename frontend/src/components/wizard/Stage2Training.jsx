@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
-import { ACADEMIES_DATA, ACADEMY_NAMES, ACADEMY_LOCATIONS } from "../../data/academiesData.js";
+import { ACADEMY_REGIONS, ACADEMY_LOCATIONS_BY_REGION, ACADEMY_LOCATIONS, ACADEMIES_BY_LOCATION, ACADEMY_STATE_BY_LOCATION } from "../../data/academiesData.js";
 
 const DOMAINS = [
   {
@@ -280,14 +280,31 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     existingData.openToSponsorship !== undefined ? existingData.openToSponsorship : true
   );
 
-  // Path A / C Details - Academy Name & Academy Location
+  // Path A / C Details - Academy Name, Academy Location & Region
   const [academyName, setAcademyName] = useState(existingData.academyName || "");
   const [academyLocation, setAcademyLocation] = useState(
     existingData.academyLocation || existingData.academyCity || existingData.instituteCity || existingData.location || ""
   );
+  const [locationOtherMode, setLocationOtherMode] = useState(() => {
+    const initLoc = existingData.academyLocation || existingData.academyCity || existingData.instituteCity || existingData.location || "";
+    return !!initLoc && !ACADEMY_LOCATIONS.some((l) => l.name === initLoc);
+  });
+  const [academyRegion, setAcademyRegion] = useState(() => {
+    const initLoc = existingData.academyLocation || existingData.academyCity || existingData.instituteCity || existingData.location || "";
+    const match = ACADEMY_LOCATIONS.find((l) => l.name === initLoc);
+    return match ? ACADEMY_STATE_BY_LOCATION[match.name] || "" : "";
+  });
   const [registeredAcademies, setRegisteredAcademies] = useState([]);
   const [batch, setBatch] = useState(existingData.batch || existingData.batchNumber || existingData.rollNumber || "");
   const [formErrors, setFormErrors] = useState({});
+
+  // Search / open state for the three searchable comboboxes (Region, Location, Academy Name)
+  const [regionSearch, setRegionSearch] = useState("");
+  const [regionDropdownOpen, setRegionDropdownOpen] = useState(false);
+  const [locationSearch, setLocationSearch] = useState("");
+  const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
+  const [academyNameSearch, setAcademyNameSearch] = useState("");
+  const [academyNameDropdownOpen, setAcademyNameDropdownOpen] = useState(false);
 
   // Load registered partner academies from backend API
   useEffect(() => {
@@ -301,19 +318,39 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       .catch(() => {});
   }, []);
 
-  // Merge registered academies with mapped directory
-  const allAcademiesList = [
-    ...registeredAcademies.map((a) => ({
-      name: a.name,
-      location: a.city || (Array.isArray(a.branches) && a.branches.length > 0 ? a.branches[0] : "Coimbatore, Tamil Nadu"),
-      branches: a.branches || [],
-      state: a.state || "Tamil Nadu",
-      verified: true,
-    })),
-    ...ACADEMIES_DATA.filter(
-      (a) => !registeredAcademies.some((ra) => ra.name.toLowerCase() === a.name.toLowerCase())
-    ),
-  ];
+  // Locations available for the selected region
+  const locationsForRegion = useMemo(() => {
+    return ACADEMY_LOCATIONS_BY_REGION[academyRegion] || [];
+  }, [academyRegion]);
+
+  const filteredRegions = useMemo(() => {
+    const q = regionSearch.trim().toLowerCase();
+    if (!q) return ACADEMY_REGIONS;
+    return ACADEMY_REGIONS.filter((r) => r.name.toLowerCase().includes(q));
+  }, [regionSearch]);
+
+  const filteredLocations = useMemo(() => {
+    const q = locationSearch.trim().toLowerCase();
+    const list = locationsForRegion.map((name) => ({
+      name,
+      count: (ACADEMY_LOCATIONS.find((l) => l.name === name)?.count) || 0,
+    }));
+    if (!q) return list;
+    return list.filter((l) => l.name.toLowerCase().includes(q));
+  }, [locationsForRegion, locationSearch]);
+
+  // Academies available for the selected location (real directory + any backend-registered academies)
+  const academiesForLocation = useMemo(() => {
+    const base = ACADEMIES_BY_LOCATION[academyLocation] || [];
+    const registeredNames = registeredAcademies.map((a) => a.name).filter((n) => n && !base.includes(n));
+    return [...base, ...registeredNames];
+  }, [academyLocation, registeredAcademies]);
+
+  const filteredAcademyNames = useMemo(() => {
+    const q = academyNameSearch.trim().toLowerCase();
+    if (!q) return academiesForLocation;
+    return academiesForLocation.filter((n) => n.toLowerCase().includes(q));
+  }, [academiesForLocation, academyNameSearch]);
 
   const rawStart = String(existingData.startDate || "").trim();
   const [startMonth, setStartMonth] = useState(
@@ -392,26 +429,22 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [savedBadge, setSavedBadge] = useState("✓ Saved just now");
   const [error, setError] = useState("");
 
-  function handleSelectAcademy(name) {
-    let cleanName = name;
-    let extractedLocation = "";
-    const bracketMatch = name.match(/^(.*?)\s*\((.*?)\)\s*$/);
-    if (bracketMatch) {
-      cleanName = bracketMatch[1].trim();
-      extractedLocation = bracketMatch[2].trim();
+  function handleRegionChange(value) {
+    if (value === "__other__") {
+      setLocationOtherMode(true);
+      setAcademyRegion("");
+      setAcademyLocation("");
+    } else {
+      setLocationOtherMode(false);
+      setAcademyRegion(value);
+      setAcademyLocation("");
     }
+    setAcademyName("");
+  }
 
-    setAcademyName(cleanName);
-
-    // Get location from the academy itself (from directory or from bracket)
-    const found = allAcademiesList.find(
-      (a) => a.name.toLowerCase() === cleanName.toLowerCase() || a.name.toLowerCase() === name.toLowerCase()
-    );
-
-    const targetLocation = (found && (found.location || (found.branches && found.branches[0]))) || extractedLocation;
-    if (targetLocation) {
-      setAcademyLocation(targetLocation);
-    }
+  function handleLocationSelect(value) {
+    setAcademyLocation(value);
+    setAcademyName("");
   }
 
   // Handle Tag Picker (Max 3)
@@ -2114,64 +2147,232 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
             ) : (
               <>
-                {/* Row 1: Academy Name (Dropdown List) & Academy Location (Input with Dropdown List) */}
-                <div className="s2-row">
-                  <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`}>
+                {/* Row 1: Region, Academy Location & Academy Name — cascading, all searchable */}
+                <div className="s2-row-3">
+                  <div className="s2-field" style={{ position: "relative" }}>
+                    <label>
+                      Region / State <span className="req">*</span>
+                    </label>
+                    {locationOtherMode ? (
+                      <>
+                        <input type="text" value="Other / Not Listed" disabled style={{ background: "#F1F5F9", color: "var(--gray-mute)" }} />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLocationOtherMode(false);
+                            setAcademyRegion("");
+                            setAcademyLocation("");
+                            setAcademyName("");
+                          }}
+                          style={{ fontSize: 12, color: "var(--gold)", background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", fontWeight: 700 }}
+                        >
+                          ← Back to region list
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="🔍 Search region..."
+                          value={regionDropdownOpen ? regionSearch : academyRegion}
+                          onFocus={() => { setRegionDropdownOpen(true); setRegionSearch(""); }}
+                          onChange={(e) => { setRegionSearch(e.target.value); setRegionDropdownOpen(true); }}
+                          onBlur={() => setTimeout(() => setRegionDropdownOpen(false), 150)}
+                          style={{
+                            background: "var(--white)",
+                            border: "1.5px solid var(--border)",
+                            borderRadius: "9px",
+                            padding: "11px 14px",
+                            fontSize: "13.5px",
+                            color: "var(--navy)",
+                            fontWeight: "600",
+                            width: "100%",
+                          }}
+                        />
+                        {regionDropdownOpen && (
+                          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                            {filteredRegions.length === 0 && (
+                              <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
+                                {`No regions match "${regionSearch}"`}
+                              </div>
+                            )}
+                            {filteredRegions.map((r) => (
+                              <div
+                                key={r.name}
+                                onMouseDown={() => {
+                                  handleRegionChange(r.name);
+                                  setRegionDropdownOpen(false);
+                                  setRegionSearch("");
+                                }}
+                                style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: academyRegion === r.name ? "#FDF6E4" : "transparent", fontWeight: academyRegion === r.name ? 700 : 400 }}
+                              >
+                                <span>{r.name}</span>
+                                <span style={{ fontSize: 11, color: "#94A3B8" }}>{r.count}</span>
+                              </div>
+                            ))}
+                            <div
+                              onMouseDown={() => {
+                                handleRegionChange("__other__");
+                                setRegionDropdownOpen(false);
+                                setRegionSearch("");
+                              }}
+                              style={{ padding: "10px 14px", cursor: "pointer", borderTop: "1px solid #E2E8F0", color: "var(--gray-mute)", fontWeight: 600 }}
+                            >
+                              Other / Not Listed
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="s2-helper">{"Select your academy's state / region first."}</div>
+                  </div>
+
+                  <div className="s2-field" style={{ position: "relative" }}>
+                    <label>
+                      Academy Location / Branch <span className="req">*</span>
+                    </label>
+                    {locationOtherMode ? (
+                      <input
+                        type="text"
+                        value={academyLocation}
+                        onChange={(e) => setAcademyLocation(e.target.value)}
+                        placeholder="Type your academy's location (e.g. city, state)"
+                      />
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="🔍 Search location..."
+                          value={locationDropdownOpen ? locationSearch : academyLocation}
+                          onFocus={() => { setLocationDropdownOpen(true); setLocationSearch(""); }}
+                          onChange={(e) => { setLocationSearch(e.target.value); setLocationDropdownOpen(true); }}
+                          onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
+                          disabled={!academyRegion}
+                          style={{
+                            background: academyRegion ? "var(--white)" : "#F1F5F9",
+                            border: "1.5px solid var(--border)",
+                            borderRadius: "9px",
+                            padding: "11px 14px",
+                            fontSize: "13.5px",
+                            color: "var(--navy)",
+                            fontWeight: "600",
+                            width: "100%",
+                          }}
+                        />
+                        {locationDropdownOpen && (
+                          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                            {filteredLocations.length === 0 && (
+                              <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
+                                {`No locations match "${locationSearch}"`}
+                              </div>
+                            )}
+                            {filteredLocations.map((l) => (
+                              <div
+                                key={l.name}
+                                onMouseDown={() => {
+                                  handleLocationSelect(l.name);
+                                  setLocationDropdownOpen(false);
+                                  setLocationSearch("");
+                                }}
+                                style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: academyLocation === l.name ? "#FDF6E4" : "transparent", fontWeight: academyLocation === l.name ? 700 : 400 }}
+                              >
+                                <span>{l.name}</span>
+                                <span style={{ fontSize: 11, color: "#94A3B8" }}>{l.count}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="s2-helper">
+                      {locationOtherMode
+                        ? "Type your academy's location (e.g. city, state)."
+                        : academyRegion
+                        ? "Select your academy's location to filter the academy list."
+                        : "Select a region first."}
+                    </div>
+                  </div>
+
+                  <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`} style={{ position: "relative" }}>
                     <label>
                       Academy Name <span className="req">*</span>
                     </label>
-                    <select
-                      value={academyName}
-                      onChange={(e) => {
-                        handleSelectAcademy(e.target.value);
-                        if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
-                      }}
-                      style={{
-                        background: formErrors.academyName ? "#FEF2F2" : "var(--white)",
-                        border: formErrors.academyName ? "2px solid #EF4444" : "1.5px solid var(--border)",
-                        borderRadius: "9px",
-                        padding: "11px 14px",
-                        fontSize: "13.5px",
-                        color: "var(--navy)",
-                        fontWeight: "600",
-                      }}
-                    >
-                      <option value="">-- Select Academy from List --</option>
-                      {allAcademiesList.map((a) => (
-                        <option key={a.name} value={a.name}>
-                          {a.name} ({a.location || "Pan-India"})
-                        </option>
-                      ))}
-                    </select>
+                    {locationOtherMode ? (
+                      <input
+                        type="text"
+                        value={academyName}
+                        onChange={(e) => {
+                          setAcademyName(e.target.value);
+                          if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
+                        }}
+                        placeholder="Type your academy's name"
+                        style={{
+                          background: formErrors.academyName ? "#FEF2F2" : "var(--white)",
+                          border: formErrors.academyName ? "2px solid #EF4444" : "1.5px solid var(--border)",
+                        }}
+                      />
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="🔍 Search academy..."
+                          value={academyNameDropdownOpen ? academyNameSearch : academyName}
+                          onFocus={() => {
+                            setAcademyNameDropdownOpen(true);
+                            setAcademyNameSearch("");
+                          }}
+                          onChange={(e) => {
+                            setAcademyNameSearch(e.target.value);
+                            setAcademyNameDropdownOpen(true);
+                            if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
+                          }}
+                          onBlur={() => setTimeout(() => setAcademyNameDropdownOpen(false), 150)}
+                          disabled={!academyLocation}
+                          style={{
+                            background: formErrors.academyName ? "#FEF2F2" : academyLocation ? "var(--white)" : "#F1F5F9",
+                            border: formErrors.academyName ? "2px solid #EF4444" : "1.5px solid var(--border)",
+                            borderRadius: "9px",
+                            padding: "11px 14px",
+                            fontSize: "13.5px",
+                            color: "var(--navy)",
+                            fontWeight: "600",
+                            width: "100%",
+                          }}
+                        />
+                        {academyNameDropdownOpen && (
+                          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                            {filteredAcademyNames.length === 0 && (
+                              <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
+                                {academyLocation
+                                  ? `No academies match "${academyNameSearch}"`
+                                  : "Select a location first"}
+                              </div>
+                            )}
+                            {filteredAcademyNames.map((name) => (
+                              <div
+                                key={name}
+                                onMouseDown={() => {
+                                  setAcademyName(name);
+                                  if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
+                                  setAcademyNameDropdownOpen(false);
+                                  setAcademyNameSearch("");
+                                }}
+                                style={{ padding: "10px 14px", cursor: "pointer", background: academyName === name ? "#FDF6E4" : "transparent", fontWeight: academyName === name ? 700 : 400 }}
+                              >
+                                {name}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
                     {formErrors.academyName && (
                       <div className="field-error-msg">⚠️ {formErrors.academyName}</div>
                     )}
                     <div className="s2-helper">
-                      Select your training academy from the list.
-                    </div>
-                  </div>
-
-                  <div className="s2-field">
-                    <label>
-                      Academy Location / Branch <span className="req">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      list="academy-locations-datalist"
-                      value={academyLocation}
-                      onChange={(e) => setAcademyLocation(e.target.value)}
-                      placeholder="Select from dropdown or type location (e.g. Coimbatore, Tamil Nadu)"
-                    />
-                    <datalist id="academy-locations-datalist">
-                      {allAcademiesList.find((a) => a.name.toLowerCase() === academyName.trim().toLowerCase())?.branches?.map((b) => (
-                        <option key={b} value={b.includes(",") ? b : `${b}, ${allAcademiesList.find((a) => a.name.toLowerCase() === academyName.trim().toLowerCase())?.state || "India"}`} />
-                      ))}
-                      {ACADEMY_LOCATIONS.map((loc) => (
-                        <option key={loc} value={loc} />
-                      ))}
-                    </datalist>
-                    <div className="s2-helper">
-                      Auto-filled from academy. You can pick another branch or type yours.
+                      {locationOtherMode
+                        ? "Type your academy's name — it will be reviewed and added to our directory."
+                        : "Academies filtered to your selected location."}
                     </div>
                   </div>
                 </div>

@@ -6,36 +6,148 @@ import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 const REGIONS = [
-  { id: "us", name: "United States", flag: "🇺🇸", count: "55 certs" },
-  { id: "uk", name: "United Kingdom", flag: "🇬🇧", count: "6 certs" },
-  { id: "ca", name: "Canada", flag: "🇨🇦", count: "5 certs" },
-  { id: "au", name: "Australia", flag: "🇦🇺", count: "4 certs" },
-  { id: "other", name: "Other", flag: "🌐", count: "10+ certs" },
+  { id: "us", name: "United States", flag: "🇺🇸", count: "69 certs" },
+  { id: "in", name: "India", flag: "🇮🇳", count: "55 certs" },
+  { id: "ph", name: "Philippines", flag: "🇵🇭", count: "51 certs" },
+  { id: "sa", name: "Saudi Arabia", flag: "🇸🇦", count: "39 certs" },
+  { id: "gcc", name: "UAE / Bahrain / Kuwait / Oman / Qatar (GCC)", flag: "🌐", count: "39 certs" },
+  { id: "au", name: "Australia", flag: "🇦🇺", count: "22 certs" },
+  { id: "nz", name: "New Zealand", flag: "🇳🇿", count: "7 certs" },
+  { id: "ca", name: "Canada", flag: "🇨🇦", count: "17 certs" },
+  { id: "uk", name: "United Kingdom", flag: "🇬🇧", count: "15 certs" },
+  { id: "my", name: "Malaysia", flag: "🇲🇾", count: "40 certs" },
+  { id: "sg", name: "Singapore", flag: "🇸🇬", count: "17 certs" },
+  { id: "za", name: "South Africa", flag: "🇿🇦", count: "10 certs" },
+  { id: "de", name: "Germany", flag: "🇩🇪", count: "4 certs" },
+  { id: "br", name: "Brazil", flag: "🇧🇷", count: "1 cert" },
+  { id: "mx", name: "Mexico", flag: "🇲🇽", count: "35 certs" },
+  { id: "ng", name: "Nigeria", flag: "🇳🇬", count: "35 certs" },
+  { id: "th", name: "Thailand", flag: "🇹🇭", count: "1 cert" },
+  { id: "jp", name: "Japan", flag: "🇯🇵", count: "1 cert" },
+  { id: "fr", name: "France", flag: "🇫🇷", count: "2 certs" },
+  { id: "ie", name: "Ireland", flag: "🇮🇪", count: "2 certs" },
+  { id: "nl", name: "Netherlands", flag: "🇳🇱", count: "2 certs" },
+  { id: "ch", name: "Switzerland", flag: "🇨🇭", count: "2 certs" },
+  { id: "at", name: "Austria", flag: "🇦🇹", count: "2 certs" },
 ];
 
 const BODIES_BY_REGION = {
   us: [
-    { key: "aapc", name: "AAPC", count: 25 },
+    { key: "aapc", name: "AAPC", count: 33 },
     { key: "ahima", name: "AHIMA", count: 8 },
-    { key: "bmsc", name: "BMSC", count: 4 },
-    { key: "acdis", name: "ACDIS", count: 2 },
-    { key: "nahri", name: "NAHRI", count: 1 },
-    { key: "danb", name: "DANB", count: 3 },
-    { key: "aadom", name: "AADOM", count: 3 },
+    { key: "hfma", name: "HFMA", count: 11 },
+    { key: "aaham", name: "AAHAM", count: 5 },
+    { key: "nha", name: "NHA", count: 1 },
+    { key: "amba", name: "AMBA", count: 1 },
+    { key: "naham", name: "NAHAM", count: 2 },
+    { key: "namss", name: "NAMSS", count: 2 },
+    { key: "ahcc", name: "AHCC / BMSC", count: 3 },
+    { key: "wellsky", name: "WellSky", count: 3 },
   ],
-  uk: [
-    { key: "acca", name: "NCCQ (UK)", count: 3 },
-    { key: "ihed", name: "IHRIM", count: 3 },
+  in: [
+    { key: "aapc", name: "AAPC", count: 33 },
+    { key: "ahima", name: "AHIMA", count: 8 },
+    { key: "hfma", name: "HFMA", count: 4 },
+    { key: "aaham", name: "AAHAM", count: 3 },
+    { key: "nha", name: "NHA", count: 1 },
+    { key: "iacmc", name: "IACMC", count: 2 },
+    { key: "ahcc", name: "AHCC / BMSC", count: 3 },
+    { key: "wellsky", name: "WellSky", count: 1 },
   ],
-  ca: [
-    { key: "chima", name: "CHIMA", count: 5 },
+  ph: [
+    { key: "aapc", name: "AAPC", count: 33 },
+    { key: "ahima", name: "AHIMA", count: 8 },
+    { key: "hfma", name: "HFMA", count: 3 },
+    { key: "nha", name: "NHA", count: 1 },
+    { key: "tesda", name: "TESDA", count: 2 },
+    { key: "ahcc", name: "AHCC / BMSC", count: 3 },
+    { key: "wellsky", name: "WellSky", count: 1 },
+  ],
+  sa: [
+    { key: "aapc", name: "AAPC", count: 32 },
+    { key: "aapc_ksa", name: "AAPC (KSA specific)", count: 2 },
+    { key: "ahima", name: "AHIMA", count: 4 },
+    { key: "hfma", name: "HFMA", count: 1 },
+  ],
+  gcc: [
+    { key: "aapc", name: "AAPC", count: 32 },
+    { key: "ahima", name: "AHIMA", count: 6 },
+    { key: "hfma", name: "HFMA", count: 1 },
   ],
   au: [
-    { key: "himaa", name: "HIMAA", count: 4 },
+    { key: "himaa", name: "HIMAA", count: 9 },
+    { key: "ihacpa", name: "IHACPA", count: 3 },
+    { key: "aapc", name: "AAPC", count: 6 },
+    { key: "ahima", name: "AHIMA", count: 4 },
   ],
-  other: [
-    { key: "who", name: "WHO / Global Coding", count: 4 },
-    { key: "dha", name: "DHA / MOH / DOH (UAE)", count: 6 },
+  nz: [
+    { key: "himaa", name: "HIMAA", count: 7 },
+  ],
+  ca: [
+    { key: "chima", name: "CHIMA / CCHIM", count: 7 },
+    { key: "aapc", name: "AAPC", count: 6 },
+    { key: "ahima", name: "AHIMA", count: 4 },
+  ],
+  uk: [
+    { key: "ihrim", name: "IHRIM / NHS", count: 7 },
+    { key: "aapc", name: "AAPC", count: 4 },
+    { key: "ahima", name: "AHIMA", count: 4 },
+  ],
+  my: [
+    { key: "aapc", name: "AAPC", count: 32 },
+    { key: "ahima", name: "AHIMA", count: 5 },
+    { key: "hfma", name: "HFMA", count: 3 },
+  ],
+  sg: [
+    { key: "aapc", name: "AAPC", count: 5 },
+    { key: "ahima", name: "AHIMA", count: 5 },
+    { key: "hfma", name: "HFMA", count: 3 },
+    { key: "moh_himaa", name: "Local / MOH + HIMAA", count: 4 },
+  ],
+  za: [
+    { key: "aapc", name: "AAPC", count: 3 },
+    { key: "ahima", name: "AHIMA", count: 2 },
+    { key: "hfma", name: "HFMA", count: 1 },
+    { key: "saqa", name: "SAQA / Colleges", count: 1 },
+    { key: "himaa", name: "HIMAA", count: 3 },
+  ],
+  de: [
+    { key: "ihk", name: "IHK", count: 1 },
+    { key: "tuv", name: "TÜV Rheinland", count: 1 },
+    { key: "private_acad", name: "Private Academies", count: 1 },
+    { key: "gmds", name: "GMDS / GI / BVMI", count: 1 },
+  ],
+  br: [
+    { key: "aapc_sbais", name: "AAPC + SBAIS", count: 1 },
+  ],
+  mx: [
+    { key: "aapc", name: "AAPC", count: 32 },
+    { key: "ahima", name: "AHIMA", count: 3 },
+  ],
+  ng: [
+    { key: "aapc", name: "AAPC", count: 32 },
+    { key: "ahima", name: "AHIMA", count: 3 },
+  ],
+  th: [
+    { key: "thcc", name: "Thai Health Coding Centre / MOPH", count: 1 },
+  ],
+  jp: [
+    { key: "mhlw", name: "MHLW / Hospital DPC", count: 1 },
+  ],
+  fr: [
+    { key: "atih", name: "ATIH / Hospital DIM", count: 2 },
+  ],
+  ie: [
+    { key: "hpo", name: "HPO", count: 2 },
+  ],
+  nl: [
+    { key: "kiwa", name: "Kiwa / Zorginfostraat / Amstelacademie", count: 2 },
+  ],
+  ch: [
+    { key: "hospital_nat", name: "Hospital / National system", count: 2 },
+  ],
+  at: [
+    { key: "hospital_nat", name: "Hospital / National system", count: 2 },
   ],
 };
 
@@ -84,6 +196,21 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   // SECTION 2 · CERTIFICATION REGION & BODY
   const [selectedRegion, setSelectedRegion] = useState("us");
   const [selectedBodyKey, setSelectedBodyKey] = useState(existingData.body || "aapc");
+  const [certSearch, setCertSearch] = useState("");
+  const [regionSearch, setRegionSearch] = useState("");
+  const [regionDropdownOpen, setRegionDropdownOpen] = useState(false);
+
+  const selectedRegionObj = useMemo(() => {
+    return REGIONS.find((r) => r.id === selectedRegion) || REGIONS[0];
+  }, [selectedRegion]);
+
+  const filteredRegions = useMemo(() => {
+    const q = regionSearch.trim().toLowerCase();
+    if (!q) return REGIONS;
+    return REGIONS.filter(
+      (r) => r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q)
+    );
+  }, [regionSearch]);
 
   const availableBodies = useMemo(() => {
     return BODIES_BY_REGION[selectedRegion] || BODIES_BY_REGION.us;
@@ -91,6 +218,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   // Active Cert in dropdown
   const bodyData = CERT_LIBRARY[selectedBodyKey] || CERT_LIBRARY.aapc || { certs: [], name: "AAPC", fullName: "American Academy of Professional Coders" };
+  const filteredCerts = useMemo(() => {
+    const list = bodyData?.certs || [];
+    const q = certSearch.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (c) => c.code.toLowerCase().includes(q) || (c.name || "").toLowerCase().includes(q)
+    );
+  }, [bodyData, certSearch]);
   const [selectedCertCode, setSelectedCertCode] = useState(
     existingData.certCode && existingData.certCode !== "NON-CERT" ? existingData.certCode : (bodyData?.certs?.[0]?.code || "CPC")
   );
@@ -237,6 +372,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
   function handleBodySelect(bKey) {
     setSelectedBodyKey(bKey);
+    setCertSearch("");
     const bInfo = CERT_LIBRARY[bKey] || CERT_LIBRARY.aapc;
     if (bInfo?.certs?.length > 0) {
       setSelectedCertCode(bInfo.certs[0].code);
@@ -1685,22 +1821,69 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
 
               {/* Region Cascade */}
-              <div className="s3-field">
+              <div className="s3-field" style={{ position: "relative" }}>
                 <label>Step 1 · Region <span className="req">*</span></label>
                 <div className="s3-helper" style={{ marginBottom: 8 }}>Where was your certification issued?</div>
-                <div className="s3-region-row">
-                  {REGIONS.map((r) => (
-                    <div
-                      key={r.id}
-                      className={`s3-region-card ${selectedRegion === r.id ? "selected" : ""}`}
-                      onClick={() => handleRegionChange(r.id)}
-                    >
-                      <div className="s3-region-flag">{r.flag}</div>
-                      <div className="s3-region-name">{r.name}</div>
-                      <div className="s3-region-count">{r.count}</div>
-                    </div>
-                  ))}
-                </div>
+                <input
+                  type="text"
+                  placeholder="🔍 Search country..."
+                  value={regionDropdownOpen ? regionSearch : `${selectedRegionObj.flag}  ${selectedRegionObj.name}`}
+                  onFocus={() => {
+                    setRegionDropdownOpen(true);
+                    setRegionSearch("");
+                  }}
+                  onChange={(e) => {
+                    setRegionSearch(e.target.value);
+                    setRegionDropdownOpen(true);
+                  }}
+                  onBlur={() => setTimeout(() => setRegionDropdownOpen(false), 150)}
+                />
+                {regionDropdownOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      zIndex: 20,
+                      background: "#fff",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 8,
+                      marginTop: 4,
+                      maxHeight: 280,
+                      overflowY: "auto",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+                    }}
+                  >
+                    {filteredRegions.length === 0 && (
+                      <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
+                        {`No countries match "${regionSearch}"`}
+                      </div>
+                    )}
+                    {filteredRegions.map((r) => (
+                      <div
+                        key={r.id}
+                        onMouseDown={() => {
+                          handleRegionChange(r.id);
+                          setRegionDropdownOpen(false);
+                          setRegionSearch("");
+                        }}
+                        style={{
+                          padding: "10px 14px",
+                          cursor: "pointer",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          background: selectedRegion === r.id ? "#FDF6E4" : "transparent",
+                          fontWeight: selectedRegion === r.id ? 700 : 400,
+                        }}
+                      >
+                        <span>{r.flag}  {r.name}</span>
+                        <span style={{ fontSize: 11, color: "#94A3B8" }}>{r.count}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Body Pills */}
@@ -1723,11 +1906,23 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               {/* Cert Dropdown & Interactive Card */}
               <div className="s3-field">
                 <label>Step 3 · Pick your certification <span className="req">*</span></label>
+                <input
+                  type="text"
+                  placeholder="🔍 Search certifications by code or name..."
+                  value={certSearch}
+                  onChange={(e) => setCertSearch(e.target.value)}
+                  style={{ marginBottom: 8 }}
+                />
                 <select
                   value={selectedCertCode}
                   onChange={(e) => setSelectedCertCode(e.target.value)}
                 >
-                  {(bodyData?.certs || []).map((c) => (
+                  {filteredCerts.length === 0 && (
+                    <option value="" disabled>
+                      {`No certifications match "${certSearch}"`}
+                    </option>
+                  )}
+                  {filteredCerts.map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.flagText ? `⭐ ${c.code} — ${c.name}` : `${c.code} — ${c.name}`}
                     </option>

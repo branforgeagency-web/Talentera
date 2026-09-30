@@ -364,6 +364,17 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   const [showHowItWorks, setShowHowItWorks] = useState(false);
 
+  // If we arrived here via a #download-share link (e.g. from the Documents vault's
+  // Master Resume card), scroll straight to the Download & Share section.
+  useEffect(() => {
+    if (typeof window === "undefined" || window.location.hash !== "#download-share") return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById("s7-download-share-section");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
   // Template selection state
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
     if (stage7Data.template) return stage7Data.template;
@@ -2197,7 +2208,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           </div>
 
           {/* SECTION 5 · DOWNLOAD & SHARE */}
-          <div className="s7-section">
+          <div className="s7-section" id="s7-download-share-section">
             <div className="s7-section-header">
               <div className="s7-section-num">5</div>
               <div className="s7-section-title">Download &amp; Share</div>

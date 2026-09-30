@@ -1315,6 +1315,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <CandidateDocumentsSection
                 candidate={profile}
                 onVaultUpdated={fetchDashboardData}
+                onNavigateToResume={() => navigate('/dashboard?stage=7#download-share')}
               />
             </div>
           )}
