@@ -729,11 +729,48 @@ router.put("/stage/:n", async (req, res) => {
       // is only "verified" once a real proof document has actually been uploaded - simply
       // choosing that path does not itself constitute evidence.
       const realDocUrl = req.body.docUrl || req.body.proofDocUrl || s6.docUrl || null;
+
+      // Path "A" (Platform-Reported): a candidate can code live charts across many
+      // platforms/tools (picked from the list or added as a custom tool), so instead of
+      // one "primary platform" login, keep one account record per platform the candidate
+      // added - name, URL, username and profile ID - for Talentera staff (see
+      // /api/staff/verify-live-charts) to spot-check manually. This list is independent
+      // of the general "Platforms & systems you coded on" checklist in Section 2.
+      const selectedPlatformsForA = Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || []);
+      const rawPlatformAccounts = Array.isArray(req.body.platformAccounts) ? req.body.platformAccounts : (s6.platformAccounts || []);
+      const platformAccounts = evidencePath === "A"
+        ? rawPlatformAccounts.slice(0, 15).map((acc) => ({
+            platform: String(acc?.platform || "").trim().slice(0, 80),
+            url: String(acc?.url || "").trim().slice(0, 300),
+            username: String(acc?.username || "").trim().slice(0, 120),
+            profileId: String(acc?.profileId || "").trim().slice(0, 120),
+          })).filter((acc) => acc.platform)
+        : [];
+
+      // Any change to the platform accounts or the chart numbers themselves invalidates
+      // a prior staff verification/rejection - it's effectively a new claim that needs a
+      // fresh manual check. An unchanged resubmit (e.g. fixing an unrelated field) keeps
+      // whatever verification status staff already set.
+      const verificationSnapshot = JSON.stringify({
+        platformAccounts,
+        charts: specialtyCharts.map((r) => ({ name: r.name, count: r.count, accuracy: r.accuracy })),
+      });
+      const snapshotUnchanged = evidencePath === "A" && s6.evidencePath === "A" && s6.employeeVerificationSnapshot === verificationSnapshot;
+      const employeeVerified = snapshotUnchanged && !!s6.employeeVerified;
+      const employeeVerificationStatus = evidencePath !== "A" ? "" : snapshotUnchanged ? (s6.employeeVerificationStatus || (employeeVerified ? "verified" : "pending")) : "pending";
+      const employeeVerifiedBy = snapshotUnchanged ? (s6.employeeVerifiedBy || "") : "";
+      const employeeVerifiedAt = snapshotUnchanged ? (s6.employeeVerifiedAt || null) : null;
+      const employeeRejectionReason = snapshotUnchanged ? (s6.employeeRejectionReason || "") : "";
+
       let verified = false;
       let verificationMethod = "No Charts";
       if (evidencePath === "A") {
-        verificationMethod = "Self-Reported (Platform)";
-        verified = false;
+        verified = employeeVerified;
+        verificationMethod = employeeVerified
+          ? "Employee-Verified (Platform)"
+          : employeeVerificationStatus === "rejected"
+          ? "Platform Verification Rejected"
+          : "Self-Reported (Platform) — Pending Verification";
       } else if (evidencePath === "B") {
         verified = !!realDocUrl;
         verificationMethod = realDocUrl ? "Academy-Signed" : "Pending Upload";
@@ -748,6 +785,7 @@ router.put("/stage/:n", async (req, res) => {
         timePracticedHours,
         practicePeriodDays,
         hasProofDoc: !!realDocUrl,
+        staffVerified: evidencePath === "A" ? employeeVerified : false,
       });
       const { totalCharts, overallAccuracy, tier } = result;
 
@@ -756,7 +794,14 @@ router.put("/stage/:n", async (req, res) => {
         ...req.body,
         evidencePath,
         option: evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none",
-        selectedPlatforms: Array.isArray(req.body.selectedPlatforms) ? req.body.selectedPlatforms : (s6.selectedPlatforms || []),
+        selectedPlatforms: selectedPlatformsForA,
+        platformAccounts,
+        employeeVerified,
+        employeeVerificationStatus,
+        employeeVerifiedBy,
+        employeeVerifiedAt,
+        employeeRejectionReason,
+        employeeVerificationSnapshot: evidencePath === "A" ? verificationSnapshot : "",
         specialtyCharts,
         timePracticedHours,
         practicePeriodDays,
@@ -2024,6 +2069,7 @@ router.get("/vault", async (req, res) => {
           status: "verified",
           verified: true,
           stage: "Stage 07 · Verified Resume",
+          isMasterResume: true,
         });
       }
     }

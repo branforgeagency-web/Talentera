@@ -31,7 +31,7 @@ const PLATFORM_CATEGORIES = [
 const EXPERIENCED_ONLY_PLATFORMS = ["Kareo", "DrChrono", "AdvancedMD"];
 
 const getPaths = (isSelfTrained) => [
-  { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% credit", badge: "Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F", dotColor: "#EAB308" },
+  { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% once staff-verified · 60% pending", badge: "Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F", dotColor: "#EAB308" },
   { id: "B", title: "Academy-Verified Log", sub: "Upload your chart log signed off by your academy", credit: "100% with proof · 60% without", badge: "Academy-Signed", badgeBg: "#DCFCE7", badgeFg: "#166534", chipBg: "#1E293B", chipFg: "#FFFFFF", dotColor: "#16A34A" },
   { id: "C", title: "Self-Declared", sub: "Manual entry, subject to random audit", credit: "70% credit", badge: "Self-Declared", badgeBg: "#FFEDD5", badgeFg: "#9A3412", chipBg: "#0284C7", chipFg: "#FFFFFF", dotColor: "#F97316" },
   { id: "D", title: "No exposure yet", sub: isSelfTrained ? "Optional for self-trained — zero penalty to verification eligibility" : "Honest declaration — but limits company visibility", credit: "0 pts", badge: "No Charts", badgeBg: "#FEE2E2", badgeFg: "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF", dotColor: "#EF4444" },
@@ -145,7 +145,13 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
   const [evidencePath, setEvidencePath] = useState(() => (["A", "B", "C", "D"].includes(s6.evidencePath) ? s6.evidencePath : s6.option === "practicode" ? "A" : s6.option === "upload" ? "B" : s6.option === "none" ? "D" : "C"));
   const [selectedPlatforms, setSelectedPlatforms] = useState(() => (Array.isArray(s6.selectedPlatforms) ? s6.selectedPlatforms : s6.primaryPlatform ? [s6.primaryPlatform] : []));
   const [primaryPlatform, setPrimaryPlatform] = useState(s6.primaryPlatform || "");
-  const [platformProfileId, setPlatformProfileId] = useState(s6.platformProfileId || "");
+  // Path A: candidates can code live charts across many platforms, so accounts are
+  // added one at a time from a dropdown (or as a custom tool) rather than being tied
+  // to the Section 2 checklist - platform name, URL, username and profile ID per
+  // entry, for Talentera staff to manually verify each one.
+  const [platformAccounts, setPlatformAccounts] = useState(() => (Array.isArray(s6.platformAccounts) ? s6.platformAccounts : []));
+  const [platformToAdd, setPlatformToAdd] = useState("");
+  const [customPlatformName, setCustomPlatformName] = useState("");
   const [academyName, setAcademyName] = useState(s6.academyName || "");
   const [signedOffBy, setSignedOffBy] = useState(s6.signedOffBy || "");
   const [signOffDate, setSignOffDate] = useState(toDateInput(s6.signOffDate));
@@ -207,8 +213,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
 
   // ---- live score & result, from Stage 6 inputs only -------------------------------------
   const result = useMemo(
-    () => computeStage6Result({ evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, hasProofDoc: !!uploadedDocUrl }),
-    [evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, uploadedDocUrl]
+    () => computeStage6Result({ evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, hasProofDoc: !!uploadedDocUrl, staffVerified: evidencePath === "A" ? !!s6.employeeVerified : false }),
+    [evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, uploadedDocUrl, s6.employeeVerified]
   );
   const { totalCharts, overallAccuracy, tier } = result;
   const goal = useMemo(() => nextTierGoal(totalCharts, overallAccuracy, tier), [totalCharts, overallAccuracy, tier]);
@@ -242,7 +248,11 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     });
     if (Number(timePracticedHours) <= 0) e.hours = "Enter total hours practiced.";
     if (Number(practicePeriodDays) <= 0) e.period = "Enter the period these charts were coded in.";
-    if (evidencePath === "A" && !platformProfileId.trim()) e.profile = "Enter your platform username / profile ID so it can be spot-checked.";
+    if (evidencePath === "A") {
+      if (platformAccounts.length === 0) e.profile = "Add at least one platform below and fill in your account details for it.";
+      else if (platformAccounts.some((a) => !a.platform.trim() || !a.username.trim() || !a.profileId.trim()))
+        e.profile = "Enter a username and profile ID for each platform you added so staff can verify it.";
+    }
     if (evidencePath === "B") {
       if (!academyName.trim()) e.academy = "Enter your academy name.";
       if (!signedOffBy.trim()) e.signedBy = "Enter who signed off the log.";
@@ -250,7 +260,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     }
     if (!declarationAccepted) e.declaration = "Please confirm the declaration.";
     return e;
-  }, [evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, platformProfileId, academyName, signedOffBy, signOffDate, declarationAccepted]);
+  }, [evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, platformAccounts, academyName, signedOffBy, signOffDate, declarationAccepted]);
 
   const hasErrors = Boolean(errors.charts || errors.hours || errors.period || errors.profile || errors.academy || errors.signedBy || errors.signDate || errors.declaration || Object.keys(errors.rows).length);
   const showErr = (key) => (showErrors ? errors[key] : undefined);
@@ -264,6 +274,19 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
       return next;
     });
   };
+  const updatePlatformAccount = (plat, field, value) =>
+    setPlatformAccounts((prev) => prev.map((a) => (a.platform === plat ? { ...a, [field]: value } : a)));
+  const addPlatformAccount = () => {
+    const name = (platformToAdd === "__custom__" ? customPlatformName : platformToAdd).trim();
+    if (!name) return;
+    setPlatformAccounts((prev) => {
+      if (prev.some((a) => a.platform.toLowerCase() === name.toLowerCase())) return prev;
+      return [...prev, { platform: name, url: "", username: "", profileId: "" }];
+    });
+    setPlatformToAdd("");
+    setCustomPlatformName("");
+  };
+  const removePlatformAccount = (plat) => setPlatformAccounts((prev) => prev.filter((a) => a.platform !== plat));
   const updateRow = (id, field, value) => setSpecialtyCharts((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
   const addRow = () => setSpecialtyCharts((prev) => [...prev, blankRow(prev.reduce((m, r) => Math.max(m, Number(r.id) || 0), 0) + 1)]);
   const removeRow = (id) => setSpecialtyCharts((prev) => (prev.length === 1 ? [blankRow(1)] : prev.filter((r) => r.id !== id)));
@@ -292,7 +315,11 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     option: evidencePath === "A" ? "practicode" : evidencePath === "B" ? "upload" : evidencePath === "C" ? "declare" : "none",
     selectedPlatforms: evidencePath === "D" ? [] : selectedPlatforms,
     primaryPlatform: evidencePath === "D" ? "" : primaryPlatform || selectedPlatforms[0] || "",
-    platformProfileId: evidencePath === "A" ? platformProfileId.trim() : "",
+    platformAccounts: evidencePath === "A"
+      ? platformAccounts
+          .filter((a) => a.platform.trim())
+          .map((a) => ({ platform: a.platform.trim(), url: a.url.trim(), username: a.username.trim(), profileId: a.profileId.trim() }))
+      : [],
     academyName: evidencePath === "B" ? academyName.trim() : "",
     signedOffBy: evidencePath === "B" ? signedOffBy.trim() : "",
     signOffDate: evidencePath === "B" ? signOffDate : "",
@@ -651,14 +678,88 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                   {evidencePath === "A" && (
                     <div style={{ background: "#EFF6FF", border: "1.5px solid #93C5FD", borderRadius: 14, padding: "18px 20px", marginBottom: 16 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-                        <p style={{ fontSize: 12, color: "#1E40AF", margin: 0, lineHeight: 1.5, flex: 1, minWidth: 220 }}>Live platform sync isn&apos;t available yet. Enter the figures from your platform dashboard above and your account ID here so your academy or Talentera staff can spot-check them.</p>
+                        <p style={{ fontSize: 12, color: "#1E40AF", margin: 0, lineHeight: 1.5, flex: 1, minWidth: 220 }}>Live platform sync isn&apos;t available yet. Enter the figures from your platform dashboard above, then add each platform or tool you coded on below (pick from the list or add a custom one) with your account details so Talentera staff can manually verify each one.</p>
                         <button type="button" onClick={() => setShowOAuthModal(true)} style={{ background: "#0F172A", color: "#FFFFFF", border: "none", borderRadius: 10, padding: "8px 14px", fontSize: 12.5, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <i className="fa-solid fa-circle-info" /> How this works
                         </button>
                       </div>
-                      <Field label={`${primaryPlatform || selectedPlatforms[0] || "Platform"} username / profile ID`} required error={showErr("profile")}>
-                        <input type="text" value={platformProfileId} maxLength={80} onChange={(e) => setPlatformProfileId(e.target.value)} placeholder="Your login ID or public profile link" style={showErr("profile") ? INPUT_ERR : INPUT} />
-                      </Field>
+
+                      {s6.evidencePath === "A" && s6.employeeVerificationStatus && (
+                        <div style={{
+                          marginBottom: 14, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, fontWeight: 700,
+                          background: s6.employeeVerified ? "#DCFCE7" : s6.employeeVerificationStatus === "rejected" ? "#FEE2E2" : "#FEF9C3",
+                          color: s6.employeeVerified ? "#166534" : s6.employeeVerificationStatus === "rejected" ? "#991B1B" : "#854D0E",
+                        }}>
+                          {s6.employeeVerified
+                            ? `✅ Verified by Talentera staff${s6.employeeVerifiedBy ? ` (${s6.employeeVerifiedBy})` : ""} — full credit applied.`
+                            : s6.employeeVerificationStatus === "rejected"
+                            ? `⚠️ Not verified: ${s6.employeeRejectionReason || "please recheck your platform account details."}`
+                            : "⏳ Pending Talentera staff verification — counted at partial (60%) credit until verified."}
+                        </div>
+                      )}
+
+                      <div style={{ background: "#FFFFFF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 16px", marginBottom: platformAccounts.length > 0 ? 14 : 0 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.04em", marginBottom: 8 }}>ADD A PLATFORM / TOOL</div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                          <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+                            <select value={platformToAdd} onChange={(e) => setPlatformToAdd(e.target.value)} style={INPUT}>
+                              <option value="">Select a platform…</option>
+                              {platformCategories.map((g) => (
+                                <optgroup key={g.category} label={g.title}>
+                                  {g.platforms
+                                    .filter((p) => !platformAccounts.some((a) => a.platform.toLowerCase() === p.toLowerCase()))
+                                    .map((p) => <option key={p} value={p}>{p}</option>)}
+                                </optgroup>
+                              ))}
+                              <option value="__custom__">+ Add a custom tool…</option>
+                            </select>
+                          </div>
+                          {platformToAdd === "__custom__" && (
+                            <div style={{ flex: "1 1 220px", minWidth: 200 }}>
+                              <input type="text" value={customPlatformName} maxLength={80} onChange={(e) => setCustomPlatformName(e.target.value)} placeholder="Tool / platform name" style={INPUT} />
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={addPlatformAccount}
+                            disabled={!platformToAdd || (platformToAdd === "__custom__" && !customPlatformName.trim())}
+                            style={{
+                              background: !platformToAdd || (platformToAdd === "__custom__" && !customPlatformName.trim()) ? "#CBD5E1" : "#0F172A",
+                              color: "#FFFFFF", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 12.5, fontWeight: 800,
+                              cursor: !platformToAdd || (platformToAdd === "__custom__" && !customPlatformName.trim()) ? "not-allowed" : "pointer",
+                            }}
+                          >
+                            + Add
+                          </button>
+                        </div>
+                        {platformAccounts.length === 0 && <div style={{ ...HINT, marginTop: 8 }}>Add every platform or tool you coded charts on - Practicode, Codivia, a custom in-house tool, anything.</div>}
+                      </div>
+
+                      {platformAccounts.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                          {platformAccounts.map((acc) => (
+                            <div key={acc.platform} style={{ background: "#FFFFFF", border: "1px solid #BFDBFE", borderRadius: 12, padding: "14px 16px" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: "#0F172A" }}>{acc.platform}</div>
+                                <button type="button" aria-label={`Remove ${acc.platform}`} onClick={() => removePlatformAccount(acc.platform)} style={{ background: "transparent", border: "none", color: "#94A3B8", fontSize: 14, cursor: "pointer" }}>
+                                  <i className="fa-solid fa-xmark" />
+                                </button>
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                                <Field label="Profile URL" hint="Optional — a link to your public profile/dashboard.">
+                                  <input type="text" value={acc.url} maxLength={300} onChange={(e) => updatePlatformAccount(acc.platform, "url", e.target.value)} placeholder="https://..." style={INPUT} />
+                                </Field>
+                                <Field label="Username" required error={showErr("profile")}>
+                                  <input type="text" value={acc.username} maxLength={120} onChange={(e) => updatePlatformAccount(acc.platform, "username", e.target.value)} placeholder="Your login / display name" style={showErr("profile") ? INPUT_ERR : INPUT} />
+                                </Field>
+                                <Field label="Profile ID" required error={showErr("profile")}>
+                                  <input type="text" value={acc.profileId} maxLength={120} onChange={(e) => updatePlatformAccount(acc.platform, "profileId", e.target.value)} placeholder="Account / employee / student ID" style={showErr("profile") ? INPUT_ERR : INPUT} />
+                                </Field>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
 

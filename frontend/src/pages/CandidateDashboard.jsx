@@ -249,10 +249,12 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
   // Helper to open the Candidate 7 Stages Dashboard / Wizard at any specific stage
   const handleOpenStagesWizard = (stageNum = 1) => {
+    try {
+      localStorage.setItem('talentera_active_stage', String(stageNum));
+    } catch (e) {}
+    navigate(`/dashboard?stage=${stageNum}`);
     if (typeof onEditStage === 'function') {
       onEditStage(stageNum);
-    } else {
-      navigate(`/dashboard?stage=${stageNum}`);
     }
   };
   const [profile, setProfile] = useState(propProfile || null);
@@ -1315,6 +1317,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <CandidateDocumentsSection
                 candidate={profile}
                 onVaultUpdated={fetchDashboardData}
+                onNavigateToResume={() => handleOpenStagesWizard(7)}
+                onOpenStage={handleOpenStagesWizard}
               />
             </div>
           )}

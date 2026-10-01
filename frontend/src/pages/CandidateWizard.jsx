@@ -106,6 +106,20 @@ export default function CandidateWizard() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    const stageParam = Number(searchParams.get("stage"));
+    if (stageParam >= 1 && stageParam <= 7) {
+      setActiveStageId(stageParam);
+      try {
+        localStorage.setItem("talentera_active_stage", String(stageParam));
+      } catch (e) {}
+      if (!searchParams.get("view")) {
+        setShowDashboard(false);
+        setShowVerifiedPool(false);
+      }
+    }
+  }, [searchParams]);
+
   function handleSelectStage(stageNum) {
     const candidateObj = profile?.candidate || profile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];

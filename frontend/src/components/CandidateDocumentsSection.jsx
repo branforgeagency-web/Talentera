@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
 const CATEGORY_TABS = [
@@ -22,7 +23,8 @@ const UPLOAD_DOC_TYPES = [
   { id: 'Other Credential', label: 'Other Professional Credential', icon: '📁' },
 ];
 
-export default function CandidateDocumentsSection({ candidate, onVaultUpdated }) {
+export default function CandidateDocumentsSection({ candidate, onVaultUpdated, onNavigateToResume, onOpenStage }) {
+  const navigate = useNavigate();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,6 +47,29 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
   const showToast = (msg) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3500);
+  };
+
+  const isMasterResumeDoc = (doc) => {
+    if (!doc) return false;
+    return Boolean(
+      doc.isMasterResume ||
+      doc.id === 's7_master_resume' ||
+      doc.title === 'Talentera Verified Master Resume' ||
+      doc.stage === 'Stage 07 · Verified Resume' ||
+      doc.stage?.includes('Stage 07') ||
+      doc.stage?.includes('Stage 7') ||
+      (doc.docType === 'Resume / CV' && (doc.title?.toLowerCase().includes('resume') || doc.stage?.includes('07')))
+    );
+  };
+
+  const handleViewResume = () => {
+    if (typeof onNavigateToResume === 'function') {
+      onNavigateToResume();
+    } else if (typeof onOpenStage === 'function') {
+      onOpenStage(7);
+    } else {
+      navigate('/dashboard?stage=7');
+    }
   };
 
   // Merge any available candidate profile data with the fetched vault array
@@ -192,7 +217,9 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
         id: 's7_master_resume',
         title: 'Talentera Verified Master Resume',
         docType: 'Resume / CV',
-        docUrl: profile.resumeUrl || profile.stage7?.resumeUrl || null,
+        docUrl: null,
+        isMasterResume: true,
+        liveUrl: profile.resumeUrl || profile.stage7?.resumeUrl || null,
         docName: profile.resumeFileName || profile.stage7?.resumeFileName || 'Talentera_Verified_Resume.pdf',
         uploadedAt: profile.stage7?.updatedAt || profile.updatedAt || new Date().toISOString(),
         status: 'verified',
@@ -233,6 +260,20 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
         }
       });
     }
+
+    // Ensure all Stage 7 / Master Resume entries are marked
+    list.forEach((d) => {
+      if (
+        d.id === 's7_master_resume' ||
+        d.title === 'Talentera Verified Master Resume' ||
+        d.stage === 'Stage 07 · Verified Resume' ||
+        d.stage?.includes('Stage 07') ||
+        d.stage?.includes('Stage 7') ||
+        (d.docType === 'Resume / CV' && (d.title?.toLowerCase().includes('resume') || d.stage?.includes('07')))
+      ) {
+        d.isMasterResume = true;
+      }
+    });
 
     return list;
   };
@@ -743,7 +784,31 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
                     marginTop: 6,
                   }}>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      {docUrl ? (
+                      {isMasterResumeDoc(doc) ? (
+                        <button
+                          type="button"
+                          onClick={handleViewResume}
+                          style={{
+                            background: '#0F1B3D',
+                            border: 'none',
+                            borderRadius: 6,
+                            padding: '7px 14px',
+                            fontSize: 12.5,
+                            fontWeight: 600,
+                            color: '#FFFFFF',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            boxShadow: '0 2px 4px rgba(15,27,61,0.12)',
+                            transition: 'all 0.15s ease',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#1E293B')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = '#0F1B3D')}
+                        >
+                          👁️ View the Resume
+                        </button>
+                      ) : docUrl ? (
                         <>
                           <button
                             onClick={() => setPreviewDoc(doc)}
@@ -809,7 +874,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
                       )}
                     </div>
 
-                    {doc.id && !doc.isRegisteredCert && !doc.isAssessmentProof && (
+                    {doc.id && !doc.isRegisteredCert && !doc.isAssessmentProof && !isMasterResumeDoc(doc) && (
                       <button
                         onClick={() => handleDeleteDoc(doc.id)}
                         title="Remove Document"
@@ -881,40 +946,64 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated })
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button
-                            onClick={() => setPreviewDoc(doc)}
-                            style={{
-                              background: '#F1F5F9',
-                              border: '1px solid #CBD5E1',
-                              borderRadius: 4,
-                              padding: '4px 8px',
-                              fontSize: 11.5,
-                              cursor: 'pointer',
-                              fontWeight: 600,
-                            }}
-                          >
-                            Preview
-                          </button>
-                          {docUrl && (
-                            <a
-                              href={docUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download={doc.docName}
+                          {isMasterResumeDoc(doc) ? (
+                            <button
+                              type="button"
+                              onClick={handleViewResume}
                               style={{
                                 background: '#0F1B3D',
                                 color: '#FFFFFF',
                                 border: 'none',
                                 borderRadius: 4,
-                                padding: '4px 8px',
-                                fontSize: 11.5,
+                                padding: '5px 12px',
+                                fontSize: 12,
                                 cursor: 'pointer',
                                 fontWeight: 600,
-                                textDecoration: 'none',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
                               }}
                             >
-                              Download
-                            </a>
+                              👁️ View the Resume
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setPreviewDoc(doc)}
+                                style={{
+                                  background: '#F1F5F9',
+                                  border: '1px solid #CBD5E1',
+                                  borderRadius: 4,
+                                  padding: '4px 8px',
+                                  fontSize: 11.5,
+                                  cursor: 'pointer',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                Preview
+                              </button>
+                              {docUrl && (
+                                <a
+                                  href={docUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download={doc.docName}
+                                  style={{
+                                    background: '#0F1B3D',
+                                    color: '#FFFFFF',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    padding: '4px 8px',
+                                    fontSize: 11.5,
+                                    cursor: 'pointer',
+                                    fontWeight: 600,
+                                    textDecoration: 'none',
+                                  }}
+                                >
+                                  Download
+                                </a>
+                              )}
+                            </>
                           )}
                         </div>
                       </td>
