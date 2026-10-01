@@ -25,6 +25,7 @@ const path = require("path");
 const { announcePostedJob, announceOnboardingJd } = require("../utils/jobAlerts");
 const { isCloudinaryConfigured, uploadBufferToCloudinary } = require("../config/cloudinary");
 const { startLiveVerifySession, captureLiveVerifyResult, closeLiveVerifySession } = require("../utils/liveVerifySession");
+const { computeStage6Result } = require("../utils/stage6Score");
 
 const router = express.Router();
 
@@ -948,6 +949,114 @@ router.post("/verify-certification", requireStaffAuth, async (req, res) => {
     res.status(500).json({ message: "Failed to verify certification." });
   }
 });
+// POST /api/staff/verify-live-charts - a candidate can report coding live charts
+// across many platforms (Practicode, Codivia, 3M 360 Encompass, etc.); there's no
+// public API to confirm those claims automatically, so Path A ("Platform-Reported")
+// stays self-reported with one account record per platform (name, URL, username,
+// profile ID - see candidate.stage6.platformAccounts) until a Talentera staff member
+// actually checks it here. Full Stage 6 credit (the evidence-trust multiplier) is
+// only applied once verified - see evidenceMultiplier() in utils/stage6Score.js -
+// so an unverified claim never silently scores as if it were confirmed.
+router.post("/verify-live-charts", requireStaffAuth, async (req, res) => {
+  try {
+    const { candidateId, action, rejectionReason, notes } = req.body;
+    if (!["verify", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Action must be \"verify\" or \"reject\"." });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+    const s6 = candidate.stage6 || {};
+    if (s6.evidencePath !== "A") {
+      return res.status(400).json({ message: "This candidate's Stage 6 submission isn't on the Platform-Reported evidence path - nothing to verify here." });
+    }
+    if (!Array.isArray(s6.specialtyCharts) || s6.specialtyCharts.length === 0) {
+      return res.status(400).json({ message: "This candidate has no live chart submission to review." });
+    }
+
+    const employeeVerified = action === "verify";
+    const result = computeStage6Result({
+      evidencePath: "A",
+      specialtyCharts: s6.specialtyCharts || [],
+      timePracticedHours: s6.timePracticedHours || 0,
+      practicePeriodDays: s6.practicePeriodDays || 0,
+      hasProofDoc: false,
+      staffVerified: employeeVerified,
+    });
+    const { totalCharts, overallAccuracy, tier } = result;
+
+    candidate.stage6 = {
+      ...s6,
+      employeeVerified,
+      employeeVerificationStatus: employeeVerified ? "verified" : "rejected",
+      employeeVerifiedBy: employeeVerified ? (req.staffName || "") : "",
+      employeeVerifiedAt: employeeVerified ? new Date() : null,
+      employeeRejectionReason: employeeVerified ? "" : (rejectionReason || "Platform account details could not be confirmed. Please double-check the platform, username and profile ID for each platform and resubmit."),
+      verified: employeeVerified,
+      verificationMethod: employeeVerified ? "Employee-Verified (Platform)" : "Platform Verification Rejected",
+      overallAccuracy,
+      totalCharts,
+      liveChartsAudited: totalCharts,
+      accuracyScore: overallAccuracy,
+      accuracy: overallAccuracy,
+      tier,
+      stageScore: result.stageScore,
+      scoreBreakdown: result.breakdown,
+      evidenceMultiplier: result.multiplier,
+      verificationPoints: result.points,
+      needsReview: result.needsReview,
+    };
+    candidate.markModified("stage6");
+    await candidate.save();
+
+    try {
+      if (employeeVerified) {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: "Live Charts Verified ✅",
+          message: `Talentera staff verified your platform account details - your Stage 6 Live Charts submission (${totalCharts} charts, ${tier} tier) now counts at full credit.`,
+          type: "kyc_verified",
+          meta: { source: "admin", action: "verify_live_charts", actionType: "stage_6", actionLabel: "View Live Charts" },
+        });
+      } else {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidateId),
+          title: "Live Charts Verification Needs Attention ⚠️",
+          message: `Talentera staff could not verify your platform account details: ${candidate.stage6.employeeRejectionReason}`,
+          type: "kyc_revision",
+          meta: { source: "admin", action: "reject_live_charts", actionType: "stage_6", actionLabel: "Update Live Charts" },
+        });
+      }
+    } catch (notifErr) {
+      logger.warn(`Candidate notification create failed: ${notifErr.message}`);
+    }
+
+    logger.info(
+      `[LIVE CHARTS AUDIT] ${candidate.email}: Stage 6 platform claim ${employeeVerified ? "VERIFIED" : "REJECTED"}` +
+        (notes ? ` — ${notes}` : "") +
+        (!employeeVerified ? ` (reason: ${candidate.stage6.employeeRejectionReason})` : "")
+    );
+
+    await recordAudit(req, {
+      action: employeeVerified ? "verify_live_charts" : "reject_live_charts",
+      targetType: "candidate",
+      targetId: candidateId,
+      summary: `Stage 6 live-chart platform claim for ${candidate.email} ${employeeVerified ? "verified" : "rejected"} by staff.`,
+      meta: { rejectionReason: candidate.stage6.employeeRejectionReason || undefined },
+    });
+
+    res.json({
+      message: `Live charts ${employeeVerified ? "verified - full credit applied" : "marked for revision"}.`,
+      candidate,
+    });
+  } catch (err) {
+    logger.error(`Verify live charts error: ${err.message}`);
+    res.status(500).json({ message: "Failed to verify live charts." });
+  }
+});
+
 
 // POST /api/staff/verify-video - Approve (or send back) a candidate's Stage
 // 5 self-introduction video after a staff member actually watches it. This

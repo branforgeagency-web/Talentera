@@ -7,6 +7,7 @@ const StudentInvite = require("../models/StudentInvite");
 const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
 const { compute8Stages, TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
+const { computeStage6Result } = require("../utils/stage6Score");
 const Application = require("../models/Application");
 const Notification = require("../models/Notification");
 const RetakeRequest = require("../models/RetakeRequest");
@@ -1341,6 +1342,385 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
   } catch (err) {
     logger.error(`Upload confirm error: ${err.message}`);
     res.status(500).json({ message: "Failed to confirm student upload and queue invites." });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
+// Stage 6 "Live Charts" bulk upload - lets an academy upload chart-coding
+// stats (specialty, charts coded, accuracy %, min/chart, last coded date) for
+// many of its own students in one CSV, instead of each student re-typing the
+// same numbers the academy's own training records already have. There is no
+// public API from the practice platforms (Practicode, Codivia, 3M 360
+// Encompass, SuperCoder, FlashCode, HCC Coder) to pull this automatically, so
+// this is the closest thing to automatic: the academy, which already runs the
+// practice sessions and knows the real numbers, reports them once in bulk
+// instead of every student hand-typing per-specialty rows into Stage 6.
+//
+// Two-step flow, same shape as /students/upload-csv + /students/upload-confirm:
+//   1) POST /students/chart-stats/upload-csv     -> parse + validate, no writes
+//   2) POST /students/chart-stats/upload-confirm -> apply the accepted rows
+//
+// Trust tier: written as Stage 6 evidence path "B" (Academy-Signed) and marked
+// fully verified - the data comes directly from the academy's own system of
+// record about its own enrolled student, the same trust Talentera already
+// gives an academy-signed proof document. Students who already completed
+// Stage 6 are always skipped, never overwritten, so a bulk upload can never
+// clobber a candidate's own verified submission.
+// ---------------------------------------------------------------------------
+
+// Keep in sync with isSelfTrainedCandidate() in backend/routes/candidate.js
+// and frontend/src/data/wizardStages.js.
+const CHART_SELF_SOURCE_RE = /self[\s-]?(learning|study|taught|trained)|youtube|udemy|coursera|\bedx\b|online course|aapc official|ahima study|blogs?,? forums|on-the-job/i;
+function isSelfTrainedForChartUpload(candidate) {
+  const s2 = (candidate && candidate.stage2) || {};
+  const level = String(s2.trainingLevel || s2.level || "");
+  const source = String(s2.selfLearningSource || s2.academyName || s2.instituteName || "");
+  return Boolean(
+    s2.trainingPath === "self" ||
+    s2.trainingPath === "non_trained" ||
+    s2.trainingPath === "non-trained" ||
+    s2.isNonTrained ||
+    s2.isSelfTrained ||
+    s2.trainingType === "self" ||
+    (candidate && (candidate.trainingPath === "self" || candidate.trainingPath === "non_trained" || candidate.trainingPath === "non-trained" || candidate.isSelfTrained || candidate.isNonTrained)) ||
+    s2.selfLearningSource ||
+    /non[\s-]?trained/i.test(level) ||
+    CHART_SELF_SOURCE_RE.test(source)
+  );
+}
+
+// Keep in sync with SPECIALTY_OPTIONS in frontend/src/components/wizard/Stage6LiveCharts.jsx
+const CHART_SPECIALTY_OPTIONS = [
+  "HCC (Risk Adjustment)",
+  "E/M (Evaluation & Management)",
+  "ED (Emergency Department)",
+  "Surgery",
+  "Inpatient (IP-DRG)",
+  "Outpatient / Ambulatory",
+  "Radiology",
+  "Pathology & Lab",
+  "Cardiology",
+  "Orthopedics",
+  "Oncology",
+  "Gastroenterology",
+  "Neurology",
+  "Pediatrics",
+  "OB/GYN",
+  "Anesthesia",
+  "Dental",
+  "Physical Therapy / Rehab",
+  "Behavioral Health",
+  "Dermatology",
+  "Ophthalmology",
+  "ICD-10-CM Diagnosis",
+  "CPT / HCPCS Procedure",
+];
+// Short aliases a coder might reasonably type that aren't the exact dropdown label.
+const CHART_SPECIALTY_ALIASES = {
+  "hcc": "HCC (Risk Adjustment)",
+  "risk adjustment": "HCC (Risk Adjustment)",
+  "e/m": "E/M (Evaluation & Management)",
+  "em": "E/M (Evaluation & Management)",
+  "evaluation and management": "E/M (Evaluation & Management)",
+  "ed": "ED (Emergency Department)",
+  "emergency department": "ED (Emergency Department)",
+  "er": "ED (Emergency Department)",
+  "ip": "Inpatient (IP-DRG)",
+  "ip-drg": "Inpatient (IP-DRG)",
+  "inpatient": "Inpatient (IP-DRG)",
+  "drg": "Inpatient (IP-DRG)",
+  "op": "Outpatient / Ambulatory",
+  "outpatient": "Outpatient / Ambulatory",
+  "ambulatory": "Outpatient / Ambulatory",
+  "icd": "ICD-10-CM Diagnosis",
+  "icd10": "ICD-10-CM Diagnosis",
+  "icd-10": "ICD-10-CM Diagnosis",
+  "diagnosis": "ICD-10-CM Diagnosis",
+  "cpt": "CPT / HCPCS Procedure",
+  "hcpcs": "CPT / HCPCS Procedure",
+  "procedure": "CPT / HCPCS Procedure",
+  "ob/gyn": "OB/GYN",
+  "obgyn": "OB/GYN",
+};
+function resolveChartSpecialty(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+  const exact = CHART_SPECIALTY_OPTIONS.find((o) => o.toLowerCase() === s.toLowerCase());
+  if (exact) return exact;
+  const alias = CHART_SPECIALTY_ALIASES[s.toLowerCase()];
+  if (alias) return alias;
+  // Loose contains-match as a last resort (e.g. "Cardiology coding" -> "Cardiology")
+  const loose = CHART_SPECIALTY_OPTIONS.find((o) => s.toLowerCase().includes(o.toLowerCase()) || o.toLowerCase().includes(s.toLowerCase()));
+  return loose || null;
+}
+
+function parseChartStatsRows(rawRows) {
+  // Group flat CSV rows (one per candidate+specialty) into one entry per email.
+  const byEmail = new Map();
+  const rowErrors = [];
+
+  rawRows.forEach((row, idx) => {
+    const rowIndex = idx + 1;
+    const email = (row.email || row.student_email || row["student email"] || row["email address"] || "").toLowerCase().trim();
+    const specialtyRaw = row.specialty || row.speciality || row.domain || "";
+    const countRaw = row.charts_coded ?? row.charts ?? row.chart_count ?? row.count ?? "";
+    const accuracyRaw = row.accuracy_pct ?? row.accuracy ?? row.accuracy_percent ?? "";
+    const minRaw = row.min_per_chart ?? row.minutes_per_chart ?? row.time_per_chart ?? row.avg_time_per_chart ?? "";
+    const lastCodedRaw = row.last_coded_date ?? row.last_coded ?? row.date ?? "";
+
+    const errors = [];
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.push("Invalid or missing email.");
+    }
+    const specialty = resolveChartSpecialty(specialtyRaw);
+    if (!specialty) {
+      errors.push(`Specialty "${specialtyRaw}" not recognized. Use one of: ${CHART_SPECIALTY_OPTIONS.join(", ")}`);
+    }
+    const count = Math.max(0, Math.floor(Number(countRaw)) || 0);
+    if (!countRaw || !(count > 0)) {
+      errors.push("Charts coded must be a number greater than 0.");
+    }
+    const accuracy = Math.min(100, Math.max(0, Number(accuracyRaw) || 0));
+    if (accuracyRaw === "" || Number.isNaN(Number(accuracyRaw))) {
+      errors.push("Accuracy % must be a number between 0 and 100.");
+    }
+    const timePerChartMin = Math.max(0, parseFloat(minRaw) || 0);
+    let lastCodedDate = null;
+    if (lastCodedRaw) {
+      const d = new Date(lastCodedRaw);
+      if (!Number.isNaN(d.getTime())) lastCodedDate = d.toISOString();
+    }
+
+    if (errors.length > 0) {
+      rowErrors.push({ row: rowIndex, email, errors });
+      return;
+    }
+
+    if (!byEmail.has(email)) byEmail.set(email, []);
+    byEmail.get(email).push({
+      name: specialty,
+      count,
+      accuracy,
+      timePerChart: `${timePerChartMin} min`,
+      timePerChartMin,
+      lastCodedDate,
+    });
+  });
+
+  return { byEmail, rowErrors };
+}
+
+// POST /api/academy/students/chart-stats/upload-csv - parse + validate a bulk
+// Stage 6 chart-stats CSV. No database writes happen here; the academy reviews
+// the preview and then calls upload-confirm with the rows it wants to apply.
+router.post("/students/chart-stats/upload-csv", requireAcademyAuth, upload.single("file"), async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: "No file uploaded. Please provide a CSV file." });
+    }
+    const rawRows = parseCsvBuffer(req.file.buffer);
+    if (rawRows.length === 0) {
+      return res.status(400).json({ message: "No data found in uploaded file. Please provide a valid CSV with chart-stat rows." });
+    }
+
+    const { byEmail, rowErrors } = parseChartStatsRows(rawRows);
+
+    // Scope to this academy's own students only - the same filter the dashboard
+    // and every other student-facing academy endpoint uses.
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
+    const myCandidates = await Candidate.find(filter, { email: 1, completedStages: 1, stage1: 1, stage2: 1 }).lean();
+    const candidateByEmail = new Map(myCandidates.map((c) => [(c.email || "").toLowerCase().trim(), c]));
+
+    const previewCandidates = [];
+    let acceptedCount = 0;
+    let skippedCount = 0;
+    let notFoundCount = 0;
+
+    for (const [email, rows] of byEmail.entries()) {
+      const candidate = candidateByEmail.get(email);
+      const totalCharts = rows.reduce((s, r) => s + r.count, 0);
+      if (!candidate) {
+        notFoundCount++;
+        previewCandidates.push({
+          email,
+          candidateName: null,
+          candidateId: null,
+          rows,
+          totalCharts,
+          status: "not_found",
+          reason: "No student with this email was found among your academy's Talentera students.",
+        });
+        continue;
+      }
+      const alreadyCompleted = Array.isArray(candidate.completedStages) && candidate.completedStages.includes(6);
+      if (alreadyCompleted) {
+        skippedCount++;
+        previewCandidates.push({
+          email,
+          candidateName: candidate.stage1?.fullName || "",
+          candidateId: candidate._id,
+          rows,
+          totalCharts,
+          status: "already_completed",
+          reason: "This student already completed Stage 6 - skipped so their existing submission is never overwritten.",
+        });
+        continue;
+      }
+      acceptedCount++;
+      previewCandidates.push({
+        email,
+        candidateName: candidate.stage1?.fullName || "",
+        candidateId: candidate._id,
+        rows,
+        totalCharts,
+        status: "ready",
+        reason: null,
+      });
+    }
+
+    res.json({
+      filename: req.file.originalname || "chart_stats.csv",
+      rows_parsed: rawRows.length,
+      candidates_parsed: previewCandidates.length,
+      accepted_count: acceptedCount,
+      skipped_count: skippedCount,
+      not_found_count: notFoundCount,
+      row_errors: rowErrors,
+      preview_candidates: previewCandidates,
+      summary: `${acceptedCount} student(s) ready to update, ${skippedCount} already completed Stage 6 (skipped), ${notFoundCount} not found, ${rowErrors.length} row error(s).`,
+    });
+  } catch (err) {
+    logger.error(`Chart-stats upload CSV parse error: ${err.message}`);
+    res.status(err.userMessage ? 400 : 500).json({ message: err.userMessage || "Failed to parse and validate chart-stats CSV." });
+  }
+});
+
+// POST /api/academy/students/chart-stats/upload-confirm - apply the "ready"
+// rows from the preview above into each candidate's Stage 6. Re-checks
+// academy ownership and "already completed" status at write time too, since
+// time may have passed since the preview was generated.
+router.post("/students/chart-stats/upload-confirm", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const { candidates: candidatesToApply, filename } = req.body;
+    if (!Array.isArray(candidatesToApply) || candidatesToApply.length === 0) {
+      return res.status(400).json({ message: "No candidate rows provided." });
+    }
+
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
+    const myCandidateIds = new Set((await Candidate.find(filter, { _id: 1 }).lean()).map((c) => c._id.toString()));
+
+    const updated = [];
+    const skipped = [];
+
+    for (const entry of candidatesToApply) {
+      const candidateId = entry.candidateId;
+      if (!candidateId || !myCandidateIds.has(String(candidateId))) {
+        skipped.push({ email: entry.email, reason: "Not one of your academy's students." });
+        continue;
+      }
+      const candidate = await Candidate.findById(candidateId);
+      if (!candidate) {
+        skipped.push({ email: entry.email, reason: "Student not found." });
+        continue;
+      }
+      if (Array.isArray(candidate.completedStages) && candidate.completedStages.includes(6)) {
+        skipped.push({ email: entry.email, reason: "Already completed Stage 6 - not overwritten." });
+        continue;
+      }
+
+      const rows = Array.isArray(entry.rows) ? entry.rows : [];
+      const specialtyCharts = rows.slice(0, 30).map((r, i) => ({
+        id: i + 1,
+        name: String(r.name || "").trim().slice(0, 60),
+        icon: "📑",
+        count: Math.max(0, Math.floor(Number(r.count) || 0)),
+        accuracy: Math.min(100, Math.max(0, Number(r.accuracy) || 0)),
+        timePerChart: `${Math.max(0, parseFloat(r.timePerChartMin) || 0)} min`,
+        timePerChartMin: Math.max(0, parseFloat(r.timePerChartMin) || 0),
+        lastCodedDate: r.lastCodedDate || null,
+        active: true,
+      }));
+
+      const result = computeStage6Result({
+        evidencePath: "B",
+        specialtyCharts,
+        timePracticedHours: candidate.stage6?.timePracticedHours || 0,
+        practicePeriodDays: candidate.stage6?.practicePeriodDays || 0,
+        // The academy's own system of record reporting this directly carries the
+        // same trust Talentera already gives an academy-signed proof document.
+        hasProofDoc: true,
+      });
+      const { totalCharts, overallAccuracy, tier } = result;
+
+      candidate.stage6 = {
+        ...(candidate.stage6 || {}),
+        evidencePath: "B",
+        option: "upload",
+        specialtyCharts,
+        timePracticedHours: candidate.stage6?.timePracticedHours || 0,
+        practicePeriodDays: candidate.stage6?.practicePeriodDays || 0,
+        chartsPerHour: result.chartsPerHour,
+        totalCharts,
+        overallAccuracy,
+        avgTimePerChart: result.avgTimePerChart,
+        tier,
+        liveChartsAudited: totalCharts,
+        accuracyScore: overallAccuracy,
+        accuracy: overallAccuracy,
+        stageScore: result.stageScore,
+        scoreBreakdown: result.breakdown,
+        evidenceMultiplier: result.multiplier,
+        verificationPoints: result.points,
+        needsReview: result.needsReview,
+        isOptional: isSelfTrainedForChartUpload(candidate),
+        verified: true,
+        verificationMethod: "Academy Bulk Upload",
+        academyName: academy.name,
+        signedOffBy: academy.primaryAdmin || academy.name,
+        signOffDate: new Date(),
+        sourceUploadFilename: filename || "chart_stats.csv",
+        completedAt: candidate.stage6?.completedAt || new Date(),
+      };
+      candidate.markModified("stage6");
+      if (!candidate.completedStages.includes(6)) {
+        candidate.completedStages.push(6);
+      }
+      await candidate.save();
+
+      await AcademyActivityEvent.create({
+        academyId: academy._id,
+        candidateId: candidate._id,
+        candidateName: candidate.stage1?.fullName || entry.email,
+        companyName: "Talentera Matching",
+        jobTitle: "Stage 6 - Live Charts",
+        batchCode: candidate.stage2?.batch || "",
+        eventType: "viewed",
+        eventMeta: { note: `Stage 6 chart stats bulk-uploaded by academy (${totalCharts} charts, ${tier} tier)` },
+      });
+
+      updated.push({ email: entry.email, candidateId: candidate._id, totalCharts, overallAccuracy, tier });
+    }
+
+    res.json({
+      success: true,
+      updated_count: updated.length,
+      skipped_count: skipped.length,
+      updated,
+      skipped,
+      message: `${updated.length} student(s) updated, ${skipped.length} skipped.`,
+    });
+  } catch (err) {
+    logger.error(`Chart-stats upload confirm error: ${err.message}`);
+    res.status(500).json({ message: "Failed to apply chart-stats upload." });
   }
 });
 

@@ -44,8 +44,13 @@ export function getTier(totalCharts, overallAccuracy, evidencePath) {
   return "Bronze";
 }
 
-export function evidenceMultiplier(evidencePath, hasProofDoc) {
-  if (evidencePath === "A") return 1;
+export function evidenceMultiplier(evidencePath, hasProofDoc, staffVerified) {
+  // Path A ("Platform-Reported") is self-reported by the candidate - full credit only
+  // once a Talentera staff member has actually checked the platform account details
+  // (platform, URL, username, profile ID) and verified it. Pending/unverified gets the
+  // same 0.6 partial credit Path B gets before a proof document is uploaded, so Stage 6
+  // never silently hands out full marks for an unverified claim.
+  if (evidencePath === "A") return staffVerified ? 1 : 0.6;
   if (evidencePath === "B") return hasProofDoc ? 1 : 0.6;
   if (evidencePath === "C") return 0.7;
   return 0;
@@ -54,7 +59,10 @@ export function evidenceMultiplier(evidencePath, hasProofDoc) {
 /**
  * @param {object} input  Stage 6 inputs only:
  *   evidencePath, specialtyCharts[{name,count,accuracy,timePerChart,lastCodedDate}],
- *   timePracticedHours, practicePeriodDays, hasProofDoc, now (optional, for tests)
+ *   timePracticedHours, practicePeriodDays, hasProofDoc,
+ *   staffVerified (Path A only - true once Talentera staff verified the platform
+ *   account details; drives the evidence-trust multiplier the same way hasProofDoc
+ *   does for Path B), now (optional, for tests)
  */
 export function computeStage6Result(input = {}) {
   const evidencePath = ["A", "B", "C", "D"].includes(input.evidencePath) ? input.evidencePath : "C";
@@ -94,7 +102,7 @@ export function computeStage6Result(input = {}) {
   if (daysSinceLast !== null) recency = daysSinceLast <= 30 ? 10 : daysSinceLast <= 90 ? 6 : daysSinceLast <= 180 ? 3 : 0;
 
   const rawScore = round1(volume + accuracy + breadth + speed + recency);
-  const multiplier = evidenceMultiplier(evidencePath, !!input.hasProofDoc);
+  const multiplier = evidenceMultiplier(evidencePath, !!input.hasProofDoc, !!input.staffVerified);
   const score = Math.round(rawScore * multiplier);
   const points = Math.round(score / 10);
   const tier = getTier(totalCharts, overallAccuracy, evidencePath);

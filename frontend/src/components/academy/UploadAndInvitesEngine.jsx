@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { safeJson } from "../../utils/safeJson.js";
+import ChartStatsUpload from "./ChartStatsUpload.jsx";
 
 // Broad RCM "Domain" buckets - kept deliberately short (this is the coarse
 // grouping used by the Domain field, and by AcademyPortal.jsx's Edit Candidate
@@ -552,6 +553,22 @@ export default function UploadAndInvitesEngine({
             }}
           >
             📡 Live Invites Tracker
+          </button>
+          <button
+            onClick={() => setActiveTab("chart_stats")}
+            style={{
+              padding: "7px 16px",
+              borderRadius: 999,
+              border: "none",
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              background: activeTab === "chart_stats" ? "#06152A" : "transparent",
+              color: activeTab === "chart_stats" ? "#fff" : "#475569",
+            }}
+          >
+            📊 Chart Stats Upload
           </button>
         </div>
       </div>
@@ -1209,6 +1226,16 @@ export default function UploadAndInvitesEngine({
               </table>
             )}
           </div>
+        </div>
+      )}
+
+      {/* SUB-TAB 4: CHART STATS UPLOAD (Stage 6 bulk upload) */}
+      {activeTab === "chart_stats" && (
+        <div>
+          <h3 style={{ margin: "0 0 14px", fontSize: 17, fontWeight: 800, color: "#06152A" }}>
+            Stage 6 Chart Stats — Bulk Upload
+          </h3>
+          <ChartStatsUpload getAuthHeader={getAuthHeader} onUploadSuccess={onUploadSuccess} />
         </div>
       )}
     </div>

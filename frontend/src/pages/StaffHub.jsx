@@ -1883,6 +1883,29 @@ export default function StaffHub() {
     }
   };
 
+  const handleVerifyLiveCharts = async (candidateId, action) => {
+    setProcessingId(candidateId);
+    try {
+      const res = await fetch("/api/staff/verify-live-charts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ candidateId, action }),
+      });
+      const data = await safeJson(res);
+      if (res.ok) {
+        fetchDashboard();
+        showToast(data.message || (action === "verify" ? "Live charts verified." : "Live charts sent back for revision."));
+      } else {
+        showToast(data.message || "Could not update live-charts verification status.");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Could not update live-charts verification status.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
   const handleAuditCertification = async (candidateId, action, rejectionReason = "", notes = "") => {
     setProcessingId(candidateId);
     try {
@@ -10642,6 +10665,69 @@ export default function StaffHub() {
                         <div className="staff-meta-value" style={{ color: s6.verified ? "#15803D" : "#B45309", fontWeight: 800 }}>{s6.verified ? "Verified" : (s6.verificationMethod || (totalCharts > 0 ? "Self-Reported" : "Not started"))}</div>
                       </div>
                     </div>
+
+                    {s6.evidencePath === "A" && Array.isArray(s6.platformAccounts) && s6.platformAccounts.length > 0 && (
+                      <div style={{ marginTop: 18 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", marginBottom: 10 }}>Platform Accounts Reported (Path A — spot-check these)</h4>
+                        <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <thead>
+                              <tr style={{ background: "#F1F5F9" }}>
+                                <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>Platform</th>
+                                <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>Username</th>
+                                <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>Profile ID</th>
+                                <th style={{ textAlign: "left", padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#475569" }}>Profile URL</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {s6.platformAccounts.map((acc, idx) => (
+                                <tr key={idx} style={{ borderTop: "1px solid #E2E8F0" }}>
+                                  <td style={{ padding: "8px 12px", fontSize: 12.5, fontWeight: 700, color: "#0F172A" }}>{acc.platform}</td>
+                                  <td style={{ padding: "8px 12px", fontSize: 12.5, color: "#334155" }}>{acc.username || "—"}</td>
+                                  <td style={{ padding: "8px 12px", fontSize: 12.5, color: "#334155" }}>{acc.profileId || "—"}</td>
+                                  <td style={{ padding: "8px 12px", fontSize: 12.5 }}>
+                                    {acc.url ? (
+                                      <a href={acc.url} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB" }}>Open ↗</a>
+                                    ) : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        <div style={{
+                          marginTop: 12, borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 700, display: "inline-block",
+                          background: s6.employeeVerified ? "#DCFCE7" : s6.employeeVerificationStatus === "rejected" ? "#FEE2E2" : "#FEF9C3",
+                          color: s6.employeeVerified ? "#166534" : s6.employeeVerificationStatus === "rejected" ? "#991B1B" : "#854D0E",
+                        }}>
+                          {s6.employeeVerified
+                            ? `✅ Verified${s6.employeeVerifiedBy ? ` by ${s6.employeeVerifiedBy}` : ""} — full credit applied to this candidate's score.`
+                            : s6.employeeVerificationStatus === "rejected"
+                            ? `⚠️ Rejected: ${s6.employeeRejectionReason || "no reason recorded"}`
+                            : "⏳ Pending verification — currently scored at partial (60%) credit."}
+                        </div>
+
+                        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyLiveCharts(selectedCandidate._id, "verify")}
+                            disabled={processingId === selectedCandidate._id}
+                            style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                          >
+                            <i className="fa-solid fa-check" style={{ marginRight: 5 }}></i> Verify Platform Accounts
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyLiveCharts(selectedCandidate._id, "reject")}
+                            disabled={processingId === selectedCandidate._id}
+                            style={{ background: "#F59E0B", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                          >
+                            ↩ Could Not Verify
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
