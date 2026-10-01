@@ -14,13 +14,22 @@ describe("computeStage6Result", () => {
     expect(r.tier).toBe("None");
   });
 
-  test("path A: 250 charts at ~87% reaches Gold and scores from its own rows", () => {
-    const r = computeStage6Result({ now, evidencePath: "A", specialtyCharts: rows, timePracticedHours: 60, practicePeriodDays: 90 });
-    expect(r.totalCharts).toBe(250);
-    expect(r.overallAccuracy).toBe(86.8);
-    expect(r.tier).toBe("Gold");
-    expect(r.stageScore).toBe(70);
-    expect(r.points).toBe(7);
+  test("path A: 250 charts at ~87% reaches Gold - full credit only once staff-verified", () => {
+    const pending = computeStage6Result({ now, evidencePath: "A", specialtyCharts: rows, timePracticedHours: 60, practicePeriodDays: 90 });
+    const verified = computeStage6Result({ now, evidencePath: "A", specialtyCharts: rows, timePracticedHours: 60, practicePeriodDays: 90, staffVerified: true });
+    expect(pending.totalCharts).toBe(250);
+    expect(pending.overallAccuracy).toBe(86.8);
+    expect(pending.tier).toBe("Gold");
+    // Unverified Path A (the default - no Talentera staff member has confirmed the
+    // candidate's platform account details yet) is scaled to 60%, same as Path B
+    // before a proof document is uploaded.
+    expect(pending.multiplier).toBe(0.6);
+    expect(pending.stageScore).toBe(42);
+    // Once staff verify the platform accounts (POST /api/staff/verify-live-charts),
+    // the same submission scores at full credit.
+    expect(verified.multiplier).toBe(1);
+    expect(verified.stageScore).toBe(70);
+    expect(verified.points).toBe(7);
   });
 
   test("path B without proof is scaled to 60%, with proof to 100%", () => {
