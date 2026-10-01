@@ -2024,6 +2024,7 @@ router.get("/vault", async (req, res) => {
           status: "verified",
           verified: true,
           stage: "Stage 07 · Verified Resume",
+          isMasterResume: true,
         });
       }
     }

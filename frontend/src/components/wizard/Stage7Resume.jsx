@@ -364,15 +364,29 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   const [showHowItWorks, setShowHowItWorks] = useState(false);
 
-  // If we arrived here via a #download-share link (e.g. from the Documents vault's
-  // Master Resume card), scroll straight to the Download & Share section.
+  // Arrival links from the Documents vault's Master Resume card:
+  //  #preview-resume  -> jump to the Live Preview (Section 4)
+  //  #download-pdf    -> jump to the Live Preview and auto-run the real PDF export
+  //  #download-share  -> jump to the Download & Share section (Section 5)
   useEffect(() => {
-    if (typeof window === "undefined" || window.location.hash !== "#download-share") return;
-    const timer = setTimeout(() => {
-      const el = document.getElementById("s7-download-share-section");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 300);
-    return () => clearTimeout(timer);
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash === "#preview-resume" || hash === "#download-pdf") {
+      const timer = setTimeout(() => {
+        const el = document.getElementById("s7-live-preview-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (hash === "#download-pdf") handleDownloadPdf();
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+    if (hash === "#download-share") {
+      const timer = setTimeout(() => {
+        const el = document.getElementById("s7-download-share-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Template selection state
@@ -2007,7 +2021,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           </div>
 
           {/* SECTION 4 · LIVE PREVIEW */}
-          <div className="s7-section">
+          <div className="s7-section" id="s7-live-preview-section">
             <div className="s7-section-header">
               <div className="s7-section-num">4</div>
               <div className="s7-section-title">Live preview — this is exactly what companies see</div>
