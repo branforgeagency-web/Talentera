@@ -2985,7 +2985,7 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
           submittedAt: c.createdAt || new Date(),
           type: "training_validation",
           stage2: s2,
-          assessmentScore: s2.academyAssessmentScore ?? s2.assessmentScore ?? s2.score ?? 85,
+          assessmentScore: s2.academyAssessmentScore ?? s2.assessmentScore ?? s2.score ?? null,
         });
       }
 
@@ -3033,6 +3033,17 @@ router.post("/approvals/:stage_id/approve", requireAcademyAuth, async (req, res)
 
     if (targetStage === 2) {
       const assessmentScore = req.body.assessmentScore !== undefined ? req.body.assessmentScore : (req.body.score !== undefined ? req.body.score : req.body.academyAssessmentScore);
+      // The Academy Assessment Score can only come from the academy: require a real 0-100 value
+      // (or one already on file) instead of silently recording a default.
+      const existingScore = candidate.stage2?.academyAssessmentScore;
+      const hasExisting = existingScore !== undefined && existingScore !== null && existingScore !== "" && existingScore !== "—" && Number.isFinite(Number(existingScore));
+      const hasNew = assessmentScore !== undefined && assessmentScore !== null && assessmentScore !== "";
+      if (hasNew && (!Number.isFinite(Number(assessmentScore)) || Number(assessmentScore) < 0 || Number(assessmentScore) > 100)) {
+        return res.status(400).json({ message: "Academy assessment score must be a number between 0 and 100." });
+      }
+      if (!hasNew && !hasExisting) {
+        return res.status(400).json({ message: "Enter the Academy Assessment Score (0-100) to approve Stage 2." });
+      }
       candidate.stage2 = {
         ...(candidate.stage2 || {}),
         ...(assessmentScore !== undefined && assessmentScore !== null && assessmentScore !== "" ? {

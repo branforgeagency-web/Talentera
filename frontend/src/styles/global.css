@@ -2923,9 +2923,10 @@ svg {
    ==================================================================== */
 .wiz-shell {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   background: var(--cream);
   align-items: flex-start;
+  overflow: hidden;
 }
 
 .wiz-sidebar {
@@ -3071,6 +3072,8 @@ svg {
   padding: 28px;
   align-items: flex-start;
   min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
 }
 .wiz-content {
   flex: 1;
@@ -4270,6 +4273,8 @@ svg {
   box-shadow: 0 20px 50px rgba(10, 31, 61, 0.15);
   position: sticky;
   top: 90px;
+  max-height: calc(100vh - 110px);
+  overflow-y: auto;
 }
 .conb-sidebar-eyebrow {
   color: var(--gold);

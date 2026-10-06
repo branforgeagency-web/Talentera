@@ -50,21 +50,21 @@ const STATUS_CONFIG = {
     message: "Great news! The employer shortlisted your profile for this role.",
   },
   interviewing: {
-    label: "🗓 Interviewing",
+    label: "Interviewing",
     badgeLabel: "Interviewing",
     bg: "#FEF3C7",
     color: "#B45309",
     border: "#FDE68A",
-    icon: "🗓",
+    icon: '',
     message: "An interview stage has been scheduled by the employer.",
   },
   hired: {
-    label: "🎉 Hired / Offered",
+    label: "Hired / Offered",
     badgeLabel: "Hired",
     bg: "#DCFCE7",
     color: "#166534",
     border: "#86EFAC",
-    icon: "🎉",
+    icon: <i className="fa-solid fa-trophy" />,
     message: "Congratulations! You have been selected and hired for this position.",
   },
   applied: {
@@ -284,7 +284,7 @@ export default function Jobs() {
               transition: "all 0.2s",
             }}
           >
-            {eligibility.isEligible ? `🏢 Open Roles (${jobs.length})` : "🔒 Open Roles"}
+            {eligibility.isEligible ? `Open Roles (${jobs.length})` : "Open Roles"}
           </button>
           {candidate && (
             <button
@@ -305,7 +305,7 @@ export default function Jobs() {
                 transition: "all 0.2s",
               }}
             >
-              📋 My Applications ({myApplications.length})
+              My Applications ({myApplications.length})
             </button>
           )}
         </div>
@@ -325,7 +325,7 @@ export default function Jobs() {
               marginBottom: 24,
             }}
           >
-            <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+            <div style={{ fontSize: 32, marginBottom: 12 }}><i className="fa-solid fa-lock" /></div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginBottom: 8 }}>
               {!eligibility.hasAssessment && eligibility.score >= JOB_SEARCH_MIN_SCORE
                 ? "Complete your Talentera Assessment to unlock job search"

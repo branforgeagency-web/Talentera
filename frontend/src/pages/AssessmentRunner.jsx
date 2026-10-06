@@ -357,14 +357,14 @@ export default function AssessmentRunner() {
 
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden" && testState === "running" && !isSubmittingRef.current) {
-        toast("⚠️ Tab Switch Detected: Test auto-submitted for anti-cheat compliance.", "!");
+        toast("Tab Switch Detected: Test auto-submitted for anti-cheat compliance.", "!");
         triggerSubmit(true, "Tab Switch / Hidden Browser Tab Detected");
       }
     }
 
     function handleWindowBlur() {
       if (testState === "running" && !isSubmittingRef.current) {
-        toast("⚠️ Window Focus Lost: Test auto-submitted for anti-cheat compliance.", "!");
+        toast("Window Focus Lost: Test auto-submitted for anti-cheat compliance.", "!");
         triggerSubmit(true, "Window Focus Loss / Browser Minimization");
       }
     }
@@ -450,7 +450,7 @@ export default function AssessmentRunner() {
       <div style={{ minHeight: "100vh", background: "#F1F5F9", padding: 32 }}>
         <div style={{ maxWidth: 700, margin: "40px auto", background: "#fff", border: "2px solid var(--navy)", borderRadius: 16, padding: 32, textAlign: "center" }}>
           <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FEF3C7", color: "#B45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, margin: "0 auto 16px" }}>
-            🔒
+            <i className="fa-solid fa-lock" />
           </div>
           <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--navy)" }}>Assessment Completed &amp; Locked</h2>
 
@@ -608,7 +608,7 @@ export default function AssessmentRunner() {
           <div style={{ background: "#fff", color: "var(--navy)", borderRadius: 16, padding: 40, boxShadow: "0 20px 40px rgba(0,0,0,0.3)", textAlign: "center" }}>
             {autoSubmitted && (
               <div style={{ background: "#FEF2F2", border: "2px solid #EF4444", color: "#991B1B", padding: 16, borderRadius: 12, marginBottom: 24, fontWeight: 700, fontSize: 13, textAlign: "left" }}>
-                ⚠️ <strong>Anti-Cheat Auto-Submission Triggered:</strong> You switched browser tabs or moved away from the test window. The assessment was automatically submitted per Talentera security compliance policy.
+                <strong>Anti-Cheat Auto-Submission Triggered:</strong> You switched browser tabs or moved away from the test window. The assessment was automatically submitted per Talentera security compliance policy.
               </div>
             )}
 

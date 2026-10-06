@@ -41,7 +41,7 @@ export function ToastProvider({ children }) {
         const rawType = String(typeOrGlyph || "").trim().toLowerCase();
         if (rawType === "!" || rawType === "error" || rawType === "danger" || rawType === "fail" || rawType === "failed" || rawType === "✕") {
           type = "error";
-          glyph = "⚠️";
+          glyph = <i className="fa-solid fa-triangle-exclamation" />;
           title = "Attention Required";
         } else if (rawType === "✓" || rawType === "success" || rawType === "ok" || rawType === "done") {
           type = "success";
@@ -49,15 +49,16 @@ export function ToastProvider({ children }) {
           title = "Success";
         } else if (rawType === "warn" || rawType === "warning") {
           type = "warning";
-          glyph = "⚡";
+          glyph = <i className="fa-solid fa-bolt" />;
           title = "Attention";
-        } else if (rawType === "ℹ" || rawType === "info" || rawType === "i") {
+        } else if (rawType ==="" || rawType === "info" || rawType === "i") {
           type = "info";
-          glyph = "ℹ";
+          glyph = <i className="fa-solid fa-circle-info" />;
           title = "Notification";
         } else {
-          glyph = typeOrGlyph || "✓";
-          type = "info";
+          const cls = (typeOrGlyph && typeOrGlyph.props && typeOrGlyph.props.className) || "";
+          type = /triangle-exclamation|circle-xmark/.test(cls) ? "error" : /circle-check|fa-check/.test(cls) ? "success" : /bolt/.test(cls) ? "warning" : "info";
+          glyph = "";
         }
       }
     }
@@ -75,7 +76,7 @@ export function ToastProvider({ children }) {
         lowerMsg.includes("invalid"))
     ) {
       type = "error";
-      if (!glyph || glyph === "✓") glyph = "⚠️";
+      if (!glyph || glyph === "✓") glyph = <i className="fa-solid fa-triangle-exclamation" />;
       if (!title) title = "Action Required";
     }
 
@@ -186,7 +187,7 @@ export function ToastProvider({ children }) {
                   boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
                 }}
               >
-                {t.glyph}
+                <i className={"fa-solid " + ({ error: "fa-triangle-exclamation", success: "fa-check", warning: "fa-bolt", info: "fa-circle-info" }[t.type] || "fa-circle-info")} />
               </div>
 
               {/* Message body */}

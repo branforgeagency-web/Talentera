@@ -137,7 +137,7 @@ export default function CandidateWizard() {
       }
       toast(
         `Please complete Stage ${firstMissing} before opening Stage ${stageNum}.`,
-        { title: "Stage Locked", type: "warning", glyph: "⚠️" }
+        { title: "Stage Locked", type: "warning", glyph: <i className="fa-solid fa-triangle-exclamation" /> }
       );
       return;
     }

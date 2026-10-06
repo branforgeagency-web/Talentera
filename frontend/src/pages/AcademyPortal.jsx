@@ -991,9 +991,9 @@ export default function AcademyPortal() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F8FAFC", fontFamily: "'Inter', sans-serif", color: "#0F172A" }}>
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden", background: "#F8FAFC", fontFamily: "'Inter', sans-serif", color: "#0F172A" }}>
       {/* ====== TOP NAVBAR HEADER ====== */}
-      <header style={{ background: "#06152A", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <header style={{ flexShrink: 0, background: "#06152A", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "12px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }} onClick={() => handleNavigateMod("home")}>
           <img src="/logo-white.png" alt="Talentera" style={{ height: 26, width: "auto" }} />
           <div style={{ borderLeft: "1px solid rgba(255,255,255,0.2)", paddingLeft: 12 }}>
@@ -1045,9 +1045,9 @@ export default function AcademyPortal() {
       )}
 
       {/* ====== MAIN SHELL WITH SIDEBAR & CONTENT AREA ====== */}
-      <div style={{ display: "grid", gridTemplateColumns: "250px 1fr", minHeight: "calc(100vh - 55px)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "250px 1fr", flex: 1, height: "calc(100vh - 55px)", overflow: "hidden" }}>
         {/* Sidebar Navigation */}
-        <aside style={{ background: "#06152A", color: "#94A3B8", padding: "18px 12px", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <aside style={{ background: "#06152A", color: "#94A3B8", padding: "18px 12px", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", justifyContent: "space-between", height: "100%", overflowY: "auto", flexShrink: 0 }}>
           <div>
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "0 8px 6px", textTransform: "uppercase" }}>OPERATIONS</div>
             <SidebarItem
@@ -1101,7 +1101,7 @@ export default function AcademyPortal() {
         </aside>
 
         {/* ====== CONTENT AREA ====== */}
-        <main style={{ padding: 24, overflowX: "hidden" }}>
+        <main style={{ padding: 24, height: "100%", overflowY: "auto", overflowX: "hidden" }}>
           {/* ========================================================= */}
           {/* TOP WARNING TILE FOR KYC VERIFICATION */}
           {/* ========================================================= */}

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
+import { COUNTRIES } from "../../data/countries";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
@@ -38,32 +38,64 @@ const TWELFTH_LIFE_SCIENCE_COURSES = [
   "12th - Biology (PCB)",
   "12th - Science (PCMB)",
   "12th - Science (PCB + Computer Science)",
+  "12th - Biology / Botany / Zoology (Bio-Maths)",
+  "12th - Nursing / Health Care Vocational",
   "Vocational - Health Sciences (12th)",
   "Other 12th (Life Science)",
 ];
 
 const TWELFTH_NON_LIFE_SCIENCE_COURSES = [
   "12th - Commerce",
+  "12th - Commerce (with Computer Applications)",
+  "12th - Commerce (with Accountancy)",
   "12th - Arts / Humanities",
   "12th - Science (PCM)",
+  "12th - Science (PCM + Computer Science)",
   "12th - Vocational",
+  "12th - Technical / Polytechnic Entry",
   "Other 12th (Non-Life Science)",
 ];
 
 const DIPLOMA_LIFE_SCIENCE_COURSES = [
   "Diploma in Pharmacy (D.Pharm)",
-  "Diploma in Nursing (GNM / ANM)",
+  "Diploma in Nursing (GNM)",
+  "Diploma in Auxiliary Nurse Midwifery (ANM)",
   "Diploma in Medical Lab Technology (DMLT)",
   "Diploma in Radiography / X-Ray Technology",
+  "Diploma in Radiotherapy Technology",
   "Diploma in Optometry",
+  "Diploma in Dialysis Technology",
+  "Diploma in Operation Theatre Technology",
+  "Diploma in Anaesthesia Technology",
+  "Diploma in Cardiac Care Technology",
+  "Diploma in ECG / Cardiology Technology",
+  "Diploma in Emergency & Trauma Care",
+  "Diploma in Physiotherapy",
+  "Diploma in Dental Mechanics / Hygiene",
+  "Diploma in Medical Records / Health Information",
+  "Diploma in Nutrition & Dietetics",
+  "Diploma in Ayurveda / Siddha / Unani Pharmacy",
+  "Diploma in Veterinary Science",
   "Other Diploma (Life Science)",
 ];
 
 const DIPLOMA_NON_LIFE_SCIENCE_COURSES = [
   "Diploma in Computer Applications",
-  "Diploma in Engineering (Polytechnic)",
+  "Diploma in Computer Science / IT",
+  "Diploma in Engineering - Mechanical",
+  "Diploma in Engineering - Civil",
+  "Diploma in Engineering - Electrical & Electronics (EEE)",
+  "Diploma in Engineering - Electronics & Communication (ECE)",
+  "Diploma in Engineering - Computer Engineering",
+  "Diploma in Engineering - Other Branch",
   "Diploma in Business Administration",
   "Diploma in Commerce / Accounting",
+  "Diploma in Hotel Management / Catering",
+  "Diploma in Fashion / Interior Design",
+  "Diploma in Mass Communication / Journalism",
+  "Diploma in Teacher Education (D.Ed)",
+  "Diploma in Banking / Finance",
+  "ITI (Industrial Training Institute)",
   "Other Diploma (Non-Life Science)",
 ];
 
@@ -72,44 +104,181 @@ const UG_LIFE_SCIENCE_COURSES = [
   "B.Sc. Biotechnology",
   "B.Sc. Microbiology",
   "B.Sc. Biochemistry",
-  "B.Sc. Zoology / Botany / Biology",
-  "B.Sc. Chemistry / Life Sciences",
-  "B.Sc. MLT (Medical Lab Technology)",
-  "B.Sc. HIM / Health Information Management",
-  "B.Sc. Genetics / Bioinformatics",
+  "B.Sc. Zoology",
+  "B.Sc. Botany",
+  "B.Sc. Biology / Life Sciences",
+  "B.Sc. Chemistry",
+  "B.Sc. Genetics",
+  "B.Sc. Bioinformatics",
+  "B.Sc. Forensic Science",
+  "B.Sc. Food Science / Nutrition / Dietetics",
+  "B.Sc. Clinical Nutrition",
+  "B.Sc. Environmental Science",
+  "B.Sc. Agriculture / Horticulture",
+  "B.Sc. Psychology",
+  "B.Sc. Medical Lab Technology (MLT)",
+  "B.Sc. Health Information Management (HIM)",
+  "B.Sc. Medical Records Science",
+  "B.Sc. Radiology & Imaging Technology",
+  "B.Sc. Radiotherapy Technology",
+  "B.Sc. Optometry",
+  "B.Sc. Cardiac Care Technology",
+  "B.Sc. Dialysis Technology",
+  "B.Sc. Operation Theatre Technology",
+  "B.Sc. Anaesthesia Technology",
+  "B.Sc. Emergency & Trauma Care",
+  "B.Sc. Respiratory Therapy / Care Technology",
+  "B.Sc. Allied Health Sciences",
+  "B.Sc. Physician Assistant",
+  "B.Sc. Perfusion Technology",
+  "B.Sc. Neuro Technology",
+  "B.Sc. Audiology & Speech-Language Pathology",
+  "B.Sc. Occupational Therapy",
+  "B.Sc. Medical Sociology",
   "B.Pharm (Bachelor of Pharmacy)",
+  "Pharm.D (Doctor of Pharmacy)",
   "BPT (Bachelor of Physiotherapy)",
-  "BAMS / BHMS / BDS / MBBS (Medical / Allied Health)",
+  "BOT (Bachelor of Occupational Therapy)",
+  "BASLP (Audiology & Speech-Language Pathology)",
+  "BPMT (Paramedical Technology)",
+  "MBBS",
+  "BDS (Dental Surgery)",
+  "BAMS (Ayurveda)",
+  "BHMS (Homoeopathy)",
+  "BUMS (Unani)",
+  "BSMS (Siddha)",
+  "BNYS (Naturopathy & Yoga)",
+  "BVSc & AH (Veterinary Science)",
+  "B.Sc. Veterinary / Animal Husbandry",
   "Other Life Science UG Degree",
 ];
 
 const PG_LIFE_SCIENCE_COURSES = [
-  "M.Sc. Life Sciences / Biotech / Microbiology",
+  "M.Sc. Nursing",
+  "M.Sc. Life Sciences",
+  "M.Sc. Biotechnology",
+  "M.Sc. Microbiology",
+  "M.Sc. Biochemistry",
+  "M.Sc. Zoology",
+  "M.Sc. Botany",
+  "M.Sc. Genetics",
+  "M.Sc. Bioinformatics",
+  "M.Sc. Clinical Research",
+  "M.Sc. Medical Lab Technology",
+  "M.Sc. Medical Biochemistry / Microbiology / Anatomy / Physiology",
+  "M.Sc. Food Science / Nutrition / Dietetics",
+  "M.Sc. Forensic Science",
+  "M.Sc. Environmental Science",
+  "M.Sc. Psychology / Clinical Psychology",
+  "M.Sc. Health Information Management",
+  "M.Sc. Public Health",
+  "M.Sc. Radiology & Imaging Technology",
+  "M.Sc. Optometry",
+  "M.Sc. Allied Health Sciences",
   "M.Pharm (Master of Pharmacy)",
   "Pharm.D (Doctor of Pharmacy)",
   "MPT (Master of Physiotherapy)",
-  "MD / MS / MDS (Medical / Dental)",
+  "MOT (Master of Occupational Therapy)",
+  "MPH (Master of Public Health)",
+  "MHA (Master of Hospital Administration)",
+  "MD (Doctor of Medicine)",
+  "MS (Master of Surgery)",
+  "MDS (Master of Dental Surgery)",
+  "MD (Ayurveda / Homoeopathy / Unani / Siddha)",
+  "M.Phil (Life Sciences)",
+  "Ph.D (Life Sciences)",
   "Other Life Science PG Degree",
 ];
 
 const UG_NON_LIFE_SCIENCE_COURSES = [
-  "B.Com (General / Computer Applications / Finance)",
-  "B.Com (Hons.)",
-  "B.Sc. Computer Science / IT / Maths / Physics",
-  "B.Tech / B.E. (Engineering - Any Branch)",
-  "B.Tech CSE",
+  "B.Com (General)",
+  "B.Com (Computer Applications)",
+  "B.Com (Accounting & Finance)",
+  "B.Com (Corporate Secretaryship)",
+  "B.Com (Banking & Insurance)",
+  "B.Com (Professional Accounting)",
+  "B.Com (Honours)",
+  "BBA (Business Administration)",
+  "BBM (Business Management)",
+  "BMS (Management Studies)",
+  "BBA (Hospital / Healthcare Management)",
+  "B.Sc. Computer Science",
+  "B.Sc. Information Technology",
+  "B.Sc. Mathematics",
+  "B.Sc. Physics",
+  "B.Sc. Statistics",
+  "B.Sc. Electronics",
+  "B.Sc. Data Science / AI",
+  "B.Sc. Visual Communication / Multimedia",
+  "B.Sc. Hotel Management / Catering",
   "BCA (Bachelor of Computer Applications)",
-  "BBA / BBM (Business Administration)",
-  "B.A. (Bachelor of Arts)",
+  "B.Tech / B.E. - Computer Science (CSE)",
+  "B.Tech / B.E. - Information Technology",
+  "B.Tech / B.E. - AI & Data Science",
+  "B.Tech / B.E. - Electronics & Communication (ECE)",
+  "B.Tech / B.E. - Electrical & Electronics (EEE)",
+  "B.Tech / B.E. - Mechanical",
+  "B.Tech / B.E. - Civil",
+  "B.Tech / B.E. - Biomedical Engineering",
+  "B.Tech / B.E. - Chemical",
+  "B.Tech / B.E. - Other Branch",
+  "B.A. English",
+  "B.A. Tamil / Hindi / Other Languages",
+  "B.A. History",
+  "B.A. Economics",
+  "B.A. Political Science",
+  "B.A. Sociology",
+  "B.A. Psychology",
+  "B.A. Journalism & Mass Communication",
+  "B.A. (Other)",
+  "BSW (Social Work)",
+  "B.Ed (Education)",
+  "LLB / BA LLB / BBA LLB (Law)",
+  "B.Arch (Architecture)",
+  "B.Des (Design)",
+  "BHM (Hotel Management)",
+  "BFA (Fine Arts)",
+  "B.Lib (Library Science)",
+  "CA / CMA / CS (Professional)",
   "Other Non-Life Science UG Degree",
 ];
 
 const PG_NON_LIFE_SCIENCE_COURSES = [
   "MCA (Master of Computer Applications)",
-  "M.Tech (Master of Technology)",
-  "MBA (Master of Business Administration)",
+  "M.Sc. Computer Science",
+  "M.Sc. Information Technology",
+  "M.Sc. Mathematics",
+  "M.Sc. Physics",
+  "M.Sc. Statistics",
+  "M.Sc. Data Science / AI",
+  "M.Tech / M.E. - Computer Science",
+  "M.Tech / M.E. - Other Branch",
+  "MBA (General)",
+  "MBA (Finance)",
+  "MBA (Marketing)",
+  "MBA (HR)",
+  "MBA (Hospital / Healthcare Management)",
+  "MBA (Operations / Systems)",
+  "MBA (Other Specialization)",
+  "PGDM (Management)",
   "M.Com (Master of Commerce)",
-  "M.A. (Master of Arts)",
+  "M.Com (Computer Applications / Finance)",
+  "M.A. English",
+  "M.A. Tamil / Hindi / Other Languages",
+  "M.A. Economics",
+  "M.A. History",
+  "M.A. Sociology",
+  "M.A. Psychology",
+  "M.A. Journalism & Mass Communication",
+  "M.A. (Other)",
+  "MSW (Social Work)",
+  "M.Ed (Education)",
+  "LLM (Law)",
+  "M.Arch (Architecture)",
+  "M.Des (Design)",
+  "M.Lib (Library Science)",
+  "M.Phil (Non-Life Science)",
+  "Ph.D (Non-Life Science)",
   "Other Non-Life Science PG Degree",
 ];
 
@@ -501,12 +670,22 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [isWhatsAppSame, setIsWhatsAppSame] = useState(
     existingData?.isWhatsAppSame !== undefined ? existingData.isWhatsAppSame : true
   );
+  // Separate WhatsApp / alternate number, only used when the candidate's WhatsApp
+  // number differs from their main mobile (checkbox unchecked).
+  const [whatsappNumber, setWhatsappNumber] = useState(
+    existingData?.whatsappNumber ? formatMobile(existingData.whatsappNumber) : ""
+  );
   const [email, setEmail] = useState(
     existingData?.email || candidate?.stage1?.email || candidate?.email || ""
   );
-  const [bestTimeToContact, setBestTimeToContact] = useState(
-    existingData?.bestTimeToContact || "Anytime"
-  );
+  const [bestTimeToContact, setBestTimeToContact] = useState(() => {
+    const raw = existingData?.bestTimeToContact;
+    if (!raw || raw === "Anytime") return "Anytime";
+    if (raw.toLowerCase().includes("morning")) return "Morning (9 AM to 12 PM)";
+    if (raw.toLowerCase().includes("afternoon")) return "Afternoon (12 PM to 5 PM)";
+    if (raw.toLowerCase().includes("evening")) return "Evening (5 PM to 9 PM)";
+    return raw;
+  });
   // Multi-select - a candidate can be reached via more than one method, so
   // this is an array of keys now rather than a single string. Older saved
   // profiles may still have a single string value here (from before this
@@ -549,19 +728,32 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [currentLocality, setCurrentLocality] = useState(existingData?.currentLocality || candidate?.stage1?.currentLocality || "");
   const [preferredCities, setPreferredCities] = useState(
     Array.isArray(existingData?.preferredCities) && existingData.preferredCities.length > 0
-      ? existingData.preferredCities
+      ? existingData.preferredCities.filter(Boolean)
       : []
   );
   const [cityInputOpen, setCityInputOpen] = useState(false);
   const [selectedCityOption, setSelectedCityOption] = useState("");
   const [openToRelocate, setOpenToRelocate] = useState(
-    existingData?.openToRelocate || "Yes — anywhere in India"
+    (existingData?.openToRelocate && !/Tier-1/.test(existingData.openToRelocate) ? existingData.openToRelocate : "Yes — anywhere in India")
   );
-  const [globalOpportunities, setGlobalOpportunities] = useState(
-    Array.isArray(existingData?.globalOpportunities) && existingData.globalOpportunities.length > 0
-      ? existingData.globalOpportunities
-      : []
-  );
+  // Open to Global Opportunities: a Yes / No choice; "Yes" reveals a searchable
+  // country picker. Older profiles stored a list of preset regions instead - map
+  // those onto the new Yes/No + countries shape on load.
+  const legacyGlobal = Array.isArray(existingData?.globalOpportunities) ? existingData.globalOpportunities : [];
+  const [openToGlobal, setOpenToGlobal] = useState(() => {
+    if (existingData?.openToGlobal === "yes" || existingData?.openToGlobal === "no") return existingData.openToGlobal;
+    if (legacyGlobal.includes("Not right now")) return "no";
+    return legacyGlobal.length > 0 ? "yes" : "";
+  });
+  const [globalCountries, setGlobalCountries] = useState(() => {
+    if (Array.isArray(existingData?.globalCountries)) return existingData.globalCountries;
+    const out = [];
+    if (legacyGlobal.includes("US (offshore night shift)")) out.push("United States");
+    if (legacyGlobal.includes("Philippines · UAE · Saudi")) out.push("Philippines", "United Arab Emirates", "Saudi Arabia");
+    return out;
+  });
+  const [countrySearch, setCountrySearch] = useState("");
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
 
   // 5. SECTION 5 · BASIC EDUCATION
   const [educationStream, setEducationStream] = useState(
@@ -712,6 +904,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   };
 
   const handleAddCity = (cityToAdd) => {
+    if (!cityToAdd) {
+      toast("Please pick a city from the list first.", "!");
+      return;
+    }
     if (preferredCities.length >= 5) {
       toast("You can select up to 5 preferred cities.", "!");
       return;
@@ -719,21 +915,19 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     if (!preferredCities.includes(cityToAdd)) {
       setPreferredCities([...preferredCities, cityToAdd]);
     }
+    setSelectedCityOption("");
     setCityInputOpen(false);
   };
 
-  const toggleGlobalOpportunity = (item) => {
-    if (item === "Not right now") {
-      setGlobalOpportunities(["Not right now"]);
-      return;
-    }
-    const filtered = globalOpportunities.filter((x) => x !== "Not right now");
-    if (filtered.includes(item)) {
-      setGlobalOpportunities(filtered.filter((x) => x !== item));
-    } else {
-      setGlobalOpportunities([...filtered, item]);
-    }
+  const addGlobalCountry = (country) => {
+    setGlobalCountries((prev) => (prev.includes(country) ? prev : [...prev, country]));
+    setCountrySearch("");
+    if (formErrors.globalCountries) setFormErrors((prev) => ({ ...prev, globalCountries: null }));
   };
+  const removeGlobalCountry = (country) => setGlobalCountries((prev) => prev.filter((x) => x !== country));
+  const filteredCountries = COUNTRIES.filter(
+    (n) => !globalCountries.includes(n) && n.toLowerCase().includes(countrySearch.trim().toLowerCase())
+  );
 
   // Aadhaar Send OTP via Real UIDAI / Talentera Gateway
   const handleSendAadhaarOtp = async () => {
@@ -780,7 +974,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
 
           toast(
             "Message Central DigiLocker opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.",
-            "ℹ"
+            <i className="fa-solid fa-circle-info" />
           );
           return;
         }
@@ -1062,7 +1256,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         // Auto-poll in background to automatically detect completion and auto-close popup
         startMcPolling(res.data.verificationId, res.data.referenceId);
 
-        toast("DigiLocker window opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.", "ℹ");
+        toast("DigiLocker window opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.", <i className="fa-solid fa-circle-info" />);
       }
     } catch (err) {
       console.error("Message Central start error:", err);
@@ -1161,6 +1355,22 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         missingFields.push("Valid 10-Digit Mobile Number");
         errs.mobile = "Valid 10-digit mobile number is mandatory";
       }
+      // Alternate WhatsApp number - required only when it differs from the main mobile
+      if (!isWhatsAppSame) {
+        const cleanWa = whatsappNumber.replace(/\D/g, "");
+        if (!cleanWa || !isValidIndianMobile(cleanWa)) {
+          missingFields.push("Valid 10-Digit WhatsApp / Alternate Number");
+          errs.whatsappNumber = "Enter a valid 10-digit WhatsApp / alternate number";
+        }
+      }
+      // Open to Global Opportunities - a Yes/No answer, plus at least one country on "Yes"
+      if (!openToGlobal) {
+        missingFields.push("Open to Global Opportunities (Yes / No)");
+        errs.openToGlobal = "Please choose Yes or No";
+      } else if (openToGlobal === "yes" && globalCountries.length === 0) {
+        missingFields.push("At least one country for Global Opportunities");
+        errs.globalCountries = "Select at least one country";
+      }
       // Email validation
       if (!email || !email.includes("@")) {
         missingFields.push("Valid Email Address");
@@ -1249,6 +1459,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       mobile: cleanMobile,
       mobileVerified: isMobileVerified,
       isWhatsAppSame,
+      whatsappNumber: isWhatsAppSame ? "" : whatsappNumber.replace(/\D/g, ""),
       email: email.trim(),
       bestTimeToContact,
       preferredContactMethod: preferredContactMethods,
@@ -1265,9 +1476,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       state: resolvedState,
       city: resolvedCity,
       currentLocality,
-      preferredCities: preferredCities.length > 0 ? preferredCities : [resolvedCity],
+      preferredCities: preferredCities.filter(Boolean).length > 0 ? preferredCities.filter(Boolean) : [resolvedCity],
       openToRelocate,
-      globalOpportunities,
+      openToGlobal,
+      globalCountries: openToGlobal === "yes" ? globalCountries : [],
+      // Kept for older consumers of this field: the chosen countries, or "Not right now" for No
+      globalOpportunities: openToGlobal === "yes" ? globalCountries : openToGlobal === "no" ? ["Not right now"] : [],
 
       // Education
       educationStream,
@@ -1336,16 +1550,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         }
 
         .stage01-layout {
-          display: grid;
-          grid-template-columns: 1fr 320px;
-          gap: 24px;
-          align-items: start;
-        }
-
-        @media (max-width: 1100px) {
-          .stage01-layout {
-            grid-template-columns: 1fr;
-          }
+          width: 100%;
         }
 
         /* ─── MAIN CONTENT ─── */
@@ -2221,18 +2426,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
 
       <div className="stage01-layout">
         <div className="stage01-main">
-          {/* BREADCRUMB */}
-          <div className="breadcrumb">
-            <span>Home</span>
-            <span className="sep">›</span>
-            <span>My Career Passport</span>
-            <span className="sep">›</span>
-            <span style={{ color: "var(--navy)", fontWeight: 800 }}>Stage 01 · Identity</span>
-          </div>
 
           {/* HERO */}
           <div className="hero">
-            <div className="hero-icon">🛡</div>
+            <div className="hero-icon"><i className="fa-solid fa-shield-halved" /></div>
             <div className="hero-badges">
               <span className="hero-chip">STAGE 01 OF 07 · ACTIVE</span>
               <span className="hero-chip gold">+15 POINTS</span>
@@ -2271,7 +2468,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               <div className="rule-tile">
                 <div className="rule-head">
-                  <div className="rule-ico">🔒</div>
+                  <div className="rule-ico"><i className="fa-solid fa-lock" /></div>
                   <div className="rule-title">What we verify and lock</div>
                 </div>
                 <div className="rule-body">
@@ -2283,7 +2480,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               <div className="rule-tile">
                 <div className="rule-head">
-                  <div className="rule-ico">📍</div>
+                  <div className="rule-ico"><i className="fa-solid fa-location-dot" /></div>
                   <div className="rule-title">What YOU tell us</div>
                 </div>
                 <div className="rule-body">
@@ -2295,7 +2492,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               <div className="rule-tile">
                 <div className="rule-head">
-                  <div className="rule-ico">👁</div>
+                  <div className="rule-ico"><i className="fa-solid fa-eye" /></div>
                   <div className="rule-title">What stays private</div>
                 </div>
                 <div className="rule-body">
@@ -2310,7 +2507,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             )}
 
             <div className="consent-pill">
-              <span className="ico">🔐</span>
+              <span className="ico"></span>
               <span><i>By continuing, you consent to Aadhaar OTP verification via UIDAI. DPDP Act compliant.</i></span>
             </div>
           </div>
@@ -2350,7 +2547,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             </div>
             {formErrors.aadhaar && (
               <div className="field-error-msg" style={{ background: "#FEF2F2", border: "1.5px solid #EF4444", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
-                ⚠️ {formErrors.aadhaar}
+                {formErrors.aadhaar}
               </div>
             )}
 
@@ -2398,7 +2595,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                         <>Opening Message Central DigiLocker…</>
                       ) : (
                         <>
-                          <span style={{ fontSize: 18 }}>🏛️</span>
+                          <span style={{ fontSize: 18 }}><i className="fa-solid fa-landmark" /></span>
                           <span>Verify with Aadhaar DigiLocker (Message Central) →</span>
                         </>
                       )}
@@ -2407,7 +2604,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                   <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: 14 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#166534", fontSize: 13, fontWeight: 700 }}>
-                      <span>🔄</span>
+                      <span><i className="fa-solid fa-rotate" /></span>
                       <span>DigiLocker popup active. Complete your OTP verification, then click Fetch Details below.</span>
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2451,7 +2648,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     Full Legal Name <span className="req">*</span>
                     {isAadhaarVerified && (
                       <span style={{ marginLeft: 8, fontSize: 10.5, color: "#16a34a", fontWeight: 700 }}>
-                        🔒 Auto-filled from Aadhaar
+                        Auto-filled from Aadhaar
                       </span>
                     )}
                   </label>
@@ -2500,49 +2697,49 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <div className="aadhaar-lock-row">
                   <div className="key">Aadhaar Number</div>
                   <div className="val">{aadhaarInput || existingData?.maskedAadhaar || candidate?.stage1?.maskedAadhaar || "UIDAI Verified"}</div>
-                  <div className="lock">🔒 UIDAI Verified</div>
+                  <div className="lock">UIDAI Verified</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Full Name</div>
                   <div className="val">{lockedFullName || "—"}</div>
-                  <div className="lock">🔒 Locked</div>
+                  <div className="lock">Locked</div>
                 </div>
                 {aadhaarCareOf && (
                   <div className="aadhaar-lock-row">
                     <div className="key">Care Of</div>
                     <div className="val">{aadhaarCareOf}</div>
-                    <div className="lock">🔒 Locked</div>
+                    <div className="lock">Locked</div>
                   </div>
                 )}
                 <div className="aadhaar-lock-row">
                   <div className="key">Date of Birth</div>
                   <div className="val">{lockedDob || "—"}</div>
-                  <div className="lock">🔒 Locked</div>
+                  <div className="lock">Locked</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Gender</div>
                   <div className="val">{lockedGender || "—"}</div>
-                  <div className="lock">🔒 Locked</div>
+                  <div className="lock">Locked</div>
                 </div>
                 <div className="aadhaar-lock-row">
                   <div className="key">Address</div>
                   <div className="val">
                     {lockedLocality || [lockedDistrict, lockedState].filter(Boolean).join(", ") || "—"}
                   </div>
-                  <div className="lock">🔒 Locked</div>
+                  <div className="lock">Locked</div>
                 </div>
                 {aadhaarPincode && (
                   <div className="aadhaar-lock-row">
                     <div className="key">Pincode</div>
                     <div className="val">{aadhaarPincode}</div>
-                    <div className="lock">🔒 Locked</div>
+                    <div className="lock">Locked</div>
                   </div>
                 )}
                 {maskedMobileInfo && (
                   <div className="aadhaar-lock-row">
                     <div className="key">Aadhaar Phone</div>
                     <div className="val">{maskedMobileInfo} (UIDAI Verified)</div>
-                    <div className="lock">🔒 Verified</div>
+                    <div className="lock">Verified</div>
                   </div>
                 )}
                 <div className="aadhaar-btns">
@@ -2561,7 +2758,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     className="link-btn"
                     onClick={() => {
                       setIsAadhaarVerified(false);
-                      toast("You can now re-verify with Aadhaar DigiLocker.", "ℹ");
+                      toast("You can now re-verify with Aadhaar DigiLocker.", <i className="fa-solid fa-circle-info" />);
                     }}
                   >
                     Re-verify with DigiLocker
@@ -2569,7 +2766,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <button
                     type="button"
                     className="link-btn"
-                    onClick={() => toast("Mismatch ticket raised with Talentera Support.", "ℹ")}
+                    onClick={() => toast("Mismatch ticket raised with Talentera Support.", <i className="fa-solid fa-circle-info" />)}
                   >
                     Report mismatch
                   </button>
@@ -2604,7 +2801,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   }}
                 />
                 {formErrors.mobile ? (
-                  <div className="field-error-msg">⚠️ {formErrors.mobile}</div>
+                  <div className="field-error-msg">{formErrors.mobile}</div>
                 ) : (
                   <div className="helper">Used for interview invites and recruiter calls.</div>
                 )}
@@ -2623,7 +2820,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   }}
                 />
                 {formErrors.email ? (
-                  <div className="field-error-msg">⚠️ {formErrors.email}</div>
+                  <div className="field-error-msg">{formErrors.email}</div>
                 ) : (
                   <div className="helper">Official communications and job offers will be sent here.</div>
                 )}
@@ -2640,6 +2837,32 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
             </div>
 
+            {!isWhatsAppSame && (
+              <div className="row">
+                <div className={`field ${formErrors.whatsappNumber ? "has-error" : ""}`}>
+                  <label>
+                    WhatsApp / Alternate Mobile Number (10 digits) <span className="req">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="98765 43210"
+                    maxLength={12}
+                    value={whatsappNumber}
+                    onChange={(e) => {
+                      setWhatsappNumber(formatMobile(e.target.value));
+                      if (formErrors.whatsappNumber) setFormErrors((prev) => ({ ...prev, whatsappNumber: null }));
+                    }}
+                  />
+                  {formErrors.whatsappNumber ? (
+                    <div className="field-error-msg">{formErrors.whatsappNumber}</div>
+                  ) : (
+                    <div className="helper">We&apos;ll use this number for WhatsApp updates instead of your main mobile.</div>
+                  )}
+                </div>
+                <div />
+              </div>
+            )}
+
             <div className="row">
               <div className="field">
                 <label>Best time to contact</label>
@@ -2647,10 +2870,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   value={bestTimeToContact}
                   onChange={(e) => setBestTimeToContact(e.target.value)}
                 >
-                  <option>Anytime</option>
-                  <option>Morning (9 AM – 12 PM)</option>
-                  <option>Afternoon (12 – 5 PM)</option>
-                  <option>Evening (5 – 9 PM)</option>
+                  <option value="Anytime">Anytime</option>
+                  <option value="Morning (9 AM to 12 PM)">Morning (9 AM to 12 PM)</option>
+                  <option value="Afternoon (12 PM to 5 PM)">Afternoon (12 PM to 5 PM)</option>
+                  <option value="Evening (5 PM to 9 PM)">Evening (5 PM to 9 PM)</option>
                 </select>
                 <div className="helper">Helps HRs and Talentera reach you at the right hours.</div>
               </div>
@@ -2660,9 +2883,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 </label>
                 <div className="row-3">
                   {[
-                    { key: "WhatsApp", label: "📱 WhatsApp" },
-                    { key: "Call", label: "📞 Call" },
-                    { key: "Email", label: "✉ Email" },
+                    { key: "WhatsApp", label: "WhatsApp" },
+                    { key: "Call", label: "Call" },
+                    { key: "Email", label: "Email" },
                   ].map((item) => (
                     <div
                       key={item.key}
@@ -2699,7 +2922,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   onClick={() => setExperience("Fresher")}
                 >
                   <div className="choice-check">{experience === "Fresher" ? "✓" : ""}</div>
-                  <div className="choice-icon">🎓</div>
+                  <div className="choice-icon"><i className="fa-solid fa-graduation-cap" /></div>
                   <div className="choice-title">Fresher</div>
                   <div className="choice-sub">New to Industry</div>
                   <div className="choice-desc">
@@ -2711,7 +2934,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   onClick={() => setExperience("Experienced")}
                 >
                   <div className="choice-check">{experience === "Experienced" ? "✓" : ""}</div>
-                  <div className="choice-icon">💼</div>
+                  <div className="choice-icon"><i className="fa-solid fa-briefcase" /></div>
                   <div className="choice-title">Experienced</div>
                   <div className="choice-sub">1+ yrs in Coding / RCM</div>
                   <div className="choice-desc">
@@ -2747,7 +2970,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             {/* Block A: Permanent */}
             <div style={{ marginBottom: 18 }}>
               <label style={{ marginBottom: 8 }}>
-                🏠 Permanent Address {isAadhaarVerified ? <span className="lock">(auto-locked from Aadhaar)</span> : <span style={{ fontSize: 11.5, color: "#64748B", fontWeight: 500 }}>(auto-filled from Aadhaar or manual entry)</span>}
+                Permanent Address {isAadhaarVerified ? <span className="lock">(auto-locked from Aadhaar)</span> : <span style={{ fontSize: 11.5, color: "#64748B", fontWeight: 500 }}>(auto-filled from Aadhaar or manual entry)</span>}
               </label>
               <div className="row-3">
                 <div className="field">
@@ -2770,7 +2993,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     placeholder="e.g. Chennai"
                     onChange={(e) => setLockedDistrict(e.target.value)}
                   />
-                  <div className="helper">District</div>
+                  <div className="helper">Locality</div>
                 </div>
                 <div className="field">
                   <input
@@ -2781,14 +3004,14 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     placeholder="e.g. T. Nagar"
                     onChange={(e) => setLockedLocality(e.target.value)}
                   />
-                  <div className="helper">Locality</div>
+                  <div className="helper">Area</div>
                 </div>
               </div>
             </div>
 
             {/* Block B: Current */}
             <div style={{ marginBottom: 18 }}>
-              <label style={{ marginBottom: 8 }}>📍 Current Address</label>
+              <label style={{ marginBottom: 8 }}>Current Address</label>
               <div className="option-list" style={{ marginBottom: 10 }}>
                 <div
                   className={`option-item ${isSameAddress ? "selected" : ""}`}
@@ -2855,13 +3078,13 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             {/* Block C: Preferences */}
             <div style={{ marginBottom: 18 }}>
               <label>
-                💼 Willing to Work In <span className="req">*</span>{" "}
+                Willing to Work In <span className="req">*</span>{" "}
                 <span className="helper" style={{ fontWeight: 500, fontStyle: "normal" }}>
                   (pick up to 5 cities)
                 </span>
               </label>
               <div className="tag-picker">
-                {preferredCities.map((city) => (
+                {preferredCities.filter(Boolean).map((city) => (
                   <span key={city} className="tag">
                     {city} <span className="x" onClick={() => handleRemoveCity(city)}>×</span>
                   </span>
@@ -2882,6 +3105,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     onChange={(e) => setSelectedCityOption(e.target.value)}
                     style={{ maxWidth: 220 }}
                   >
+                    <option value="">Select a city…</option>
                     {POPULAR_CITIES.filter((c) => !preferredCities.includes(c)).map((c) => (
                       <option key={c} value={c}>
                         {c}
@@ -2909,12 +3133,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
 
             <div className="field">
               <label>
-                🌍 Open to Relocate? <span className="req">*</span>
+                Open to Relocate? <span className="req">*</span>
               </label>
               <div className="option-list">
                 {[
                   "Yes — anywhere in India",
-                  "Yes — but only Tier-1 cities",
                   "Yes — but only my preferred cities",
                   "No — only my current city",
                 ].map((opt) => (
@@ -2930,22 +3153,25 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
             </div>
 
-            <div className="field">
+            <div className={`field ${formErrors.openToGlobal || formErrors.globalCountries ? "has-error" : ""}`}>
               <label>
-                🌐 Open to Global Opportunities? <span className="req">*</span>
+                Open to Global Opportunities? <span className="req">*</span>
               </label>
               <div className="option-list">
                 {[
-                  { key: "US (offshore night shift)", label: "🇺🇸 US (offshore night shift)" },
-                  { key: "Philippines · UAE · Saudi", label: "🌏 Philippines · UAE · Saudi" },
-                  { key: "Not right now", label: "🚫 Not right now" },
+                  { key: "yes", label: "Yes" },
+                  { key: "no", label: "No" },
                 ].map((item) => {
-                  const isChecked = globalOpportunities.includes(item.key);
+                  const isChecked = openToGlobal === item.key;
                   return (
                     <div
                       key={item.key}
                       className={`option-item ${isChecked ? "selected" : ""}`}
-                      onClick={() => toggleGlobalOpportunity(item.key)}
+                      onClick={() => {
+                        setOpenToGlobal(item.key);
+                        setCountryDropdownOpen(false);
+                        if (formErrors.openToGlobal) setFormErrors((prev) => ({ ...prev, openToGlobal: null }));
+                      }}
                     >
                       <div className="box">{isChecked ? "✓" : ""}</div>
                       <div>{item.label}</div>
@@ -2953,6 +3179,53 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   );
                 })}
               </div>
+              {formErrors.openToGlobal && <div className="field-error-msg">{formErrors.openToGlobal}</div>}
+
+              {openToGlobal === "yes" && (
+                <div style={{ marginTop: 12, position: "relative" }}>
+                  <input
+                    type="text"
+                    placeholder="Search country..."
+                    value={countrySearch}
+                    onFocus={() => setCountryDropdownOpen(true)}
+                    onChange={(e) => { setCountrySearch(e.target.value); setCountryDropdownOpen(true); }}
+                    onBlur={() => setTimeout(() => setCountryDropdownOpen(false), 150)}
+                  />
+                  {countryDropdownOpen && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                      {filteredCountries.length === 0 && (
+                        <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
+                          {countrySearch.trim() ? `No countries match "${countrySearch}"` : "All countries selected"}
+                        </div>
+                      )}
+                      {filteredCountries.map((n) => (
+                        <div
+                          key={n}
+                          onMouseDown={() => addGlobalCountry(n)}
+                          style={{ padding: "9px 14px", cursor: "pointer", fontSize: 13.5 }}
+                        >
+                          {n}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {globalCountries.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {globalCountries.map((n) => (
+                        <span key={n} style={{ background: "#FDF6E4", border: "1px solid #F5B41A", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          {n}
+                          <button type="button" aria-label={`Remove ${n}`} onClick={() => removeGlobalCountry(n)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#64748B", padding: "0 4px" }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {formErrors.globalCountries ? (
+                    <div className="field-error-msg">{formErrors.globalCountries}</div>
+                  ) : (
+                    <div className="helper">Pick every country you&apos;d consider working for or relocating to.</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2977,7 +3250,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   }}
                 >
                   <div className="choice-check">{educationStream === "Life Science" ? "✓" : ""}</div>
-                  <div className="choice-icon">🧬</div>
+                  <div className="choice-icon"></div>
                   <div className="choice-title">Life Science</div>
                   <div className="choice-sub">B.Sc · Pharmacy · Nursing · Allied Health</div>
                 </div>
@@ -2989,7 +3262,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   }}
                 >
                   <div className="choice-check">{educationStream === "Non-Life Science" ? "✓" : ""}</div>
-                  <div className="choice-icon">📚</div>
+                  <div className="choice-icon"><i className="fa-solid fa-book" /></div>
                   <div className="choice-title">Non-Life Science</div>
                   <div className="choice-sub">B.Com · B.Tech · BCA · BBA · Arts</div>
                 </div>
@@ -3001,12 +3274,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   }}
                 >
                   <div className="choice-check">{educationStream === "Other" ? "✓" : ""}</div>
-                  <div className="choice-icon">✏️</div>
+                  <div className="choice-icon"><i className="fa-solid fa-pen" /></div>
                   <div className="choice-title">Other</div>
                   <div className="choice-sub">Not listed - enter your own qualification</div>
                 </div>
               </div>
-              {formErrors.educationStream && <div className="field-error-msg">⚠️ {formErrors.educationStream}</div>}
+              {formErrors.educationStream && <div className="field-error-msg">{formErrors.educationStream}</div>}
             </div>
 
             <div className="row">
@@ -3047,6 +3320,9 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                       if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
                     }}
                   >
+                    {degree && !getCourseOptions(qualification, educationStream).includes(degree) && (
+                      <option value={degree}>{degree}</option>
+                    )}
                     {getCourseOptions(qualification, educationStream).map((c) => (
                       <option key={c} value={c}>
                         {c}
@@ -3054,7 +3330,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     ))}
                   </select>
                 )}
-                {formErrors.degree && <div className="field-error-msg">⚠️ {formErrors.degree}</div>}
+                {formErrors.degree && <div className="field-error-msg">{formErrors.degree}</div>}
               </div>
             </div>
 
@@ -3218,7 +3494,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     <div>Pursuing</div>
                   </div>
                 </div>
-                {formErrors.educationStatus && <div className="field-error-msg">⚠️ {formErrors.educationStatus}</div>}
+                {formErrors.educationStatus && <div className="field-error-msg">{formErrors.educationStatus}</div>}
               </div>
             </div>
 
@@ -3258,7 +3534,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   </select>
                 </div>
                 {formErrors.graduation ? (
-                  <div className="field-error-msg">⚠️ {formErrors.graduation}</div>
+                  <div className="field-error-msg">{formErrors.graduation}</div>
                 ) : (
                   <div className="helper">Month & year of completion.</div>
                 )}
@@ -3288,7 +3564,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     if (formErrors.cgpa) setFormErrors((prev) => ({ ...prev, cgpa: null }));
                   }}
                 />
-                {formErrors.cgpa && <div className="field-error-msg">⚠️ {formErrors.cgpa}</div>}
+                {formErrors.cgpa && <div className="field-error-msg">{formErrors.cgpa}</div>}
               </div>
             </div>
 
@@ -3352,10 +3628,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           </div>
         </div>
 
-        {/* ─── RIGHT SIDEBAR ─── */}
-        <div className="right-sidebar" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
-          <WizardCompanionRail stageNum={1} candidate={candidate} />
-        </div>
       </div>
     </div>
   );

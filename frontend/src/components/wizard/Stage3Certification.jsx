@@ -1,34 +1,33 @@
 import React, { useState, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import { CERT_LIBRARY, CERT_ID_PATTERNS, passingPercentLabel } from "../../data/certLibrary";
+import { CERT_LIBRARY, CERT_ID_PATTERNS } from "../../data/certLibrary";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 const REGIONS = [
-  { id: "us", name: "United States", flag: "🇺🇸", count: "69 certs" },
-  { id: "in", name: "India", flag: "🇮🇳", count: "55 certs" },
-  { id: "ph", name: "Philippines", flag: "🇵🇭", count: "51 certs" },
-  { id: "sa", name: "Saudi Arabia", flag: "🇸🇦", count: "39 certs" },
-  { id: "gcc", name: "UAE / Bahrain / Kuwait / Oman / Qatar (GCC)", flag: "🌐", count: "39 certs" },
-  { id: "au", name: "Australia", flag: "🇦🇺", count: "22 certs" },
-  { id: "nz", name: "New Zealand", flag: "🇳🇿", count: "7 certs" },
-  { id: "ca", name: "Canada", flag: "🇨🇦", count: "17 certs" },
-  { id: "uk", name: "United Kingdom", flag: "🇬🇧", count: "15 certs" },
-  { id: "my", name: "Malaysia", flag: "🇲🇾", count: "40 certs" },
-  { id: "sg", name: "Singapore", flag: "🇸🇬", count: "17 certs" },
-  { id: "za", name: "South Africa", flag: "🇿🇦", count: "10 certs" },
-  { id: "de", name: "Germany", flag: "🇩🇪", count: "4 certs" },
-  { id: "br", name: "Brazil", flag: "🇧🇷", count: "1 cert" },
-  { id: "mx", name: "Mexico", flag: "🇲🇽", count: "35 certs" },
-  { id: "ng", name: "Nigeria", flag: "🇳🇬", count: "35 certs" },
-  { id: "th", name: "Thailand", flag: "🇹🇭", count: "1 cert" },
-  { id: "jp", name: "Japan", flag: "🇯🇵", count: "1 cert" },
-  { id: "fr", name: "France", flag: "🇫🇷", count: "2 certs" },
-  { id: "ie", name: "Ireland", flag: "🇮🇪", count: "2 certs" },
-  { id: "nl", name: "Netherlands", flag: "🇳🇱", count: "2 certs" },
-  { id: "ch", name: "Switzerland", flag: "🇨🇭", count: "2 certs" },
-  { id: "at", name: "Austria", flag: "🇦🇹", count: "2 certs" },
+  { id: "us", name: "United States", flag: '', count: "69 certs" },
+  { id: "in", name: "India", flag: '', count: "55 certs" },
+  { id: "ph", name: "Philippines", flag: '', count: "51 certs" },
+  { id: "sa", name: "Saudi Arabia", flag: '', count: "39 certs" },
+  { id: "gcc", name: "UAE / Bahrain / Kuwait / Oman / Qatar (GCC)", flag: <i className="fa-solid fa-globe" />, count: "39 certs" },
+  { id: "au", name: "Australia", flag: '', count: "22 certs" },
+  { id: "nz", name: "New Zealand", flag: '', count: "7 certs" },
+  { id: "ca", name: "Canada", flag: '', count: "17 certs" },
+  { id: "uk", name: "United Kingdom", flag: '', count: "15 certs" },
+  { id: "my", name: "Malaysia", flag: '', count: "40 certs" },
+  { id: "sg", name: "Singapore", flag: '', count: "17 certs" },
+  { id: "za", name: "South Africa", flag: '', count: "10 certs" },
+  { id: "de", name: "Germany", flag: '', count: "4 certs" },
+  { id: "br", name: "Brazil", flag: '', count: "1 cert" },
+  { id: "mx", name: "Mexico", flag: '', count: "35 certs" },
+  { id: "ng", name: "Nigeria", flag: '', count: "35 certs" },
+  { id: "th", name: "Thailand", flag: '', count: "1 cert" },
+  { id: "jp", name: "Japan", flag: '', count: "1 cert" },
+  { id: "fr", name: "France", flag: '', count: "2 certs" },
+  { id: "ie", name: "Ireland", flag: '', count: "2 certs" },
+  { id: "nl", name: "Netherlands", flag: '', count: "2 certs" },
+  { id: "ch", name: "Switzerland", flag: '', count: "2 certs" },
+  { id: "at", name: "Austria", flag: '', count: "2 certs" },
 ];
 
 const BODIES_BY_REGION = {
@@ -151,6 +150,37 @@ const BODIES_BY_REGION = {
   ],
 };
 
+// Target certifications for the "Pursuing Details" section, split into a
+// Coding tab and a Billing tab.
+const PURSUING_CODING_CERTS = [
+  { code: "CPC", label: "CPC — Certified Professional Coder" },
+  { code: "CPC-A", label: "CPC-A — Certified Professional Coder Apprentice" },
+  { code: "COC", label: "COC — Certified Outpatient Coder" },
+  { code: "CIC", label: "CIC — Certified Inpatient Coder" },
+  { code: "CRC", label: "CRC — Certified Risk Adjustment Coder" },
+  { code: "CCS", label: "CCS — Certified Coding Specialist (AHIMA)" },
+  { code: "CCS-P", label: "CCS-P — Certified Coding Specialist, Physician-based (AHIMA)" },
+  { code: "CCA", label: "CCA — Certified Coding Associate (AHIMA)" },
+  { code: "CPMA", label: "CPMA — Certified Professional Medical Auditor" },
+  { code: "CDEO", label: "CDEO — Certified Documentation Expert Outpatient" },
+  { code: "CDIP", label: "CDIP — Clinical Documentation Improvement Practitioner (AHIMA)" },
+  { code: "RHIT", label: "RHIT — Registered Health Information Technician (AHIMA)" },
+  { code: "CMCS", label: "CMCS — Certified Medical Coding Specialist" },
+];
+const PURSUING_BILLING_CERTS = [
+  { code: "CPB", label: "CPB — Certified Professional Biller (AAPC)" },
+  { code: "CMRS", label: "CMRS — Certified Medical Reimbursement Specialist (AMBA)" },
+  { code: "CMIS", label: "CMIS — Certified Medical Insurance Specialist" },
+  { code: "CBCS", label: "CBCS — Certified Billing & Coding Specialist (NHA)" },
+  { code: "CRCR", label: "CRCR — Certified Revenue Cycle Representative (HFMA)" },
+  { code: "CRCS", label: "CRCS — Certified Revenue Cycle Specialist" },
+  { code: "CRCP", label: "CRCP — Certified Revenue Cycle Professional" },
+  { code: "CRIP", label: "CRIP — Certified Revenue Integrity Professional" },
+  { code: "CHAA", label: "CHAA — Certified Healthcare Access Associate" },
+  { code: "CPPM", label: "CPPM — Certified Physician Practice Manager" },
+  { code: "CMOM", label: "CMOM — Certified Medical Office Manager" },
+];
+
 const MONTH_OPTIONS = [
   { val: "01", label: "01 · Jan" },
   { val: "02", label: "02 · Feb" },
@@ -177,7 +207,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   const s1 = candidate?.stage1 || {};
   const s2 = candidate?.stage2 || {};
   const candidateName = s1.fullName || candidate.fullName || "Candidate";
-  const candidateExp = s1.experienceLevel || s1.experience || "Fresher";
+  const candidateExp = s1.experienceLevel || s1.experience || candidate?.experience || "Fresher";
+  const isExperienced = /exp/i.test(String(s1.experienceLevel || s1.experience || candidate?.experience || candidateExp || ""));
   const academyName = s2.academyName || s2.instituteName || "Direct / Self-Trained";
   const specialty = s2.specialties?.[0] || s2.specialty || s2.domain || "Medical Coding";
   const candidateCity = s1.city || candidate.city || "—";
@@ -334,7 +365,16 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   }, [existingData, initialCertStack]);
 
   // SECTION 3 · PURSUING DETAILS
-  const [pursuingCert, setPursuingCert] = useState(existingData.pursuingCert || "CPC");
+  const initialPursuingTrack = (() => {
+    if (existingData.pursuingCert) {
+      return PURSUING_BILLING_CERTS.some((c) => c.code === existingData.pursuingCert) ? "billing" : "coding";
+    }
+    return /billing|accounts receivable|\bAR\b/i.test(String(s2.domain || "")) ? "billing" : "coding";
+  })();
+  const [pursuingTrack, setPursuingTrack] = useState(initialPursuingTrack);
+  const [pursuingCert, setPursuingCert] = useState(
+    existingData.pursuingCert || (initialPursuingTrack === "billing" ? "CPB" : "CPC")
+  );
 
   const rawExam = String(existingData.expectedExamDate || "").trim();
   const [expectedExamMonth, setExpectedExamMonth] = useState(
@@ -488,9 +528,9 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       if (res.data.isReal) {
         toast("✓ Credential authenticity confirmed as REAL!", "✓");
       } else if (res.data.isFake) {
-        toast("⚠️ Suspicious / fake credential pattern detected.", "!");
+        toast("Suspicious / fake credential pattern detected.", "!");
       } else {
-        toast("Format verified! Pending official URL or document proof.", "ℹ");
+        toast("Format verified! Pending official URL or document proof.", <i className="fa-solid fa-circle-info" />);
       }
     } catch (err) {
       console.error("Verification check failed:", err);
@@ -650,17 +690,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
         }
 
         .stage03-shell {
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 24px;
-          max-width: 1380px;
-          margin: 0 auto;
-          align-items: start;
-        }
-        @media (max-width: 1080px) {
-          .stage03-shell {
-            grid-template-columns: 1fr;
-          }
+          width: 100%;
         }
 
         /* BREADCRUMB */
@@ -1635,18 +1665,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
       <div className="stage03-shell">
         {/* MAIN COLUMN */}
         <div className="s3-main">
-          {/* BREADCRUMB */}
-          <div className="s3-breadcrumb">
-            <span>Home</span>
-            <span className="sep">›</span>
-            <span>My Career Passport</span>
-            <span className="sep">›</span>
-            <span style={{ color: "var(--navy)", fontWeight: 800 }}>Stage 03 · Certification</span>
-          </div>
 
           {/* HERO */}
           <div className="s3-hero">
-            <div className="s3-hero-icon">🏆</div>
+            <div className="s3-hero-icon"><i className="fa-solid fa-trophy" /></div>
             <div className="s3-hero-badges">
               <span className="s3-hero-chip">STAGE 03 OF 07 · ACTIVE</span>
               <span className="s3-hero-chip gold">+15 POINTS</span>
@@ -1666,7 +1688,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               <div className="val">{candidateName} · {candidateExp} · Trained at {academyName} · {specialty} · {candidateCity}</div>
               <div className="small">All locked. This stage adds your formal credentials on top.</div>
             </div>
-            <div className="locked-badge">🔒 LOCKED</div>
+            <div className="locked-badge">LOCKED</div>
           </div>
 
           {/* HOW STAGE 03 WORKS */}
@@ -1695,7 +1717,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
               <div className="s3-rule-tile">
                 <div className="s3-rule-head">
-                  <div className="s3-rule-ico">🔒</div>
+                  <div className="s3-rule-ico"><i className="fa-solid fa-lock" /></div>
                   <div className="s3-rule-title">What we verify</div>
                 </div>
                 <div className="s3-rule-body">
@@ -1706,7 +1728,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
               <div className="s3-rule-tile">
                 <div className="s3-rule-head">
-                  <div className="s3-rule-ico">🌍</div>
+                  <div className="s3-rule-ico"><i className="fa-solid fa-earth-asia" /></div>
                   <div className="s3-rule-title">Global means we surface you everywhere</div>
                 </div>
                 <div className="s3-rule-body">
@@ -1717,7 +1739,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
               <div className="s3-rule-tile">
                 <div className="s3-rule-head">
-                  <div className="s3-rule-ico">👁</div>
+                  <div className="s3-rule-ico"><i className="fa-solid fa-eye" /></div>
                   <div className="s3-rule-title">What companies see</div>
                 </div>
                 <div className="s3-rule-body">
@@ -1731,7 +1753,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             )}
 
             <div className="s3-consent-pill">
-              <span className="ico">🌐</span>
+              <span className="ico"><i className="fa-solid fa-globe" /></span>
               <span><i>Talentera queries AAPC and AHIMA member directories directly. Other bodies verified manually within 3-5 days.</i></span>
             </div>
           </div>
@@ -1757,7 +1779,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
           {error && (
             <div style={{ background: "#FDECEA", color: "#C0392B", padding: "12px 16px", borderRadius: 10, fontWeight: 700, marginBottom: 16, border: "1px solid #F8D7DA" }}>
-              ⚠️ {error}
+              {error}
             </div>
           )}
 
@@ -1784,28 +1806,34 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                     }
                   }}
                 >
-                  <div className="ico">🏆</div>
+                  <div className="ico"><i className="fa-solid fa-trophy" /></div>
                   <div className="title">Certified</div>
                   <div className="sub">I already hold one or more professional certifications.</div>
-                  <span className="badge-hint">🟢 Highest company visibility</span>
+                  <span className="badge-hint">Highest company visibility</span>
                 </div>
                 <div
                   className={`s3-status-card ${status === "pursuing" ? "selected" : ""}`}
                   onClick={() => setStatus("pursuing")}
                 >
-                  <div className="ico">📖</div>
+                  <div className="ico"><i className="fa-solid fa-book-open" /></div>
                   <div className="title">Pursuing</div>
                   <div className="sub">I've booked an exam or I'm actively preparing.</div>
-                  <span className="badge-hint yellow">🟡 Bridging path via Assessment</span>
+                  <span className="badge-hint yellow">Bridging path via Assessment</span>
                 </div>
                 <div
                   className={`s3-status-card ${status === "non-certified" ? "selected warn" : ""}`}
                   onClick={() => setStatus("non-certified")}
                 >
-                  <div className="ico">⛔</div>
+                  <div className="ico"></div>
                   <div className="title">Not Certified</div>
-                  <div className="sub">No cert and no immediate plan — I'll rely on other credentials.</div>
-                  <span className="badge-hint red">🔴 Lower visibility to top companies</span>
+                  <div className="sub">
+                    {isExperienced
+                      ? "Relying on direct on-the-job coding experience and production accuracy."
+                      : "No cert and no immediate plan — I'll rely on other credentials."}
+                  </div>
+                  <span className={`badge-hint ${isExperienced ? "blue" : "red"}`}>
+                    {isExperienced ? "Evaluated on work experience" : "Lower visibility to top companies"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1826,7 +1854,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 <div className="s3-helper" style={{ marginBottom: 8 }}>Where was your certification issued?</div>
                 <input
                   type="text"
-                  placeholder="🔍 Search country..."
+                  placeholder="Search country..."
                   value={regionDropdownOpen ? regionSearch : `${selectedRegionObj.flag}  ${selectedRegionObj.name}`}
                   onFocus={() => {
                     setRegionDropdownOpen(true);
@@ -1908,7 +1936,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 <label>Step 3 · Pick your certification <span className="req">*</span></label>
                 <input
                   type="text"
-                  placeholder="🔍 Search certifications by code or name..."
+                  placeholder="Search certifications by code or name..."
                   value={certSearch}
                   onChange={(e) => setCertSearch(e.target.value)}
                   style={{ marginBottom: 8 }}
@@ -1924,48 +1952,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                   )}
                   {filteredCerts.map((c) => (
                     <option key={c.code} value={c.code}>
-                      {c.flagText ? `⭐ ${c.code} — ${c.name}` : `${c.code} — ${c.name}`}
+                      {c.flagText ? `${c.code} — ${c.name}` : `${c.code} — ${c.name}`}
                     </option>
                   ))}
                 </select>
-
-                {/* Detail Card */}
-                <div className="s3-cert-detail">
-                  <div className="s3-cert-badge-row">
-                    <span className="s3-cert-code-pill">{activeCertDetail.code}</span>
-                    <span className="s3-cert-tag">⭐ Most Popular</span>
-                    <span className="s3-cert-tag" style={{ background: "var(--green-soft)", color: "var(--green)" }}>
-                      🟢 API-Verified
-                    </span>
-                  </div>
-                  <div className="s3-cert-title">{activeCertDetail.name}</div>
-                  <div className="s3-cert-sub">{activeCertDetail.target}</div>
-                  <div className="s3-cert-stats">
-                    <div className="s3-cert-stat">
-                      <div className="big">{activeCertDetail.time || "4 hrs"}</div>
-                      <div className="small">Exam time</div>
-                    </div>
-                    <div className="s3-cert-stat">
-                      <div className="big">{activeCertDetail.qs || 100}</div>
-                      <div className="small">Questions</div>
-                    </div>
-                    <div className="s3-cert-stat">
-                      <div className="big">{passingPercentLabel(activeCertDetail.passingScore)}</div>
-                      <div className="small">Passing score</div>
-                    </div>
-                    <div className="s3-cert-stat">
-                      <div className="big">{activeCertDetail.renewal || "1 year"}</div>
-                      <div className="small">Renewal cycle</div>
-                    </div>
-                  </div>
-                  <div className="s3-cert-desc">
-                    {activeCertDetail.desc}
-                    <br /><br />
-                    <span className="lbl">Prerequisites: </span>{activeCertDetail.prereq}
-                    <br />
-                    <span className="lbl">Best for: </span>{activeCertDetail.bestFor}
-                  </div>
-                </div>
               </div>
 
               {/* Member ID and Verification URL */}
@@ -1984,7 +1974,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                     maxLength={14}
                   />
                   {formErrors.memberId && (
-                    <div className="field-error-msg">⚠️ {formErrors.memberId}</div>
+                    <div className="field-error-msg">{formErrors.memberId}</div>
                   )}
                   <div className="s3-helper">
                     {bodyData.name || "AAPC"} Member IDs must follow official body formats. Dummy & duplicate IDs are auto-flagged.
@@ -2010,7 +2000,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               {/* Official Registry Link & Authenticity Action Bar */}
               <div className="s3-verify-action-bar">
                 <div className="s3-verify-action-info">
-                  <span className="badge-ico">🏛️</span>
+                  <span className="badge-ico"><i className="fa-solid fa-landmark" /></span>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 13, color: "var(--navy)" }}>
                       Official {bodyData.name || "AAPC"} Verification Registry
@@ -2037,14 +2027,14 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                     disabled={!memberId.trim() || isVerifying}
                     onClick={handleVerifyCredential}
                   >
-                    {isVerifying ? "Checking Authenticity…" : "🔍 Verify Credential (Real vs Fake Check)"}
+                    {isVerifying ? "Checking Authenticity…" : "Verify Credential (Real vs Fake Check)"}
                   </button>
                 </div>
               </div>
 
               {verifyError && (
                 <div style={{ background: "var(--red-soft)", color: "var(--red)", padding: "10px 14px", borderRadius: 8, fontSize: 12, fontWeight: 700, marginBottom: 12 }}>
-                  ⚠️ {verifyError}
+                  {verifyError}
                 </div>
               )}
 
@@ -2179,7 +2169,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
               {/* Doc Link */}
               <div className="s3-doclink">
-                <div className="ico">📁</div>
+                <div className="ico"><i className="fa-solid fa-folder" /></div>
                 <div className="txt">
                   <div className="title">Certificate document vault linked</div>
                   <div className="sub">Stored securely in platform vault · linked to verified credentials on your profile</div>
@@ -2192,7 +2182,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               {/* Dynamic Authenticity Verification Strip (Real vs Fake) */}
               {isVerifying ? (
                 <div className="s3-verify-strip loading">
-                  <div className="badge-dot yellow" style={{ background: "var(--blue)" }}>⏳</div>
+                  <div className="badge-dot yellow" style={{ background: "var(--blue)" }}><i className="fa-solid fa-hourglass-half" /></div>
                   <div style={{ flex: 1 }}>
                     <div className="title" style={{ color: "var(--blue)" }}>Analyzing Credential Authenticity in Real-Time…</div>
                     <div className="body">Validating ID pattern formatting, checking cross-candidate duplicate registrations, and testing live URL reachability.</div>
@@ -2204,7 +2194,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                       <div className="title" style={{ color: "var(--green)" }}>
-                        🟢 REAL CREDENTIAL CONFIRMED · {verificationResult.trustScore}% Trust Score
+                        REAL CREDENTIAL CONFIRMED · {verificationResult.trustScore}% Trust Score
                       </div>
                       <span className="s3-cert-tag" style={{ background: "var(--green-soft)", color: "var(--green)" }}>
                         AUTHENTICATED
@@ -2231,7 +2221,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                       <div className="title" style={{ color: "var(--red)" }}>
-                        🔴 FAKE / SUSPICIOUS CREDENTIAL DETECTED · 0% Trust Score
+                        FAKE / SUSPICIOUS CREDENTIAL DETECTED · 0% Trust Score
                       </div>
                       <span className="s3-cert-tag" style={{ background: "var(--red-soft)", color: "var(--red)" }}>
                         FLAGGED FAKE
@@ -2248,17 +2238,17 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                       </div>
                     )}
                     <div style={{ fontSize: 11, color: "#7F1D1D", marginTop: 6, fontStyle: "italic" }}>
-                      ⚠️ Warning: Submitting falsified credentials or dummy IDs violates Talentera Terms of Service and will trigger profile suspension.
+                      Warning: Submitting falsified credentials or dummy IDs violates Talentera Terms of Service and will trigger profile suspension.
                     </div>
                   </div>
                 </div>
               ) : verificationResult?.verdict === "NEEDS_AUDIT" ? (
                 <div className="s3-verify-strip pending">
-                  <div className="badge-dot yellow">🟡</div>
+                  <div className="badge-dot yellow"><i className="fa-solid fa-circle" /></div>
                   <div style={{ flex: 1 }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
                       <div className="title" style={{ color: "var(--amber)" }}>
-                        🟡 FORMAT VALID · PENDING PROOF URL / AUDIT
+                        FORMAT VALID · PENDING PROOF URL / AUDIT
                       </div>
                       <span className="s3-cert-tag" style={{ background: "var(--gold-pale)", color: "var(--gold-deep)" }}>
                         {verificationResult.trustScore}% Score
@@ -2271,7 +2261,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 </div>
               ) : (
                 <div className="s3-verify-strip" style={{ background: "#F8FAFC", border: "1.5px dashed #CBD5E1" }}>
-                  <div className="badge-dot" style={{ background: "#94A3B8" }}>ℹ️</div>
+                  <div className="badge-dot" style={{ background: "#94A3B8" }}><i className="fa-solid fa-circle-info" /></div>
                   <div style={{ flex: 1 }}>
                     <div className="title" style={{ color: "#334155" }}>Authenticity Check: Pending Test</div>
                     <div className="body">
@@ -2303,7 +2293,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                                 rel="noopener noreferrer"
                                 style={{ fontSize: 11, color: "var(--blue)", textDecoration: "none", fontWeight: 700 }}
                               >
-                                🔗 Link ↗
+                                Link ↗
                               </a>
                             )}
                           </div>
@@ -2313,7 +2303,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                         </div>
                         <div className="s3-cert-mini-id">ID ****{item.memberId ? item.memberId.slice(-4) : "—"}</div>
                         <div className={`s3-cert-mini-badge ${item.badgeClass || "green"}`}>
-                          {item.badgeClass === "green" ? "🟢" : item.badgeClass === "red" ? "🔴" : "🟡"} {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
+                          {item.badgeClass === "green" ? <i className="fa-solid fa-circle" /> : item.badgeClass === "red" ? <i className="fa-solid fa-circle" /> : <i className="fa-solid fa-circle" />} {item.status || (item.isReal === true ? "Real · Verified" : item.isReal === false ? "Fake · Invalid" : "Pending Review")}
                         </div>
                         <button
                           type="button"
@@ -2346,13 +2336,42 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               <div className="s3-row">
                 <div className="s3-field">
                   <label>Target Certification <span className="req">*</span></label>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                    {[
+                      { id: "coding", label: "Coding" },
+                      { id: "billing", label: "Billing" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          if (pursuingTrack === t.id) return;
+                          setPursuingTrack(t.id);
+                          setPursuingCert(t.id === "billing" ? PURSUING_BILLING_CERTS[0].code : PURSUING_CODING_CERTS[0].code);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          fontWeight: 800,
+                          fontSize: 13,
+                          cursor: "pointer",
+                          border: `1.5px solid ${pursuingTrack === t.id ? "var(--gold)" : "#E2E8F0"}`,
+                          background: pursuingTrack === t.id ? "#FFFBEB" : "#fff",
+                          color: "var(--navy)",
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
                   <select value={pursuingCert} onChange={(e) => setPursuingCert(e.target.value)}>
-                    <option value="CPC">CPC — Certified Professional Coder</option>
-                    <option value="CPC-A">CPC-A — Certified Professional Coder Apprentice</option>
-                    <option value="COC">COC — Certified Outpatient Coder</option>
-                    <option value="CIC">CIC — Certified Inpatient Coder</option>
-                    <option value="CRC">CRC — Certified Risk Adjustment Coder</option>
-                    <option value="CCS">CCS — Certified Coding Specialist (AHIMA)</option>
+                    {(pursuingTrack === "billing" ? PURSUING_BILLING_CERTS : PURSUING_CODING_CERTS).map((c) => (
+                      <option key={c.code} value={c.code}>{c.label}</option>
+                    ))}
+                    {![...PURSUING_CODING_CERTS, ...PURSUING_BILLING_CERTS].some((c) => c.code === pursuingCert) && (
+                      <option value={pursuingCert}>{pursuingCert}</option>
+                    )}
                   </select>
                 </div>
                 <div className="s3-field">
@@ -2423,7 +2442,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               </div>
 
               <div className="s3-helper-card" style={{ marginTop: 14 }}>
-                <div className="ico">🧪</div>
+                <div className="ico"><i className="fa-solid fa-flask" /></div>
                 <div className="txt">
                   <b>Bridging Path Active:</b> As a pursuing candidate, completing Stage 04 (Foundation Assessment) unlocks your verified candidate badge while your certification exam is pending.
                 </div>
@@ -2431,8 +2450,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
             </div>
           )}
 
-          {/* SECTION 4 · NON-CERTIFIED (Visible if non-certified) — shown as step 2 since it's mutually exclusive with the Certified/Pursuing sections */}
-          {status === "non-certified" && (
+          {/* SECTION 4 · NON-CERTIFIED (Visible if non-certified fresher) — shown as step 2 since it's mutually exclusive with the Certified/Pursuing sections */}
+          {status === "non-certified" && !isExperienced && (
             <div className="s3-section">
               <div className="s3-section-header">
                 <div className="s3-section-num">2</div>
@@ -2442,7 +2461,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
 
               <div className="s3-warn-card">
                 <div className="s3-warn-head">
-                  <div className="ico">⚠️</div>
+                  <div className="ico"><i className="fa-solid fa-triangle-exclamation" /></div>
                   <div className="s3-warn-title">What a Non-Certified Candidate Experience Looks Like</div>
                 </div>
                 <div className="s3-warn-body">
@@ -2453,7 +2472,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                   <button
                     type="button"
                     className="s3-action-btn outline"
-                    onClick={() => toast("Recorded decision as Non-Certified Candidate.", "ℹ")}
+                    onClick={() => toast("Recorded decision as Non-Certified Candidate.", <i className="fa-solid fa-circle-info" />)}
                   >
                     I understand · Proceed as Non-Certified
                   </button>
@@ -2490,10 +2509,6 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR COLUMN */}
-        <div className="s3-right" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
-          <WizardCompanionRail stageNum={3} candidate={candidate} certCount={certStack?.length || 1} />
-        </div>
       </div>
 
       {/* Interactive Academic & Certification Document Vault Layout */}

@@ -10303,6 +10303,51 @@ export default function StaffHub() {
                         </div>
                       </div>
                     </div>
+                    {s2.currentCompany && (
+                      <div style={{ marginTop: 18 }}>
+                        <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--navy)", margin: "0 0 10px" }}>Work Experience</h4>
+                        <div className="staff-meta-grid">
+                          <div className="staff-meta-item">
+                            <div className="staff-meta-label">Company</div>
+                            <div className="staff-meta-value">{s2.currentCompany}</div>
+                          </div>
+                          <div className="staff-meta-item">
+                            <div className="staff-meta-label">Job Title</div>
+                            <div className="staff-meta-value">{s2.jobTitle || "Not specified"}</div>
+                          </div>
+                          <div className="staff-meta-item">
+                            <div className="staff-meta-label">Employment Status</div>
+                            <div className="staff-meta-value">
+                              {s2.employmentStatus === "relieved" ? "Relieved" : s2.employmentStatus === "working" ? "Currently working" : "Not specified"}
+                            </div>
+                          </div>
+                          {s2.employmentStatus === "relieved" && (
+                            <>
+                              <div className="staff-meta-item">
+                                <div className="staff-meta-label">Relieving Letter</div>
+                                <div className="staff-meta-value">
+                                  {s2.relievingLetterUrl ? (
+                                    <a href={s2.relievingLetterUrl} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 800 }}>
+                                      📎 {s2.relievingLetterName || "View document"}
+                                    </a>
+                                  ) : "Not uploaded"}
+                                </div>
+                              </div>
+                              <div className="staff-meta-item">
+                                <div className="staff-meta-label">Pay Slip</div>
+                                <div className="staff-meta-value">
+                                  {s2.payslipUrl ? (
+                                    <a href={s2.payslipUrl} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 800 }}>
+                                      📎 {s2.payslipName || "View document"}
+                                    </a>
+                                  ) : "Not uploaded"}
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

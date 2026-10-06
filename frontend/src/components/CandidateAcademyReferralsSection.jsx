@@ -83,10 +83,10 @@ export default function CandidateAcademyReferralsSection({
         bonus: acad.bonus || '₹3,000',
         bonusNum: acad.bonusNum || 3000,
         paymentMethod: acad.paymentMethod || 'direct',
-        paymentLabel: acad.paymentLabel || '🅰 Direct pay · 0% fee',
-        badge: isMyAcademy ? '🌟 MY ACADEMY (ALUMNI)' : (acad.tier || null),
+        paymentLabel: acad.paymentLabel || 'Direct pay · 0% fee',
+        badge: isMyAcademy ? 'MY ACADEMY (ALUMNI)' : (acad.tier || null),
         badgeColor: isMyAcademy ? 'var(--gold)' : 'var(--blue)',
-        logoLetter: acad.name ? acad.name.charAt(0).toUpperCase() : '🏫',
+        logoLetter: acad.name ? acad.name.charAt(0).toUpperCase() : <i className="fa-solid fa-school" />,
         logoBg: logoGradients[idx % logoGradients.length],
         language: acad.language || 'English',
         isMyAcademy,
@@ -166,7 +166,7 @@ export default function CandidateAcademyReferralsSection({
     <div className="page active" id="page-academy-referrals">
       {/* PAGE HEADER */}
       <div className="page-head">
-        <div className="page-eyebrow">🏫 Refer friends to training academies · Earn direct cash + loyalty pts</div>
+        <div className="page-eyebrow">Refer friends to training academies · Earn direct cash + loyalty pts</div>
         <h1 className="page-title">Refer to Academy</h1>
         <p className="page-sub">
           Know someone thinking about medical coding? Refer them to any Talentera-partner academy. Big academies pay you DIRECTLY (₹2,500-4,000). Smaller academies route through Talentera (15% platform fee for payment infra). You choose which academy to share.
@@ -177,7 +177,7 @@ export default function CandidateAcademyReferralsSection({
       <div style={{ background: 'linear-gradient(135deg, #E0F2FE, #F0F9FF)', border: '2px solid #0EA5E9', borderRadius: '18px', padding: '24px 28px', marginBottom: '20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: '#0284C7', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>💰 Lifetime Earnings</div>
+            <div style={{ color: '#0284C7', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>Lifetime Earnings</div>
             <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--navy)', marginTop: '6px' }}>₹{lifetimeEarnedInr.toLocaleString()}</div>
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>{paidReferrals.length} paid · direct UPI</div>
           </div>
@@ -187,12 +187,12 @@ export default function CandidateAcademyReferralsSection({
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>{inProgressReferrals.length} enrolled, waiting Day-30 gate</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: 'var(--gold-deep)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>🎁 Loyalty Pts</div>
+            <div style={{ color: 'var(--gold-deep)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>Loyalty Pts</div>
             <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--gold-deep)', marginTop: '6px' }}>{loyaltyPointsEarned.toLocaleString()} pts</div>
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>500 pts per enrollment</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: 'var(--navy)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>📊 Enrolled Total</div>
+            <div style={{ color: 'var(--navy)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>Enrolled Total</div>
             <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--navy)', marginTop: '6px' }}>{enrolledTotal}</div>
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>Across partner academies</div>
           </div>
@@ -201,11 +201,11 @@ export default function CandidateAcademyReferralsSection({
 
       {/* HOW ACADEMIES PAY (TWO OPTIONS) */}
       <div style={{ background: 'linear-gradient(135deg, var(--gold-pale), #FFF9E0)', border: '2px solid var(--gold)', borderRadius: '16px', padding: '20px 24px', marginBottom: '20px' }}>
-        <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--navy)', marginBottom: '12px' }}>💡 How academies pay referral bonuses · Two models</div>
+        <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--navy)', marginBottom: '12px' }}>How academies pay referral bonuses · Two models</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           <div style={{ background: 'var(--white)', padding: '16px', borderRadius: '12px', border: '1.5px solid var(--green)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--green)' }}>🅰 Option A · Academy Pays DIRECT</div>
+              <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--green)' }}>Option A · Academy Pays DIRECT</div>
               <span style={{ background: 'var(--green)', color: 'var(--white)', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800' }}>₹0 FEE</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--gray-txt)', lineHeight: 1.6 }}>
@@ -214,7 +214,7 @@ export default function CandidateAcademyReferralsSection({
           </div>
           <div style={{ background: 'var(--white)', padding: '16px', borderRadius: '12px', border: '1.5px solid var(--blue)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--blue)' }}>🅱 Option B · Via Talentera</div>
+              <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--blue)' }}>Option B · Via Talentera</div>
               <span style={{ background: 'var(--blue)', color: 'var(--white)', padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '800' }}>15% FEE</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--gray-txt)', lineHeight: 1.6 }}>
@@ -228,11 +228,11 @@ export default function CandidateAcademyReferralsSection({
       {featuredAcademy && (
         <div style={{ background: 'linear-gradient(135deg, #F0FDF4, #DCFCE7)', border: '2px solid var(--green)', borderRadius: '16px', padding: '22px 26px', marginBottom: '20px', position: 'relative', overflow: 'hidden' }}>
           <div style={{ position: 'absolute', top: 0, right: 0, background: 'var(--green)', color: 'var(--white)', padding: '6px 18px', borderRadius: '0 0 0 12px', fontSize: '11px', fontWeight: '800', letterSpacing: '.5px' }}>
-            {featuredAcademy.isMyAcademy ? '🌟 YOUR VERIFIED ACADEMY' : '⭐ FEATURED PARTNER'}
+            {featuredAcademy.isMyAcademy ? 'YOUR VERIFIED ACADEMY' : 'FEATURED PARTNER'}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '18px', alignItems: 'center' }}>
             <div style={{ width: '68px', height: '68px', background: featuredAcademy.logoBg || 'linear-gradient(135deg, #6366F1, #4F46E5)', color: 'var(--white)', borderRadius: '16px', display: 'grid', placeItems: 'center', fontWeight: '800', fontSize: '26px' }}>
-              {featuredAcademy.logoLetter || '🏫'}
+              {featuredAcademy.logoLetter || <i className="fa-solid fa-school" />}
             </div>
             <div>
               <div style={{ fontSize: '11px', color: 'var(--green)', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>
@@ -253,7 +253,7 @@ export default function CandidateAcademyReferralsSection({
                 onClick={() => handleOpenReferralModal(featuredAcademy)}
                 style={{ background: 'var(--gold)', color: 'var(--navy)', padding: '8px 14px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', border: 'none', cursor: 'pointer', marginTop: '8px' }}
               >
-                📤 Refer Now
+                Refer Now
               </button>
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function CandidateAcademyReferralsSection({
       {/* FILTER BAR */}
       <div style={{ background: 'var(--white)', border: '1.5px solid var(--border)', borderRadius: '14px', padding: '14px 18px', marginBottom: '16px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
         <div>
-          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>📍 City</label>
+          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>City</label>
           <select value={cityFilter} onChange={(e) => setCityFilter(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', background: 'var(--white)', cursor: 'pointer' }}>
             {dynamicCities.map((c) => (
               <option key={c} value={c}>{c === 'All' ? 'All Cities' : c}</option>
@@ -271,7 +271,7 @@ export default function CandidateAcademyReferralsSection({
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>🎯 Course Type</label>
+          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>Course Type</label>
           <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', background: 'var(--white)', cursor: 'pointer' }}>
             {dynamicCourses.map((c) => (
               <option key={c} value={c}>{c === 'All' ? 'All Courses' : c}</option>
@@ -279,7 +279,7 @@ export default function CandidateAcademyReferralsSection({
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>💰 Bonus Band</label>
+          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>Bonus Band</label>
           <select value={bonusFilter} onChange={(e) => setBonusFilter(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', background: 'var(--white)', cursor: 'pointer' }}>
             <option value="All">All Bands</option>
             <option value="mid">₹2,500 - ₹3,500</option>
@@ -287,15 +287,15 @@ export default function CandidateAcademyReferralsSection({
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>💳 Payment Model</label>
+          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>Payment Model</label>
           <select value={paymentFilter} onChange={(e) => setPaymentFilter(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', background: 'var(--white)', cursor: 'pointer' }}>
             <option value="All">Any Model</option>
-            <option value="direct">🅰 Direct Pay (0% Fee)</option>
-            <option value="talentera">🅱 Via Talentera (15% Fee)</option>
+            <option value="direct">Direct Pay (0% Fee)</option>
+            <option value="talentera">Via Talentera (15% Fee)</option>
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>🗣 Language</label>
+          <label style={{ display: 'block', fontSize: '10px', color: 'var(--gold-deep)', fontWeight: '800', letterSpacing: '1px', marginBottom: '5px', textTransform: 'uppercase' }}>Language</label>
           <select value={languageFilter} onChange={(e) => setLanguageFilter(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '12px', background: 'var(--white)', cursor: 'pointer' }}>
             {dynamicLanguages.map((l) => (
               <option key={l} value={l}>{l === 'All' ? 'All Languages' : l}</option>
@@ -308,7 +308,7 @@ export default function CandidateAcademyReferralsSection({
       <div className="sec">
         <div className="sec-head">
           <div className="sec-title">
-            <div className="mod-ico">🏫</div>Partner Training Academies <span className="count">{filteredAcademies.length} AVAILABLE</span>
+            <div className="mod-ico"><i className="fa-solid fa-school" /></div>Partner Training Academies <span className="count">{filteredAcademies.length} AVAILABLE</span>
           </div>
           <button
             onClick={() => setShowDirectForm(true)}
@@ -364,7 +364,7 @@ export default function CandidateAcademyReferralsSection({
                   onClick={() => handleOpenReferralModal(acad)}
                   style={{ background: 'var(--gold)', color: 'var(--navy)', padding: '7px 14px', borderRadius: '8px', fontSize: '11.5px', fontWeight: '800', border: 'none', cursor: 'pointer' }}
                 >
-                  📤 Refer Friend
+                  Refer Friend
                 </button>
               </div>
             </div>
@@ -387,7 +387,7 @@ export default function CandidateAcademyReferralsSection({
       <div className="sec">
         <div className="sec-head">
           <div className="sec-title">
-            <div className="mod-ico">📊</div>My Academy Referral Tracker <span className="count">{academyReferrals.length} LOGGED</span>
+            <div className="mod-ico"><i className="fa-solid fa-chart-simple" /></div>My Academy Referral Tracker <span className="count">{academyReferrals.length} LOGGED</span>
           </div>
           <button
             onClick={() => setShowDirectForm(true)}
@@ -412,7 +412,7 @@ export default function CandidateAcademyReferralsSection({
                   </div>
                 </div>
                 <span style={{ background: ref.status === 'PAID' ? 'var(--green-soft)' : 'var(--amber-soft)', color: ref.status === 'PAID' ? 'var(--green)' : 'var(--amber)', padding: '5px 10px', borderRadius: '8px', fontSize: '10.5px', fontWeight: '800', textAlign: 'center' }}>
-                  {ref.status === 'PAID' ? '✓ PAID · Direct' : ref.status || '🟡 Day-30 gate'}
+                  {ref.status === 'PAID' ? '✓ PAID · Direct' : ref.status || 'Day-30 gate'}
                 </span>
                 <span style={{ color: ref.status === 'PAID' ? 'var(--green)' : 'var(--navy)', fontWeight: '800', fontSize: '13.5px' }}>
                   +{ref.commission || '₹2,500'}
@@ -424,7 +424,7 @@ export default function CandidateAcademyReferralsSection({
             ))
           ) : (
             <div style={{ padding: '36px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏫</div>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}><i className="fa-solid fa-school" /></div>
               <div style={{ fontWeight: '800', color: 'var(--navy)', fontSize: '15px' }}>No academy student referrals logged yet</div>
               <p style={{ color: 'var(--gray-mute)', fontSize: '12.5px', maxWidth: '440px', margin: '6px auto 16px' }}>
                 Refer friends or students to any medical coding academy. Earn up to ₹4,000 direct UPI bonus per enrolled student!
@@ -433,7 +433,7 @@ export default function CandidateAcademyReferralsSection({
                 onClick={() => setShowDirectForm(true)}
                 style={{ background: 'var(--gold)', color: 'var(--navy)', padding: '10px 20px', borderRadius: '10px', fontWeight: '800', fontSize: '12.5px', border: 'none', cursor: 'pointer' }}
               >
-                ➕ Refer a Student Now
+                Refer a Student Now
               </button>
             </div>
           )}
@@ -443,7 +443,7 @@ export default function CandidateAcademyReferralsSection({
       {/* HOW ACADEMY REFERRALS WORK (3 STEPS) */}
       <div className="card" style={{ background: 'linear-gradient(135deg, var(--gold-pale), #FFF9E0)', border: '1.5px solid var(--gold)', padding: '22px 26px', marginTop: '20px' }}>
         <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--navy)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          💡 How Academy Referrals work · 3 steps
+          How Academy Referrals work · 3 steps
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
           <div style={{ background: 'var(--white)', padding: '16px', borderRadius: '12px', border: '1px solid var(--gold-soft)' }}>
@@ -452,7 +452,7 @@ export default function CandidateAcademyReferralsSection({
             </div>
             <div style={{ fontSize: '13px', fontWeight: '800', color: 'var(--navy)', marginBottom: '4px' }}>Share academy link</div>
             <div style={{ fontSize: '11.5px', color: 'var(--gray-txt)', lineHeight: 1.5 }}>
-              Pick any partner academy card. Click "📤 Refer Friend" → get your tracked link or share directly via WhatsApp.
+              Pick any partner academy card. Click "Refer Friend" → get your tracked link or share directly via WhatsApp.
             </div>
           </div>
           <div style={{ background: 'var(--white)', padding: '16px', borderRadius: '12px', border: '1px solid var(--gold-soft)' }}>
@@ -493,7 +493,7 @@ export default function CandidateAcademyReferralsSection({
                 onClick={() => handleCopyAcademyLink(activeAcademyModal)}
                 style={{ background: 'var(--navy)', color: 'var(--gold)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
-                📋 Copy Link
+                Copy Link
               </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
@@ -504,7 +504,7 @@ export default function CandidateAcademyReferralsSection({
                 }}
                 style={{ background: '#25D366', color: 'var(--white)', padding: '10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
-                💬 WhatsApp Share
+                WhatsApp Share
               </button>
               <button
                 onClick={() => {
@@ -513,7 +513,7 @@ export default function CandidateAcademyReferralsSection({
                 }}
                 style={{ background: '#0A66C2', color: 'var(--white)', padding: '10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
-                💼 LinkedIn Share
+                LinkedIn Share
               </button>
             </div>
             <button
@@ -523,7 +523,7 @@ export default function CandidateAcademyReferralsSection({
               }}
               style={{ width: '100%', background: 'var(--gold)', color: 'var(--navy)', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer' }}
             >
-              📝 Fill Student Details for Direct Callback
+              Fill Student Details for Direct Callback
             </button>
           </div>
         </div>
@@ -534,7 +534,7 @@ export default function CandidateAcademyReferralsSection({
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,27,61,.7)', zIndex: 100, display: 'grid', placeItems: 'center', padding: '20px' }}>
           <div style={{ background: 'var(--white)', width: '100%', maxWidth: '520px', borderRadius: '16px', padding: '28px', position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>🏫 Refer a Student to Academy</div>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>Refer a Student to Academy</div>
               <button onClick={() => setShowDirectForm(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--gray-mute)' }}>✕</button>
             </div>
             <p style={{ fontSize: '12px', color: 'var(--gray-txt)', marginBottom: '16px' }}>
@@ -593,7 +593,7 @@ export default function CandidateAcademyReferralsSection({
                 disabled={submittingLead}
                 style={{ width: '100%', background: 'var(--gold)', color: 'var(--navy)', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer' }}
               >
-                {submittingLead ? 'Submitting...' : '📤 Submit Student Referral'}
+                {submittingLead ? 'Submitting...' : 'Submit Student Referral'}
               </button>
             </form>
           </div>

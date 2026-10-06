@@ -237,7 +237,7 @@ export function exportResumeWord(data) {
   // Star ratings shown on the scorecard in place of raw /100 numbers
   const starsFor = (score) => {
     const n = Math.max(0, Math.min(5, Math.round((Number(score) || 0) / 100 * 5)));
-    return { count: n, display: "★".repeat(n) + "☆".repeat(5 - n) };
+    return { count: n, display: "".repeat(n) + "".repeat(5 - n) };
   };
   const assessmentStars = assessmentScore !== null ? starsFor(assessmentScore) : null;
   const chartStars = starsFor(overallAccuracy);
@@ -253,7 +253,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🛠 SKILLS
+            SKILLS
           </td>
         </tr>
       </table>
@@ -276,7 +276,7 @@ export function exportResumeWord(data) {
         <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
           <tr>
             <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-              📜 CORE CERTIFICATIONS
+              CORE CERTIFICATIONS
             </td>
           </tr>
         </table>
@@ -313,7 +313,7 @@ export function exportResumeWord(data) {
         <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
           <tr>
             <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-              💻 LIVE CHART AUDIT PRACTICE · DEPARTMENT METRICS
+              LIVE CHART AUDIT PRACTICE · DEPARTMENT METRICS
             </td>
           </tr>
         </table>
@@ -365,7 +365,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            💼 WORK EXPERIENCE
+            WORK EXPERIENCE
           </td>
         </tr>
       </table>
@@ -395,7 +395,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🧰 TOOLS USED
+            TOOLS USED
           </td>
         </tr>
       </table>
@@ -460,10 +460,10 @@ export function exportResumeWord(data) {
             ${joinUnique(currentRoleTitle, expLabel)}
           </div>
           <div style="font-size: 9.5pt; color: ${isBw ? "#475569" : "#E2E8F0"}; margin-top: 6pt;">
-            ${mobile ? `📞 ${mobile} &nbsp;|&nbsp; ` : ""}${email ? `✉ ${email} &nbsp;|&nbsp; ` : ""}📍 ${locality}
+            ${mobile ? `${mobile} &nbsp;|&nbsp; ` : ""}${email ? `${email} &nbsp;|&nbsp; ` : ""}${locality}
           </div>
           <div style="font-size: 9.5pt; color: ${isBw ? "#000000" : secAccentColor}; margin-top: 4pt; font-weight: bold;">
-            🔗 Live Profile: <a href="${liveResumeUrl}" style="color: ${isBw ? "#000000" : "#93C5FD"};">${liveResumeUrl.replace("https://", "")}</a>
+            Live Profile: <a href="${liveResumeUrl}" style="color: ${isBw ? "#000000" : "#93C5FD"};">${liveResumeUrl.replace("https://", "")}</a>
           </div>
         </td>
         <td style="padding: ${isBw ? "4pt 0" : "14pt 16pt"}; text-align: right; vertical-align: middle; width: 170pt;">
@@ -471,7 +471,7 @@ export function exportResumeWord(data) {
             <tr>
               <td style="padding: 6pt 10pt; text-align: center;">
                 <div style="font-size: 9pt; font-weight: bold; color: ${primaryColor}; letter-spacing: 0.5pt;">
-                  🛡 TALENTERA VERIFIED
+                  TALENTERA VERIFIED
                 </div>
                 <div style="font-size: 8.5pt; color: #475569; margin-top: 2pt; font-family: monospace;">
                   ID: ${verificationId}
@@ -491,7 +491,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🎯 ${isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}
+            ${isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}
           </td>
         </tr>
       </table>
@@ -505,7 +505,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🏆 TALENTERA VERIFIED SCORECARD
+            TALENTERA VERIFIED SCORECARD
           </td>
         </tr>
       </table>
@@ -516,7 +516,7 @@ export function exportResumeWord(data) {
             <div style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; margin-top: 2pt;">
               ${["Gold", "Silver", "Bronze"].includes(assessmentMedal) ? `${assessmentMedal} Tier` : "Assessment Score"} ${assessmentStars ? `(${assessmentStars.display} ${assessmentStars.count}/5)` : ""}
             </div>
-            <div style="color: #166534; font-size: 8pt; font-weight: bold;">🟢 API Proctored</div>
+            <div style="color: #166534; font-size: 8pt; font-weight: bold;">API Proctored</div>
           </td>
           <td style="padding: 6pt 8pt; border: 1pt solid ${borderColor}; background-color: ${lightBg}; width: 25%;">
             <div style="color: #64748B; font-size: 8pt; text-transform: uppercase; font-weight: bold;">AI Video Pitch</div>
@@ -552,7 +552,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🎓 TRAINING FOUNDATION
+            TRAINING FOUNDATION
           </td>
         </tr>
       </table>
@@ -583,7 +583,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            🎓 ACADEMIC EDUCATION
+            ACADEMIC EDUCATION
           </td>
         </tr>
       </table>
@@ -620,7 +620,7 @@ export function exportResumeWord(data) {
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
           <td style="font-size: 11pt; font-weight: bold; color: ${primaryColor}; text-transform: uppercase; padding-bottom: 3pt;">
-            📍 WORK PREFERENCES & MOBILITY
+            WORK PREFERENCES & MOBILITY
           </td>
         </tr>
       </table>
@@ -637,7 +637,7 @@ export function exportResumeWord(data) {
     <!-- FOOTER / AUDIT TRAIL -->
     <div style="border-top: 1pt solid ${borderColor}; margin-top: 20pt; padding-top: 8pt; text-align: center; font-size: 8.5pt; color: #64748B;">
       <div>
-        🛡 Verified Talentera Credential · Cryptographic Verification ID: <b>${verificationId}</b>
+        Verified by Talentera · Verification ID: <b>${verificationId}</b>
       </div>
       <div style="margin-top: 3pt;">
         Live Verification & Audit Trail: <a href="${liveResumeUrl}" style="color: #2563EB;">${liveResumeUrl}</a>

@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import AiProctoringScreen from "../AiProctoringScreen.jsx";
 import { getDomainSections, getDomainQuestions, DOMAIN_ASSESSMENT_SECTIONS } from "../../data/domainAssessmentBanks";
+
+const renderSecIcon = (ic) => (
+  <i className={`fa-solid ${typeof ic === "string" && ic.startsWith("fa-") ? ic : "fa-circle-dot"}`} />
+);
 
 // ══════════════════════════════════════════════════════════════════════════
 // 10-QUESTION BANK (4 Universal Sections x 2 Qs + 4 Profile-Adaptive Sets x 2 Qs)
@@ -14,7 +17,7 @@ const UNIVERSAL_SECTIONS = [
   {
     key: "anatomy",
     name: "Anatomy",
-    icon: "🫀",
+    icon: "fa-heart-pulse",
     sub: "Body systems, organ location, common medical anatomy",
     time: "4 min",
     questions: [
@@ -51,7 +54,7 @@ const UNIVERSAL_SECTIONS = [
   {
     key: "medterm",
     name: "Medical Terminology",
-    icon: "📖",
+    icon: "fa-book-open",
     sub: "Prefixes, suffixes, root words, common abbreviations",
     time: "4 min",
     questions: [
@@ -88,7 +91,7 @@ const UNIVERSAL_SECTIONS = [
   {
     key: "aptitude",
     name: "Aptitude & Reasoning",
-    icon: "🧠",
+    icon: "fa-brain",
     sub: "Logic, reasoning, English comprehension, basic billing math",
     time: "4 min",
     questions: [
@@ -125,7 +128,7 @@ const UNIVERSAL_SECTIONS = [
   {
     key: "basicicd",
     name: "Basic ICD-10-CM",
-    icon: "📊",
+    icon: "fa-chart-simple",
     sub: "ICD-10-CM structure, chapters, basic code selection, sequencing",
     time: "4 min",
     questions: [
@@ -167,7 +170,7 @@ const ADAPTIVE_BANKS = {
     domainName: "HCC + E/M",
     title: "Your Domain — HCC + E/M basics",
     sub: "Auto-pulled from your Stage 02 · Medical Coding · HCC + E/M",
-    icon: "🎯",
+    icon: "fa-bullseye",
     time: "4 min",
     questions: [
       {
@@ -204,7 +207,7 @@ const ADAPTIVE_BANKS = {
     domainName: "CPT Surgery & Modifiers",
     title: "Your Domain — CPT Surgery & Modifiers",
     sub: "Auto-pulled from your Stage 02 · Procedural & Surgical Coding",
-    icon: "🎯",
+    icon: "fa-bullseye",
     time: "4 min",
     questions: [
       {
@@ -241,7 +244,7 @@ const ADAPTIVE_BANKS = {
     domainName: "Inpatient DRG & PCS",
     title: "Your Domain — Inpatient DRG & ICD-10-PCS",
     sub: "Auto-pulled from your Stage 02 · Inpatient Coding & Hospital RCM",
-    icon: "🎯",
+    icon: "fa-bullseye",
     time: "4 min",
     questions: [
       {
@@ -278,7 +281,7 @@ const ADAPTIVE_BANKS = {
     domainName: "RCM & Coding Compliance",
     title: "Your Domain — Revenue Cycle & Compliance",
     sub: "Auto-pulled from your Stage 02 · RCM Foundations & Billing",
-    icon: "🎯",
+    icon: "fa-bullseye",
     time: "4 min",
     questions: [
       {
@@ -821,7 +824,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       pollTimer = setInterval(async () => {
         const latest = await fetchRetakeStatus();
         if (latest?.status === "APPROVED") {
-          toast("🎉 Staff approved your retake! Complete hardware setup to launch your assessment.", "✓");
+          toast("Staff approved your retake! Complete hardware setup to launch your assessment.", "✓");
         }
       }, 4000);
     }
@@ -914,7 +917,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       if (document.hidden) {
         setTabSwitchWarnings((prev) => prev + 1);
         setShowTabWarningBanner(true);
-        toast("🚨 Anti-Cheat Violation: Tab switch detected. Auto-submitting assessment...", "!");
+        toast("Anti-Cheat Violation: Tab switch detected. Auto-submitting assessment...", "!");
         handleAutoSubmit("Anti-Cheat Policy Violation: Tab Switch Detected");
       }
     }
@@ -990,7 +993,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   function handleStartRealTest() {
     // 1. HARD BLOCK if Camera or Microphone or Internet is not ready
     if (!isSystemReady) {
-      let msg = "⚠️ Hardware Setup Incomplete: ";
+      let msg = "Hardware Setup Incomplete: ";
       if (sysChecks.webcam.status !== "passed" && sysChecks.mic.status !== "passed") {
         msg += "Webcam and Microphone permissions are required to launch the proctored assessment.";
       } else if (sysChecks.webcam.status !== "passed") {
@@ -1011,7 +1014,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     // 2. HARD BLOCK if all 6 rules are not checked
     if (!allRulesChecked) {
       const pendingCount = 6 - checkedRules.filter(Boolean).length;
-      toast(`⚠️ Rules Agreement Required: Please review and check all 6 rules below (including camera recording consent) to unlock the assessment (${pendingCount} pending).`, "!");
+      toast(`Rules Agreement Required: Please review and check all 6 rules below (including camera recording consent) to unlock the assessment (${pendingCount} pending).`, "!");
       const rulesEl = document.getElementById("stage4-rules-section");
       if (rulesEl) {
         rulesEl.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1037,7 +1040,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
   function handleStartPractice() {
     if (!isSystemReady) {
-      toast("⚠️ Please ensure Webcam and Microphone access is granted in System Check above before trying practice.", "!");
+      toast("Please ensure Webcam and Microphone access is granted in System Check above before trying practice.", "!");
       const sysEl = document.getElementById("stage4-syscheck-section");
       if (sysEl) {
         sysEl.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -1086,7 +1089,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         sectionScores.push({
           sectionKey: sec.key,
           sectionName: sec.name,
-          icon: sec.icon || "🎯",
+          icon: sec.icon || "fa-bullseye",
           correct: secCorrect,
           total: qList.length,
           score: pct,
@@ -1157,7 +1160,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       setIsTestRunning(false);
 
       if (isAutoSubmitted) {
-        toast(`🚨 Assessment Auto-Submitted: ${finalReason}. Retake requires employee approval.`, "!");
+        toast(`Assessment Auto-Submitted: ${finalReason}. Retake requires employee approval.`, "!");
       } else {
         toast(`Assessment Submitted! Score: ${overallPct}% (${medalTier})`, "✓");
       }
@@ -1217,7 +1220,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     : domainSections.map((sec) => ({
         sectionKey: sec.key,
         sectionName: sec.name,
-        icon: sec.icon || "🎯",
+        icon: sec.icon || "fa-bullseye",
         score: isCompleted ? candidateScore : 0,
         benchmark: 70,
         status: candidateScore >= 70 ? "strong" : "weak",
@@ -1233,17 +1236,11 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* 3-COLUMN MAIN SHELL                                              */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, alignItems: "start" }}>
+      <div style={{ width: "100%" }}>
 
         {/* ═══════ CENTER MAIN COLUMN ═══════ */}
         <div style={{ minWidth: 0 }}>
           
-          {/* BREADCRUMB */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8A91A3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 14, fontWeight: 700 }}>
-            <span>Home</span><span style={{ color: "#E5E7EB" }}>›</span>
-            <span>My Career Passport</span><span style={{ color: "#E5E7EB" }}>›</span>
-            <span style={{ color: "var(--navy)", fontWeight: 800 }}>Stage 04 · Assessment</span>
-          </div>
 
           {/* HERO BANNER */}
           <div
@@ -1283,7 +1280,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 boxShadow: "0 4px 12px rgba(245, 180, 26, 0.32)",
               }}
             >
-              🧪
+              <i className="fa-solid fa-flask" />
             </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -1348,7 +1345,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               </div>
             </div>
             <div style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6 }}>
-              🔒 LOCKED
+              LOCKED
             </div>
           </div>
 
@@ -1369,7 +1366,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 boxShadow: "0 2px 8px rgba(26,79,184,0.08)",
               }}
             >
-              <div style={{ fontSize: 20 }}>🔁</div>
+              <div style={{ fontSize: 20 }}></div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#1A4FB8" }}>
                   Active Retake Request Pending Employee Review
@@ -1429,7 +1426,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ background: "#FFF6E0", padding: "16px 18px", borderRadius: 12, borderLeft: "4px solid var(--gold)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 28, height: 28, background: "var(--gold)", color: "var(--navy)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 800 }}>
-                    🎯
+                    <i className="fa-solid fa-bullseye" />
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>What's tested — profile-adaptive</div>
                 </div>
@@ -1441,7 +1438,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ background: "#FFF6E0", padding: "16px 18px", borderRadius: 12, borderLeft: "4px solid var(--gold)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 28, height: 28, background: "var(--gold)", color: "var(--navy)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 800 }}>
-                    🛡
+                    <i className="fa-solid fa-shield-halved" />
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>Anti-cheat active</div>
                 </div>
@@ -1453,7 +1450,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ background: "#FFF6E0", padding: "16px 18px", borderRadius: 12, borderLeft: "4px solid var(--gold)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 28, height: 28, background: "var(--gold)", color: "var(--navy)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 800 }}>
-                    👁
+                    <i className="fa-solid fa-eye" />
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>What companies see</div>
                 </div>
@@ -1466,7 +1463,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             )}
 
             <div style={{ background: "var(--navy)", color: "#FFF6E0", padding: "12px 16px", borderRadius: 12, fontStyle: "italic", fontSize: 12, marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: "var(--gold)", fontSize: 15 }}>🔐</span>
+              <span style={{ color: "var(--gold)", fontSize: 15 }}></span>
               <span>By clicking Start, you consent to webcam + mic recording and Talentera's 15-layer anti-cheat monitoring for the duration of the test.</span>
             </div>
           </div>
@@ -1528,7 +1525,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
                   }}
                 >
-                  {isCheckingSetup ? "🔄 Checking..." : "🔄 Re-test Devices"}
+                  {isCheckingSetup ? "Checking..." : "Re-test Devices"}
                 </button>
 
                 <button
@@ -1548,7 +1545,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     gap: 5,
                   }}
                 >
-                  📷 {showLivePreview ? "Turn Off Camera" : "Live Camera"}
+                  {showLivePreview ? "Turn Off Camera" : "Live Camera"}
                 </button>
 
                 <div
@@ -1808,7 +1805,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     flexShrink: 0,
                   }}
                 >
-                  {isCheckingSetup ? "🔄 Checking..." : "Allow & Re-test Devices →"}
+                  {isCheckingSetup ? "Checking..." : "Allow & Re-test Devices →"}
                 </button>
               </div>
             )}
@@ -1838,13 +1835,13 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     borderRadius: 12,
                     padding: "12px 16px",
                     display: "grid",
-                    gridTemplateColumns: "40px 1fr auto auto auto",
+                    gridTemplateColumns: "40px 1fr auto auto",
                     gap: 14,
                     alignItems: "center",
                   }}
                 >
                   <div style={{ width: 40, height: 40, background: "var(--navy)", color: "var(--gold)", borderRadius: 10, display: "grid", placeItems: "center", fontSize: 18 }}>
-                    {sec.icon || "🎯"}
+                    {renderSecIcon(sec.icon)}
                   </div>
                   <div>
                     <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13.5 }}>{sec.name}</div>
@@ -1854,7 +1851,6 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     {candidateDomain}
                   </span>
                   <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13 }}>{sec.questions?.length || 5} Qs</div>
-                  <div style={{ color: "#8A91A3", fontSize: 11.5, fontWeight: 700 }}>{sec.time || "9 min"}</div>
                 </div>
               ))}
 
@@ -1864,7 +1860,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   Total Assessment
                 </div>
                 <div style={{ fontWeight: 800, fontSize: 16 }}>{fullTestQuestions.length || 25} Qs</div>
-                <div style={{ fontWeight: 800, fontSize: 16 }}>45 min</div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>30 min</div>
               </div>
 
               {!isCompleted && (
@@ -1907,7 +1903,6 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
               <div style={{ background: "linear-gradient(135deg, #EEF2FF, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 20px", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 16, alignItems: "center" }}>
                 <div style={{ width: 54, height: 54, background: "#1A4FB8", color: "#FFFFFF", borderRadius: 12, display: "grid", placeItems: "center", fontSize: 24, boxShadow: "0 4px 12px rgba(26,79,184,0.25)" }}>
-                  🏋
                 </div>
                 <div>
                   <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14.5 }}>Try 10 sample practice questions first — no score, no risk</div>
@@ -1956,7 +1951,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                "I have 45 uninterrupted minutes available right now.",
+                "I have 30 uninterrupted minutes available right now.",
                 "I am the only person in the room. No one else allowed on camera and no movement in background.",
                 "I understand this is my Attempt 1 of 5 lifetime. First retake unlocks in 7 days.",
                 "My score is final on submission. Companies view this as verified — no negotiations.",
@@ -2018,6 +2013,55 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               </div>
             </div>
 
+            {/* ═══════ AUTO-SUBMIT DIGNITY CARD ═══════ */}
+            <div style={{ margin: "4px 0 16px", paddingTop: 4, textAlign: "center" }}>
+              <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 16px", borderRadius: 20, fontWeight: 800, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", display: "inline-block", marginBottom: 8 }}>
+                ↓ Policy · Dignified Path Back
+              </span>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>
+                If anti-cheat triggers — what happens
+              </div>
+            </div>
+
+            <div style={{ background: "#FFF3D6", border: "2px solid #E08E00", borderRadius: 14, padding: "20px 22px", marginBottom: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <div style={{ width: 38, height: 38, background: "#E08E00", color: "#FFFFFF", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 16, fontWeight: 800 }}>
+                  <i className="fa-solid fa-triangle-exclamation" />
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>
+                  Assessment Auto-Submitted · Not a permanent failure
+                </div>
+              </div>
+              <div style={{ fontSize: 12.5, color: "#3A425A", lineHeight: 1.55, marginLeft: 50 }}>
+                Our anti-cheat system monitors tab switching, phone detection, and background application interference.
+                <br /><br />
+                <b>This does NOT permanently disqualify you.</b>
+                <ul style={{ margin: "6px 0 0 0", paddingLeft: 18 }}>
+                  <li>Your attempt is safely logged and flagged for human audit.</li>
+                  <li>You may request a <b>fresh attempt</b> with a written technical explanation.</li>
+                  <li>Talentera reviews within 24 hours — if it was a genuine technical issue, we grant the retake with no cooldown penalty.</li>
+                </ul>
+              </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 14, marginLeft: 50 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRetakeModal(true)}
+                  style={{
+                    background: "var(--gold)",
+                    color: "var(--navy)",
+                    padding: "9px 18px",
+                    borderRadius: 8,
+                    fontSize: 12.5,
+                    fontWeight: 800,
+                    border: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  Request Fresh Attempt →
+                </button>
+              </div>
+            </div>
+
             <div
               style={{
                 background: "linear-gradient(135deg, var(--navy), #1E3A8A)",
@@ -2030,7 +2074,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               }}
             >
               <div style={{ color: isAutoSubmitted ? "#F87171" : "var(--gold)", fontWeight: 700, fontSize: 11, letterSpacing: "1.5px", textTransform: "uppercase" }}>
-                {isAutoSubmitted ? "🚨 PROCTORING POLICY VIOLATION" : isCompleted ? "ASSESSMENT COMPLETED" : "FINAL STEP"}
+                {isAutoSubmitted ? "PROCTORING POLICY VIOLATION" : isCompleted ? "ASSESSMENT COMPLETED" : "FINAL STEP"}
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, margin: "6px 0 4px", color: "#FFFFFF" }}>
                 {isAutoSubmitted
@@ -2044,7 +2088,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   ? `Violation: ${autoSubmitReason} · Attempt terminated.`
                   : isCompleted
                   ? "Attempt 1 of 5 Completed · Recorded on Talentera Database"
-                  : "Opens locked proctored testing window · 45 min · anti-cheat live"}
+                  : "Opens locked proctored testing window · 30 min · anti-cheat live"}
               </div>
 
               {isCompleted ? (
@@ -2066,7 +2110,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           marginBottom: 8,
                         }}
                       >
-                        ⏳ Retake Requested · Pending Employee Approval
+                        Retake Requested · Pending Employee Approval
                       </div>
                       <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", maxWidth: 500, margin: "0 auto" }}>
                         Your retake request has been submitted to Talentera staff for audit. Strictly no retake without employee approval.
@@ -2090,7 +2134,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           boxShadow: "0 6px 16px rgba(245,180,26,0.35)",
                         }}
                       >
-                        🚀 Launch Approved Retake Assessment
+                        Launch Approved Retake Assessment
                       </button>
                       <div style={{ marginTop: 8, fontSize: 11.5, color: "#86EFAC", fontWeight: 700 }}>
                         ✓ Employee approved your retake! Complete hardware check to start.
@@ -2116,11 +2160,11 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                           transition: "all 0.15s ease",
                         }}
                       >
-                        {submittingRetake ? "Submitting Request..." : "🔁 Request Retake"}
+                        {submittingRetake ? "Submitting Request..." : "Request Retake"}
                       </button>
                       <div style={{ marginTop: 10, fontSize: 11.5, color: isAutoSubmitted ? "#FCA5A5" : "rgba(255,255,255,0.7)" }}>
                         {isAutoSubmitted
-                          ? "⚠️ Assessment was auto-submitted. Click above to submit retake request for employee approval."
+                          ? "Assessment was auto-submitted. Click above to submit retake request for employee approval."
                           : "Want to improve your score? Submit a formal retake request with reason for staff review."}
                       </div>
                     </div>
@@ -2146,10 +2190,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                       }}
                     >
                       {!isSystemReady
-                        ? "🔒 Allow Camera & Mic in System Check to Unlock"
+                        ? "Allow Camera & Mic in System Check to Unlock"
                         : !allRulesChecked
-                        ? `🔒 Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
-                        : "Launch Proctored Assessment 🚀"}
+                        ? `Check all 6 rules to unlock (${6 - checkedRules.filter(Boolean).length} pending)`
+                        : "Launch Proctored Assessment "}
                     </button>
                   </div>
                   <div style={{ marginTop: 12, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
@@ -2224,7 +2268,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
                   }}
                 >
-                  {isCompleted ? `${currentMedal === "Gold" ? "🥇 Gold" : currentMedal === "Silver" ? "🥈 Silver" : "🥉 Bronze"} · Talentera Verified` : "🧪 Test Pending"}
+                  {isCompleted ? `${currentMedal === "Gold" ? "Gold" : currentMedal === "Silver" ? "Silver" : "Bronze"} · Talentera Verified` : "Test Pending"}
                 </span>
                 <div style={{ fontSize: 11, color: isCompleted ? "#1F7A3C" : "#8A91A3", fontWeight: 700, marginTop: 6, letterSpacing: 0.3 }}>
                   {isCompleted ? `✓ Assessed ${stage4?.completedAt ? new Date(stage4.completedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "Today"} · Proctored · Auto-scored · Final` : "Launch assessment above to record proctored result"}
@@ -2235,7 +2279,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             {/* 5 SECTION BARS */}
             <div style={{ background: "#FFFFFF", borderRadius: 12, padding: "16px 20px", border: "1px solid #E5E7EB" }}>
               <div style={{ fontSize: 11, letterSpacing: "1.5px", color: "#C99413", textTransform: "uppercase", fontWeight: 700, marginBottom: 12 }}>
-                📊 Your section-wise breakdown
+                Your section-wise breakdown
               </div>
               {displaySections.map((sec, idx) => (
                 <div
@@ -2250,7 +2294,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                   }}
                 >
                   <div style={{ fontSize: 12.5, color: "var(--navy)", fontWeight: 700 }}>
-                    {sec.icon || "📊"} {sec.sectionName}
+                    {renderSecIcon(sec.icon)} {sec.sectionName}
                   </div>
                   <div style={{ height: 8, background: "#F2F3F5", borderRadius: 4, overflow: "hidden" }}>
                     <div
@@ -2266,7 +2310,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                     {isCompleted ? `${sec.score} / 100` : "--"}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 800, color: isCompleted ? (sec.score >= 70 ? "#1F7A3C" : "#E08E00") : "#8A91A3" }}>
-                    {isCompleted ? (sec.score >= 70 ? "✓" : "⚠") : "—"}
+                    {isCompleted ? (sec.score >= 70 ? "✓" : <i className="fa-solid fa-triangle-exclamation" />) : "—"}
                   </div>
                 </div>
               ))}
@@ -2285,7 +2329,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             <div style={{ background: "#FFFFFF", border: "1.5px solid #E5E7EB", borderRadius: 12, padding: "16px 20px", marginTop: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13.5 }}>
-                  🔁 Want to improve? Retake schedule
+                  Want to improve? Retake schedule
                 </div>
                 <span style={{ background: "#FFF6E0", color: "#C99413", padding: "3px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800 }}>
                   Attempt 1 of 5 lifetime
@@ -2323,7 +2367,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               {isCompleted && (
                 <div style={{ background: "linear-gradient(135deg, #FFF3D6, #FFFBF1)", border: "1.5px solid #E08E00", borderRadius: 10, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 36, height: 36, background: "#E08E00", color: "#FFFFFF", borderRadius: 8, display: "grid", placeItems: "center", fontSize: 16, fontWeight: 800 }}>
-                    ⏳
+                    <i className="fa-solid fa-hourglass-half" />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 10.5, color: "#E08E00", fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
@@ -2366,10 +2410,10 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <span style={{ background: isCompleted ? "linear-gradient(135deg, #C0C0C0, #8B9199)" : "rgba(255,255,255,0.15)", color: "#FFFFFF", padding: "4px 10px", borderRadius: 16, fontSize: 11, fontWeight: 800 }}>
-                  {isCompleted ? `${currentMedal === "Gold" ? "🥇 Gold" : currentMedal === "Silver" ? "🥈 Silver" : "🥉 Bronze"} · ${candidateScore}/100` : "Pending Assessment"}
+                  {isCompleted ? `${currentMedal === "Gold" ? "Gold" : currentMedal === "Silver" ? "Silver" : "Bronze"} · ${candidateScore}/100` : "Pending Assessment"}
                 </span>
                 <span style={{ background: isCompleted ? "rgba(31,122,60,0.25)" : "rgba(255,255,255,0.1)", color: isCompleted ? "#7ED87E" : "#8A91A3", padding: "4px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>
-                  {isCompleted ? "🟢 Proctored" : "⚪ Unassessed"}
+                  {isCompleted ? "Proctored" : "Unassessed"}
                 </span>
                 <span style={{ background: "rgba(245,180,26,0.2)", color: "var(--gold)", padding: "4px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800 }}>
                   {certLabel} + {adaptiveBank.domainName}
@@ -2408,61 +2452,8 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
           </div>
 
-          {/* ═══════ AUTO-SUBMIT DIGNITY CARD ═══════ */}
-          <div style={{ margin: "28px 0 16px", paddingTop: 20, borderTop: "2px dashed #FFEBB0", textAlign: "center" }}>
-            <span style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 16px", borderRadius: 20, fontWeight: 800, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", display: "inline-block", marginBottom: 8 }}>
-              ↓ Policy · Dignified Path Back
-            </span>
-            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>
-              If anti-cheat triggers — what happens
-            </div>
-          </div>
-
-          <div style={{ background: "#FFF3D6", border: "2px solid #E08E00", borderRadius: 14, padding: "20px 22px", marginBottom: 24 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 38, height: 38, background: "#E08E00", color: "#FFFFFF", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 16, fontWeight: 800 }}>
-                ⚠
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)" }}>
-                Assessment Auto-Submitted · Not a permanent failure
-              </div>
-            </div>
-            <div style={{ fontSize: 12.5, color: "#3A425A", lineHeight: 1.55, marginLeft: 50 }}>
-              Our anti-cheat system monitors tab switching, phone detection, and background application interference.
-              <br /><br />
-              <b>This does NOT permanently disqualify you.</b>
-              <ul style={{ margin: "6px 0 0 0", paddingLeft: 18 }}>
-                <li>Your attempt is safely logged and flagged for human audit.</li>
-                <li>You may request a <b>fresh attempt</b> with a written technical explanation.</li>
-                <li>Talentera reviews within 24 hours — if it was a genuine technical issue, we grant the retake with no cooldown penalty.</li>
-              </ul>
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 14, marginLeft: 50 }}>
-              <button
-                type="button"
-                onClick={() => setShowRetakeModal(true)}
-                style={{
-                  background: "var(--gold)",
-                  color: "var(--navy)",
-                  padding: "9px 18px",
-                  borderRadius: 8,
-                  fontSize: 12.5,
-                  fontWeight: 800,
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
-                Request Fresh Attempt →
-              </button>
-            </div>
-          </div>
-
         </div>
 
-        {/* ═══════ RIGHT SIDEBAR ═══════ */}
-        <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
-          <WizardCompanionRail stageNum={4} candidate={candidate} score={candidateScore} isCompleted={isCompleted} />
-        </div>
 
       </div>
 
@@ -2475,7 +2466,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
           candidateName={candidateName}
           candidateRole={candidateRole}
           domainTitle={candidateDomain}
-          timeLimitSeconds={45 * 60}
+          timeLimitSeconds={30 * 60}
           initialAnswers={userAnswers}
           onSubmit={handleAutoSubmit}
           onCancel={() => setIsTestRunning(false)}
@@ -2499,7 +2490,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 </div>
               </div>
               <div style={{ fontSize: 14, fontWeight: 800, color: "#1A4FB8", fontFamily: "monospace" }}>
-                ⏱ {formatTime(practiceTimeRemaining)}
+                <i className="fa-solid fa-stopwatch" /> {formatTime(practiceTimeRemaining)}
               </div>
             </div>
 
@@ -2693,7 +2684,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 boxShadow: "0 4px 14px rgba(0,0,0,0.08)",
               }}
             >
-              {isAutoSubmitted ? "🚨" : candidateScore >= 85 ? "🥇" : candidateScore >= 70 ? "🥈" : candidateScore >= 50 ? "🥉" : "📋"}
+              {isAutoSubmitted ? '' : candidateScore >= 85 ? <i className="fa-solid fa-medal" /> : candidateScore >= 70 ? <i className="fa-solid fa-medal" /> : candidateScore >= 50 ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-clipboard-list" />}
             </div>
 
             <div style={{ color: isAutoSubmitted ? "#DC2626" : "#8A91A3", fontSize: 11.5, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
@@ -2706,7 +2697,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             {isAutoSubmitted ? (
               <div style={{ background: "#FEF2F2", border: "1.5px solid #F87171", borderRadius: 12, padding: "14px 18px", marginBottom: 20, textAlign: "left" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#991B1B", fontWeight: 800, fontSize: 13, marginBottom: 4 }}>
-                  <span>⚠️</span>
+                  <span><i className="fa-solid fa-triangle-exclamation" /></span>
                   <span>Reason: {autoSubmitReason}</span>
                 </div>
                 <p style={{ margin: 0, fontSize: 12, color: "#7F1D1D", lineHeight: 1.5 }}>
@@ -2715,7 +2706,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               </div>
             ) : (
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: candidateScore >= 70 ? "#E8F5E9" : "#FFF3D6", color: candidateScore >= 70 ? "#1F7A3C" : "#E08E00", padding: "6px 16px", borderRadius: 20, fontWeight: 800, fontSize: 13, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
-                <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "⚠️ Attempt Saved"}</span>
+                <span>{candidateScore >= 70 ? "✓ Passed & Talentera Verified" : "Attempt Saved"}</span>
                 <span>·</span>
                 <span>{["Gold", "Silver", "Bronze"].includes(currentMedal) ? `${currentMedal} Medal Tier` : `Assessment Score: ${candidateScore}/100`}</span>
                 {displayPercentile && (
@@ -2735,7 +2726,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {displaySections.map((sec, idx) => (
                   <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13, color: "var(--navy)" }}>
-                    <span style={{ fontWeight: 600 }}>{sec.icon} {sec.sectionName}</span>
+                    <span style={{ fontWeight: 600 }}>{renderSecIcon(sec.icon)} {sec.sectionName}</span>
                     <span style={{ fontWeight: 800, color: sec.score >= 70 ? "#1F7A3C" : "#E08E00" }}>
                       {sec.score}% {sec.score >= 70 ? "✓" : ""}
                     </span>
@@ -2778,7 +2769,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                       cursor: "not-allowed",
                     }}
                   >
-                    ⏳ Retake Requested · Pending Employee Approval
+                    Retake Requested · Pending Employee Approval
                   </button>
                 ) : retakeRequest?.status === "APPROVED" ? (
                   <button
@@ -2817,7 +2808,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                       boxShadow: "0 4px 14px rgba(245,180,26,0.35)",
                     }}
                   >
-                    {submittingRetake ? "Submitting Request..." : "🔁 Request Retake"}
+                    {submittingRetake ? "Submitting Request..." : "Request Retake"}
                   </button>
                 )
               ) : (

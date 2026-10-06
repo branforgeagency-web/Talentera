@@ -239,7 +239,7 @@ export default function VerifyCandidate() {
                   ) : (
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: 16, borderRadius: 12, background: "rgba(217,119,6,0.06)", border: "1px solid rgba(217,119,6,0.25)" }}>
                       <div style={{ width: 32, height: 32, borderRadius: 8, background: "#D97706", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }}>
-                        ⏳
+                        <i className="fa-solid fa-hourglass-half" />
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontWeight: 700, color: "#111827" }}>Stage 3: Professional Accreditation — Pending Staff Review</div>

@@ -175,10 +175,11 @@
 
 .staff-shell {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   align-items: stretch;
   background: var(--st-bg-shell, #06152B);
   transition: background 0.3s ease;
+  overflow: hidden;
 }
 
 .staff-sidebar {
@@ -202,6 +203,9 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* ---------- Sidebar: brand ---------- */

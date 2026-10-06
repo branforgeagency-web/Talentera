@@ -1,10 +1,10 @@
 // Platinum / Gold / Silver / Bronze badges for resume scorecards (replaces raw /100 scores).
 export const MEDAL_TIERS = {
-  Platinum: { emoji: "💎", from: "#E8EEF9", to: "#8FA3D1", solid: "#B7C4E4", color: "#0F1B3D", border: "#8FA3D1" },
-  Gold:     { emoji: "🥇", from: "#F8DC7A", to: "#DAA520", solid: "#F2C744", color: "#0F1B3D", border: "#C99A1B" },
-  Silver:   { emoji: "🥈", from: "#E3E7EC", to: "#8B9199", solid: "#C0C4CA", color: "#0F1B3D", border: "#8B9199" },
-  Bronze:   { emoji: "🥉", from: "#E8B37C", to: "#A9631F", solid: "#C7813A", color: "#FFFFFF", border: "#A9631F" },
-  Unrated:  { emoji: "⏳", from: "#F1F5F9", to: "#E2E8F0", solid: "#E2E8F0", color: "#64748B", border: "#CBD5E1" },
+  Platinum: { emoji: "", from: "#E8EEF9", to: "#8FA3D1", solid: "#B7C4E4", color: "#0F1B3D", border: "#8FA3D1" },
+  Gold:     { emoji: "", from: "#F8DC7A", to: "#DAA520", solid: "#F2C744", color: "#0F1B3D", border: "#C99A1B" },
+  Silver:   { emoji: "", from: "#E3E7EC", to: "#8B9199", solid: "#C0C4CA", color: "#0F1B3D", border: "#8B9199" },
+  Bronze:   { emoji: "", from: "#E8B37C", to: "#A9631F", solid: "#C7813A", color: "#FFFFFF", border: "#A9631F" },
+  Unrated:  { emoji: "", from: "#F1F5F9", to: "#E2E8F0", solid: "#E2E8F0", color: "#64748B", border: "#CBD5E1" },
 };
 
 // Uses the stored medal when it is one of the four tiers, otherwise derives it from the score.
@@ -21,7 +21,7 @@ export function getMedalTier(score, storedMedal) {
 
 export function medalLabel(tier) {
   const t = MEDAL_TIERS[tier] || MEDAL_TIERS.Unrated;
-  return `${t.emoji} ${tier === "Unrated" ? "Not yet rated" : tier}`;
+  return tier === "Unrated" ? "Not yet rated" : tier;
 }
 
 // React inline style for the badge pill.

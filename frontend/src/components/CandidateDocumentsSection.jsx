@@ -3,24 +3,24 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 
 const CATEGORY_TABS = [
-  { id: 'all', label: 'All Documents', icon: '🗄️' },
-  { id: 'certs', label: 'Certifications & AAPC', icon: '🎓' },
-  { id: 'assessments', label: 'Assessments & Scorecards', icon: '📊' },
-  { id: 'training', label: 'Training & Academies', icon: '🏫' },
-  { id: 'identity', label: 'Identity & KYC', icon: '🪪' },
-  { id: 'education', label: 'Academic Degrees', icon: '📜' },
-  { id: 'resume_exp', label: 'Resumes & Employment', icon: '💼' },
+  { id: 'all', label: 'All Documents', icon: <i className="fa-solid fa-box-archive" /> },
+  { id: 'certs', label: 'Certifications & AAPC', icon: <i className="fa-solid fa-graduation-cap" /> },
+  { id: 'assessments', label: 'Assessments & Scorecards', icon: <i className="fa-solid fa-chart-simple" /> },
+  { id: 'training', label: 'Training & Academies', icon: <i className="fa-solid fa-school" /> },
+  { id: 'identity', label: 'Identity & KYC', icon: <i className="fa-solid fa-id-card" /> },
+  { id: 'education', label: 'Academic Degrees', icon: <i className="fa-solid fa-scroll" /> },
+  { id: 'resume_exp', label: 'Resumes & Employment', icon: <i className="fa-solid fa-briefcase" /> },
 ];
 
 const UPLOAD_DOC_TYPES = [
-  { id: 'AAPC / Professional Certification', label: 'AAPC / Professional Certification', icon: '🎓' },
-  { id: 'Degree Certificate / Diploma', label: 'Degree Certificate / Diploma', icon: '📜' },
-  { id: 'Academic Marksheet / Transcript', label: 'Academic Marksheet / Transcript', icon: '📊' },
-  { id: 'Training Institute Completion Certificate', label: 'Training Institute Certificate', icon: '🏫' },
-  { id: 'Government ID Proof', label: 'Government ID Proof (Aadhaar/PAN/Passport)', icon: '🪪' },
-  { id: 'Experience / Relieving Letter', label: 'Experience / Relieving / Offer Letter', icon: '💼' },
-  { id: 'Resume / CV', label: 'Resume / CV Document', icon: '📄' },
-  { id: 'Other Credential', label: 'Other Professional Credential', icon: '📁' },
+  { id: 'AAPC / Professional Certification', label: 'AAPC / Professional Certification', icon: <i className="fa-solid fa-graduation-cap" /> },
+  { id: 'Degree Certificate / Diploma', label: 'Degree Certificate / Diploma', icon: <i className="fa-solid fa-scroll" /> },
+  { id: 'Academic Marksheet / Transcript', label: 'Academic Marksheet / Transcript', icon: <i className="fa-solid fa-chart-simple" /> },
+  { id: 'Training Institute Completion Certificate', label: 'Training Institute Certificate', icon: <i className="fa-solid fa-school" /> },
+  { id: 'Government ID Proof', label: 'Government ID Proof (Aadhaar/PAN/Passport)', icon: <i className="fa-solid fa-id-card" /> },
+  { id: 'Experience / Relieving Letter', label: 'Experience / Relieving / Offer Letter', icon: <i className="fa-solid fa-briefcase" /> },
+  { id: 'Resume / CV', label: 'Resume / CV Document', icon: <i className="fa-solid fa-file-lines" /> },
+  { id: 'Other Credential', label: 'Other Professional Credential', icon: <i className="fa-solid fa-folder" /> },
 ];
 
 export default function CandidateDocumentsSection({ candidate, onVaultUpdated, onNavigateToResume, onOpenStage }) {
@@ -397,15 +397,15 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
 
   const getDocIcon = (doc) => {
     const t = (doc.docType || '').toLowerCase();
-    if (t.includes('aapc') || t.includes('cert')) return '🎓';
-    if (t.includes('assessment') || doc.isAssessmentProof) return '📊';
-    if (t.includes('video') || doc.isVideoProof) return '🎥';
-    if (t.includes('training') || t.includes('institute')) return '🏫';
-    if (t.includes('government') || t.includes('id') || t.includes('aadhaar')) return '🪪';
-    if (t.includes('degree') || t.includes('diploma') || t.includes('transcript')) return '📜';
-    if (t.includes('resume')) return '📄';
-    if (t.includes('experience') || t.includes('offer')) return '💼';
-    return '📁';
+    if (t.includes('aapc') || t.includes('cert')) return <i className="fa-solid fa-graduation-cap" />;
+    if (t.includes('assessment') || doc.isAssessmentProof) return <i className="fa-solid fa-chart-simple" />;
+    if (t.includes('video') || doc.isVideoProof) return <i className="fa-solid fa-video" />;
+    if (t.includes('training') || t.includes('institute')) return <i className="fa-solid fa-school" />;
+    if (t.includes('government') || t.includes('id') || t.includes('aadhaar')) return <i className="fa-solid fa-id-card" />;
+    if (t.includes('degree') || t.includes('diploma') || t.includes('transcript')) return <i className="fa-solid fa-scroll" />;
+    if (t.includes('resume')) return <i className="fa-solid fa-file-lines" />;
+    if (t.includes('experience') || t.includes('offer')) return <i className="fa-solid fa-briefcase" />;
+    return <i className="fa-solid fa-folder" />;
   };
 
   const totalVerifiedCount = documents.filter(d => d.verified || d.status === 'verified').length;
@@ -557,7 +557,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
             Security & Trust
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, color: '#0F1B3D', marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>🔒 Encrypted Vault</span>
+            <span>Encrypted Vault</span>
           </div>
           <div style={{ fontSize: 11.5, color: '#94A3B8', marginTop: 2 }}>
             Tamper-evident verification repository
@@ -608,7 +608,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
         {/* Search & Layout toggle */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ position: 'relative', width: 220 }}>
-            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: 13 }}>🔍</span>
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94A3B8', fontSize: 13 }}><i className="fa-solid fa-magnifying-glass" /></span>
             <input
               type="text"
               placeholder="Search documents..."
@@ -664,7 +664,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
       {/* Documents Grid / List */}
       {loading ? (
         <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748B' }}>
-          <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+          <div style={{ fontSize: 24, marginBottom: 8 }}><i className="fa-solid fa-hourglass-half" /></div>
           <div style={{ fontWeight: 600, fontSize: 14 }}>Loading your verified document vault...</div>
         </div>
       ) : filteredDocuments.length > 0 ? (
@@ -739,7 +739,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                         border: isVerified ? '1px solid #A7F3D0' : '1px solid #FDE68A',
                         whiteSpace: 'nowrap',
                       }}>
-                        {isVerified ? '✓ Verified' : '⏳ Pending'}
+                        {isVerified ? '✓ Verified' : 'Pending'}
                       </span>
                     </div>
 
@@ -750,7 +750,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
 
                     {doc.docName && (
                       <div style={{ fontSize: 12, color: '#64748B', fontFamily: 'monospace', marginBottom: 6, wordBreak: 'break-all' }}>
-                        📄 {doc.docName}
+                        {doc.docName}
                       </div>
                     )}
 
@@ -768,7 +768,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                       )}
                       {doc.institute && (
                         <span style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#475569', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 4 }}>
-                          🏫 {doc.institute}
+                          {doc.institute}
                         </span>
                       )}
                     </div>
@@ -806,7 +806,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                           onMouseEnter={(e) => (e.currentTarget.style.background = '#1E293B')}
                           onMouseLeave={(e) => (e.currentTarget.style.background = '#0F1B3D')}
                         >
-                          👁️ View the Resume
+                          View the Resume
                         </button>
                       ) : docUrl ? (
                         <>
@@ -826,7 +826,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                               gap: 4,
                             }}
                           >
-                            👁️ Preview
+                            Preview
                           </button>
 
                           <a
@@ -849,7 +849,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                               gap: 4,
                             }}
                           >
-                            ⬇️ Download
+                            Download
                           </a>
                         </>
                       ) : (
@@ -869,7 +869,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                             gap: 4,
                           }}
                         >
-                          🔍 View Verification
+                          View Verification
                         </button>
                       )}
                     </div>
@@ -887,7 +887,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                           padding: '4px 6px',
                         }}
                       >
-                        🗑️
+                        <i className="fa-solid fa-trash" />
                       </button>
                     )}
                   </div>
@@ -941,7 +941,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                           background: isVerified ? '#ECFDF5' : '#FEF3C7',
                           color: isVerified ? '#059669' : '#D97706',
                         }}>
-                          {isVerified ? '✓ Verified' : '⏳ Pending'}
+                          {isVerified ? '✓ Verified' : 'Pending'}
                         </span>
                       </td>
                       <td style={{ padding: '14px 18px', textAlign: 'right' }}>
@@ -964,7 +964,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                                 gap: 4,
                               }}
                             >
-                              👁️ View the Resume
+                              View the Resume
                             </button>
                           ) : (
                             <>
@@ -1025,7 +1025,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
           maxWidth: 600,
           margin: '30px auto',
         }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🗄️</div>
+          <div style={{ fontSize: 40, marginBottom: 12 }}><i className="fa-solid fa-box-archive" /></div>
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#0F1B3D', margin: '0 0 6px' }}>
             {searchQuery ? 'No documents match your search' : 'No documents in this category yet'}
           </h3>
@@ -1136,7 +1136,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                   }}
                 />
                 <div style={{ fontSize: 30, marginBottom: 6 }}>
-                  {uploadFile ? '📄' : '📁'}
+                  {uploadFile ? <i className="fa-solid fa-file-lines" /> : <i className="fa-solid fa-folder" />}
                 </div>
                 {uploadFile ? (
                   <div>
@@ -1312,7 +1312,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                     borderRadius: 10,
                     textAlign: 'center',
                   }}>
-                    <div style={{ fontSize: 40, marginBottom: 10 }}>📄</div>
+                    <div style={{ fontSize: 40, marginBottom: 10 }}><i className="fa-solid fa-file-lines" /></div>
                     <div style={{ fontWeight: 700, color: '#0F1B3D', fontSize: 15 }}>{previewDoc.docName || 'Document File'}</div>
                     <div style={{ fontSize: 12.5, color: '#64748B', marginTop: 4, marginBottom: 16 }}>
                       Document is stored securely in Talentera's Verified Vault.
@@ -1347,7 +1347,7 @@ export default function CandidateDocumentsSection({ candidate, onVaultUpdated, o
                           textDecoration: 'none',
                         }}
                       >
-                        Download File ⬇️
+                        Download File 
                       </a>
                     </div>
                   </div>

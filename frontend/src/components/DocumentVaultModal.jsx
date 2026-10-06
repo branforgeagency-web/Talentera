@@ -3,13 +3,13 @@ import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 
 const DOC_TYPES = [
-  { id: "AAPC / Professional Certification", label: "AAPC / Professional Certification", icon: "🎓" },
-  { id: "Degree Certificate / Diploma", label: "Degree Certificate / Diploma", icon: "📜" },
-  { id: "Academic Marksheet / Transcript", label: "Academic Marksheet / Transcript", icon: "📊" },
-  { id: "Training Institute Completion Certificate", label: "Training Institute Certificate", icon: "🏫" },
-  { id: "Government ID Proof", label: "Government ID Proof", icon: "🪪" },
-  { id: "Experience / Relieving Letter", label: "Experience / Relieving Letter", icon: "💼" },
-  { id: "Other Credential", label: "Other Professional Credential", icon: "📁" },
+  { id: "AAPC / Professional Certification", label: "AAPC / Professional Certification", icon: <i className="fa-solid fa-graduation-cap" /> },
+  { id: "Degree Certificate / Diploma", label: "Degree Certificate / Diploma", icon: <i className="fa-solid fa-scroll" /> },
+  { id: "Academic Marksheet / Transcript", label: "Academic Marksheet / Transcript", icon: <i className="fa-solid fa-chart-simple" /> },
+  { id: "Training Institute Completion Certificate", label: "Training Institute Certificate", icon: <i className="fa-solid fa-school" /> },
+  { id: "Government ID Proof", label: "Government ID Proof", icon: <i className="fa-solid fa-id-card" /> },
+  { id: "Experience / Relieving Letter", label: "Experience / Relieving Letter", icon: <i className="fa-solid fa-briefcase" /> },
+  { id: "Other Credential", label: "Other Professional Credential", icon: <i className="fa-solid fa-folder" /> },
 ];
 
 const MONTH_OPTIONS = [
@@ -404,7 +404,7 @@ export default function DocumentVaultModal({
         {/* Header */}
         <div className="doc-vault-header">
           <div className="doc-vault-title">
-            <span>🗄️</span>
+            <span><i className="fa-solid fa-box-archive" /></span>
             <div>
               Academic & Certification Document Vault
               <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.8, marginTop: 2 }}>
@@ -425,7 +425,7 @@ export default function DocumentVaultModal({
             </span>
             <span style={{ color: "#94A3B8" }}>|</span>
             <span style={{ color: "#059669", fontWeight: 700 }}>
-              🛡️ Audit Verified Storage Active
+              Audit Verified Storage Active
             </span>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -451,7 +451,7 @@ export default function DocumentVaultModal({
           {!readOnly && (
             <div className="doc-vault-upload-box">
               <div className="doc-vault-upload-title">
-                <span>📤</span> Upload New Certificate or Academic Document
+                <span><i className="fa-solid fa-paper-plane" /></span> Upload New Certificate or Academic Document
               </div>
               <form onSubmit={handleUpload}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
@@ -550,7 +550,7 @@ export default function DocumentVaultModal({
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {selectedFile ? `✓ ${selectedFile.name}` : "📁 Choose File (PDF/Image)"}
+                      {selectedFile ? `✓ ${selectedFile.name}` : "Choose File (PDF/Image)"}
                     </label>
                   </div>
                 </div>
@@ -574,7 +574,7 @@ export default function DocumentVaultModal({
                       gap: 6,
                     }}
                   >
-                    {uploading ? "Uploading to Vault…" : "⬆ Upload to Vault"}
+                    {uploading ? "Uploading to Vault…" : "Upload to Vault"}
                   </button>
                 </div>
               </form>
@@ -593,7 +593,7 @@ export default function DocumentVaultModal({
               </div>
             ) : filteredDocs.length === 0 ? (
               <div style={{ padding: "40px 20px", textAlign: "center", background: "#F8FAFC", borderRadius: 14, border: "1px dashed #CBD5E1" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>🗄️</div>
+                <div style={{ fontSize: 32, marginBottom: 8 }}><i className="fa-solid fa-box-archive" /></div>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#334155" }}>
                   No documents in this vault view
                 </div>
@@ -606,7 +606,7 @@ export default function DocumentVaultModal({
             ) : (
               <div className="doc-vault-grid">
                 {filteredDocs.map((doc, idx) => {
-                  const typeObj = DOC_TYPES.find((t) => t.id === doc.docType) || { icon: "📁", label: doc.docType || "Document" };
+                  const typeObj = DOC_TYPES.find((t) => t.id === doc.docType) || { icon: <i className="fa-solid fa-folder" />, label: doc.docType || "Document" };
                   return (
                     <div key={doc.id || doc._id || idx} className="doc-card">
                       <div>
@@ -620,7 +620,7 @@ export default function DocumentVaultModal({
                           </div>
                         </div>
                         <div className="doc-card-badge">
-                          <span>{doc.isRegisteredCert ? "🟢" : "✓"}</span>{" "}
+                          <span>{doc.isRegisteredCert ? <i className="fa-solid fa-circle" /> : "✓"}</span>{" "}
                           {doc.isRegisteredCert ? "Registered & Verified Credential" : "Verified Talentera Document"}
                         </div>
                       </div>
@@ -634,14 +634,14 @@ export default function DocumentVaultModal({
                               rel="noopener noreferrer"
                               className="doc-btn"
                             >
-                              👁 View
+                              View
                             </a>
                             <a
                               href={doc.docUrl}
                               download={doc.docName || "certificate"}
                               className="doc-btn secondary"
                             >
-                              ⬇ Download
+                              Download
                             </a>
                           </>
                         ) : null}
@@ -654,7 +654,7 @@ export default function DocumentVaultModal({
                             className="doc-btn secondary"
                             style={{ color: "#2563EB", borderColor: "#BFDBFE" }}
                           >
-                            🔗 Verification Link ↗
+                            Verification Link ↗
                           </a>
                         )}
 
@@ -670,7 +670,7 @@ export default function DocumentVaultModal({
                             onClick={() => handleDeleteDoc(doc.id || doc._id || doc.docUrl)}
                             title="Remove from vault"
                           >
-                            🗑
+                            <i className="fa-solid fa-trash" />
                           </button>
                         )}
                       </div>

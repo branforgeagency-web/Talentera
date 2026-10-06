@@ -30,11 +30,11 @@ import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMo
  * 3. runningMode: 'VIDEO' in synchronized requestAnimationFrame loop.
  * 4. Facial landmark geometric ratios:
  *    - Yaw (Head Turn): Nose (1) to Left Cheek (234) vs Right Cheek (454).
- *      * Ratio < 0.45 (Turned Right) -> "⚠️ Please look directly at the screen"
- *      * Ratio > 2.20 (Turned Left)  -> "⚠️ Please look directly at the screen"
+ *      * Ratio < 0.45 (Turned Right) -> "Please look directly at the screen"
+ *      * Ratio > 2.20 (Turned Left)  -> "Please look directly at the screen"
  *    - Pitch (Tilt Up/Down): Nose (1) to Forehead (10) vs Chin (152).
- *      * Ratio < 0.50 or > 2.20      -> "⚠️ Keep your gaze centered on the interview"
- *    - Empty landmarks:              -> "⚠️ Face not detected! Please stay centered in frame"
+ *      * Ratio < 0.50 or > 2.20      -> "Keep your gaze centered on the interview"
+ *    - Empty landmarks:              -> "Face not detected! Please stay centered in frame"
  * 5. Debounced warning banner overlay positioned over candidate camera feed with glowing red alert borders.
  * 6. Numeric attentionWarningsCount logging all infractions.
  * 7. Clean unmount stopping all camera stream tracks and canceling animation frames.
@@ -306,11 +306,11 @@ export default function AiProctoringScreen({
             // 1. STRICT SINGLE PERSON RULE: Exactly 1 person allowed in the frame
             if (faceCount === 0) {
               detectedAnomaly = "no_face";
-              warningText = "⚠️ Candidate face not detected! Only 1 person is allowed in the frame";
+              warningText = "Candidate face not detected! Only 1 person is allowed in the frame";
               detectedPosture = "no_face";
             } else if (faceCount > 1) {
               detectedAnomaly = "multiple_faces";
-              warningText = `🚨 Multiple persons detected (${faceCount})! Only 1 person is allowed in the assessment`;
+              warningText = `Multiple persons detected (${faceCount})! Only 1 person is allowed in the assessment`;
               detectedPosture = "multiple_faces";
             } else {
               const landmarks = faceLandmarksList[0];
@@ -334,19 +334,19 @@ export default function AiProctoringScreen({
               if (calculatedYawRatio < thresholds.YAW_MIN) {
                 detectedAnomaly = "turned_right";
                 detectedPosture = "turned_right";
-                warningText = "⚠️ Please look directly at the screen";
+                warningText = "Please look directly at the screen";
               } else if (calculatedYawRatio > thresholds.YAW_MAX) {
                 detectedAnomaly = "turned_left";
                 detectedPosture = "turned_left";
-                warningText = "⚠️ Please look directly at the screen";
+                warningText = "Please look directly at the screen";
               } else if (calculatedPitchRatio < thresholds.PITCH_MIN) {
                 detectedAnomaly = "pitch_up";
                 detectedPosture = "looking_up";
-                warningText = "⚠️ Keep your gaze centered on the assessment";
+                warningText = "Keep your gaze centered on the assessment";
               } else if (calculatedPitchRatio > thresholds.PITCH_MAX) {
                 detectedAnomaly = "pitch_down";
                 detectedPosture = "looking_down";
-                warningText = "⚠️ Keep your gaze centered on the assessment";
+                warningText = "Keep your gaze centered on the assessment";
               }
             }
 
@@ -363,7 +363,7 @@ export default function AiProctoringScreen({
             if (motionResult.isMotionDetected) {
               if (!detectedAnomaly || detectedAnomaly === "pitch_up" || detectedAnomaly === "pitch_down") {
                 detectedAnomaly = "background_movement";
-                warningText = "🚨 Background movement / person detected! Background must remain completely still — only 1 person permitted.";
+                warningText = "Background movement / person detected! Background must remain completely still — only 1 person permitted.";
                 detectedPosture = "bg_movement";
               }
             }
@@ -400,7 +400,7 @@ export default function AiProctoringScreen({
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 12px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText("🚨 ALERT: BACKGROUND MOVEMENT / PERSON DETECTED", canvas.width / 2, 37);
+                ctx.fillText("ALERT: BACKGROUND MOVEMENT / PERSON DETECTED", canvas.width / 2, 37);
                 ctx.restore();
               }
 
@@ -417,7 +417,7 @@ export default function AiProctoringScreen({
                       ctx.fillStyle = "#ef4444";
                       ctx.shadowColor = "rgba(0,0,0,0.9)";
                       ctx.shadowBlur = 4;
-                      ctx.fillText(`🚨 UNAUTHORIZED PERSON #${fIdx + 1}`, foreheadPt.x * canvas.width - 60, Math.max(20, foreheadPt.y * canvas.height - 12));
+                      ctx.fillText(`UNAUTHORIZED PERSON #${fIdx + 1}`, foreheadPt.x * canvas.width - 60, Math.max(20, foreheadPt.y * canvas.height - 12));
                       ctx.restore();
                     }
                   }
@@ -545,7 +545,7 @@ export default function AiProctoringScreen({
             // only after 10 logged attention warnings (was 5).
             if (currentCount >= 10) {
               setIsWarningActive(true);
-              setCurrentWarningMessage("🚨 PROCTOR VIOLATION: Maximum 10 Attention Warnings Exceeded! Auto-submitting assessment...");
+              setCurrentWarningMessage("PROCTOR VIOLATION: Maximum 10 Attention Warnings Exceeded! Auto-submitting assessment...");
               setTimeout(() => {
                 triggerSubmit("Proctor Policy Violation: Maximum 10 Attention Warnings Exceeded");
               }, 400);
@@ -583,7 +583,7 @@ export default function AiProctoringScreen({
         setAttentionWarningsCount(attentionWarningsCountRef.current);
         setTabSwitchWarningActive(true);
         setIsWarningActive(true);
-        setCurrentWarningMessage("🚨 ANTI-CHEAT VIOLATION: Tab switch detected! Auto-submitting assessment...");
+        setCurrentWarningMessage("ANTI-CHEAT VIOLATION: Tab switch detected! Auto-submitting assessment...");
         
         // User requirement: "if tab swiched auto submit the asseesment"
         triggerSubmit("Anti-Cheat Policy Violation: Tab Switch Detected");
@@ -1342,7 +1342,7 @@ export default function AiProctoringScreen({
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: faceCountVal > 1 ? "#ef4444" : faceCountVal === 0 ? "#f59e0b" : "#34d399" }} />
-                  <span>{faceCountVal > 1 ? "🚨 MULTIPLE PERSONS" : faceCountVal === 0 ? "⚠️ NO PERSON" : "👤 1 PERSON"}</span>
+                  <span>{faceCountVal > 1 ? "MULTIPLE PERSONS" : faceCountVal === 0 ? "NO PERSON" : "1 PERSON"}</span>
                 </div>
 
                 {/* Background Movement Stillness Pill */}
@@ -1362,7 +1362,7 @@ export default function AiProctoringScreen({
                   }}
                 >
                   <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: bgMovementActive ? "#ef4444" : "#34d399" }} />
-                  <span>{bgMovementActive ? "🚨 BG MOTION / PERSON" : "🛡️ BG STILL"}</span>
+                  <span>{bgMovementActive ? "BG MOTION / PERSON" : "BG STILL"}</span>
                 </div>
 
                 {/* Posture Telemetry Pill */}
@@ -1432,7 +1432,7 @@ export default function AiProctoringScreen({
                       Warning #{attentionWarningsCount} / 10
                     </div>
                     <div style={{ fontSize: 12, fontWeight: 800, margin: "2px 0 0", color: "#ffffff" }}>
-                      {currentWarningMessage || "⚠️ Please keep your gaze centered"}
+                      {currentWarningMessage || "Please keep your gaze centered"}
                     </div>
                   </div>
                 </div>

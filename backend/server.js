@@ -100,6 +100,7 @@ app.use("/api/aadhaar", aadhaarRoutes);
 // routes/vapiInterview.js for how it authenticates the candidate instead.
 app.use("/api/vapi", vapiInterviewRoutes);
 app.use("/api/college", collegeRoutes);
+app.use("/api/support", require("./routes/support"));
 
 const { isGcpConfigured } = require("./config/gcpStorage");
 

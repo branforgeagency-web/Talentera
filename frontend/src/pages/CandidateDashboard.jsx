@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
 import { exportResumeWord } from '../utils/resumeExport.js';
+import SupportChatBot from '../components/SupportChatBot.jsx';
 import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
 import BrowseJobsSection from '../components/BrowseJobsSection.jsx';
 import CandidateReferralPortalSection from '../components/CandidateReferralPortalSection.jsx';
@@ -232,6 +233,46 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const navigate = useNavigate();
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const PROFILE_GROUP = ['dashboard', 'profile', 'documents', 'resumes'];
+  const COMPANIES_GROUP = ['companies', 'applications', 'invites', 'feedback'];
+  const SUBTAB_ICONS = {
+    dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
+    profile: <><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" /></>,
+    documents: <><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></>,
+    resumes: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h6" /></>,
+    companies: <><path d="M4 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16" /><path d="M16 9h2a2 2 0 0 1 2 2v10" /><path d="M2 21h20" /><path d="M8 7h4M8 11h4M8 15h4" /></>,
+    applications: <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V3h6v1" /><path d="M9 11l2 2 4-4" /><path d="M9 17h6" /></>,
+    invites: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></>,
+    feedback: <><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /><path d="M8.5 11h7M8.5 14.5h4" /></>,
+  };
+  const renderSubTabs = (items) => (
+    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '22px', borderBottom: '1px solid rgba(15,23,42,0.08)', paddingBottom: '16px' }}>
+      {items.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setActiveTab(key)}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '14px 26px',
+            borderRadius: '999px',
+            fontSize: '15.5px',
+            fontWeight: 800,
+            cursor: 'pointer',
+            border: activeTab === key ? '1px solid var(--gold)' : '1px solid rgba(15,23,42,0.12)',
+            background: activeTab === key ? 'var(--grad-gold)' : 'var(--white)',
+            color: 'var(--navy-deep)',
+            boxShadow: activeTab === key ? '0 4px 14px rgba(245,166,35,0.35)' : 'none',
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{SUBTAB_ICONS[key]}</svg>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
   const sidebarRef = useRef(null);
   const notifDropdownRef = useRef(null);
 
@@ -612,7 +653,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           >
             <span className="stages-icon-pulse"><i className="fa-solid fa-bolt" /></span>
             <span>7 Stages Dashboard</span>
-            <span className="stages-count-pill">{completedStages.length}/8 Done</span>
+            <span className="stages-count-pill">{coreStagesCompleted}/7 Done</span>
           </button>
 
           <div className="top-search" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -699,7 +740,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <div className="sb-swb-icon-wrap"><i className="fa-solid fa-bolt" /></div>
               <div className="sb-swb-text">
                 <div className="sb-swb-title">7 Stages Dashboard</div>
-                <div className="sb-swb-sub">{completedStages.length}/8 Completed · {profileScore} pts</div>
+                <div className="sb-swb-sub">{coreStagesCompleted}/7 Completed · {profileScore} pts</div>
               </div>
             </div>
             <div className="sb-swb-bar">
@@ -714,11 +755,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="sb-group">
             <div className="sb-group-label">STUDENT DASHBOARD</div>
             <div className="sb-nav">
-              <div data-tab="dashboard" className={'sb-item ' + (activeTab === 'dashboard' ? 'active' : '')} onClick={() => setActiveTab('dashboard')}>
-                <span className="ico"><i className="fa-solid fa-chart-pie" /></span>
-                <span>My Hub</span>
-              </div>
-              <div data-tab="profile" className={'sb-item ' + (activeTab === 'profile' ? 'active' : '')} onClick={() => setActiveTab('profile')}>
+              <div data-tab="profile" className={'sb-item ' + (PROFILE_GROUP.includes(activeTab) ? 'active' : '')} onClick={() => { if (!PROFILE_GROUP.includes(activeTab)) setActiveTab('dashboard'); }}>
                 <span className="ico"><i className="fa-solid fa-user" /></span>
                 <span>My Profile</span>
                 <span className="badge green">{profileScore}/100</span>
@@ -727,37 +764,16 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 <span className="ico"><i className="fa-solid fa-award" /></span>
                 <span>My Badges</span>
               </div>
-              <div data-tab="documents" className={'sb-item ' + (activeTab === 'documents' ? 'active' : '')} onClick={() => setActiveTab('documents')}>
-                <span className="ico"><i className="fa-solid fa-folder" /></span>
-                <span>My Documents</span>
-              </div>
-              <div data-tab="resumes" className={'sb-item ' + (activeTab === 'resumes' ? 'active' : '')} onClick={() => setActiveTab('resumes')}>
-                <span className="ico"><i className="fa-solid fa-file-lines" /></span>
-                <span>My Resumes</span>
-              </div>
             </div>
           </div>
 
           <div className="sb-group">
             <div className="sb-group-label">HIRING &amp; EMPLOYERS</div>
             <div className="sb-nav">
-              <div data-tab="companies" className={'sb-item ' + (activeTab === 'companies' ? 'active' : '')} onClick={() => setActiveTab('companies')}>
+              <div data-tab="companies" className={'sb-item ' + (COMPANIES_GROUP.includes(activeTab) ? 'active' : '')} onClick={() => { if (!COMPANIES_GROUP.includes(activeTab)) setActiveTab('companies'); }}>
                 <span className="ico"><i className="fa-solid fa-building" /></span>
                 <span>My Companies</span>
                 <span className="badge gold">{companies.length}</span>
-              </div>
-              <div data-tab="applications" className={'sb-item ' + (activeTab === 'applications' ? 'active' : '')} onClick={() => setActiveTab('applications')}>
-                <span className="ico"><i className="fa-solid fa-clipboard-list" /></span>
-                <span>My Applications</span>
-                <span className="badge gold">{applications.length}</span>
-              </div>
-              <div data-tab="invites" className={'sb-item ' + (activeTab === 'invites' ? 'active' : '')} onClick={() => setActiveTab('invites')}>
-                <span className="ico"><i className="fa-solid fa-envelope" /></span>
-                <span>Interview Invites</span>
-              </div>
-              <div data-tab="feedback" className={'sb-item ' + (activeTab === 'feedback' ? 'active' : '')} onClick={() => setActiveTab('feedback')}>
-                <span className="ico"><i className="fa-solid fa-comment-dots" /></span>
-                <span>Feedback Vault</span>
               </div>
             </div>
           </div>
@@ -837,6 +853,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
         {/* MAIN CONTENT */}
         <main className="main">
+          {PROFILE_GROUP.includes(activeTab) && renderSubTabs([['dashboard', 'My Hub'], ['profile', 'My Profile'], ['documents', 'My Documents'], ['resumes', 'My Resumes']])}
+          {COMPANIES_GROUP.includes(activeTab) && renderSubTabs([['companies', 'My Companies'], ['applications', 'My Applications'], ['invites', 'Interview Invites'], ['feedback', 'Feedback Vault']])}
           {activeTab === 'dashboard' && (
 <div className="page active" id="page-dashboard">
       <div className="welcome-hero">
@@ -861,7 +879,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 title="Launch the Candidate 7 Stages Verification Dashboard"
               >
                 <span><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open 7 Stages Dashboard</span>
-                <span className="hero-btn-pill">{completedStages.length}/8 Done</span>
+                <span className="hero-btn-pill">{coreStagesCompleted}/7 Done</span>
                 <span style={{ fontSize: '15px' }}>→</span>
               </button>
               <button
@@ -910,64 +928,6 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple"><i className="fa-solid fa-award" /></div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${badgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
       </div>
 
-      {/* Candidate 7 Stages Interactive Verification Grid */}
-      <div className="sec">
-        <div className="sec-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div className="sec-title"><div className="mod-ico"><i className="fa-solid fa-bolt" /></div>Candidate 7 Stages Verification</div>
-          <button
-            type="button"
-            onClick={() => handleOpenStagesWizard(1)}
-            style={{
-              fontSize: '12px',
-              fontWeight: '800',
-              color: 'var(--navy-deep)',
-              background: 'var(--grad-gold)',
-              padding: '6px 14px',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              boxShadow: '0 2px 8px rgba(245, 166, 35, 0.35)',
-            }}
-          >
-            <span>Open 7 Stages Wizard</span>
-            <span>→</span>
-          </button>
-        </div>
-        <div className="stages-overview-grid">
-          {(() => {
-            const scoreBreakdown = getScoreBreakdown(profile);
-            const bd = (n) => scoreBreakdown.find((r) => r.num === n) || { earned: 0, max: 0 };
-            return [
-              { num: 1, name: 'Identity & Aadhaar', pts: `${bd(1).earned}/${bd(1).max} pts`, icon: <i className="fa-solid fa-id-card" />, done: completedStages.includes(1) },
-              { num: 2, name: 'Training Foundation', pts: `${bd(2).earned}/${bd(2).max} pts`, icon: <i className="fa-solid fa-graduation-cap" />, done: completedStages.includes(2) },
-              { num: 3, name: 'Certifications', pts: `${bd(3).earned}/${bd(3).max} pts`, icon: <i className="fa-solid fa-certificate" />, done: completedStages.includes(3) },
-              { num: 4, name: 'Assessment', pts: `${bd(4).earned}/${bd(4).max} pts`, icon: <i className="fa-solid fa-brain" />, done: completedStages.includes(4) },
-              { num: 5, name: 'Video Pitch AI', pts: `${bd(5).earned}/${bd(5).max} pts`, icon: <i className="fa-solid fa-video" />, done: completedStages.includes(5) },
-              { num: 6, name: 'Live Charts Audit', pts: `${bd(6).earned}/${bd(6).max} pts`, icon: <i className="fa-solid fa-laptop" />, done: completedStages.includes(6) },
-              { num: 7, name: 'Resume Studio', pts: '0 pts', icon: <i className="fa-solid fa-file-lines" />, done: completedStages.includes(7) },
-              { num: 8, gotoStage: 7, name: 'Placement & Hiring', pts: '0 pts', icon: <i className="fa-solid fa-location-dot" />, done: completedStages.includes(8) },
-            ];
-          })().map((stg) => (
-            <div
-              key={stg.num}
-              className={"stage-overview-card " + (stg.done ? "done" : "pending")}
-              onClick={() => handleOpenStagesWizard(stg.gotoStage || stg.num)}
-              title={`Click to open Stage 0${stg.num}: ${stg.name}`}
-            >
-              <div className="soc-top">
-                <span className="soc-badge">0{stg.num}</span>
-                <span className="soc-status">{stg.done ? 'Done' : 'Pending'}</span>
-              </div>
-              <div className="soc-icon">{stg.icon}</div>
-              <div className="soc-name">{stg.name}</div>
-              <div className="soc-pts" title={`${stg.name} — points earned toward your Passport Score`}>{stg.pts}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
       <div className="sec">
         <div className="sec-head"><div className="sec-title"><div className="mod-ico"><i className="fa-solid fa-bullseye" /></div>Priority Actions</div></div>
         <div className="card" style={{"background":"linear-gradient(135deg,var(--gold-pale),#FFF9E0)","borderColor":"var(--gold)"}}>
@@ -1014,7 +974,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         >
           <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
           <span>Open 7 Stages Dashboard</span>
-          <span className="hero-btn-pill">{completedStages.length}/8 Completed</span>
+          <span className="hero-btn-pill">{coreStagesCompleted}/7 Completed</span>
         </button>
       </div>
 
@@ -1542,7 +1502,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
         <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"14px","marginBottom":"14px"}}>
           <div>
-            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>🆔 UAN Number</label>
+            <label style={{"display":"block","fontSize":"11.5px","fontWeight":"800","color":"var(--navy)","marginBottom":"6px","letterSpacing":".5px"}}>UAN Number</label>
             <input type="text" value={employmentForm.uan} onChange={(e) => setEmploymentForm({ ...employmentForm, uan: e.target.value })} placeholder="12-digit UAN" style={{"width":"100%","padding":"11px 14px","border":"1.5px solid var(--border)","borderRadius":"9px","fontSize":"13.5px","background":"var(--white)"}}/>
           </div>
           <div>
@@ -1692,11 +1652,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="page-eyebrow">Get answers · Chat with us · Read guides</div>
         <h1 className="page-title">Help & Support</h1>
       </div>
-      <div className="placeholder-page">
-        <div className="placeholder-ico"><i className="fa-solid fa-life-ring" /></div>
-        <div className="placeholder-title">We're here to help</div>
-        <div className="placeholder-sub">Live chat with the Talentera team, an FAQ library, and video tutorials — coming soon. For now, reach out via the contact details on your registration email.</div>
-      </div>
+      <SupportChatBot />
     </div>
 )}        </main>
       </div>
