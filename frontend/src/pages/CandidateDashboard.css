@@ -151,7 +151,7 @@ button { border: none; background: none; }
   gap: 12px;
 }
 
-/* ⚡ Prominent Topbar 8 Stages Button */
+/* Prominent Topbar 8 Stages Button */
 .btn-open-stages-topbar {
   background: var(--grad-gold);
   color: var(--navy-deep);
@@ -410,7 +410,7 @@ button { border: none; background: none; }
   display: inline-block;
 }
 
-/* 🚪 Sign Out Topbar Button */
+/* Sign Out Topbar Button */
 .btn-signout-topbar {
   background: rgba(239, 68, 68, 0.14);
   color: #FCA5A5;
@@ -444,34 +444,44 @@ button { border: none; background: none; }
 /* ═══════════════════════════════════════════════════════
    LAYOUT & SIDEBAR
    ═══════════════════════════════════════════════════════ */
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 254px 1fr;
   max-width: 1600px;
+  width: 100%;
   margin: 0 auto;
-  min-height: calc(100vh - 65px);
+  flex: 1;
+  height: calc(100vh - 65px);
+  max-height: calc(100vh - 65px);
+  overflow: hidden;
 }
 
 .sidebar {
   background: var(--grad-sidebar);
   border-right: 1px solid rgba(245, 166, 35, 0.18);
   padding: 20px 14px 40px;
-  position: sticky;
-  top: 65px;
-  height: calc(100vh - 65px);
-  max-height: calc(100vh - 65px);
+  height: 100%;
+  max-height: 100%;
   overflow-y: auto;
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(245, 166, 35, 0.35) transparent;
   box-shadow: 4px 0 24px rgba(3, 13, 24, 0.25);
+  flex-shrink: 0;
 }
 .sidebar::-webkit-scrollbar { width: 5px; }
 .sidebar::-webkit-scrollbar-track { background: transparent; }
 .sidebar::-webkit-scrollbar-thumb { background: rgba(245, 166, 35, 0.3); border-radius: 4px; }
 .sidebar::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 
-/* ⚡ Sidebar 8 Stages Wizard Launch Banner */
+/* Sidebar 8 Stages Wizard Launch Banner */
 .sb-stage-wizard-banner {
   background: linear-gradient(135deg, rgba(245, 166, 35, 0.16) 0%, rgba(10, 37, 64, 0.6) 100%);
   border: 1.5px solid rgba(245, 166, 35, 0.4);
@@ -733,7 +743,11 @@ button { border: none; background: none; }
    ═══════════════════════════════════════════════════════ */
 .main {
   padding: 28px 36px 70px;
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
   overflow-x: hidden;
+  scroll-behavior: smooth;
   background: transparent;
 }
 
@@ -907,7 +921,7 @@ button { border: none; background: none; }
   box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
 }
 
-/* ⚡ Welcome Hero 8 Stages Action Buttons */
+/* Welcome Hero 8 Stages Action Buttons */
 .btn-open-stages-hero {
   background: var(--grad-gold);
   color: var(--navy-deep);
@@ -958,7 +972,7 @@ button { border: none; background: none; }
   transform: translateY(-2px);
 }
 
-/* ⚡ Interactive 8 Stages Overview Grid */
+/* Interactive 8 Stages Overview Grid */
 .stages-overview-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

@@ -679,13 +679,13 @@ export default function CertLibrary() {
                   >
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#FFFFFF" }}>
-                        ⏱ {certItem.time}
+                        <i className="fa-solid fa-stopwatch" /> {certItem.time}
                       </div>
                       <div style={{ fontSize: 9, fontWeight: 700, color: "#64748B" }}>EXAM TIME</div>
                     </div>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#FFFFFF" }}>
-                        📝 {certItem.qs}
+                        {certItem.qs}
                       </div>
                       <div style={{ fontSize: 9, fontWeight: 700, color: "#64748B" }}>QUESTIONS</div>
                     </div>
@@ -911,13 +911,13 @@ export default function CertLibrary() {
             >
               <div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#FFFFFF" }}>
-                  ⏱ {selectedCertForModal.time}
+                  <i className="fa-solid fa-stopwatch" /> {selectedCertForModal.time}
                 </div>
                 <div style={{ fontSize: 10, color: "#94A3B8" }}>Exam Duration</div>
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: "#FFFFFF" }}>
-                  📝 {selectedCertForModal.qs}
+                  {selectedCertForModal.qs}
                 </div>
                 <div style={{ fontSize: 10, color: "#94A3B8" }}>Exam Format</div>
               </div>

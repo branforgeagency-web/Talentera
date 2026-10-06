@@ -11,49 +11,49 @@ import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoO
 export const RESUME_TEMPLATES = [
   {
     id: "fresher_modern",
-    name: "🎯 Fresher Modern",
+    name: "Fresher Modern",
     headerBg: "#0F1B3D",
     accentColor: "#F5B41A",
     fontFamily: "'Inter', sans-serif",
   },
   {
     id: "plain_bw",
-    name: "⚪ Plain B&W (ATS)",
+    name: "Plain B&W (ATS)",
     headerBg: "#111827",
     accentColor: "#374151",
     fontFamily: "'Inter', Arial, sans-serif",
   },
   {
     id: "fresher_classic",
-    name: "📋 Fresher Classic",
+    name: "Fresher Classic",
     headerBg: "#333333",
     accentColor: "#8A91A3",
     fontFamily: "Georgia, 'Times New Roman', serif",
   },
   {
     id: "executive",
-    name: "💼 Executive",
+    name: "Executive",
     headerBg: "#8B5CF6",
     accentColor: "#7C3AED",
     fontFamily: "'Inter', sans-serif",
   },
   {
     id: "global",
-    name: "🌍 Global",
+    name: "Global",
     headerBg: "#065F46",
     accentColor: "#10B981",
     fontFamily: "'Inter', sans-serif",
   },
   {
     id: "compact_ats",
-    name: "📱 Compact ATS",
+    name: "Compact ATS",
     headerBg: "#334155",
     accentColor: "#F5B41A",
     fontFamily: "'Inter', sans-serif",
   },
   {
     id: "specialty_dental",
-    name: "🦷 Specialty (Dental)",
+    name: "Specialty (Dental)",
     headerBg: "#7C3AED",
     accentColor: "#F5B41A",
     fontFamily: "'Inter', sans-serif",
@@ -682,7 +682,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           alignItems: "center",
           gap: 6,
         }}>
-          <span>{icon}</span>
+          {icon ? <span>{icon}</span> : null}
           <span>{title}</span>
         </div>
         {actionButton}
@@ -719,14 +719,14 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             fontSize: 20,
             fontWeight: 800,
           }}>
-            📄
+            <i className="fa-solid fa-file-lines" />
           </div>
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: "#0F1B3D" }}>Talentera Verified Resume</div>
             <div style={{ fontSize: 11.5, color: "#64748B", display: "flex", alignItems: "center", gap: 6 }}>
               <span>Theme: <b>{activeTmpl.name}</b></span>
               <span>•</span>
-              <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Auto-Synced with Stages 1–6</span>
+              <span style={{ color: "#16A34A", fontWeight: 700 }}>Auto-Synced with Stages 1–6</span>
             </div>
           </div>
         </div>
@@ -750,7 +750,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               cursor: "pointer",
             }}
           >
-            <span>🎨</span>
+            <span><i className="fa-solid fa-palette" /></span>
             <span>{showThemeDrawer ? "Hide Custom Themes" : "Customize Theme"}</span>
           </button>
 
@@ -773,7 +773,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               boxShadow: "0 2px 6px rgba(245,180,26,0.3)",
             }}
           >
-            <span>📥</span>
+            <span><i className="fa-solid fa-download" /></span>
             <span>{downloading ? "Exporting..." : "Download PDF"}</span>
           </button>
 
@@ -792,7 +792,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             }}
             title="Download Word Document"
           >
-            📝 Word
+            Word
           </button>
 
           <button
@@ -810,7 +810,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             }}
             title="Download ATS Plain Text"
           >
-            📄 Text
+            Text
           </button>
 
           <button
@@ -828,7 +828,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             }}
             title="Copy Live URL"
           >
-            🔗 Live URL
+            Live URL
           </button>
 
           <button
@@ -846,7 +846,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             }}
             title="View QR Code"
           >
-            📱 QR
+            QR
           </button>
         </div>
       </div>
@@ -864,7 +864,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           {/* Header Bar */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, borderBottom: "1px solid #E2E8F0", paddingBottom: 10, flexWrap: "wrap", gap: 10 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: "#0F1B3D", display: "flex", alignItems: "center", gap: 6 }}>
-              <span>🎨 Resume Custom Theme Studio</span>
+              <span>Resume Custom Theme Studio</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button
@@ -888,10 +888,10 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           {/* Theme Studio Tab Selector */}
           <div style={{ display: "flex", gap: 6, marginBottom: 16, borderBottom: "1.5px solid #F1F5F9", paddingBottom: 8, overflowX: "auto" }}>
             {[
-              { id: "colors", label: "🎨 Colors & Paper Tone" },
-              { id: "typography", label: "🔤 Typography & Sizing" },
-              { id: "layout", label: "📐 Layout & Headers" },
-              { id: "visibility", label: "👁 Section Visibility" },
+              { id: "colors", label: "Colors & Paper Tone" },
+              { id: "typography", label: "Typography & Sizing" },
+              { id: "layout", label: "Layout & Headers" },
+              { id: "visibility", label: "Section Visibility" },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1259,18 +1259,18 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8 }}>
                 {[
-                  { key: "objective", label: "📝 Career Objective" },
-                  { key: "scorecard", label: "⏳ Talentera Scorecard" },
-                  { key: "certifications", label: "📜 Core Certifications" },
-                  { key: "training", label: "🎓 Training Foundation" },
-                  { key: "liveCharts", label: "💻 Live Chart Practice Table" },
-                  { key: "workExperience", label: "💼 Work Experience" },
-                  { key: "toolsUsed", label: "🧰 Tools Used" },
-                  { key: "videoPitch", label: "🎤 Video Pitch Scorecard" },
-                  { key: "education", label: "🎓 Academic Education" },
-                  { key: "skills", label: "🛠 Skills" },
-                  { key: "preferences", label: "📍 Work Preferences" },
-                  { key: "qrStamp", label: "🛡 Talentera QR Stamp & ID" },
+                  { key: "objective", label: "Career Objective" },
+                  { key: "scorecard", label: "Talentera Scorecard" },
+                  { key: "certifications", label: "Core Certifications" },
+                  { key: "training", label: "Training Foundation" },
+                  { key: "liveCharts", label: "Live Chart Practice Table" },
+                  { key: "workExperience", label: "Work Experience" },
+                  { key: "toolsUsed", label: "Tools Used" },
+                  { key: "videoPitch", label: "Video Pitch Scorecard" },
+                  { key: "education", label: "Academic Education" },
+                  { key: "skills", label: "Skills" },
+                  { key: "preferences", label: "Work Preferences" },
+                  { key: "qrStamp", label: "Talentera QR Stamp & ID" },
                 ].map((sec) => (
                   <label
                     key={sec.key}
@@ -1313,7 +1313,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           marginBottom: 16,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontWeight: 800, fontSize: 13, color: "#0F1B3D" }}>✏ Edit Career Objective</span>
+            <span style={{ fontWeight: 800, fontSize: 13, color: "#0F1B3D" }}>Edit Career Objective</span>
             <button
               type="button"
               onClick={() => setIsEditingObjective(false)}
@@ -1405,9 +1405,9 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{ fontSize: scale.base, color: "#E2E8F0", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-                {mobile && <span>📞 {mobile}</span>}
-                {email && <span>✉ {email}</span>}
-                <span style={{ color: activeTmpl.accentColor || "#F5B41A", fontWeight: 700 }}>🔗 {liveResumeUrl}</span>
+                {mobile && <span>{mobile}</span>}
+                {email && <span>{email}</span>}
+                <span style={{ color: activeTmpl.accentColor || "#F5B41A", fontWeight: 700 }}>{liveResumeUrl}</span>
               </div>
             </div>
 
@@ -1479,15 +1479,15 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               gap: 14,
               flexWrap: "wrap",
             }}>
-              {mobile && <span>📞 {mobile}</span>}
+              {mobile && <span>{mobile}</span>}
               <span>•</span>
-              {email && <span>✉ {email}</span>}
+              {email && <span>{email}</span>}
               <span>•</span>
-              <span style={{ color: "#1D4ED8", fontWeight: 700 }}>🔗 {liveResumeUrl}</span>
+              <span style={{ color: "#1D4ED8", fontWeight: 700 }}>{liveResumeUrl}</span>
               {visibleSections.qrStamp && (
                 <>
                   <span>•</span>
-                  <span style={{ fontWeight: 800, color: activeTmpl.headerBg || "#0F1B3D" }}>🛡 ID: {verificationId}</span>
+                  <span style={{ fontWeight: 800, color: activeTmpl.headerBg || "#0F1B3D" }}>ID: {verificationId}</span>
                 </>
               )}
             </div>
@@ -1525,9 +1525,9 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {joinUnique(currentRoleTitle, expLabel)}
               </div>
               <div style={{ fontSize: scale.base, color: "#334155", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                {mobile && <span>📞 {mobile}</span>}
-                {email && <span>✉ {email}</span>}
-                <span style={{ color: "#1D4ED8", fontWeight: 700 }}>🔗 {liveResumeUrl}</span>
+                {mobile && <span>{mobile}</span>}
+                {email && <span>{email}</span>}
+                <span style={{ color: "#1D4ED8", fontWeight: 700 }}>{liveResumeUrl}</span>
               </div>
             </div>
 
@@ -1603,18 +1603,18 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               }}>
                 {mobile && (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ color: activeTmpl.accentColor || "#DC2626" }}>📞</span>
+                    <span style={{ color: activeTmpl.accentColor || "#DC2626" }}><i className="fa-solid fa-phone" /></span>
                     <span>{mobile}</span>
                   </span>
                 )}
                 {email && (
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ color: activeTmpl.accentColor || "#DC2626" }}>✉</span>
+                    <span style={{ color: activeTmpl.accentColor || "#DC2626" }}><i className="fa-solid fa-envelope" /></span>
                     <span>{email}</span>
                   </span>
                 )}
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "#1D4ED8", fontWeight: 700 }}>
-                  <span>🔗</span>
+                  <span><i className="fa-solid fa-link" /></span>
                   <span>{liveResumeUrl}</span>
                 </span>
               </div>
@@ -1631,7 +1631,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 minWidth: 120,
               }}>
                 <div style={{ fontSize: 10, fontWeight: 800, color: activeTmpl.headerBg || "#0F1B3D", letterSpacing: "1px", textTransform: "uppercase" }}>
-                  🛡 TALENTERA<br />VERIFIED
+                  TALENTERA<br />VERIFIED
                 </div>
                 <div style={{ fontSize: 9.5, color: "#475569", marginTop: 3, fontFamily: "monospace" }}>
                   ID: {verificationId}
@@ -1664,7 +1664,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader(
               isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
-              "📝",
+              null,
               <button
                 type="button"
                 onClick={() => setIsEditingObjective(true)}
@@ -1682,7 +1682,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 2. TALENTERA VERIFIED SCORECARD */}
         {visibleSections.scorecard && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("TALENTERA VERIFIED SCORECARD", "⏳")}
+            {renderSectionHeader("TALENTERA VERIFIED SCORECARD", null)}
 
             <div style={{
               background: "#FFFDF5",
@@ -1702,7 +1702,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
+                {assessmentMedal === "Gold" ? "Gold" : assessmentMedal === "Silver" ? "Silver" : assessmentMedal === "Bronze" ? "Bronze" : "Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
               </span>
 
               <span style={{
@@ -1713,7 +1713,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                🎤 {videoMedal} · {videoStars.display} {videoStars.count}/5
+                {videoMedal} · {videoStars.display} {videoStars.count}/5
               </span>
 
               <span style={{
@@ -1724,7 +1724,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 fontSize: scale.base,
                 fontWeight: 800,
               }}>
-                💻 {totalCharts} charts · {chartStars.display} {chartStars.count}/5
+                {totalCharts} charts · {chartStars.display} {chartStars.count}/5
               </span>
 
               <span style={{
@@ -1748,13 +1748,13 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 3. CORE CERTIFICATIONS (if present) */}
         {visibleSections.certifications && certificationsList.length > 0 && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("CORE CERTIFICATIONS", "📜")}
+            {renderSectionHeader("CORE CERTIFICATIONS", null)}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
               {certificationsList.map((cert, idx) => (
                 <div key={idx} style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
                   <div style={{ fontSize: 10, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>{cert.body || "AAPC"} · {cert.code || cert.name}</div>
                   <div style={{ fontSize: scale.base + 0.5, fontWeight: 800, color: "#0F1B3D", marginTop: 2 }}>Member ID {cert.memberId ? `****${String(cert.memberId).slice(-4)}` : "Verified Credential"}</div>
-                  <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 600, marginTop: 2 }}>🟢 Active Verified Credential</div>
+                  <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 600, marginTop: 2 }}>Active Verified Credential</div>
                 </div>
               ))}
             </div>
@@ -1764,7 +1764,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 4. TRAINING FOUNDATION (Fresher only - see WORK EXPERIENCE below for Experienced) */}
         {!isExperienced && visibleSections.training && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("TRAINING FOUNDATION", "🎓")}
+            {renderSectionHeader("TRAINING FOUNDATION", null)}
             <div style={{
               background: "#FAFAF8",
               border: "1px solid #E2E8F0",
@@ -1778,7 +1778,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 {trainingFoundationLine}
               </div>
               <div style={{ fontSize: scale.base, color: "#475569", marginTop: 3 }}>
-                {trainingDuration} · Classroom · <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Academy-Verified</span>
+                {trainingDuration} · Classroom · <span style={{ color: "#16A34A", fontWeight: 700 }}>Academy-Verified</span>
               </div>
             </div>
           </div>
@@ -1787,7 +1787,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* WORK EXPERIENCE (Experienced only - replaces Training Foundation) */}
         {isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workTotalExperience) && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("WORK EXPERIENCE", "💼")}
+            {renderSectionHeader("WORK EXPERIENCE", null)}
             <div style={{
               background: "#FAFAF8",
               border: "1px solid #E2E8F0",
@@ -1817,7 +1817,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* TOOLS USED (Experienced only - replaces the Live Chart Practice table) */}
         {isExperienced && visibleSections.toolsUsed && selectedPlatforms.length > 0 && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("TOOLS USED", "🧰")}
+            {renderSectionHeader("TOOLS USED", null)}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {selectedPlatforms.map((tool, idx) => (
                 <span
@@ -1842,7 +1842,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 5. LIVE CHART PRACTICE - DEPARTMENT-WISE (Fresher only - see TOOLS USED above for Experienced) */}
         {!isExperienced && visibleSections.liveCharts && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("LIVE CHART PRACTICE · DEPARTMENT-WISE", "💻")}
+            {renderSectionHeader("LIVE CHART PRACTICE · DEPARTMENT-WISE", null)}
 
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: scale.base }}>
               <thead>
@@ -1857,12 +1857,12 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               <tbody>
                 {specialtyCharts.map((sc, idx) => (
                   <tr key={idx} style={{ borderBottom: "1px dashed #E2E8F0", background: "#FFFFFF" }}>
-                    <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0F1B3D" }}>🔬 {sc.name}</td>
+                    <td style={{ padding: "8px 12px", fontWeight: 600, color: "#0F1B3D" }}>{sc.name}</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.count}</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.accuracy}%</td>
                     <td style={{ padding: "8px 12px", color: "#0F1B3D" }}>{sc.timePerChart}</td>
                     <td style={{ padding: "8px 12px", color: Number(sc.count) > 0 ? "#16A34A" : "#64748B", fontWeight: 600 }}>
-                      {Number(sc.count) > 0 ? (sc.lastCodedDate ? `🟢 ${new Date(sc.lastCodedDate).toLocaleDateString()}` : "🟢 Active") : "—"}
+                      {Number(sc.count) > 0 ? (sc.lastCodedDate ? `${new Date(sc.lastCodedDate).toLocaleDateString()}` : "Active") : "—"}
                     </td>
                   </tr>
                 ))}
@@ -1872,13 +1872,13 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   <td style={{ padding: "8px 12px" }}>{overallAccuracy}%</td>
                   <td style={{ padding: "8px 12px" }}>{totalCharts > 0 ? "5.0 min avg" : "—"}</td>
                   <td style={{ padding: "8px 12px", color: totalCharts > 0 ? "#16A34A" : "#64748B" }}>
-                    {totalCharts > 0 ? "🟢 Active" : "—"}
+                    {totalCharts > 0 ? "Active" : "—"}
                   </td>
                 </tr>
               </tbody>
             </table>
             <div style={{ fontSize: 11, color: "#64748B", marginTop: 6 }}>
-              Platforms verified: {selectedPlatforms.join(" 🟢 · ")} 🟢 · <b>Scan Live Chart QR to verify current data ↗</b>
+              Platforms verified: {selectedPlatforms.join(" · ")} · <b>Scan Live Chart QR to verify current data ↗</b>
             </div>
           </div>
         )}
@@ -1886,17 +1886,17 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 6. VIDEO PITCH SCORECARD */}
         {visibleSections.videoPitch && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("VIDEO PITCH SCORECARD", "🎤")}
+            {renderSectionHeader("VIDEO PITCH SCORECARD", null)}
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 8, padding: "12px 14px", position: "relative" }}>
                 <div style={{ position: "absolute", right: 12, top: 12, width: 34, height: 34, background: activeTmpl.headerBg || "#0F1B3D", color: activeTmpl.accentColor || "#F5B41A", borderRadius: 6, display: "grid", placeItems: "center", fontSize: 14 }}>
-                  ▶
+                  <i className="fa-solid fa-play" />
                 </div>
                 <div style={{ fontSize: 10.5, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>SELF-INTRODUCTION (60 SEC)</div>
                 <div style={{ marginTop: 6 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), scale.base + 1)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
                 <div style={{ fontSize: scale.base - 0.5, color: "#475569", marginTop: 3 }}>
-                  Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · <span style={{ color: "#16A34A", fontWeight: 700 }}>🟢 Live Verified</span> · Scan to play
+                  Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · <span style={{ color: "#16A34A", fontWeight: 700 }}>Live Verified</span> · Scan to play
                 </div>
               </div>
 
@@ -1917,7 +1917,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 7. EDUCATION */}
         {visibleSections.education && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("EDUCATION", "🎓")}
+            {renderSectionHeader("EDUCATION", null)}
 
             <div style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>
@@ -1936,7 +1936,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 8. SKILLS */}
         {visibleSections.skills && resumeSkills.length > 0 && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("SKILLS", "🛠")}
+            {renderSectionHeader("SKILLS", null)}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {resumeSkills.map((skill) => (
                 <span key={skill} style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 999, padding: "6px 14px", fontSize: scale.base - 0.5, fontWeight: 700, color: "#0F1B3D" }}>
@@ -1950,7 +1950,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {/* 9. WORK PREFERENCES */}
         {visibleSections.preferences && (
           <div style={{ marginTop: scale.gap }}>
-            {renderSectionHeader("WORK PREFERENCES", "📍")}
+            {renderSectionHeader("WORK PREFERENCES", null)}
 
             <div style={{ fontSize: scale.base, color: "#0F1B3D", lineHeight: lineHeightVal }}>
               <div><b>Cities open to:</b> {preferredCities}</div>
@@ -1970,7 +1970,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             fontSize: 10.5,
             color: "#64748B",
           }}>
-            <div>🛡 Verified by Talentera · ID {verificationId} · Live at {liveResumeUrl}</div>
+            <div>Verified by Talentera · ID {verificationId} · Live at {liveResumeUrl}</div>
             <div style={{ fontSize: 9.5, color: "#94A3B8", marginTop: 3, fontFamily: "monospace" }}>
               SHA-256 · a3f8b9c2d4e5f6a7...b8c9d0e1f2a3b4c5
             </div>
@@ -2001,7 +2001,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: "#0F1B3D" }}>🛡 Talentera QR Verification</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: "#0F1B3D" }}>Talentera QR Verification</div>
               <button
                 type="button"
                 onClick={() => setShowQrModal(false)}
@@ -2055,7 +2055,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                   fontSize: 12,
                 }}
               >
-                📋 Copy Link
+                Copy Link
               </button>
               <button
                 type="button"

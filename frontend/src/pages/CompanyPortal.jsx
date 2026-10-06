@@ -453,7 +453,7 @@ export default function CompanyPortal() {
 
         <div className="cp-directory-grid" style={{ gap: 24 }}>
           {/* FILTER SIDEBAR */}
-          <aside style={{ background: "#fff", borderRadius: 12, padding: 22, border: "1px solid var(--border-light)", alignSelf: "start" }}>
+          <aside style={{ background: "#fff", borderRadius: 12, padding: 22, border: "1px solid var(--border-light)", alignSelf: "start", position: "sticky", top: 80, maxHeight: "calc(100vh - 100px)", overflowY: "auto" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h3 style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 700, margin: 0 }}>Filter Talent</h3>
               <button

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
+import useFacePresence from "../utils/useFacePresence";
 
 // How many seconds of silence during an answer before it auto-advances or auto-submits.
 const SILENCE_TIMEOUT_SECONDS = 20;
@@ -472,22 +473,38 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
   }, [step, sessionStarted]);
 
-  // Face Presence Monitor Loop
+  // Face Presence Monitor: real AI face detection (MediaPipe) + dark-frame check,
+  // so a closed / covered camera or an empty frame is NOT treated as a person.
+  const faceStatus = useFacePresence(
+    videoPreviewRef,
+    Boolean(stream) && activeTab === "record" && (step === "liveness" || step === "recording")
+  );
+  const facePresentRef = useRef(true);
+  const faceCheckReadyRef = useRef(false);
+  const autoPausedRef = useRef(false);
   useEffect(() => {
-    let interval;
-    if (stream && (step === "liveness" || step === "recording")) {
-      interval = setInterval(() => {
-        // Continuous face/presence monitor check
-        const videoTrack = stream.getVideoTracks()[0];
-        if (!videoTrack || !videoTrack.enabled || videoTrack.readyState !== "live") {
-          setIsFacePresent(false);
-        } else {
-          setIsFacePresent(true);
-        }
-      }, 1500);
+    faceCheckReadyRef.current = faceStatus.modelReady || faceStatus.modelFailed;
+    if (!stream || !(step === "liveness" || step === "recording")) return;
+    if (!faceCheckReadyRef.current) return; // still loading the detector
+    facePresentRef.current = faceStatus.facePresent;
+    setIsFacePresent(faceStatus.facePresent);
+  }, [faceStatus, stream, step]);
+
+  // Recording is only allowed while a person is in the frame: pause automatically
+  // (the timer stops, so covered time never counts toward the 60s minimum) and
+  // resume as soon as a face is back.
+  useEffect(() => {
+    if (!isRecording || step !== "recording") return;
+    if (!isFacePresent && !isPaused) {
+      autoPausedRef.current = true;
+      handlePauseRecording();
+      toast("No person detected in the frame - recording paused. Uncover the camera and face the screen to continue.", "!");
+    } else if (isFacePresent && isPaused && autoPausedRef.current) {
+      autoPausedRef.current = false;
+      handleResumeRecording();
     }
-    return () => clearInterval(interval);
-  }, [stream, step]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFacePresent, isRecording, isPaused, step]);
 
   // Handle Question Time Limit Timer. Only ticks while isRecording is true and not paused
   // Does not auto-submit at 60s; candidate can speak beyond 60s (up to 180s) and manually click Stop & Submit.
@@ -523,14 +540,14 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     function handleVisibilityChange() {
       if (document.visibilityState === "hidden") {
         setProctorLogs((prev) => ({ ...prev, tabSwitches: prev.tabSwitches + 1 }));
-        toast("⚠️ Tab switch detected! Interview terminated immediately for anti-cheat violation.", "!");
+        toast("Tab switch detected! Interview terminated immediately for anti-cheat violation.", "!");
         handleFinishSingleTakeInterview(true);
       }
     }
 
     function handleWindowBlur() {
       setProctorLogs((prev) => ({ ...prev, focusLosses: prev.focusLosses + 1 }));
-      toast("⚠️ Window focus loss detected! Interview terminated immediately for anti-cheat violation.", "!");
+      toast("Window focus loss detected! Interview terminated immediately for anti-cheat violation.", "!");
       handleFinishSingleTakeInterview(true);
     }
 
@@ -692,10 +709,18 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     }
     setTimeout(() => {
       setLivenessChecking(false);
+      if (!faceCheckReadyRef.current) {
+        toast("Face detection is still loading. Please wait a moment and try again.", "!");
+        return;
+      }
+      if (!facePresentRef.current) {
+        toast("Liveness failed: no person detected. Uncover your camera, make sure you are well lit and your face is clearly in the frame.", "!");
+        return;
+      }
       setLivenessVerified(true);
       setIsFacePresent(true);
-      toast("Liveness Verified! Face presence & video camera stream validated.", "✓");
-    }, 1500);
+      toast("Liveness Verified! A live person was detected in the frame.", "✓");
+    }, 2500);
   }
 
   // --- Step 3: Single-Take AI Video Interview Recording ---
@@ -911,6 +936,11 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
 
   function handleResumeRecording() {
     if (!isRecording || !isPaused) return;
+    if (!facePresentRef.current && faceCheckReadyRef.current) {
+      toast("Cannot resume - no person detected in the frame. Uncover the camera and face the screen.", "!");
+      return;
+    }
+    autoPausedRef.current = false;
     setIsPaused(false);
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === "paused") {
       try {
@@ -1455,7 +1485,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       {activeTab === "record" && !isFacePresent && (step === "liveness" || step === "recording") && (
         <div style={{ background: "#FEF2F2", border: "2px solid #EF4444", color: "#991B1B", padding: "12px 16px", borderRadius: 10, fontSize: 13, fontWeight: 700, marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
           <i className="fa-solid fa-triangle-exclamation" style={{ fontSize: 18 }}></i>
-          <span><strong>Face Not Detected:</strong> Please be in front of the camera and look directly at the screen to record your answer.</span>
+          <span><strong>{faceStatus.covered ? "Camera Covered / Too Dark:" : "Face Not Detected:"}</strong> A person must be clearly visible in the frame to record. Uncover the camera and look directly at the screen.</span>
         </div>
       )}
 
@@ -1565,7 +1595,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                       padding: "3px 10px",
                       borderRadius: 999
                     }}>
-                      {videoDuration >= 60 && uploadedFile.size <= 100 * 1024 * 1024 ? "✓ VIDEO READY" : "⚠️ VALIDATION NEEDED"}
+                      {videoDuration >= 60 && uploadedFile.size <= 100 * 1024 * 1024 ? "✓ VIDEO READY" : "VALIDATION NEEDED"}
                     </span>
                     <h5 style={{ margin: "8px 0 4px", fontSize: 15, fontWeight: 800, color: "var(--navy)", wordBreak: "break-word" }}>
                       {uploadedFile.name}
@@ -1727,7 +1757,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                 <video ref={videoPreviewRef} autoPlay playsInline muted style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
                 <div style={{ position: "absolute", top: 14, left: 14, background: !stream ? "rgba(0,0,0,0.75)" : isFacePresent ? "rgba(0,0,0,0.75)" : "#DC2626", color: "#fff", padding: "6px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700, backdropFilter: "blur(4px)", zIndex: 10 }}>
                   <i className="fa-solid fa-circle" style={{ color: !stream ? "#94A3B8" : isFacePresent ? "#22C55E" : "#fff", marginRight: 8 }}></i>
-                  {!stream ? "Camera Off · Click Verify to Start" : isFacePresent ? "Face Detected · Camera Live" : "No Face Detected"}
+                  {!stream ? "Camera Off · Click Verify to Start" : isFacePresent ? "Face Detected · Camera Live" : faceStatus.covered ? "Camera Covered" : "No Face Detected"}
                 </div>
               </div>
 
@@ -1958,10 +1988,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
                       {isSpeaking
                         ? "AI is asking you to introduce yourself..."
                         : isPaused
-                        ? "⏸️ Recording is paused. Click Resume Recording when ready."
+                        ? "Recording is paused. Click Resume Recording when ready."
                         : recordingSeconds < 60
-                        ? `🎙️ Recording in progress... Minimum duration is 60s (${60 - recordingSeconds}s left until Stop Recording unlocks).`
-                        : `✅ Minimum 60s met (${recordingSeconds}s recorded)! Click "Stop Recording & Submit" when you finish speaking.`}
+                        ? `Recording in progress... Minimum duration is 60s (${60 - recordingSeconds}s left until Stop Recording unlocks).`
+                        : `Minimum 60s met (${recordingSeconds}s recorded)! Click "Stop Recording & Submit" when you finish speaking.`}
                     </div>
 
                     {/* Action Bar: Pause/Resume + Stop Recording & Submit */}

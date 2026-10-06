@@ -36,12 +36,26 @@ const STAGE_POINTS = {
 
 const GOLD_BADGE_THRESHOLD = 75;
 
+// Live Chart (Stage 06) doesn't apply to AR Calling or Eligibility & Verification work, so it
+// must never lower their profile. For these domains Stage 06 is left out of the score entirely
+// and the remaining stages (worth 80) are rescaled to /100.
+// Keep in sync with LIVE_CHART_EXEMPT_DOMAINS in routes/candidate.js and frontend/src/data/wizardStages.js.
+const LIVE_CHART_EXEMPT_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+function isLiveChartExempt(candidate) {
+  return LIVE_CHART_EXEMPT_DOMAINS.includes((candidate && candidate.stage2 && candidate.stage2.domain) || "");
+}
+
 function calculateVerificationScore(completedStages = [], candidate = null) {
   let score = 0;
   const verifiedStages = [];
   const stageScores = {};
+  const stage6Exempt = isLiveChartExempt(candidate);
 
   for (const stage of completedStages) {
+    if (stage === 6 && stage6Exempt) {
+      // Not required for this role - contributes nothing and is excluded from the maximum.
+      continue;
+    }
     if (stage === 1) {
       score += STAGE_POINTS[1];
       stageScores[1] = STAGE_POINTS[1];
@@ -168,6 +182,9 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
     }
   }
 
+  if (stage6Exempt) {
+    score = Math.round((score / (100 - STAGE_POINTS[6])) * 100);
+  }
   score = Math.min(100, Math.max(0, score));
 
   return {

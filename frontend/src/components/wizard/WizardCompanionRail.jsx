@@ -4,7 +4,7 @@ const STAGE_CONFIGS = {
   1: {
     eyebrow: "CAREER PASSPORT",
     title: "You're building your passport",
-    status: "🔨 Stage 01 · Identity in progress",
+    status: "Stage 01 · Identity in progress",
     desc: "Every stage adds a verified layer to your identity. Companies see your passport score — the higher, the more visibility you earn.",
     companies: [
       {
@@ -57,7 +57,7 @@ const STAGE_CONFIGS = {
   2: {
     eyebrow: "CAREER PASSPORT",
     title: "Your passport is 25% built",
-    status: "🎓 Stage 02 · Foundation in progress",
+    status: "Stage 02 · Foundation in progress",
     desc: "Once your academy verifies your foundation, your visibility to hiring companies jumps sharply. A verified fresher outranks 87% of Naukri profiles for RCM roles.",
     companies: [
       {
@@ -110,7 +110,7 @@ const STAGE_CONFIGS = {
   3: {
     eyebrow: "CAREER PASSPORT",
     title: (props) => `${props.certCount || 1} certs registered · halfway to verified`,
-    status: "🏆 Stage 03 · Certification active",
+    status: "Stage 03 · Certification active",
     desc: "A verified CPC coder ranks 4× higher than an uncertified one on RCM company searches. Each verified cert unlocks a new set of companies globally.",
     companies: [
       {
@@ -163,7 +163,7 @@ const STAGE_CONFIGS = {
   4: {
     eyebrow: "CAREER PASSPORT",
     title: (props) => `Passport Score · ${props.score || props.candidate?.score || 50}/100`,
-    status: "🧪 Stage 04 · Assessment active",
+    status: "Stage 04 · Assessment active",
     desc: "This is a flagship points jump (+20 pts). A Silver or Gold Assessment score puts you in the top 20% of candidates on every company search.",
     companies: [
       {
@@ -216,7 +216,7 @@ const STAGE_CONFIGS = {
   5: {
     eyebrow: "CAREER PASSPORT",
     title: (props) => props.isCompleted ? "75/100 · 3 stages to go" : "65/100 · 3 stages to go",
-    status: (props) => props.isCompleted ? "🎤 Stage 05 · Video Pitch completed ✓" : "🎤 Stage 05 · Video Pitch active",
+    status: (props) => props.isCompleted ? "Stage 05 · Video Pitch completed ✓" : "Stage 05 · Video Pitch active",
     desc: "US-payer roles filter heavily on communication. A Silver or Gold Video Pitch opens 3× more shortlists than the average fresher on Naukri or Foundit.",
     companies: [
       {
@@ -269,7 +269,7 @@ const STAGE_CONFIGS = {
   6: {
     eyebrow: "CAREER PASSPORT",
     title: (props) => (typeof props.score === "number" ? `Live Chart Score · ${props.score}/100` : "Live Chart Score · not scored yet"),
-    status: "💻 Stage 06 · Live Chart active",
+    status: "Stage 06 · Live Chart active",
     desc: "Real medical charts audited in real EHR environments. Companies shortlist coders based on audited chart accuracy over written test claims.",
     companies: [
       {
@@ -321,8 +321,8 @@ const STAGE_CONFIGS = {
   },
   7: {
     eyebrow: "CAREER PASSPORT",
-    title: (props) => `🏆 ${props.candidate?.score || 85} / 100`,
-    status: "📄 Stage 07 · Resume Builder active",
+    title: (props) => `${props.candidate?.score || 85} / 100`,
+    status: "Stage 07 · Resume Builder active",
     desc: "You've completed the proof stages. Stage 07 (Resume) is auto-built from your authenticated credentials. Activating your Career Passport is one click away.",
     companies: [
       {
@@ -374,8 +374,8 @@ const STAGE_CONFIGS = {
   },
   8: {
     eyebrow: "CAREER PASSPORT",
-    title: "🏆 Talentera Verified",
-    status: (props) => props.isLiveActive ? "🟢 LIVE FOR HIRING" : "🚀 ONE CLICK FROM LIVE",
+    title: "Talentera Verified",
+    status: (props) => props.isLiveActive ? "LIVE FOR HIRING" : "ONE CLICK FROM LIVE",
     desc: (props) => `You've built a profile with ${props.candidate?.score || 95}/100 trust points. Every claim verified. Every score real. Sourced directly from your authenticated credentials.`,
     companies: [
       {

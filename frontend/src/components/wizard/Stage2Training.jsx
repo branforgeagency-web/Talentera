@@ -1,8 +1,25 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { ACADEMY_REGIONS, ACADEMY_LOCATIONS_BY_REGION, ACADEMY_LOCATIONS, ACADEMIES_BY_LOCATION, ACADEMY_STATE_BY_LOCATION } from "../../data/academiesData.js";
+
+// Common healthcare RCM / medical coding employers. Candidates pick from this
+// list; anything else goes through the "Other (not listed)" option.
+const COMPANY_OTHER = "__other__";
+const COMPANY_OPTIONS = [
+  "Access Healthcare", "AGS Health", "Allied Digital", "Altruista Health", "Apollo Health & Lifestyle",
+  "Apollo Hospitals", "Aspirion", "Athenahealth", "Cerner", "CitiusTech", "Clarus RCM",
+  "Cognizant", "Conifer Health Solutions", "Dignity Health Global Education", "eClinicalWorks",
+  "Episource", "Equinox Healthcare", "EXL Service", "Firstsource", "Fortis Healthcare",
+  "GeBBS Healthcare Solutions", "Genpact", "HCL Technologies", "HGS (Hinduja Global Solutions)",
+  "HealthAxis", "Healthcare Triangle", "Infosys BPM", "iMedX", "Ikigai Medical Billing", "Invensis",
+  "IQVIA", "Maxim Healthcare", "MCI (Medical Coding Inc.)", "MedQuist", "MediBuddy", "Medusind",
+  "Medi Assist", "Mphasis", "MTBC (CareCloud)", "Navigant (Guidehouse)", "Nuance", "nThrive",
+  "Omega Healthcare", "Optum (UnitedHealth Group)", "Parexel", "R1 RCM", "Runwal Healthcare",
+  "Sutherland Global", "SPi Global", "Sodexo Healthcare", "Tata Consultancy Services (TCS)",
+  "TeamHealth", "Tech Mahindra", "Teleperformance", "Wipro", "WNS Global Services",
+  "Xerox / Conduent", "Zenith Healthcare", "Zoho",
+];
 
 const DOMAINS = [
   {
@@ -98,20 +115,6 @@ const ALL_SPECIALTIES = [
   "Outpatient Coding",
 ];
 
-// Foundation topics for freshers (shown first in the Readiness Check)
-const FRESHER_TOPICS = [
-  "Anatomy",
-  "Physiology",
-  "Medical Terminology",
-  "Pharmacology",
-  "Pathology Basics",
-  "ICD-10-CM Basics",
-  "CPT / HCPCS Basics",
-  "Medical Billing Basics",
-  "Healthcare Insurance Basics",
-  "Coding Guidelines",
-];
-
 const TRAINING_PATHS = [
   {
     id: "academy",
@@ -155,13 +158,6 @@ const TRAINING_MODES = ["Classroom", "Online", "Hybrid", "Self-paced"];
 const TOTAL_EXPERIENCE_OPTIONS = ["Less than 1 year", "1 – 2 years", "2 – 3 years", "3 – 5 years", "5 – 8 years", "8+ years"];
 const NOTICE_PERIOD_OPTIONS = ["Immediate Joiner", "15 Days", "30 Days", "45 Days", "60 Days", "90 Days"];
 const TOTAL_HOURS_OPTIONS = ["Less than 100 hrs", "100 – 200 hrs", "200 – 400 hrs", "400+ hrs"];
-const CHART_PRACTICE_OPTIONS = ["0", "1 – 50", "51 – 200", "201 – 500", "500+"];
-const START_TIMELINES = [
-  { id: "immediately", label: "Immediately", icon: "fa-solid fa-rocket" },
-  { id: "30_days", label: "Within 30 days", icon: "fa-regular fa-calendar" },
-  { id: "60_days", label: "Within 60 days", icon: "fa-regular fa-calendar-days" },
-  { id: "90_days", label: "90+ days", icon: "fa-regular fa-clock" },
-];
 const SHIFT_OPTIONS = [
   { id: "day", label: "Day shift", icon: "fa-solid fa-sun" },
   { id: "night", label: "US Night shift", icon: "fa-solid fa-moon" },
@@ -257,6 +253,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   // questions (Sections 2 & 3) with real work-history fields, since an experienced hire doesn't
   // need to re-prove how they originally trained.
   const [expCompanyName, setExpCompanyName] = useState(existingData.currentCompany || "");
+  // True when the candidate's company is not in COMPANY_OPTIONS (typed manually).
+  const [expCompanyIsOther, setExpCompanyIsOther] = useState(
+    !!existingData.currentCompany && !COMPANY_OPTIONS.includes(existingData.currentCompany)
+  );
   const [expJobTitle, setExpJobTitle] = useState(existingData.jobTitle || "");
   const [expProjectDetails, setExpProjectDetails] = useState(existingData.projectDetails || "");
   const [expTotalYears, setExpTotalYears] = useState(existingData.totalExperience || "");
@@ -267,6 +267,16 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [expCertDocUrl, setExpCertDocUrl] = useState(existingData.certDocUrl || "");
   const [uploadingExpCertDoc, setUploadingExpCertDoc] = useState(false);
   const expCertFileInputRef = useRef(null);
+  // Employment status ("working" | "relieved"); relieved candidates can attach
+  // their relieving letter and latest pay slip for staff verification.
+  const [expEmploymentStatus, setExpEmploymentStatus] = useState(existingData.employmentStatus || "");
+  const [expRelievingLetterName, setExpRelievingLetterName] = useState(existingData.relievingLetterName || "");
+  const [expRelievingLetterUrl, setExpRelievingLetterUrl] = useState(existingData.relievingLetterUrl || "");
+  const [expPayslipName, setExpPayslipName] = useState(existingData.payslipName || "");
+  const [expPayslipUrl, setExpPayslipUrl] = useState(existingData.payslipUrl || "");
+  const [uploadingExpDoc, setUploadingExpDoc] = useState("");
+  const expRelievingFileInputRef = useRef(null);
+  const expPayslipFileInputRef = useRef(null);
   const [nonTrainedBackground, setNonTrainedBackground] = useState(
     existingData.nonTrainedBackground || "Life Sciences / Medical / Allied Health Graduate"
   );
@@ -393,35 +403,20 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [practicedCharts, setPracticedCharts] = useState(
     existingData.practicedCharts !== undefined ? existingData.practicedCharts : null
   );
-  const [chartsCount, setChartsCount] = useState(existingData.chartsCount || existingData.totalChartsCount || "");
-  const [internshipDone, setInternshipDone] = useState(
+  const [chartsCount] = useState(existingData.chartsCount || existingData.totalChartsCount || "");
+  const [internshipDone] = useState(
     existingData.internshipDone !== undefined ? existingData.internshipDone : null
   );
-  const [internshipWhere, setInternshipWhere] = useState(existingData.internshipWhere || "");
-  const [internshipDuration, setInternshipDuration] = useState(existingData.internshipDuration || "");
-  const [internshipRole, setInternshipRole] = useState(
+  const [internshipWhere] = useState(existingData.internshipWhere || "");
+  const [internshipDuration] = useState(existingData.internshipDuration || "");
+  const [internshipRole] = useState(
     existingData.internshipRole || ""
   );
 
-  // Section 5 · Readiness Check
-  const [confidentSpecs, setConfidentSpecs] = useState(
-    Array.isArray(existingData.confidentSpecialties) && existingData.confidentSpecialties.length > 0
-      ? existingData.confidentSpecialties
-      : []
-  );
-  const [learningSpecs, setLearningSpecs] = useState(
-    Array.isArray(existingData.learningSpecialties) && existingData.learningSpecialties.length > 0
-      ? existingData.learningSpecialties
-      : []
-  );
-  const [startTimeline, setStartTimeline] = useState(existingData.startTimeline || "");
   const [selectedShifts, setSelectedShifts] = useState(
     Array.isArray(existingData.shifts) && existingData.shifts.length > 0
       ? existingData.shifts
       : []
-  );
-  const [openToTrainee, setOpenToTrainee] = useState(
-    existingData.openToTrainee !== undefined ? existingData.openToTrainee : null
   );
 
   // UI / Submission state
@@ -497,8 +492,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         if (formErrors.trainingLevel) setFormErrors((prev) => ({ ...prev, trainingLevel: "" }));
       }
       if (practicedCharts === null) setPracticedCharts(false);
-      if (openToTrainee === null) setOpenToTrainee(true);
-      toast("Switched to Non-Trained · Direct Entry mode. Form sections updated.", "ℹ");
+      toast("Switched to Non-Trained · Direct Entry mode. Form sections updated.", <i className="fa-solid fa-circle-info" />);
     }
   }
 
@@ -512,39 +506,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   // would wrongly show this Experienced-only section to a Fresher whose real choice just
   // hasn't been saved yet. Matches the same "exp" substring check the resume components use.
   const isFresherCandidate = !/exp/i.test(String(candidateExp || ""));
-  const readinessOptions = (() => {
-    const seen = new Set();
-    const out = [];
-    const add = (name) => {
-      const key = String(name || "").trim().toLowerCase();
-      if (!key || seen.has(key)) return;
-      seen.add(key);
-      out.push(String(name).trim());
-    };
-    if (isFresherCandidate || trainingPath === "non_trained") FRESHER_TOPICS.forEach(add);
-    specialties.forEach(add);
-    ALL_SPECIALTIES.slice(0, 9).forEach(add);
-    confidentSpecs.forEach(add);
-    learningSpecs.forEach(add);
-    return out;
-  })();
-
-  function handleToggleConfident(spec) {
-    if (confidentSpecs.includes(spec)) {
-      setConfidentSpecs(confidentSpecs.filter((s) => s !== spec));
-    } else {
-      setConfidentSpecs([...confidentSpecs, spec]);
-    }
-  }
-
-  function handleToggleLearning(spec) {
-    if (learningSpecs.includes(spec)) {
-      setLearningSpecs(learningSpecs.filter((s) => s !== spec));
-    } else {
-      setLearningSpecs([...learningSpecs, spec]);
-    }
-  }
-
   const handleUploadExpCertDoc = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -565,6 +526,35 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       toast(err.response?.data?.message || "Certificate upload failed.", "!");
     } finally {
       setUploadingExpCertDoc(false);
+    }
+  };
+
+  const handleUploadExpEmploymentDoc = async (e, kind) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast("File size must be less than 10 MB.", "!");
+      return;
+    }
+    setUploadingExpDoc(kind);
+    try {
+      const formData = new FormData();
+      formData.append("doc", file);
+      const res = await api.post(`/candidate/upload/doc/2`, formData, { headers: { "Content-Type": "multipart/form-data" } });
+      const url = res.data?.docUrl || res.data?.url || "";
+      if (kind === "relieving") {
+        setExpRelievingLetterName(file.name);
+        setExpRelievingLetterUrl(url);
+      } else {
+        setExpPayslipName(file.name);
+        setExpPayslipUrl(url);
+      }
+      toast(`${file.name} uploaded successfully!`, "✓");
+    } catch (err) {
+      toast(err.response?.data?.message || "Upload failed.", "!");
+    } finally {
+      setUploadingExpDoc("");
     }
   };
 
@@ -598,6 +588,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       noticePeriod: isFresherCandidate ? "" : expNoticePeriod,
       currentSalary: isFresherCandidate ? "" : expCurrentSalary.trim(),
       skills: isFresherCandidate ? "" : expSkills.trim(),
+      employmentStatus: isFresherCandidate ? "" : expEmploymentStatus,
+      relievingLetterName: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expRelievingLetterName,
+      relievingLetterUrl: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expRelievingLetterUrl,
+      payslipName: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expPayslipName,
+      payslipUrl: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expPayslipUrl,
       certDocName: isFresherCandidate ? "" : expCertDocName,
       certDocUrl: isFresherCandidate ? "" : expCertDocUrl,
       courseName: domain ? `${domain} - ${specialties.join(", ") || resolvedLevel}` : (specialties.join(", ") || resolvedLevel),
@@ -634,11 +629,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       internshipWhere: internshipWhere.trim(),
       internshipDuration: internshipDuration.trim(),
       internshipRole: internshipRole.trim(),
-      confidentSpecialties: confidentSpecs,
-      learningSpecialties: learningSpecs,
-      startTimeline,
       shifts: selectedShifts,
-      openToTrainee: isNonTrained && openToTrainee === null ? true : openToTrainee,
     };
   }
 
@@ -697,10 +688,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       if (!expTotalYears) {
         missing.push("Total Experience (Section 2)");
         errs.expTotalYears = "Please select your total experience";
-      }
-      if (!expNoticePeriod) {
-        missing.push("Notice Period (Section 2)");
-        errs.expNoticePeriod = "Please select your notice period";
       }
     }
 
@@ -764,17 +751,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         }
 
         .stage02-shell {
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 24px;
-          max-width: 1380px;
-          margin: 0 auto;
-          align-items: start;
-        }
-        @media (max-width: 1080px) {
-          .stage02-shell {
-            grid-template-columns: 1fr;
-          }
+          width: 100%;
         }
 
         /* BREADCRUMB */
@@ -1653,18 +1630,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       <div className="stage02-shell">
         {/* MAIN COLUMN */}
         <div className="s2-main">
-          {/* BREADCRUMB */}
-          <div className="s2-breadcrumb">
-            <span>Home</span>
-            <span className="sep">›</span>
-            <span>My Career Passport</span>
-            <span className="sep">›</span>
-            <span style={{ color: "var(--navy)", fontWeight: 800 }}>Stage 02 · Foundation</span>
-          </div>
 
           {/* HERO */}
           <div className="s2-hero">
-            <div className="s2-hero-icon">🎓</div>
+            <div className="s2-hero-icon"><i className="fa-solid fa-graduation-cap" /></div>
             <div className="s2-hero-badges">
               <span className="s2-hero-chip">STAGE 02 OF 07 · ACTIVE</span>
               <span className="s2-hero-chip gold">+15 POINTS</span>
@@ -1681,10 +1650,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             <div className="check">✓</div>
             <div className="txt">
               <div className="lbl">FROM YOUR STAGE 01 · IDENTITY</div>
-              <div className="val">{candidateName} · {candidateCity} · 🎓 {candidateExp}</div>
+              <div className="val">{candidateName} · {candidateCity} · {candidateExp}</div>
               <div className="small">Locked in Stage 01. Cannot be changed here.</div>
             </div>
-            <div className="locked-badge">🔒 LOCKED</div>
+            <div className="locked-badge">LOCKED</div>
           </div>
 
           {/* HOW STAGE 02 WORKS */}
@@ -1714,7 +1683,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
               <div className="s2-rule-tile">
                 <div className="s2-rule-head">
-                  <div className="s2-rule-ico">🔒</div>
+                  <div className="s2-rule-ico"><i className="fa-solid fa-lock" /></div>
                   <div className="s2-rule-title">What we verify with the academy</div>
                 </div>
                 <div className="s2-rule-body">
@@ -1726,7 +1695,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
               <div className="s2-rule-tile">
                 <div className="s2-rule-head">
-                  <div className="s2-rule-ico">📚</div>
+                  <div className="s2-rule-ico"><i className="fa-solid fa-book" /></div>
                   <div className="s2-rule-title">What if you didn't go to an academy</div>
                 </div>
                 <div className="s2-rule-body">
@@ -1737,7 +1706,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
               <div className="s2-rule-tile">
                 <div className="s2-rule-head">
-                  <div className="s2-rule-ico">👁</div>
+                  <div className="s2-rule-ico"><i className="fa-solid fa-eye" /></div>
                   <div className="s2-rule-title">What companies see</div>
                 </div>
                 <div className="s2-rule-body">
@@ -1751,7 +1720,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             )}
 
             <div className="s2-consent-pill">
-              <span className="ico">🎓</span>
+              <span className="ico"><i className="fa-solid fa-graduation-cap" /></span>
               <span><i>Your academy sees your claim in their Talentera Academy Dashboard. Only verified data feeds your public profile.</i></span>
             </div>
           </div>
@@ -1777,7 +1746,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
           {error && (
             <div style={{ background: "#FDECEA", color: "#C0392B", padding: "12px 16px", borderRadius: 10, fontWeight: 700, marginBottom: 16, border: "1px solid #F8D7DA" }}>
-              ⚠️ {error}
+              {error}
             </div>
           )}
 
@@ -1785,7 +1754,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           <div className="s2-section">
             <div className="s2-section-header">
               <div className="s2-section-num">1</div>
-              <div className="s2-section-title">What did you train for?</div>
+              <div className="s2-section-title">{isFresherCandidate ? "What did you train for?" : "Your Domain"}</div>
               <div className="s2-status-chip">DONE · +3</div>
             </div>
 
@@ -1793,7 +1762,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <label>
                 1.1 · Primary Domain <span className="req">*</span>
               </label>
-              <div className="s2-helper" style={{ marginBottom: 8 }}>Pick the primary RCM function you trained on.</div>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>{isFresherCandidate ? "Pick the primary RCM function you trained on." : "Pick the primary RCM domain you work in."}</div>
               <div className="s2-choice-grid-4">
                 {DOMAINS.map((d) => (
                   <div
@@ -1809,7 +1778,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 ))}
               </div>
               {formErrors.domain && (
-                <div className="field-error-msg">⚠️ {formErrors.domain}</div>
+                <div className="field-error-msg">{formErrors.domain}</div>
               )}
             </div>
 
@@ -1847,7 +1816,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 </span>
               </div>
               {formErrors.trainingLevel && (
-                <div className="field-error-msg">⚠️ {formErrors.trainingLevel}</div>
+                <div className="field-error-msg">{formErrors.trainingLevel}</div>
               )}
               {levelOtherSelected && (
                 <div style={{ marginTop: 10, maxWidth: 420 }} className={`s2-field ${formErrors.levelOther ? "has-error" : ""}`}>
@@ -1863,7 +1832,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     placeholder={`Type your training level ${domain ? `(e.g. Certified in ${domain})` : "(e.g. Certificate in Medical Billing)"}`}
                   />
                   {formErrors.levelOther && (
-                    <div className="field-error-msg">⚠️ {formErrors.levelOther}</div>
+                    <div className="field-error-msg">{formErrors.levelOther}</div>
                   )}
                 </div>
               )}
@@ -1882,12 +1851,12 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     {spec} <span className="x" onClick={() => handleToggleSpecialty(spec)}>×</span>
                   </span>
                 ))}
-                <span className="s2-tag-add" onClick={() => toast("Select from the available specialty tags below", "ℹ")}>
+                <span className="s2-tag-add" onClick={() => toast("Select from the available specialty tags below", <i className="fa-solid fa-circle-info" />)}>
                   + Available tags below
                 </span>
               </div>
               {formErrors.specialties && (
-                <div className="field-error-msg">⚠️ {formErrors.specialties}</div>
+                <div className="field-error-msg">{formErrors.specialties}</div>
               )}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                 {ALL_SPECIALTIES.map((spec) => (
@@ -2139,7 +2108,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   ))}
                 </select>
                 {formErrors.academyName && (
-                  <div className="field-error-msg">⚠️ {formErrors.academyName}</div>
+                  <div className="field-error-msg">{formErrors.academyName}</div>
                 )}
                 <div className="s2-helper">
                   Select your primary self-learning platform (e.g. YouTube channels, AAPC guides, or online courses).
@@ -2173,7 +2142,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       <>
                         <input
                           type="text"
-                          placeholder="🔍 Search region..."
+                          placeholder="Search region..."
                           value={regionDropdownOpen ? regionSearch : academyRegion}
                           onFocus={() => { setRegionDropdownOpen(true); setRegionSearch(""); }}
                           onChange={(e) => { setRegionSearch(e.target.value); setRegionDropdownOpen(true); }}
@@ -2242,7 +2211,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       <>
                         <input
                           type="text"
-                          placeholder="🔍 Search location..."
+                          placeholder="Search location..."
                           value={locationDropdownOpen ? locationSearch : academyLocation}
                           onFocus={() => { setLocationDropdownOpen(true); setLocationSearch(""); }}
                           onChange={(e) => { setLocationSearch(e.target.value); setLocationDropdownOpen(true); }}
@@ -2315,7 +2284,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       <>
                         <input
                           type="text"
-                          placeholder="🔍 Search academy..."
+                          placeholder="Search academy..."
                           value={academyNameDropdownOpen ? academyNameSearch : academyName}
                           onFocus={() => {
                             setAcademyNameDropdownOpen(true);
@@ -2367,7 +2336,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       </>
                     )}
                     {formErrors.academyName && (
-                      <div className="field-error-msg">⚠️ {formErrors.academyName}</div>
+                      <div className="field-error-msg">{formErrors.academyName}</div>
                     )}
                     <div className="s2-helper">
                       {locationOtherMode
@@ -2496,7 +2465,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
                 <div className="s2-field">
                   <label>
-                    Academy Assessment Score <span className="lock">🔒 Populated by academy — read-only</span>
+                    Academy Assessment Score <span className="lock">Populated by academy — read-only</span>
                   </label>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <input
@@ -2541,7 +2510,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
                 {/* DOC LINK */}
                 <div className="s2-doclink">
-                  <div className="ico">📁</div>
+                  <div className="ico"><i className="fa-solid fa-folder" /></div>
                   <div className="txt">
                     <div className="title">Your Certificate is stored in My Documents</div>
                     <div className="sub">HCC_Certificate.pdf · uploaded 15 Sep 2026 · verified by {academyName.split(" ")[0] || "Academy"}</div>
@@ -2553,7 +2522,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
                 {/* VERIFICATION STRIP */}
                 <div className="s2-verify-strip">
-                  <div className="badge-dot">🟢</div>
+                  <div className="badge-dot"><i className="fa-solid fa-circle" /></div>
                   <div>
                     <div className="title">Academy-Verified · {academyName}</div>
                     <div className="body">
@@ -2580,17 +2549,40 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 <label>
                   Current / Most Recent Company <span className="req">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={expCompanyName}
+                <select
+                  value={expCompanyIsOther ? COMPANY_OTHER : expCompanyName}
                   onChange={(e) => {
-                    setExpCompanyName(e.target.value);
+                    const v = e.target.value;
+                    if (v === COMPANY_OTHER) {
+                      setExpCompanyIsOther(true);
+                      setExpCompanyName("");
+                    } else {
+                      setExpCompanyIsOther(false);
+                      setExpCompanyName(v);
+                    }
                     if (formErrors.expCompanyName) setFormErrors((prev) => ({ ...prev, expCompanyName: "" }));
                   }}
-                  placeholder="e.g. Omega Healthcare, Access Healthcare"
-                />
+                >
+                  <option value="">-- Select company --</option>
+                  {COMPANY_OPTIONS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  <option value={COMPANY_OTHER}>Other (company not listed)</option>
+                </select>
+                {expCompanyIsOther && (
+                  <input
+                    type="text"
+                    style={{ marginTop: 8 }}
+                    value={expCompanyName}
+                    onChange={(e) => {
+                      setExpCompanyName(e.target.value);
+                      if (formErrors.expCompanyName) setFormErrors((prev) => ({ ...prev, expCompanyName: "" }));
+                    }}
+                    placeholder="Type your company name"
+                  />
+                )}
                 {formErrors.expCompanyName && (
-                  <div className="field-error-msg">⚠️ {formErrors.expCompanyName}</div>
+                  <div className="field-error-msg">{formErrors.expCompanyName}</div>
                 )}
               </div>
 
@@ -2611,7 +2603,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   ))}
                 </select>
                 {formErrors.expTotalYears && (
-                  <div className="field-error-msg">⚠️ {formErrors.expTotalYears}</div>
+                  <div className="field-error-msg">{formErrors.expTotalYears}</div>
                 )}
               </div>
             </div>
@@ -2631,7 +2623,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   placeholder="e.g. Senior AR Caller, HCC Coder, Billing Executive"
                 />
                 {formErrors.expJobTitle && (
-                  <div className="field-error-msg">⚠️ {formErrors.expJobTitle}</div>
+                  <div className="field-error-msg">{formErrors.expJobTitle}</div>
                 )}
               </div>
 
@@ -2668,7 +2660,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             <div className="s2-row">
               <div className={`s2-field ${formErrors.expNoticePeriod ? "has-error" : ""}`}>
                 <label>
-                  Notice Period <span className="req">*</span>
+                  Notice Period
+                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
                 </label>
                 <select
                   value={expNoticePeriod}
@@ -2683,7 +2676,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   ))}
                 </select>
                 {formErrors.expNoticePeriod && (
-                  <div className="field-error-msg">⚠️ {formErrors.expNoticePeriod}</div>
+                  <div className="field-error-msg">{formErrors.expNoticePeriod}</div>
                 )}
               </div>
 
@@ -2703,6 +2696,80 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
             <div className="s2-field">
               <label>
+                Employment Status
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+              </label>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+                {[
+                  { id: "working", label: "Currently working here" },
+                  { id: "relieved", label: "Relieved / left this company" },
+                ].map((o) => (
+                  <label
+                    key={o.id}
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: 10, cursor: "pointer", fontWeight: 700, fontSize: 13, border: `1.5px solid ${expEmploymentStatus === o.id ? "var(--gold)" : "#E2E8F0"}`, background: expEmploymentStatus === o.id ? "#FFFBEB" : "#fff" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={expEmploymentStatus === o.id}
+                      onChange={() => setExpEmploymentStatus(expEmploymentStatus === o.id ? "" : o.id)}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+              {expEmploymentStatus === "relieved" && (
+                <div style={{ marginTop: 8 }}>
+                  <div className="s2-helper">Upload your relieving letter and latest pay slip — PDF, JPG or PNG, up to 10 MB each. Our team will verify them.</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
+                  <div style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
+                    <div style={{ fontWeight: 800, color: "var(--navy)" }}>Relieving Letter</div>
+                    {expRelievingLetterName ? `${expRelievingLetterName}` : "No file attached yet."}
+                  </div>
+                  <input
+                    ref={expRelievingFileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    style={{ display: "none" }}
+                    onChange={(e) => handleUploadExpEmploymentDoc(e, "relieving")}
+                  />
+                  <button
+                    type="button"
+                    className="s2-action-btn"
+                    onClick={() => expRelievingFileInputRef.current?.click()}
+                    disabled={uploadingExpDoc === "relieving"}
+                    style={{ whiteSpace: "nowrap", padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, cursor: "pointer", opacity: uploadingExpDoc === "relieving" ? 0.7 : 1 }}
+                  >
+                    {uploadingExpDoc === "relieving" ? "Uploading…" : expRelievingLetterName ? "Change File" : "Choose File →"}
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
+                  <div style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
+                    <div style={{ fontWeight: 800, color: "var(--navy)" }}>Latest Pay Slip</div>
+                    {expPayslipName ? `${expPayslipName}` : "No file attached yet."}
+                  </div>
+                  <input
+                    ref={expPayslipFileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    style={{ display: "none" }}
+                    onChange={(e) => handleUploadExpEmploymentDoc(e, "payslip")}
+                  />
+                  <button
+                    type="button"
+                    className="s2-action-btn"
+                    onClick={() => expPayslipFileInputRef.current?.click()}
+                    disabled={uploadingExpDoc === "payslip"}
+                    style={{ whiteSpace: "nowrap", padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, cursor: "pointer", opacity: uploadingExpDoc === "payslip" ? 0.7 : 1 }}
+                  >
+                    {uploadingExpDoc === "payslip" ? "Uploading…" : expPayslipName ? "Change File" : "Choose File →"}
+                  </button>
+                </div>
+                </div>
+              )}
+            </div>
+
+            <div className="s2-field">
+              <label>
                 Additional Certification Attachment
                 <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
               </label>
@@ -2711,7 +2778,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
-                  {expCertDocName ? `📎 ${expCertDocName}` : "No file attached yet."}
+                  {expCertDocName ? `${expCertDocName}` : "No file attached yet."}
                 </div>
                 <input
                   ref={expCertFileInputRef}
@@ -2735,236 +2802,32 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             </>
           )}
 
-          {/* SECTION 4 · PRACTICAL EXPOSURE */}
+          {/* SECTION 4 · SHIFT PREFERENCE */}
           <div className="s2-section">
             <div className="s2-section-header">
               <div className="s2-section-num">4</div>
-              <div className="s2-section-title">
-                Practical Exposure <span style={{ fontSize: "12px", color: "var(--gray-mute)", fontWeight: 500 }}>(Optional)</span>
-              </div>
+              <div className="s2-section-title">Preferred Shift</div>
               <div className="s2-status-chip pending">PENDING · +3</div>
             </div>
 
-            {trainingPath === "non_trained" && (
-              <div style={{ background: "#F0FDF4", border: "1px solid #86EFAC", borderRadius: 10, padding: "10px 14px", marginBottom: 14, fontSize: 12, color: "#166534", display: "flex", alignItems: "center", gap: 8 }}>
-                <i className="fa-solid fa-circle-info" style={{ color: "#16A34A" }} />
-                <span>As a non-trained entry-level applicant, chart practice and internships are completely optional. Having 0 charts is normal — companies train you on their EHR / billing software during initial onboarding.</span>
-              </div>
-            )}
-
             <div className="s2-field">
-              <label>
-                Have you practiced on real or mock charts?
-                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)" }}> (Optional)</span>
-              </label>
-              <div style={{ display: "flex", gap: 8, maxWidth: 280 }}>
-                <div
-                  className={`s2-option-item ${practicedCharts ? "selected" : ""}`}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  onClick={() => setPracticedCharts(true)}
-                >
-                  <div className="dot"></div>
-                  <div>Yes</div>
-                </div>
-                <div
-                  className={`s2-option-item ${!practicedCharts && practicedCharts !== null ? "selected" : ""}`}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  onClick={() => setPracticedCharts(false)}
-                >
-                  <div className="dot"></div>
-                  <div>No</div>
-                </div>
-              </div>
-            </div>
-
-            {practicedCharts && (
-              <div className="s2-field">
-                <label>
-                  Total charts practiced
-                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal", color: "var(--gray-mute)" }}> (Optional)</span>
-                </label>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {CHART_PRACTICE_OPTIONS.map((cOpt) => (
-                    <span
-                      key={cOpt}
-                      className={`s2-tag-pill ${chartsCount === cOpt ? "selected" : ""}`}
-                      onClick={() => setChartsCount(cOpt)}
-                    >
-                      {cOpt}
-                    </span>
-                  ))}
-                </div>
-                <div className="s2-helper">Live coding platforms + hours will be verified in Stage 06 · Live Chart. Not asked here.</div>
-              </div>
-            )}
-
-            <div className="s2-field">
-              <label>Any internship / observership done?</label>
-              <div style={{ display: "flex", gap: 8, maxWidth: 280, marginBottom: 10 }}>
-                <div
-                  className={`s2-option-item ${internshipDone ? "selected" : ""}`}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  onClick={() => setInternshipDone(true)}
-                >
-                  <div className="dot"></div>
-                  <div>Yes</div>
-                </div>
-                <div
-                  className={`s2-option-item ${!internshipDone ? "selected" : ""}`}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  onClick={() => setInternshipDone(false)}
-                >
-                  <div className="dot"></div>
-                  <div>No</div>
-                </div>
-              </div>
-
-              {internshipDone && (
-                <div className="s2-row-3">
-                  <div className="s2-field">
-                    <label>Where</label>
-                    <input
-                      type="text"
-                      value={internshipWhere}
-                      onChange={(e) => setInternshipWhere(e.target.value)}
-                      placeholder="Hospital / RCM firm / clinic"
-                    />
-                  </div>
-                  <div className="s2-field">
-                    <label>Duration</label>
-                    <input
-                      type="text"
-                      value={internshipDuration}
-                      onChange={(e) => setInternshipDuration(e.target.value)}
-                      placeholder="e.g. 2 months"
-                    />
-                  </div>
-                  <div className="s2-field">
-                    <label>What you did</label>
-                    <input
-                      type="text"
-                      value={internshipRole}
-                      onChange={(e) => setInternshipRole(e.target.value)}
-                      placeholder="1-2 lines"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* SECTION 5 · READINESS CHECK */}
-          <div className="s2-section">
-            <div className="s2-section-header">
-              <div className="s2-section-num">5</div>
-              <div className="s2-section-title">Readiness Check</div>
-              <div className="s2-status-chip pending">PENDING · +3</div>
-            </div>
-
-            {isFresherCandidate && (
-            <>
-            <div className="s2-field">
-              <label>I'm confident in <span className="req">*</span></label>
-              <div className="s2-helper" style={{ marginBottom: 6 }}>Companies match you to these specialties first.{isFresherCandidate ? " As a fresher, pick the foundation topics you know well." : ""}</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {readinessOptions.map((spec) => (
-                  <span
-                    key={spec}
-                    className={`s2-tag-pill ${confidentSpecs.includes(spec) ? "selected" : ""}`}
-                    onClick={() => handleToggleConfident(spec)}
+              <label>Open to shift work <span className="req">*</span></label>
+              <div className="s2-option-list">
+                {SHIFT_OPTIONS.map((sh) => (
+                  <div
+                    key={sh.id}
+                    className={`s2-option-item ${selectedShifts.includes(sh.id) ? "selected" : ""}`}
+                    onClick={() => handleToggleShift(sh.id)}
                   >
-                    {spec}
-                  </span>
+                    <div className="box">{selectedShifts.includes(sh.id) ? <i className="fa-solid fa-check" style={{ fontSize: 9 }} /> : ""}</div>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      {sh.icon && <i className={sh.icon} style={{ fontSize: 13, color: "#64748B" }} />}
+                      <span>{sh.label}</span>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
-
-            <div className="s2-field">
-              <label>I'd like more practice in</label>
-              <div className="s2-helper" style={{ marginBottom: 6 }}>Our Learning Hub will recommend content on these.</div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {readinessOptions.map((spec) => (
-                  <span
-                    key={spec}
-                    className={`s2-tag-pill ${learningSpecs.includes(spec) ? "selected" : ""}`}
-                    onClick={() => handleToggleLearning(spec)}
-                  >
-                    {spec}
-                  </span>
-                ))}
-              </div>
-            </div>
-            </>
-            )}
-
-            <div className="s2-row">
-              <div className="s2-field">
-                <label>When can you start? <span className="req">*</span></label>
-                <div className="s2-option-list">
-                  {START_TIMELINES.map((t) => (
-                    <div
-                      key={t.id}
-                      className={`s2-option-item ${startTimeline === t.id ? "selected" : ""}`}
-                      onClick={() => setStartTimeline(t.id)}
-                    >
-                      <div className="dot"></div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        {t.icon && <i className={t.icon} style={{ fontSize: 13, color: "#64748B" }} />}
-                        <span>{t.label}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="s2-field">
-                <label>Open to shift work <span className="req">*</span></label>
-                <div className="s2-option-list">
-                  {SHIFT_OPTIONS.map((sh) => (
-                    <div
-                      key={sh.id}
-                      className={`s2-option-item ${selectedShifts.includes(sh.id) ? "selected" : ""}`}
-                      onClick={() => handleToggleShift(sh.id)}
-                    >
-                      <div className="box">{selectedShifts.includes(sh.id) ? <i className="fa-solid fa-check" style={{ fontSize: 9 }} /> : ""}</div>
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        {sh.icon && <i className={sh.icon} style={{ fontSize: 13, color: "#64748B" }} />}
-                        <span>{sh.label}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {isFresherCandidate && (
-            <div className="s2-field" style={{ marginTop: 8 }}>
-              <label>Open to starting as a Trainee role? <span className="req">*</span></label>
-              <div className="s2-helper" style={{ marginBottom: 6 }}>
-                {trainingPath === "non_trained"
-                  ? "Pre-selected 'Yes' for non-trained candidates: Trainee roles include 1–3 months of paid onboarding and company domain training."
-                  : "Many fresher roles are labelled 'Trainee' for the first 3-6 months. Opening this widens your funnel."}
-              </div>
-              <div style={{ display: "flex", gap: 8, maxWidth: 280 }}>
-                <div
-                  className={`s2-option-item ${openToTrainee ? "selected" : ""}`}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  onClick={() => setOpenToTrainee(true)}
-                >
-                  <div className="dot"></div>
-                  <div>Yes</div>
-                </div>
-                <div
-                  className={`s2-option-item ${!openToTrainee ? "selected" : ""}`}
-                  style={{ flex: 1, justifyContent: "center" }}
-                  onClick={() => setOpenToTrainee(false)}
-                >
-                  <div className="dot"></div>
-                  <div>No</div>
-                </div>
-              </div>
-            </div>
-            )}
           </div>
 
           {/* STICKY BOTTOM BAR */}
@@ -2988,10 +2851,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           </div>
         </div>
 
-        {/* RIGHT SIDEBAR COLUMN */}
-        <div className="s2-right" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
-          <WizardCompanionRail stageNum={2} candidate={candidate} />
-        </div>
       </div>
     </div>
   );

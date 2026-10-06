@@ -86,7 +86,7 @@ export default function CandidateEmployerReferralsSection({
         id: job._id || job.id,
         title: job.title || job.role || 'Medical Coding Specialist',
         company: comp,
-        tag: isCandidateCompany ? '⭐ YOUR COMPANY' : (job.isUrgent ? '🔥 URGENT' : (job.badge || (job.minExperience >= 3 ? '💎 EXPERIENCED' : '⭐ OPENING'))),
+        tag: isCandidateCompany ? 'YOUR COMPANY' : (job.isUrgent ? 'URGENT' : (job.badge || (job.minExperience >= 3 ? 'EXPERIENCED' : 'OPENING'))),
         tagColor: isCandidateCompany ? 'var(--gold-deep)' : (job.isUrgent ? 'var(--red)' : 'var(--navy)'),
         loc: job.location || job.city || 'Pan-India',
         ctc: job.salaryRange || (job.minSalary && job.maxSalary ? `₹${minCtc}-${maxCtc} LPA` : (job.maxSalary ? `Up to ₹${maxCtc} LPA` : 'Best in Industry')),
@@ -158,7 +158,7 @@ export default function CandidateEmployerReferralsSection({
     <div className="page active" id="page-employer-referrals">
       {/* PAGE HEADER */}
       <div className="page-head">
-        <div className="page-eyebrow">🏢 Post-Placement Feature · Track referrals · Employer pays you DIRECT</div>
+        <div className="page-eyebrow">Post-Placement Feature · Track referrals · Employer pays you DIRECT</div>
         <h1 className="page-title">Employer Referrals</h1>
         <p className="page-sub">
           Share openings at <b>{candidateCompany}</b> or partner employers via Talentera. <b>The employer pays the referral bonus directly to YOUR salary account</b> — Talentera never touches the money. We just track the referral and reward you with 3,000 loyalty points per successful hire.
@@ -168,7 +168,7 @@ export default function CandidateEmployerReferralsSection({
       {/* MODEL EXPLANATION BOX */}
       <div style={{ background: 'linear-gradient(135deg, var(--blue-soft), #F5F8FF)', border: '2px solid var(--blue)', borderRadius: '16px', padding: '20px 24px', marginBottom: '20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '16px', alignItems: 'center' }}>
-          <div style={{ fontSize: '40px' }}>💡</div>
+          <div style={{ fontSize: '40px' }}><i className="fa-solid fa-lightbulb" /></div>
           <div>
             <div style={{ fontSize: '14px', fontWeight: '800', color: 'var(--navy)', marginBottom: '6px' }}>
               How Employer Referral Payments actually work
@@ -184,7 +184,7 @@ export default function CandidateEmployerReferralsSection({
       <div style={{ background: 'linear-gradient(135deg, var(--green-soft), #F5FDF9)', border: '2px solid var(--green)', borderRadius: '18px', padding: '24px 28px', marginBottom: '20px' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '14px' }}>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: 'var(--green)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>💰 From Employer Payroll</div>
+            <div style={{ color: 'var(--green)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>From Employer Payroll</div>
             <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--navy)', marginTop: '6px' }}>₹{totalDirectCash.toLocaleString()}</div>
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>{hiredCount} hire{hiredCount === 1 ? '' : 's'} · paid direct to salary a/c</div>
           </div>
@@ -194,12 +194,12 @@ export default function CandidateEmployerReferralsSection({
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>{inProgressCount} in pipeline · pending hire</div>
           </div>
           <div style={{ color: 'var(--gold-deep)', textAlign: 'center' }}>
-            <div style={{ color: 'var(--gold-deep)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>🎁 Talentera Loyalty Pts</div>
+            <div style={{ color: 'var(--gold-deep)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>Talentera Loyalty Pts</div>
             <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--gold-deep)', marginTop: '6px' }}>{loyaltyPointsEarned.toLocaleString()} pts</div>
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>3,000 pts per hire (₹1,500 value each)</div>
           </div>
           <div style={{ textAlign: 'center' }}>
-            <div style={{ color: 'var(--navy)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>📊 Total Value per Hire</div>
+            <div style={{ color: 'var(--navy)', fontSize: '10.5px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>Total Value per Hire</div>
             <div style={{ fontSize: '28px', fontWeight: '800', color: 'var(--navy)', marginTop: '6px' }}>₹26,500</div>
             <div style={{ fontSize: '11px', color: 'var(--gray-mute)', marginTop: '2px' }}>Bonus + Talentera pts stacked</div>
           </div>
@@ -210,7 +210,7 @@ export default function CandidateEmployerReferralsSection({
       <div className="sec">
         <div className="sec-head">
           <div className="sec-title" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-            <div className="mod-ico">🏢</div>Partner Employer Open Roles <span className="count">{filteredRoles.length} ROLES</span>
+            <div className="mod-ico"><i className="fa-solid fa-building" /></div>Partner Employer Open Roles <span className="count">{filteredRoles.length} ROLES</span>
             {availableCompanies.length > 2 && (
               <select
                 value={filterCompany}
@@ -252,10 +252,10 @@ export default function CandidateEmployerReferralsSection({
                       )}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--gray-txt)', marginTop: '4px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                      <span>📍 {role.loc}</span>
-                      <span>💰 {role.ctc}</span>
-                      <span>🎯 {role.exp}</span>
-                      <span>🕐 {role.shift}</span>
+                      <span>{role.loc}</span>
+                      <span>{role.ctc}</span>
+                      <span>{role.exp}</span>
+                      <span>{role.shift}</span>
                     </div>
                   </div>
                 </div>
@@ -268,7 +268,7 @@ export default function CandidateEmployerReferralsSection({
                   onClick={() => handleOpenReferralFlow(role)}
                   style={{ background: 'var(--gold)', color: 'var(--navy)', padding: '14px 22px', borderRadius: '12px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
                 >
-                  📤 Refer a Friend
+                  Refer a Friend
                 </button>
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--gray-txt)', paddingTop: '10px', borderTop: '1px dashed var(--border)' }}>
@@ -278,7 +278,7 @@ export default function CandidateEmployerReferralsSection({
           ))
         ) : (
           <div className="card" style={{ padding: '32px 20px', textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏢</div>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}><i className="fa-solid fa-building" /></div>
             <div style={{ fontWeight: '800', color: 'var(--navy)', fontSize: '15px' }}>No active employer openings listed currently</div>
             <p style={{ color: 'var(--gray-mute)', fontSize: '12.5px', maxWidth: '440px', margin: '6px auto 16px' }}>
               Have openings at your company or know an employer hiring medical coders? Submit their details and earn direct bounties!
@@ -297,7 +297,7 @@ export default function CandidateEmployerReferralsSection({
       <div className="sec">
         <div className="sec-head">
           <div className="sec-title">
-            <div className="mod-ico">📊</div>My Employer Referral Tracker <span className="count">{employerReferrals.length} LOGGED</span>
+            <div className="mod-ico"><i className="fa-solid fa-chart-simple" /></div>My Employer Referral Tracker <span className="count">{employerReferrals.length} LOGGED</span>
           </div>
           <button
             onClick={() => setShowSubmitModal(true)}
@@ -334,7 +334,7 @@ export default function CandidateEmployerReferralsSection({
             ))
           ) : (
             <div style={{ padding: '36px 20px', textAlign: 'center' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏢</div>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}><i className="fa-solid fa-building" /></div>
               <div style={{ fontWeight: '800', color: 'var(--navy)', fontSize: '15px' }}>No employer referrals submitted yet</div>
               <p style={{ color: 'var(--gray-mute)', fontSize: '12.5px', maxWidth: '440px', margin: '6px auto 16px' }}>
                 Know a company hiring medical coders or want to refer peers to your company? Submit their details and earn up to ₹50,000 direct payout!
@@ -343,7 +343,7 @@ export default function CandidateEmployerReferralsSection({
                 onClick={() => setShowSubmitModal(true)}
                 style={{ background: 'var(--gold)', color: 'var(--navy)', padding: '10px 20px', borderRadius: '10px', fontWeight: '800', fontSize: '12.5px', border: 'none', cursor: 'pointer' }}
               >
-                ➕ Submit a Company Lead
+                Submit a Company Lead
               </button>
             </div>
           )}
@@ -353,7 +353,7 @@ export default function CandidateEmployerReferralsSection({
       {/* HOW IT WORKS (3 STEPS) */}
       <div className="card" style={{ background: 'linear-gradient(135deg, var(--gold-pale), #FFF9E0)', border: '1.5px solid var(--gold)', padding: '22px 26px', marginTop: '20px' }}>
         <div style={{ fontSize: '15px', fontWeight: '800', color: 'var(--navy)', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          💡 How Employer Referrals work · 3 steps
+          How Employer Referrals work · 3 steps
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px' }}>
           <div style={{ background: 'var(--white)', padding: '16px', borderRadius: '12px', border: '1px solid var(--gold-soft)' }}>
@@ -385,7 +385,7 @@ export default function CandidateEmployerReferralsSection({
           </div>
         </div>
         <div style={{ background: 'var(--blue-soft)', borderLeft: '3px solid var(--blue)', padding: '12px 16px', borderRadius: '0 8px 8px 0', marginTop: '14px', fontSize: '12px', color: 'var(--navy)', lineHeight: 1.6 }}>
-          🎯 <b>Value stack (real math):</b> Refer 5 friends per year at {candidateCompany} = <b>₹1,25,000 direct from employer</b> + <b>15,000 Talentera loyalty points (₹7,500)</b> = ₹1,32,500 side income. All on top of your primary salary. Talentera takes ZERO cut · Auto-tracked · Zero paperwork.
+          <b>Value stack (real math):</b> Refer 5 friends per year at {candidateCompany} = <b>₹1,25,000 direct from employer</b> + <b>15,000 Talentera loyalty points (₹7,500)</b> = ₹1,32,500 side income. All on top of your primary salary. Talentera takes ZERO cut · Auto-tracked · Zero paperwork.
         </div>
       </div>
 
@@ -406,7 +406,7 @@ export default function CandidateEmployerReferralsSection({
                 onClick={() => handleCopyJobLink(activeJobModal)}
                 style={{ background: 'var(--navy)', color: 'var(--gold)', padding: '6px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: '800', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
-                📋 Copy Link
+                Copy Link
               </button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
@@ -417,7 +417,7 @@ export default function CandidateEmployerReferralsSection({
                 }}
                 style={{ background: '#25D366', color: 'var(--white)', padding: '10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
-                💬 WhatsApp Friend
+                WhatsApp Friend
               </button>
               <button
                 onClick={() => {
@@ -426,7 +426,7 @@ export default function CandidateEmployerReferralsSection({
                 }}
                 style={{ background: '#0A66C2', color: 'var(--white)', padding: '10px', borderRadius: '8px', fontSize: '12px', fontWeight: '800', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
               >
-                💼 LinkedIn Share
+                LinkedIn Share
               </button>
             </div>
             <button
@@ -441,7 +441,7 @@ export default function CandidateEmployerReferralsSection({
               }}
               style={{ width: '100%', background: 'var(--gold)', color: 'var(--navy)', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer' }}
             >
-              📝 Submit Candidate Details Manually
+              Submit Candidate Details Manually
             </button>
           </div>
         </div>
@@ -452,7 +452,7 @@ export default function CandidateEmployerReferralsSection({
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,27,61,.7)', zIndex: 100, display: 'grid', placeItems: 'center', padding: '20px' }}>
           <div style={{ background: 'var(--white)', width: '100%', maxWidth: '560px', borderRadius: '16px', padding: '28px', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>🏢 Submit Employer / Hiring Lead</div>
+              <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--navy)' }}>Submit Employer / Hiring Lead</div>
               <button onClick={() => setShowSubmitModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--gray-mute)' }}>✕</button>
             </div>
             <p style={{ fontSize: '12px', color: 'var(--gray-txt)', marginBottom: '16px' }}>
@@ -531,7 +531,7 @@ export default function CandidateEmployerReferralsSection({
                 disabled={submittingLead}
                 style={{ width: '100%', background: 'var(--gold)', color: 'var(--navy)', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: '800', border: 'none', cursor: 'pointer' }}
               >
-                {submittingLead ? 'Submitting...' : '📤 Submit Lead to Talentera Team'}
+                {submittingLead ? 'Submitting...' : 'Submit Lead to Talentera Team'}
               </button>
             </form>
           </div>

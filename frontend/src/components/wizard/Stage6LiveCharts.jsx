@@ -1,8 +1,7 @@
 import React, { useState, useMemo, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
-import { isSelfTrainedCandidate } from "../../data/wizardStages.js";
+import { isSelfTrainedCandidate, isLiveChartExemptDomain } from "../../data/wizardStages.js";
 import { getExperienceLevel } from "../../utils/careerObjective.js";
 import { computeStage6Result, EVIDENCE_LABELS, STAGE6_MAX_POINTS } from "../../utils/stage6Score.js";
 
@@ -30,11 +29,11 @@ const PLATFORM_CATEGORIES = [
 // these stay in the list for experienced candidates only (Stage 1 experience > 0).
 const EXPERIENCED_ONLY_PLATFORMS = ["Kareo", "DrChrono", "AdvancedMD"];
 
-const getPaths = (isSelfTrained) => [
+const getPaths = (isSelfTrained, isExemptDomain = false) => [
   { id: "A", title: "Platform-Reported", sub: "Practicode, Codivia, 3M etc. — figures from your platform dashboard", credit: "100% once staff-verified · 60% pending", badge: "Self-Reported (Platform)", badgeBg: "#FEF9C3", badgeFg: "#854D0E", chipBg: "#FDE68A", chipFg: "#78350F", dotColor: "#EAB308" },
   { id: "B", title: "Academy-Verified Log", sub: "Upload your chart log signed off by your academy", credit: "100% with proof · 60% without", badge: "Academy-Signed", badgeBg: "#DCFCE7", badgeFg: "#166534", chipBg: "#1E293B", chipFg: "#FFFFFF", dotColor: "#16A34A" },
   { id: "C", title: "Self-Declared", sub: "Manual entry, subject to random audit", credit: "70% credit", badge: "Self-Declared", badgeBg: "#FFEDD5", badgeFg: "#9A3412", chipBg: "#0284C7", chipFg: "#FFFFFF", dotColor: "#F97316" },
-  { id: "D", title: "No exposure yet", sub: isSelfTrained ? "Optional for self-trained — zero penalty to verification eligibility" : "Honest declaration — but limits company visibility", credit: "0 pts", badge: "No Charts", badgeBg: "#FEE2E2", badgeFg: "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF", dotColor: "#EF4444" },
+  { id: "D", title: "No exposure yet", sub: isExemptDomain ? "Not required for your role — no effect on your profile" : isSelfTrained ? "Optional for self-trained — zero penalty to verification eligibility" : "Honest declaration — but limits company visibility", credit: "0 pts", badge: "No Charts", badgeBg: "#FEE2E2", badgeFg: "#991B1B", chipBg: "#0F172A", chipFg: "#FFFFFF", dotColor: "#EF4444" },
 ];
 
 const SPECIALTY_OPTIONS = [
@@ -191,7 +190,10 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
   const [showErrors, setShowErrors] = useState(false);
 
   // Detect self-trained candidate
-  const isSelfTrained = isSelfTrainedCandidate(candidate) || Boolean(s6?.isSelfTrained);
+  // AR Calling / Eligibility & Verification roles never code charts, so Stage 06 is not required
+  // for them and must not affect their profile or score.
+  const isExemptDomain = isLiveChartExemptDomain(candidate);
+  const isSelfTrained = isSelfTrainedCandidate(candidate) || Boolean(s6?.isSelfTrained) || isExemptDomain;
 
   // Freshers don't get production EHR platforms that require real account access
   // (Kareo, DrChrono, AdvancedMD) in the platform picker - those stay for
@@ -209,7 +211,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
   );
 
   // Dynamic paths (Path D description changes for self-trained)
-  const PATHS = getPaths(isSelfTrained);
+  const PATHS = getPaths(isSelfTrained, isExemptDomain);
 
   // ---- live score & result, from Stage 6 inputs only -------------------------------------
   const result = useMemo(
@@ -421,12 +423,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
 
   return (
     <div style={{ maxWidth: 1400, margin: "0 auto", paddingBottom: 60, fontFamily: "var(--font-sans, system-ui, -apple-system, sans-serif)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11.5, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 14 }}>
-        <span>HOME</span><span>›</span><span>MY CAREER PASSPORT</span><span>›</span>
-        <span style={{ color: "var(--gold, #F59E0B)" }}>STAGE 06 · LIVE CHART</span>
-      </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: 24, alignItems: "start" }}>
+      <div style={{ width: "100%" }}>
         <div style={{ minWidth: 0 }}>
           {/* HERO */}
           <div style={{ background: "linear-gradient(135deg, #1E3A8A 0%, #1D4ED8 50%, #2563EB 100%)", borderRadius: 20, padding: "28px 32px", color: "#FFFFFF", boxShadow: "0 14px 34px rgba(30, 58, 138, 0.25)", marginBottom: 20, position: "relative", overflow: "hidden" }}>
@@ -441,7 +439,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <i className="fa-solid fa-star" style={{ fontSize: 9 }} /> CO-FLAGSHIP
               </span>
               {isSelfTrained && (
-                <span style={{ background: "#DCFCE7", color: "#15803D", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>OPTIONAL (SELF-TRAINED)</span>
+                <span style={{ background: "#DCFCE7", color: "#15803D", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>{isExemptDomain ? "NOT REQUIRED FOR YOUR ROLE" : "OPTIONAL (SELF-TRAINED)"}</span>
               )}
             </div>
             <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.02em", margin: "0 0 6px 0", color: "#FFFFFF" }}>Live Chart</h1>
@@ -457,9 +455,11 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 <i className="fa-solid fa-circle-info" style={{ color: "#16A34A", fontSize: 18, marginTop: 2 }} />
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>Stage 06 is optional for self-trained candidates</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is not required for your role" : "Stage 06 is optional for self-trained candidates"}</div>
                   <div style={{ fontSize: 12.5, color: "#166534", lineHeight: 1.5 }}>
-                    You can fill in your chart data if you have it — this will boost your profile score. Or you can skip Stage 06 with zero penalty and proceed directly to Stage 07 · Resume. You can always return and update this later.
+                    {isExemptDomain
+                      ? "Live chart coding doesn't apply to AR calling or eligibility & verification work. You can skip Stage 06 and go straight to Stage 07 · Resume — it won't affect your profile or your score."
+                      : "You can fill in your chart data if you have it — this will boost your profile score. Or you can skip Stage 06 with zero penalty and proceed directly to Stage 07 · Resume. You can always return and update this later."}
                   </div>
                 </div>
               </div>
@@ -543,7 +543,9 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <div style={{ marginTop: 14, background: isSelfTrained ? "#F0FDF4" : "#FEF2F2", border: `1px solid ${isSelfTrained ? "#86EFAC" : "#FECACA"}`, borderRadius: 12, padding: "12px 16px", fontSize: 12.5, color: isSelfTrained ? "#166534" : "#991B1B", lineHeight: 1.5, display: "flex", gap: 8, alignItems: "flex-start" }}>
                   <i className={isSelfTrained ? "fa-solid fa-circle-check" : "fa-solid fa-circle-info"} style={{ marginTop: 2 }} />
                   <span>
-                    {isSelfTrained
+                    {isExemptDomain
+                      ? "You have selected \"No exposure yet\". Stage 06 is not required for your role, so this has no effect on your profile or score."
+                      : isSelfTrained
                       ? "You have selected \"No exposure yet\". As a self-trained candidate, this is perfectly fine — Stage 06 is optional for you and skipping it carries zero penalty to your verification eligibility. You can come back and update this any time after you start coding live charts."
                       : "You have chosen \"No exposure yet\". Stage 06 scores 0 and companies will see \"No Charts\". You can come back and update this any time after you start coding live charts."}
                   </span>
@@ -691,10 +693,10 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                           color: s6.employeeVerified ? "#166534" : s6.employeeVerificationStatus === "rejected" ? "#991B1B" : "#854D0E",
                         }}>
                           {s6.employeeVerified
-                            ? `✅ Verified by Talentera staff${s6.employeeVerifiedBy ? ` (${s6.employeeVerifiedBy})` : ""} — full credit applied.`
+                            ? `Verified by Talentera staff${s6.employeeVerifiedBy ? ` (${s6.employeeVerifiedBy})` : ""} — full credit applied.`
                             : s6.employeeVerificationStatus === "rejected"
-                            ? `⚠️ Not verified: ${s6.employeeRejectionReason || "please recheck your platform account details."}`
-                            : "⏳ Pending Talentera staff verification — counted at partial (60%) credit until verified."}
+                            ? `Not verified: ${s6.employeeRejectionReason || "please recheck your platform account details."}`
+                            : "Pending Talentera staff verification — counted at partial (60%) credit until verified."}
                         </div>
                       )}
 
@@ -927,10 +929,6 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               </div>
             </div>
           </div>
-        </div>
-
-        <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
-          <WizardCompanionRail stageNum={6} score={result.stageScore} />
         </div>
       </div>
 

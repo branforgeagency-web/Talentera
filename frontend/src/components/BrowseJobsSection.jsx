@@ -3,13 +3,13 @@ import api from '../api/client';
 
 const getCityIcon = (city = '') => {
   const c = (city || '').toLowerCase();
-  if (c.includes('remote')) return '🌐';
-  if (c.includes('global') || c.includes('us') || c.includes('uae')) return '🌍';
-  if (c.includes('kochi') || c.includes('trivandrum') || c.includes('coimbatore') || c.includes('goa')) return '🌴';
-  if (c.includes('delhi') || c.includes('ncr')) return '🏛️';
-  if (c.includes('vizag') || c.includes('visakhapatnam')) return '⚓';
-  if (c.includes('mumbai') || c.includes('pune') || c.includes('bengaluru') || c.includes('bangalore')) return '🌆';
-  return '🏙️';
+  if (c.includes('remote')) return <i className="fa-solid fa-globe" />;
+  if (c.includes('global') || c.includes('us') || c.includes('uae')) return <i className="fa-solid fa-earth-asia" />;
+  if (c.includes('kochi') || c.includes('trivandrum') || c.includes('coimbatore') || c.includes('goa')) return <i className="fa-solid fa-tree" />;
+  if (c.includes('delhi') || c.includes('ncr')) return <i className="fa-solid fa-landmark" />;
+  if (c.includes('vizag') || c.includes('visakhapatnam')) return <i className="fa-solid fa-anchor" />;
+  if (c.includes('mumbai') || c.includes('pune') || c.includes('bengaluru') || c.includes('bangalore')) return <i className="fa-solid fa-city" />;
+  return <i className="fa-solid fa-city" />;
 };
 
 export default function BrowseJobsSection({ candidate, applications = [], onApplied }) {
@@ -216,7 +216,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
       count: locOpenings,
       companies: locCompanies,
       icon: getCityIcon(loc),
-      tag: locOpenings >= 5 ? '🔥 High hiring' : '✓ Active',
+      tag: locOpenings >= 5 ? 'High hiring' : '✓ Active',
     };
   });
 
@@ -255,7 +255,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           fontSize: 13.5,
           animation: 'fadeIn 0.2s ease',
         }}>
-          <span style={{ color: toastTone === 'error' ? '#F87171' : '#F5B41A' }}>{toastTone === 'error' ? '⚠' : '✓'}</span> {toastMsg}
+          <span style={{ color: toastTone === 'error' ? '#F87171' : '#F5B41A' }}>{toastTone === 'error' ? <i className="fa-solid fa-triangle-exclamation" /> : '✓'}</span> {toastMsg}
         </div>
       )}
 
@@ -312,7 +312,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
             fontSize: 24,
             flexShrink: 0,
           }}>
-            🔥
+            <i className="fa-solid fa-fire" />
           </div>
           <div>
             <div style={{ fontSize: 26, fontWeight: 800, color: '#0F1B3D', lineHeight: 1 }}>
@@ -349,7 +349,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
             fontSize: 24,
             flexShrink: 0,
           }}>
-            🏢
+            <i className="fa-solid fa-building" />
           </div>
           <div>
             <div style={{ fontSize: 26, fontWeight: 800, color: '#0F1B3D', lineHeight: 1 }}>
@@ -386,7 +386,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
             fontSize: 24,
             flexShrink: 0,
           }}>
-            🎯
+            <i className="fa-solid fa-bullseye" />
           </div>
           <div>
             <div style={{ fontSize: 26, fontWeight: 800, color: '#0F1B3D', lineHeight: 1 }}>
@@ -423,7 +423,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
             fontSize: 24,
             flexShrink: 0,
           }}>
-            📍
+            <i className="fa-solid fa-location-dot" />
           </div>
           <div>
             <div style={{ fontSize: 26, fontWeight: 800, color: '#0F1B3D', lineHeight: 1 }}>
@@ -463,7 +463,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
               fontSize: 14,
               fontWeight: 800,
             }}>
-              🎛
+              <i className="fa-solid fa-sliders" />
             </span>
             <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.01em' }}>
               Filter Jobs · Only in Talentera
@@ -498,7 +498,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           {/* Location */}
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#F5B41A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              📍 LOCATION
+              LOCATION
             </label>
             <select
               value={selectedLocation}
@@ -525,7 +525,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           {/* Specialty */}
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#F5B41A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              🩺 SPECIALTY
+              SPECIALTY
             </label>
             <select
               value={selectedSpecialty}
@@ -552,7 +552,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           {/* Company */}
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#F5B41A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              🏢 COMPANY
+              COMPANY
             </label>
             <select
               value={selectedCompany}
@@ -579,7 +579,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           {/* Project / Client */}
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#F5B41A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              📋 PROJECT / CLIENT
+              PROJECT / CLIENT
             </label>
             <select
               value={selectedProject}
@@ -606,7 +606,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           {/* Salary Band */}
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#F5B41A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              💰 SALARY BAND
+              SALARY BAND
             </label>
             <select
               value={selectedSalaryBand}
@@ -634,7 +634,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           {/* Work Mode */}
           <div>
             <label style={{ display: 'block', fontSize: 10, fontWeight: 800, color: '#F5B41A', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              💼 WORK MODE
+              WORK MODE
             </label>
             <select
               value={selectedWorkMode}
@@ -677,7 +677,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
               gap: 6,
             }}
           >
-            <span>⭐ Match my profile</span>
+            <span>Match my profile</span>
             {filterMatchProfile && <span>✕</span>}
           </button>
 
@@ -752,7 +752,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 18 }}>🗺️</span>
+              <span style={{ fontSize: 18 }}><i className="fa-solid fa-map" /></span>
               <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F1B3D', margin: 0 }}>
                 Live Hiring Map — cities & company counts
               </h2>
@@ -834,7 +834,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
         <div style={{ marginBottom: 28 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 18 }}>📖</span>
+              <span style={{ fontSize: 18 }}><i className="fa-solid fa-book-open" /></span>
               <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F1B3D', margin: 0 }}>
                 Company Directory · Live Hiring Status
               </h2>
@@ -881,7 +881,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                     transition: 'all 0.15s ease',
                   }}
                 >
-                  <span>🏢</span>
+                  <span><i className="fa-solid fa-building" /></span>
                   <span>{comp}</span>
                 </button>
               );
@@ -905,7 +905,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
               justifyContent: 'center',
               fontSize: 14,
             }}>
-              💼
+              <i className="fa-solid fa-briefcase" />
             </div>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F1B3D', margin: 0 }}>
               Live Job Postings
@@ -935,7 +935,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
 
         {loading ? (
           <div style={{ padding: '60px 0', textAlign: 'center', color: '#64748B' }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+            <div style={{ fontSize: 24, marginBottom: 8 }}><i className="fa-solid fa-hourglass-half" /></div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Loading live verified jobs from database...</div>
           </div>
         ) : filteredJobs.length > 0 ? (
@@ -1005,7 +1005,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                               fontSize: 10.5,
                               fontWeight: 800,
                             }}>
-                              ⭐ {job.matchScore}% Match
+                              {job.matchScore}% Match
                             </span>
                           )}
                           {job.isWalkIn && (
@@ -1017,7 +1017,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                               fontSize: 10.5,
                               fontWeight: 800,
                             }}>
-                              ⚡ Immediate Walk-in
+                              Immediate Walk-in
                             </span>
                           )}
                         </div>
@@ -1032,12 +1032,12 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                           flexWrap: 'wrap',
                           alignItems: 'center',
                         }}>
-                          <span>🏢 <b style={{ color: '#1E293B' }}>{job.company}</b></span>
-                          <span>📍 {job.location} {job.mode ? `· ${job.mode}` : ''}</span>
-                          <span>💰 <b style={{ color: '#059669' }}>{job.salary}</b></span>
-                          {job.specialty && <span>📋 {job.specialty}</span>}
-                          {job.experience && <span>🧩 {job.experience}</span>}
-                          {job.openings && <span>👥 {job.openings} Openings</span>}
+                          <span><i className="fa-solid fa-building" /><b style={{ color: '#1E293B' }}>{job.company}</b></span>
+                          <span>{job.location} {job.mode ? `· ${job.mode}` : ''}</span>
+                          <span><i className="fa-solid fa-sack-dollar" /><b style={{ color: '#059669' }}>{job.salary}</b></span>
+                          {job.specialty && <span>{job.specialty}</span>}
+                          {job.experience && <span>{job.experience}</span>}
+                          {job.openings && <span>{job.openings} Openings</span>}
                         </div>
                       </div>
                     </div>
@@ -1077,7 +1077,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        {isApplied ? '✓ Applied' : (applyingJobId === jId ? 'Applying…' : '📤 Apply Now')}
+                        {isApplied ? '✓ Applied' : (applyingJobId === jId ? 'Applying…' : 'Apply Now')}
                       </button>
                     </div>
                   </div>
@@ -1086,17 +1086,17 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
                     {job.isFresherOnly && (
                       <span style={{ background: '#ECFDF5', color: '#047857', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
-                        🎓 Freshers welcome
+                        Freshers welcome
                       </span>
                     )}
                     {(job.certsRequired || []).map((cert) => (
                       <span key={cert} style={{ background: '#EEF2FF', color: '#4F46E5', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4 }}>
-                        🎓 {cert} Required
+                        {cert} Required
                       </span>
                     ))}
                     {job.projectClient && (
                       <span style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#475569', fontSize: 11, fontWeight: 500, padding: '2px 8px', borderRadius: 4 }}>
-                        🏥 Client: {job.projectClient}
+                        Client: {job.projectClient}
                       </span>
                     )}
                   </div>
@@ -1114,7 +1114,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                       lineHeight: 1.6,
                     }}>
                       <div style={{ fontWeight: 800, color: '#0F1B3D', marginBottom: 4 }}>
-                        📋 Detailed Job Description & Requirements:
+                        Detailed Job Description & Requirements:
                       </div>
                       {job.description && <p style={{ margin: '0 0 8px' }}>{job.description}</p>}
                       {Array.isArray(job.jobDetails) && job.jobDetails.length > 0 && (
@@ -1148,7 +1148,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
             maxWidth: 550,
             margin: '20px auto',
           }}>
-            <div style={{ fontSize: 36, marginBottom: 8 }}>🔍</div>
+            <div style={{ fontSize: 36, marginBottom: 8 }}><i className="fa-solid fa-magnifying-glass" /></div>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: '#0F1B3D', margin: '0 0 6px' }}>
               No open jobs match your filters
             </h3>

@@ -4,7 +4,6 @@ import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import AiVideoAssessment from "../AiVideoAssessment.jsx";
 import ClaudeMockInterviewBot from "../ClaudeMockInterviewBot.jsx";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
 
 function getAssetUrl(url) {
   if (!url) return "";
@@ -403,7 +402,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const displayMedal = candidateScore !== null
     ? (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : "Bronze")
     : null;
-  const medalEmoji = displayMedal === "Gold" ? "🥇" : displayMedal === "Bronze" ? "🥉" : displayMedal === "Silver" ? "🥈" : "⏳";
+  const medalEmoji = displayMedal === "Gold" ? <i className="fa-solid fa-medal" /> : displayMedal === "Bronze" ? <i className="fa-solid fa-medal" /> : displayMedal === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-hourglass-half" />;
 
   // Real AI-evaluated 5-dimension rubric from the Self-Introduction video
   // (backend/utils/aiAssessment.js - clarity/fluency/vocabularyGrammar/confidenceDelivery/contentRelevance, each 0-100).
@@ -414,7 +413,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     const v = Number(n);
     return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 0;
   };
-  const barString = (n) => "█".repeat(Math.max(1, Math.round(clampDisplayScore(n) / 10)));
   const recordedDateLabel = (() => {
     const raw = stage5?.completedAt || stage5?.updatedAt;
     if (!raw) return null;
@@ -637,10 +635,10 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 const avgLuminance = totalLuminance / (frame.data.length / 4);
                 if (avgLuminance < 35) {
                   lightStatus = "warn";
-                  lightLabel = "⚠ Low light";
+                  lightLabel = "Low light";
                 } else if (avgLuminance > 225) {
                   lightStatus = "warn";
-                  lightLabel = "⚠ Glare detected";
+                  lightLabel = "Glare detected";
                 } else {
                   lightStatus = "passed";
                   lightLabel = "✓ Face lit";
@@ -699,25 +697,25 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
         }
       } else {
         camStatus = "warn";
-        camLabel = "⚠ Unsupported";
+        camLabel = "Unsupported";
         micStatus = "warn";
-        micLabel = "⚠ Unsupported";
+        micLabel = "Unsupported";
         lightStatus = "warn";
-        lightLabel = "⚠ Unsupported";
+        lightLabel = "Unsupported";
         framingStatus = "warn";
-        framingLabel = "⚠ Unsupported";
+        framingLabel = "Unsupported";
       }
     } catch (err) {
       console.warn("Hardware media access check:", err);
       const isDenied = err.name === "NotAllowedError" || err.name === "PermissionDeniedError";
       camStatus = isDenied ? "warn" : "failed";
-      camLabel = isDenied ? "⚠ Allow Camera" : "✕ No Camera";
+      camLabel = isDenied ? "Allow Camera" : "✕ No Camera";
       micStatus = isDenied ? "warn" : "failed";
-      micLabel = isDenied ? "⚠ Allow Mic" : "✕ No Mic";
+      micLabel = isDenied ? "Allow Mic" : "✕ No Mic";
       lightStatus = isDenied ? "warn" : "failed";
-      lightLabel = isDenied ? "⚠ Allow Camera" : "✕ Camera needed";
+      lightLabel = isDenied ? "Allow Camera" : "✕ Camera needed";
       framingStatus = isDenied ? "warn" : "failed";
-      framingLabel = isDenied ? "⚠ Allow Camera" : "✕ Camera needed";
+      framingLabel = isDenied ? "Allow Camera" : "✕ Camera needed";
     }
 
     setSysChecks({
@@ -1104,7 +1102,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       mediaRecorder.start(1000);
       setIntroRecordingTime(0);
       setIsIntroRecording(true);
-      toast("🎙️ Recording started! Speak clearly for 45 to 60 seconds.", "✓");
+      toast("Recording started! Speak clearly for 45 to 60 seconds.", "✓");
     } catch (err) {
       console.error(err);
       toast("Could not start recording: " + err.message, "!");
@@ -1175,7 +1173,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       });
       if (res.data?.fileUrl) {
         setIntroVideoUrl(res.data.fileUrl);
-        toast("Pre-recorded video uploaded successfully! (🟡 Uploaded Badge)", "✓");
+        toast("Pre-recorded video uploaded successfully! (Uploaded Badge)", "✓");
       }
     } catch (err) {
       console.error(err);
@@ -1268,7 +1266,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       mediaRecorder.start(1000);
       setMockRecordingTime(0);
       setIsMockRecording(true);
-      toast(`🎙️ Recording started for Q${currentMockIndex + 1}! Speak your answer.`, "✓");
+      toast(`Recording started for Q${currentMockIndex + 1}! Speak your answer.`, "✓");
     } catch (err) {
       console.error(err);
       toast("Could not start mock recording: " + err.message, "!");
@@ -1393,16 +1391,33 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     try {
       toast(advance ? "Stage 05 Completed! Moving to Stage 06 →" : "✓ Stage 05 progress saved.", "✓");
       if (onSaved) {
-        onSaved(existingData, { advance, nextStage: advance ? 6 : null });
+        // Pull the latest candidate (with the server's completedStages) so the
+        // wizard can see Stage 05 is done and Stage 06 is unlocked. Passing the
+        // possibly stale local copy left the wizard unable to advance.
+        let fresh = null;
+        try {
+          const res = await api.get("/candidate/me");
+          fresh = res.data || null;
+        } catch {
+          fresh = null;
+        }
+        onSaved(fresh || existingData, { advance, nextStage: advance ? 6 : null });
       }
     } finally {
       setIsSubmittingStage5(false);
     }
   };
 
-  const handleContinueToStage6 = () => {
+  const handleContinueToStage6 = async () => {
     if (onSaved) {
-      onSaved(null, { advance: true, nextStage: 6 });
+      let fresh = null;
+      try {
+        const res = await api.get("/candidate/me");
+        fresh = res.data || null;
+      } catch {
+        fresh = null;
+      }
+      onSaved(fresh, { advance: true, nextStage: 6 });
     }
   };
 
@@ -1434,7 +1449,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             <span>← Back to Stage 05 Hub</span>
           </button>
           <span style={{ fontSize: 12, color: "#1F7A3C", fontWeight: 700, background: "#E8F5E9", padding: "4px 12px", borderRadius: 12 }}>
-            🎥 AI Self-Introduction Studio Bot Active
+            AI Self-Introduction Studio Bot Active
           </span>
         </div>
         <AiVideoAssessment
@@ -1493,7 +1508,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             <span>← Back to Stage 05 Hub</span>
           </button>
           <span style={{ fontSize: 12, color: "#1A4FB8", fontWeight: 700, background: "#EEF2FF", padding: "4px 12px", borderRadius: 12 }}>
-            🤖 AI Mock Interview Bot · 5 Questions Active
+            AI Mock Interview Bot · 5 Questions Active
           </span>
         </div>
         <ClaudeMockInterviewBot
@@ -1525,17 +1540,11 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       {/* ══════════════════════════════════════════════════════════════════ */}
       {/* 2-COLUMN MAIN SHELL                                              */}
       {/* ══════════════════════════════════════════════════════════════════ */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24, alignItems: "start" }}>
+      <div style={{ width: "100%" }}>
 
         {/* ═══════ CENTER MAIN COLUMN ═══════ */}
         <div style={{ minWidth: 0 }}>
 
-          {/* BREADCRUMB */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8A91A3", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 14, fontWeight: 700 }}>
-            <span>Home</span><span style={{ color: "#E5E7EB" }}>›</span>
-            <span>My Career Passport</span><span style={{ color: "#E5E7EB" }}>›</span>
-            <span style={{ color: "var(--navy)", fontWeight: 800 }}>Stage 05 · Video Pitch</span>
-          </div>
 
           {/* HERO BANNER */}
           <div
@@ -1575,7 +1584,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 boxShadow: "0 4px 12px rgba(245, 180, 26, 0.32)",
               }}
             >
-              🎤
+              <i className="fa-solid fa-microphone" />
             </div>
 
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
@@ -1590,9 +1599,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             <h1 style={{ fontSize: 44, fontWeight: 800, letterSpacing: "-1px", margin: 0, lineHeight: 1, color: "#FFFFFF" }}>
               Video Pitch
             </h1>
-            <div style={{ color: "var(--gold-pale, #FFF6E0)", fontStyle: "italic", fontSize: 17, marginTop: 6, fontWeight: 500 }}>
-              Where the HR meets you before the HR meets you.
-            </div>
             <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 16, maxWidth: 640, lineHeight: 1.6 }}>
               Record a self-introduction and AI mock interview — Talentera AI scores your clarity, fluency and confidence before companies ever call.
             </div>
@@ -1640,7 +1646,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </div>
             </div>
             <div style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6 }}>
-              🔒 LOCKED
+              LOCKED
             </div>
           </div>
 
@@ -1659,7 +1665,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 boxShadow: "0 2px 8px rgba(26,79,184,0.08)",
               }}
             >
-              <div style={{ fontSize: 20 }}>🔁</div>
+              <div style={{ fontSize: 20 }}></div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#1A4FB8" }}>
                   Active Retake Request Pending Employee Review
@@ -1721,7 +1727,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               <div style={{ background: "#FFF6E0", padding: "16px 18px", borderRadius: 12, borderLeft: "4px solid var(--gold)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 15, fontWeight: 700 }}>
-                    🎬
+                    <i className="fa-solid fa-film" />
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>
                     What's captured
@@ -1735,7 +1741,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               <div style={{ background: "#FFF6E0", padding: "16px 18px", borderRadius: 12, borderLeft: "4px solid var(--gold)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 15, fontWeight: 700 }}>
-                    🤖
+                    <i className="fa-solid fa-robot" />
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>
                     How Talentera AI scores
@@ -1749,7 +1755,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               <div style={{ background: "#FFF6E0", padding: "16px 18px", borderRadius: 12, borderLeft: "4px solid var(--gold)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                   <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: "50%", display: "grid", placeItems: "center", fontSize: 15, fontWeight: 700 }}>
-                    👁
+                    <i className="fa-solid fa-eye" />
                   </div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: "var(--navy)" }}>
                     What companies see
@@ -1764,7 +1770,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             )}
 
             <div style={{ background: "var(--navy)", color: "var(--gold-pale, #FFF6E0)", padding: "12px 16px", borderRadius: 12, fontStyle: "italic", fontSize: 12.5, marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ color: "var(--gold)", fontSize: 16 }}>🔐</span>
+              <span style={{ color: "var(--gold)", fontSize: 16 }}></span>
               <span>By recording, you consent to Talentera AI processing your video for scoring. Videos are retained 5 years and updatable every 60 days.</span>
             </div>
           </div>
@@ -1875,7 +1881,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             {readyChecksCount < 5 && (
               <div style={{ background: "#FFF3D6", border: "1px solid #FFEBB0", color: "#975A16", padding: "10px 14px", borderRadius: 8, marginTop: 12, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span>⚠️</span> Camera and microphone access is required. Please grant browser permissions to record live.
+                  <span><i className="fa-solid fa-triangle-exclamation" /></span> Camera and microphone access is required. Please grant browser permissions to record live.
                 </div>
                 <button
                   type="button"
@@ -1891,7 +1897,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             {/* SCRIPT FRAMEWORK */}
             <div style={{ background: "linear-gradient(135deg, #EEF2FF, #F5F8FF)", border: "1.5px solid #1A4FB8", borderRadius: 12, padding: "18px 20px", marginTop: 16 }}>
               <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 13.5, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-                📝 Script Framework — structure your 60 seconds
+                Script Framework — structure your 60 seconds
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
                 <div style={{ background: "#FFFFFF", border: "1px solid #EEF2FF", borderRadius: 8, padding: "10px 12px" }}>
@@ -1921,7 +1927,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 2
               </div>
               <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                🎬 Self-Introduction · 60 seconds (Required)
+                Self-Introduction · 60 seconds (Required)
               </div>
               <div style={{ background: isIntroRecording ? "#FFF3D6" : introVideoUrl ? "#E8F5E9" : "#F2F3F5", color: isIntroRecording ? "#E08E00" : introVideoUrl ? "#1F7A3C" : "#8A91A3", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5 }}>
                 {isIntroRecording ? "RECORDING LIVE" : introVideoUrl ? "RECORDED ✓" : "REQUIRED"}
@@ -1960,7 +1966,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     gap: 8,
                   }}
                 >
-                  🎥 Record Live · 🟢 Live Verified
+                  Record Live · Live Verified
                 </button>
                 <button
                   type="button"
@@ -1979,7 +1985,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     gap: 8,
                   }}
                 >
-                  ☁ Upload Pre-recorded (60s min, verified on submit)
+                  Upload Pre-recorded (60s min, verified on submit)
                 </button>
               </div>
 
@@ -2004,7 +2010,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     {isIntroPrompting && (
                       <div style={{ position: "absolute", inset: 0, background: "rgba(15,27,61,.85)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: 20, textAlign: "center", zIndex: 10 }}>
                         <div style={{ width: 50, height: 50, borderRadius: "50%", background: "var(--gold)", color: "var(--navy)", display: "grid", placeItems: "center", fontSize: 24, marginBottom: 10 }}>
-                          🎙️
+                          <i className="fa-solid fa-microphone" />
                         </div>
                         <div style={{ fontSize: 16, fontWeight: 800, color: "#FFFFFF" }}>
                           AI Interviewer Speaking Prompt...
@@ -2027,14 +2033,14 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                             cursor: "pointer",
                           }}
                         >
-                          ⚡ Skip & Start Recording Now
+                          Skip & Start Recording Now
                         </button>
                       </div>
                     )}
 
                     {!isIntroRecording && !isIntroPrompting && !introVideoUrl && (
                       <div style={{ position: "absolute", color: "rgba(255,255,255,.4)", fontSize: 13, textAlign: "center", pointerEvents: "none" }}>
-                        <span style={{ fontSize: 44, marginBottom: 8, display: "block" }}>🎥</span>
+                        <span style={{ fontSize: 44, marginBottom: 8, display: "block" }}><i className="fa-solid fa-video" /></span>
                         <div>Live camera preview</div>
                         <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Face-match to Aadhaar · verified ✓</div>
                       </div>
@@ -2084,7 +2090,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                           gap: 8,
                         }}
                       >
-                        🔴 {introVideoUrl ? `Re-record Take ${introTakeCount + 1}` : "Start Recording (Take 1)"}
+                        {introVideoUrl ? `Re-record Take ${introTakeCount + 1}` : "Start Recording (Take 1)"}
                       </button>
                     ) : (
                       <button
@@ -2105,7 +2111,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                           gap: 8,
                         }}
                       >
-                        ⏹ Stop Recording
+                        <i className="fa-solid fa-stop" /> Stop Recording
                       </button>
                     )}
 
@@ -2125,7 +2131,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                             cursor: "pointer",
                           }}
                         >
-                          🗑 Discard & retry
+                          Discard & retry
                         </button>
                         <a
                           href={getAssetUrl(introVideoUrl)}
@@ -2156,7 +2162,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               ) : (
                 <div style={{ background: "#FAFAF7", border: "2px dashed #E5E7EB", borderRadius: 12, padding: "36px 20px", textAlign: "center", marginTop: 14 }}>
                   <div style={{ width: 56, height: 56, background: "var(--navy)", color: "var(--gold)", borderRadius: 14, display: "grid", placeItems: "center", margin: "0 auto 12px", fontSize: 22 }}>
-                    ☁
                   </div>
                   <div style={{ fontWeight: 800, color: "var(--navy)", fontSize: 14, marginBottom: 4 }}>
                     Upload a pre-recorded self-introduction video
@@ -2178,7 +2183,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                       gap: 6,
                     }}
                   >
-                    📁 {isUploadingIntro ? "Uploading..." : "Choose Video File"}
+                    {isUploadingIntro ? "Uploading..." : "Choose Video File"}
                     <input
                       type="file"
                       accept="video/*"
@@ -2187,7 +2192,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     />
                   </label>
                   <div style={{ fontSize: 10.5, color: "#8A91A3", marginTop: 10, fontStyle: "italic" }}>
-                    Uploaded videos get the 🟡 Uploaded badge. AI checks for edit cuts, lip-sync mismatch, and face-match to your Aadhaar photo.
+                    Uploaded videos get the Uploaded badge. AI checks for edit cuts, lip-sync mismatch, and face-match to your Aadhaar photo.
                   </div>
                 </div>
               )}
@@ -2201,7 +2206,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 3
               </div>
               <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                🎤 AI Mock Interview · 5 questions (Required)
+                AI Mock Interview · 5 questions (Required)
               </div>
               <div style={{ background: "#FFF3D6", color: "#E08E00", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5 }}>
                 {hasRealMockInterview ? "SUBMITTED" : `QUESTION ${currentMockIndex + 1} OF 5`}
@@ -2249,7 +2254,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     cursor: "pointer",
                   }}
                 >
-                  🔁 Request Retake for Stage 05
+                  Request Retake for Stage 05
                 </button>
               </div>
             ) : (
@@ -2315,14 +2320,14 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     boxShadow: "0 2px 6px rgba(0,0,0,.1)",
                   }}
                 >
-                  {isAiSpeaking ? "⏹ Stop AI Voice" : "🔊 Read Question Aloud"}
+                  {isAiSpeaking ? "Stop AI Voice" : "Read Question Aloud"}
                 </button>
               </div>
               <div style={{ fontSize: 16, color: "var(--navy)", fontWeight: 800, marginTop: 6, lineHeight: 1.4 }}>
                 "{currentQ.question}"
               </div>
               <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 6, fontStyle: "italic" }}>
-                ⏱ Time: 20 sec min · 45 sec max · No skip · One take per question · Hint: {currentQ.hint}
+                <i className="fa-solid fa-stopwatch" /> Time: 20 sec min · 45 sec max · No skip · One take per question · Hint: {currentQ.hint}
               </div>
             </div>
 
@@ -2338,7 +2343,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                     size="normal"
                   />
                   <div style={{ fontSize: 10.5, color: "rgba(255,255,255,.7)", marginTop: 8, textAlign: "center" }}>
-                    {isMockPrompting || isAiSpeaking ? "🗣️ Speaking question aloud..." : isMockRecording ? "👂 Listening to your spoken answer..." : "Ready to ask next question"}
+                    {isMockPrompting || isAiSpeaking ? "Speaking question aloud..." : isMockRecording ? "Listening to your spoken answer..." : "Ready to ask next question"}
                   </div>
                 </div>
 
@@ -2358,7 +2363,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   {isMockPrompting && (
                     <div style={{ position: "absolute", inset: 0, background: "rgba(15,27,61,.85)", display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: 20, textAlign: "center", zIndex: 10 }}>
                       <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--gold)", color: "var(--navy)", display: "grid", placeItems: "center", fontSize: 24, marginBottom: 10 }}>
-                        🎙️
+                        <i className="fa-solid fa-microphone" />
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 800, color: "var(--gold)", textTransform: "uppercase", letterSpacing: 1 }}>
                         AI Interviewer Reading Question {currentMockIndex + 1} of 5
@@ -2384,14 +2389,14 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                           cursor: "pointer",
                         }}
                       >
-                        ⚡ Skip & Start Answering Now
+                        Skip & Start Answering Now
                       </button>
                     </div>
                   )}
 
                   {!isMockRecording && !isMockPrompting && !(mockVideos[currentQ?.id] || mockAnswers[currentQ?.id]?.videoUrl) && (
                     <div style={{ position: "absolute", color: "rgba(255,255,255,.4)", fontSize: 13, textAlign: "center", pointerEvents: "none" }}>
-                      <span style={{ fontSize: 44, marginBottom: 8, display: "block" }}>🎤</span>
+                      <span style={{ fontSize: 44, marginBottom: 8, display: "block" }}><i className="fa-solid fa-microphone" /></span>
                       <div>Answering Question {currentMockIndex + 1}</div>
                       <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>Click Start Answer below to begin</div>
                     </div>
@@ -2450,7 +2455,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                       gap: 8,
                     }}
                   >
-                    🔴 Start Answer for Q{currentMockIndex + 1}
+                    Start Answer for Q{currentMockIndex + 1}
                   </button>
                 ) : (
                   <button
@@ -2471,7 +2476,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                       gap: 8,
                     }}
                   >
-                    ⏹ Submit & Move to {currentMockIndex < 4 ? `Q${currentMockIndex + 2}` : "Final Review"}
+                    <i className="fa-solid fa-stop" /> Submit & Move to {currentMockIndex < 4 ? `Q${currentMockIndex + 2}` : "Final Review"}
                   </button>
                 )}
 
@@ -2490,7 +2495,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           {/* ══════════════════════════════════════════════════════════════ */}
           <div style={{ margin: "32px 0 20px", paddingTop: 24, borderTop: "2px dashed #FFEBB0", textAlign: "center" }}>
             <span style={{ background: isCompleted ? "var(--gold)" : "#FEF3C7", color: isCompleted ? "var(--navy)" : "#92400E", padding: "8px 20px", borderRadius: 20, fontWeight: 800, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", display: "inline-block", marginBottom: 14 }}>
-              {isCompleted ? "✓ Official Video Pitch Recorded" : hasRealSelfIntro ? "⏳ Step 1 of 2 Complete · Mock Interview Required" : "↓ Results · Complete Self-Intro & AI Mock Interview"}
+              {isCompleted ? "✓ Official Video Pitch Recorded" : hasRealSelfIntro ? "Step 1 of 2 Complete · Mock Interview Required" : "↓ Results · Complete Self-Intro & AI Mock Interview"}
             </span>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
               {isCompleted ? "Your Video Pitch Results" : "AI Video Pitch & Mock Interview Results"}
@@ -2505,7 +2510,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           <div style={{ background: isCompleted ? "linear-gradient(135deg, #F8FFF9, #F5F7FB)" : "#FAFAF7", borderRadius: 16, padding: "24px 26px", border: "1px solid #E5E7EB", marginBottom: 24 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed #E5E7EB" }}>
               <div style={{ width: 32, height: 32, background: isCompleted ? "var(--gold)" : "#E2E8F0", color: isCompleted ? "var(--navy)" : "#64748B", borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
-                {isCompleted ? "✓" : "⏳"}
+                {isCompleted ? "✓" : <i className="fa-solid fa-hourglass-half" />}
               </div>
               <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
                 {isCompleted ? "Post-Submission Results (AI Evaluated)" : "AI Evaluation Status"}
@@ -2514,10 +2519,10 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 {isCompleted
                   ? `${medalEmoji} ${displayMedal?.toUpperCase()} · ${candidateScore} / 100`
                   : hasRealSelfIntro && !hasRealMockInterview
-                  ? "⏳ SELF-INTRO EVALUATED · MOCK INTERVIEW PENDING"
+                  ? "SELF-INTRO EVALUATED · MOCK INTERVIEW PENDING"
                   : !hasRealSelfIntro && hasRealMockInterview
-                  ? "⏳ MOCK EVALUATED · SELF-INTRO PENDING"
-                  : "⏳ PENDING · NOT YET EVALUATED"}
+                  ? "MOCK EVALUATED · SELF-INTRO PENDING"
+                  : "PENDING · NOT YET EVALUATED"}
               </div>
             </div>
 
@@ -2531,7 +2536,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   {selfIntroScore !== null ? `${selfIntroScore} / 100` : "Not Recorded"}
                 </div>
                 <div style={{ fontSize: 11, color: hasRealSelfIntro ? "#166534" : "#94A3B8", marginTop: 2 }}>
-                  {hasRealSelfIntro ? "✓ Spoken Communication evaluated" : "⏳ 60-second video required"}
+                  {hasRealSelfIntro ? "✓ Spoken Communication evaluated" : "60-second video required"}
                 </div>
               </div>
 
@@ -2543,7 +2548,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   {mockScore !== null ? `${mockScore} / 100` : "Not Started"}
                 </div>
                 <div style={{ fontSize: 11, color: hasRealMockInterview ? "#166534" : "#94A3B8", marginTop: 2 }}>
-                  {hasRealMockInterview ? "✓ Technical Domain readiness evaluated" : "⏳ 5 technical questions required"}
+                  {hasRealMockInterview ? "✓ Technical Domain readiness evaluated" : "5 technical questions required"}
                 </div>
               </div>
 
@@ -2625,12 +2630,12 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                       gap: 6,
                     }}
                   >
-                    ⏳ {hasRealSelfIntro ? "Mock Interview Pending" : hasRealMockInterview ? "Self-Intro Pending" : "Evaluation Pending"}
+                    {hasRealSelfIntro ? "Mock Interview Pending" : hasRealMockInterview ? "Self-Intro Pending" : "Evaluation Pending"}
                   </span>
                 )}
                 <div style={{ fontSize: 11.5, color: isCompleted ? "#1F7A3C" : "#64748B", fontWeight: 700, marginTop: 8, letterSpacing: 0.3, maxWidth: 360, lineHeight: 1.5 }}>
                   {isCompleted && recordedDateLabel
-                    ? `Recorded ${recordedDateLabel} · 🟢 Live Verified · Face-matched to Aadhaar`
+                    ? `Recorded ${recordedDateLabel} · Live Verified · Face-matched to Aadhaar`
                     : hasRealSelfIntro && !hasRealMockInterview
                     ? `✓ Self-Introduction evaluated (${selfIntroScore}/100). Please complete Section 3 AI Mock Interview to calculate your final AI score.`
                     : !hasRealSelfIntro && hasRealMockInterview
@@ -2644,19 +2649,19 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             <div style={{ background: "#FFFFFF", borderRadius: 12, padding: "18px 20px", border: "1px solid #E5E7EB", marginTop: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 11, letterSpacing: "1.5px", color: "var(--gold-deep)", textTransform: "uppercase", fontWeight: 700 }}>
-                  🎯 5-dimension AI breakdown
+                  5-dimension AI breakdown
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: displayRubric ? "#15803D" : "#94A3B8" }}>
-                  {displayRubric ? "✓ Evaluated by AI Model" : "⏳ Awaiting Video Assessment"}
+                  {displayRubric ? "✓ Evaluated by AI Model" : "Awaiting Video Assessment"}
                 </div>
               </div>
 
               {[
-                { key: "clarity", label: "🎙 Clarity", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
-                { key: "fluency", label: "🌊 Fluency", color: "linear-gradient(90deg, var(--gold), var(--gold-deep))" },
-                { key: "vocabularyGrammar", label: "📚 Vocab & Grammar", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
-                { key: "confidenceDelivery", label: "💪 Confidence & Delivery", color: "linear-gradient(90deg, var(--amber, #E08E00), #B85B00)" },
-                { key: "contentRelevance", label: "🎯 Content Relevance", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
+                { key: "clarity", label: "Clarity", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
+                { key: "fluency", label: "Fluency", color: "linear-gradient(90deg, var(--gold), var(--gold-deep))" },
+                { key: "vocabularyGrammar", label: "Vocab & Grammar", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
+                { key: "confidenceDelivery", label: "Confidence & Delivery", color: "linear-gradient(90deg, var(--amber, #E08E00), #B85B00)" },
+                { key: "contentRelevance", label: "Content Relevance", color: "linear-gradient(90deg, #43A047, #1F7A3C)" },
               ].map((dim, i, arr) => {
                 const hasScore = displayRubric && typeof displayRubric[dim.key] !== "undefined";
                 const score = hasScore ? clampDisplayScore(displayRubric[dim.key]) : null;
@@ -2675,72 +2680,16 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                       {score !== null ? `${score} / 100` : "— / 100"}
                     </div>
                     <div style={{ fontSize: 14, color: score === null ? "#94A3B8" : passing ? "#1F7A3C" : "#E08E00", fontWeight: 800 }}>
-                      {score === null ? "⏳" : passing ? "✓" : "⚠"}
+                      {score === null ? <i className="fa-solid fa-hourglass-half" /> : passing ? "✓" : <i className="fa-solid fa-triangle-exclamation" />}
                     </div>
                   </div>
                 );
               })}
               {!displayRubric && (
                 <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 12, background: "#F8FAFC", padding: "10px 12px", borderRadius: 8, border: "1px dashed #CBD5E1", lineHeight: 1.5 }}>
-                  ℹ️ <b>No fake preview scores:</b> Your 5-dimension AI breakdown (Clarity, Fluency, Vocab & Grammar, Confidence, Content Relevance) will be evaluated live by the AI model once you submit your Self-Introduction video above.
+                  <b>No fake preview scores:</b> Your 5-dimension AI breakdown (Clarity, Fluency, Vocab & Grammar, Confidence, Content Relevance) will be evaluated live by the AI model once you submit your Self-Introduction video above.
                 </div>
               )}
-            </div>
-
-            {/* PREVIEW · WHAT COMPANIES SEE */}
-            <div style={{ background: "var(--navy)", color: "#FFFFFF", borderRadius: 12, padding: "20px 22px", marginTop: 14 }}>
-              <div style={{ fontSize: 10.5, letterSpacing: 1.5, color: "var(--gold)", textTransform: "uppercase", fontWeight: 700 }}>
-                Preview · What Companies See
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 800, marginTop: 6 }}>
-                {candidateName} · Video Pitch
-              </div>
-
-              <div style={{ background: "#000", aspectRatio: "16/9", borderRadius: 8, marginTop: 10, display: "grid", placeItems: "center", position: "relative", maxWidth: 280 }}>
-                <div style={{ color: "#FFFFFF", fontSize: 34, background: "rgba(245,180,26,.7)", width: 56, height: 56, borderRadius: "50%", display: "grid", placeItems: "center" }}>
-                  ▶
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
-                {isCompleted ? (
-                  <span style={{ background: "linear-gradient(135deg,#C0C0C0,#8B9199)", color: "#FFFFFF", fontSize: 11, padding: "5px 12px", borderRadius: 20, fontWeight: 800 }}>
-                    {medalEmoji} {displayMedal} · {candidateScore}/100
-                  </span>
-                ) : (
-                  <span style={{ background: "rgba(255,255,255,0.15)", color: "#CBD5E1", fontSize: 11, padding: "5px 12px", borderRadius: 20, fontWeight: 800 }}>
-                    ⏳ Evaluation Pending
-                  </span>
-                )}
-                <span style={{ background: isCompleted ? "rgba(31,122,60,.25)" : "rgba(255,255,255,.1)", color: isCompleted ? "#7ED87E" : "#94A3B8", padding: "5px 10px", borderRadius: 8, fontSize: 11, fontWeight: 800 }}>
-                  {isCompleted ? "🟢 Live Verified" : "⏳ Verification on Completion"}
-                </span>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 12, fontFamily: "'JetBrains Mono', monospace" }}>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
-                  Clarity: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.clarity) : "—"}</b> {displayRubric ? barString(displayRubric.clarity) : "—"}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
-                  Fluency: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.fluency) : "—"}</b> {displayRubric ? barString(displayRubric.fluency) : "—"}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
-                  Vocab: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.vocabularyGrammar) : "—"}</b> {displayRubric ? barString(displayRubric.vocabularyGrammar) : "—"}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
-                  Confidence: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.confidenceDelivery) : "—"}</b> {displayRubric ? barString(displayRubric.confidenceDelivery) : "—"}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.85)", padding: "3px 0" }}>
-                  Content: <b style={{ color: "var(--gold)" }}>{displayRubric ? clampDisplayScore(displayRubric.contentRelevance) : "—"}</b> {displayRubric ? barString(displayRubric.contentRelevance) : "—"}
-                </div>
-                <div style={{ fontSize: 11, color: "rgba(255,255,255,.6)", padding: "3px 0" }}>
-                  {isCompleted ? "▶ Play 2 videos · 📝 Full captions" : "⏳ Submissions pending"}
-                </div>
-              </div>
-
-              <div style={{ fontSize: 11.5, color: "var(--gold-pale, #FFF6E0)", marginTop: 12 }}>
-                {isCompleted && recordedDateLabel ? `Recorded ${recordedDateLabel} · Updates every 60 days · 5-year retention` : "Official records published upon completion of all Stage 05 requirements."}
-              </div>
             </div>
 
             {/* ACTION BOTTOM BAR */}
@@ -2784,7 +2733,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                         cursor: "pointer",
                       }}
                     >
-                      🔁 Request Retake for Stage 05
+                      Request Retake for Stage 05
                     </button>
                     <button
                       type="button"
@@ -2851,10 +2800,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
 
         </div>
 
-        {/* ═══════ RIGHT COLUMN ═══════ */}
-        <div style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto", minWidth: 0 }}>
-          <WizardCompanionRail stageNum={5} candidate={candidate} isCompleted={isCompleted} />
-        </div>
 
       </div>
 
@@ -2867,7 +2812,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 540, width: "100%", padding: 24, boxShadow: "0 12px 36px rgba(0,0,0,.25)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
               <div style={{ fontSize: 18, fontWeight: 800, color: "var(--navy)" }}>
-                🔁 Request a Retake for Stage 05 Video Pitch
+                Request a Retake for Stage 05 Video Pitch
               </div>
               <button
                 type="button"

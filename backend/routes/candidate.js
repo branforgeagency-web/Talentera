@@ -56,6 +56,14 @@ function isSelfTrainedCandidate(candidate) {
 
 
 
+// Live Chart (Stage 06) is a coding concept - it doesn't apply to AR Calling or Eligibility &
+// Verification work. Keep in sync with LIVE_CHART_EXEMPT_DOMAINS in frontend/src/data/wizardStages.js
+// and backend/utils/verificationScore.js.
+const LIVE_CHART_EXEMPT_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+function isLiveChartExemptDomain(candidate) {
+  return LIVE_CHART_EXEMPT_DOMAINS.includes((candidate && candidate.stage2 && candidate.stage2.domain) || "");
+}
+
 // A candidate must hold a verification score of at least 75% before they're
 // allowed to search or apply for jobs — enforced below in POST /apply/:jobId.
 const JOB_SEARCH_MIN_SCORE = 75;
@@ -818,9 +826,9 @@ router.put("/stage/:n", async (req, res) => {
         evidenceMultiplier: result.multiplier,
         verificationPoints: result.points,
         needsReview: result.needsReview,
-        isOptional: isSelfTrainedCandidate(candidate),
+        isOptional: isSelfTrainedCandidate(candidate) || isLiveChartExemptDomain(candidate),
         verified,
-        verificationMethod: (evidencePath === "D" && isSelfTrainedCandidate(candidate)) ? "Optional (Self-Trained)" : verificationMethod,
+        verificationMethod: (evidencePath === "D" && isLiveChartExemptDomain(candidate)) ? "Not Required (Role)" : (evidencePath === "D" && isSelfTrainedCandidate(candidate)) ? "Optional (Self-Trained)" : verificationMethod,
         completedAt: candidate.stage6?.completedAt || new Date(),
       };
 
@@ -964,7 +972,7 @@ router.post("/stage/:n/skip", async (req, res) => {
 
   const isSelfTrained = isSelfTrainedCandidate(candidate);
 
-  const allowedSkip = SKIPPABLE_STAGES.includes(stageNum) || (stageNum === 6 && isSelfTrained);
+  const allowedSkip = SKIPPABLE_STAGES.includes(stageNum) || (stageNum === 6 && (isSelfTrained || isLiveChartExemptDomain(candidate)));
   if (!allowedSkip) {
     if (stageNum === 6) {
       return res.status(400).json({ message: "Live Charts is mandatory for academy-trained candidates. It is optional for self-trained candidates." });
@@ -982,7 +990,7 @@ router.post("/stage/:n/skip", async (req, res) => {
       isOptional: true,
       evidencePath: "D",
       option: "none",
-      verificationMethod: "Optional (Self-Trained)",
+      verificationMethod: isLiveChartExemptDomain(candidate) ? "Not Required (Role)" : "Optional (Self-Trained)",
       stageScore: 0,
       verificationPoints: 0,
       completedAt: new Date(),

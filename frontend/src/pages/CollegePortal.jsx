@@ -1225,7 +1225,7 @@ export default function CollegePortal() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "#F1F5F9", display: "flex", fontFamily: "var(--font-body)" }}>
+    <div style={{ height: "100vh", background: "#F1F5F9", display: "flex", fontFamily: "var(--font-body)", overflow: "hidden" }}>
       {/* 1. LEFT SIDEBAR NAVIGATION */}
       <aside
         style={{
@@ -1235,6 +1235,8 @@ export default function CollegePortal() {
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
+          height: "100vh",
+          overflowY: "auto",
           borderRight: "1px solid rgba(255,255,255,0.08)",
         }}
       >

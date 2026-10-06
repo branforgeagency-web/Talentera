@@ -372,11 +372,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   // Runs on-device GPU inference using requestAnimationFrame
   // Detection Logic:
   // - Head Turn (Yaw): Horizontal distance from nose tip (1) to left cheek (234) vs right cheek (454)
-  //   - Ratio < 0.45 (Turned Right): "⚠️ Please look directly at the screen"
-  //   - Ratio > 2.20 (Turned Left): "⚠️ Please look directly at the screen"
+  //   - Ratio < 0.45 (Turned Right): "Please look directly at the screen"
+  //   - Ratio > 2.20 (Turned Left): "Please look directly at the screen"
   // - Head Tilt (Pitch): Distance from nose tip (1) to forehead (10) vs chin (152)
-  //   - Vertical ratio out of [0.50, 2.20]: "⚠️ Keep your gaze centered on the interview"
-  // - Empty Landmarks: "⚠️ Face not detected! Please stay centered in frame"
+  //   - Vertical ratio out of [0.50, 2.20]: "Keep your gaze centered on the interview"
+  // - Empty Landmarks: "Face not detected! Please stay centered in frame"
   useEffect(() => {
     if (step !== "interview" || !cameraReady) {
       setIsMalpracticeActive(false);
@@ -453,11 +453,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               // 1. STRICT SINGLE PERSON RULE: Exactly 1 person allowed in the frame
               if (faceCount === 0) {
                 detectedIssue = "no_face";
-                alertText = "⚠️ Candidate face not detected! Only 1 person is allowed in the frame";
+                alertText = "Candidate face not detected! Only 1 person is allowed in the frame";
                 posture = "away";
               } else if (faceCount > 1) {
                 detectedIssue = "multiple_faces";
-                alertText = `🚨 Multiple persons detected in frame (${faceCount})! Only 1 person is allowed in the interview`;
+                alertText = `Multiple persons detected in frame (${faceCount})! Only 1 person is allowed in the interview`;
                 posture = "multiple_faces";
               } else {
                 const landmarks = faceLandmarksList[0];
@@ -484,15 +484,15 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 if (yawRatio < 0.58) {
                   detectedIssue = "head_turned";
                   posture = "turned_right";
-                  alertText = "⚠️ Please look directly at the screen";
+                  alertText = "Please look directly at the screen";
                 } else if (yawRatio > 1.75) {
                   detectedIssue = "head_turned";
                   posture = "turned_left";
-                  alertText = "⚠️ Please look directly at the screen";
+                  alertText = "Please look directly at the screen";
                 } else if (pitchRatio < 0.62 || pitchRatio > 1.75) {
                   detectedIssue = pitchRatio < 0.62 ? "looking_up" : "looking_down";
                   posture = detectedIssue;
-                  alertText = "⚠️ Keep your gaze centered on the interview";
+                  alertText = "Keep your gaze centered on the interview";
                 }
               }
 
@@ -508,7 +508,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               if (motionResult.isMotionDetected) {
                 if (!detectedIssue || detectedIssue === "looking_up" || detectedIssue === "looking_down") {
                   detectedIssue = "background_movement";
-                  alertText = "🚨 Background movement / person detected! Background must remain completely still — only 1 person permitted.";
+                  alertText = "Background movement / person detected! Background must remain completely still — only 1 person permitted.";
                   posture = "bg_movement";
                 }
               }
@@ -553,7 +553,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   ctx.fillStyle = "#ffffff";
                   ctx.font = "bold 12px sans-serif";
                   ctx.textAlign = "center";
-                  ctx.fillText("🚨 ALERT: BACKGROUND MOVEMENT / PERSON DETECTED", canvas.width / 2, 37);
+                  ctx.fillText("ALERT: BACKGROUND MOVEMENT / PERSON DETECTED", canvas.width / 2, 37);
                   ctx.restore();
                 }
 
@@ -569,7 +569,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                         ctx.fillStyle = "#ef4444";
                         ctx.shadowColor = "rgba(0,0,0,0.9)";
                         ctx.shadowBlur = 4;
-                        ctx.fillText(`🚨 UNAUTHORIZED PERSON #${fIdx + 1}`, foreheadPt.x * canvas.width - 60, Math.max(20, foreheadPt.y * canvas.height - 12));
+                        ctx.fillText(`UNAUTHORIZED PERSON #${fIdx + 1}`, foreheadPt.x * canvas.width - 60, Math.max(20, foreheadPt.y * canvas.height - 12));
                         ctx.restore();
                       }
                     }
@@ -626,17 +626,17 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (document.hidden) {
         setIsMalpracticeActive(true);
         setProctorStatus("tab_switch");
-        setProctorAlertMsg("🚨 MALPRACTICE VIOLATION: Tab switch detected!");
+        setProctorAlertMsg("MALPRACTICE VIOLATION: Tab switch detected!");
         setAttentionWarningsCount((c) => c + 1);
         setProctorViolationsCount((c) => c + 1);
-        toast("🚨 Malpractice Alert: Tab switching is prohibited!", "!");
+        toast("Malpractice Alert: Tab switching is prohibited!", "!");
       }
     }
 
     function handleWindowBlur() {
       setIsMalpracticeActive(true);
       setProctorStatus("tab_switch");
-      setProctorAlertMsg("🚨 MALPRACTICE WARNING: Window focus lost!");
+      setProctorAlertMsg("MALPRACTICE WARNING: Window focus lost!");
     }
 
     function handleWindowFocus() {
@@ -1371,7 +1371,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                       }}
                     >
                       <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: faceCountVal > 1 ? "#EF4444" : faceCountVal === 0 ? "#F59E0B" : "#34D399" }} />
-                      <span>{faceCountVal > 1 ? "🚨 MULTIPLE PERSONS" : faceCountVal === 0 ? "⚠️ NO PERSON" : "👤 1 PERSON"}</span>
+                      <span>{faceCountVal > 1 ? "MULTIPLE PERSONS" : faceCountVal === 0 ? "NO PERSON" : "1 PERSON"}</span>
                     </div>
 
                     {/* Background Movement Stillness Pill */}
@@ -1391,7 +1391,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                       }}
                     >
                       <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: bgMovementActive ? "#EF4444" : "#34D399" }} />
-                      <span>{bgMovementActive ? "🚨 BG MOTION / PERSON" : "🛡️ BG STILL"}</span>
+                      <span>{bgMovementActive ? "BG MOTION / PERSON" : "BG STILL"}</span>
                     </div>
 
                     {/* Posture Pill */}
@@ -1439,7 +1439,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   <div style={{ position: "absolute", top: 60, left: 16, right: 16, zIndex: 30, background: "rgba(220, 38, 38, 0.95)", color: "#FFFFFF", padding: "12px 18px", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontWeight: 800, fontSize: 13, border: "1px solid #FCA5A5", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
                     <i className="fa-solid fa-triangle-exclamation" style={{ color: "#FEF08A", fontSize: 18 }}></i>
                     <span style={{ letterSpacing: "0.02em" }}>
-                      {proctorAlertMsg || "⚠️ Please look directly at the screen"}
+                      {proctorAlertMsg || "Please look directly at the screen"}
                     </span>
                   </div>
                 )}
@@ -1475,7 +1475,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
               {/* 3. Action Buttons & Real-Time Proctoring Telemetry Pill */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
                 <div style={{ background: "#0B192C", border: "1px solid #1E293B", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#CBD5E1", flex: 1, boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
-                  <span style={{ fontSize: 14 }}>🚨</span>
+                  <span style={{ fontSize: 14 }}></span>
                   <span>
                     Warnings: <strong style={{ color: attentionWarningsCount > 0 ? "#F87171" : "#34D399" }}>{attentionWarningsCount}</strong>
                   </span>
@@ -1535,7 +1535,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                           cursor: "pointer",
                         }}
                       >
-                        {isConnectingCall ? "Connecting…" : "🎙️ Reconnect"}
+                        {isConnectingCall ? "Connecting…" : "Reconnect"}
                       </button>
                     )}
                   </div>

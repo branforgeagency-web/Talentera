@@ -91,6 +91,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/academy", academyRoutes);
+app.use("/api/staff/enquiries", require("./routes/staffEnquiries"));
 app.use("/api/staff", staffRoutes);
 app.use("/api/company/auth", companyAuthRoutes);
 app.use("/api/company", companyRoutes);
@@ -100,6 +101,7 @@ app.use("/api/aadhaar", aadhaarRoutes);
 // routes/vapiInterview.js for how it authenticates the candidate instead.
 app.use("/api/vapi", vapiInterviewRoutes);
 app.use("/api/college", collegeRoutes);
+app.use("/api/support", require("./routes/support"));
 
 const { isGcpConfigured } = require("./config/gcpStorage");
 

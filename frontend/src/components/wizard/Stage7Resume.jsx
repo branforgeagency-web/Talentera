@@ -1,10 +1,8 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import WizardCompanionRail from "./WizardCompanionRail.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
 import { joinUnique } from "../../utils/resumeSubtitle.js";
-import { getMedalTier, medalLabel, medalBadgeStyle } from "../../utils/medalBadge.js";
 import { buildResumeSkills } from "../../utils/resumeSkills.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
@@ -12,18 +10,6 @@ import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoO
 const QrIconSvg = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
     <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v3h-3v-3zm-5 0h3v3h-3v-3zm2 5h3v3h-3v-3zm3 0h3v3h-3v-3zm-5-3h3v3h-3v-3zm5-2h3v2h-3v-2z" />
-  </svg>
-);
-
-const PlayIconSvg = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M8 5v14l11-7z" />
-  </svg>
-);
-
-const CheckListIconSvg = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M3 17h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2v-2H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7zM3 7v2h2V7H3z" />
   </svg>
 );
 
@@ -51,9 +37,9 @@ export const FONT_OPTIONS = [
 const RESUME_TEMPLATES = [
   {
     id: "fresher_modern",
-    name: "🎯 Fresher Modern",
+    name: "Fresher Modern",
     sub: "Best for Silver+ freshers with verified skills. Clean, contemporary, HR-loved.",
-    badge: "⭐ AUTO-PICK",
+    badge: "AUTO-PICK",
     headerBg: "#0F1B3D",
     accentColor: "#F5B41A",
     fontFamily: "'Inter', sans-serif",
@@ -61,7 +47,7 @@ const RESUME_TEMPLATES = [
   },
   {
     id: "plain_bw",
-    name: "⚪ Plain Black & White",
+    name: "Plain Black & White",
     sub: "Pure monochrome & high-contrast layout. 100% ATS-compliant, photocopy & print-ready.",
     badge: "ATS B&W",
     headerBg: "#000000",
@@ -71,7 +57,7 @@ const RESUME_TEMPLATES = [
   },
   {
     id: "fresher_classic",
-    name: "📋 Fresher Classic",
+    name: "Fresher Classic",
     sub: "Traditional layout. ATS-safe. Great for Bronze-tier candidates.",
     headerBg: "#333333",
     accentColor: "#8A91A3",
@@ -80,7 +66,7 @@ const RESUME_TEMPLATES = [
   },
   {
     id: "executive",
-    name: "💼 Executive",
+    name: "Executive",
     sub: "Best for 5+ yrs experienced. Unlocks in Experienced flow.",
     headerBg: "#8B5CF6",
     accentColor: "#7C3AED",
@@ -89,7 +75,7 @@ const RESUME_TEMPLATES = [
   },
   {
     id: "global",
-    name: "🌍 Global",
+    name: "Global",
     sub: "US/UK/AU market-ready. For candidates who ticked Global Markets in Stage 03.",
     headerBg: "#065F46",
     accentColor: "#10B981",
@@ -98,7 +84,7 @@ const RESUME_TEMPLATES = [
   },
   {
     id: "compact_ats",
-    name: "📱 Compact ATS",
+    name: "Compact ATS",
     sub: "Single-page, ATS-safe. For job-board first roles.",
     headerBg: "#334155",
     accentColor: "#F5B41A",
@@ -107,7 +93,7 @@ const RESUME_TEMPLATES = [
   },
   {
     id: "specialty_dental",
-    name: "🦷 Specialty (Dental)",
+    name: "Specialty (Dental)",
     sub: "For Dental Coding & niche specialty candidates. Auto-picked if Domain = Dental.",
     headerBg: "#7C3AED",
     accentColor: "#F5B41A",
@@ -329,17 +315,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     }
     return Math.min(100, Math.max(pts, candidateObj.score || 0));
   }, [stage1, stage2, stage3, certificationsList, isNonCertified, assessmentScore, stage5, videoScore, totalCharts, stage6, candidateObj]);
-
-  // Star ratings shown on the scorecard in place of raw /100 numbers
-  const starsFor = (score) => {
-    const n = Math.max(0, Math.min(5, Math.round((Number(score) || 0) / 100 * 5)));
-    return { count: n, display: "★".repeat(n) + "☆".repeat(5 - n) };
-  };
-  const assessmentStars = assessmentScore !== null ? starsFor(assessmentScore) : null;
-  const videoStars = videoScore !== null ? starsFor(videoScore) : null;
-  const chartStars = starsFor(overallAccuracy);
-  const totalStars = starsFor(totalPoints).count;
-  const totalStarsDisplay = starsFor(totalPoints).display;
 
   // Verified Fields Count
   const verifiedFieldsCount = useMemo(() => {
@@ -586,6 +561,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
   // Modals & Actions state
   const [showQrModal, setShowQrModal] = useState(false);
+  const [activeResumeSection, setActiveResumeSection] = useState(null);
   const [showFullPreviewModal, setShowFullPreviewModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -622,7 +598,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       const res = await api.put("/candidate/stage/8", payload);
       await api.post("/candidate/submit").catch(() => {});
       setIsLiveActive(true);
-      toast("🎊 CONGRATULATIONS! You are now LIVE in the Talentera Verified Pool!", "✓");
+      toast("CONGRATULATIONS! You are now LIVE in the Talentera Verified Pool!", "✓");
       if (onSaved) {
         onSaved(res.data, { advance: false, nextStage: null });
       }
@@ -642,6 +618,269 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       toast("Link ready: " + liveResumeUrl, "!");
     });
   }
+
+  // ---- Plain, professional resume body (no emojis). Shared by the live preview, the full-preview
+  // modal and therefore the PDF export. Work experience comes straight from Stage 2.
+  const SHIFT_LABELS = { day: "Day shift", night: "US night shift", uk_evening: "UK evening shift", rotational: "Rotational" };
+  const resumeShiftText = Array.isArray(stage2.shifts) && stage2.shifts.length > 0
+    ? stage2.shifts.map((x) => SHIFT_LABELS[x] || x).join(", ")
+    : shiftPreference;
+  const resumeRelocationText = stage1.openToRelocate || relocationPref;
+  const ownSkills = String(stage2.skills || "").split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  const resumeSkillList = ownSkills.length > 0 ? ownSkills : resumeSkills;
+  const hasWorkExperience = isExperienced && Boolean(workCompany || stage2.jobTitle);
+  const showTrainingBlock = !isExperienced || Boolean(stage2.academyName || stage2.instituteName);
+  const employmentStatusText = stage2.employmentStatus === "working" ? "Currently working" : stage2.employmentStatus === "relieved" ? "Relieved" : "";
+  const avgChartTime = (() => {
+    let total = 0;
+    let weight = 0;
+    specialtyCharts.forEach((sc) => {
+      const mins = parseFloat(String(sc.timePerChart || "").replace(/[^0-9.]/g, ""));
+      const count = Number(sc.count) || 0;
+      if (Number.isFinite(mins) && count > 0) {
+        total += mins * count;
+        weight += count;
+      }
+    });
+    return weight > 0 ? `${(total / weight).toFixed(1)} min avg` : "-";
+  })();
+  const resumeSectionBody = { fontSize: 12, color: "#0F1B3D", lineHeight: 1.7, marginTop: 4 };
+
+  // Click a resume section to reveal an "Edit" button that jumps to the stage the data comes from.
+  const goEditTarget = (t) => {
+    if (t.stage === 7) {
+      const box = document.getElementById("s7-objective-editor");
+      if (box) {
+        box.scrollIntoView({ behavior: "smooth", block: "center" });
+        const ta = box.querySelector("textarea");
+        if (ta) setTimeout(() => ta.focus(), 400);
+      }
+      return;
+    }
+    if (onNavigateStage) onNavigateStage(t.stage);
+  };
+  const editableSection = (key, targets, content, interactive) => {
+    if (!interactive) return content;
+    const active = activeResumeSection === key;
+    return (
+      <div
+        onClick={() => setActiveResumeSection(active ? null : key)}
+        style={{ position: "relative", cursor: "pointer" }}
+        title={active ? undefined : "Click to edit this section"}
+      >
+        {content}
+        {active && (
+          <>
+            <div
+              data-html2canvas-ignore="true"
+              style={{ position: "absolute", top: -4, bottom: -4, left: -8, right: -8, border: "1.5px dashed #F5B41A", borderRadius: 6, pointerEvents: "none" }}
+            />
+            <div data-html2canvas-ignore="true" style={{ position: "absolute", top: -18, right: -4, display: "flex", gap: 8, zIndex: 5 }}>
+              {targets.map((t) => (
+                <button
+                  key={t.label}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goEditTarget(t);
+                  }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0F1B3D", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                  </svg>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderResumePaper = (interactive) => (
+    <>
+      {editableSection("header", [{ stage: 1, label: "Edit contact details (Stage 1)" }], (
+      <div className="s7-resume-header">
+        <div>
+          <div className="s7-resume-name">{fullName.toUpperCase()}</div>
+          <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
+          <div className="s7-resume-contact">
+            {mobile && <span>Phone: {mobile}</span>}
+            {email && <span>Email: {email}</span>}
+            {locality && <span>{locality}</span>}
+            <span style={{ color: "#1A4FB8", fontWeight: 700 }}>{liveResumeUrl.replace("https://", "")}</span>
+          </div>
+        </div>
+        <div className="s7-verified-stamp">
+          <div className="top">TALENTERA<br />VERIFIED</div>
+          <div className="id">ID: {verificationId}</div>
+          <div
+            onClick={interactive ? (e) => { e.stopPropagation(); setShowQrModal(true); } : undefined}
+            className="s7-qr-box"
+            title={interactive ? "Click to view QR details" : undefined}
+          >
+            <QrIconSvg />
+          </div>
+        </div>
+      </div>
+      ), interactive)}
+
+      {(careerObjective.trim() || interactive) && editableSection("summary", [{ stage: 7, label: "Edit summary" }], (
+        <div data-html2canvas-ignore={careerObjective.trim() ? undefined : "true"}>
+          <div className="s7-resume-sec-title">{isExperienced ? "Professional Summary" : "Career Objective"}</div>
+          {careerObjective.trim() ? (
+            <div className="s7-resume-obj" style={{ fontStyle: "normal" }}>{careerObjective.trim()}</div>
+          ) : (
+            <div className="s7-resume-obj" style={{ fontStyle: "normal", color: "#9CA3AF" }}>Click here to add your summary.</div>
+          )}
+        </div>
+      ), interactive)}
+
+      {hasWorkExperience && editableSection("work", [{ stage: 2, label: "Edit work experience (Stage 2)" }], (
+        <>
+          <div className="s7-resume-sec-title">Work Experience</div>
+          <div className="s7-r-block">
+            <div className="k">{stage2.jobTitle || currentRoleTitle}</div>
+            <div className="v">{workCompany}</div>
+            <div className="details">
+              {[
+                employmentStatusText,
+                workTotalExperience ? `${workTotalExperience} total experience` : "",
+                stage2.employmentStatus === "working" && workNoticePeriod ? `Notice period: ${workNoticePeriod}` : "",
+              ].filter(Boolean).join("  |  ")}
+            </div>
+            {workProjectDetails && <div style={{ ...resumeSectionBody, marginTop: 8 }}>{workProjectDetails}</div>}
+          </div>
+        </>
+      ), interactive)}
+
+      {resumeSkillList.length > 0 && editableSection("skills", [{ stage: 2, label: "Edit skills (Stage 2)" }], (
+        <>
+          <div className="s7-resume-sec-title">Skills</div>
+          <div style={resumeSectionBody}>{resumeSkillList.join("  |  ")}</div>
+        </>
+      ), interactive)}
+
+      {editableSection("education", [{ stage: 1, label: "Edit education (Stage 1)" }], (
+        <>
+      <div className="s7-resume-sec-title">Education</div>
+      <div className="s7-grid-2">
+        <div className="s7-r-block">
+          <div className="k">{degree}{graduationYear ? `, ${graduationYear}` : ""}</div>
+          <div className="v">{collegeName}</div>
+          {cgpa && <div className="details">{cgpa}</div>}
+        </div>
+        {twelfthSchool && (
+          <div className="s7-r-block">
+            <div className="k">Class XII{twelfthYear ? `, ${twelfthYear}` : ""}</div>
+            <div className="v">{twelfthSchool}</div>
+            {twelfthScore && <div className="details">{twelfthScore}</div>}
+          </div>
+        )}
+      </div>
+        </>
+      ), interactive)}
+
+      {certificationsList.length > 0 && editableSection("certs", [{ stage: 3, label: "Edit certifications (Stage 3)" }], (
+        <>
+          <div className="s7-resume-sec-title">Certifications</div>
+          <div className="s7-grid-2">
+            {certificationsList.map((cert, idx) => (
+              <div key={idx} className="s7-r-block">
+                <div className="k">{cert.name || cert.code}</div>
+                <div className="v">{cert.body || "AAPC"}{cert.memberId ? `  |  Member ID ending ${String(cert.memberId).slice(-4)}` : ""}</div>
+                <div className="details">
+                  {[
+                    cert.issueDate ? `Issued ${cert.issueDate}` : "",
+                    cert.expiryDate ? `Valid until ${cert.expiryDate}` : "",
+                    Number.isFinite(cert.percentage) ? `Score ${cert.percentage}%` : "",
+                  ].filter(Boolean).join("  |  ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ), interactive)}
+
+      {showTrainingBlock && editableSection("training", [{ stage: 2, label: "Edit training (Stage 2)" }], (
+        <>
+          <div className="s7-resume-sec-title">Training</div>
+          <div className="s7-r-block">
+            <div className="k">{academyName}{academyLocality ? `, ${academyLocality}` : ""}</div>
+            <div className="v">{trainingFoundationLine}</div>
+            <div className="details">
+              {[trainingDuration, trainingAssessmentScore ? `Assessment ${trainingAssessmentScore}/100` : ""].filter(Boolean).join("  |  ")}
+            </div>
+          </div>
+        </>
+      ), interactive)}
+
+      {specialtyCharts.length > 0 && editableSection("charts", [{ stage: 6, label: "Edit live charts (Stage 6)" }], (
+        <>
+          <div className="s7-resume-sec-title">Live Chart Practice</div>
+          <table className="s7-charts-table-mini">
+            <thead>
+              <tr>
+                <th>Specialty</th>
+                <th>Charts</th>
+                <th>Accuracy</th>
+                <th>Time per chart</th>
+                <th>Last coded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {specialtyCharts.map((sc) => (
+                <tr key={sc.id || sc.name}>
+                  <td>{sc.name}</td>
+                  <td>{sc.count}</td>
+                  <td>{sc.accuracy}%</td>
+                  <td>{sc.timePerChart}</td>
+                  <td>{Number(sc.count) > 0 && sc.lastCodedDate ? new Date(sc.lastCodedDate).toLocaleDateString() : "-"}</td>
+                </tr>
+              ))}
+              <tr className="total">
+                <td><b>Total</b></td>
+                <td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (Number(b.count) || 0), 0)}</b></td>
+                <td><b>{overallAccuracy || 0}%</b></td>
+                <td><b>{avgChartTime}</b></td>
+                <td>-</td>
+              </tr>
+            </tbody>
+          </table>
+          {selectedPlatforms.length > 0 && (
+            <div style={{ fontSize: 10.5, color: "#6B7280", marginTop: 8 }}>Platforms: {selectedPlatforms.join(", ")}</div>
+          )}
+        </>
+      ), interactive)}
+
+      <div className="s7-resume-sec-title">Talentera Verification</div>
+      <div style={resumeSectionBody}>
+        {assessmentScore !== null && <div><b>Skill assessment:</b> {assessmentScore}/100 ({assessmentMedal})</div>}
+        {videoScore !== null && (
+          <div><b>Video interview:</b> {videoScore}/100 (clarity {clarityScore}, fluency {fluencyScore}, confidence {confidenceScore})</div>
+        )}
+        {totalCharts > 0 && <div><b>Live chart practice:</b> {totalCharts} charts at {overallAccuracy}% accuracy</div>}
+        <div><b>Overall verification score:</b> {totalPoints}/100</div>
+      </div>
+
+      {editableSection("prefs", [{ stage: 1, label: "Edit locations (Stage 1)" }, { stage: 2, label: "Edit shifts (Stage 2)" }], (
+        <>
+      <div className="s7-resume-sec-title">Work Preferences</div>
+      <div style={resumeSectionBody}>
+        <div><b>Preferred locations:</b> {preferredCities}</div>
+        <div><b>Relocation:</b> {resumeRelocationText}</div>
+        <div><b>Shifts:</b> {resumeShiftText}</div>
+      </div>
+        </>
+      ), interactive)}
+
+      <div style={{ borderTop: "1px solid #E5E7EB", marginTop: 20, paddingTop: 10, textAlign: "center", fontSize: 10.5, color: "#6B7280" }}>
+        Credentials verified by Talentera. Verification ID {verificationId}. Scan the QR code or visit {liveResumeUrl.replace("https://", "")} to confirm.
+      </div>
+    </>
+  );
 
   // Direct PDF Download using html2canvas + jsPDF (No window.print popup)
   async function handleDownloadPdf() {
@@ -861,8 +1100,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     <div className="stage7-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
       <style>{`
         .stage7-root * { box-sizing: border-box; }
-        .s7-shell { display: grid; grid-template-columns: 1fr 320px; gap: 24px; min-width: 0; align-items: start; }
-        @media (max-width: 1100px) { .s7-shell { grid-template-columns: 1fr; } }
+        .s7-shell { width: 100%; min-width: 0; }
+        .s7-main-column { width: 100%; min-width: 0; }
         
         .s7-hero {
           background: linear-gradient(135deg, #0F1B3D 0%, #1E3A8A 60%, #2A54B5 100%);
@@ -1042,7 +1281,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         .s7-template-card.selected { border-color: #F5B41A; background: #FFF6E0; box-shadow: 0 4px 10px rgba(245,180,26,.15); }
         .s7-template-card.recommended { border-color: #1F7A3C; }
         .s7-template-card.recommended::before {
-          content: '⭐ AUTO-PICK';
+          content: 'AUTO-PICK';
           position: absolute;
           top: -10px;
           left: 12px;
@@ -1581,19 +1820,13 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       <div className="s7-shell">
         {/* Left / Center Main Content */}
         <div className="s7-main-column">
-          {/* Breadcrumb */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8A91A3", textTransform: "uppercase", letterSpacing: 1, marginBottom: 14, fontWeight: 600 }}>
-            <span>Home</span><span>›</span>
-            <span>My Career Passport</span><span>›</span>
-            <span style={{ color: "#0F1B3D", fontWeight: 800 }}>Stage 07 · Resume</span>
-          </div>
 
           {/* Hero Banner */}
           <div className="s7-hero">
-            <div className="s7-hero-icon">📄</div>
+            <div className="s7-hero-icon"><i className="fa-solid fa-file-lines" /></div>
             <div className="s7-hero-badges">
               <span className="s7-hero-chip">STAGE 07 OF 07 · FINAL</span>
-              <span className="s7-hero-chip green">🏆 {totalPoints}/100 SCORE {totalPoints >= 75 ? "VERIFIED" : "IN PROGRESS"}</span>
+              <span className="s7-hero-chip green">{totalPoints}/100 SCORE {totalPoints >= 75 ? "VERIFIED" : "IN PROGRESS"}</span>
               <span className="s7-hero-chip gold">OUTPUT · NO POINTS</span>
             </div>
             <h1 className="s7-hero-title" style={{ color: "#FFFFFF" }}>Resume</h1>
@@ -1617,7 +1850,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               </div>
               <div className="small">Every field on your resume traces back to a verified stage. Nothing typed here.</div>
             </div>
-            <div className="locked-badge">🔒 SOURCE OF TRUTH</div>
+            <div className="locked-badge">SOURCE OF TRUTH</div>
           </div>
 
           {/* How Stage 07 Works Card */}
@@ -1639,19 +1872,19 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 </div>
               </div>
               <div className="s7-rule-tile">
-                <div className="s7-rule-head"><div className="s7-rule-ico">📎</div><div className="s7-rule-title">What goes on it</div></div>
+                <div className="s7-rule-head"><div className="s7-rule-ico"></div><div className="s7-rule-title">What goes on it</div></div>
                 <div className="s7-rule-body">
                   Pulled automatically from Stages 01–06: your name and city, specialty, training, certifications, assessment scores, video pitch scores, live chart record, and verification badges. Nothing is typed here — if a section looks empty, go back and complete that stage to fill it in.
                 </div>
               </div>
               <div className="s7-rule-tile">
-                <div className="s7-rule-head"><div className="s7-rule-ico">👁</div><div className="s7-rule-title">What companies see</div></div>
+                <div className="s7-rule-head"><div className="s7-rule-ico"><i className="fa-solid fa-eye" /></div><div className="s7-rule-title">What companies see</div></div>
                 <div className="s7-rule-body">
                   The exact resume below plus a Live URL that always shows your current data + QR codes to verify Video Pitch and Live Chart in real-time. One standard format — so a hiring manager reads 50 resumes in the time it used to take for 10, and trusts every one.
                 </div>
               </div>
               <div className="s7-rule-tile">
-                <div className="s7-rule-head"><div className="s7-rule-ico">🎯</div><div className="s7-rule-title">Why no points on this stage</div></div>
+                <div className="s7-rule-head"><div className="s7-rule-ico"><i className="fa-solid fa-bullseye" /></div><div className="s7-rule-title">Why no points on this stage</div></div>
                 <div className="s7-rule-body">
                   Stages 01–06 were about proving your skills — that's where points earn trust. Stage 07 is an OUTPUT of your work, not new proof. Your resume score = your Stages 01–06 score. Simple. Clean. Non-gameable.
                 </div>
@@ -1660,7 +1893,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             </>
             )}
             <div className="s7-consent-pill">
-              <span style={{ color: "#F5B41A", fontSize: 16 }}>🛡</span>
+              <span style={{ color: "#F5B41A", fontSize: 16 }}><i className="fa-solid fa-shield-halved" /></span>
               <span><i>Every downloaded PDF carries a Talentera Verified watermark + candidate ID + tamper-proof cryptographic hash. HRs can validate authenticity at any time.</i></span>
             </div>
           </div>
@@ -1689,7 +1922,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
           {/* Assembly Banner */}
           <div className="s7-assembly-banner">
-            <div className="s7-assembly-ico">⚡</div>
+            <div className="s7-assembly-ico"><i className="fa-solid fa-bolt" /></div>
             <div className="s7-assembly-txt">
               <div className="lbl">Talentera Auto-Assembled</div>
               <div className="title">{verifiedFieldsCount} verified data points wired into your resume</div>
@@ -1753,7 +1986,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ fontSize: "16px" }}>🎨</span>
+                  <span style={{ fontSize: "16px" }}><i className="fa-solid fa-palette" /></span>
                   <span style={{ fontWeight: "800", color: "#0F1B3D", fontSize: "14px" }}>Theme &amp; Style Customizer</span>
                   <span style={{ fontSize: "10.5px", background: "#FFF6E0", color: "#C99413", padding: "2px 8px", borderRadius: "6px", fontWeight: "800" }}>LIVE PREVIEW</span>
                 </div>
@@ -1866,7 +2099,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           <div className="s7-section">
             <div className="s7-section-header">
               <div className="s7-section-num">2</div>
-              <div className="s7-section-title">✏ Career Objective — the ONLY editable section</div>
+              <div className="s7-section-title">Career Objective — the ONLY editable section</div>
               <div className="s7-no-pts-chip">AI-ASSISTED</div>
             </div>
 
@@ -1874,7 +2107,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               Write your career objective in your own words. Everything else on your resume is locked and pulled from prior stages.
             </div>
 
-            <div className={`s7-obj-editor ${formErrors.careerObjective ? "has-error" : ""}`}>
+            <div id="s7-objective-editor" className={`s7-obj-editor ${formErrors.careerObjective ? "has-error" : ""}`}>
               <textarea
                 value={careerObjective}
                 onChange={(e) => {
@@ -1885,11 +2118,67 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 placeholder="Write your career objective here..."
               />
               {formErrors.careerObjective && (
-                <div className="s7-field-error-msg">⚠️ {formErrors.careerObjective}</div>
+                <div className="s7-field-error-msg">{formErrors.careerObjective}</div>
               )}
               <div className="s7-obj-editor-footer">
                 <span>{careerObjective.length} / 500 characters</span>
               </div>
+            </div>
+
+            {/* AI Career Objective Assistant - Claude-powered generator */}
+            <div className="s7-ai-widget">
+              <div className="s7-ai-widget-header">
+                <span className="s7-ai-widget-icon"><i className="fa-solid fa-wand-magic-sparkles" /></span>
+                <div>
+                  <div className="s7-ai-widget-title">AI Career Objective Assistant</div>
+                  <div className="s7-ai-widget-sub">Tell it about yourself, generate your own objective & summary</div>
+                </div>
+              </div>
+
+              <textarea
+                className="s7-ai-widget-input"
+                value={aiNotes}
+                onChange={(e) => setAiNotes(e.target.value)}
+                maxLength={800}
+                placeholder="Optional: add a few details - what role you want, strengths, goals, anything you'd like mentioned..."
+                rows={3}
+              />
+
+              <button
+                type="button"
+                className="s7-ai-widget-btn"
+                onClick={handleGenerateAiObjective}
+                disabled={aiGenerating}
+              >
+                {aiGenerating ? "Generating..." : aiResult ? "↻ Regenerate" : "Generate with AI"}
+              </button>
+
+              {aiError && <div className="s7-ai-widget-error">{aiError}</div>}
+
+              {aiResult && (
+                <div className="s7-ai-widget-results">
+                  {aiResult.objective && (
+                    <div className="s7-ai-widget-result-card">
+                      <div className="s7-ai-widget-result-label">Career Objective</div>
+                      <div className="s7-ai-widget-result-text">{aiResult.objective}</div>
+                      <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.objective)}>
+                        + Add to Career Objective
+                      </button>
+                    </div>
+                  )}
+                  {aiResult.summary && (
+                    <div className="s7-ai-widget-result-card">
+                      <div className="s7-ai-widget-result-label">Professional Summary</div>
+                      <div className="s7-ai-widget-result-text">{aiResult.summary}</div>
+                      <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.summary)}>
+                        + Add to Career Objective
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="s7-ai-widget-note">You choose what to keep - nothing is added automatically.</div>
             </div>
           </div>
 
@@ -1897,19 +2186,19 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           <div className="s7-section">
             <div className="s7-section-header">
               <div className="s7-section-num">3</div>
-              <div className="s7-section-title">🔒 Verified sections — pulled from Stages 01–06, non-editable</div>
+              <div className="s7-section-title">Verified sections — pulled from Stages 01–06, non-editable</div>
               <div className="s7-no-pts-chip">READ-ONLY · UPDATE AT SOURCE</div>
             </div>
 
             <div className="s7-locked-sections">
               {/* Stage 1 */}
               <div className="s7-locked-row">
-                <div className="s7-locked-ico">👤</div>
+                <div className="s7-locked-ico"><i className="fa-solid fa-user" /></div>
                 <div className="s7-locked-info">
-                  <div className="title">Identity + Contact <span className="s7-lock-badge">🔒 Stage 01</span></div>
+                  <div className="title">Identity + Contact <span className="s7-lock-badge">Stage 01</span></div>
                   <div className="meta"><b>{fullName}</b>{locality ? ` · ${locality}` : ""}{mobile ? ` · ${mobile}` : ""}{email ? ` · ${email}` : ""} · {stage1.aadhaarVerified ? "Aadhaar-verified" : "Profile Active"}</div>
                 </div>
-                <div className="s7-verified-tag">🟢 API-Verified</div>
+                <div className="s7-verified-tag">API-Verified</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(1)} className="s7-edit-stage-btn">
                   ✎ Edit in Stage 01
                 </button>
@@ -1917,12 +2206,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
               {/* Stage 2 */}
               <div className="s7-locked-row">
-                <div className="s7-locked-ico">🎓</div>
+                <div className="s7-locked-ico"><i className="fa-solid fa-graduation-cap" /></div>
                 <div className="s7-locked-info">
-                  <div className="title">Training Foundation <span className="s7-lock-badge">🔒 Stage 02</span></div>
+                  <div className="title">Training Foundation <span className="s7-lock-badge">Stage 02</span></div>
                   <div className="meta"><b>{academyName}</b> · {domainName} · {trainingLevel} · {trainingSpecialties} · {trainingDuration}{trainingAssessmentScore ? ` · Batch score: ${trainingAssessmentScore}/100` : ""}</div>
                 </div>
-                <div className="s7-verified-tag">🟢 Academy-Signed</div>
+                <div className="s7-verified-tag">Academy-Signed</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(2)} className="s7-edit-stage-btn">
                   ✎ Edit in Stage 02
                 </button>
@@ -1930,9 +2219,9 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
               {/* Stage 3 */}
               <div className="s7-locked-row">
-                <div className="s7-locked-ico">🏆</div>
+                <div className="s7-locked-ico"><i className="fa-solid fa-trophy" /></div>
                 <div className="s7-locked-info">
-                  <div className="title">Certifications <span className="s7-lock-badge">🔒 Stage 03</span></div>
+                  <div className="title">Certifications <span className="s7-lock-badge">Stage 03</span></div>
                   <div className="meta">
                     {certificationsList.length > 0 ? (
                       certificationsList.map((c, i) => (
@@ -1949,7 +2238,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                     )}
                   </div>
                 </div>
-                <div className="s7-verified-tag">🟢 API-Verified</div>
+                <div className="s7-verified-tag">API-Verified</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(3)} className="s7-edit-stage-btn">
                   ✎ Edit in Stage 03
                 </button>
@@ -1957,20 +2246,20 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
               {/* Stage 4 */}
               <div className="s7-locked-row">
-                <div className="s7-locked-ico">🧪</div>
+                <div className="s7-locked-ico"><i className="fa-solid fa-flask" /></div>
                 <div className="s7-locked-info">
-                  <div className="title">Assessment Score <span className="s7-lock-badge">🔒 Stage 04</span></div>
+                  <div className="title">Assessment Score <span className="s7-lock-badge">Stage 04</span></div>
                   <div className="meta">
                     {assessmentScore !== null ? (
                       <>
-                        {assessmentMedal === "Gold" ? "🥇" : assessmentMedal === "Silver" ? "🥈" : "🥉"} <b>{assessmentMedal} · {assessmentScore}/100</b> · Anatomy 85 · Med Term 78 · Aptitude 65 · Basic ICD 70 · HCC + E/M 62 · Percentile 68
+                        {assessmentMedal === "Gold" ? <i className="fa-solid fa-medal" /> : assessmentMedal === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{assessmentMedal} · {assessmentScore}/100</b> · Anatomy 85 · Med Term 78 · Aptitude 65 · Basic ICD 70 · HCC + E/M 62 · Percentile 68
                       </>
                     ) : (
                       <span>Proctored Foundation Assessment · Ready to Take</span>
                     )}
                   </div>
                 </div>
-                <div className="s7-verified-tag">🟢 Talentera-Proctored</div>
+                <div className="s7-verified-tag">Talentera-Proctored</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(4)} className="s7-edit-stage-btn">
                   ✎ Retake in Stage 04
                 </button>
@@ -1978,20 +2267,20 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
               {/* Stage 5 */}
               <div className="s7-locked-row">
-                <div className="s7-locked-ico">🎤</div>
+                <div className="s7-locked-ico"><i className="fa-solid fa-microphone" /></div>
                 <div className="s7-locked-info">
-                  <div className="title">Video Pitch <span className="s7-lock-badge">🔒 Stage 05</span></div>
+                  <div className="title">Video Pitch <span className="s7-lock-badge">Stage 05</span></div>
                   <div className="meta">
                     {videoScore !== null ? (
                       <>
-                        {videoMedal === "Gold" ? "🥇" : videoMedal === "Silver" ? "🥈" : "🥉"} <b>{videoMedal} · {videoScore}/100</b> · Clarity {clarityScore} · Fluency {fluencyScore} · Vocab {vocabScore} · Confidence {confidenceScore} · Content {contentScore} · Live Verified{regionalLang ? ` · + ${regionalLang} bonus` : ""}
+                        {videoMedal === "Gold" ? <i className="fa-solid fa-medal" /> : videoMedal === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{videoMedal} · {videoScore}/100</b> · Clarity {clarityScore} · Fluency {fluencyScore} · Vocab {vocabScore} · Confidence {confidenceScore} · Content {contentScore} · Live Verified{regionalLang ? ` · + ${regionalLang} bonus` : ""}
                       </>
                     ) : (
                       <span>AI Communication Video Assessment · Ready to Record</span>
                     )}
                   </div>
                 </div>
-                <div className="s7-verified-tag">🟢 Face-Verified</div>
+                <div className="s7-verified-tag">Face-Verified</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(5)} className="s7-edit-stage-btn">
                   ✎ Re-record in Stage 05
                 </button>
@@ -1999,20 +2288,20 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
               {/* Stage 6 */}
               <div className="s7-locked-row">
-                <div className="s7-locked-ico">💻</div>
+                <div className="s7-locked-ico"><i className="fa-solid fa-laptop" /></div>
                 <div className="s7-locked-info">
-                  <div className="title">Live Chart Record <span className="s7-lock-badge">🔒 Stage 06</span></div>
+                  <div className="title">Live Chart Record <span className="s7-lock-badge">Stage 06</span></div>
                   <div className="meta">
                     {totalCharts > 0 ? (
                       <>
-                        {chartTier === "Platinum" ? "🏆" : chartTier === "Gold" ? "🥇" : chartTier === "Silver" ? "🥈" : "🥉"} <b>{chartTier} · {totalCharts} charts · {overallAccuracy}% acc</b> · {specialtyCharts.map((s) => `${s.name} ${s.count}`).join(" · ")} · {selectedPlatforms.join(" + ")}
+                        {chartTier === "Platinum" ? <i className="fa-solid fa-trophy" /> : chartTier === "Gold" ? <i className="fa-solid fa-medal" /> : chartTier === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{chartTier} · {totalCharts} charts · {overallAccuracy}% acc</b> · {specialtyCharts.map((s) => `${s.name} ${s.count}`).join(" · ")} · {selectedPlatforms.join(" + ")}
                       </>
                     ) : (
                       <span>Live Chart Practice Log · Declared Exposure</span>
                     )}
                   </div>
                 </div>
-                <div className="s7-verified-tag">🟢 API-Verified</div>
+                <div className="s7-verified-tag">API-Verified</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(6)} className="s7-edit-stage-btn">
                   ✎ Update in Stage 06
                 </button>
@@ -2028,6 +2317,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-verified-tag" style={{ fontSize: 11 }}>{activeTmpl.name.toUpperCase()}</div>
             </div>
 
+            <div style={{ fontSize: 12, color: "#6B7280", margin: "0 0 10px" }}>
+              Click any section of the resume to edit it. The edit button takes you to the stage where that data comes from.
+            </div>
+
             {/* Rendered Resume Paper */}
             <div
               ref={resumePrintRef}
@@ -2038,186 +2331,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 "--accent": activeTmpl.accentColor,
               }}
             >
-              {/* Paper Header */}
-              <div className="s7-resume-header">
-                <div>
-                  <div className="s7-resume-name">{fullName.toUpperCase()}</div>
-                  <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
-                  <div className="s7-resume-contact">
-                    {mobile && <span>📞 {mobile}</span>}
-                    {email && <span>✉ {email}</span>}
-                    <span style={{ color: "#1A4FB8", fontWeight: 700 }}>🔗 {liveResumeUrl.replace("https://", "")}</span>
-                  </div>
-                </div>
-                <div className="s7-verified-stamp">
-                  <div className="top">🛡 TALENTERA<br />VERIFIED</div>
-                  <div className="id">ID: {verificationId}</div>
-                  <div onClick={() => setShowQrModal(true)} className="s7-qr-box" title="Click to view QR details">
-                    <QrIconSvg />
-                  </div>
-                </div>
-              </div>
-
-              {/* Career Objective */}
-              <div className="s7-resume-sec-title">🎯 {isExperienced ? "Professional Summary" : "Career Objective"}</div>
-              <div className="s7-resume-obj">
-                "{careerObjective}"
-              </div>
-
-              {/* Verified Scorecard */}
-              <div className="s7-resume-sec-title">🏆 Talentera Verified Scorecard</div>
-              <div className="s7-resume-score-strip">
-                {assessmentScore !== null && (
-                  <span className={`s7-score-badge ${assessmentMedal.toLowerCase() === "gold" ? "gold" : assessmentMedal.toLowerCase() === "silver" ? "silver" : assessmentMedal.toLowerCase() === "bronze" ? "bronze" : ""}`}>
-                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
-                  </span>
-                )}
-                {videoScore !== null && (
-                  <span className={`s7-score-badge ${videoMedal.toLowerCase()}`}>
-                    🎤 {videoMedal} · {videoStars.display} {videoStars.count}/5
-                  </span>
-                )}
-                {totalCharts > 0 && (
-                  <span className="s7-score-badge silver">
-                    💻 {totalCharts} charts · {chartStars.display} {chartStars.count}/5
-                  </span>
-                )}
-                <span className="s7-score-badge gold">
-                  {totalStarsDisplay} {totalStars}/5
-                </span>
-                <span style={{ fontSize: 11, color: "#3A425A", fontStyle: "italic", marginLeft: "auto" }}>
-                  Scan QR above to verify live
-                </span>
-              </div>
-
-              {/* Certifications (Only if present) */}
-              {certificationsList.length > 0 && (
-                <>
-                  <div className="s7-resume-sec-title">📜 Core Certifications</div>
-                  <div className="s7-grid-2">
-                    {certificationsList.map((cert, idx) => (
-                      <div key={idx} className="s7-r-block">
-                        <div className="k">{cert.body || "AAPC"} · {cert.name || cert.code}</div>
-                        <div className="v">Member ID {cert.memberId ? `****${String(cert.memberId).slice(-4)}` : "Verified Credential"}</div>
-                        <div className="details">{cert.issueDate ? `Issued ${cert.issueDate} · ` : ""}{cert.expiryDate ? `Valid until ${cert.expiryDate} · ` : ""}{Number.isFinite(cert.percentage) ? `Score ${cert.percentage}% · ` : ""}🟢 API-Verified</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* Training Foundation */}
-              <div className="s7-resume-sec-title">🎓 Training Foundation</div>
-              <div className="s7-r-block">
-                <div className="k">{academyName}{academyLocality ? ` · ${academyLocality}` : ""}</div>
-                <div className="v">{trainingFoundationLine}</div>
-                <div className="details">{trainingDuration} · Classroom{trainingAssessmentScore ? ` · Assessment: ${trainingAssessmentScore}/100` : ""} · 🟢 Academy-Verified</div>
-              </div>
-
-              {/* Live Chart Table */}
-              {specialtyCharts.length > 0 && (
-                <>
-                  <div className="s7-resume-sec-title">💻 Live Chart Practice · Department-wise</div>
-                  <table className="s7-charts-table-mini">
-                    <thead>
-                      <tr>
-                        <th>Specialty</th>
-                        <th>Charts</th>
-                        <th>Accuracy</th>
-                        <th>Time/chart</th>
-                        <th>Last Coded</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {specialtyCharts.map((sc) => (
-                        <tr key={sc.id || sc.name}>
-                          <td>{sc.name.includes("HCC") ? "🩺 HCC" : sc.name.includes("E/M") ? "📋 E/M" : sc.name.includes("ED") ? "🚑 ED" : "🔬 " + sc.name}</td>
-                          <td>{sc.count}</td>
-                          <td>{sc.accuracy}%</td>
-                          <td>{sc.timePerChart}</td>
-                          <td>{Number(sc.count) > 0 ? (sc.lastCodedDate ? new Date(sc.lastCodedDate).toLocaleDateString() : "Active") : "—"}</td>
-                        </tr>
-                      ))}
-                      <tr className="total">
-                        <td><b>TOTAL</b></td>
-                        <td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (Number(b.count) || 0), 0)}</b></td>
-                        <td><b>{overallAccuracy || 0}%</b></td>
-                        <td><b>{totalCharts > 0 ? "5.0 min avg" : "—"}</b></td>
-                        <td>{totalCharts > 0 ? "🟢 Active" : "—"}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <div style={{ fontSize: 10.5, color: "#8A91A3", marginTop: 8 }}>
-                    Platforms verified: {selectedPlatforms.join(" 🟢 · ")} 🟢 · <b>Scan Live Chart QR to verify current data ↗</b>
-                  </div>
-                </>
-              )}
-
-              {/* Video Pitch Scorecard */}
-              <div className="s7-resume-sec-title">🎤 Video Pitch Scorecard</div>
-              <div className="s7-grid-2">
-                <div className="s7-r-block">
-                  <div className="s7-qr-mini"><PlayIconSvg /></div>
-                  <div className="k">Self-Introduction (60 sec)</div>
-                  <div className="v" style={{ marginTop: 4 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), 12)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
-                  <div className="details">Clarity {clarityScore} · Fluency {fluencyScore} · Confidence {confidenceScore} · 🟢 Live Verified · Scan to play</div>
-                </div>
-                <div className="s7-r-block">
-                  <div className="s7-qr-mini"><CheckListIconSvg /></div>
-                  <div className="k">5-question AI Mock</div>
-                  <div className="v" style={{ marginTop: 4 }}><span style={medalBadgeStyle(getMedalTier(videoScore, videoMedal), 12)}>{medalLabel(getMedalTier(videoScore, videoMedal))}</span></div>
-                  <div className="details">Auto-transcribed · Searchable · Scan to review answers</div>
-                </div>
-              </div>
-
-              {/* Education */}
-              <div className="s7-resume-sec-title">🎓 Education</div>
-              <div className="s7-grid-2">
-                <div className="s7-r-block">
-                  <div className="k">{degree}{graduationYear ? ` · ${graduationYear}` : ""}</div>
-                  <div className="v">{collegeName}</div>
-                  <div className="details">{cgpa ? `${cgpa} · ` : ""}Verified Academic Record</div>
-                </div>
-                {twelfthSchool && (
-                  <div className="s7-r-block">
-                    <div className="k">Class XII{twelfthYear ? ` · ${twelfthYear}` : ""}</div>
-                    <div className="v">{twelfthSchool}</div>
-                    <div className="details">{twelfthScore}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Skills */}
-              {resumeSkills.length > 0 && (
-                <>
-                  <div className="s7-resume-sec-title">🛠 Skills</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-                    {resumeSkills.map((skill) => (
-                      <span key={skill} style={{ background: "#FAFAF7", border: "1px solid #E5E7EB", borderRadius: 999, padding: "5px 12px", fontSize: 11.5, fontWeight: 700, color: "#0F1B3D" }}>
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {/* Work Preferences */}
-              <div className="s7-resume-sec-title">📍 Work Preferences</div>
-              <div style={{ fontSize: 12, color: "#0F1B3D", lineHeight: 1.7, marginTop: 4 }}>
-                <b>Cities open to:</b> {preferredCities}<br />
-                <b>Relocation:</b> {relocationPref} · <b>Availability:</b> Immediately<br />
-                <b>Shifts:</b> {shiftPreference} · <b>Trainee-role open:</b> Yes
-              </div>
-
-              {/* Watermark & Cryptographic Footer */}
-              <div style={{ borderTop: "1px dashed #E5E7EB", marginTop: 20, paddingTop: 12, textAlign: "center" }}>
-                <div style={{ fontSize: 10.5, color: "#8A91A3", fontStyle: "italic" }}>
-                  🛡 Verified by Talentera · ID {verificationId} · Live at {liveResumeUrl.replace("https://", "")}
-                </div>
-                <div style={{ fontSize: 9.5, color: "#8A91A3", marginTop: 4, fontFamily: "monospace" }}>
-                  SHA-256 · a3f8b9c2d4e5f6a7...b8c9d0e1f2a3b4c5
-                </div>
-              </div>
+              {renderResumePaper(true)}
             </div>
           </div>
 
@@ -2231,12 +2345,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
             <div className="s7-download-grid">
               <div onClick={handleDownloadPdf} className="s7-dl-card hero">
-                <div className="s7-dl-ico">📄</div>
+                <div className="s7-dl-ico"><i className="fa-solid fa-file-lines" /></div>
                 <div className="s7-dl-name">{downloading ? "Exporting..." : "Download PDF"}</div>
                 <div className="s7-dl-sub">High-res, verified watermark</div>
               </div>
               <div onClick={handleDownloadWord} className="s7-dl-card">
-                <div className="s7-dl-ico">📝</div>
+                <div className="s7-dl-ico"><i className="fa-solid fa-pen-to-square" /></div>
                 <div className="s7-dl-name">Word (.docx)</div>
                 <div className="s7-dl-sub">Formatted &amp; structured</div>
               </div>
@@ -2245,7 +2359,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             {/* LIVE URL */}
             <div className="s7-url-card">
               <div style={{ fontWeight: 800, color: "#0F1B3D", fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
-                🔗 Live Resume URL — the killer feature
+                Live Resume URL — the killer feature
               </div>
               <div style={{ fontSize: 12, color: "#3A425A", marginTop: 4, lineHeight: 1.5 }}>
                 Share this URL instead of the PDF. It updates automatically every time you improve any stage. HRs who click on Day 1 see current data; if they revisit Day 30, they see your Gold-tier upgrade.
@@ -2253,21 +2367,21 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               <div className="s7-url-row">
                 <span className="link">{liveResumeUrl}</span>
                 <button type="button" onClick={handleCopyLiveUrl} className="s7-url-btn">
-                  📋 Copy Link
+                  Copy Link
                 </button>
                 <button type="button" onClick={() => setShowQrModal(true)} className="s7-url-btn">
-                  📱 QR Code
+                  QR Code
                 </button>
               </div>
               <div className="s7-url-hint">
-                ✨ 3× more shortlists come from Live URLs vs static PDFs — the resume you send today is the same resume they see next month.
+                3× more shortlists come from Live URLs vs static PDFs — the resume you send today is the same resume they see next month.
               </div>
             </div>
 
             {/* VERSION HISTORY */}
             <div style={{ marginTop: 16 }}>
               <div style={{ fontSize: 11, letterSpacing: 1.5, color: "#C99413", textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>
-                🕐 Version History · full transparency to companies
+                Version History · full transparency to companies
               </div>
               <div className="s7-version-list">
                 {versionHistory.map((ver, idx) => (
@@ -2317,7 +2431,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           {/* GO LIVE · DPDP CONSENT + CAREER PASSPORT ACTIVATION */}
           <div className="s7-golive-section">
             <div className="s7-golive-section-header">
-              <div className="s7-golive-section-num">🚀</div>
+              <div className="s7-golive-section-num"><i className="fa-solid fa-rocket" /></div>
               <div className="s7-golive-section-title">Go live · your explicit permission to activate</div>
               <div className="s7-golive-no-pts-chip">FINAL STEP</div>
             </div>
@@ -2367,7 +2481,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 disabled={activating || !allConsented}
                 className="s7-golive-btn"
               >
-                {activating ? "Activating..." : isLiveActive ? "✓ LIVE FOR HIRING" : "🚀 GO LIVE FOR HIRING"}
+                {activating ? "Activating..." : isLiveActive ? "✓ LIVE FOR HIRING" : "GO LIVE FOR HIRING"}
               </button>
               <div className="s7-golive-note">
                 You can pause visibility anytime after going live. This is not a permanent commitment — it is just the moment your profile becomes discoverable.
@@ -2380,67 +2494,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             </div>
           </div>
         </div>
-
-        {/* Right Companion Rail */}
-        <div className="s7-right-rail" style={{ position: "sticky", top: 20, alignSelf: "start", maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>
-          <WizardCompanionRail stageNum={7} candidate={candidate} />
-
-          {/* AI Career Objective Assistant - Claude-powered generator */}
-          <div className="s7-ai-widget">
-            <div className="s7-ai-widget-header">
-              <span className="s7-ai-widget-icon">✨</span>
-              <div>
-                <div className="s7-ai-widget-title">AI Career Objective Assistant</div>
-                <div className="s7-ai-widget-sub">Tell it about yourself, generate your own objective & summary</div>
-              </div>
-            </div>
-
-            <textarea
-              className="s7-ai-widget-input"
-              value={aiNotes}
-              onChange={(e) => setAiNotes(e.target.value)}
-              maxLength={800}
-              placeholder="Optional: add a few details - what role you want, strengths, goals, anything you'd like mentioned..."
-              rows={3}
-            />
-
-            <button
-              type="button"
-              className="s7-ai-widget-btn"
-              onClick={handleGenerateAiObjective}
-              disabled={aiGenerating}
-            >
-              {aiGenerating ? "Generating..." : aiResult ? "↻ Regenerate" : "✨ Generate with AI"}
-            </button>
-
-            {aiError && <div className="s7-ai-widget-error">⚠️ {aiError}</div>}
-
-            {aiResult && (
-              <div className="s7-ai-widget-results">
-                {aiResult.objective && (
-                  <div className="s7-ai-widget-result-card">
-                    <div className="s7-ai-widget-result-label">Career Objective</div>
-                    <div className="s7-ai-widget-result-text">{aiResult.objective}</div>
-                    <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.objective)}>
-                      + Add to Career Objective
-                    </button>
-                  </div>
-                )}
-                {aiResult.summary && (
-                  <div className="s7-ai-widget-result-card">
-                    <div className="s7-ai-widget-result-label">Professional Summary</div>
-                    <div className="s7-ai-widget-result-text">{aiResult.summary}</div>
-                    <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.summary)}>
-                      + Add to Career Objective
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="s7-ai-widget-note">You choose what to keep - nothing is added automatically.</div>
-          </div>
-        </div>
       </div>
 
       {/* QR Code Modal Popup */}
@@ -2448,7 +2501,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         <div style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
           <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 420, width: "100%", padding: 28, textAlign: "center", border: "2px solid #F5B41A", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: "#0F1B3D" }}>🛡 Talentera QR Verification</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#0F1B3D" }}>Talentera QR Verification</div>
               <button type="button" onClick={() => setShowQrModal(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A91A3" }}>✕</button>
             </div>
             <div style={{ width: 160, height: 160, background: "#0F1B3D", color: "#F5B41A", borderRadius: 12, margin: "0 auto 16px", display: "grid", placeItems: "center", fontSize: 72 }}>
@@ -2461,7 +2514,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button type="button" onClick={handleCopyLiveUrl} style={{ flex: 1, padding: "10px 14px", background: "#0F1B3D", color: "#F5B41A", borderRadius: 8, fontWeight: 700, border: "none", cursor: "pointer", fontSize: 12 }}>
-                📋 Copy Link
+                Copy Link
               </button>
               <button type="button" onClick={() => setShowQrModal(false)} style={{ flex: 1, padding: "10px 14px", background: "#E5E7EB", color: "#3A425A", borderRadius: 8, fontWeight: 700, border: "none", cursor: "pointer", fontSize: 12 }}>
                 Close
@@ -2482,7 +2535,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               </div>
               <div style={{ display: "flex", gap: 10 }}>
                 <button type="button" onClick={handleDownloadPdf} style={{ padding: "8px 16px", background: "#F5B41A", color: "#0F1B3D", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
-                  📄 Download PDF
+                  Download PDF
                 </button>
                 <button type="button" onClick={() => setShowFullPreviewModal(false)} style={{ padding: "8px 16px", background: "#E5E7EB", color: "#3A425A", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
                   ✕ Close
@@ -2499,113 +2552,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 "--accent": activeTmpl.accentColor,
               }}
             >
-              <div className="s7-resume-header">
-                <div>
-                  <div className="s7-resume-name">{fullName.toUpperCase()}</div>
-                  <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
-                  <div className="s7-resume-contact">
-                    {mobile && <span>📞 {mobile}</span>}
-                    {email && <span>✉ {email}</span>}
-                    <span style={{ color: "#1A4FB8", fontWeight: 700 }}>🔗 {liveResumeUrl.replace("https://", "")}</span>
-                  </div>
-                </div>
-                <div className="s7-verified-stamp">
-                  <div className="top">🛡 TALENTERA<br />VERIFIED</div>
-                  <div className="id">ID: {verificationId}</div>
-                  <div className="s7-qr-box">
-                    <QrIconSvg />
-                  </div>
-                </div>
-              </div>
-
-              <div className="s7-resume-sec-title">🎯 {isExperienced ? "Professional Summary" : "Career Objective"}</div>
-              <div className="s7-resume-obj">"{careerObjective}"</div>
-
-              <div className="s7-resume-sec-title">🏆 Talentera Verified Scorecard</div>
-              <div className="s7-resume-score-strip">
-                {assessmentScore !== null && (
-                  <span className={`s7-score-badge ${assessmentMedal.toLowerCase() === "gold" ? "gold" : assessmentMedal.toLowerCase() === "silver" ? "silver" : assessmentMedal.toLowerCase() === "bronze" ? "bronze" : ""}`}>
-                    {assessmentMedal === "Gold" ? "🥇 Gold" : assessmentMedal === "Silver" ? "🥈 Silver" : assessmentMedal === "Bronze" ? "🥉 Bronze" : "🎯 Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
-                  </span>
-                )}
-                {videoScore !== null && <span className={`s7-score-badge ${videoMedal.toLowerCase()}`}>🎤 {videoMedal} · {videoStars.display} {videoStars.count}/5</span>}
-                {totalCharts > 0 && <span className="s7-score-badge silver">💻 {totalCharts} charts · {chartStars.display} {chartStars.count}/5</span>}
-                <span className="s7-score-badge gold">{totalStarsDisplay} {totalStars}/5</span>
-              </div>
-
-              {certificationsList.length > 0 && (
-                <>
-                  <div className="s7-resume-sec-title">📜 Core Certifications</div>
-                  <div className="s7-grid-2">
-                    {certificationsList.map((cert, idx) => (
-                      <div key={idx} className="s7-r-block">
-                        <div className="k">{cert.body || "AAPC"} · {cert.name || cert.code}</div>
-                        <div className="v">Member ID {cert.memberId ? `****${String(cert.memberId).slice(-4)}` : "Verified"}</div>
-                        <div className="details">{cert.issueDate ? `Issued ${cert.issueDate} · ` : ""}{cert.expiryDate ? `Valid until ${cert.expiryDate} · ` : ""}{Number.isFinite(cert.percentage) ? `Score ${cert.percentage}% · ` : ""}🟢 API-Verified</div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              <div className="s7-resume-sec-title">🎓 Training Foundation</div>
-              <div className="s7-r-block">
-                <div className="k">{academyName}{academyLocality ? ` · ${academyLocality}` : ""}</div>
-                <div className="v">{trainingFoundationLine}</div>
-                <div className="details">{trainingDuration} · Classroom{trainingAssessmentScore ? ` · Assessment: ${trainingAssessmentScore}/100` : ""} · 🟢 Academy-Verified</div>
-              </div>
-
-              {specialtyCharts.length > 0 && (
-                <>
-                  <div className="s7-resume-sec-title">💻 Live Chart Practice</div>
-                  <table className="s7-charts-table-mini">
-                    <thead>
-                      <tr><th>Specialty</th><th>Charts</th><th>Accuracy</th><th>Time/chart</th><th>Last Coded</th></tr>
-                    </thead>
-                    <tbody>
-                      {specialtyCharts.map((sc) => (
-                        <tr key={sc.id || sc.name}>
-                          <td>{sc.name}</td>
-                          <td>{sc.count}</td>
-                          <td>{sc.accuracy}%</td>
-                          <td>{sc.timePerChart}</td>
-                          <td>{Number(sc.count) > 0 ? (sc.lastCodedDate ? new Date(sc.lastCodedDate).toLocaleDateString() : "Active") : "—"}</td>
-                        </tr>
-                      ))}
-                      <tr className="total"><td><b>TOTAL</b></td><td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (Number(b.count) || 0), 0)}</b></td><td><b>{overallAccuracy || 0}%</b></td><td><b>{totalCharts > 0 ? "5.0 min avg" : "—"}</b></td><td>{totalCharts > 0 ? "🟢 Active" : "—"}</td></tr>
-                    </tbody>
-                  </table>
-                </>
-              )}
-
-              <div className="s7-resume-sec-title">🎓 Education</div>
-              <div className="s7-grid-2">
-                <div className="s7-r-block">
-                  <div className="k">{degree}{graduationYear ? ` · ${graduationYear}` : ""}</div>
-                  <div className="v">{collegeName}</div>
-                  <div className="details">{cgpa}</div>
-                </div>
-                {twelfthSchool && (
-                  <div className="s7-r-block">
-                    <div className="k">Class XII{twelfthYear ? ` · ${twelfthYear}` : ""}</div>
-                    <div className="v">{twelfthSchool}</div>
-                    <div className="details">{twelfthScore}</div>
-                  </div>
-                )}
-              </div>
-
-              {resumeSkills.length > 0 && (
-                <>
-                  <div className="s7-resume-sec-title">🛠 Skills</div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
-                    {resumeSkills.map((skill) => (
-                      <span key={skill} style={{ background: "#FAFAF7", border: "1px solid #E5E7EB", borderRadius: 999, padding: "5px 12px", fontSize: 11.5, fontWeight: 700, color: "#0F1B3D" }}>
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </>
-              )}
+              {renderResumePaper(false)}
             </div>
           </div>
         </div>

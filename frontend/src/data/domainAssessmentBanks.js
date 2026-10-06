@@ -13,7 +13,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "anatomy",
       name: "Anatomy & Physiology",
-      icon: "🫀",
+      icon: "fa-heart-pulse",
       sub: "Body systems, organ location, systemic circulation, endocrine function",
       time: "10 min",
       questions: [
@@ -67,7 +67,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "medterm",
       name: "Medical Terminology",
-      icon: "📖",
+      icon: "fa-book-open",
       sub: "Prefixes, suffixes, combining root words, clinical terminology",
       time: "10 min",
       questions: [
@@ -121,7 +121,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "aptitude",
       name: "Aptitude & Logic",
-      icon: "🧠",
+      icon: "fa-brain",
       sub: "Reasoning, auditing arithmetic, chart sequence analysis",
       time: "10 min",
       questions: [
@@ -175,7 +175,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "basicicd",
       name: "Basic ICD-10-CM",
-      icon: "📊",
+      icon: "fa-chart-simple",
       sub: "ICD-10-CM structure, conventions, etiology/manifestation sequencing",
       time: "10 min",
       questions: [
@@ -239,7 +239,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "cpt_hcpcs",
       name: "CPT / HCPCS & Modifiers",
-      icon: "🏷️",
+      icon: "fa-tag",
       sub: "Procedural coding, modifier usage (-25 vs -59), global surgery package",
       time: "10 min",
       questions: [
@@ -301,7 +301,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "insurance_types",
       name: "Insurance Types & Payers",
-      icon: "🏥",
+      icon: "fa-hospital",
       sub: "Medicare Parts A/B/C/D, Medicaid, Commercial, Managed Care plans",
       time: "10 min",
       questions: [
@@ -360,7 +360,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "billing_terms",
       name: "Billing Terminology & Identifiers",
-      icon: "📖",
+      icon: "fa-book-open",
       sub: "NPI, TIN, Copay, Coinsurance, Deductible, Out-of-Pocket limits",
       time: "10 min",
       questions: [
@@ -424,7 +424,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "claims_rcm",
       name: "Claims Submission & RCM",
-      icon: "📑",
+      icon: "fa-file-lines",
       sub: "CMS-1500, UB-04, 837P/837I EDI, clearinghouse scrubbing, clean claims",
       time: "10 min",
       questions: [
@@ -483,7 +483,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "payment_posting",
       name: "Payment Posting & Remittance",
-      icon: "💳",
+      icon: "fa-credit-card",
       sub: "EOB, ERA (835), contractual adjustments, patient balance calculation",
       time: "10 min",
       questions: [
@@ -542,7 +542,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "billing_compliance",
       name: "Billing Math & Compliance",
-      icon: "⚖️",
+      icon: "fa-scale-balanced",
       sub: "Fraud vs Abuse, False Claims Act, Anti-Kickback Statute, billing calculations",
       time: "10 min",
       questions: [
@@ -599,7 +599,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "ar_fundamentals",
       name: "AR Fundamentals & Aging",
-      icon: "📈",
+      icon: "fa-chart-line",
       sub: "AR aging buckets (0-30, 31-60, 61-90, 91-120, 120+), Days in AR (DAR)",
       time: "10 min",
       questions: [
@@ -653,7 +653,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "denial_management",
       name: "Denial Management & Codes",
-      icon: "❌",
+      icon: "fa-circle-xmark",
       sub: "CARC, RARC, Group codes (CO, PR, OA, CR), denial categorization",
       time: "10 min",
       questions: [
@@ -717,7 +717,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "payer_followup",
       name: "Payer Follow-Up & Appeals",
-      icon: "📞",
+      icon: "fa-phone",
       sub: "IVR, Payer web portals, call reference numbers, formal appeal packages",
       time: "10 min",
       questions: [
@@ -781,7 +781,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "patient_ar",
       name: "Patient AR & Collections",
-      icon: "👥",
+      icon: "fa-users",
       sub: "Self-pay billing, patient statements, credit balances, FDCPA compliance",
       time: "10 min",
       questions: [
@@ -845,7 +845,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "recovery_metrics",
       name: "Recovery Math & Root-Cause",
-      icon: "📊",
+      icon: "fa-chart-simple",
       sub: "Net collection rate, denial overturn rate, root cause remediation",
       time: "10 min",
       questions: [
@@ -912,7 +912,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "patient_scheduling",
       name: "Patient Scheduling & Intake",
-      icon: "📅",
+      icon: "fa-calendar-days",
       sub: "Appointment templates, new vs established, intake registration, no-show reduction",
       time: "10 min",
       questions: [
@@ -976,7 +976,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "eligibility_auth",
       name: "Eligibility & Prior Authorization",
-      icon: "🔑",
+      icon: "fa-key",
       sub: "EDI 270/271, active dates, referral vs pre-certification, specialty care",
       time: "10 min",
       questions: [
@@ -1040,7 +1040,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "hipaa_demographics",
       name: "Patient Demographics & HIPAA",
-      icon: "🛡️",
+      icon: "fa-shield-halved",
       sub: "PHI protection, Notice of Privacy Practices (NPP), Minimum Necessary rule",
       time: "10 min",
       questions: [
@@ -1104,7 +1104,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "front_collections",
       name: "Front-Desk Collections & Service",
-      icon: "💵",
+      icon: "fa-money-bill",
       sub: "Point-of-service copay collections, payment receipts, customer service",
       time: "10 min",
       questions: [
@@ -1168,7 +1168,7 @@ export const DOMAIN_ASSESSMENT_SECTIONS = {
     {
       key: "coordination_benefits",
       name: "Coordination of Benefits & Referrals",
-      icon: "🔄",
+      icon: "fa-rotate",
       sub: "Primary vs secondary payers, Birthday Rule, referral authorizations",
       time: "10 min",
       questions: [
