@@ -91,6 +91,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/academy", academyRoutes);
+app.use("/api/staff/enquiries", require("./routes/staffEnquiries"));
 app.use("/api/staff", staffRoutes);
 app.use("/api/company/auth", companyAuthRoutes);
 app.use("/api/company", companyRoutes);

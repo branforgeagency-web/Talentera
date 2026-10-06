@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from "react";
-import StaffEnquiries from "../components/StaffEnquiries.jsx";
 import { useNavigate } from "react-router-dom";
 import { safeJson } from "../utils/safeJson.js";
 import { CERT_ID_PATTERNS, CERT_LIBRARY } from "../data/certLibrary.js";
@@ -832,7 +831,6 @@ export default function StaffHub() {
   const [resetCandidatePasswordError, setResetCandidatePasswordError] = useState("");
 
   // --- ASSESSMENT RETAKES STATE ---
-  const [enquiryCounts, setEnquiryCounts] = useState({ open: 0, replied: 0, closed: 0, total: 0 });
   const [retakeRequestsList, setRetakeRequestsList] = useState([]);
   const [retakeRequestsLoading, setRetakeRequestsLoading] = useState(false);
   const [retakeStatusFilter, setRetakeStatusFilter] = useState("ALL");
@@ -942,10 +940,6 @@ export default function StaffHub() {
     fetchAcademies();
     fetchEmployees();
     fetchRetakeRequests();
-    fetch("/api/staff/enquiries", { headers: { ...getAuthHeader() } })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (d && d.counts) setEnquiryCounts(d.counts); })
-      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -2251,7 +2245,6 @@ export default function StaffHub() {
                 { id: "kyc", icon: "eye", label: "KYC Verification", count: kycCounts.pending },
                 { id: "certifications", icon: "graduation", label: "Certifications", count: certCounts.pending },
                 { id: "retakes", icon: "zap", label: "Assessment Retakes", count: retakeCounts.pending },
-                { id: "enquiries", icon: "message", label: "Candidate Enquiries", count: enquiryCounts.open },
                 { id: "questions", icon: "mic", label: "Interview Questions" },
                 { id: "reports", icon: "chartBar", label: "Reports & Metrics" },
                 { id: "activity", icon: "clock", label: "Activity Log" },
@@ -6854,10 +6847,6 @@ export default function StaffHub() {
 
 
           {/* TAB MODULE: ASSESSMENT RETAKE REQUESTS */}
-          {activeNav === "enquiries" && (
-            <StaffEnquiries getAuthHeader={getAuthHeader} showToast={showToast} onCounts={setEnquiryCounts} />
-          )}
-
           {activeNav === "retakes" && (() => {
             const filteredRequests = retakeRequestsList.filter((req) => {
               if (retakeStatusFilter !== "ALL" && req.status !== retakeStatusFilter) return false;

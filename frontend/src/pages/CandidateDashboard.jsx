@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
 import { exportResumeWord } from '../utils/resumeExport.js';
-import SupportChatBot from '../components/SupportChatBot.jsx';
+import SupportEnquiries from '../components/SupportEnquiries.jsx';
 import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
 import BrowseJobsSection from '../components/BrowseJobsSection.jsx';
 import CandidateReferralPortalSection from '../components/CandidateReferralPortalSection.jsx';
@@ -1649,10 +1649,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           {activeTab === 'help' && (
 <div className="page active" id="page-help">
       <div className="page-head">
-        <div className="page-eyebrow">Get answers · Chat with us · Read guides</div>
+        <div className="page-eyebrow">Ask a question · Our team replies here</div>
         <h1 className="page-title">Help & Support</h1>
       </div>
-      <SupportChatBot />
+      <SupportEnquiries />
     </div>
 )}        </main>
       </div>
