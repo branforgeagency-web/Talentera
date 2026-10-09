@@ -12,7 +12,6 @@ import AcademyAssessmentModule from "../components/academy/AcademyAssessmentModu
 import AcademyCompanyData from "../components/academy/AcademyCompanyData";
 import AcademyGalleryManager from "../components/academy/AcademyGalleryManager";
 import AcademyPaymentOptions from "../components/academy/AcademyPaymentOptions";
-import CustomReportModal from "../components/academy/CustomReportModal";
 import PlacementCertModal from "../components/academy/PlacementCertModal";
 import MonthlyReportModal from "../components/academy/MonthlyReportModal";
 import StudentDetailModal from "../components/academy/StudentDetailModal";
@@ -202,7 +201,6 @@ export default function AcademyPortal() {
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
   const [selectedCertData, setSelectedCertData] = useState(null);
   const [showMonthlyReportModal, setShowMonthlyReportModal] = useState(false);
-  const [showCustomReportModal, setShowCustomReportModal] = useState(false);
   const [showCreateBatchModal, setShowCreateBatchModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [editCourseModal, setEditCourseModal] = useState(null); // { _id, title, category, duration, totalHrs, syllabus } | null
@@ -1348,7 +1346,7 @@ export default function AcademyPortal() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: "#E5A82E", letterSpacing: "0.08em" }}>
-                    ACADEMY PARTNER DASHBOARD
+                    COHORT LIVE CONTROL CENTER · {clockNow.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
                   </div>
                   <h2 style={{ margin: "2px 0 4px", fontSize: 22, fontWeight: 800, color: "#06152A" }}>
                     {clockNow.getHours() < 12 ? "Good morning" : clockNow.getHours() < 17 ? "Good afternoon" : clockNow.getHours() < 21 ? "Good evening" : "Good night"}, {academy.primaryAdmin || "Academy Admin"} 👋
@@ -1373,10 +1371,6 @@ export default function AcademyPortal() {
                   <button className="btn btn-outline" style={{ fontSize: 12 }} onClick={() => setShowMonthlyReportModal(true)}>
                     <i className="fa-solid fa-file-lines" style={{ marginRight: 6 }}></i>
                     Monthly Report
-                  </button>
-                  <button className="btn btn-outline" style={{ fontSize: 12 }} onClick={() => setShowCustomReportModal(true)}>
-                    <i className="fa-solid fa-calendar-days" style={{ marginRight: 6 }}></i>
-                    Custom Report
                   </button>
                 </div>
               </div>
@@ -2745,10 +2739,6 @@ export default function AcademyPortal() {
             fetchScoresAnalytics();
           }}
         />
-      )}
-
-      {showCustomReportModal && (
-        <CustomReportModal getAuthHeader={getAuthHeader} onClose={() => setShowCustomReportModal(false)} />
       )}
 
       {/* 2. Monthly Report Modal */}

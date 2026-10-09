@@ -124,6 +124,7 @@ describe("Academy OS Endpoints Suite (Phases 1-4)", () => {
 
     test("POST /api/academy/add-student registers single student and sends invite", async () => {
       Candidate.findOne = jest.fn().mockResolvedValue(null);
+      Candidate.find = jest.fn().mockReturnValue(mockChain([])); // Aadhaar last-4 + name duplicate lookup
       Candidate.create = jest.fn().mockResolvedValue({
         _id: "cand_new_1",
         email: "newstudent@example.com",
@@ -150,6 +151,8 @@ describe("Academy OS Endpoints Suite (Phases 1-4)", () => {
           mobile: "9876543210",
           course: "HCC Coding Specialization",
           batchCode: "JAN-HCC-01",
+          aadhaarLast4: "3456",
+          admissionMonthYear: "Jan-26",
         });
 
       expect(res.status).toBe(200);

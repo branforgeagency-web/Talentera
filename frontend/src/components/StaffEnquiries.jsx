@@ -220,7 +220,7 @@ export default function StaffEnquiries({ getAuthHeader, showToast, onCounts }) {
               </div>
 
               <div style={{ background: "#F1F5F9", borderRadius: 12, padding: "12px 15px", marginBottom: 10 }}>
-                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#475569", marginBottom: 4 }}>Candidate's question</div>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: "#475569", marginBottom: 4 }}>Question from candidate</div>
                 <div style={{ fontSize: 14, color: "#1E293B", whiteSpace: "pre-wrap", lineHeight: 1.55 }}>{selected.message}</div>
               </div>
 

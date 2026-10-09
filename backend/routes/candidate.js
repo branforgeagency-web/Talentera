@@ -7,6 +7,7 @@ const InterviewQuestion = require("../models/InterviewQuestion");
 const AssessmentQuestion = require("../models/AssessmentQuestion");
 const { DEFAULT_ASSESSMENT_QUESTIONS } = require("../data/defaultAssessmentQuestions");
 const Notification = require("../models/Notification");
+const StudentInvite = require("../models/StudentInvite");
 const RetakeRequest = require("../models/RetakeRequest");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
@@ -20,6 +21,10 @@ const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { emitAcademyEvent } = require("../utils/academyEvents");
 const { verifyCertAuthenticity } = require("../utils/certAuthenticityVerifier");
 const logger = require("../utils/logger");
+const AcademyAssessment = require("../models/AcademyAssessment");
+const AcademyAssessmentResult = require("../models/AcademyAssessmentResult");
+const { gradeSubmission, recomputeCandidateAcademyScore } = require("../utils/academyAssessment");
+const { findDuplicateAadhaarAccount, duplicateAadhaarResponse } = require("../utils/aadhaarDuplicate");
 const { computeStage6Result } = require("../utils/stage6Score");
 const { computeCandidateReadiness } = require("../utils/studentReadiness");
 
@@ -59,7 +64,7 @@ function isSelfTrainedCandidate(candidate) {
 // Live Chart (Stage 06) is a coding concept - it doesn't apply to AR Calling or Eligibility &
 // Verification work. Keep in sync with LIVE_CHART_EXEMPT_DOMAINS in frontend/src/data/wizardStages.js
 // and backend/utils/verificationScore.js.
-const LIVE_CHART_EXEMPT_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+const LIVE_CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"];
 function isLiveChartExemptDomain(candidate) {
   return LIVE_CHART_EXEMPT_DOMAINS.includes((candidate && candidate.stage2 && candidate.stage2.domain) || "");
 }
@@ -189,6 +194,9 @@ router.post(
       const candidate = await Candidate.findById(req.candidateId);
       if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
 
+      const dupAccount = await findDuplicateAadhaarAccount(req.candidateId, decoded);
+      if (dupAccount) return res.status(409).json(duplicateAadhaarResponse(dupAccount));
+
       candidate.stage1 = {
         ...(candidate.stage1 || {}),
         fullName: decoded.fullName || candidate.stage1?.fullName || "",
@@ -239,6 +247,9 @@ router.post("/qr/verify", async (req, res) => {
 
     const candidate = await Candidate.findById(req.candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+
+    const dupAccount = await findDuplicateAadhaarAccount(req.candidateId, decoded);
+    if (dupAccount) return res.status(409).json(duplicateAadhaarResponse(dupAccount));
 
     candidate.stage1 = {
       ...(candidate.stage1 || {}),
@@ -645,6 +656,22 @@ router.put("/stage/:n", async (req, res) => {
       s2.specialty = Array.isArray(s2.specialties) && s2.specialties.length > 0 ? s2.specialties[0] : (s2.specialty || "");
       s2.batch = s2.batch || s2.batchNumber || s2.rollNumber || "";
       s2.duration = s2.duration || s2.totalHours || "";
+      // A student the academy itself uploaded (single add / bulk CSV) was already
+      // vouched for by that academy - no Stage 2 sign-off needed. Only students who
+      // entered the academy details themselves go to the academy's approval queue.
+      try {
+        const academyUploaded = await StudentInvite.exists({ candidateId: candidate._id });
+        if (academyUploaded && !s2.rejected && !s2.needsRevision && s2.status !== "rejected") {
+          s2.verified = true;
+          s2.status = "verified";
+          s2.autoApproved = true;
+          s2.approvedAt = s2.approvedAt || new Date();
+          if (!candidate.completedStages.includes(2)) candidate.completedStages.push(2);
+          candidate.markModified("completedStages");
+        }
+      } catch (e) {
+        logger.warn(`Stage 2 auto-approve lookup failed: ${e.message}`);
+      }
       candidate.markModified("stage2");
 
       if (candidate.manualResume) {
@@ -3415,7 +3442,7 @@ router.get("/jobs", async (req, res) => {
 
     // 1. Fetch all published jobs from Job collection
     const postedJobs = await Job.find({ published: true, approvalStatus: { $ne: "rejected" } })
-      .populate("companyId", "companyName stage1a stage2 stage9 city kycStatus logo companyLogo")
+      .populate("companyId", "companyName stage1a stage2 stage4 stage9 city kycStatus logo companyLogo")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -3432,7 +3459,7 @@ router.get("/jobs", async (req, res) => {
     // Helper for company logo
     const getCompLogo = (c) => {
       if (!c) return null;
-      return c.companyLogo || c.logo || c.stage2?.logo?.docUrl || c.stage2?.logosquare?.docUrl || null;
+      return c.companyLogo || c.logo || c.stage4?.blogo?.docUrl || c.stage2?.logo?.docUrl || c.stage2?.logosquare?.docUrl || null;
     };
 
     // Only ever show what the employer actually entered - no invented defaults.
@@ -3448,6 +3475,7 @@ router.get("/jobs", async (req, res) => {
       return "";
     };
     const formatSalary = (fd) => {
+      if (hasVal(fd.compensation)) return String(fd.compensation);
       const lo = hasVal(fd.compmin) ? fd.compmin : null;
       const hi = hasVal(fd.compmax) ? fd.compmax : null;
       if (lo !== null && hi !== null) return `₹${lo} - ₹${hi} LPA`;
@@ -3466,7 +3494,12 @@ router.get("/jobs", async (req, res) => {
       const isFresherRole = fd.level === "Fresher only" || fd.level === "Fresher" || String(fd.level || "").toLowerCase().includes("fresher") || (fd.expmin !== undefined && fd.expmin !== null && fd.expmin !== "" && Number(fd.expmin) === 0 && Number(fd.expmax || 0) <= 1);
       if (!isFresherRole) add("Notice period", fd.notice);
       add("Probation", hasVal(fd.probation) ? `${fd.probation} months` : "");
-      add("Joining bonus", hasVal(fd.joiningbonus) ? `₹${fd.joiningbonus}` : "");
+      add("Joining bonus", hasVal(fd.joiningbonus) ? (/^\d+(\.\d+)?$/.test(String(fd.joiningbonus).trim()) ? `₹${fd.joiningbonus}` : fd.joiningbonus) : "");
+      add("Age limit", fd.elgage);
+      if (isFresherRole || String(fd.level || "") !== "Experienced only") add("Passout year", fd.elgpassout);
+      add("Backlogs", fd.elgbacklogs);
+      add("Mode of interview", fd.interviewmode);
+      add("Interview dates", fd.interviewdates);
       return rows;
     };
 
@@ -3782,6 +3815,131 @@ router.put("/settings", async (req, res) => {
   } catch (err) {
     logger.error(`Save candidate settings error: ${err.message}`);
     res.status(500).json({ message: "Failed to save settings." });
+  }
+});
+
+// ===========================================================================
+// ACADEMY ASSESSMENTS - tests built by the candidate's own academy
+// ===========================================================================
+async function academyIdsForCandidate(candidate) {
+  const ids = new Set();
+  if (candidate.stage2?.academyId) ids.add(String(candidate.stage2.academyId));
+  const invites = await StudentInvite.find({
+    $or: [{ candidateId: candidate._id }, { email: String(candidate.email || "").toLowerCase().trim() }],
+  }, { academyId: 1 }).lean();
+  invites.forEach((i) => i.academyId && ids.add(String(i.academyId)));
+  return [...ids];
+}
+
+function assessmentVisibleTo(a, candidate) {
+  if (a.status !== "published") return false;
+  if (!a.batchCodes || a.batchCodes.length === 0) return true;
+  const batch = String(candidate.stage2?.batch || "").toLowerCase();
+  return a.batchCodes.some((b) => batch && (batch === String(b).toLowerCase() || batch.includes(String(b).toLowerCase())));
+}
+
+// GET /api/candidate/academy-assessments
+router.get("/academy-assessments", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId).lean();
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    const academyIds = await academyIdsForCandidate(candidate);
+    if (academyIds.length === 0) return res.json({ assessments: [], hasAcademy: false });
+    const list = await AcademyAssessment.find({ academyId: { $in: academyIds }, status: "published" }).sort({ createdAt: -1 }).lean();
+    const mine = await AcademyAssessmentResult.find({ candidateId: req.candidateId, assessmentId: { $in: list.map((a) => a._id) } }).lean();
+    const byAssessment = new Map(mine.map((r) => [String(r.assessmentId), r]));
+    res.json({
+      hasAcademy: true,
+      assessments: list.filter((a) => assessmentVisibleTo(a, candidate)).map((a) => {
+        const r = byAssessment.get(String(a._id));
+        return {
+          _id: a._id,
+          title: a.title,
+          course: a.course,
+          instructions: a.instructions,
+          durationMins: a.durationMins,
+          passPercentage: a.passPercentage,
+          questionCount: a.questions.length,
+          totalMarks: a.questions.reduce((sum, q) => sum + (q.marks || 0), 0),
+          attempt: r ? { status: r.status, scorePct: r.status === "graded" ? r.scorePct : null, submittedAt: r.createdAt } : null,
+        };
+      }),
+    });
+  } catch (err) {
+    logger.error(`Candidate academy assessments list error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load academy assessments." });
+  }
+});
+
+// GET /api/candidate/academy-assessments/:id - the paper, with answers stripped
+router.get("/academy-assessments/:id", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId).lean();
+    const a = await AcademyAssessment.findById(req.params.id).lean();
+    if (!candidate || !a) return res.status(404).json({ message: "Assessment not found." });
+    const academyIds = await academyIdsForCandidate(candidate);
+    if (!academyIds.includes(String(a.academyId)) || !assessmentVisibleTo(a, candidate)) {
+      return res.status(404).json({ message: "Assessment not found." });
+    }
+    const existing = await AcademyAssessmentResult.findOne({ candidateId: req.candidateId, assessmentId: a._id }).lean();
+    if (existing) return res.status(409).json({ message: "You have already taken this assessment.", attempt: { status: existing.status, scorePct: existing.status === "graded" ? existing.scorePct : null } });
+    res.json({
+      assessment: {
+        _id: a._id,
+        title: a.title,
+        instructions: a.instructions,
+        durationMins: a.durationMins,
+        passPercentage: a.passPercentage,
+        questions: a.questions.map((q) => ({ _id: q._id, type: q.type, text: q.text, options: q.type === "mcq" ? q.options : [], marks: q.marks })),
+      },
+    });
+  } catch (err) {
+    logger.error(`Candidate academy assessment fetch error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load the assessment." });
+  }
+});
+
+// POST /api/candidate/academy-assessments/:id/submit  body: { answers: [{ questionId, response }] }
+router.post("/academy-assessments/:id/submit", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId).lean();
+    const a = await AcademyAssessment.findById(req.params.id).lean();
+    if (!candidate || !a) return res.status(404).json({ message: "Assessment not found." });
+    const academyIds = await academyIdsForCandidate(candidate);
+    if (!academyIds.includes(String(a.academyId)) || !assessmentVisibleTo(a, candidate)) {
+      return res.status(404).json({ message: "Assessment not found." });
+    }
+    const already = await AcademyAssessmentResult.findOne({ candidateId: req.candidateId, assessmentId: a._id }).lean();
+    if (already) return res.status(409).json({ message: "You have already taken this assessment." });
+
+    const { raw, total, needsReview, detail } = gradeSubmission(a, req.body.answers);
+    const result = await AcademyAssessmentResult.create({
+      academyId: a.academyId,
+      assessmentId: a._id,
+      assessmentTitle: a.title,
+      candidateId: req.candidateId,
+      candidateEmail: candidate.email,
+      rawScore: raw,
+      totalMarks: total,
+      scorePct: total > 0 ? Math.round((raw / total) * 100) : 0,
+      source: "platform",
+      status: needsReview ? "pending_review" : "graded",
+      answers: detail,
+      conductedOn: new Date(),
+    });
+    if (!needsReview) await recomputeCandidateAcademyScore(req.candidateId);
+    res.json({
+      success: true,
+      status: result.status,
+      scorePct: result.status === "graded" ? result.scorePct : null,
+      passed: result.status === "graded" ? result.scorePct >= a.passPercentage : null,
+      message: needsReview
+        ? "Submitted. Your academy will mark the written answers and your score will appear after that."
+        : "Submitted. Your score has been added to your verification.",
+    });
+  } catch (err) {
+    logger.error(`Candidate academy assessment submit error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit the assessment." });
   }
 });
 

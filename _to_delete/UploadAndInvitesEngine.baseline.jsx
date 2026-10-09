@@ -38,6 +38,106 @@ const TRAINING_COURSE_OPTIONS = [
   { title: "Other" },
 ];
 
+const STATE_CITY_MAP = {
+  "Tamil Nadu": [
+    "Coimbatore", "Chennai", "Madurai", "Tiruchirappalli (Trichy)", "Salem", 
+    "Tirunelveli", "Erode", "Vellore", "Tiruppur", "Thanjavur", "Dindigul", 
+    "Nagercoil", "Kanchipuram", "Hosur", "Karur", "Cuddalore", "Kumbakonam"
+  ],
+  "Karnataka": [
+    "Bengaluru", "Mysuru", "Mangaluru", "Hubballi-Dharwad", "Belagavi", 
+    "Davanagere", "Ballari", "Shivamogga", "Tumakuru", "Udupi", "Bidar"
+  ],
+  "Telangana": [
+    "Hyderabad", "Warangal", "Nizamabad", "Karimnagar", "Ramagundam", 
+    "Khammam", "Mahbubnagar", "Nalgonda"
+  ],
+  "Andhra Pradesh": [
+    "Visakhapatnam", "Vijayawada", "Guntur", "Nellore", "Kurnool", 
+    "Rajahmundry", "Tirupati", "Kakinada", "Anantapur", "Eluru"
+  ],
+  "Maharashtra": [
+    "Mumbai", "Pune", "Nagpur", "Nashik", "Thane", 
+    "Navi Mumbai", "Aurangabad", "Solapur", "Kolhapur", "Amravati"
+  ],
+  "Kerala": [
+    "Kochi", "Thiruvananthapuram", "Kozhikode", "Thrissur", "Kollam", 
+    "Palakkad", "Alappuzha", "Kannur", "Kottayam", "Malappuram"
+  ],
+  "Delhi (NCT)": [
+    "Delhi NCR", "New Delhi", "Noida", "Gurugram", "Faridabad", "Ghaziabad"
+  ],
+  "Uttar Pradesh": [
+    "Noida", "Greater Noida", "Ghaziabad", "Lucknow", "Kanpur", 
+    "Agra", "Varanasi", "Prayagraj", "Meerut", "Bareilly", "Aligarh"
+  ],
+  "Haryana": [
+    "Gurugram", "Faridabad", "Panipat", "Ambala", "Karnal", 
+    "Rohtak", "Hisar", "Sonipat", "Panchkula"
+  ],
+  "Gujarat": [
+    "Ahmedabad", "Surat", "Vadodara", "Rajkot", "Bhavnagar", 
+    "Jamnagar", "Gandhinagar", "Junagadh"
+  ],
+  "West Bengal": [
+    "Kolkata", "Howrah", "Durgapur", "Asansol", "Siliguri", "Bardhaman"
+  ],
+  "Rajasthan": [
+    "Jaipur", "Jodhpur", "Kota", "Bikaner", "Ajmer", "Udaipur", "Bhilwara"
+  ],
+  "Madhya Pradesh": [
+    "Indore", "Bhopal", "Jabalpur", "Gwalior", "Ujjain", "Sagar"
+  ],
+  "Punjab": [
+    "Chandigarh", "Ludhiana", "Amritsar", "Jalandhar", "Patiala", "Bathinda"
+  ],
+  "Odisha": [
+    "Bhubaneswar", "Cuttack", "Rourkela", "Berhampur", "Sambalpur"
+  ],
+  "Bihar": [
+    "Patna", "Gaya", "Bhagalpur", "Muzaffarpur", "Purnia", "Darbhanga"
+  ],
+  "Assam": [
+    "Guwahati", "Silchar", "Dibrugarh", "Jorhat", "Nagaon"
+  ],
+  "Chhattisgarh": [
+    "Raipur", "Bhilai", "Bilaspur", "Korba", "Durg"
+  ],
+  "Jharkhand": [
+    "Ranchi", "Jamshedpur", "Dhanbad", "Bokaro", "Deoghar"
+  ],
+  "Uttarakhand": [
+    "Dehradun", "Haridwar", "Roorkee", "Haldwani", "Rishikesh"
+  ],
+  "Goa": [
+    "Panaji", "Margao", "Vasco da Gama", "Mapusa"
+  ],
+  "Puducherry": [
+    "Puducherry", "Karaikal"
+  ],
+  "Chandigarh": [
+    "Chandigarh"
+  ],
+  "Jammu & Kashmir": [
+    "Srinagar", "Jammu", "Anantnag"
+  ],
+  "Himachal Pradesh": [
+    "Shimla", "Dharamshala", "Solan", "Mandi"
+  ],
+  "Tripura": ["Agartala"],
+  "Meghalaya": ["Shillong"],
+  "Manipur": ["Imphal"],
+  "Nagaland": ["Kohima", "Dimapur"],
+  "Mizoram": ["Aizawl"],
+  "Sikkim": ["Gangtok"],
+  "Arunachal Pradesh": ["Itanagar"],
+  "Ladakh": ["Leh", "Kargil"],
+  "Andaman and Nicobar Islands": ["Port Blair"],
+  "Other": ["Other City"]
+};
+
+const POPULAR_CITIES = Object.values(STATE_CITY_MAP).flat();
+
 // Ready-made "Batch 1(<Month> <Year>)" names for the current and next year, so
 // staff can pick a correctly-formatted batch name instead of typing it out by
 // hand. The Assigned/Target Batch fields stay free text underneath this picker,
@@ -89,10 +189,39 @@ export default function UploadAndInvitesEngine({
   // Single Add State
   const [singleName, setSingleName] = useState("");
   const [singleEmail, setSingleEmail] = useState("");
+  const [singleMobile, setSingleMobile] = useState("");
   const [singleBatch, setSingleBatch] = useState("");
-  const [singleAdmission, setSingleAdmission] = useState("");
+  const [singleCourse, setSingleCourse] = useState(""); // optional - blank = "not specified"
+  const [singleCourseOther, setSingleCourseOther] = useState("");
+  const [singleType, setSingleType] = useState("fresher");
+  const [singleExperienceRange, setSingleExperienceRange] = useState("1 to 3");
+  const [singleSpecialty, setSingleSpecialty] = useState("Medical Coding");
+  const [singleSpecialtyOther, setSingleSpecialtyOther] = useState("");
+  const [singleSalary, setSingleSalary] = useState("5.0");
+  const [singleState, setSingleState] = useState("Tamil Nadu");
+  const [singleCity, setSingleCity] = useState("Coimbatore");
   const [singleAadhaar, setSingleAadhaar] = useState("");
   const [singleSaving, setSingleSaving] = useState(false);
+
+  const handleStateChange = (newState) => {
+    setSingleState(newState);
+    const citiesInState = STATE_CITY_MAP[newState] || [];
+    if (!citiesInState.includes(singleCity)) {
+      setSingleCity(citiesInState[0] || "");
+    }
+  };
+
+  const handleCityChange = (newCity) => {
+    setSingleCity(newCity);
+    for (const [st, cities] of Object.entries(STATE_CITY_MAP)) {
+      if (cities.includes(newCity)) {
+        if (singleState !== st) {
+          setSingleState(st);
+        }
+        break;
+      }
+    }
+  };
 
   // Invites Tracker State
   const [invites, setInvites] = useState([]);
@@ -249,14 +378,26 @@ export default function UploadAndInvitesEngine({
 
   const handleSingleAddSubmit = async (e) => {
     e.preventDefault();
+    const cleanMobile = singleMobile.replace(/\D/g, "");
+    if (cleanMobile.length !== 10) {
+      alert("Please enter a valid 10-digit mobile number.");
+      return;
+    }
     if (!singleBatch.trim()) {
-      alert("Please enter the Academy batch unique ID (e.g. VH0102).");
+      alert("Please enter an Assigned Batch (e.g. Batch 1(Jan 2026)).");
       return;
     }
-    if (singleAadhaar.replace(/\D/g, "").length < 4) {
-      alert("Please enter the Aadhaar last 4 digits.");
+    if (singleCourse === "Other" && !singleCourseOther.trim()) {
+      alert("Please type the training course name for \"Other\".");
       return;
     }
+    if (singleSpecialty === "Other" && !singleSpecialtyOther.trim()) {
+      alert("Please type the domain name for \"Other\".");
+      return;
+    }
+
+    const effectiveCourse = singleCourse === "Other" ? singleCourseOther.trim() : singleCourse;
+    const effectiveSpecialty = singleSpecialty === "Other" ? singleSpecialtyOther.trim() : singleSpecialty;
 
     setSingleSaving(true);
     try {
@@ -264,11 +405,20 @@ export default function UploadAndInvitesEngine({
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
-          batchCode: singleBatch.trim(),
-          aadhaar: singleAadhaar,
           name: singleName.trim(),
           email: singleEmail.trim(),
-          admissionMonthYear: singleAdmission.trim(),
+          mobile: cleanMobile,
+          batchCode: singleBatch,
+          course: effectiveCourse,
+          type: singleType,
+          experienceRange: singleType === "experienced" ? singleExperienceRange : "",
+          preferredSpecialty: effectiveSpecialty,
+          expectedSalaryLpa: singleType === "fresher" ? "" : singleSalary,
+          state: singleState,
+          preferredState: singleState,
+          preferredCities: [singleCity],
+          branch: singleCity,
+          aadhaar: singleAadhaar,
         }),
       });
       const data = await safeJson(res);
@@ -277,7 +427,7 @@ export default function UploadAndInvitesEngine({
         alert(`${icon} ${data.message || "Student added and invite sent!"}`);
         setSingleName("");
         setSingleEmail("");
-        setSingleAdmission("");
+        setSingleMobile("");
         setSingleAadhaar("");
         if (onUploadSuccess) onUploadSuccess();
         setActiveTab("invites_tracker");
@@ -669,46 +819,7 @@ export default function UploadAndInvitesEngine({
           <form onSubmit={handleSingleAddSubmit}>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
-                ACADEMY BATCH UNIQUE ID *
-              </label>
-              <input
-                type="text"
-                required
-                list="single-batch-ids"
-                value={singleBatch}
-                onChange={(e) => setSingleBatch(e.target.value)}
-                placeholder="e.g. VH0102"
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
-              />
-              <datalist id="single-batch-ids">
-                {(batches || []).map((b) => (
-                  <option key={b._id || b.code} value={b.code} />
-                ))}
-              </datalist>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
-                AADHAAR LAST 4 DIGITS *
-              </label>
-              <input
-                type="text"
-                required
-                inputMode="numeric"
-                maxLength={12}
-                value={singleAadhaar}
-                onChange={(e) => setSingleAadhaar(e.target.value.replace(/[^\d]/g, "").slice(0, 12))}
-                placeholder="e.g. 3456"
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
-              />
-              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
-                Only the last 4 digits are stored (used to flag duplicate entries); if you type the full number only that part is kept.
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
-                NAME *
+                FULL LEGAL NAME *
               </label>
               <input
                 type="text"
@@ -720,31 +831,243 @@ export default function UploadAndInvitesEngine({
               />
             </div>
 
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
-                EMAIL *
-              </label>
-              <input
-                type="email"
-                required
-                value={singleEmail}
-                onChange={(e) => setSingleEmail(e.target.value)}
-                placeholder="e.g. priya.s@gmail.com"
-                style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
-              />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  EMAIL ADDRESS *
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={singleEmail}
+                  onChange={(e) => setSingleEmail(e.target.value)}
+                  placeholder="priya@example.com"
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  MOBILE NUMBER (10 DIGITS) *
+                </label>
+                <input
+                  type="tel"
+                  required
+                  maxLength={10}
+                  value={singleMobile}
+                  onChange={(e) => setSingleMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="9876543210"
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  ASSIGNED BATCH *
+                </label>
+                <input
+                  type="text"
+                  value={singleBatch}
+                  onChange={(e) => setSingleBatch(e.target.value)}
+                  placeholder="ex: Batch 1(Jan 2026)"
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+                <select
+                  value=""
+                  onChange={(e) => { if (e.target.value) setSingleBatch(e.target.value); }}
+                  title="Quick pick a correctly-formatted batch name"
+                  style={{ width: "100%", marginTop: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 12, color: "#64748B" }}
+                >
+                  <option value="">Quick pick a batch name...</option>
+                  {BATCH_NAME_OPTIONS.map((b) => (
+                    <option key={b} value={b}>
+                      {b}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  TRAINING COURSE (OPTIONAL)
+                </label>
+                <select
+                  value={singleCourse}
+                  onChange={(e) => setSingleCourse(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                >
+                  <option value="">Not specified</option>
+                  {availableCourses.map((c) => (
+                    <option key={c._id || c.title} value={c.title}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+                {singleCourse === "Other" && (
+                  <input
+                    type="text"
+                    value={singleCourseOther}
+                    onChange={(e) => setSingleCourseOther(e.target.value)}
+                    placeholder="Type the course name"
+                    style={{ width: "100%", marginTop: 6, padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  EXPERIENCE LEVEL
+                </label>
+                <div style={{ display: "flex", gap: 10 }}>
+                  {[
+                    { value: "fresher", label: "Fresher" },
+                    { value: "experienced", label: "Experienced" },
+                  ].map((opt) => (
+                    <label
+                      key={opt.value}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 7,
+                        padding: "9px 14px",
+                        borderRadius: 8,
+                        border: singleType === opt.value ? "1.5px solid #06152A" : "1px solid #CBD5E1",
+                        background: singleType === opt.value ? "#F1F5F9" : "#fff",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        color: "#06152A",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={singleType === opt.value}
+                        onChange={() => setSingleType(opt.value)}
+                        style={{ width: 15, height: 15, cursor: "pointer" }}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  DOMAIN
+                </label>
+                <select
+                  value={singleSpecialty}
+                  onChange={(e) => setSingleSpecialty(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                >
+                  {DEFAULT_COURSES.map((d) => (
+                    <option key={d.title} value={d.title}>
+                      {d.title}
+                    </option>
+                  ))}
+                </select>
+                {singleSpecialty === "Other" && (
+                  <input
+                    type="text"
+                    value={singleSpecialtyOther}
+                    onChange={(e) => setSingleSpecialtyOther(e.target.value)}
+                    placeholder="Type the domain name"
+                    style={{ width: "100%", marginTop: 6, padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                  />
+                )}
+              </div>
+            </div>
+
+            {singleType === "experienced" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  EXPERIENCE RANGE
+                </label>
+                <select
+                  value={singleExperienceRange}
+                  onChange={(e) => setSingleExperienceRange(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                >
+                  <option value="1 to 3">Experienced (1 to 3)</option>
+                  <option value="3 to 6">Experienced (3 to 6)</option>
+                  <option value="6 to 10">Experienced (6 to 10)</option>
+                  <option value="10+">Experienced (10+)</option>
+                </select>
+              </div>
+            )}
+
+            {singleType !== "fresher" && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  EXPECTED CTC (LPA)
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="2"
+                  max="30"
+                  value={singleSalary}
+                  onChange={(e) => setSingleSalary(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
+                />
+              </div>
+            )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  PREFERRED STATE
+                </label>
+                <select
+                  value={singleState}
+                  onChange={(e) => handleStateChange(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
+                >
+                  {Object.keys(STATE_CITY_MAP).map((state) => (
+                    <option key={state} value={state}>
+                      {state}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
+                  PREFERRED CITY / BRANCH
+                </label>
+                <select
+                  value={singleCity}
+                  onChange={(e) => handleCityChange(e.target.value)}
+                  style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
+                >
+                  {(STATE_CITY_MAP[singleState] || []).map((city) => (
+                    <option key={city} value={city}>
+                      {city}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 11, fontWeight: 800, color: "#475569", display: "block", marginBottom: 6 }}>
-                MONTH &amp; YEAR OF ADMISSION
+                AADHAAR (LAST 4 DIGITS)
               </label>
               <input
                 type="text"
-                value={singleAdmission}
-                onChange={(e) => setSingleAdmission(e.target.value)}
-                placeholder="e.g. Jan-26"
+                inputMode="numeric"
+                maxLength={12}
+                value={singleAadhaar}
+                onChange={(e) => setSingleAadhaar(e.target.value.replace(/[^\d]/g, "").slice(0, 12))}
+                placeholder="e.g. 1234"
                 style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13 }}
               />
+              <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 4 }}>
+                Optional - only used to flag duplicate candidate entries. Only the last 4 digits are stored; you can type the full number and only that part will be kept.
+              </div>
             </div>
 
             <button

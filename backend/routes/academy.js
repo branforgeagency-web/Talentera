@@ -9,6 +9,10 @@ const PlacementConfirmation = require("../models/PlacementConfirmation");
 const { compute8Stages, TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
 const { computeStage6Result } = require("../utils/stage6Score");
 const Application = require("../models/Application");
+const Company = require("../models/Company");
+const AcademyAssessment = require("../models/AcademyAssessment");
+const AcademyAssessmentResult = require("../models/AcademyAssessmentResult");
+const { sanitizeQuestions, recomputeCandidateAcademyScore } = require("../utils/academyAssessment");
 const Notification = require("../models/Notification");
 const RetakeRequest = require("../models/RetakeRequest");
 const { sendRetakeApprovedEmail } = require("../utils/emailService");
@@ -251,7 +255,7 @@ function parseCsvBuffer(buffer) {
   // If none of the expected student-data columns show up after parsing, this isn't
   // valid CSV text at all (wrong file, corrupted save, unsupported encoding, etc.) -
   // fail with a clear message instead of silently producing all-blank rows.
-  const knownHeaderHints = ["name", "email", "mobile", "phone", "course", "batch"];
+  const knownHeaderHints = ["name", "email", "mobile", "phone", "course", "batch", "aadhaar"];
   const hasKnownHeader = headers.some((h) => knownHeaderHints.some((hint) => h.includes(hint)));
   if (!hasKnownHeader) {
     const err = new Error("CSV header row not recognized.");
@@ -335,25 +339,54 @@ function buildMobileRegexFilters(mobiles) {
 // Candidates Directory even though the academy never added them. `academyName` is
 // kept as a parameter for backward compatibility with existing callers but is no
 // longer used to match candidates - do not reintroduce that regex match here.
+// Students an academy uploaded itself (single add / bulk CSV) are vouched for by that
+// academy, so their Stage 2 (Academy & Training) never waits on an approval.
+async function syncAcademyUploadedStage2(invites = []) {
+  const ids = invites.map((i) => i.candidateId).filter(Boolean);
+  if (ids.length === 0) return;
+  await Candidate.updateMany(
+    {
+      _id: { $in: ids },
+      "stage2.verified": { $ne: true },
+      "stage2.rejected": { $ne: true },
+      "stage2.needsRevision": { $ne: true },
+      stage2: { $ne: null },
+      $or: [{ "stage2.batch": { $exists: true, $ne: "" } }, { "stage2.course": { $exists: true, $ne: "" } }],
+    },
+    {
+      $set: {
+        "stage2.verified": true,
+        "stage2.status": "verified",
+        "stage2.autoApproved": true,
+        "stage2.approvedAt": new Date(),
+      },
+      $addToSet: { completedStages: 2 },
+    }
+  );
+}
+
 function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
   const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
-  const invitedMobiles = invites.map((inv) => inv.mobile).filter(Boolean);
   const candidateIds = invites.map((inv) => inv.candidateId).filter(Boolean);
-  const mobileVariants = getMobileQueryVariants(invitedMobiles);
-  const mobileRegexes = buildMobileRegexFilters(invitedMobiles);
 
+  // An academy only ever sees ITS OWN candidates: ones it added/linked itself
+  // (stage2.academyId), or ones it invited (matched by the invite's candidate link or
+  // the exact invited email). Phone numbers are deliberately NOT used to claim a
+  // candidate - a shared family number or a loose digit match could otherwise pull in
+  // someone who registered on Talentera independently. College-OS students never
+  // appear in an academy's lists unless this academy explicitly linked them.
   const orConditions = [
     { "stage2.academyId": academyId.toString() },
     ...(invitedEmails.length > 0 ? [{ email: { $in: invitedEmails } }] : []),
     ...(candidateIds.length > 0 ? [{ _id: { $in: candidateIds } }] : []),
-    ...(mobileVariants.length > 0 ? [
-      { mobile: { $in: mobileVariants } },
-      { "stage1.mobile": { $in: mobileVariants } },
-    ] : []),
-    ...mobileRegexes,
   ];
 
-  return { $or: orConditions };
+  return {
+    $and: [
+      { $or: orConditions },
+      { $or: [{ isCollegeStudent: { $ne: true } }, { "stage2.academyId": academyId.toString() }] },
+    ],
+  };
 }
 
 // Computes an academy's real, verifiable metrics from its actual linked candidates
@@ -702,6 +735,8 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       state,
       pincode,
       primarySpecialty,
+      otherSpecialtyCourses,
+      branches,
       accreditations,
       certifiedTrainedCount,
       activeBatchesPerYear,
@@ -735,6 +770,17 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       state: (state || "").trim(),
       pincode: (pincode || "").trim(),
       primarySpecialty: (primarySpecialty || academy.specialty || "Medical Coding").trim(),
+      otherSpecialtyCourses: primarySpecialty === "Other RCM Services" ? String(otherSpecialtyCourses || "").trim().slice(0, 300) : "",
+      branches: (Array.isArray(branches) ? branches : [])
+        .slice(0, 50)
+        .map((b) => ({
+          name: String(b?.name || "").trim().slice(0, 120),
+          city: String(b?.city || "").trim().slice(0, 80),
+          state: String(b?.state || "").trim().slice(0, 80),
+          phone: String(b?.phone || "").trim().slice(0, 20),
+          address: String(b?.address || "").trim().slice(0, 300),
+        }))
+        .filter((b) => b.name || b.city || b.address),
       accreditations: Array.isArray(accreditations) ? accreditations : [],
       certifiedTrainedCount: certifiedTrainedCount || "",
       activeBatchesPerYear: activeBatchesPerYear || "",
@@ -826,6 +872,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
 
     // Fetch Invites and Candidates linked to this academy (matching by email, mobile, candidateId, or stage2)
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    await syncAcademyUploadedStage2(invites);
     const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
     const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -865,6 +912,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         videoUrl: s5.videoUrl || "",
         aiScore: hasAiVideo ? (s5.aiScore / 10).toFixed(1) : "—",
         videoVerified: !!s5.verified,
+        academyAssessmentScore: (s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "") ? Number(s2.academyAssessmentScore) : null,
         stages: stageInfo.stages,
         stageBreakdown: stageInfo,
         updatedAt: c.updatedAt || new Date(),
@@ -1040,7 +1088,7 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
     const seenMobiles = new Set();
     const seenAadhaarLast4 = new Set();
 
-    const existingCandidates = await Candidate.find({}, { email: 1, mobile: 1, "stage1.mobile": 1, "stage1.maskedAadhaar": 1 }).lean();
+    const existingCandidates = await Candidate.find({}, { email: 1, mobile: 1, "stage1.mobile": 1, "stage1.maskedAadhaar": 1, "stage1.fullName": 1 }).lean();
     const existingEmailSet = new Set(existingCandidates.map((c) => (c.email || "").toLowerCase().trim()).filter(Boolean));
     const existingMobileSet = new Set();
     // Only the LAST 4 DIGITS of Aadhaar are ever collected or stored here (never the full
@@ -1048,14 +1096,15 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
     // uses for Aadhaar (see backend/utils/encryption.js). This is enough to flag likely
     // duplicate candidate entries without the compliance/security exposure of handling
     // full Aadhaar numbers in a CSV upload.
-    const existingAadhaarLast4Set = new Set();
+    const existingAadhaarLast4Set = new Set(); // "last4|normalizedName"
+    const normNameKey = (v) => String(v || "").toLowerCase().replace(/[^a-z]/g, "");
     existingCandidates.forEach((c) => {
       const m1 = (c.mobile || "").replace(/\D/g, "");
       const m2 = (c.stage1?.mobile || "").replace(/\D/g, "");
       if (m1.length >= 10) existingMobileSet.add(m1.slice(-10));
       if (m2.length >= 10) existingMobileSet.add(m2.slice(-10));
       const aadhaarDigits = (c.stage1?.maskedAadhaar || "").replace(/\D/g, "");
-      if (aadhaarDigits.length >= 4) existingAadhaarLast4Set.add(aadhaarDigits.slice(-4));
+      if (aadhaarDigits.length >= 4) existingAadhaarLast4Set.add(`${aadhaarDigits.slice(-4)}|${normNameKey(c.stage1?.fullName)}`);
     });
 
     const previewRows = [];
@@ -1064,10 +1113,23 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
 
     rawRows.forEach((row, idx) => {
       const rowIndex = idx + 1;
-      const name = (row.name || row.fullname || row.full_name || row["full name"] || "").trim();
-      const email = (row.email || row.email_address || row["email address"] || "").toLowerCase().trim();
-      const mobile = (row.mobile || row.phone || row.mobile_number || row["mobile number"] || "").replace(/\D/g, "");
-      const batchCode = (row.batch_code || row.batch || row.batch_id || defaultBatchCode).trim();
+      // Header-agnostic lookup: "Academy batch unique id", "Month & Year of admission",
+      // "Aadhaar_last4" etc. all collapse to lowercase letters/digits so the sheet's own
+      // column titles work as-is.
+      const canon = {};
+      Object.keys(row).forEach((k) => { canon[String(k).toLowerCase().replace(/[^a-z0-9]/g, "")] = row[k]; });
+      const pick = (...keys) => {
+        for (const k of keys) {
+          const v = canon[k];
+          if (v !== undefined && v !== null && String(v).trim() !== "") return String(v);
+        }
+        return "";
+      };
+      const name = pick("name", "fullname", "studentname").trim();
+      const email = pick("email", "emailaddress", "emailid").toLowerCase().trim();
+      const mobile = pick("mobile", "phone", "mobilenumber").replace(/\D/g, "");
+      const batchCode = (pick("academybatchuniqueid", "batchuniqueid", "batchid", "batchcode", "batch") || defaultBatchCode).trim();
+      const admissionMonthYear = pick("monthyearofadmission", "monthandyearofadmission", "admissionmonthyear", "admission").trim();
       const course = (row.course_id || row.course || defaultCourse).trim();
       const type = (row.type || "fresher").toLowerCase().trim();
       const preferredSpecialty = row.preferred_specialty || row.specialty || "HCC";
@@ -1077,7 +1139,7 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
       const age = Number(row.age) || 0;
       // Accept a full Aadhaar number too, but only ever keep/compare the last 4 digits -
       // the full value is discarded immediately and never stored or written to previewRows.
-      const aadhaarRaw = (row.aadhaar_last4 || row.aadhaar || row.aadhaar_number || "").replace(/\D/g, "");
+      const aadhaarRaw = pick("aadhaarlast4", "aadhaar", "aadhaarnumber").replace(/\D/g, "");
       const aadhaarLast4 = aadhaarRaw.slice(-4);
 
       const errors = [];
@@ -1104,27 +1166,34 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
         errors.push(`Email '${email}' is already registered in Talentera.`);
       }
 
-      if (!mobile || mobile.length < 10) {
-        errors.push("Mobile number must be at least 10 digits.");
-      } else if (seenMobiles.has(mobile)) {
-        errors.push(`Duplicate mobile '${mobile}' within this CSV.`);
-      } else if (existingMobileSet.has(mobile.slice(-10))) {
-        errors.push(`Mobile '${mobile}' is already registered in Talentera.`);
+      // Mobile is optional in the academy template - the student adds it when they
+      // activate their profile. Only validate it when a row actually provides one.
+      if (mobile) {
+        if (mobile.length < 10) {
+          errors.push("Mobile number must be at least 10 digits.");
+        } else if (seenMobiles.has(mobile)) {
+          errors.push(`Duplicate mobile '${mobile}' within this CSV.`);
+        } else if (existingMobileSet.has(mobile.slice(-10))) {
+          errors.push(`Mobile '${mobile}' is already registered in Talentera.`);
+        }
       }
 
-      if (aadhaarRaw) {
-        if (aadhaarLast4.length !== 4) {
-          errors.push("Aadhaar number looks invalid - please provide at least the last 4 digits.");
-        } else if (seenAadhaarLast4.has(aadhaarLast4)) {
-          errors.push(`Duplicate Aadhaar (last 4 digits: ${aadhaarLast4}) within this CSV.`);
-        } else if (existingAadhaarLast4Set.has(aadhaarLast4)) {
-          errors.push(`Aadhaar (last 4 digits: ${aadhaarLast4}) matches an already-registered candidate - possible duplicate entry.`);
-        }
+      // Last 4 digits alone repeat across unrelated people, so a match only counts as a
+      // duplicate when the NAME matches too.
+      const aadhaarKey = `${aadhaarLast4}|${normNameKey(name)}`;
+      if (!aadhaarRaw) {
+        errors.push("Aadhaar last 4 digits are required.");
+      } else if (aadhaarLast4.length !== 4) {
+        errors.push("Aadhaar number looks invalid - please provide the last 4 digits.");
+      } else if (seenAadhaarLast4.has(aadhaarKey)) {
+        errors.push(`Duplicate Aadhaar (last 4 digits: ${aadhaarLast4}) for the same student within this CSV.`);
+      } else if (existingAadhaarLast4Set.has(aadhaarKey)) {
+        errors.push(`Aadhaar (last 4 digits: ${aadhaarLast4}) with this name matches an already-registered candidate - possible duplicate entry.`);
       }
 
       if (email) seenEmails.add(email);
       if (mobile) seenMobiles.add(mobile);
-      if (aadhaarLast4.length === 4) seenAadhaarLast4.add(aadhaarLast4);
+      if (aadhaarLast4.length === 4) seenAadhaarLast4.add(aadhaarKey);
 
       const isValid = errors.length === 0;
       if (isValid) acceptedCount++;
@@ -1147,6 +1216,7 @@ router.post("/students/upload-csv", requireAcademyAuth, upload.single("file"), a
           currentExperienceYears,
           age,
           aadhaarLast4,
+          admissionMonthYear,
         },
       });
     });
@@ -1216,7 +1286,7 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
           email: cleanEmail || `student.${Date.now()}@talentera.academy`,
           passwordHash: defaultPassword,
           mobile: rawMobile || "",
-          completedStages: [],
+          completedStages: [2],
           isVerified: false,
           stage1: {
             fullName: row.name,
@@ -1236,7 +1306,11 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
             academyName: academy.name,
             batch: row.batchCode || "JAN-HCC-01",
             branch: row.preferredCities?.[0] || "Coimbatore",
+            admissionMonthYear: row.admissionMonthYear || "",
             verified: true,
+            status: "verified",
+            autoApproved: true,
+            approvedAt: new Date(),
           },
         });
       } else {
@@ -1245,8 +1319,13 @@ router.post("/students/upload-confirm", requireAcademyAuth, async (req, res) => 
           academyName: academy.name,
           batch: row.batchCode || candidate.stage2?.batch || "JAN-HCC-01",
           branch: row.preferredCities?.[0] || candidate.stage2?.branch || "Coimbatore",
+          admissionMonthYear: row.admissionMonthYear || candidate.stage2?.admissionMonthYear || "",
           verified: true,
+          status: "verified",
+          autoApproved: true,
+          approvedAt: candidate.stage2?.approvedAt || new Date(),
         };
+        if (!candidate.completedStages.includes(2)) candidate.completedStages.push(2);
         if (rawMobile && (!candidate.mobile || !candidate.stage1?.mobile)) {
           if (!candidate.mobile) candidate.mobile = rawMobile;
           if (!candidate.stage1) candidate.stage1 = {};
@@ -1540,6 +1619,8 @@ router.post("/students/chart-stats/upload-csv", requireAcademyAuth, upload.singl
     let acceptedCount = 0;
     let skippedCount = 0;
     let notFoundCount = 0;
+    let notApplicableCount = 0;
+    const CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"];
 
     for (const [email, rows] of byEmail.entries()) {
       const candidate = candidateByEmail.get(email);
@@ -1554,6 +1635,21 @@ router.post("/students/chart-stats/upload-csv", requireAcademyAuth, upload.singl
           totalCharts,
           status: "not_found",
           reason: "No student with this email was found among your academy's Talentera students.",
+        });
+        continue;
+      }
+      // Medical-coding chart stats never apply to Billing / AR Calling roles.
+      if (CHART_EXEMPT_DOMAINS.includes(candidate.stage2?.domain || "")) {
+        skippedCount++;
+        notApplicableCount++;
+        previewCandidates.push({
+          email,
+          candidateName: candidate.stage1?.fullName || "",
+          candidateId: candidate._id,
+          rows,
+          totalCharts,
+          status: "not_applicable",
+          reason: "Medical-coding charts are not required for Billing / AR Calling students - skipped.",
         });
         continue;
       }
@@ -1592,7 +1688,7 @@ router.post("/students/chart-stats/upload-csv", requireAcademyAuth, upload.singl
       not_found_count: notFoundCount,
       row_errors: rowErrors,
       preview_candidates: previewCandidates,
-      summary: `${acceptedCount} student(s) ready to update, ${skippedCount} already completed Stage 6 (skipped), ${notFoundCount} not found, ${rowErrors.length} row error(s).`,
+      summary: `${acceptedCount} student(s) ready to update, ${skippedCount - notApplicableCount} already completed Stage 6 (skipped), ${notApplicableCount} Billing/AR students not applicable (skipped), ${notFoundCount} not found, ${rowErrors.length} row error(s).`,
     });
   } catch (err) {
     logger.error(`Chart-stats upload CSV parse error: ${err.message}`);
@@ -1634,6 +1730,10 @@ router.post("/students/chart-stats/upload-confirm", requireAcademyAuth, async (r
       }
       if (Array.isArray(candidate.completedStages) && candidate.completedStages.includes(6)) {
         skipped.push({ email: entry.email, reason: "Already completed Stage 6 - not overwritten." });
+        continue;
+      }
+      if (["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"].includes(candidate.stage2?.domain || "")) {
+        skipped.push({ email: entry.email, reason: "Medical-coding charts are not applicable to Billing / AR Calling students." });
         continue;
       }
 
@@ -1730,7 +1830,8 @@ async function handleAddSingleStudent(req, res) {
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
-    const { name, fullName, email, mobile, batch_id, batchCode, course_id, course, type, experienceRange, preferredSpecialty, expectedSalaryLpa, preferredCities, branch, state, preferredState, aadhaar, aadhaarLast4: aadhaarLast4Input } = req.body;
+    const { name, fullName, email, mobile, batch_id, batchCode, course_id, course, type, experienceRange, preferredSpecialty, expectedSalaryLpa, preferredCities, branch, state, preferredState, aadhaar, aadhaarLast4: aadhaarLast4Input, admissionMonthYear: admissionMonthYearInput } = req.body;
+    const admissionMonthYear = String(admissionMonthYearInput || "").trim().slice(0, 30);
     const studentName = (fullName || name || "").trim();
     // Freshers have no specialty/experience range yet; only an "experienced" submission
     // carries a real band (e.g. "1 to 3", "3 to 6" Years) - keep it out of stage1 otherwise.
@@ -1750,8 +1851,15 @@ async function handleAddSingleStudent(req, res) {
     if (process.env.NODE_ENV !== "test" && /@example\.com$/i.test(String(email).trim())) {
       return res.status(400).json({ message: "That email is the sample template's placeholder address - please enter the real student's email instead." });
     }
-    if (aadhaarRaw && aadhaarLast4.length !== 4) {
-      return res.status(400).json({ message: "Aadhaar number looks invalid - please provide at least the last 4 digits." });
+    // Same rules as the Bulk CSV upload: batch id and Aadhaar last 4 are required.
+    if (!String(batchCode || batch_id || "").trim()) {
+      return res.status(400).json({ message: "Academy batch unique ID is required." });
+    }
+    if (!aadhaarRaw) {
+      return res.status(400).json({ message: "Aadhaar last 4 digits are required." });
+    }
+    if (aadhaarLast4.length !== 4) {
+      return res.status(400).json({ message: "Aadhaar number looks invalid - please provide the last 4 digits." });
     }
 
     const cleanEmail = email ? email.toLowerCase().trim() : "";
@@ -1776,23 +1884,36 @@ async function handleAddSingleStudent(req, res) {
     const isNewCandidate = !candidate;
 
     if (aadhaarLast4.length === 4) {
-      const aadhaarDup = await Candidate.findOne({ "stage1.maskedAadhaar": new RegExp(`${aadhaarLast4}$`) }).lean();
+      // Last 4 digits alone repeat across unrelated people, so (like the bulk upload) a
+      // match only counts as a duplicate when the NAME matches too.
+      const nameKey = (v) => String(v || "").toLowerCase().replace(/[^a-z]/g, "");
+      const sameLast4 = await Candidate.find({ "stage1.maskedAadhaar": new RegExp(`${aadhaarLast4}$`) }, { "stage1.fullName": 1 }).lean();
+      const aadhaarDup = sameLast4.find((c) => nameKey(c.stage1?.fullName) === nameKey(studentName));
       if (aadhaarDup && (!candidate || String(aadhaarDup._id) !== String(candidate._id))) {
         return res.status(400).json({ message: `Aadhaar (last 4 digits: ${aadhaarLast4}) matches an already-registered candidate - possible duplicate entry.`, duplicate: true });
       }
     }
 
     if (candidate) {
+      // Tell the academy exactly WHICH existing record matched and on WHAT, so a
+      // shared parent/family mobile or a reused test email is obvious at a glance.
+      const matchedOn = candidate.email === cleanEmail ? `email (${cleanEmail})` : `mobile number (${rawMobile})`;
+      const existingName = candidate.stage1?.fullName || candidate.email;
       if (candidate.stage2?.academyId === academy._id.toString() && candidate.stage2?.batch === targetBatch) {
-        return res.status(400).json({ message: `Student with email '${cleanEmail || candidate.email}' or mobile '${rawMobile || candidate.mobile}' is already registered in batch ${targetBatch}.`, duplicate: true });
+        return res.status(400).json({ message: `Not added - this ${matchedOn} already belongs to "${existingName}" in batch ${targetBatch}. Check the Live Invites Tracker; if it is the same student you can resend the invite from there.`, duplicate: true, existingName });
       }
       candidate.stage2 = {
         academyId: academy._id.toString(),
         academyName: academy.name,
         batch: targetBatch,
         branch: branch || "Coimbatore",
+        admissionMonthYear: admissionMonthYear || candidate.stage2?.admissionMonthYear || "",
         verified: true,
+        status: "verified",
+        autoApproved: true,
+        approvedAt: candidate.stage2?.approvedAt || new Date(),
       };
+      if (!candidate.completedStages.includes(2)) candidate.completedStages.push(2);
       if (rawMobile && (!candidate.mobile || !candidate.stage1?.mobile)) {
         if (!candidate.mobile) candidate.mobile = rawMobile;
         if (!candidate.stage1) candidate.stage1 = {};
@@ -1808,7 +1929,7 @@ async function handleAddSingleStudent(req, res) {
         email: cleanEmail || `student.${Date.now()}@talentera.academy`,
         passwordHash: defaultPassword,
         mobile: rawMobile || "",
-        completedStages: [],
+        completedStages: [2],
         isVerified: false,
         stage1: {
           fullName: studentName,
@@ -1829,7 +1950,11 @@ async function handleAddSingleStudent(req, res) {
           academyName: academy.name,
           batch: targetBatch,
           branch: branch || "Coimbatore",
+          admissionMonthYear,
           verified: true,
+          status: "verified",
+          autoApproved: true,
+          approvedAt: new Date(),
         },
       });
     }
@@ -1900,8 +2025,10 @@ async function handleAddSingleStudent(req, res) {
       message = `Student ${studentName} registered and invited successfully!`;
     } else if (!isNewInvite && previousBatchCode && previousBatchCode !== targetBatch) {
       message = `${studentName} was already invited (existing entry) - moved from batch ${previousBatchCode} to ${targetBatch} instead of creating a duplicate.`;
+    } else if (!isNewCandidate && isNewInvite) {
+      message = `${studentName} already had a Talentera account (matched on ${candidate.email === cleanEmail ? "email" : "mobile number"}, listed as "${candidate.stage1?.fullName || candidate.email}") - linked to your academy and invite sent.`;
     } else {
-      message = `${studentName} already has an existing candidate/invite record - details were updated instead of creating a duplicate entry.`;
+      message = `${studentName} is already on your invite list (matched on ${candidate.email === cleanEmail ? "email" : "mobile number"}) - details were updated, no duplicate was created.`;
     }
 
     res.json({
@@ -2640,11 +2767,112 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
   }
 });
 
+// GET /api/academy/company-data - live hiring data auto-fetched from the company and
+// candidate dashboards: every active job posting on Talentera, how many applications
+// it has, and how many of THIS academy's students applied / were shortlisted / are
+// interviewing / were hired - plus a directory of the RCM companies and their locations.
+router.get("/company-data", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const myCandidateIds = (await Candidate.find(filter, { _id: 1 }).limit(DASHBOARD_FETCH_CAP).lean()).map((c) => c._id);
+
+    const publicRouter = require("./public");
+    const jobs = await publicRouter.loadPublishedJobs();
+
+    const [allApps, myApps] = await Promise.all([
+      Application.find({}, { jobId: 1, status: 1 }).lean(),
+      myCandidateIds.length ? Application.find({ candidateId: { $in: myCandidateIds } }, { jobId: 1, status: 1 }).lean() : [],
+    ]);
+    const tally = (apps) => {
+      const m = new Map();
+      apps.forEach((a) => {
+        const t = m.get(a.jobId) || { total: 0, shortlisted: 0, interviewing: 0, hired: 0 };
+        t.total++;
+        if (a.status === "shortlisted") t.shortlisted++;
+        if (a.status === "interviewing") t.interviewing++;
+        if (a.status === "hired") t.hired++;
+        m.set(a.jobId, t);
+      });
+      return m;
+    };
+    const allByJob = tally(allApps);
+    const mineByJob = tally(myApps);
+
+    const hirings = jobs.map((j) => {
+      const all = allByJob.get(j.jobId) || { total: 0 };
+      const mine = mineByJob.get(j.jobId) || { total: 0, shortlisted: 0, interviewing: 0, hired: 0 };
+      return {
+        jobId: j.jobId,
+        companyId: j.companyId,
+        companyName: j.companyName,
+        companyLogo: j.companyLogo,
+        verifiedEmployer: j.verifiedEmployer,
+        roleTitle: j.roleTitle,
+        specialty: j.specialty,
+        location: j.location,
+        workMode: j.workMode,
+        openings: j.openings,
+        urgency: j.urgency,
+        publishedAt: j.publishedAt,
+        totalApplicants: all.total,
+        myApplicants: mine.total,
+        myShortlisted: mine.shortlisted,
+        myInterviewing: mine.interviewing,
+        myHired: mine.hired,
+      };
+    });
+
+    // RCM company directory: every company with a live posting (or verified KYC) + locations.
+    const companyDocs = await Company.find({ $or: [{ kycStatus: "verified" }, { _id: { $in: [...new Set(jobs.map((j) => String(j.companyId)))] } }] })
+      .select("companyName stage1a stage2 kycStatus")
+      .lean();
+    const locationsByCompany = new Map();
+    jobs.forEach((j) => {
+      const k = String(j.companyId);
+      if (!locationsByCompany.has(k)) locationsByCompany.set(k, new Set());
+      if (j.location) locationsByCompany.get(k).add(String(j.location).trim());
+    });
+    const companies = companyDocs
+      .map((c) => {
+        const locs = new Set(locationsByCompany.get(String(c._id)) || []);
+        if (c.stage2?.hq) locs.add(String(c.stage2.hq).trim());
+        if (c.stage2?.branches) String(c.stage2.branches).split(",").map((x) => x.trim()).filter(Boolean).forEach((x) => locs.add(x));
+        return {
+          companyId: c._id,
+          companyName: c.companyName || c.stage1a?.legalname || "Talentera Employer",
+          verified: c.kycStatus === "verified",
+          locations: [...locs].filter(Boolean),
+          activeJobs: hirings.filter((h) => String(h.companyId) === String(c._id)).length,
+        };
+      })
+      .sort((a, b) => b.activeJobs - a.activeJobs || a.companyName.localeCompare(b.companyName));
+
+    res.json({
+      hirings,
+      companies,
+      totals: {
+        activeHirings: hirings.length,
+        companies: companies.length,
+        myApplications: myApps.length,
+        myShortlisted: myApps.filter((a) => a.status === "shortlisted").length,
+        myInterviewing: myApps.filter((a) => a.status === "interviewing").length,
+        myHired: myApps.filter((a) => a.status === "hired").length,
+      },
+    });
+  } catch (err) {
+    logger.error(`Company data error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load company data." });
+  }
+});
+
 // GET /api/academy/live-profiles
 router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    await syncAcademyUploadedStage2(invites);
     const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
@@ -2666,7 +2894,10 @@ router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
         const stageInfo = compute8Stages(c);
         // Talentera Score (Stages 1-6 weighted, out of 100) - see backend/utils/talenteraScore.js.
         const score = stageInfo.talenteraScore;
-        const isLive = stageInfo.pct >= 75 || c.completedStages?.includes(8) || c.isSubmitted || c.isVerified;
+        // A profile only goes live once the academy-side verification (Stage 2) is done
+        // AND the verification is at least 75% complete.
+        const academyVerified = !!c.stage2?.verified;
+        const isLive = academyVerified && (stageInfo.pct >= 75 || c.completedStages?.includes(8));
 
         const candApps = applications.filter((a) => String(a.candidateId) === String(c._id));
         const candEvents = activityEvents.filter((ev) => String(ev.candidateId) === String(c._id));
@@ -2694,7 +2925,7 @@ router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
           status: isLive ? "Live" : "In Verification",
         };
       })
-      .filter((p) => p.status === "Live" || p.completionPct >= 75);
+      .filter((p) => p.status === "Live");
 
     res.json({ liveProfiles, totalLive: liveProfiles.length });
   } catch (err) {
@@ -2959,19 +3190,29 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    await syncAcademyUploadedStage2(invites);
     const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
+
+    // Candidates the academy itself uploaded (single add or bulk CSV) already
+    // have an invite record - the academy vouched for them at upload, so there is
+    // nothing to approve. Only students who typed the academy details in
+    // themselves need the Stage 2 sign-off. Stage 5 (video) is never part of the
+    // academy approval queue.
+    const academyUploadedIds = new Set(invites.map((i) => String(i.candidateId || "")).filter(Boolean));
+    const autoApproveIds = [];
 
     const pendingQueue = [];
     for (const c of candidates) {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
-      const s5 = c.stage5 || {};
 
       // Stage 2: Course & Training Validation
       const isStage2Rejected = s2.rejected || s2.status === "rejected" || s2.needsRevision;
-      if (!s2.verified && !isStage2Rejected && (s2.submittedForApproval || s2.batch || s2.course)) {
+      if (!s2.verified && !isStage2Rejected && academyUploadedIds.has(String(c._id)) && (s2.submittedForApproval || s2.batch || s2.course)) {
+        autoApproveIds.push(c._id);
+      } else if (!s2.verified && !isStage2Rejected && (s2.submittedForApproval || s2.batch || s2.course)) {
         pendingQueue.push({
           id: `${c._id}_stage2`,
           candidateId: c._id,
@@ -2989,26 +3230,23 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
         });
       }
 
-      // Stage 5: Portfolio Video Review
-      const isStage5Rejected = s5.rejected || s5.status === "rejected" || s5.needsRevision;
-      if (s5.videoUrl && !s5.verified && !isStage5Rejected) {
-        const aiScoreFormatted = s5.aiScore !== undefined && s5.aiScore !== null ? `${(Number(s5.aiScore) / 10).toFixed(1)}/10` : "Pending Evaluation";
-        pendingQueue.push({
-          id: `${c._id}_stage5`,
-          candidateId: c._id,
-          candidateName: s1.fullName || c.email.split("@")[0],
-          candidateEmail: c.email,
-          batchCode: s2.batch || "—",
-          courseTitle: s2.course || s1.currentRole || "Medical Coding",
-          stageNumber: 5,
-          stageTitle: "Stage 5 · Portfolio Video Review",
-          itemDescription: `2-minute self-introduction video. AI Confidence Score: ${aiScoreFormatted}.`,
-          videoUrl: s5.videoUrl,
-          aiScore: s5.aiScore !== undefined && s5.aiScore !== null ? (Number(s5.aiScore) / 10).toFixed(1) : "—",
-          submittedAt: c.updatedAt || new Date(),
-          type: "video_review",
-        });
-      }
+    }
+
+    if (autoApproveIds.length > 0) {
+      await Candidate.updateMany(
+        { _id: { $in: autoApproveIds } },
+        {
+          $set: {
+            "stage2.verified": true,
+            "stage2.status": "verified",
+            "stage2.autoApproved": true,
+            "stage2.approvedAt": new Date(),
+            "stage2.rejected": false,
+            "stage2.needsRevision": false,
+          },
+          $addToSet: { completedStages: 2 },
+        }
+      );
     }
 
     res.json({
@@ -3698,6 +3936,77 @@ router.get("/placements/:id/certificate", requireAcademyAuth, async (req, res) =
   }
 });
 
+// GET /api/academy/reports/custom?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Custom-duration report: students enrolled or active in the window, plus hiring activity.
+router.get("/reports/custom", requireAcademyAuth, async (req, res) => {
+  try {
+    const from = new Date(`${req.query.from}T00:00:00.000Z`);
+    const to = new Date(`${req.query.to}T23:59:59.999Z`);
+    if (isNaN(from) || isNaN(to)) return res.status(400).json({ message: "Choose a valid start and end date." });
+    if (from > to) return res.status(400).json({ message: "The start date must be before the end date." });
+    if (to - from > 3 * 366 * 24 * 3600 * 1000) return res.status(400).json({ message: "Please choose a period of up to 3 years." });
+
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
+    const ids = candidates.map((c) => c._id);
+
+    const inRange = (d) => d && new Date(d) >= from && new Date(d) <= to;
+    const apps = ids.length ? await Application.find({ candidateId: { $in: ids }, $or: [{ createdAt: { $gte: from, $lte: to } }, { updatedAt: { $gte: from, $lte: to } }] }).lean() : [];
+    const results = ids.length ? await AcademyAssessmentResult.find({ academyId: req.academyId, createdAt: { $gte: from, $lte: to } }).lean() : [];
+
+    const rows = [];
+    candidates.forEach((c) => {
+      const enrolled = inRange(c.createdAt);
+      if (!enrolled && !inRange(c.updatedAt)) return;
+      const s1 = c.stage1 || {};
+      const s2 = c.stage2 || {};
+      const info = compute8Stages(c);
+      rows.push({
+        name: s1.fullName || String(c.email || "").split("@")[0],
+        email: c.email,
+        phone: s1.mobile || c.mobile || "",
+        batch: s2.batch || "",
+        specialty: s2.specialty || "",
+        branch: s2.branch || s1.city || "",
+        enrolledOn: c.createdAt,
+        enrolledInPeriod: !!enrolled,
+        verified: !!info.isComplete,
+        stagesDone: info.doneCount,
+        talenteraScore: info.talenteraScore || 0,
+        academyAssessmentScore: s2.academyAssessmentScore ?? "",
+        placementStatus: c.stage8?.placementStatus || (info.isComplete ? "Available for Placement" : `Stage ${info.currentStageNumber} in progress`),
+      });
+    });
+
+    const byStatus = (st) => apps.filter((a) => a.status === st && inRange(a.updatedAt)).length;
+    res.json({
+      report: {
+        academyName: academy?.name || "Academy Partner",
+        from: req.query.from,
+        to: req.query.to,
+        generatedAt: new Date(),
+        summary: {
+          enrolledInPeriod: rows.filter((r) => r.enrolledInPeriod).length,
+          activeInPeriod: rows.length,
+          totalStudents: candidates.length,
+          verificationComplete: rows.filter((r) => r.verified).length,
+          applications: apps.filter((a) => inRange(a.createdAt)).length,
+          shortlisted: byStatus("shortlisted"),
+          interviewing: byStatus("interviewing"),
+          hired: byStatus("hired"),
+          assessmentsRecorded: results.length,
+        },
+        rows,
+      },
+    });
+  } catch (err) {
+    logger.error(`Academy custom report error: ${err.message}`);
+    res.status(500).json({ message: "Failed to generate the report." });
+  }
+});
+
 // GET /api/academy/reports/monthly
 router.get("/reports/monthly", requireAcademyAuth, async (req, res) => {
   try {
@@ -4176,6 +4485,419 @@ router.delete("/clear-all", requireAcademyAuth, async (req, res) => {
     res.json({ success: true, message: "All academy data cleared." });
   } catch (err) {
     res.status(500).json({ message: "Failed to clear academy data." });
+  }
+});
+
+
+// ===========================================================================
+// ACADEMY ASSESSMENT - an academy's own question banks (MCQ / fill in the blank /
+// Q&A) conducted on its students, plus score-only entry for assessments the academy
+// already conducted elsewhere. The resulting average feeds Stage 2's Academy
+// Assessment Score (the same field the Talentera score already reads).
+// ===========================================================================
+
+// GET /api/academy/assessments
+router.get("/assessments", requireAcademyAuth, async (req, res) => {
+  try {
+    const list = await AcademyAssessment.find({ academyId: req.academyId }).sort({ createdAt: -1 }).lean();
+    const results = await AcademyAssessmentResult.find({ academyId: req.academyId }).lean();
+    const assessments = list.map((a) => {
+      const mine = results.filter((r) => String(r.assessmentId) === String(a._id));
+      const graded = mine.filter((r) => r.status === "graded");
+      return {
+        ...a,
+        questionCount: a.questions.length,
+        totalMarks: a.questions.reduce((s, q) => s + (q.marks || 0), 0),
+        attempts: mine.length,
+        pendingReview: mine.filter((r) => r.status === "pending_review").length,
+        avgScore: graded.length ? Math.round(graded.reduce((s, r) => s + r.scorePct, 0) / graded.length) : null,
+      };
+    });
+    const scoreOnly = results.filter((r) => r.source === "academy_score_upload").length;
+    res.json({ assessments, scoreOnlyEntries: scoreOnly });
+  } catch (err) {
+    logger.error(`List academy assessments error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load assessments." });
+  }
+});
+
+// POST /api/academy/assessments - create (or, with ?id=, replace) an assessment
+router.post("/assessments", requireAcademyAuth, async (req, res) => {
+  try {
+    const { id, title, course, batchCodes, instructions, durationMins, passPercentage, status } = req.body;
+    if (!String(title || "").trim()) return res.status(400).json({ message: "Give the assessment a title." });
+    const { questions, errors } = sanitizeQuestions(req.body.questions);
+    if (errors.length) return res.status(400).json({ message: errors[0], errors });
+    if (questions.length === 0) return res.status(400).json({ message: "Add at least one question." });
+
+    const payload = {
+      title: String(title).trim().slice(0, 150),
+      course: String(course || "").trim().slice(0, 100),
+      batchCodes: (Array.isArray(batchCodes) ? batchCodes : []).map((b) => String(b).trim()).filter(Boolean),
+      instructions: String(instructions || "").trim().slice(0, 1000),
+      durationMins: Math.min(300, Math.max(5, Number(durationMins) || 30)),
+      passPercentage: Math.min(100, Math.max(0, Number(passPercentage) || 50)),
+      questions,
+      status: ["draft", "published", "closed"].includes(status) ? status : "draft",
+    };
+    let doc;
+    if (id) {
+      doc = await AcademyAssessment.findOneAndUpdate({ _id: id, academyId: req.academyId }, payload, { new: true });
+      if (!doc) return res.status(404).json({ message: "Assessment not found." });
+    } else {
+      doc = await AcademyAssessment.create({ ...payload, academyId: req.academyId });
+    }
+    res.json({ success: true, assessment: doc });
+  } catch (err) {
+    logger.error(`Save academy assessment error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save assessment." });
+  }
+});
+
+// PATCH /api/academy/assessments/:id/status - publish / close / back to draft
+router.patch("/assessments/:id/status", requireAcademyAuth, async (req, res) => {
+  try {
+    const status = req.body.status;
+    if (!["draft", "published", "closed"].includes(status)) return res.status(400).json({ message: "Invalid status." });
+    const doc = await AcademyAssessment.findOneAndUpdate({ _id: req.params.id, academyId: req.academyId }, { status }, { new: true });
+    if (!doc) return res.status(404).json({ message: "Assessment not found." });
+    res.json({ success: true, assessment: doc });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update assessment." });
+  }
+});
+
+// DELETE /api/academy/assessments/:id
+router.delete("/assessments/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const doc = await AcademyAssessment.findOneAndDelete({ _id: req.params.id, academyId: req.academyId });
+    if (!doc) return res.status(404).json({ message: "Assessment not found." });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete assessment." });
+  }
+});
+
+// POST /api/academy/assessments/import-questions - parse a question CSV (no write; the
+// builder shows the parsed questions for review). Columns: type, question, option_a..option_d,
+// correct_answer, marks.   type = mcq | fill_blank | qa
+router.post("/assessments/import-questions", requireAcademyAuth, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) return res.status(400).json({ message: "No file uploaded. Please provide a CSV file." });
+    const rows = parseCsvBuffer(req.file.buffer);
+    if (rows.length === 0) return res.status(400).json({ message: "No question rows found in the file." });
+    const raw = rows.map((row) => {
+      const canon = {};
+      Object.keys(row).forEach((k) => { canon[String(k).toLowerCase().replace(/[^a-z0-9]/g, "")] = row[k]; });
+      const g = (...ks) => { for (const k of ks) { if (canon[k] != null && String(canon[k]).trim() !== "") return String(canon[k]).trim(); } return ""; };
+      const t = g("type", "questiontype").toLowerCase().replace(/[^a-z]/g, "");
+      const type = t.startsWith("mcq") || t.startsWith("multiple") ? "mcq" : t.startsWith("fill") || t.startsWith("blank") ? "fill_blank" : t.startsWith("q") || t.startsWith("short") || t.startsWith("descr") ? "qa" : t;
+      const options = [g("optiona", "a"), g("optionb", "b"), g("optionc", "c"), g("optiond", "d")].filter(Boolean);
+      let answer = g("correctanswer", "answer");
+      if (type === "mcq") {
+        const letter = answer.toUpperCase();
+        if (/^[A-D]$/.test(letter)) answer = String(letter.charCodeAt(0) - 65);
+        else {
+          const idx = options.findIndex((o) => o.toLowerCase() === answer.toLowerCase());
+          answer = idx >= 0 ? String(idx) : answer;
+        }
+      }
+      return { type, text: g("question", "questiontext", "text"), options, answer, marks: g("marks", "mark") || 1 };
+    });
+    const { questions, errors } = sanitizeQuestions(raw);
+    res.json({ questions, errors, rowsParsed: rows.length });
+  } catch (err) {
+    logger.error(`Import assessment questions error: ${err.message}`);
+    res.status(err.userMessage ? 400 : 500).json({ message: err.userMessage || "Failed to read the question file." });
+  }
+});
+
+// GET /api/academy/assessments/:id/results
+router.get("/assessments/:id/results", requireAcademyAuth, async (req, res) => {
+  try {
+    const a = await AcademyAssessment.findOne({ _id: req.params.id, academyId: req.academyId }).lean();
+    if (!a) return res.status(404).json({ message: "Assessment not found." });
+    const results = await AcademyAssessmentResult.find({ assessmentId: a._id, academyId: req.academyId }).sort({ createdAt: -1 }).lean();
+    const cands = await Candidate.find({ _id: { $in: results.map((r) => r.candidateId) } }, { "stage1.fullName": 1, email: 1 }).lean();
+    const byId = new Map(cands.map((c) => [String(c._id), c]));
+    res.json({
+      assessment: { _id: a._id, title: a.title, passPercentage: a.passPercentage, questions: a.questions },
+      results: results.map((r) => ({
+        ...r,
+        candidateName: byId.get(String(r.candidateId))?.stage1?.fullName || r.candidateEmail,
+        passed: r.status === "graded" ? r.scorePct >= a.passPercentage : null,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load results." });
+  }
+});
+
+// POST /api/academy/assessments/results/:resultId/grade - mark the Q&A part by hand
+// body: { marks: { "<questionId>": number, ... } }
+router.post("/assessments/results/:resultId/grade", requireAcademyAuth, async (req, res) => {
+  try {
+    const r = await AcademyAssessmentResult.findOne({ _id: req.params.resultId, academyId: req.academyId });
+    if (!r) return res.status(404).json({ message: "Result not found." });
+    const marks = req.body.marks || {};
+    let raw = 0;
+    const answers = (r.answers || []).map((a) => {
+      if (a.type === "qa" && marks[String(a.questionId)] !== undefined) {
+        const m = Math.min(a.maxMarks, Math.max(0, Number(marks[String(a.questionId)]) || 0));
+        return { ...a, awarded: m, status: "graded" };
+      }
+      return a;
+    });
+    answers.forEach((a) => { raw += Number(a.awarded) || 0; });
+    r.answers = answers;
+    r.markModified("answers");
+    r.rawScore = raw;
+    r.scorePct = r.totalMarks > 0 ? Math.round((raw / r.totalMarks) * 100) : 0;
+    r.status = answers.some((a) => a.status === "pending_review") ? "pending_review" : "graded";
+    await r.save();
+    if (r.status === "graded") await recomputeCandidateAcademyScore(r.candidateId);
+    res.json({ success: true, result: r });
+  } catch (err) {
+    logger.error(`Grade academy assessment error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save marks." });
+  }
+});
+
+// POST /api/academy/assessments/scores/manual - score-only entry for ONE student whose
+// assessment the academy already conducted. body: { candidateId, scorePct, assessmentTitle, conductedOn }
+router.post("/assessments/scores/manual", requireAcademyAuth, async (req, res) => {
+  try {
+    const { candidateId, scorePct, assessmentTitle, conductedOn } = req.body;
+    const pct = Number(scorePct);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) return res.status(400).json({ message: "Score must be a number between 0 and 100." });
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const mine = await Candidate.findOne({ $and: [filter, { _id: candidateId }] }, { email: 1 }).lean();
+    if (!mine) return res.status(404).json({ message: "That student is not one of your academy's students." });
+    await AcademyAssessmentResult.create({
+      academyId: req.academyId,
+      assessmentTitle: String(assessmentTitle || "Academy assessment (score entered by academy)").trim().slice(0, 150),
+      candidateId: mine._id,
+      candidateEmail: mine.email,
+      rawScore: pct,
+      totalMarks: 100,
+      scorePct: Math.round(pct),
+      source: "academy_score_upload",
+      status: "graded",
+      conductedOn: conductedOn ? new Date(conductedOn) : new Date(),
+    });
+    const avg = await recomputeCandidateAcademyScore(mine._id);
+    res.json({ success: true, academyAssessmentScore: avg });
+  } catch (err) {
+    logger.error(`Manual academy score error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save the score." });
+  }
+});
+
+// POST /api/academy/assessments/scores/upload - score-only CSV for many students.
+// Columns: Email, Score (0-100 or "42/50"), Assessment name (optional), Date (optional)
+router.post("/assessments/scores/upload", requireAcademyAuth, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) return res.status(400).json({ message: "No file uploaded. Please provide a CSV file." });
+    const rows = parseCsvBuffer(req.file.buffer);
+    if (rows.length === 0) return res.status(400).json({ message: "No score rows found in the file." });
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const mine = await Candidate.find(filter, { email: 1 }).limit(DASHBOARD_FETCH_CAP).lean();
+    const byEmail = new Map(mine.map((c) => [String(c.email || "").toLowerCase().trim(), c]));
+
+    let updated = 0;
+    const issues = [];
+    for (let i = 0; i < rows.length; i++) {
+      const canon = {};
+      Object.keys(rows[i]).forEach((k) => { canon[String(k).toLowerCase().replace(/[^a-z0-9]/g, "")] = rows[i][k]; });
+      const g = (...ks) => { for (const k of ks) { if (canon[k] != null && String(canon[k]).trim() !== "") return String(canon[k]).trim(); } return ""; };
+      const email = g("email", "emailaddress").toLowerCase();
+      const scoreRaw = g("score", "marks", "percentage");
+      let pct = NaN;
+      const frac = scoreRaw.match(/^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/);
+      if (frac) pct = (Number(frac[1]) / Number(frac[2])) * 100;
+      else pct = Number(scoreRaw.replace(/%/g, ""));
+      const cand = byEmail.get(email);
+      if (!cand) { issues.push({ row: i + 1, email, error: "Not one of your academy's students." }); continue; }
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) { issues.push({ row: i + 1, email, error: "Score must be 0-100 (or like 42/50)." }); continue; }
+      const dateStr = g("date", "conductedon", "assessmentdate");
+      await AcademyAssessmentResult.create({
+        academyId: req.academyId,
+        assessmentTitle: g("assessmentname", "assessment", "title") || "Academy assessment (score entered by academy)",
+        candidateId: cand._id,
+        candidateEmail: cand.email,
+        rawScore: Math.round(pct),
+        totalMarks: 100,
+        scorePct: Math.round(pct),
+        source: "academy_score_upload",
+        status: "graded",
+        conductedOn: dateStr && !isNaN(new Date(dateStr)) ? new Date(dateStr) : new Date(),
+      });
+      await recomputeCandidateAcademyScore(cand._id);
+      updated++;
+    }
+    res.json({ success: true, updated, total: rows.length, issues, message: `${updated} of ${rows.length} scores saved.` });
+  } catch (err) {
+    logger.error(`Academy score CSV upload error: ${err.message}`);
+    res.status(err.userMessage ? 400 : 500).json({ message: err.userMessage || "Failed to process the score file." });
+  }
+});
+
+// ===========================================================================
+// ACADEMY GALLERY - pictures / videos shown on the public academy profile
+// Flow: upload (preview) -> save -> view -> replace / delete
+// ===========================================================================
+const GALLERY_MAX_ITEMS = 24;
+const GALLERY_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const isSafeMediaUrl = (u) => typeof u === "string" && (/^https:\/\//i.test(u) || /^\/uploads\//.test(u));
+
+// GET /api/academy/gallery
+router.get("/gallery", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId, { gallery: 1 }).lean();
+    res.json({ gallery: academy?.gallery || [], max: GALLERY_MAX_ITEMS });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to load the gallery." });
+  }
+});
+
+// POST /api/academy/gallery/upload - stores the file and returns its URL for PREVIEW; nothing is saved to the gallery yet
+router.post("/gallery/upload", requireAcademyAuth, upload.single("media"), handleUpload({ resourceType: "auto" }), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: "No file uploaded." });
+    const isVideo = String(req.file.mimetype).startsWith("video/");
+    if (!isVideo && req.file.size > GALLERY_MAX_IMAGE_BYTES) {
+      return res.status(400).json({ message: "Pictures must be 10 MB or smaller." });
+    }
+    res.json({ success: true, url: req.file.fileUrl, type: isVideo ? "video" : "image", name: req.file.originalname });
+  } catch (err) {
+    logger.error(`Academy gallery upload error: ${err.message}`);
+    res.status(500).json({ message: "Failed to upload. Please try again." });
+  }
+});
+
+// POST /api/academy/gallery - SAVE a previewed upload into the gallery. body: { url, type, caption }
+router.post("/gallery", requireAcademyAuth, async (req, res) => {
+  try {
+    const { url, type, caption } = req.body;
+    if (!isSafeMediaUrl(url)) return res.status(400).json({ message: "Upload a picture or video first." });
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+    if ((academy.gallery || []).length >= GALLERY_MAX_ITEMS) {
+      return res.status(400).json({ message: `You can keep up to ${GALLERY_MAX_ITEMS} items. Delete one to add more.` });
+    }
+    academy.gallery.push({ url, type: type === "video" ? "video" : "image", caption: String(caption || "").trim().slice(0, 160) });
+    await academy.save();
+    res.json({ success: true, gallery: academy.gallery });
+  } catch (err) {
+    logger.error(`Academy gallery save error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save to the gallery." });
+  }
+});
+
+// PUT /api/academy/gallery/:itemId - REPLACE the file and/or edit the caption. body: { url?, type?, caption? }
+router.put("/gallery/:itemId", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    const item = academy?.gallery.id(req.params.itemId);
+    if (!item) return res.status(404).json({ message: "Item not found." });
+    if (req.body.url !== undefined) {
+      if (!isSafeMediaUrl(req.body.url)) return res.status(400).json({ message: "Invalid file." });
+      item.url = req.body.url;
+      item.type = req.body.type === "video" ? "video" : "image";
+    }
+    if (req.body.caption !== undefined) item.caption = String(req.body.caption || "").trim().slice(0, 160);
+    await academy.save();
+    res.json({ success: true, gallery: academy.gallery });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update the item." });
+  }
+});
+
+// DELETE /api/academy/gallery/:itemId
+router.delete("/gallery/:itemId", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    const item = academy?.gallery.id(req.params.itemId);
+    if (!item) return res.status(404).json({ message: "Item not found." });
+    item.deleteOne();
+    await academy.save();
+    res.json({ success: true, gallery: academy.gallery });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete the item." });
+  }
+});
+
+// ===========================================================================
+// PAYMENT OPTIONS - academy -> Talentera payments (mode of payment + reference)
+// ===========================================================================
+const AcademyPayment = require("../models/AcademyPayment");
+const { PAYMENT_MODES } = AcademyPayment;
+
+// GET /api/academy/payments
+router.get("/payments", requireAcademyAuth, async (req, res) => {
+  try {
+    const payments = await AcademyPayment.find({ academyId: req.academyId }).sort({ paidOn: -1, createdAt: -1 }).lean();
+    res.json({
+      modes: PAYMENT_MODES,
+      payments,
+      totals: {
+        submitted: payments.filter((p) => p.status === "submitted").reduce((a, p) => a + p.amount, 0),
+        verified: payments.filter((p) => p.status === "verified").reduce((a, p) => a + p.amount, 0),
+      },
+    });
+  } catch (err) {
+    logger.error(`Academy payments list error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load payments." });
+  }
+});
+
+// POST /api/academy/payments - record a payment. body: { amount, mode, purpose, paidOn, reference, detail, proofUrl, notes }
+router.post("/payments", requireAcademyAuth, async (req, res) => {
+  try {
+    const { amount, mode, purpose, paidOn, reference, detail, proofUrl, notes } = req.body;
+    if (!PAYMENT_MODES.includes(mode)) return res.status(400).json({ message: "Choose a mode of payment." });
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ message: "Enter a valid amount." });
+    const ref = String(reference || "").trim();
+    if (["UPI", "Bank Transfer / NEFT", "Credit Card", "Debit Card", "Cheque"].includes(mode) && !ref) {
+      const label = mode === "UPI" ? "UPI transaction ID" : mode === "Bank Transfer / NEFT" ? "UTR / reference number" : mode === "Cheque" ? "cheque number" : "transaction reference";
+      return res.status(400).json({ message: `Enter the ${label}.` });
+    }
+    if (mode === "Other" && !String(detail || "").trim()) return res.status(400).json({ message: "Tell us how the payment was made." });
+    if (proofUrl && !(/^https:\/\//i.test(proofUrl) || /^\/uploads\//.test(proofUrl))) return res.status(400).json({ message: "Invalid proof file." });
+    if (paidOn && isNaN(new Date(paidOn))) return res.status(400).json({ message: "Invalid payment date." });
+    const doc = await AcademyPayment.create({
+      academyId: req.academyId,
+      amount: amt,
+      mode,
+      purpose: String(purpose || "").trim().slice(0, 150),
+      paidOn: paidOn ? new Date(paidOn) : new Date(),
+      reference: ref.slice(0, 80),
+      detail: String(detail || "").trim().slice(0, 120),
+      proofUrl: proofUrl || "",
+      notes: String(notes || "").trim().slice(0, 300),
+    });
+    res.json({ success: true, payment: doc });
+  } catch (err) {
+    logger.error(`Academy payment create error: ${err.message}`);
+    res.status(500).json({ message: "Failed to record the payment." });
+  }
+});
+
+// DELETE /api/academy/payments/:id - withdraw an entry that staff have not verified yet
+router.delete("/payments/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const doc = await AcademyPayment.findOne({ _id: req.params.id, academyId: req.academyId });
+    if (!doc) return res.status(404).json({ message: "Payment not found." });
+    if (doc.status === "verified") return res.status(400).json({ message: "Verified payments can't be removed." });
+    await doc.deleteOne();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to remove the payment." });
   }
 });
 

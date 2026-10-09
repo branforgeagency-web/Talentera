@@ -43,15 +43,18 @@ router.post("/register", authLimiter, async (req, res) => {
       departments,
     } = req.body;
 
-    if (!name || !city || !state || !placementOfficerName || !placementOfficerEmail || !placementOfficerMobile || !password) {
-      return res.status(400).json({ message: "Please fill in all required college and placement officer details." });
+    // Initial registration only needs the college name, placement email and password
+    // (college type defaults). City, state, placement head etc. come from the College Profile tab.
+    if (!name || !placementOfficerEmail || !password) {
+      return res.status(400).json({ message: "Please enter your college name, placement email and password." });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters." });
     }
 
-    // Same 10-digit-only rule the frontend enforces on this field - kept
-    // here too so the API itself rejects a non-numeric or wrong-length
-    // mobile number regardless of what submitted the request.
-    const cleanPlacementMobile = String(placementOfficerMobile).replace(/\D/g, "");
-    if (cleanPlacementMobile.length !== 10) {
+    // Mobile is optional at registration; if given it must be exactly 10 digits.
+    const cleanPlacementMobile = placementOfficerMobile ? String(placementOfficerMobile).replace(/\D/g, "") : "";
+    if (cleanPlacementMobile && cleanPlacementMobile.length !== 10) {
       return res.status(400).json({ message: "Mobile number must be exactly 10 digits." });
     }
 
@@ -79,15 +82,15 @@ router.post("/register", authLimiter, async (req, res) => {
     const newCollege = await College.create({
       name: name.trim(),
       type: type || "Arts & Science",
-      affiliation: affiliation || "State University",
-      yearEstablished: Number(yearEstablished) || 2010,
+      affiliation: affiliation || "",
+      yearEstablished: Number(yearEstablished) || undefined,
       website: website ? website.trim() : "",
       address: address || "",
-      city: city.trim(),
-      state: state.trim(),
+      city: city ? String(city).trim() : "",
+      state: state ? String(state).trim() : "",
       pincode: pincode || "",
       collegeContactPhone: cleanLandline,
-      placementOfficerName: placementOfficerName.trim(),
+      placementOfficerName: placementOfficerName ? String(placementOfficerName).trim() : "",
       placementOfficerEmail: normalizedEmail,
       placementOfficerMobile: cleanPlacementMobile,
       alternateContact: alternateContact || "",
@@ -178,6 +181,7 @@ router.put("/profile", requireCollegeAuth, async (req, res) => {
       "alternateContact",
       "departments",
       "tier",
+      "placementPanel",
     ];
 
     allowed.forEach((k) => {
@@ -185,6 +189,28 @@ router.put("/profile", requireCollegeAuth, async (req, res) => {
         college[k] = req.body[k];
       }
     });
+
+    // Clean the placement panel: keep only members with a name, trim the fields
+    if (Array.isArray(college.placementPanel)) {
+      college.placementPanel = college.placementPanel
+        .map((m) => ({
+          name: String(m?.name || "").trim(),
+          designation: String(m?.designation || "").trim(),
+          email: String(m?.email || "").trim(),
+          mobile: String(m?.mobile || "").replace(/\D/g, ""),
+        }))
+        .filter((m) => m.name);
+    }
+    if (college.placementOfficerMobile) {
+      const digits = String(college.placementOfficerMobile).replace(/\D/g, "");
+      if (digits.length !== 10) return res.status(400).json({ message: "Contact number must be exactly 10 digits." });
+      college.placementOfficerMobile = digits;
+    }
+    // The College Profile is complete once the core institutional + placement-head details exist
+    college.profileCompleted = Boolean(
+      college.city && college.state && college.affiliation && college.yearEstablished &&
+      college.placementOfficerName && college.placementOfficerMobile
+    );
 
     await college.save();
     return res.json({ success: true, message: "College profile updated.", college });
@@ -351,7 +377,6 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
       backlogsCount,
       primaryDomain,
       secondaryDomain,
-      consentGiven,
     } = req.body;
 
     if (!name || !email || !mobile) {
@@ -370,14 +395,6 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
 
     if (!dob || !String(dob).trim()) {
       return res.status(400).json({ message: "Date of Birth is required." });
-    }
-
-    if (!yearOfStudy || !String(yearOfStudy).trim()) {
-      return res.status(400).json({ message: "Current Year / Semester is required." });
-    }
-
-    if (!consentGiven) {
-      return res.status(400).json({ message: "Student consent is required before enrolling them." });
     }
 
     const normalizedEmail = email.toLowerCase().trim();
@@ -439,14 +456,12 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
         rollNumber: rollNumber || "",
         department: department || "",
         degree: degree || "",
-        yearOfStudy,
+        yearOfStudy: yearOfStudy || "",
         graduationYear: graduationYear || "",
         cgpa: cgpa || "",
         percentage: percentage || "",
         backlogsCount: Number(backlogsCount) || 0,
         marksheetsVault: [],
-        consentGiven: true,
-        consentGivenAt: new Date(),
       },
       rcmDomainSelection: {
         primaryDomain,
@@ -603,26 +618,7 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
         row["current year / semester"] ||
         ""
       ).trim();
-      if (!rawYearOfStudy) {
-        errorCount++;
-        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing Current Year / Semester" });
-        continue;
-      }
 
-      const rawConsent = String(
-        row.consent ||
-        row.Consent ||
-        row.consentGiven ||
-        row.consentgiven ||
-        row["consent given"] ||
-        row.consent_given ||
-        ""
-      ).trim().toLowerCase();
-      if (!["yes", "true", "1", "y"].includes(rawConsent)) {
-        errorCount++;
-        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Missing student consent (Consent column must be Yes)" });
-        continue;
-      }
 
       // Duplicate Check (by email OR 10-digit mobile)
       const existingQuery = [{ email: rawEmail }];
@@ -633,7 +629,16 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
       const existing = await Candidate.findOne({ $or: existingQuery });
       if (existing) {
         duplicateCount++;
-        errorsSummary.push({ row: i + 1, email: rawEmail, error: "Already registered in platform" });
+        const matchedBy = existing.email === rawEmail ? "email" : "mobile number";
+        let reason;
+        if (existing.collegeId && String(existing.collegeId) === String(collegeId)) {
+          reason = `Skipped - already enrolled in your college (same ${matchedBy})`;
+        } else if (existing.collegeId) {
+          reason = `Skipped - this ${matchedBy} is already registered under another college`;
+        } else {
+          reason = `Skipped - this ${matchedBy} already has a Talentera candidate account`;
+        }
+        errorsSummary.push({ row: i + 1, email: rawEmail, error: reason });
         continue;
       }
 
@@ -729,8 +734,6 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
           percentage,
           backlogsCount: backlogs,
           marksheetsVault: [],
-          consentGiven: true,
-          consentGivenAt: new Date(),
         },
         rcmDomainSelection: {
           primaryDomain: domain,
@@ -780,6 +783,7 @@ router.post("/students/bulk-upload", requireCollegeAuth, async (req, res) => {
         valid: validCount,
         duplicates: duplicateCount,
         errors: errorCount,
+        errorsSummary,
       },
       uploadLog,
     });
@@ -1462,7 +1466,7 @@ router.get("/students-training-progress", requireCollegeAuth, async (req, res) =
     }
 
     const students = await Candidate.find(query)
-      .select("stage1 email mobile studentEnrollment rcmDomainSelection collegeTrainingModules stage4")
+      .select("stage1 stage2 email mobile studentEnrollment rcmDomainSelection collegeTrainingModules stage4 talenteraScore")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1481,6 +1485,10 @@ router.get("/students-training-progress", requireCollegeAuth, async (req, res) =
           ? Math.round((Number(s.collegeTrainingModules.attendancePct) / 100) * totalHours)
           : Math.min(totalHours, Math.round((completedModules / (totalModules || 1)) * totalHours)));
       const attendancePct = totalHours > 0 ? Math.min(100, Math.round((attendedHours / totalHours) * 100)) : 0;
+
+      const s2 = s.stage2 || {};
+      const rawAcademy = s2.academyAssessmentScore ?? s2.assessmentScore ?? s2.score;
+      const academyScoreVal = rawAcademy !== undefined && rawAcademy !== null && rawAcademy !== "" && !isNaN(Number(rawAcademy)) ? Math.round(Number(rawAcademy)) : null;
 
       const s4 = s.stage4 || {};
       const rawScore = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
@@ -1524,6 +1532,8 @@ router.get("/students-training-progress", requireCollegeAuth, async (req, res) =
         trainingCompletedModules: completedModules,
         trainingTotalModules: totalModules,
         trainingPct,
+        academyScore: academyScoreVal,
+        talenteraScore: Math.round(Number(s.talenteraScore) || 0),
         assessmentTaken,
         assessmentScore,
         assessmentPassed,

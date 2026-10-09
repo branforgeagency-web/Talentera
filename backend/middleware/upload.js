@@ -49,6 +49,17 @@ const ALLOWED_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "application/octet-stream",
   ],
+  // Academy profile gallery - photos and short videos
+  media: [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "video/mp4",
+    "video/webm",
+    "video/quicktime",
+  ],
   // Academy bulk student-roster upload, CSV
   file: [
     "text/csv",

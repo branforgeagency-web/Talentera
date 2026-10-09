@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
@@ -18,6 +18,7 @@ export default function CompanyDashboardSetup() {
   const navigate = useNavigate();
   const { company: authCompany, logout, refreshCompany } = useCompanyAuth();
   const toast = useToast();
+  const mainContentRef = useRef(null);
 
   const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,7 @@ export default function CompanyDashboardSetup() {
   const [stageErrors, setStageErrors] = useState({});
   const [missingFields, setMissingFields] = useState(null);
   const [submittingKyc, setSubmittingKyc] = useState(false);
+  const [showHeroOverview, setShowHeroOverview] = useState(true);
 
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -102,7 +104,7 @@ export default function CompanyDashboardSetup() {
     const missing = checkMustFields("1a");
     if (missing.length > 0) {
       setStageErrors((prev) => ({ ...prev, "1a": missing.map((i) => i.name) }));
-      toast(`Please fill all required inputs in Section 1A before submitting for KYC audit.`, "!");
+      toast(`Please fill all required inputs in Section 1 before submitting for KYC audit.`, "!");
       return;
     }
 
@@ -169,7 +171,7 @@ export default function CompanyDashboardSetup() {
       const missing = checkMustFields(activeStageId);
       if (missing.length > 0) {
         setStageErrors((prev) => ({ ...prev, [activeStageId]: missing.map((i) => i.name) }));
-        toast(`Please complete all required (MUST) fields in Section ${activeStage.key} before advancing.`, "!");
+        toast(`Please complete all required (*) fields in Section ${activeStage.key} before advancing.`, "!");
         return;
       }
 
@@ -193,6 +195,9 @@ export default function CompanyDashboardSetup() {
     // Always allow moving backward to previous sections or switching to an earlier stage
     setActiveStageId(targetId);
     setMissingFields(null);
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   if (loading) {
@@ -231,7 +236,19 @@ export default function CompanyDashboardSetup() {
   const jdIsRejected = Boolean(company?.jdPublished && jdApprovalStatus === "rejected");
 
   return (
-    <div style={{ minHeight: "100vh", background: "#FAF7F2", color: "var(--navy)", fontFamily: "var(--font-body)" }}>
+    <div
+      className="conb-page-shell"
+      style={{
+        height: "100vh",
+        maxHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "#FAF7F2",
+        color: "var(--navy)",
+        fontFamily: "var(--font-body)",
+      }}
+    >
       {/* TOP STICKY DASHBOARD NAV */}
       <header className="conb-topnav">
         <div className="conb-topnav-brand" onClick={() => navigate("/companies/dashboard")} style={{ cursor: "pointer" }}>
@@ -427,157 +444,9 @@ export default function CompanyDashboardSetup() {
         </div>
       </header>
 
-      {/* WELCOME BANNER */}
-      <section className="conb-hero">
-        <div className="conb-hero-inner">
-          <div className="conb-hero-eyebrow">
-            <span className="conb-hero-eyebrow-dot" />
-            {jdIsLive
-              ? "JOB LIVE · SETUP IN PROGRESS"
-              : jdIsPendingApproval
-              ? "JOB AWAITING APPROVAL · SETUP IN PROGRESS"
-              : jdIsRejected
-              ? "JOB NEEDS REVISION · SETUP IN PROGRESS"
-              : "ACCOUNT CREATED · SETUP IN PROGRESS"}
-          </div>
-
-          <h1 className="conb-hero-title" style={{ color: "#FFFFFF" }}>
-            Welcome, <span className="gold-italic">{contactName}</span> — let's get{" "}
-            <span className="gold-italic">{companyName}</span> hiring.
-          </h1>
-
-          <p className="conb-hero-sub" style={{ color: "rgba(226, 232, 240, 0.9)" }}>
-            Complete your profile to unlock the full verified candidate pool. Most companies finish in{" "}
-            <strong style={{ color: "var(--gold-light)" }}>~12 minutes</strong>. Your data is encrypted, never shared with competitors.
-          </p>
-
-          {company.intakeNotes && (
-            <div
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(229,168,46,0.35)",
-                borderRadius: 12,
-                padding: "12px 16px",
-                marginBottom: 20,
-                fontSize: 12.5,
-                color: "rgba(255,255,255,0.85)",
-                lineHeight: 1.6,
-              }}
-            >
-              <strong style={{ color: "var(--gold)" }}>What you told us when you signed up: </strong>
-              {company.intakeNotes.flow === "job" ? (
-                <span>
-                  Hiring for <strong>{company.intakeNotes.jobTitle || "a role"}</strong>
-                  {company.intakeNotes.jobSpecialty ? ` · ${company.intakeNotes.jobSpecialty}` : ""}
-                  {company.intakeNotes.jobLocation ? ` · ${company.intakeNotes.jobLocation}` : ""}
-                  {company.intakeNotes.jobExperience ? ` · ${company.intakeNotes.jobExperience}` : ""}
-                  {company.intakeNotes.jobEmploymentType ? ` · ${company.intakeNotes.jobEmploymentType}` : ""}
-                  {company.intakeNotes.jobSalaryRange ? ` · ${company.intakeNotes.jobSalaryRange}` : ""}
-                </span>
-              ) : (
-                <span>
-                  {company.intakeNotes.location ? `Hiring in ${company.intakeNotes.location}` : "Hiring"}
-                  {company.intakeNotes.teamSize ? ` · Team size ${company.intakeNotes.teamSize}` : ""}
-                  {company.intakeNotes.department ? ` · ${company.intakeNotes.department}` : ""}
-                  {company.intakeNotes.frequency ? ` · ${company.intakeNotes.frequency}` : ""}
-                </span>
-              )}
-              {" "}We've pre-filled what we could into the sections below.
-            </div>
-          )}
-
-          {isFullyOnboarded(company) && (
-            <div
-              style={{
-                background: "rgba(34,197,94,0.12)",
-                border: "1px solid rgba(34,197,94,0.4)",
-                borderRadius: 12,
-                padding: "12px 16px",
-                marginBottom: 20,
-                fontSize: 12.5,
-                color: "rgba(255,255,255,0.9)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-                flexWrap: "wrap",
-              }}
-            >
-              <span>
-                <strong style={{ color: "#4ADE80" }}>✓ Profile complete &amp; KYC verified — </strong>
-                you don't need to come back here unless something changes. Post and manage roles from Job Posts instead.
-              </span>
-              <button
-                type="button"
-                onClick={() => navigate("/companies/jobs")}
-                style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "8px 16px", borderRadius: 8, fontWeight: 800, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}
-              >
-                Go to Job Posts →
-              </button>
-            </div>
-          )}
-
-          {(() => {
-            let score = 25;
-            if (company.stage1a && Object.keys(company.stage1a).length > 2) score += 20;
-            if (company.kycStatus === "verified" || company.kycVerifiedAt) score += 35;
-            else if (company.kycStatus === "under_review") score += 15;
-            if (company.stage2 && Object.keys(company.stage2).length > 2) score += 10;
-            if (company.jdPublished) score += 10;
-            const trustScore = Math.min(score, 100);
-
-            const badge =
-              trustScore >= 85
-                ? { label: "GOLD TRUST 🛡️", color: "#15803D", bg: "#DCFCE7" }
-                : trustScore >= 60
-                ? { label: "SILVER TRUST ⭐", color: "#B45309", bg: "#FEF3C7" }
-                : { label: "LOW TRUST ⚠️", color: "#B91C1C", bg: "#FEE2E2" };
-
-            return (
-              <div className="conb-hero-stats">
-                <div style={{ background: badge.bg, border: `1.5px solid ${badge.color}`, borderRadius: 10, padding: "8px 12px", minWidth: 140 }}>
-                  <div className="conb-hero-stat-val" style={{ color: badge.color, fontSize: 22, fontWeight: 900 }}>
-                    {trustScore}%
-                  </div>
-                  <div className="conb-hero-stat-label" style={{ color: badge.color, fontWeight: 800 }}>
-                    {badge.label}
-                  </div>
-                </div>
-                <div>
-                  <div className="conb-hero-stat-val">{overallPct}%</div>
-                  <div className="conb-hero-stat-label">PROFILE COMPLETE</div>
-                </div>
-                <div>
-                  <div className="conb-hero-stat-val">{totalDone}/{TOTAL_FIELDS}</div>
-                  <div className="conb-hero-stat-label">FIELDS SAVED</div>
-                </div>
-                <div>
-                  <div className="conb-hero-stat-val">
-                    {(company.kycStatus === "verified" || company.kycVerifiedAt) ? "VERIFIED ✓" : company.kycStatus === "under_review" ? "REVIEW" : company.kycStatus === "rejected" ? "REVISION" : "PENDING"}
-                  </div>
-                  <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
-                </div>
-                <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
-                  <div className="conb-hero-stat-val" style={{ fontSize: company.jobId ? 26 : 18 }}>
-                    {jdIsLive ? "1 LIVE" : jdIsPendingApproval ? "IN REVIEW" : "+ POST JD"}
-                  </div>
-                  <div className="conb-hero-stat-label">JOB REQUISITIONS</div>
-                </div>
-                <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/billing")}>
-                  <div className="conb-hero-stat-val" style={{ fontSize: 17, color: "var(--gold)" }}>
-                    {(company.plan || "free").toUpperCase()} ⚡
-                  </div>
-                  <div className="conb-hero-stat-label">PLAN TIER (CHANGE)</div>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-      </section>
-
       {/* MAIN TWO-COLUMN WORKSPACE */}
       <div className="conb-workspace">
-        {/* LEFT SIDEBAR */}
+        {/* LEFT SIDEBAR (FIXED IN POSITION, FLUSH TO LEFT) */}
         <aside className="conb-sidebar">
           <div className="conb-sidebar-eyebrow">ONBOARDING</div>
           <h2 className="conb-sidebar-title" style={{ color: "#FFFFFF" }}>
@@ -625,13 +494,6 @@ export default function CompanyDashboardSetup() {
             })}
           </div>
 
-          <div className="conb-legend">
-            <div className="conb-legend-title">LEGEND</div>
-            <div className="conb-legend-row"><span className="conb-legend-dot" style={{ background: "#EF4444" }} />MUST · Required to go live</div>
-            <div className="conb-legend-row"><span className="conb-legend-dot" style={{ background: "#F59E0B" }} />Optional · Defer to week 2</div>
-            <div className="conb-legend-row"><span className="conb-legend-dot" style={{ background: "#94A3B8" }} />Conditional · Only if relevant</div>
-          </div>
-
           <div style={{ textAlign: "center", fontSize: 12 }}>
             <Link to="/companies/directory" style={{ color: "var(--gold)", textDecoration: "none", fontWeight: 600 }}>
               Skip for now — Browse candidates →
@@ -639,8 +501,184 @@ export default function CompanyDashboardSetup() {
           </div>
         </aside>
 
-        {/* RIGHT MAIN WORKSPACE */}
-        <main>
+        {/* RIGHT MAIN WORKSPACE (INDEPENDENTLY SCROLLABLE) */}
+        <main className="conb-main-workspace" ref={mainContentRef}>
+          {/* WELCOME BANNER / OVERVIEW CARD */}
+          <section className="conb-hero">
+            <div className="conb-hero-inner">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: showHeroOverview ? 10 : 0 }}>
+                <div>
+                  <div className="conb-hero-eyebrow">
+                    <span className="conb-hero-eyebrow-dot" />
+                    {jdIsLive
+                      ? "JOB LIVE · SETUP IN PROGRESS"
+                      : jdIsPendingApproval
+                      ? "JOB AWAITING APPROVAL · SETUP IN PROGRESS"
+                      : jdIsRejected
+                      ? "JOB NEEDS REVISION · SETUP IN PROGRESS"
+                      : "ACCOUNT CREATED · SETUP IN PROGRESS"}
+                  </div>
+
+                  <h1 className="conb-hero-title" style={{ color: "#FFFFFF", fontSize: showHeroOverview ? "clamp(20px, 2.2vw, 26px)" : 17, margin: "2px 0 0" }}>
+                    Welcome, <span className="gold-italic">{contactName}</span> — let's get{" "}
+                    <span className="gold-italic">{companyName}</span> hiring.
+                  </h1>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHeroOverview(!showHeroOverview)}
+                  style={{
+                    background: "rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    color: "#FFFFFF",
+                    borderRadius: 8,
+                    padding: "5px 12px",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all 0.2s ease",
+                  }}
+                  title={showHeroOverview ? "Minimize overview stats" : "Expand overview stats"}
+                >
+                  <span>{showHeroOverview ? "▴ Minimize Overview" : "▾ Expand Overview & Stats"}</span>
+                </button>
+              </div>
+
+              {showHeroOverview && (
+                <>
+                  <p className="conb-hero-sub" style={{ color: "rgba(226, 232, 240, 0.9)" }}>
+                    Complete your profile to unlock the full verified candidate pool. Your information is encrypted and securely protected.
+                  </p>
+
+                  {company.intakeNotes && (
+                    <div
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(229,168,46,0.35)",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        marginBottom: 16,
+                        fontSize: 12.5,
+                        color: "rgba(255,255,255,0.85)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <strong style={{ color: "var(--gold)" }}>What you told us when you signed up: </strong>
+                      {company.intakeNotes.flow === "job" ? (
+                        <span>
+                          Hiring for <strong>{company.intakeNotes.jobTitle || "a role"}</strong>
+                          {company.intakeNotes.jobSpecialty ? ` · ${company.intakeNotes.jobSpecialty}` : ""}
+                          {company.intakeNotes.jobLocation ? ` · ${company.intakeNotes.jobLocation}` : ""}
+                          {company.intakeNotes.jobExperience ? ` · ${company.intakeNotes.jobExperience}` : ""}
+                          {company.intakeNotes.jobEmploymentType ? ` · ${company.intakeNotes.jobEmploymentType}` : ""}
+                          {company.intakeNotes.jobSalaryRange ? ` · ${company.intakeNotes.jobSalaryRange}` : ""}
+                        </span>
+                      ) : (
+                        <span>
+                          {company.intakeNotes.location ? `Hiring in ${company.intakeNotes.location}` : "Hiring"}
+                          {company.intakeNotes.teamSize ? ` · Team size ${company.intakeNotes.teamSize}` : ""}
+                          {company.intakeNotes.department ? ` · ${company.intakeNotes.department}` : ""}
+                          {company.intakeNotes.frequency ? ` · ${company.intakeNotes.frequency}` : ""}
+                        </span>
+                      )}
+                      {" "}We've pre-filled what we could into the sections below.
+                    </div>
+                  )}
+
+                  {isFullyOnboarded(company) && (
+                    <div
+                      style={{
+                        background: "rgba(34,197,94,0.12)",
+                        border: "1px solid rgba(34,197,94,0.4)",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        marginBottom: 16,
+                        fontSize: 12.5,
+                        color: "rgba(255,255,255,0.9)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span>
+                        <strong style={{ color: "#4ADE80" }}>✓ Profile complete &amp; KYC verified — </strong>
+                        you don't need to come back here unless something changes. Post and manage roles from Job Posts instead.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/companies/jobs")}
+                        style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "8px 16px", borderRadius: 8, fontWeight: 800, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        Go to Job Posts →
+                      </button>
+                    </div>
+                  )}
+
+                  {(() => {
+                    let score = 25;
+                    if (company.stage1a && Object.keys(company.stage1a).length > 2) score += 20;
+                    if (company.kycStatus === "verified" || company.kycVerifiedAt) score += 35;
+                    else if (company.kycStatus === "under_review") score += 15;
+                    if (company.stage2 && Object.keys(company.stage2).length > 2) score += 10;
+                    if (company.jdPublished) score += 10;
+                    const trustScore = Math.min(score, 100);
+
+                    const badge =
+                      trustScore >= 85
+                        ? { label: "GOLD TRUST 🛡️", color: "#15803D", bg: "#DCFCE7" }
+                        : trustScore >= 60
+                        ? { label: "SILVER TRUST ⭐", color: "#B45309", bg: "#FEF3C7" }
+                        : { label: "LOW TRUST ⚠️", color: "#B91C1C", bg: "#FEE2E2" };
+
+                    return (
+                      <div className="conb-hero-stats">
+                        <div style={{ background: badge.bg, border: `1.5px solid ${badge.color}`, borderRadius: 10, padding: "8px 12px", minWidth: 130 }}>
+                          <div className="conb-hero-stat-val" style={{ color: badge.color, fontSize: 22, fontWeight: 900 }}>
+                            {trustScore}%
+                          </div>
+                          <div className="conb-hero-stat-label" style={{ color: badge.color, fontWeight: 800 }}>
+                            {badge.label}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="conb-hero-stat-val">{overallPct}%</div>
+                          <div className="conb-hero-stat-label">PROFILE COMPLETE</div>
+                        </div>
+                        <div>
+                          <div className="conb-hero-stat-val">{totalDone}/{TOTAL_FIELDS}</div>
+                          <div className="conb-hero-stat-label">FIELDS SAVED</div>
+                        </div>
+                        <div>
+                          <div className="conb-hero-stat-val">
+                            {(company.kycStatus === "verified" || company.kycVerifiedAt) ? "VERIFIED ✓" : company.kycStatus === "under_review" ? "REVIEW" : company.kycStatus === "rejected" ? "REVISION" : "PENDING"}
+                          </div>
+                          <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
+                        </div>
+                        <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
+                          <div className="conb-hero-stat-val" style={{ fontSize: company.jobId ? 24 : 18 }}>
+                            {jdIsLive ? "1 LIVE" : jdIsPendingApproval ? "IN REVIEW" : "+ POST JD"}
+                          </div>
+                          <div className="conb-hero-stat-label">JOB REQUISITIONS</div>
+                        </div>
+                        <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/billing")}>
+                          <div className="conb-hero-stat-val" style={{ fontSize: 17, color: "var(--gold)" }}>
+                            {(company.plan || "free").toUpperCase()} ⚡
+                          </div>
+                          <div className="conb-hero-stat-label">PLAN TIER (CHANGE)</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </section>
           <div className="conb-banner" style={{ "--banner-color": STAGE_COLORS[activeStageId] }}>
             <div className="conb-banner-icon"><i className={banner.icon}></i></div>
             <div>

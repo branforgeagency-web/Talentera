@@ -40,7 +40,7 @@ const GOLD_BADGE_THRESHOLD = 75;
 // must never lower their profile. For these domains Stage 06 is left out of the score entirely
 // and the remaining stages (worth 80) are rescaled to /100.
 // Keep in sync with LIVE_CHART_EXEMPT_DOMAINS in routes/candidate.js and frontend/src/data/wizardStages.js.
-const LIVE_CHART_EXEMPT_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+const LIVE_CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"];
 function isLiveChartExempt(candidate) {
   return LIVE_CHART_EXEMPT_DOMAINS.includes((candidate && candidate.stage2 && candidate.stage2.domain) || "");
 }

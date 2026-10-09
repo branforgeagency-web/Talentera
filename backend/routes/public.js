@@ -230,6 +230,7 @@ function resolveCompanyLogo(c) {
   const s2 = c.stage2 || {};
   const s1a = c.stage1a || {};
   const candidates = [
+    c.stage4?.blogo?.docUrl,
     s2.logosquare?.docUrl,
     s2.logosquare?.url,
     typeof s2.logosquare === "string" ? s2.logosquare : null,
@@ -323,8 +324,8 @@ function formatPostedJob(job, companiesById) {
 //   ?q=          matches role title / specialty / company name
 //   ?location=   matches location (case-insensitive substring)
 //   ?workMode=   exact match (e.g. "Remote", "Hybrid", "On-site")
-router.get("/jobs", async (req, res) => {
-  try {
+async function loadPublishedJobs() {
+  {
     // Verified companies do not require employee approval — their jobs are live immediately.
     const companies = await Company.find({
       jdPublished: true,
@@ -347,9 +348,15 @@ router.get("/jobs", async (req, res) => {
       fromPosted = postedJobs.map((job) => formatPostedJob(job, companiesById));
     }
 
-    let jobs = [...fromOnboarding, ...fromPosted].sort(
+    return [...fromOnboarding, ...fromPosted].sort(
       (a, b) => new Date(b.publishedAt || 0) - new Date(a.publishedAt || 0)
     );
+  }
+}
+
+router.get("/jobs", async (req, res) => {
+  try {
+    let jobs = await loadPublishedJobs();
 
     const { q, location, workMode, specialty } = req.query;
 
@@ -736,6 +743,39 @@ router.get("/hiring-activity", async (req, res) => {
     res.status(500).json({ message: "Failed to load hiring activity." });
   }
 });
+
+// Shared with routes/academy.js (Company Data tab) so the academy dashboard shows exactly
+// the same live hirings the candidate job board shows.
+router.loadPublishedJobs = loadPublishedJobs;
+
+// GET /api/public/academy/:id/profile - what candidates and companies see when they open an
+// academy's profile (verified academies only; no contact details or KYC data).
+router.get("/academy/:id/profile", async (req, res) => {
+  try {
+    if (!/^[a-f0-9]{24}$/i.test(req.params.id)) return res.status(404).json({ message: "Academy not found." });
+    const Academy = require("../models/Academy");
+    const a = await Academy.findById(req.params.id).lean();
+    if (!a || a.kycStatus !== "verified") return res.status(404).json({ message: "Academy profile not available." });
+    const kyc = a.kycData || {};
+    res.json({
+      academy: {
+        _id: a._id,
+        name: a.name,
+        specialty: a.specialty,
+        headquarters: a.headquarters,
+        branches: a.branches || [],
+        partnerSince: a.partnerSince,
+        website: kyc.website || "",
+        courses: (a.courses || []).map((c) => ({ title: c.title, category: c.category, duration: c.duration, totalHrs: c.totalHrs })),
+        gallery: (a.gallery || []).map((g) => ({ _id: g._id, type: g.type, url: g.url, caption: g.caption })),
+      },
+    });
+  } catch (err) {
+    logger.error(`Public academy profile error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load the academy profile." });
+  }
+});
+
 
 module.exports = router;
 

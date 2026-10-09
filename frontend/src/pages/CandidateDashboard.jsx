@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
 import CandidateResumeSection from '../components/CandidateResumeSection.jsx';
+import AcademyProfileModal from '../components/AcademyProfileModal.jsx';
 import { exportResumeWord } from '../utils/resumeExport.js';
 import SupportEnquiries from '../components/SupportEnquiries.jsx';
 import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
@@ -231,6 +232,16 @@ export function getScoreBreakdown(profile) {
 
 export default function CandidateDashboard({ profile: propProfile, onEditStage }) {
   const navigate = useNavigate();
+  const [academyTestsPending, setAcademyTestsPending] = useState(0);
+  const [showAcademyProfile, setShowAcademyProfile] = useState(false);
+  useEffect(() => {
+    api
+      .get('/candidate/academy-assessments')
+      .then((r) => setAcademyTestsPending((r.data.assessments || []).filter((a) => !a.attempt).length))
+      .catch(() => {
+        /* not linked to an academy - nothing to show */
+      });
+  }, []);
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const PROFILE_GROUP = ['dashboard', 'profile', 'documents', 'resumes'];
@@ -612,6 +623,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
   return (
     <div className="app">
+      {showAcademyProfile && profile?.stage2?.academyId && (
+        <AcademyProfileModal academyId={profile.stage2.academyId} onClose={() => setShowAcademyProfile(false)} />
+      )}
+
       {/* Toast Notification */}
       {toastMessage && (
         <div id="toast" className="toast show">
@@ -655,6 +670,19 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <span>7 Stages Dashboard</span>
             <span className="stages-count-pill">{coreStagesCompleted}/7 Done</span>
           </button>
+
+          {academyTestsPending > 0 && (
+            <button
+              type="button"
+              onClick={() => navigate('/academy-assessment')}
+              className="btn-open-stages-topbar"
+              title="Your academy has published an assessment for you"
+            >
+              <span className="stages-icon-pulse"><i className="fa-solid fa-file-pen" /></span>
+              <span>Academy Assessment</span>
+              <span className="stages-count-pill">{academyTestsPending} new</span>
+            </button>
+          )}
 
           <div className="top-search" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input type="text" placeholder="Search jobs, stages, badges..." style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: '13px', width: '200px', color: '#FFFFFF' }} />
@@ -1035,7 +1063,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(2)}><><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Edit Stage 02</></button></div>
         </div>
         <div className="stage-fields">
-          <div className="field"><div className="k">Academy</div><div className="v">{profile?.stage2?.academyName || profile?.stage2?.instituteName || '—'}</div></div>
+          <div className="field"><div className="k">Academy</div><div className="v">{profile?.stage2?.academyName || profile?.stage2?.instituteName || '—'}{profile?.stage2?.academyId && (<button type="button" onClick={() => setShowAcademyProfile(true)} style={{ marginLeft: 8, border: 'none', background: 'none', color: '#2563EB', fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>View academy profile</button>)}</div></div>
           <div className="field"><div className="k">Domain</div><div className="v">{profile?.stage2?.domain || '—'}</div></div>
           <div className="field"><div className="k">Level</div><div className="v">{profile?.stage2?.trainingLevel || profile?.stage2?.level || '—'}</div></div>
           <div className="field"><div className="k">Specialties</div><div className="v">{Array.isArray(profile?.stage2?.specialties) ? profile.stage2.specialties.join(' + ') : (profile?.stage2?.specialty || profile?.stage2?.specialties || '—')}</div></div>
@@ -1319,8 +1347,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         {applications.length > 0 ? applications.map((app) => {
           const statusMap = {
             applied: { cls: 'applied', label: 'Applied', cta: 'View' },
-            shortlisted: { cls: 'shortlisted', label: 'Shortlisted', cta: 'Book →' },
-            interviewing: { cls: 'interviewed', label: 'Interviewing', cta: 'Prep →' },
+            shortlisted: { cls: 'shortlisted', label: 'Shortlisted', cta: null },
+            interviewing: { cls: 'interviewed', label: 'Interviewing', cta: null },
             hired: { cls: 'selected', label: 'OFFER', cta: 'Accept →' },
             rejected: { cls: 'rejected', label: 'Not Selected', cta: 'Feedback' },
           };
@@ -1331,7 +1359,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <div className="co-logo">{(app.companyName || 'C')[0].toUpperCase()}</div>
               <div className="co-info"><div className="name">{app.companyName} · {app.roleTitle}</div><div className="role">{app.location}{app.workMode ? ` · ${app.workMode}` : ''}{comp ? ` · ${comp}` : ''}</div><div className="timeline">Applied {new Date(app.createdAt).toLocaleDateString('en-IN')}{app.updatedAt && app.updatedAt !== app.createdAt ? ` · Updated ${new Date(app.updatedAt).toLocaleDateString('en-IN')}` : ''}</div></div>
               <div className={"co-status " + st.cls}>{st.label}{app.status === 'hired' && comp ? ` · ${comp}` : ''}</div>
-              <button className="co-cta-btn" onClick={(e) => { e.stopPropagation(); triggerToast(`Opening ${app.companyName}`); }}>{st.cta}</button>
+              {st.cta && <button className="co-cta-btn" onClick={(e) => { e.stopPropagation(); triggerToast(`Opening ${app.companyName}`); }}>{st.cta}</button>}
             </div>
           );
         }) : (

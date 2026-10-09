@@ -331,7 +331,7 @@ export function isSelfTrainedCandidate(candidate) {
 // doesn't apply to AR Calling or Eligibility & Verification work, which never touches a chart
 // encoder. Keep this list in sync with DOMAINS_WITHOUT_SPECIALTIES in Stage2Training.jsx and
 // with backend/routes/candidate.js's copy of this function.
-const LIVE_CHART_EXEMPT_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+const LIVE_CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"];
 
 export function isLiveChartExemptDomain(candidate) {
   const domain = candidate?.stage2?.domain || "";

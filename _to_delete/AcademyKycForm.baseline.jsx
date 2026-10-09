@@ -17,15 +17,6 @@ import {
   RotateCcw,
 } from "lucide-react";
 
-const ACCREDITATION_OPTIONS = [
-  "AAPC Approved Education Partner",
-  "AHIMA Approved Partner",
-  "NSDC / Skill India Certified",
-  "ISO 9001:2015 Quality Certified",
-  "NAAC Accredited Institution",
-  "Healthcare Sector Skill Council (HSSC)",
-];
-
 export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
   const [formData, setFormData] = useState({
     legalEntityName: "",
@@ -47,7 +38,6 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     otherSpecialtyCourses: "",
     branches: [],
     accreditations: ["AAPC Approved Education Partner"],
-    otherAccreditation: "",
     certifiedTrainedCount: "2500+",
     activeBatchesPerYear: "12",
     regCertificateUrl: "",
@@ -58,7 +48,6 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     submittedByName: "",
   });
 
-  const [accOpen, setAccOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(false);
   const [serverKycStatus, setServerKycStatus] = useState("pending");
@@ -138,12 +127,9 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               : "Other RCM Services",
             otherSpecialtyCourses: kd.otherSpecialtyCourses || (["Medical Coding", "Medical Billing", "AR Calling", "Other RCM Services", ""].includes(kd.primarySpecialty || "") ? "" : kd.primarySpecialty || ""),
             branches: Array.isArray(kd.branches) ? kd.branches : [],
-            accreditations: (() => {
-              const saved = Array.isArray(kd.accreditations) && kd.accreditations.length > 0 ? kd.accreditations : ["AAPC Approved Education Partner"];
-              const standard = saved.filter((x) => ACCREDITATION_OPTIONS.includes(x));
-              return saved.some((x) => !ACCREDITATION_OPTIONS.includes(x)) ? [...standard, "Other"] : standard;
-            })(),
-            otherAccreditation: (Array.isArray(kd.accreditations) ? kd.accreditations : []).filter((x) => !ACCREDITATION_OPTIONS.includes(x)).join(", "),
+            accreditations: Array.isArray(kd.accreditations) && kd.accreditations.length > 0
+              ? kd.accreditations
+              : ["AAPC Approved Education Partner"],
             certifiedTrainedCount: kd.certifiedTrainedCount || ac.totalAlumni || "2,500+",
             activeBatchesPerYear: kd.activeBatchesPerYear || "12",
             regCertificateUrl: kd.regCertificateUrl || "",
@@ -237,12 +223,8 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
       if (showToast) showToast("Please enter your registered Legal Entity Name.", "error");
       return;
     }
-    if (formData.panNumber.trim() && formData.panNumber.trim().length < 10) {
-      if (showToast) showToast("PAN is optional, but if you enter it, it must be 10 characters.", "error");
-      return;
-    }
-    if (formData.accreditations.includes("Other") && !formData.otherAccreditation.trim()) {
-      if (showToast) showToast("Please type the accreditation / affiliation you selected under Other.", "error");
+    if (!formData.panNumber.trim() || formData.panNumber.length < 10) {
+      if (showToast) showToast("Please provide a valid 10-character PAN number.", "error");
       return;
     }
     if (!formData.signatoryName.trim() || !formData.signatoryMobile.trim()) {
@@ -266,13 +248,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
           "Content-Type": "application/json",
           ...getAuthHeader(),
         },
-        body: JSON.stringify({
-          ...formData,
-          accreditations: [
-            ...formData.accreditations.filter((x) => x !== "Other"),
-            ...(formData.accreditations.includes("Other") && formData.otherAccreditation.trim() ? [formData.otherAccreditation.trim()] : []),
-          ],
-        }),
+        body: JSON.stringify(formData),
       });
 
       const data = await safeJson(res);
@@ -297,6 +273,14 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     }
   };
 
+  const availableAccreditations = [
+    "AAPC Approved Education Partner",
+    "AHIMA Approved Partner",
+    "NSDC / Skill India Certified",
+    "ISO 9001:2015 Quality Certified",
+    "NAAC Accredited Institution",
+    "Healthcare Sector Skill Council (HSSC)",
+  ];
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", paddingBottom: 60 }}>
@@ -660,7 +644,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                Permanent Account Number (PAN) <span style={{ color: "#64748B", fontWeight: 500 }}>(optional)</span>
+                Permanent Account Number (PAN) <span style={{ color: "#DC2626" }}>*</span>
               </label>
               <input
                 type="text"
@@ -668,6 +652,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                 value={formData.panNumber}
                 onChange={(e) => handleInputChange("panNumber", e.target.value.toUpperCase())}
                 placeholder="e.g. AABCA1234F"
+                required
                 style={{
                   width: "100%",
                   padding: "10px 14px",
@@ -681,7 +666,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                 }}
               />
               <span style={{ fontSize: 11, color: "#64748B", marginTop: 4, display: "block" }}>
-                10-character alphanumeric PAN of the registered entity or managing trustee, if the academy has one.
+                10-character alphanumeric PAN of the registered entity or managing trustee.
               </span>
             </div>
 
@@ -860,7 +845,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
 
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                City
+                City / Headquarters
               </label>
               <input
                 type="text"
@@ -1024,45 +1009,38 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 10 }}>
               Recognized Accreditations &amp; Affiliations (Select all that apply)
             </label>
-            <div style={{ position: "relative", maxWidth: 520 }}>
-              <button
-                type="button"
-                onClick={() => setAccOpen((o) => !o)}
-                style={{ width: "100%", textAlign: "left", padding: "10px 14px", border: "1px solid #CBD5E1", borderRadius: 8, background: "#fff", fontSize: 13, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", color: formData.accreditations.length ? "#0A1F3D" : "#94A3B8" }}
-              >
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {formData.accreditations.length
-                    ? formData.accreditations.map((x) => (x === "Other" ? (formData.otherAccreditation.trim() ? `Other: ${formData.otherAccreditation.trim()}` : "Other") : x)).join(", ")
-                    : "Select accreditations & affiliations"}
-                </span>
-                <span style={{ marginLeft: 8, fontSize: 10 }}>{accOpen ? "▲" : "▼"}</span>
-              </button>
-              {accOpen && (
-                <div style={{ position: "absolute", zIndex: 20, left: 0, right: 0, marginTop: 4, background: "#fff", border: "1px solid #CBD5E1", borderRadius: 8, boxShadow: "0 8px 24px rgba(15,23,42,0.12)", padding: 6 }}>
-                  {[...ACCREDITATION_OPTIONS, "Other"].map((acc) => {
-                    const checked = formData.accreditations.includes(acc);
-                    return (
-                      <label key={acc} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 6, cursor: "pointer", fontSize: 12.5, fontWeight: checked ? 700 : 500, background: checked ? "#F8FAFC" : "#fff", color: "#0A1F3D" }}>
-                        <input type="checkbox" checked={checked} onChange={() => handleAccreditationToggle(acc)} style={{ accentColor: "#0A1F3D" }} />
-                        {acc}
-                      </label>
-                    );
-                  })}
-                  <div style={{ textAlign: "right", padding: "4px 6px" }}>
-                    <button type="button" onClick={() => setAccOpen(false)} style={{ border: "none", background: "none", color: "#2563EB", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Done</button>
-                  </div>
-                </div>
-              )}
-              {formData.accreditations.includes("Other") && (
-                <input
-                  type="text"
-                  value={formData.otherAccreditation}
-                  onChange={(e) => handleInputChange("otherAccreditation", e.target.value)}
-                  placeholder="Type your accreditation / affiliation"
-                  maxLength={120}
-                  style={{ width: "100%", marginTop: 10, padding: "10px 14px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
-                />
-              )}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
+              {availableAccreditations.map((acc, idx) => {
+                const checked = formData.accreditations.includes(acc);
+                return (
+                  <label
+                    key={idx}
+                    onClick={() => handleAccreditationToggle(acc)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "10px 14px",
+                      borderRadius: 8,
+                      border: checked ? "1px solid #0A1F3D" : "1px solid #E2E8F0",
+                      background: checked ? "#F8FAFC" : "#FFF",
+                      cursor: "pointer",
+                      fontSize: 12.5,
+                      fontWeight: checked ? 700 : 500,
+                      color: checked ? "#0A1F3D" : "#475569",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {}}
+                      style={{ cursor: "pointer", accentColor: "#0A1F3D" }}
+                    />
+                    {acc}
+                  </label>
+                );
+              })}
             </div>
           </div>
         </div>

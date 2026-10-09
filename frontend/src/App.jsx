@@ -26,6 +26,7 @@ import VerifyCandidate from "./pages/VerifyCandidate.jsx";
 import TypographyShowcase from "./pages/TypographyShowcase.jsx";
 import Learn from "./pages/Learn.jsx";
 import CertLibrary from "./pages/CertLibrary.jsx";
+import AcademyAssessmentTake from "./pages/AcademyAssessmentTake.jsx";
 import ForColleges from "./pages/ForColleges.jsx";
 import CollegeLogin from "./pages/CollegeLogin.jsx";
 import CollegeRegister from "./pages/CollegeRegister.jsx";
@@ -152,6 +153,14 @@ export default function App() {
         }
       />
       <Route path="/cert-library" element={<CertLibrary />} />
+      <Route
+        path="/academy-assessment"
+        element={
+          <RequireAuth>
+            <AcademyAssessmentTake />
+          </RequireAuth>
+        }
+      />
 
       {/* 04. Academy Partner Portal */}
       <Route path="/academy" element={<ForAcademies />} />

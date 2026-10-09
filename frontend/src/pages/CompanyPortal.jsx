@@ -347,7 +347,7 @@ export default function CompanyPortal() {
                   UNVERIFIED COMPANY ACCOUNT — CANDIDATE CONTACTS & PROFILES GATED
                 </strong>
                 <p style={{ margin: "4px 0 0", fontSize: 13, color: "#B45309", lineHeight: 1.45 }}>
-                  Unverified companies see masked contacts & gated profiles. Complete your <strong>Account &amp; KYC Verification (Stage 1A)</strong> in your dashboard to unlock full candidate phone numbers, emails, and direct interview scheduling.
+                  Unverified companies see masked contacts & gated profiles. Complete your <strong>Account &amp; KYC Verification (Stage 1)</strong> in your dashboard to unlock full candidate phone numbers, emails, and direct interview scheduling.
                 </p>
               </div>
             </div>
@@ -1164,7 +1164,7 @@ export default function CompanyPortal() {
                 Account Verification Required
               </h3>
               <p style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.55, marginBottom: 20 }}>
-                To view candidate phone numbers, email addresses, and schedule direct interviews, your company must complete <strong>Stage 1A Account &amp; KYC Verification</strong>.
+                To view candidate phone numbers, email addresses, and schedule direct interviews, your company must complete <strong>Stage 1 Account &amp; KYC Verification</strong>.
               </p>
 
               <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "12px 16px", marginBottom: 24, textAlign: "left", fontSize: 12.5, color: "#B45309" }}>

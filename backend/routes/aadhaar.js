@@ -11,6 +11,7 @@ const { validateAadhaarNumber } = require("../utils/verhoeffBackend");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { messageCentralService } = require("../utils/messageCentralService");
 const logger = require("../utils/logger");
+const { findDuplicateAadhaarAccount, duplicateAadhaarResponse } = require("../utils/aadhaarDuplicate");
 
 const router = express.Router();
 router.use(requireAuth); // All Aadhaar verification endpoints require JWT candidate auth
@@ -243,6 +244,15 @@ router.post(
         return res.status(404).json({ message: "Candidate profile not found." });
       }
 
+      const dupAccount = await findDuplicateAadhaarAccount(req.candidateId, {
+        maskedAadhaar: verification.maskedAadhaar,
+        dob: verification.dob,
+        fullName: verification.name,
+      });
+      if (dupAccount) {
+        return res.status(409).json(duplicateAadhaarResponse(dupAccount));
+      }
+
       candidate.stage1 = {
         ...(candidate.stage1 || {}),
         aadhaarVerified: true,
@@ -401,6 +411,15 @@ router.post("/messagecentral/fetch-document", async (req, res) => {
 
   try {
     const verification = await messageCentralService.getDocument(referenceId, verificationId);
+
+    const dupAccount = await findDuplicateAadhaarAccount(req.candidateId, {
+      maskedAadhaar: verification.maskedAadhaar,
+      dob: verification.dob,
+      fullName: verification.name,
+    });
+    if (dupAccount) {
+      return res.status(409).json(duplicateAadhaarResponse(dupAccount));
+    }
 
     // Save into candidate stage1
     candidate.stage1 = {

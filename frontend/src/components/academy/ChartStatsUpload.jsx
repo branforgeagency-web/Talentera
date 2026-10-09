@@ -115,6 +115,7 @@ export default function ChartStatsUpload({ getAuthHeader, onUploadSuccess }) {
   const STATUS_STYLE = {
     ready: { bg: "#ECFDF5", border: "#A7F3D0", color: "#047857", label: "✅ Ready" },
     already_completed: { bg: "#FFF7ED", border: "#FED7AA", color: "#C2410C", label: "⏭️ Already completed — skipped" },
+    not_applicable: { bg: "#F1F5F9", border: "#CBD5E1", color: "#475569", label: "➖ Not required (Billing / AR role)" },
     not_found: { bg: "#FEF2F2", border: "#FECACA", color: "#B91C1C", label: "❓ Not found" },
   };
 
@@ -126,7 +127,7 @@ export default function ChartStatsUpload({ getAuthHeader, onUploadSuccess }) {
         Practice platforms (Practicode, Codivia, 3M 360 Encompass, SuperCoder, FlashCode, HCC Coder) don&apos;t offer a public
         API, so Talentera can&apos;t pull chart counts live from them. Instead, upload your own training records here in bulk —
         your students no longer need to hand-type their chart counts into Stage 6 one by one. Students who already
-        completed Stage 6 are always skipped, so a bulk upload can never overwrite their own verified submission.
+        completed Stage 6 are always skipped, so a bulk upload can never overwrite their own verified submission. Medical-coding charts only: Billing and AR Calling students are not required to submit charts and are skipped automatically.
       </div>
 
       {errorMsg && (
@@ -220,7 +221,7 @@ export default function ChartStatsUpload({ getAuthHeader, onUploadSuccess }) {
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
             {[
               { label: "Ready to update", value: readyCount, color: "#047857" },
-              { label: "Already completed (skipped)", value: previewData.skipped_count, color: "#C2410C" },
+              { label: "Already completed / not applicable (skipped)", value: previewData.skipped_count, color: "#C2410C" },
               { label: "Not found", value: previewData.not_found_count, color: "#B91C1C" },
               { label: "Row errors", value: previewData.row_errors?.length || 0, color: "#92400E" },
             ].map((s) => (

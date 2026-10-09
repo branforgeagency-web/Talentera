@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
+import AcademyProfileModal from "../components/AcademyProfileModal.jsx";
 
 const STATUS_OPTIONS = ["applied", "shortlisted", "interviewing", "hired", "rejected"];
 
@@ -41,6 +42,40 @@ export default function CompanyApplicants() {
   const [updatingId, setUpdatingId] = useState(null);
   const [selectedApp, setSelectedApp] = useState(null);
   const [rejectingApp, setRejectingApp] = useState(null);
+
+  // "Matched by JD": candidates auto-pulled from the verified pool who fit a job's requirements
+  const [view, setView] = useState("applicants");
+  const [postedJobs, setPostedJobs] = useState([]);
+  const [matchJobId, setMatchJobId] = useState("");
+  const [matched, setMatched] = useState([]);
+  const [matchTotal, setMatchTotal] = useState(0);
+  const [matchLoading, setMatchLoading] = useState(false);
+  const [matchError, setMatchError] = useState("");
+  const showApplicants = view === "applicants";
+
+  useEffect(() => {
+    companyApi.get("/company/jobs").then((res) => {
+      const list = (res.data?.jobs || []).filter((j) => j.published);
+      setPostedJobs(list);
+      if (list.length > 0) setMatchJobId((prev) => prev || list[0].jobId);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (view !== "matched" || !matchJobId) return;
+    let cancelled = false;
+    setMatchLoading(true);
+    setMatchError("");
+    companyApi.get("/company/matched-candidates", { params: { jobId: matchJobId } })
+      .then((res) => {
+        if (cancelled) return;
+        setMatched(res.data?.candidates || []);
+        setMatchTotal(res.data?.total || 0);
+      })
+      .catch((err) => { if (!cancelled) setMatchError(err.response?.data?.message || "Couldn't load matched candidates."); })
+      .finally(() => { if (!cancelled) setMatchLoading(false); });
+    return () => { cancelled = true; };
+  }, [view, matchJobId]);
 
   useEffect(() => {
     fetchApplications();
@@ -215,6 +250,95 @@ export default function CompanyApplicants() {
           )}
         </div>
 
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {[["applicants", `Applicants (${applications.length})`], ["matched", "Matched by JD"]].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              style={{
+                padding: "8px 18px",
+                borderRadius: 10,
+                border: view === key ? "1.5px solid var(--navy)" : "1.5px solid #E2E8F0",
+                background: view === key ? "var(--navy)" : "#fff",
+                color: view === key ? "#fff" : "#475569",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {view === "matched" && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+              <select
+                value={matchJobId}
+                onChange={(e) => setMatchJobId(e.target.value)}
+                style={{ fontSize: 13, padding: "8px 14px", borderRadius: 10, border: "1.5px solid #E2E8F0", fontWeight: 700, color: "var(--navy)", background: "#fff" }}
+              >
+                {postedJobs.length === 0 && <option value="">No live job posts yet</option>}
+                {postedJobs.map((j) => (
+                  <option key={j.jobId} value={j.jobId}>{(j.fields || {}).roletitle || "Untitled role"} · {j.jobId}</option>
+                ))}
+              </select>
+              <span style={{ fontSize: 12.5, color: "#64748B" }}>
+                Auto-pulled from the verified pool using this job&apos;s hiring level and certification requirements.
+                {!matchLoading && matchJobId ? ` ${matchTotal} candidate${matchTotal === 1 ? "" : "s"} match.` : ""}
+              </span>
+            </div>
+
+            {matchLoading && <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>Finding matching candidates…</div>}
+            {!matchLoading && matchError && (
+              <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: 16, borderRadius: 10, fontSize: 13.5 }}>{matchError}</div>
+            )}
+            {!matchLoading && !matchError && matchJobId && matched.length === 0 && (
+              <div style={{ textAlign: "center", padding: 50, color: "#64748B", background: "#fff", borderRadius: 16, border: "1px dashed #E2E8F0" }}>
+                No candidates in the pool match this job yet.
+              </div>
+            )}
+            {!matchLoading && !matchError && matched.map((m) => {
+              const c = m.candidate || {};
+              const basic = c.basicInfo || {};
+              return (
+                <div
+                  key={m._id}
+                  onClick={() => setSelectedApp(m)}
+                  style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, padding: "16px 20px", marginBottom: 12, cursor: "pointer" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <strong style={{ fontSize: 15.5 }}>{basic.fullName || "Candidate"}</strong>
+                        {m.alreadyApplied && (
+                          <span style={{ fontSize: 10, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 999 }}>APPLIED</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 6 }}>
+                        {[basic.city, basic.experience].filter(Boolean).join(" · ")}{c.email ? ` · ${c.email}` : ""}
+                      </div>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {(m.matchReasons || []).map((r) => (
+                          <span key={r} style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "3px 10px", borderRadius: 999 }}>{r}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)" }}>{m.matchScore}%</div>
+                      <div style={{ fontSize: 11, color: "#94A3B8" }}>JD match</div>
+                      <span style={{ fontSize: 11, color: "#94A3B8" }}>View full profile →</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {showApplicants && (
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {["all", ...STATUS_OPTIONS].map((s) => (
@@ -252,22 +376,24 @@ export default function CompanyApplicants() {
             </select>
           )}
         </div>
+        )}
 
-        {loading && <div style={{ textAlign: "center", padding: 60, color: "#64748B" }}>Loading applicants…</div>}
+        {showApplicants && loading && <div style={{ textAlign: "center", padding: 60, color: "#64748B" }}>Loading applicants…</div>}
 
-        {!loading && loadError && (
+        {showApplicants && !loading && loadError && (
           <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: 16, borderRadius: 10, fontSize: 13.5 }}>
             {loadError}
           </div>
         )}
 
-        {!loading && !loadError && applications.length === 0 && (
+        {showApplicants && !loading && !loadError && applications.length === 0 && (
           <div style={{ textAlign: "center", padding: 60, color: "#64748B", background: "#fff", borderRadius: 16, border: "1px dashed #E2E8F0" }}>
             No applications yet. Once your published JD is live, candidates who apply will show up here.
           </div>
         )}
 
-        {!loading &&
+        {showApplicants &&
+          !loading &&
           !loadError &&
           filtered.map((app) => {
             const c = app.candidate || {};
@@ -408,6 +534,7 @@ export default function CompanyApplicants() {
 // but had nowhere to render. Clicking a card opens this instead.
 function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onEditRejection, onClose }) {
   const c = application.candidate || {};
+  const [showAcademyProfile, setShowAcademyProfile] = useState(false);
   const basic = c.basicInfo || {};
   const training = c.training || {};
   const certification = c.certification || c.stage3 || {};
@@ -441,6 +568,11 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
       onClick={onClose}
       style={{ position: "fixed", inset: 0, background: "rgba(10,31,61,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 1000 }}
     >
+      {showAcademyProfile && training.academyId && (
+        <div onClick={(e) => e.stopPropagation()}>
+          <AcademyProfileModal academyId={training.academyId} onClose={() => setShowAcademyProfile(false)} />
+        </div>
+      )}
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ background: "#fff", borderRadius: 18, maxWidth: 640, width: "100%", maxHeight: "88vh", overflowY: "auto", boxShadow: "0 30px 70px rgba(0,0,0,0.35)" }}
@@ -513,6 +645,13 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
           {!training.skipped && (
             <Section title="Training">
               <Row label="Academy" value={training.academyName} />
+              {training.academyId && (
+                <div style={{ margin: "4px 0 6px" }}>
+                  <button type="button" onClick={() => setShowAcademyProfile(true)} style={{ border: "none", background: "none", color: "#2563EB", fontWeight: 700, cursor: "pointer", fontSize: 12, padding: 0 }}>
+                    View academy profile (pictures &amp; videos)
+                  </button>
+                </div>
+              )}
               <Row label="Batch" value={training.batch} />
               <Row label="Verified" value={training.verified ? "Yes ✓" : "Self-reported"} />
             </Section>
@@ -722,6 +861,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </Section>
           )}
 
+          {application.status !== "matched" && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1px solid #E5E7EB" }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Move to:</span>
             <select
@@ -735,6 +875,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               ))}
             </select>
           </div>
+          )}
         </div>
       </div>
     </div>

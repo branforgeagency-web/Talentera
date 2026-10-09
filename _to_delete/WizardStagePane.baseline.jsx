@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import api from "../api/client";
+import { HIRING_TICKER, RCM_INDUSTRY_STATS } from "../data/hiringCompanies";
 
 const STAGE_ICONS = {
   user: <i className="fa-solid fa-user"></i>,
@@ -18,6 +20,30 @@ const RULE_ICONS = {
 };
 
 export default function WizardStagePane({ stage, isDone, children, onPrev, prevNum, onBackToDashboard }) {
+  const [ticker, setTicker] = useState(HIRING_TICKER);
+  const [industryStats, setIndustryStats] = useState(RCM_INDUSTRY_STATS);
+
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/public/hiring-activity")
+      .then((res) => {
+        if (!isMounted || !res.data) return;
+        if (res.data.ticker) setTicker(res.data.ticker);
+        if (Array.isArray(res.data.industryStats) && res.data.industryStats.length > 0) {
+          setIndustryStats(res.data.industryStats);
+        }
+      })
+      .catch((err) => {
+        // Graceful fallback to verified industry defaults on network error
+        console.debug("Hiring activity live sync fallback:", err.message);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <div className="wiz-layout-main">
       <main className="wiz-content" style={{ "--st-1": stage.theme.p1, "--st-2": stage.theme.p2 }}>
@@ -105,6 +131,32 @@ export default function WizardStagePane({ stage, isDone, children, onPrev, prevN
         </div>
       </main>
 
+      <aside className="wiz-companies-rail">
+        <div className="wiz-rail-ticker">
+          <span className="wiz-rail-dot" /> LIVE HIRING ACTIVITY
+          <div className="wiz-rail-ticker-stats">
+            <strong>{ticker.companiesHiring}</strong> {ticker.companiesHiring === 1 ? "company" : "companies"} hiring · <strong>{ticker.openRoles}</strong> open {ticker.openRoles === 1 ? "role" : "roles"}
+          </div>
+          <div className="wiz-rail-ticker-foot">Last hire from pool: <strong>{ticker.lastHire}</strong></div>
+        </div>
+
+        <div className="wiz-rail-context">
+          <div className="wiz-rail-eyebrow">WHY THIS STAGE MATTERS</div>
+          <p>{stage.context}</p>
+        </div>
+
+        <div className="wiz-rail-industry">
+          <div className="wiz-rail-eyebrow">WHY RCM HIRING IS HOT</div>
+          <div className="wiz-rail-industry-grid">
+            {industryStats.map((s) => (
+              <div key={s.label}>
+                <div className="wiz-rail-industry-val">{s.value}</div>
+                <div className="wiz-rail-industry-label">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }
