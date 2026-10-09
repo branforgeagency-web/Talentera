@@ -178,11 +178,38 @@ export default function CompanyRegister() {
               </li>
               <li>
                 <span className="cauth-brand-check">✓</span>
-                <span>Pay-on-hire pricing — no setup fee</span>
+                <span>Pay only when you hire — no registration or setup fees</span>
               </li>
               <li>
                 <span className="cauth-brand-check">✓</span>
-                <span>30-day replacement guarantee</span>
+                <span>90-day free replacement guarantee</span>
+              </li>
+            </ul>
+
+            {/* Login benefits */}
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.12em", color: "var(--gold)", margin: "0 0 4px" }}>
+              WHAT YOU GET AFTER LOGIN
+            </div>
+            <ul className="cauth-brand-bullets">
+              <li>
+                <span className="cauth-brand-check">✓</span>
+                <span>Verified candidate shortlists delivered within 24 hours</span>
+              </li>
+              <li>
+                <span className="cauth-brand-check">✓</span>
+                <span>Post jobs and track every applicant from one dashboard</span>
+              </li>
+              <li>
+                <span className="cauth-brand-check">✓</span>
+                <span>Candidate scorecards with assessment, video and live chart results</span>
+              </li>
+              <li>
+                <span className="cauth-brand-check">✓</span>
+                <span>Schedule interviews and share feedback directly with candidates</span>
+              </li>
+              <li>
+                <span className="cauth-brand-check">✓</span>
+                <span>A dedicated Talentera hiring support team</span>
               </li>
             </ul>
 

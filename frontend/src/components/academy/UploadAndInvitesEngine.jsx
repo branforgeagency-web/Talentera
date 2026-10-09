@@ -256,10 +256,10 @@ export default function UploadAndInvitesEngine({
     const csvContent =
       "data:text/csv;charset=utf-8," +
       encodeURIComponent(
-        "name,email,mobile,age,aadhaar_last4,batch_code,course_id,type,preferred_specialty,expected_salary_lpa,preferred_cities\n" +
-        "Priya Subramanian,priya.s@example.com,9876543201,23,3456,Batch 1(Jan 2026),Medical Coding,fresher,HCC,5.5,Chennai;Coimbatore\n" +
-        "Karthik Raja,karthik.r@example.com,9876543202,26,7890,Batch 1(Jan 2026),Medical Coding,experienced,HCC,6.0,Chennai\n" +
-        "Ananya Roy,ananya.r@example.com,9876543203,22,1122,Batch 1(Jan 2026),Medical Billing,fresher,ED,5.0,Bengaluru\n"
+        "Academy batch unique id,Aadhaar_last4,Name,Email,Month & Year of admission\n" +
+        "VH0102,3456,Priya Subramanian,priya.s@example.com,Jan-26\n" +
+        "VH0103,7890,Karthik Raja,karthik.r@example.com,May-26\n" +
+        "VH0104,1122,Ananya Roy,ananya.r@example.com,Aug-26\n"
       );
     const link = document.createElement("a");
     link.setAttribute("href", csvContent);
@@ -271,10 +271,6 @@ export default function UploadAndInvitesEngine({
 
   const handleFileUpload = async (file) => {
     if (!file) return;
-    if (!selectedBatch.trim()) {
-      alert("Please enter a Target Batch (e.g. Batch 1(Jan 2026)) before uploading.");
-      return;
-    }
     if (selectedCourse === "Other" && !selectedCourseOther.trim()) {
       alert("Please type the course name for \"Other\".");
       return;
@@ -701,10 +697,10 @@ export default function UploadAndInvitesEngine({
               {parsing ? "Parsing & Validating CSV rows..." : "Drag & drop CSV file here, or click to browse"}
             </h4>
             <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 8px" }}>
-              Supports up to 500 rows per batch · Automatically checks duplicate emails, mobile numbers, and Aadhaar (last 4 digits)
+              Supports up to 500 rows per batch · Automatically checks duplicate emails and Aadhaar (last 4 digits)
             </p>
             <div style={{ fontSize: 11, color: "#94A3B8" }}>
-              Expected Columns: <code>name</code>, <code>email</code>, <code>mobile</code>, <code>age</code>, <code>aadhaar_last4</code>, <code>batch_code</code>, <code>course_id</code>, <code>type</code>, <code>preferred_specialty</code>, <code>expected_salary_lpa</code>, <code>preferred_cities</code>
+              Columns: <code>Academy batch unique id</code>, <code>Aadhaar_last4</code>, <code>Name</code>, <code>Email</code>, <code>Month &amp; Year of admission</code>
             </div>
           </div>
 
@@ -754,9 +750,9 @@ export default function UploadAndInvitesEngine({
                       <th style={{ padding: "10px 12px" }}>ROW #</th>
                       <th style={{ padding: "10px 12px" }}>STUDENT NAME</th>
                       <th style={{ padding: "10px 12px" }}>EMAIL</th>
-                      <th style={{ padding: "10px 12px" }}>MOBILE</th>
-                      <th style={{ padding: "10px 12px" }}>TYPE</th>
-                      <th style={{ padding: "10px 12px" }}>BATCH</th>
+                      <th style={{ padding: "10px 12px" }}>AADHAAR (LAST 4)</th>
+                      <th style={{ padding: "10px 12px" }}>ADMISSION</th>
+                      <th style={{ padding: "10px 12px" }}>BATCH ID</th>
                       <th style={{ padding: "10px 12px" }}>VALIDATION STATUS</th>
                     </tr>
                   </thead>
@@ -784,12 +780,8 @@ export default function UploadAndInvitesEngine({
                           <td style={{ padding: "10px 12px", fontWeight: 700 }}>#{row.rowIndex}</td>
                           <td style={{ padding: "10px 12px", fontWeight: 600 }}>{row.data.name}</td>
                           <td style={{ padding: "10px 12px" }}>{row.data.email}</td>
-                          <td style={{ padding: "10px 12px" }}>{row.data.mobile || "—"}</td>
-                          <td style={{ padding: "10px 12px" }}>
-                            <span style={{ textTransform: "capitalize", background: "#F1F5F9", padding: "3px 8px", borderRadius: 4, fontSize: 11, fontWeight: 600 }}>
-                              {row.data.type}
-                            </span>
-                          </td>
+                          <td style={{ padding: "10px 12px" }}>{row.data.aadhaarLast4 ? `•••• ${row.data.aadhaarLast4}` : "—"}</td>
+                          <td style={{ padding: "10px 12px" }}>{row.data.admissionMonthYear || "—"}</td>
                           <td style={{ padding: "10px 12px", fontWeight: 700 }}>{row.data.batchCode}</td>
                           <td style={{ padding: "10px 12px" }}>
                             {row.isValid ? (

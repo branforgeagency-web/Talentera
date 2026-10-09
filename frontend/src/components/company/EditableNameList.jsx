@@ -7,19 +7,33 @@ import React, { useEffect, useRef, useState } from "react";
  * - Edit swaps the chip for Name + Role inputs; the green tick saves, the grey x cancels.
  * - "+ Add member" opens the same inputs for a new member; quick-add suggestions add one instantly.
  * Values are stored as plain strings: "Name (Role)" or "Name".
+ * With withContact, an email and 10-digit phone are also captured: "Name (Role) | email | phone".
  * onChange fires with the raw list; onCommit (optional) fires after add / edit-save / delete
  * so callers that persist to a server don't save on every keystroke.
  */
 const ROLE_RE = /^(.*?)\s*\(([^)]*)\)\s*$/;
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function parseMember(str) {
-  const m = ROLE_RE.exec(String(str || ""));
-  return m ? { name: m[1].trim(), role: m[2].trim() } : { name: String(str || "").trim(), role: "" };
+  const [head, email = "", phone = ""] = String(str || "").split(" | ");
+  const m = ROLE_RE.exec(head);
+  const base = m ? { name: m[1].trim(), role: m[2].trim() } : { name: head.trim(), role: "" };
+  return { ...base, email: email.trim(), phone: phone.trim() };
 }
-function formatMember(name, role) {
+function formatMember(name, role, email, phone) {
   const n = String(name || "").trim();
   const r = String(role || "").trim();
-  return r ? `${n} (${r})` : n;
+  const base = r ? `${n} (${r})` : n;
+  const e = String(email || "").trim();
+  const p = String(phone || "").trim();
+  return e || p ? `${base} | ${e} | ${p}` : base;
+}
+function displayMember(str) {
+  const { name, role, email, phone } = parseMember(str);
+  const base = role ? `${name} (${role})` : name;
+  const contact = [email, phone].filter(Boolean).join(" · ");
+  return contact ? `${base} · ${contact}` : base;
 }
 
 const inputStyle = {
@@ -31,12 +45,15 @@ const inputStyle = {
   minWidth: 0,
 };
 
-export default function EditableNameList({ value, onChange, onCommit, suggestions = [], rolePlaceholder = "Role (e.g. HR)", addLabel = "+ Add member" }) {
+export default function EditableNameList({ value, onChange, onCommit, suggestions = [], rolePlaceholder = "Role (e.g. HR)", addLabel = "+ Add member", withContact = false }) {
   const list = (Array.isArray(value) ? value : []).filter((v) => String(v || "").trim());
   const [menuIdx, setMenuIdx] = useState(null);
   const [editIdx, setEditIdx] = useState(null); // index being edited, or list.length for a new member
   const [draftName, setDraftName] = useState("");
   const [draftRole, setDraftRole] = useState("");
+  const [draftEmail, setDraftEmail] = useState("");
+  const [draftPhone, setDraftPhone] = useState("");
+  const [draftError, setDraftError] = useState("");
   const wrapRef = useRef(null);
 
   useEffect(() => {
@@ -54,9 +71,12 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
   }
 
   function startEdit(i) {
-    const { name, role } = parseMember(list[i]);
+    const { name, role, email, phone } = parseMember(list[i]);
     setDraftName(name);
     setDraftRole(role);
+    setDraftEmail(email);
+    setDraftPhone(phone);
+    setDraftError("");
     setEditIdx(i);
     setMenuIdx(null);
   }
@@ -64,6 +84,9 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
   function startAdd() {
     setDraftName("");
     setDraftRole("");
+    setDraftEmail("");
+    setDraftPhone("");
+    setDraftError("");
     setEditIdx(list.length);
     setMenuIdx(null);
   }
@@ -73,8 +96,13 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
   }
 
   function saveEdit() {
-    const formatted = formatMember(draftName, draftRole);
     if (!draftName.trim()) return; // name is required
+    if (withContact) {
+      if (!EMAIL_RE.test(draftEmail.trim())) { setDraftError("Enter a valid email address."); return; }
+      if (!/^\d{10}$/.test(draftPhone.trim())) { setDraftError("Enter a valid 10-digit contact number."); return; }
+    }
+    setDraftError("");
+    const formatted = withContact ? formatMember(draftName, draftRole, draftEmail, draftPhone) : formatMember(draftName, draftRole);
     const next = [...list];
     if (editIdx >= list.length) next.push(formatted);
     else next[editIdx] = formatted;
@@ -110,6 +138,28 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveEdit(); } if (e.key === "Escape") cancelEdit(); }}
         style={{ ...inputStyle, flex: "1 1 140px" }}
       />
+      {withContact && (
+        <>
+          <input
+            type="email"
+            value={draftEmail}
+            placeholder="Email ID"
+            onChange={(e) => setDraftEmail(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveEdit(); } if (e.key === "Escape") cancelEdit(); }}
+            style={{ ...inputStyle, flex: "1 1 180px" }}
+          />
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            value={draftPhone}
+            placeholder="Contact number"
+            onChange={(e) => setDraftPhone(e.target.value.replace(/\D/g, ""))}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveEdit(); } if (e.key === "Escape") cancelEdit(); }}
+            style={{ ...inputStyle, flex: "1 1 140px" }}
+          />
+        </>
+      )}
       <button
         type="button"
         title="Save"
@@ -138,14 +188,14 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {list.map((member, i) =>
             editIdx === i ? (
-              <div key={`edit-${i}`} style={{ flex: "1 1 100%" }}>{editor}</div>
+              <div key={`edit-${i}`} style={{ flex: "1 1 100%" }}>{editor}{draftError && <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 600, marginTop: 4 }}>{draftError}</div>}</div>
             ) : (
               <div key={`${member}-${i}`} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 8px 6px 14px", borderRadius: 999, background: "var(--navy)", color: "#fff", fontSize: 12.5, fontWeight: 600 }}>
-                <span>{member}</span>
+                <span>{displayMember(member)}</span>
                 <button
                   type="button"
                   title="Edit or delete"
-                  aria-label={`Options for ${member}`}
+                  aria-label={`Options for ${parseMember(member).name}`}
                   onClick={() => setMenuIdx(menuIdx === i ? null : i)}
                   style={{ width: 24, height: 24, borderRadius: "50%", border: "none", background: "rgba(255,255,255,0.18)", color: "#fff", fontSize: 12, cursor: "pointer", lineHeight: 1 }}
                 >
@@ -176,6 +226,7 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
       )}
 
       {isAdding && editor}
+      {isAdding && draftError && <div style={{ color: "#DC2626", fontSize: 12, fontWeight: 600 }}>{draftError}</div>}
 
       {!isAdding && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>

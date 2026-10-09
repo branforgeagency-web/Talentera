@@ -1158,7 +1158,17 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           applyMcDetails(res.data);
         }
       } catch (pollErr) {
-        // Silently continue polling while UIDAI validation is in progress
+        // Keep polling silently while UIDAI validation is in progress, but a
+        // duplicate-Aadhaar rejection is final: stop and tell the student.
+        if (pollErr.response?.data?.code === "AADHAAR_ALREADY_REGISTERED") {
+          stopMcPolling();
+          try {
+            if (mcPopupRef.current && !mcPopupRef.current.closed) mcPopupRef.current.close();
+          } catch (e) {
+            // popup already closed
+          }
+          toast(pollErr.response.data.message, "!");
+        }
       }
     }, 2500);
   };

@@ -5,6 +5,7 @@ import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { getStage } from "../data/companyOnboardingStages";
 import EditableNameList from "../components/company/EditableNameList.jsx";
+import { OTHER, isOtherVal, otherTextOf, otherValue, multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../utils/otherOption.js";
 
 const STAGE9 = getStage("9");
 const EXPERIENCE_IDS = new Set(["expmin", "expmax"]);
@@ -13,7 +14,7 @@ const REQUIRED_IDS = new Set(STAGE9.items.filter((i) => i.tag === "must").map((i
 function emptyFormState() {
   const state = {};
   STAGE9.items.forEach((item) => {
-    state[item.id] = item.input === "multi" ? [] : "";
+    state[item.id] = item.input === "multi" ? [] : item.input === "file" ? null : "";
   });
   return state;
 }
@@ -46,6 +47,33 @@ export default function CompanyJobs() {
   const [form, setForm] = useState(emptyFormState);
   const [submitting, setSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
+  const [uploadingId, setUploadingId] = useState(null);
+
+  // Interview panel suggestions come from Team Setup (recruiters + hiring managers)
+  const teamSuggestions = ["trecruiters", "thiringmanagers"]
+    .flatMap((k) => (Array.isArray(authCompany?.stage3?.[k]) ? authCompany.stage3[k] : []))
+    .map((m) => String(m || "").split(" | ")[0].trim())
+    .filter(Boolean);
+
+  async function uploadFile(id, file, accept) {
+    if (!file) return;
+    if (accept && !accept.split(",").includes(file.type)) {
+      toast("Please upload a PDF or image file (JPG, PNG, WEBP).", "!");
+      return;
+    }
+    setUploadingId(id);
+    try {
+      const fd = new FormData();
+      fd.append("doc", file);
+      const res = await companyApi.post("/company/upload/doc/9", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setField(id, { docUrl: res.data.docUrl, docName: res.data.docName });
+      toast(`"${res.data.docName}" uploaded`, "✓");
+    } catch (err) {
+      toast(err.response?.data?.message || "Upload failed.", "!");
+    } finally {
+      setUploadingId(null);
+    }
+  }
 
   useEffect(() => {
     fetchJobs();
@@ -114,6 +142,7 @@ export default function CompanyJobs() {
     if (v === undefined || v === null) return true;
     if (typeof v === "string") return v.trim() === "";
     if (Array.isArray(v)) return v.length === 0;
+    if (typeof v === "object") return !v.docUrl && !v.docName;
     return false;
   }
 
@@ -313,8 +342,15 @@ export default function CompanyJobs() {
                 const hideExperience = isFresher && EXPERIENCE_IDS.has(item.id);
                 // Notice period is completely removed for freshers (freshers join immediately)
                 if (isFresher && item.id === "notice") return null;
+                // Passout year only matters when freshers can apply
+                if (item.id === "elgpassout" && String(form.level || "") === "Experienced only") return null;
                 return (
                   <React.Fragment key={item.id}>
+                  {item.section && (
+                    <div style={{ gridColumn: "1 / -1", marginTop: 8, paddingTop: 12, borderTop: "1px solid #E5E7EB", fontSize: 13, fontWeight: 800, color: "var(--navy)" }}>
+                      {item.section}
+                    </div>
+                  )}
                   {item.id === "expmin" && (
                     <div
                       style={{
@@ -363,6 +399,7 @@ export default function CompanyJobs() {
                       {item.name}
                       {REQUIRED_IDS.has(item.id) && <span style={{ color: "#DC2626" }}>*</span>}
                     </label>
+                    {item.desc && <div style={{ fontSize: 12, color: "#64748B", marginTop: -2, marginBottom: 6 }}>{item.desc}</div>}
 
                     {["text", "number", "decimal"].includes(item.input) && (
                       <input
@@ -378,12 +415,27 @@ export default function CompanyJobs() {
                     )}
 
                     {item.input === "select" && (
-                      <select style={{ ...inputStyle, background: "#fff" }} value={form[item.id]} onChange={(e) => setField(item.id, e.target.value)}>
-                        <option value="">Select…</option>
-                        {(item.options || []).map((opt) => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </select>
+                      <>
+                        <select
+                          style={{ ...inputStyle, background: "#fff" }}
+                          value={isOtherVal(form[item.id]) ? OTHER : form[item.id]}
+                          onChange={(e) => setField(item.id, e.target.value)}
+                        >
+                          <option value="">Select…</option>
+                          {(item.options || []).map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                        {(item.options || []).includes(OTHER) && isOtherVal(form[item.id]) && (
+                          <input
+                            type="text"
+                            style={{ ...inputStyle, marginTop: 8 }}
+                            placeholder="Please specify (other)"
+                            value={otherTextOf(form[item.id])}
+                            onChange={(e) => setField(item.id, otherValue(e.target.value))}
+                          />
+                        )}
+                      </>
                     )}
 
                     {item.input === "textarea" && (
@@ -400,19 +452,35 @@ export default function CompanyJobs() {
                       <EditableNameList
                         value={form.panel}
                         onChange={(next) => setField("panel", next)}
-                        suggestions={item.options || []}
+                        suggestions={teamSuggestions}
                       />
+                    )}
+
+                    {item.input === "file" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <label style={{ ...inputStyle, display: "inline-block", width: "auto", cursor: "pointer", background: "#fff", fontWeight: 600 }}>
+                          {uploadingId === item.id ? "Uploading…" : form[item.id] ? "Replace file" : "Upload file"}
+                          <input
+                            type="file"
+                            accept={item.accept}
+                            style={{ display: "none" }}
+                            onChange={(e) => { uploadFile(item.id, e.target.files?.[0], item.accept); e.target.value = ""; }}
+                          />
+                        </label>
+                        {form[item.id]?.docName && <span style={{ fontSize: 12, color: "#166534", fontWeight: 600 }}>✓ {form[item.id].docName}</span>}
+                      </div>
                     )}
 
                     {item.input === "multi" && item.id !== "panel" && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                         {(item.options || []).map((opt) => {
-                          const active = (form[item.id] || []).includes(opt);
+                          const isOther = opt === OTHER;
+                          const active = isOther ? multiHasOther(form[item.id]) : (form[item.id] || []).includes(opt);
                           return (
                             <button
                               type="button"
                               key={opt}
-                              onClick={() => toggleMulti(item.id, opt)}
+                              onClick={() => (isOther ? setField(item.id, multiToggleOther(form[item.id])) : toggleMulti(item.id, opt))}
                               style={{
                                 padding: "6px 12px",
                                 borderRadius: 999,
@@ -429,6 +497,16 @@ export default function CompanyJobs() {
                           );
                         })}
                       </div>
+                    )}
+
+                    {item.input === "multi" && item.id !== "panel" && (item.options || []).includes(OTHER) && multiHasOther(form[item.id]) && (
+                      <input
+                        type="text"
+                        style={{ ...inputStyle, marginTop: 8 }}
+                        placeholder="Please specify (other)"
+                        value={multiOtherText(form[item.id])}
+                        onChange={(e) => setField(item.id, multiSetOther(form[item.id], e.target.value))}
+                      />
                     )}
                   </div>
                   )}

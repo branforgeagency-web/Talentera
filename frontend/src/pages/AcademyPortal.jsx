@@ -4,11 +4,13 @@ import { safeJson } from "../utils/safeJson.js";
 
 // Specialized Modular Components
 import StageTracker8Dots from "../components/academy/StageTracker8Dots";
-import LiveActivityFeed from "../components/academy/LiveActivityFeed";
 import InterviewsKanban from "../components/academy/InterviewsKanban";
 import BatchInterviewHeatmap from "../components/academy/BatchInterviewHeatmap";
 import UploadAndInvitesEngine from "../components/academy/UploadAndInvitesEngine";
 import ApprovalsQueue from "../components/academy/ApprovalsQueue";
+import AcademyAssessmentModule from "../components/academy/AcademyAssessmentModule";
+import AcademyCompanyData from "../components/academy/AcademyCompanyData";
+import AcademyGalleryManager from "../components/academy/AcademyGalleryManager";
 import PlacementCertModal from "../components/academy/PlacementCertModal";
 import MonthlyReportModal from "../components/academy/MonthlyReportModal";
 import StudentDetailModal from "../components/academy/StudentDetailModal";
@@ -89,8 +91,14 @@ export default function AcademyPortal() {
   const location = useLocation();
 
   // 14 Operational Modules:
-  // home | candidates | upload | invites | verification | approvals | scores | profile_live | company_activity | interviews | placements | analytics | notifications | settings
+  // home | candidates | upload | assessment | verification | scores | profile_live | company_activity (Company Data) | interviews | placements | analytics | notifications | settings
   const [activeMod, setActiveMod] = useState("home");
+  // Ticks every minute so the greeting / month label always match the viewer's real time.
+  const [clockNow, setClockNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setClockNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -106,16 +114,20 @@ export default function AcademyPortal() {
     } else if (path.startsWith("/academy/upload")) {
       setActiveMod("upload");
     } else if (path.startsWith("/academy/invites")) {
-      setActiveMod("invites");
+      // Invitations now live inside Upload Candidates
+      setActiveMod("upload");
+    } else if (path.startsWith("/academy/assessment")) {
+      setActiveMod("assessment");
     } else if (path.startsWith("/academy/verification")) {
       setActiveMod("verification");
     } else if (path.startsWith("/academy/approvals")) {
-      setActiveMod("approvals");
+      // Stage 2 sign-off now lives inside the Verification Tracker
+      setActiveMod("verification");
     } else if (path.startsWith("/academy/scores")) {
       setActiveMod("scores");
     } else if (path.startsWith("/academy/profile-live")) {
       setActiveMod("profile_live");
-    } else if (path.startsWith("/academy/company-activity")) {
+    } else if (path.startsWith("/academy/company-activity") || path.startsWith("/academy/company-data")) {
       setActiveMod("company_activity");
     } else if (path.startsWith("/academy/interviews")) {
       setActiveMod("interviews");
@@ -131,18 +143,19 @@ export default function AcademyPortal() {
   }, [location.pathname]);
 
   const handleNavigateMod = (modId) => {
+    if (modId === "invites") modId = "upload";
+    if (modId === "approvals") modId = "verification";
     setActiveMod(modId);
     const routeMap = {
       kyc: "/academy/kyc",
       home: "/academy/dashboard",
       candidates: "/academy/candidates",
       upload: "/academy/upload",
-      invites: "/academy/invites",
+      assessment: "/academy/assessment",
       verification: "/academy/verification",
-      approvals: "/academy/approvals",
       scores: "/academy/scores",
       profile_live: "/academy/profile-live",
-      company_activity: "/academy/company-activity",
+      company_activity: "/academy/company-data",
       interviews: "/academy/interviews",
       placements: "/academy/placements",
       analytics: "/academy/analytics",
@@ -846,12 +859,15 @@ export default function AcademyPortal() {
           if (comp >= 100 || s.status === "verified" || s.status === "placed") return false;
         } else if (candidateSummaryTab === "Awaiting Approval") {
           const stList = s.stages || [];
-          const hasPending = stList.some((st) => st.needsApproval || (!st.isDone && (st.stageNumber === 2 || st.stageNumber === 5)));
+          const hasPending = stList.some((st) => st.needsApproval || (!st.isDone && st.stageNumber === 2));
           if (!hasPending && s.status !== "pending_review") return false;
         } else if (candidateSummaryTab === "Verified") {
           if (comp < 100 && s.status !== "verified") return false;
         } else if (candidateSummaryTab === "Profile Live") {
-          if (comp < 75 && s.status !== "verified") return false;
+          // Same rule as the Profile Live page: academy verification (Stage 2) done AND >=75% verified.
+          const s2Stage = (s.stages || []).find((st) => st.stageNumber === 2);
+          const academyVerified = s2Stage ? !!s2Stage.isDone : true;
+          if (!academyVerified || (comp < 75 && s.status !== "verified")) return false;
         } else if (candidateSummaryTab === "Matched") {
           if (s.status !== "matched" && s.status !== "active" && comp < 80) return false;
         } else if (candidateSummaryTab === "Interviewing") {
@@ -1078,21 +1094,20 @@ export default function AcademyPortal() {
             <SidebarItem id="home" label="1. Home" icon="fa-house" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="candidates" label="2. Candidates" icon="fa-users" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={students.length > 0 ? students.length : undefined} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="upload" label="3. Upload Candidates" icon="fa-cloud-arrow-up" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="invites" label="4. Invitations" icon="fa-paper-plane" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="approvals" label="6. Awaiting My Approval" icon="fa-circle-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="assessment" label="4. Academy Assessment" icon="fa-file-pen" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>TALENT & MATCHING</div>
-            <SidebarItem id="scores" label="7. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="profile_live" label="8. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="company_activity" label="9. Company Activity" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="scores" label="6. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="profile_live" label="7. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="company_activity" label="8. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="interviews" label="9. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="placements" label="10. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>INSIGHTS & ADMIN</div>
-            <SidebarItem id="analytics" label="12. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="notifications" label="13. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="settings" label="14. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="analytics" label="11. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="notifications" label="12. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="settings" label="13. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
           </div>
 
           <div onClick={() => { localStorage.removeItem("talentera_academy_token"); navigate("/academy/login"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, color: "rgba(255,255,255,0.5)", cursor: "pointer", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 16 }}>
@@ -1105,7 +1120,7 @@ export default function AcademyPortal() {
           {/* ========================================================= */}
           {/* TOP WARNING TILE FOR KYC VERIFICATION */}
           {/* ========================================================= */}
-          {dashData?.academy?.kycStatus !== "verified" && (
+          {dashData?.academy?.kycStatus !== "verified" && activeMod !== "kyc" && (
             <div
               style={{
                 background:
@@ -1183,7 +1198,7 @@ export default function AcademyPortal() {
                         ? "KYC Revision Required — Action Needed to Add Students"
                         : dashData?.academy?.kycStatus === "under_review"
                         ? "Institutional KYC Under Review — Verification In Progress"
-                        : "KYC Verification Required — Verify Institutional KYC to Add Students"}
+                        : "Complete Institutional KYC to Start Adding Students"}
                     </h4>
                     <span
                       style={{
@@ -1225,7 +1240,7 @@ export default function AcademyPortal() {
                       ? `Your KYC submission requires revision: "${dashData?.academy?.kycRejectionReason || "Please verify PAN/GSTIN details"}". Update your KYC details to add students and deploy candidates.`
                       : dashData?.academy?.kycStatus === "under_review"
                       ? "Your institutional KYC documents have been submitted to Staff Compliance for audit. Review turnaround is typically 24-48 business hours. Adding and deploying students will be unlocked once approved."
-                      : "You must complete and verify your institutional KYC before adding students and uploading candidate batches to the Talentera hiring network. Complete verification now to activate student onboarding."}
+                      : "Submit your institution's registration and PAN/GSTIN details. Once Talentera Compliance approves them, student onboarding and candidate invitations are unlocked."}
                   </p>
                 </div>
               </div>
@@ -1326,10 +1341,10 @@ export default function AcademyPortal() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: "#E5A82E", letterSpacing: "0.08em" }}>
-                    COHORT LIVE CONTROL CENTER · {new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
+                    COHORT LIVE CONTROL CENTER · {clockNow.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
                   </div>
                   <h2 style={{ margin: "2px 0 4px", fontSize: 22, fontWeight: 800, color: "#06152A" }}>
-                    Good morning, {academy.primaryAdmin || "Academy Admin"} 👋
+                    {clockNow.getHours() < 12 ? "Good morning" : clockNow.getHours() < 17 ? "Good afternoon" : clockNow.getHours() < 21 ? "Good evening" : "Good night"}, {academy.primaryAdmin || "Academy Admin"} 👋
                   </h2>
                   <div style={{ fontSize: 12, color: "#64748B" }}>
                     Track your candidates from initial enrollment through verification, scoring, employer matching, and final placement.
@@ -1359,7 +1374,7 @@ export default function AcademyPortal() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
                 <MetricCard title="TOTAL CANDIDATES" val={kpis.totalStudents ?? students.length} sub={`${students.filter((s) => s.status === "placed").length} placed · ${liveProfilesData.length} live`} icon="fa-user-group" onClick={() => handleNavigateMod("candidates")} />
                 <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="7-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
-                <MetricCard title="AWAITING APPROVAL" val={pendingApprovalsCount} sub="Stage 2 & 5 actions" icon="fa-circle-check" color="#CA8A04" onClick={() => handleNavigateMod("approvals")} />
+                <MetricCard title="AWAITING APPROVAL" val={pendingApprovalsCount} sub="Stage 2 sign-offs" icon="fa-circle-check" color="#CA8A04" onClick={() => handleNavigateMod("approvals")} />
                 <MetricCard title="INACTIVE STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
               </div>
 
@@ -1380,8 +1395,8 @@ export default function AcademyPortal() {
                 />
               </div>
 
-              {/* Main Split: Active Batches + Live Feed */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
+              {/* Active Batches */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 20 }}>
                 <div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                     <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#06152A" }}>Active Batches</h4>
@@ -1416,10 +1431,6 @@ export default function AcademyPortal() {
                       );
                     })}
                   </div>
-                </div>
-
-                <div>
-                  <LiveActivityFeed token={token} />
                 </div>
               </div>
             </div>
@@ -1944,17 +1955,16 @@ export default function AcademyPortal() {
           )}
 
           {/* ========================================================= */}
-          {/* 4. INVITATIONS */}
+          {/* 4. ACADEMY ASSESSMENT */}
           {/* ========================================================= */}
-          {activeMod === "invites" && (
-            <UploadAndInvitesEngine
-              batches={batches}
-              courses={courses}
+          {activeMod === "assessment" && (
+            <AcademyAssessmentModule
               getAuthHeader={getAuthHeader}
-              onUploadSuccess={() => {
+              students={students}
+              batches={batches}
+              onScoresChanged={() => {
                 fetchDashboardData();
               }}
-              defaultTab="invites_tracker"
             />
           )}
 
@@ -1978,11 +1988,10 @@ export default function AcademyPortal() {
                   { num: 1, title: "Basic + Aadhaar", desc: "Indian ID verified", who: "Candidate", count: students.filter((s) => (s.stages || [])[0]?.isDone).length },
                   { num: 2, title: "Academy & Training", desc: "120 hrs course validation", who: "Academy Sign-off", count: students.filter((s) => (s.stages || [])[1]?.isDone).length },
                   { num: 3, title: "Certifications", desc: "AAPC / AHIMA credentials", who: "Auto-Verified", count: students.filter((s) => (s.stages || [])[2]?.isDone).length },
-                  { num: 4, title: "Talentera Assessment", desc: "Foundation & MCQ scores", who: "Proctored Engine", count: students.filter((s) => (s.stages || [])[3]?.isDone).length },
-                  { num: 5, title: "Portfolio Video", desc: "AI speech & communication", who: "Academy Review", count: students.filter((s) => (s.stages || [])[4]?.isDone).length },
-                  { num: 6, title: "Live Chart Practice", desc: "Medical charts audited", who: "Practice Lab", count: students.filter((s) => (s.stages || [])[5]?.isDone).length },
-                  { num: 7, title: "References", desc: "Trainer & peer references", who: "Endorsements", count: students.filter((s) => (s.stages || [])[6]?.isDone).length },
-                  { num: 8, title: "Review & Publish", desc: "Profile live to employers", who: "Matchmaking Engine", count: students.filter((s) => (s.stages || [])[7]?.isDone || s.status === "verified").length },
+                  { num: 4, title: "Academy Assessment", desc: "Your own question bank or uploaded scores", who: "Academy", count: students.filter((s) => s.academyAssessmentScore !== null && s.academyAssessmentScore !== undefined).length },
+                  { num: 5, title: "Talentera Assessment", desc: "Foundation & MCQ scores", who: "Proctored Engine", count: students.filter((s) => (s.stages || [])[3]?.isDone).length },
+                  { num: 6, title: "Portfolio Video", desc: "AI speech & communication", who: "Academy Review", count: students.filter((s) => (s.stages || [])[4]?.isDone).length },
+                  { num: 7, title: "Live Chart Practice", desc: "Medical charts audited", who: "Practice Lab", count: students.filter((s) => (s.stages || [])[5]?.isDone).length },
                 ].map((st) => (
                   <div key={st.num} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -1999,20 +2008,22 @@ export default function AcademyPortal() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
 
-          {/* ========================================================= */}
-          {/* 6. AWAITING MY APPROVAL */}
-          {/* ========================================================= */}
-          {activeMod === "approvals" && (
-            <ApprovalsQueue
-              token={token}
-              onApprovalChanged={() => {
-                fetchDashboardData();
-                fetchApprovalsCount();
-              }}
-            />
+              {pendingApprovalsCount > 0 && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#CA8A04", marginBottom: 8 }}>
+                    {pendingApprovalsCount} candidate{pendingApprovalsCount === 1 ? "" : "s"} waiting for your Stage 2 sign-off
+                  </div>
+                  <ApprovalsQueue
+                    token={token}
+                    onApprovalChanged={() => {
+                      fetchDashboardData();
+                      fetchApprovalsCount();
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           )}
 
           {/* ========================================================= */}
@@ -2177,53 +2188,9 @@ export default function AcademyPortal() {
           )}
 
           {/* ========================================================= */}
-          {/* 9. COMPANY ACTIVITY */}
+          {/* 8. COMPANY DATA */}
           {/* ========================================================= */}
-          {activeMod === "company_activity" && (
-            <div className="space-y-6">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>Company Engagement & Activity</h3>
-                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    Real-time feed of employer profile views, candidate locks, shortlists, and offer extensions.
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 20 }}>
-                <LiveActivityFeed token={token} />
-                <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 }}>
-                  <h4 style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 800, color: "#06152A" }}>Top Interested Employers</h4>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {(() => {
-                      const employerViewCounts = {};
-                      (dashData?.recentActivity || []).forEach((ev) => {
-                        if (ev.companyName) {
-                          employerViewCounts[ev.companyName] = (employerViewCounts[ev.companyName] || 0) + 1;
-                        }
-                      });
-                      const topEmployers = Object.entries(employerViewCounts).sort((a, b) => b[1] - a[1]);
-                      if (topEmployers.length === 0) {
-                        return (
-                          <div style={{ padding: "16px 8px", color: "#64748B", fontSize: 12, textAlign: "center" }}>
-                            No employer interactions recorded yet. As hiring companies view and shortlist your students, they will appear here.
-                          </div>
-                        );
-                      }
-                      return topEmployers.map(([comp, count]) => (
-                        <div key={comp} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: "#F8FAFC", borderRadius: 8 }}>
-                          <strong style={{ fontSize: 12, color: "#0F172A" }}>{comp}</strong>
-                          <span style={{ fontSize: 11, color: "#2563EB", fontWeight: 700 }}>
-                            {count} Interaction{count === 1 ? "" : "s"}
-                          </span>
-                        </div>
-                      ));
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeMod === "company_activity" && <AcademyCompanyData getAuthHeader={getAuthHeader} />}
 
           {/* ========================================================= */}
           {/* 10. INTERVIEWS */}
@@ -2252,7 +2219,7 @@ export default function AcademyPortal() {
                       cursor: "pointer",
                     }}
                   >
-                    Kanban Pipeline
+                    Interview Pipeline
                   </button>
                   <button
                     onClick={() => setInterviewSubTab("heatmap")}
@@ -2586,7 +2553,7 @@ export default function AcademyPortal() {
 
               {/* Settings Sub-tabs */}
               <div style={{ display: "flex", gap: 6, borderBottom: "1px solid #E2E8F0", paddingBottom: 10 }}>
-                {["Account", "Batches & Courses", "Question Bank", "Placements", "Roles & Permissions", "Webhooks"].map((tab) => (
+                {["Account", "Pictures & Videos", "Batches & Courses", "Question Bank", "Placements", "Roles & Permissions", "Webhooks"].map((tab) => (
                   <button
                     key={tab}
                     onClick={() => setSettingsSubTab(tab)}
@@ -2665,6 +2632,8 @@ export default function AcademyPortal() {
               )}
 
               {/* Tab 2: Batches & Courses */}
+              {settingsSubTab === "Pictures & Videos" && <AcademyGalleryManager getAuthHeader={getAuthHeader} />}
+
               {settingsSubTab === "Batches & Courses" && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
                   <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 }}>

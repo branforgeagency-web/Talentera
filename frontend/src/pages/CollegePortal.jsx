@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast.jsx";
+import { CERT_LIBRARY } from "../data/certLibrary.js";
 import {
   READINESS_LEVELS,
   READINESS_DESCRIPTIONS,
@@ -109,20 +110,108 @@ function getAvatarStyle(idx) {
   return AVATAR_PALETTE[idx % AVATAR_PALETTE.length];
 }
 
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana",
+  "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
+  "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Andaman & Nicobar Islands", "Chandigarh",
+  "Dadra & Nagar Haveli and Daman & Diu", "Delhi", "Jammu & Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+];
+
 const MODULES_MAP = {
+  profile: { title: "College Profile", icon: "fa-building-columns" },
   dashboard: { title: "Placement KPI Dashboard", icon: "fa-chart-pie" },
   students: { title: "Students Directory & Profiles", icon: "fa-users" },
-  add_student: { title: "Add Single Student", icon: "fa-user-plus" },
-  bulk_upload: { title: "Bulk Student Upload", icon: "fa-file-arrow-up" },
-  domains: { title: "RCM Domain Specializations", icon: "fa-network-wired" },
-  training: { title: "Training Modules Tracker", icon: "fa-book-open" },
-  certifications: { title: "AAPC & AHIMA Certifications", icon: "fa-certificate" },
+  add_student: { title: "Add Students (Bulk / Single)", icon: "fa-user-plus", hidden: true },
+  bulk_upload: { title: "Add Students (Bulk / Single)", icon: "fa-file-arrow-up" },
+  domains: { title: "Library", icon: "fa-book-bookmark", landing: "certifications" },
+  training: { title: "Library", icon: "fa-book-bookmark", hidden: true },
+  certifications: { title: "Library", icon: "fa-book-bookmark", hidden: true },
   assessments: { title: "Talentera Assessments", icon: "fa-award" },
-  jobs: { title: "Job Matching & Corporate Drives", icon: "fa-briefcase" },
-  interviews: { title: "Campus Interview Pipeline", icon: "fa-calendar-check" },
-  placements: { title: "Placements & Offer Letters", icon: "fa-handshake" },
+  jobs: { title: "Placements & Drives", icon: "fa-briefcase" },
+  interviews: { title: "Placements & Drives", icon: "fa-briefcase", hidden: true },
+  placements: { title: "Placements & Drives", icon: "fa-briefcase", hidden: true },
   reports: { title: "NAAC & NBA Accreditation Reports", icon: "fa-file-lines" },
 };
+
+// Bulk upload and single-student enrollment live in one sidebar tab; this switch flips between them.
+function EnrollmentModeSwitch({ activeTab, setActiveTab }) {
+  const modes = [
+    ["bulk_upload", "fa-file-arrow-up", "Bulk Upload (CSV)"],
+    ["add_student", "fa-user-plus", "Add Single Student"],
+  ];
+  return (
+    <div style={{ display: "inline-flex", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4, marginBottom: 18 }}>
+      {modes.map(([key, icon, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setActiveTab(key)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "none",
+            background: activeTab === key ? "#0A1F3D" : "transparent",
+            color: activeTab === key ? "#F5B41A" : "#475569",
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          <i className={`fa-solid ${icon}`}></i> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// Generic split-up switch used by merged sidebar modules (Library; Placements & Drives).
+function SubTabSwitch({ tabs, activeTab, setActiveTab }) {
+  return (
+    <div style={{ display: "inline-flex", flexWrap: "wrap", gap: 4, background: "#F1F5F9", borderRadius: 10, padding: 4, marginBottom: 18 }}>
+      {tabs.map(([key, icon, label]) => (
+        <button
+          key={key}
+          type="button"
+          onClick={() => setActiveTab(key)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 7,
+            padding: "8px 16px",
+            borderRadius: 8,
+            border: "none",
+            background: activeTab === key ? "#0A1F3D" : "transparent",
+            color: activeTab === key ? "#F5B41A" : "#475569",
+            fontSize: 12.5,
+            fontWeight: 800,
+            cursor: "pointer",
+          }}
+        >
+          <i className={`fa-solid ${icon}`}></i> {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const LIBRARY_TABS = [
+  ["certifications", "fa-certificate", "Certifications"],
+  ["domains", "fa-network-wired", "Specializations"],
+  ["training", "fa-book-open", "Training Modules Tracker"],
+];
+const PLACEMENT_TABS = [
+  ["jobs", "fa-briefcase", "Job Matching & Corporate Drives"],
+  ["interviews", "fa-calendar-check", "Campus Interview Pipeline"],
+  ["placements", "fa-handshake", "Placements & Offer Letters"],
+];
+// Basic, fresher-friendly AAPC / AHIMA credentials called out at the top of the Library.
+const FRESHER_CERT_CODES = ["CPC-A", "CPC", "COC", "CPB", "CCA"];
+// Hidden tabs highlight / title as their parent sidebar module.
+const PARENT_TAB = { certifications: "domains", training: "domains", interviews: "jobs", placements: "jobs" };
 
 // Searchable dropdown - a text field that filters a long option list as you
 // type, click-to-select, with an "Other" row at the bottom so nothing on a
@@ -250,6 +339,79 @@ export default function CollegePortal() {
 
   const [activeTab, setActiveTab] = useState("dashboard");
   const [college, setCollege] = useState(null);
+
+  // College Profile (post-sign-in registration step)
+  const [profileForm, setProfileForm] = useState({
+    name: "", state: "", city: "", affiliation: "", yearEstablished: "",
+    placementOfficerName: "", placementOfficerMobile: "", placementPanel: [],
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const profileRedirected = useRef(false);
+
+  useEffect(() => {
+    if (!college) return;
+    setProfileForm({
+      name: college.name || "",
+      state: college.state || "",
+      city: college.city || "",
+      affiliation: college.affiliation || "",
+      yearEstablished: college.yearEstablished ? String(college.yearEstablished) : "",
+      placementOfficerName: college.placementOfficerName || "",
+      placementOfficerMobile: college.placementOfficerMobile || "",
+      placementPanel: Array.isArray(college.placementPanel) ? college.placementPanel : [],
+    });
+    // New colleges land on the profile step first, once
+    if (!college.profileCompleted && !profileRedirected.current) {
+      profileRedirected.current = true;
+      setActiveTab("profile");
+    }
+    // Only re-sync when a different/updated college record arrives, not on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [college?._id, college?.updatedAt]);
+
+  function updatePanelMember(idx, key, value) {
+    setProfileForm((prev) => ({
+      ...prev,
+      placementPanel: prev.placementPanel.map((m, i) => (i === idx ? { ...m, [key]: value } : m)),
+    }));
+  }
+
+  async function saveCollegeProfile(e) {
+    if (e) e.preventDefault();
+    const f = profileForm;
+    const year = Number(f.yearEstablished);
+    if (!f.name.trim()) return toast("Enter your college name.", "!");
+    if (!f.state) return toast("Select your state.", "!");
+    if (!f.city.trim()) return toast("Enter your city.", "!");
+    if (!f.affiliation.trim()) return toast("Enter your affiliated university.", "!");
+    if (!/^\d{4}$/.test(f.yearEstablished) || year < 1800 || year > new Date().getFullYear()) return toast("Enter a valid year of establishment.", "!");
+    if (!f.placementOfficerName.trim()) return toast("Enter the placement head's name.", "!");
+    if (!/^\d{10}$/.test(f.placementOfficerMobile)) return toast("Contact number must be 10 digits.", "!");
+    for (const m of f.placementPanel) {
+      if (!String(m.name || "").trim()) return toast("Every panel member needs a name.", "!");
+      if (m.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m.email)) return toast(`Invalid email for ${m.name}.`, "!");
+      if (m.mobile && String(m.mobile).replace(/\D/g, "").length !== 10) return toast(`Contact number for ${m.name} must be 10 digits.`, "!");
+    }
+    setProfileSaving(true);
+    try {
+      const token = localStorage.getItem("talentera_college_token");
+      const res = await fetch("/api/college/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...f, yearEstablished: year }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || "Couldn't save your college profile.");
+      setCollege(d.college);
+      localStorage.setItem("talentera_college_info", JSON.stringify(d.college));
+      toast("College profile saved.", "✓");
+      if (d.college.profileCompleted) setActiveTab("dashboard");
+    } catch (err) {
+      toast(err.message, "!");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
   const [kpis, setKpis] = useState({
     totalStudents: 0,
     profilesCompleted: 0,
@@ -296,6 +458,10 @@ export default function CollegePortal() {
   const [drives, setDrives] = useState([]);
   const [nominatingDriveId, setNominatingDriveId] = useState(null);
   const [showAllJobs, setShowAllJobs] = useState(false);
+  const [driveCompanySearch, setDriveCompanySearch] = useState("");
+  const [driveLocationSearch, setDriveLocationSearch] = useState("");
+  const [certCatalogSearch, setCertCatalogSearch] = useState("");
+  const [certCatalogBody, setCertCatalogBody] = useState("all");
   const [notifications, setNotifications] = useState([]);
   const [editCollegeForm, setEditCollegeForm] = useState({
     name: "",
@@ -337,7 +503,6 @@ export default function CollegePortal() {
     mobile: "",
     gender: "",
     dob: "",
-    currentYearSemester: "",
     department: "",
     degree: "",
     rollNumber: "",
@@ -345,35 +510,15 @@ export default function CollegePortal() {
     cgpa: "",
     backlogsCount: 0,
     primaryDomain: "",
-    secondaryDomain: "Medical Billing",
-    consentGiven: false,
   });
   const [degreeIsOther, setDegreeIsOther] = useState(false);
   const [departmentIsOther, setDepartmentIsOther] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
 
-  // Optional Student Photo - kept as a separate File + preview URL rather
-  // than in singleStudent state, since it's uploaded via its own
-  // multipart POST /students/:id/photo call after the student record
-  // itself is created (mirrors how the candidate's own Aadhaar e-KYC
-  // photo flow works).
-  const [singleStudentPhotoFile, setSingleStudentPhotoFile] = useState(null);
-  const [singleStudentPhotoPreview, setSingleStudentPhotoPreview] = useState("");
-
   // Click-to-enlarge: any student photo thumbnail (enrollment form preview
   // or the profile modal avatar) sets this URL, which opens a full-size
   // lightbox overlay above everything else, including the student modal.
   const [enlargedPhotoUrl, setEnlargedPhotoUrl] = useState("");
-  const handleSingleStudentPhotoChange = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) {
-      setSingleStudentPhotoFile(null);
-      setSingleStudentPhotoPreview("");
-      return;
-    }
-    setSingleStudentPhotoFile(file);
-    setSingleStudentPhotoPreview(URL.createObjectURL(file));
-  };
 
   // Live "mobile already registered" check - debounced so it fires once the
   // placement officer pauses typing, not on every keystroke. "duplicate"
@@ -545,7 +690,7 @@ export default function CollegePortal() {
       fetchTrainingCurriculum();
       fetchStudentTrainingProgress();
     }
-    if (activeTab === "certifications") {
+    if (activeTab === "certifications" || activeTab === "domains") {
       fetchCertificationsSummary();
     }
     if (activeTab === "assessments") {
@@ -906,14 +1051,6 @@ export default function CollegePortal() {
       toast("Date of Birth is required.", "!");
       return;
     }
-    if (!singleStudent.currentYearSemester) {
-      toast("Current Year / Semester is required.", "!");
-      return;
-    }
-    if (!singleStudent.consentGiven) {
-      toast("The student's consent checkbox must be checked before enrolling them.", "!");
-      return;
-    }
 
     setEnrolling(true);
     const token = localStorage.getItem("talentera_college_token");
@@ -925,32 +1062,11 @@ export default function CollegePortal() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...singleStudent, yearOfStudy: singleStudent.currentYearSemester }),
+        body: JSON.stringify({ ...singleStudent }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to enroll student.");
-
-      // Photo is optional - only attempt the upload if one was chosen, and
-      // only after the student record itself was created successfully, so
-      // an unrelated photo-upload failure never blocks the enrollment.
-      if (singleStudentPhotoFile && data.student?._id) {
-        try {
-          const photoForm = new FormData();
-          photoForm.append("doc", singleStudentPhotoFile);
-          const photoRes = await fetch(`/api/college/students/${data.student._id}/photo`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${token}` },
-            body: photoForm,
-          });
-          if (!photoRes.ok) {
-            const photoErr = await photoRes.json().catch(() => ({}));
-            toast(`Student enrolled, but photo upload failed: ${photoErr.message || "unknown error"}`, "!");
-          }
-        } catch (photoErr) {
-          toast(`Student enrolled, but photo upload failed: ${photoErr.message}`, "!");
-        }
-      }
 
       toast(`Student ${singleStudent.name} successfully enrolled!`, "✓");
       setSingleStudent({
@@ -959,7 +1075,6 @@ export default function CollegePortal() {
         mobile: "",
         gender: "",
         dob: "",
-        currentYearSemester: "",
         department: "",
         degree: "",
         rollNumber: "",
@@ -967,11 +1082,7 @@ export default function CollegePortal() {
         cgpa: "",
         backlogsCount: 0,
         primaryDomain: "",
-        secondaryDomain: "Medical Billing",
-        consentGiven: false,
       });
-      setSingleStudentPhotoFile(null);
-      setSingleStudentPhotoPreview("");
       setDegreeIsOther(false);
       setDepartmentIsOther(false);
       setMobileCheckStatus("idle");
@@ -1072,18 +1183,6 @@ export default function CollegePortal() {
     }
     const dob = (row.dob || row.dateOfBirth || row["date of birth"] || "").trim();
     if (!dob) return { isValid: false, reason: "Missing date of birth" };
-    const yearOfStudy = (
-      row.yearOfStudy ||
-      row.yearofstudy ||
-      row.currentYearSemester ||
-      row["year of study"] ||
-      ""
-    ).trim();
-    if (!yearOfStudy) return { isValid: false, reason: "Missing current year/semester" };
-    const consentVal = String(row.consent || row.consentGiven || "").trim().toLowerCase();
-    if (!["yes", "true", "1", "y"].includes(consentVal)) {
-      return { isValid: false, reason: "Missing student consent (consent column must be Yes)" };
-    }
     return { isValid: true, reason: "" };
   }
 
@@ -1143,8 +1242,8 @@ export default function CollegePortal() {
     const csvContent =
       "data:text/csv;charset=utf-8," +
       encodeURIComponent(
-        "name,email,mobile,gender,dob,yearOfStudy,rollNumber,department,degree,graduationYear,cgpa,backlogs,primaryDomain,consent\n" +
-        "Student Name,student@example.edu.in,9876543210,Male,2003-05-15,3rd Year / 6th Semester,ROLL001,Life Sciences & Biotechnology,B.Sc Biotechnology,2026,8.0,0,Medical Coding,Yes\n"
+        "name,email,mobile,gender,dob,rollNumber,department,degree,graduationYear,cgpa,backlogs,primaryDomain\n" +
+        "Student Name,student@example.edu.in,9876543210,Male,2003-05-15,ROLL001,Life Sciences & Biotechnology,B.Sc Biotechnology,2026,8.0,0,Medical Coding\n"
       );
     const link = document.createElement("a");
     link.setAttribute("href", csvContent);
@@ -1271,13 +1370,13 @@ export default function CollegePortal() {
 
         {/* 12 Modules Nav */}
         <nav style={{ flex: 1, overflowY: "auto", padding: "0 10px 20px" }}>
-          {Object.entries(MODULES_MAP).map(([key, info]) => {
-            const isActive = activeTab === key;
+          {Object.entries(MODULES_MAP).filter(([, info]) => !info.hidden).map(([key, info]) => {
+            const isActive = (PARENT_TAB[activeTab] || activeTab) === key || (key === "bulk_upload" && activeTab === "add_student");
             return (
               <button
                 key={key}
                 type="button"
-                onClick={() => setActiveTab(key)}
+                onClick={() => setActiveTab(info.landing || key)}
                 style={{
                   width: "100%",
                   display: "flex",
@@ -1298,6 +1397,9 @@ export default function CollegePortal() {
               >
                 <i className={`fa-solid ${info.icon}`} style={{ width: 18, fontSize: 14, color: isActive ? "#0A1F3D" : "#F5B41A" }}></i>
                 <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{info.title.split("·")[0]}</span>
+                {key === "profile" && college && !college.profileCompleted && (
+                  <span style={{ marginLeft: "auto", background: "#DC2626", color: "#fff", fontSize: 9.5, fontWeight: 800, padding: "2px 7px", borderRadius: 999 }}>TO DO</span>
+                )}
               </button>
             );
           })}
@@ -1339,11 +1441,11 @@ export default function CollegePortal() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 34, height: 34, borderRadius: 8, background: "#EFF6FF", color: "#2563EB", display: "grid", placeItems: "center", fontSize: 15 }}>
-              <i className={`fa-solid ${MODULES_MAP[activeTab]?.icon || "fa-chart-pie"}`}></i>
+              <i className={`fa-solid ${MODULES_MAP[PARENT_TAB[activeTab] || activeTab]?.icon || "fa-chart-pie"}`}></i>
             </div>
             <div>
               <h1 style={{ fontSize: 17, fontWeight: 800, color: "#0A1F3D", margin: 0 }}>
-                {MODULES_MAP[activeTab]?.title}
+                {MODULES_MAP[PARENT_TAB[activeTab] || activeTab]?.title}
               </h1>
               <span style={{ fontSize: 11.5, color: "#64748B" }}>
                 Campus Placement Operating System · Academic Year 2025–2026
@@ -1427,7 +1529,6 @@ export default function CollegePortal() {
                   { label: "Medical Coding", val: kpis.medicalCoding, icon: "fa-stethoscope", color: "#2563EB", bg: "#EFF6FF", onClick: () => { setFilterDomain("Medical Coding"); setActiveTab("students"); } },
                   { label: "Medical Billing", val: kpis.medicalBilling, icon: "fa-file-invoice-dollar", color: "#16A34A", bg: "#F0FDF4", onClick: () => { setFilterDomain("Medical Billing"); setActiveTab("students"); } },
                   { label: "AR Calling", val: kpis.arCalling, icon: "fa-headset", color: "#D97706", bg: "#FFFBEB", onClick: () => { setFilterDomain("AR Calling"); setActiveTab("students"); } },
-                  { label: "Certified", val: kpis.certified, icon: "fa-certificate", color: "#7C3AED", bg: "#F5F3FF" },
                   { label: "Assessment Done", val: kpis.assessmentCompleted, icon: "fa-list-check", color: "#0D9488", bg: "#F0FDFA" },
                   { label: "Interview Ready", val: kpis.interviewReady, icon: "fa-bolt", color: "#15803D", bg: "#DCFCE7", highlight: true, onClick: () => { setFilterReadiness("INTERVIEW_READY"); setActiveTab("students"); } },
                   { label: "Shortlisted", val: kpis.shortlisted, icon: "fa-user-clock", color: "#4F46E5", bg: "#EEF2FF", onClick: () => { setFilterPlacement("SHORTLISTED"); setActiveTab("students"); } },
@@ -1457,99 +1558,6 @@ export default function CollegePortal() {
                     <div style={{ fontSize: 24, fontWeight: 900, color: kpi.color, lineHeight: 1 }}>{kpi.val}</div>
                   </div>
                 ))}
-              </div>
-
-              {/* Middle Section: Quick Actions & Stage Pipeline Overview */}
-              <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 20, marginBottom: 24 }}>
-                {/* 14-Stage Candidate Progression Funnel */}
-                <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "22px 24px", border: "1px solid #E2E8F0" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                    <div>
-                      <h3 style={{ fontSize: 15.5, fontWeight: 800, color: "#0A1F3D", margin: 0 }}>
-                        Candidate Placement Pipeline
-                      </h3>
-                      <span style={{ fontSize: 12, color: "#64748B" }}>From Enrollment to Healthcare Corporate Joining</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("students")}
-                      style={{ background: "none", border: "none", color: "#2563EB", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-                    >
-                      View All Students →
-                    </button>
-                  </div>
-
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, textAlign: "center" }}>
-                    {READINESS_LEVELS.map((lvl, i) => {
-                      const funnelEntry = kpis.readinessFunnel?.find((f) => f.id === lvl.id);
-                      const count = funnelEntry !== undefined
-                        ? funnelEntry.count
-                        : (lvl.id === "INTERVIEW_READY" ? kpis.interviewReady : lvl.id === "ENROLLED" ? kpis.totalStudents : 0);
-                      return (
-                        <div key={lvl.id} style={{ background: lvl.bg, border: `1px solid ${lvl.color}40`, borderRadius: 8, padding: "10px 4px" }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: lvl.color, marginBottom: 4 }}>Step {i + 1}</div>
-                          <div style={{ fontSize: 18, fontWeight: 900, color: lvl.color }}>{count}</div>
-                          <div style={{ fontSize: 9.5, color: "#475569", fontWeight: 600, marginTop: 4, lineHeight: 1.2 }}>
-                            {lvl.label.replace(/^\d+\.\s*/, "")}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Corporate Conversion Banner */}
-                  <div style={{ marginTop: 18, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: 8, background: "#10B981", color: "#FFFFFF", display: "grid", placeItems: "center", fontSize: 14 }}>
-                        <i className="fa-solid fa-building-user"></i>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "#0A1F3D" }}>
-                          Corporate RCM Hiring Drives Active: {drives.length} Open Corporate Drive{drives.length === 1 ? "" : "s"}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: "#64748B" }}>
-                          {drives.length > 0
-                            ? `${drives.slice(0, 3).map((d) => d.company).join(", ")}${drives.length > 3 ? ` and ${drives.length - 3} more` : ""} recruiting campus pool`
-                            : "Approved corporate healthcare recruitment drives will appear here in real-time"}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab("jobs")}
-                      style={{ background: "#0A1F3D", color: "#F5B41A", padding: "6px 14px", borderRadius: 6, border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                    >
-                      View Matched Drives
-                    </button>
-                  </div>
-                </div>
-
-                {/* Right: Domain Mix Distribution */}
-                <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "22px 24px", border: "1px solid #E2E8F0" }}>
-                  <h3 style={{ fontSize: 15.5, fontWeight: 800, color: "#0A1F3D", margin: "0 0 4px" }}>
-                    RCM Domain Mix
-                  </h3>
-                  <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 16px" }}>Enrolled student specialization preference</p>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {[
-                      { name: "Medical Coding", count: kpis.medicalCoding, pct: kpis.totalStudents ? Math.round((kpis.medicalCoding / kpis.totalStudents) * 100) : 0, color: "#2563EB", sub: "ICD-10, CPT, E&M, IP-DRG" },
-                      { name: "Medical Billing", count: kpis.medicalBilling, pct: kpis.totalStudents ? Math.round((kpis.medicalBilling / kpis.totalStudents) * 100) : 0, color: "#16A34A", sub: "Claims, Denials, Payment Posting" },
-                      { name: "AR Calling", count: kpis.arCalling, pct: kpis.totalStudents ? Math.round((kpis.arCalling / kpis.totalStudents) * 100) : 0, color: "#D97706", sub: "Payer Follow-up, Voice / Non-voice" },
-                    ].map((d) => (
-                      <div key={d.name} style={{ background: "#F8FAFC", padding: "10px 14px", borderRadius: 8, border: "1px solid #E2E8F0" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                          <span style={{ fontSize: 13, fontWeight: 800, color: "#0A1F3D" }}>{d.name}</span>
-                          <span style={{ fontSize: 12.5, fontWeight: 800, color: d.color }}>{d.count} ({d.pct}%)</span>
-                        </div>
-                        <div style={{ height: 6, background: "#E2E8F0", borderRadius: 3, overflow: "hidden", marginBottom: 4 }}>
-                          <div style={{ height: "100%", width: `${d.pct}%`, background: d.color, borderRadius: 3 }}></div>
-                        </div>
-                        <div style={{ fontSize: 11, color: "#64748B" }}>{d.sub}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               {/* Bottom Quick Students Table Preview */}
@@ -2068,21 +2076,13 @@ export default function CollegePortal() {
                         <div>Department: {selectedStudent.studentEnrollment?.department || "Not provided"}</div>
                         <div>CGPA: <strong>{selectedStudent.studentEnrollment?.cgpa || 0}</strong> / Backlogs: <strong>{selectedStudent.studentEnrollment?.backlogsCount || 0}</strong></div>
                         <div>Graduation: {selectedStudent.studentEnrollment?.graduationYear || "Not provided"}</div>
-                        <div>Year / Semester: {selectedStudent.studentEnrollment?.yearOfStudy || "Not provided"}</div>
                         <div>Gender: {selectedStudent.stage1?.gender || "Not provided"}</div>
                         <div>Date of Birth: {selectedStudent.stage1?.dob || "Not provided"}</div>
-                        <div>
-                          Consent on File:{" "}
-                          <strong style={{ color: selectedStudent.studentEnrollment?.consentGiven ? "#16A34A" : "#DC2626" }}>
-                            {selectedStudent.studentEnrollment?.consentGiven ? "Yes" : "Not recorded"}
-                          </strong>
-                        </div>
                       </div>
 
                       <div style={{ background: "#FAFAF8", padding: 14, borderRadius: 8, border: "1px solid #E2E8F0" }}>
                         <div style={{ fontWeight: 800, color: "#0A1F3D", marginBottom: 6 }}>RCM Domain Tracks</div>
                         <div>Primary Track: <strong>{selectedStudent.rcmDomainSelection?.primaryDomain || "Not provided"}</strong></div>
-                        <div>Secondary: {selectedStudent.rcmDomainSelection?.secondaryDomain || "Not provided"}</div>
                         <div>Shift Preference: {selectedStudent.rcmDomainSelection?.shiftPreference || "Not provided"}</div>
                         <div>Mode: {selectedStudent.rcmDomainSelection?.workModePreference || "Not provided"}</div>
                       </div>
@@ -2225,10 +2225,126 @@ export default function CollegePortal() {
           {/* ========================================================= */}
 
           {/* ========================================================= */}
+          {/* MODULE: COLLEGE PROFILE (post sign-in registration)        */}
+          {/* ========================================================= */}
+          {activeTab === "profile" && (
+            <div style={{ maxWidth: 900, margin: "0 auto", background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
+              <h3 style={{ fontSize: 18, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>College Registration</h3>
+              <p style={{ fontSize: 12.5, color: "#64748B", margin: "0 0 20px" }}>
+                Complete your college details and add your placement panel. You can edit these any time.
+              </p>
+
+              <form onSubmit={saveCollegeProfile} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {[
+                  ["name", "College Name *", "text", "e.g. PSG College of Arts & Science"],
+                  ["affiliation", "Affiliated University *", "text", "e.g. Bharathiar University / Autonomous"],
+                  ["city", "City *", "text", "e.g. Coimbatore"],
+                  ["yearEstablished", "Year of Establishment *", "year", "e.g. 1998"],
+                  ["placementOfficerName", "Placement Head Name *", "text", "e.g. Dr. K. Venkataraman"],
+                  ["placementOfficerMobile", "Placement Head Contact *", "tel", "10-digit mobile number"],
+                ].reduce((rows, f, i) => {
+                  if (i % 2 === 0) rows.push([f]);
+                  else rows[rows.length - 1].push(f);
+                  return rows;
+                }, []).map((pair, ri) => (
+                  <div key={ri} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                    {pair.map(([key, label, kind, ph]) => (
+                      <div key={key}>
+                        <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>{label}</label>
+                        <input
+                          type="text"
+                          inputMode={kind === "year" || kind === "tel" ? "numeric" : undefined}
+                          maxLength={kind === "year" ? 4 : kind === "tel" ? 10 : undefined}
+                          value={profileForm[key]}
+                          placeholder={ph}
+                          onChange={(e) => setProfileForm({ ...profileForm, [key]: kind === "year" || kind === "tel" ? e.target.value.replace(/\D/g, "") : e.target.value })}
+                          style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>State *</label>
+                    <select
+                      value={profileForm.state}
+                      onChange={(e) => setProfileForm({ ...profileForm, state: e.target.value })}
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, background: "#FFF", boxSizing: "border-box" }}
+                    >
+                      <option value="">Select state…</option>
+                      {INDIAN_STATES.map((st) => (
+                        <option key={st} value={st}>{st}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Placement Head Mail Address</label>
+                    <input
+                      type="email"
+                      readOnly
+                      value={college?.placementOfficerEmail || ""}
+                      title="This is your sign-in email"
+                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #E2E8F0", fontSize: 13, boxSizing: "border-box", background: "#F8FAFC", color: "#64748B" }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 8, paddingTop: 16, borderTop: "1px solid #E2E8F0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: "#0A1F3D" }}>Placement Panel Members</div>
+                      <div style={{ fontSize: 12, color: "#64748B" }}>Optional — the team that coordinates placements with you.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setProfileForm({ ...profileForm, placementPanel: [...profileForm.placementPanel, { name: "", designation: "", email: "", mobile: "" }] })}
+                      style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", padding: "7px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      <i className="fa-solid fa-user-plus" style={{ marginRight: 6 }}></i> Add panel member
+                    </button>
+                  </div>
+
+                  {profileForm.placementPanel.map((m, idx) => (
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.3fr 1fr auto", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                      <input type="text" placeholder="Name *" value={m.name || ""} onChange={(e) => updatePanelMember(idx, "name", e.target.value)} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
+                      <input type="text" placeholder="Designation" value={m.designation || ""} onChange={(e) => updatePanelMember(idx, "designation", e.target.value)} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
+                      <input type="email" placeholder="Email" value={m.email || ""} onChange={(e) => updatePanelMember(idx, "email", e.target.value)} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
+                      <input type="tel" inputMode="numeric" maxLength={10} placeholder="Contact" value={m.mobile || ""} onChange={(e) => updatePanelMember(idx, "mobile", e.target.value.replace(/\D/g, ""))} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
+                      <button
+                        type="button"
+                        title="Remove member"
+                        aria-label="Remove member"
+                        onClick={() => setProfileForm({ ...profileForm, placementPanel: profileForm.placementPanel.filter((_, i) => i !== idx) })}
+                        style={{ width: 32, height: 32, borderRadius: 8, border: "1.5px solid #FECACA", background: "#FEF2F2", color: "#DC2626", cursor: "pointer" }}
+                      >
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                  <button
+                    type="submit"
+                    disabled={profileSaving}
+                    style={{ background: "#0A1F3D", color: "#F5B41A", padding: "11px 24px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 13.5, cursor: profileSaving ? "not-allowed" : "pointer" }}
+                  >
+                    {profileSaving ? "Saving…" : "Save College Profile"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* ========================================================= */}
           {/* MODULE: ADD SINGLE STUDENT                                */}
           {/* ========================================================= */}
           {activeTab === "add_student" && (
-            <div style={{ maxWidth: 860, margin: "0 auto", background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
+            <div style={{ maxWidth: 900, margin: "0 auto" }}>
+            <EnrollmentModeSwitch activeTab={activeTab} setActiveTab={setActiveTab} />
+            <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 18, borderBottom: "1px solid #E2E8F0", paddingBottom: 14 }}>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>
@@ -2238,14 +2354,6 @@ export default function CollegePortal() {
                     Register a student directly into the verified RCM talent development pipeline
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("bulk_upload")}
-                  style={{ background: "#EFF6FF", color: "#2563EB", border: "1px solid #BFDBFE", padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
-                >
-                  <i className="fa-solid fa-file-arrow-up" style={{ marginRight: 6 }}></i>
-                  Have a batch? Use Bulk Upload
-                </button>
               </div>
 
               <form onSubmit={handleSingleStudentSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -2421,40 +2529,6 @@ export default function CollegePortal() {
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Current Year / Semester *</label>
-                    <input
-                      type="text"
-                      required
-                      value={singleStudent.currentYearSemester}
-                      onChange={(e) => setSingleStudent({ ...singleStudent, currentYearSemester: e.target.value })}
-                      placeholder="e.g. 3rd Year / 6th Semester"
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Student Photo (optional)</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      {singleStudentPhotoPreview && (
-                        <img
-                          src={singleStudentPhotoPreview}
-                          alt="Student preview"
-                          onClick={() => setEnlargedPhotoUrl(singleStudentPhotoPreview)}
-                          title="Click to view full size"
-                          style={{ width: 38, height: 38, borderRadius: "50%", objectFit: "cover", border: "1.5px solid #CBD5E1", flexShrink: 0, cursor: "pointer" }}
-                        />
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleSingleStudentPhotoChange}
-                        style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12, boxSizing: "border-box", background: "#FFFFFF" }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Graduation Year</label>
@@ -2518,33 +2592,6 @@ export default function CollegePortal() {
                       <option value="AR Calling">AR Calling</option>
                     </select>
                   </div>
-                  <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Secondary Track</label>
-                    <select
-                      value={singleStudent.secondaryDomain}
-                      onChange={(e) => setSingleStudent({ ...singleStudent, secondaryDomain: e.target.value })}
-                      style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, background: "#FFF", boxSizing: "border-box" }}
-                    >
-                      <option value="Medical Billing">Medical Billing</option>
-                      <option value="Medical Coding">Medical Coding</option>
-                      <option value="AR Calling">AR Calling</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
-                  <input
-                    type="checkbox"
-                    id="single-student-consent"
-                    required
-                    checked={singleStudent.consentGiven}
-                    onChange={(e) => setSingleStudent({ ...singleStudent, consentGiven: e.target.checked })}
-                    style={{ marginTop: 2, cursor: "pointer" }}
-                  />
-                  <label htmlFor="single-student-consent" style={{ fontSize: 12, color: "#334155", cursor: "pointer" }}>
-                    I confirm this student has consented to their personal and academic details being shared with
-                    the Talentera platform and prospective employers as part of the placement process. *
-                  </label>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
@@ -2578,6 +2625,7 @@ export default function CollegePortal() {
                 </div>
               </form>
             </div>
+            </div>
           )}
 
           {/* ========================================================= */}
@@ -2590,7 +2638,9 @@ export default function CollegePortal() {
               ? bulkPreviewRows.filter((r) => r.isValid && !bulkExcludedRows.has(r.rowIndex)).length
               : 0;
             return (
-            <div style={{ maxWidth: 900, margin: "0 auto", background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
+            <div style={{ maxWidth: 900, margin: "0 auto" }}>
+            <EnrollmentModeSwitch activeTab={activeTab} setActiveTab={setActiveTab} />
+            <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "28px 34px", border: "1px solid #E2E8F0" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>
@@ -2610,7 +2660,7 @@ export default function CollegePortal() {
               </div>
 
               <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#475569", marginBottom: 14 }}>
-                <strong>Supported Columns:</strong> <code>name, email, mobile, gender, dob, yearOfStudy, rollNumber, department, degree, graduationYear, cgpa, backlogs, primaryDomain, consent</code>
+                <strong>Supported Columns:</strong> <code>name, email, mobile, gender, dob, rollNumber, department, degree, graduationYear, cgpa, backlogs, primaryDomain</code>
               </div>
 
               {!bulkPreviewRows ? (
@@ -2781,7 +2831,7 @@ export default function CollegePortal() {
                       >
                         {bulkSummary.valid > 0
                           ? (bulkSummary.errors > 0 ? "Batch Upload Completed with Warnings" : "Batch Upload Processed Successfully")
-                          : "Batch Upload Incomplete"}
+                          : (bulkSummary.errors === 0 && bulkSummary.duplicates > 0 ? "No New Students Added - All Rows Already Exist" : "Batch Upload Incomplete")}
                       </div>
                       <div
                         style={{
@@ -2828,12 +2878,17 @@ export default function CollegePortal() {
                 </div>
               )}
             </div>
+            </div>
             );
           })()}
 
           {/* ========================================================= */}
           {/* MODULE: RCM DOMAIN SPECIALIZATIONS                        */}
           {/* ========================================================= */}
+          {LIBRARY_TABS.some(([k]) => k === activeTab) && (
+            <SubTabSwitch tabs={LIBRARY_TABS} activeTab={activeTab} setActiveTab={setActiveTab} />
+          )}
+
           {activeTab === "domains" && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
               {[
@@ -3020,8 +3075,8 @@ export default function CollegePortal() {
                   <thead>
                     <tr style={{ background: "#0A1F3D", color: "#FFFFFF", textAlign: "left" }}>
                       <th style={{ padding: "12px 16px", fontWeight: 800 }}>Student</th>
-                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Attendance</th>
-                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Training Progress</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Academy Test Score</th>
+                      <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Talentera Score</th>
                       <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Assessment</th>
                       <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "center" }}>Status</th>
                       <th style={{ padding: "12px 16px", fontWeight: 800, textAlign: "right" }}>Actions</th>
@@ -3046,8 +3101,7 @@ export default function CollegePortal() {
                         const st = TRAINING_STATUS_STYLE[r.status] || TRAINING_STATUS_STYLE.NOT_STARTED;
                         const avatar = getAvatarStyle(rowIdx);
                         const initials = getStudentInitials(r.name);
-                        const attendanceColor = r.attendancePct >= 80 ? "#10B981" : r.attendancePct >= 60 ? "#F59E0B" : "#EF4444";
-                        const trainingColor = "#2563EB";
+                        const scoreColor = (v) => (v >= 70 ? "#10B981" : v >= 50 ? "#F59E0B" : "#EF4444");
                         const assessmentColor = r.assessmentPassed ? "#8B5CF6" : (r.assessmentTaken ? "#EF4444" : "#94A3B8");
 
                         return (
@@ -3083,24 +3137,32 @@ export default function CollegePortal() {
                               </div>
                             </td>
 
-                            {/* Attendance column */}
+                            {/* Academy test score column */}
                             <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                              <CircularProgress
-                                percentage={r.attendancePct}
-                                label={`${r.attendancePct}%`}
-                                subtext={`${r.attendedHours}/${r.totalHours} hrs`}
-                                color={attendanceColor}
-                              />
+                              {r.academyScore !== null && r.academyScore !== undefined ? (
+                                <CircularProgress
+                                  percentage={r.academyScore}
+                                  label={`${r.academyScore}%`}
+                                  subtext="Academy test"
+                                  color={scoreColor(r.academyScore)}
+                                />
+                              ) : (
+                                <CircularProgress percentage={0} label="Pending" icon="fa-regular fa-clock" subtext="Academy test" color="#94A3B8" />
+                              )}
                             </td>
 
-                            {/* Training Progress column */}
+                            {/* Talentera score column */}
                             <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                              <CircularProgress
-                                percentage={r.trainingPct}
-                                label={`${r.trainingPct}%`}
-                                subtext={`${r.trainingCompletedModules}/${r.trainingTotalModules} modules`}
-                                color={trainingColor}
-                              />
+                              {r.talenteraScore ? (
+                                <CircularProgress
+                                  percentage={r.talenteraScore}
+                                  label={`${r.talenteraScore}`}
+                                  subtext="out of 100"
+                                  color={scoreColor(r.talenteraScore)}
+                                />
+                              ) : (
+                                <CircularProgress percentage={0} label="Pending" icon="fa-regular fa-clock" subtext="Talentera score" color="#94A3B8" />
+                              )}
                             </td>
 
                             {/* Assessment column */}
@@ -3447,11 +3509,108 @@ export default function CollegePortal() {
           {/* ========================================================= */}
           {activeTab === "certifications" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              {(() => {
+                const bodies = Object.values(CERT_LIBRARY);
+                const allCerts = bodies.flatMap((b) => b.certs.map((c) => ({ ...c, body: b.name, bodyKey: b.key, color: b.color })));
+                const fresher = FRESHER_CERT_CODES.map((code) => allCerts.find((c) => c.code === code && (c.bodyKey === "aapc" || c.bodyKey === "ahima"))).filter(Boolean);
+                const q = certCatalogSearch.trim().toLowerCase();
+                const filtered = allCerts.filter(
+                  (c) =>
+                    (certCatalogBody === "all" || c.bodyKey === certCatalogBody) &&
+                    (!q || `${c.code} ${c.name} ${c.target}`.toLowerCase().includes(q))
+                );
+                return (
+                  <>
+                    <div style={{ background: "#FFFBEB", borderRadius: 14, padding: "22px 28px", border: "1px solid #FDE68A" }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 900, color: "#92400E", margin: "0 0 4px" }}>
+                        <i className="fa-solid fa-seedling" style={{ marginRight: 8 }}></i>Basic AAPC / AHIMA Certifications for Freshers
+                      </h3>
+                      <p style={{ fontSize: 12, color: "#92400E", margin: "0 0 14px" }}>
+                        Entry-level credentials recommended for students starting their RCM career.
+                      </p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 12 }}>
+                        {fresher.map((c) => (
+                          <div key={`${c.bodyKey}-${c.code}`} style={{ background: "#FFFFFF", borderRadius: 10, padding: "12px 14px", border: "1px solid #FDE68A" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <span style={{ fontSize: 14, fontWeight: 900, color: c.color }}>{c.code}</span>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, color: "#64748B", background: "#F1F5F9", padding: "2px 7px", borderRadius: 4 }}>{c.body}</span>
+                            </div>
+                            <div style={{ fontSize: 12.5, fontWeight: 800, color: "#0A1F3D", margin: "4px 0" }}>{c.name}</div>
+                            <div style={{ fontSize: 11.5, color: "#64748B" }}>{c.time} · {c.qs} questions · {c.inr}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "24px 28px", border: "1px solid #E2E8F0" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 14 }}>
+                        <div>
+                          <h3 style={{ fontSize: 17, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>All Available Certifications</h3>
+                          <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
+                            {filtered.length} of {allCerts.length} certifications across AAPC, AHIMA, HIMAA and specialty bodies
+                          </p>
+                        </div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                          <input
+                            type="text"
+                            value={certCatalogSearch}
+                            onChange={(e) => setCertCatalogSearch(e.target.value)}
+                            placeholder="Search certification…"
+                            style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 200 }}
+                          />
+                          <select
+                            value={certCatalogBody}
+                            onChange={(e) => setCertCatalogBody(e.target.value)}
+                            style={{ padding: "8px 12px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 12.5, background: "#FFFFFF" }}
+                          >
+                            <option value="all">All issuing bodies</option>
+                            {bodies.map((b) => (
+                              <option key={b.key} value={b.key}>{b.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ overflowX: "auto", border: "1px solid #E2E8F0", borderRadius: 10 }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                          <thead>
+                            <tr style={{ background: "#0A1F3D", color: "#FFFFFF", textAlign: "left" }}>
+                              <th style={{ padding: "10px 14px", fontWeight: 800 }}>Code</th>
+                              <th style={{ padding: "10px 14px", fontWeight: 800 }}>Certification</th>
+                              <th style={{ padding: "10px 14px", fontWeight: 800 }}>Body</th>
+                              <th style={{ padding: "10px 14px", fontWeight: 800 }}>Best For</th>
+                              <th style={{ padding: "10px 14px", fontWeight: 800 }}>Exam</th>
+                              <th style={{ padding: "10px 14px", fontWeight: 800 }}>Approx. Fee</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>No certifications match your search.</td>
+                              </tr>
+                            ) : (
+                              filtered.map((c, idx) => (
+                                <tr key={`${c.bodyKey}-${c.code}`} style={{ borderBottom: "1px solid #F1F5F9", background: idx % 2 === 0 ? "#FFFFFF" : "#F8FAFC" }}>
+                                  <td style={{ padding: "10px 14px", fontWeight: 900, color: c.color }}>{c.code}</td>
+                                  <td style={{ padding: "10px 14px", fontWeight: 700, color: "#0A1F3D" }}>{c.name}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569" }}>{c.body}</td>
+                                  <td style={{ padding: "10px 14px", color: "#64748B" }}>{c.target}</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569", whiteSpace: "nowrap" }}>{c.time} · {c.qs} Qs</td>
+                                  <td style={{ padding: "10px 14px", color: "#475569", whiteSpace: "nowrap" }}>{c.inr}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
               <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "24px 28px", border: "1px solid #E2E8F0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                   <div>
                     <h3 style={{ fontSize: 17, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>
-                      AAPC & AHIMA Industry Certifications
+                      Your Students&apos; Certification Status
                     </h3>
                     <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
                       Live credential breakdown from candidate verified Stage 3 profiles
@@ -3589,11 +3748,44 @@ export default function CollegePortal() {
           {/* ========================================================= */}
           {/* MODULE: JOB MATCHING & CORPORATE DRIVES                   */}
           {/* ========================================================= */}
+          {PLACEMENT_TABS.some(([k]) => k === activeTab) && (
+            <SubTabSwitch tabs={PLACEMENT_TABS} activeTab={activeTab} setActiveTab={setActiveTab} />
+          )}
+
           {activeTab === "jobs" && (() => {
             const matchedDrives = drives.filter((j) => j.matchedStudents > 0);
-            const visibleDrives = showAllJobs ? drives : matchedDrives;
+            const companyQ = driveCompanySearch.trim().toLowerCase();
+            const locationQ = driveLocationSearch.trim().toLowerCase();
+            const baseDrives = showAllJobs ? drives : matchedDrives;
+            const visibleDrives = baseDrives.filter(
+              (j) =>
+                (!companyQ || `${j.company || ""} ${j.role || ""}`.toLowerCase().includes(companyQ)) &&
+                (!locationQ || String(j.location || "").toLowerCase().includes(locationQ))
+            );
             return (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ position: "relative", flex: "1 1 260px" }}>
+                  <i className="fa-solid fa-building" style={{ position: "absolute", left: 12, top: 12, color: "#94A3B8", fontSize: 13 }}></i>
+                  <input
+                    type="text"
+                    value={driveCompanySearch}
+                    onChange={(e) => setDriveCompanySearch(e.target.value)}
+                    placeholder="Search company hiring name or role…"
+                    style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 34px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 13, background: "#FFFFFF" }}
+                  />
+                </div>
+                <div style={{ position: "relative", flex: "1 1 220px" }}>
+                  <i className="fa-solid fa-location-dot" style={{ position: "absolute", left: 12, top: 12, color: "#94A3B8", fontSize: 13 }}></i>
+                  <input
+                    type="text"
+                    value={driveLocationSearch}
+                    onChange={(e) => setDriveLocationSearch(e.target.value)}
+                    placeholder="Search location (city / state)…"
+                    style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px 10px 34px", borderRadius: 8, border: "1.5px solid #CBD5E1", fontSize: 13, background: "#FFFFFF" }}
+                  />
+                </div>
+              </div>
               {drives.length > 0 && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ fontSize: 12.5, color: "#64748B", fontWeight: 700 }}>
@@ -3620,6 +3812,10 @@ export default function CollegePortal() {
                   <p style={{ fontSize: 13, color: "#64748B", maxWidth: 520, margin: "0 auto", lineHeight: 1.5 }}>
                     When healthcare employers approve and publish campus recruitment drives matching your student domains, they will automatically appear here live.
                   </p>
+                </div>
+              ) : visibleDrives.length === 0 && (companyQ || locationQ) ? (
+                <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "40px 24px", border: "1px solid #E2E8F0", textAlign: "center", color: "#64748B", fontSize: 13 }}>
+                  No drives match that company / location search.
                 </div>
               ) : visibleDrives.length === 0 ? (
                 <div style={{ background: "#FFFFFF", borderRadius: 14, padding: "48px 24px", border: "1px solid #E2E8F0", textAlign: "center" }}>

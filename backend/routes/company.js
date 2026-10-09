@@ -25,8 +25,7 @@ const JD_REQUIRED_FIELDS = [
   "roletitle",
   "specialties",
   "level",
-  "compmin",
-  "compmax",
+  "compensation",
   "workmode",
   "location",
   "shift",
@@ -92,6 +91,13 @@ async function resolveJobLocation(jobId, companyDoc) {
 function syncSpecialtyString(data) {
   if (data && Array.isArray(data.specialties)) {
     data.specialty = data.specialties.filter(Boolean).join(" / ");
+  }
+  // Compensation is typed in free text (freshers / experienced). Numbers in LPA scale are also
+  // mirrored into compmin/compmax so salary filters, matching and job alerts keep working.
+  if (data && typeof data.compensation === "string") {
+    const nums = (data.compensation.replace(/,/g, "").match(/\d+(?:\.\d+)?/g) || []).map(Number).filter((n) => n < 1000);
+    data.compmin = nums.length ? Math.min(...nums) : "";
+    data.compmax = nums.length ? Math.max(...nums) : "";
   }
   return data;
 }
@@ -666,6 +672,76 @@ router.put("/jobs/:id", async (req, res) => {
 // behavior, which is preserved when those params are omitted, to avoid
 // breaking the current frontend) - see IMPROVEMENT_ROADMAP.md "No
 // pagination on list endpoints."
+// What a company is allowed to see about one candidate (contact masking by KYC, scores and
+// certificates by plan). Shared by the applicants list and the JD-matched candidate pull.
+function formatCandidateForCompany(candidate, isKycVerified, plan) {
+    const rawMobile = candidate.stage1?.mobile || candidate.mobile || "";
+    const rawEmail = candidate.email || "";
+
+    const maskedMobile = isKycVerified
+      ? rawMobile
+      : rawMobile
+      ? `${rawMobile.substring(0, 3)}****${rawMobile.slice(-2)} 🔒`
+      : "🔒 Contact Locked";
+
+    const maskedEmail = isKycVerified
+      ? rawEmail
+      : rawEmail
+      ? `${rawEmail.substring(0, 2)}***@${rawEmail.split("@")[1] || "domain.com"} 🔒`
+      : "🔒 Contact Locked";
+
+    const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
+    const canViewScoresAndCerts = Boolean(plan.viewCandidateScoresAndCerts);
+
+    // Real live-chart exposure straight from Stage 6 (0 when the candidate has none / chose "no charts")
+    const s6 = candidate.stage6 || {};
+    const s6Rows = Array.isArray(s6.specialtyCharts) ? s6.specialtyCharts : [];
+    const realChartCount =
+      s6.evidencePath === "D"
+        ? 0
+        : Number.isFinite(Number(s6.totalCharts))
+        ? Number(s6.totalCharts)
+        : Number.isFinite(Number(s6.liveChartsAudited))
+        ? Number(s6.liveChartsAudited)
+        : s6Rows.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
+
+    // The saved career summary can quote chart numbers from before the candidate changed Stage 6.
+    // Never show a chart claim that doesn't match what is on record now.
+    let stage7ForCompany = candidate.stage7 || {};
+    const quotedCharts = /(\d[\d,]*)\s+(?:verified\s+)?(?:live\s+)?charts?\b/i.exec(String(stage7ForCompany.summary || ""));
+    if (quotedCharts && Number(quotedCharts[1].replace(/,/g, "")) !== realChartCount) {
+      stage7ForCompany = { ...stage7ForCompany, summary: "" };
+    }
+
+  return {
+      _id: candidate._id,
+      email: maskedEmail,
+      mobile: maskedMobile,
+      basicInfo: {
+        ...(candidate.stage1 || {}),
+        mobile: maskedMobile,
+        phone: maskedMobile,
+        email: maskedEmail,
+      },
+      training: candidate.stage2 || {},
+      certification: canViewScoresAndCerts ? (candidate.stage3 || {}) : { name: (candidate.stage3?.name || "Professional Certification"), masked: true },
+      assessment: canViewScoresAndCerts ? (candidate.stage4 || {}) : { masked: true },
+      videoIntro: {
+        ...(candidate.stage5 || {}),
+        videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
+      },
+      videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
+      liveCharts: canViewScoresAndCerts ? { ...s6, realChartCount } : { masked: true },
+      summary: stage7ForCompany,
+      employmentStatus: candidate.stage8 || {},
+      documentVault: canViewScoresAndCerts ? (candidate.documentVault || []) : [],
+      completedStages: candidate.completedStages,
+      score: canViewScoresAndCerts ? scoring.score : null,
+      badge: canViewScoresAndCerts ? scoring.badge : null,
+      verified: scoring.verified,
+    };
+}
+
 router.get("/applications", async (req, res) => {
   const company = await Company.findById(req.companyId);
   const isKycVerified = Boolean(company && (company.kycStatus === "verified" || company.kycVerifiedAt));
@@ -707,44 +783,6 @@ router.get("/applications", async (req, res) => {
     const candidate = app.candidateId;
     if (!candidate) return app;
 
-    const rawMobile = candidate.stage1?.mobile || candidate.mobile || "";
-    const rawEmail = candidate.email || "";
-
-    const maskedMobile = isKycVerified
-      ? rawMobile
-      : rawMobile
-      ? `${rawMobile.substring(0, 3)}****${rawMobile.slice(-2)} 🔒`
-      : "🔒 Contact Locked";
-
-    const maskedEmail = isKycVerified
-      ? rawEmail
-      : rawEmail
-      ? `${rawEmail.substring(0, 2)}***@${rawEmail.split("@")[1] || "domain.com"} 🔒`
-      : "🔒 Contact Locked";
-
-    const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
-    const canViewScoresAndCerts = Boolean(plan.viewCandidateScoresAndCerts);
-
-    // Real live-chart exposure straight from Stage 6 (0 when the candidate has none / chose "no charts")
-    const s6 = candidate.stage6 || {};
-    const s6Rows = Array.isArray(s6.specialtyCharts) ? s6.specialtyCharts : [];
-    const realChartCount =
-      s6.evidencePath === "D"
-        ? 0
-        : Number.isFinite(Number(s6.totalCharts))
-        ? Number(s6.totalCharts)
-        : Number.isFinite(Number(s6.liveChartsAudited))
-        ? Number(s6.liveChartsAudited)
-        : s6Rows.reduce((sum, r) => sum + (Number(r.count) || 0), 0);
-
-    // The saved career summary can quote chart numbers from before the candidate changed Stage 6.
-    // Never show a chart claim that doesn't match what is on record now.
-    let stage7ForCompany = candidate.stage7 || {};
-    const quotedCharts = /(\d[\d,]*)\s+(?:verified\s+)?(?:live\s+)?charts?\b/i.exec(String(stage7ForCompany.summary || ""));
-    if (quotedCharts && Number(quotedCharts[1].replace(/,/g, "")) !== realChartCount) {
-      stage7ForCompany = { ...stage7ForCompany, summary: "" };
-    }
-
     return {
       _id: app._id,
       status: app.status,
@@ -755,33 +793,7 @@ router.get("/applications", async (req, res) => {
       rejectionDetails: app.rejectionDetails || "",
       createdAt: app.createdAt,
       isKycVerified,
-      candidate: {
-        _id: candidate._id,
-        email: maskedEmail,
-        mobile: maskedMobile,
-        basicInfo: {
-          ...(candidate.stage1 || {}),
-          mobile: maskedMobile,
-          phone: maskedMobile,
-          email: maskedEmail,
-        },
-        training: candidate.stage2 || {},
-        certification: canViewScoresAndCerts ? (candidate.stage3 || {}) : { name: (candidate.stage3?.name || "Professional Certification"), masked: true },
-        assessment: canViewScoresAndCerts ? (candidate.stage4 || {}) : { masked: true },
-        videoIntro: {
-          ...(candidate.stage5 || {}),
-          videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
-        },
-        videoUrl: candidate.stage5?.selfIntroVideoUrl || candidate.stage5?.videoUrl || candidate.stage5?.proctoredInterviewVideoUrl || candidate.stage5?.url || candidate.stage5?.fileUrl || candidate.stage5?.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,
-        liveCharts: canViewScoresAndCerts ? { ...s6, realChartCount } : { masked: true },
-        summary: stage7ForCompany,
-        employmentStatus: candidate.stage8 || {},
-        documentVault: canViewScoresAndCerts ? (candidate.documentVault || []) : [],
-        completedStages: candidate.completedStages,
-        score: canViewScoresAndCerts ? scoring.score : null,
-        badge: canViewScoresAndCerts ? scoring.badge : null,
-        verified: scoring.verified,
-      },
+      candidate: formatCandidateForCompany(candidate, isKycVerified, plan),
     };
   });
 
@@ -825,6 +837,97 @@ router.get("/applications", async (req, res) => {
     total,
     ...(hasPaging ? { page, limit, totalPages: Math.ceil(total / limit) } : {}),
   });
+});
+
+// GET /api/company/matched-candidates?jobId=... - auto-pulls verified candidates from the pool
+// who fit a job's JD. Hard rules (so a company only ever sees people who fit what it asked for):
+//   - Hiring level: "Fresher only" -> freshers, "Experienced only" -> experienced ("Open to both" = all)
+//   - Certifications: unless the JD lists "Non-Certified", the candidate must hold a certification
+// Everything else (specific cert, city, specialty/domain, verification score) only ranks the list.
+router.get("/matched-candidates", async (req, res) => {
+  try {
+    const company = await Company.findById(req.companyId);
+    if (!company) return res.status(404).json({ message: "Not found." });
+    const isKycVerified = Boolean(company.kycStatus === "verified" || company.kycVerifiedAt);
+    const plan = getPlan(company.plan);
+
+    let jobId = String(req.query.jobId || "");
+    let jd = null;
+    if (jobId && company.jobId === jobId) jd = company.stage9 || {};
+    else if (jobId) jd = (await Job.findOne({ jobId, companyId: req.companyId }).lean())?.fields || null;
+    if (!jd) return res.status(404).json({ message: "Job not found." });
+
+    const level = String(jd.level || "").toLowerCase();
+    const wantFresher = level.includes("fresher");
+    const wantExperienced = level.includes("experienced");
+    const certList = (Array.isArray(jd.certs) ? jd.certs : []).filter(Boolean);
+    const allowNonCertified = certList.includes("Non-Certified");
+    const specificCerts = certList.filter((c) => c !== "Non-Certified").map((c) => c.toUpperCase());
+    const jdCity = String(jd.location || "").toLowerCase();
+    const jdSpecialties = (Array.isArray(jd.specialties) ? jd.specialties : [jd.specialty]).filter(Boolean).map((x) => String(x).toLowerCase());
+
+    const pool = await Candidate.find({ stage1: { $ne: null } }).limit(1000).lean();
+    const alreadyApplied = new Set(
+      (await Application.find({ companyId: req.companyId, jobId }).select("candidateId").lean()).map((a) => String(a.candidateId))
+    );
+
+    const matches = [];
+    for (const c of pool) {
+      const s1 = c.stage1 || {};
+      if (s1.skipped) continue;
+      const exp = String(s1.experience || "").toLowerCase();
+      if (wantFresher && !wantExperienced && exp !== "fresher") continue;
+      if (wantExperienced && !wantFresher && exp !== "experienced") continue;
+
+      const s3 = c.stage3 || {};
+      const certName = !s3.skipped ? String(s3.certName || s3.name || "").trim() : "";
+      const isCertified = Boolean(certName);
+      if (!allowNonCertified && certList.length > 0 && !isCertified) continue;
+
+      const reasons = [];
+      let score = 50;
+      if (wantFresher && !wantExperienced) reasons.push("Fresher");
+      if (wantExperienced && !wantFresher) reasons.push("Experienced");
+      if (isCertified) {
+        reasons.push(`Certified (${certName})`);
+        if (specificCerts.some((sc) => certName.toUpperCase().includes(sc))) { score += 20; reasons.push("Required certification"); }
+      }
+      const city = String(s1.city || "").toLowerCase();
+      if (jdCity && city && (jdCity.includes(city) || city.includes(jdCity))) { score += 15; reasons.push("Location match"); }
+      const domainText = [c.rcmDomainSelection?.primaryDomain, c.stage2?.domain, s1.currentRole, certName].filter(Boolean).join(" ").toLowerCase();
+      if (jdSpecialties.length && jdSpecialties.some((sp) => sp && (domainText.includes(sp) || sp.split(/[\s/]+/).some((w) => w.length > 3 && domainText.includes(w))))) {
+        score += 10;
+        reasons.push("Specialty match");
+      }
+      const vscore = calculateVerificationScore(c.completedStages || [], c).score || 0;
+      score += Math.round(vscore / 20);
+      matches.push({ c, score: Math.min(99, score), reasons, applied: alreadyApplied.has(String(c._id)) });
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    const top = matches.slice(0, 100);
+
+    res.json({
+      jobId,
+      total: matches.length,
+      isKycVerified,
+      plan: plan.id,
+      candidates: top.map((m) => ({
+        _id: `match-${m.c._id}`,
+        status: "matched",
+        jobId,
+        jobTitle: jd.roletitle || "Untitled role",
+        matchScore: m.score,
+        matchReasons: m.reasons,
+        alreadyApplied: m.applied,
+        isKycVerified,
+        candidate: formatCandidateForCompany(m.c, isKycVerified, plan),
+      })),
+    });
+  } catch (err) {
+    logger.error(`Matched candidates error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load matched candidates." });
+  }
 });
 
 // PUT /api/company/applications/:id/status - Recruiter status update (shortlisted/interviewing/hired/rejected)

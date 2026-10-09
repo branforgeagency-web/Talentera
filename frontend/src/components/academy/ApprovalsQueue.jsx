@@ -186,7 +186,7 @@ export default function ApprovalsQueue({ token, onApprovalChanged }) {
             </span>
           </div>
           <p style={{ fontSize: 13, color: "#64748B", margin: "4px 0 0" }}>
-            Review and verify student training hours (Stage 2) and portfolio introduction videos (Stage 5) to unblock live profile matching.
+            Verify training hours (Stage 2) for students who entered their academy details themselves. Students you upload are approved automatically.
           </p>
         </div>
 
@@ -246,7 +246,7 @@ export default function ApprovalsQueue({ token, onApprovalChanged }) {
             Why the Approval Queue Exists in Your Academy Dashboard
           </div>
           <div style={{ fontSize: 12, color: "#475569", marginTop: 3, lineHeight: 1.5 }}>
-            In Talentera's model, your academy is the primary accreditor and certifying authority. Automated platform APIs verify Government IDs (Stage 1) and AAPC/AHIMA credentials (Stage 3), while <strong>Stage 2 (Course & 120+ Training Hours)</strong> and <strong>Stage 5 (Portfolio Video Quality)</strong> are delegated directly to your academy to ensure presentation readiness before external recruiters match with candidates.
+            In Talentera's model, your academy is the primary accreditor and certifying authority. Automated platform APIs verify Government IDs (Stage 1) and AAPC/AHIMA credentials (Stage 3), while <strong>Stage 2 (Course & 120+ Training Hours)</strong> is confirmed by your academy. Students you upload yourself are approved automatically - only students who registered and typed in your academy details manually appear here.
           </div>
         </div>
       </div>
@@ -302,26 +302,6 @@ export default function ApprovalsQueue({ token, onApprovalChanged }) {
           >
             <BookOpen style={{ width: 14, height: 14 }} />
             Stage 2: Training Validation ({approvals.filter((a) => a.stageNumber === 2).length})
-          </button>
-          <button
-            onClick={() => setFilterType("stage5")}
-            style={{
-              padding: "7px 14px",
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              border: filterType === "stage5" ? "1px solid #6D28D9" : "1px solid #E2E8F0",
-              background: filterType === "stage5" ? "rgba(139, 92, 246, 0.15)" : "#F8FAFC",
-              color: filterType === "stage5" ? "#6D28D9" : "#475569",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <Video style={{ width: 14, height: 14 }} />
-            Stage 5: Video Review ({approvals.filter((a) => a.stageNumber === 5).length})
           </button>
         </div>
 

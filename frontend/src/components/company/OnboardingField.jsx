@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import companyApi from "../../api/companyClient";
 import { useToast } from "../Toast.jsx";
 import EditableNameList from "./EditableNameList.jsx";
+import { multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../../utils/otherOption.js";
 
 const TAG_LABEL = { must: "MUST", opt: "OPT", cond: "COND" };
 
@@ -12,6 +13,7 @@ const VALIDATORS = {
   email: { re: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, msg: "Enter a valid email address." },
   url: { re: /^https?:\/\/.+/, msg: "URL must start with http:// or https://" },
   phone: { re: /^\d{10}$/, msg: "Enter a valid 10-digit mobile number." },
+  year: { re: /^(18|19|20)\d{2}$/, msg: "Enter a valid 4-digit year (e.g. 2012)." },
 };
 
 function badgeStyle(tag) {
@@ -21,11 +23,15 @@ function badgeStyle(tag) {
 }
 
 const MANUAL_ENTRY_PREFIX = "Manual Entry: ";
+const OTHER_PREFIX = "Other: ";
 function isManualEntrySelected(val, trigger = "Manual Entry") {
-  return val === trigger || (typeof val === "string" && val.startsWith(MANUAL_ENTRY_PREFIX));
+  return val === trigger || (typeof val === "string" && (val.startsWith(MANUAL_ENTRY_PREFIX) || val.startsWith(OTHER_PREFIX)));
 }
 function manualEntryDesignation(val) {
-  return typeof val === "string" && val.startsWith(MANUAL_ENTRY_PREFIX) ? val.slice(MANUAL_ENTRY_PREFIX.length) : "";
+  if (typeof val !== "string") return "";
+  if (val.startsWith(MANUAL_ENTRY_PREFIX)) return val.slice(MANUAL_ENTRY_PREFIX.length);
+  if (val.startsWith(OTHER_PREFIX)) return val.slice(OTHER_PREFIX.length);
+  return "";
 }
 
 function isFieldEmpty(input, val) {
@@ -109,6 +115,8 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
       err = `"${item.name}" is a required field.`;
     } else if (val && VALIDATORS[item.input] && !VALIDATORS[item.input].re.test(val)) {
       err = VALIDATORS[item.input].msg;
+    } else if (item.input === "year" && val && Number(val) > new Date().getFullYear()) {
+      err = "Year established cannot be in the future.";
     }
     setError(err);
     if (err) {
@@ -140,6 +148,14 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (item.accept && !item.accept.split(",").includes(file.type)) {
+      const msg = "Please upload an image file (PNG, JPG or WEBP).";
+      setError(msg);
+      toast(msg, "!");
+      e.target.value = "";
+      return;
+    }
+    setError("");
     setUploading(true);
     try {
       const formData = new FormData();
@@ -188,14 +204,17 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         </div>
       )}
       <div className="conb-field-head">
-        <label className="conb-field-label">{item.name}</label>
+        <label className="conb-field-label">
+          {item.name}
+          {item.tag === "must" && <span style={{ color: "#DC2626", fontWeight: 800, marginLeft: 4 }} title="Required">*</span>}
+        </label>
         {isLockedByPlan ? (
           <span className="conb-field-tag" style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", fontWeight: 800 }}>
             💎 ENTERPRISE TIER
           </span>
         ) : isFilled ? (
           <div className="conb-field-check">✓</div>
-        ) : (
+        ) : item.tag === "must" ? null : (
           <span className="conb-field-tag" style={badgeStyle(item.tag)}>{TAG_LABEL[item.tag]}</span>
         )}
       </div>
@@ -235,18 +254,18 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         </div>
       ) : (
         <>
-          {["text", "gstin", "pan", "email", "url", "number", "decimal"].includes(item.input) && (
+          {["text", "gstin", "pan", "email", "url", "number", "decimal", "year", "digits"].includes(item.input) && (
             <div>
               <input
             type={item.input === "number" ? "number" : item.input === "email" ? "email" : item.input === "url" ? "url" : "text"}
-            inputMode={item.input === "decimal" ? "decimal" : undefined}
+            inputMode={item.input === "decimal" ? "decimal" : item.input === "year" || item.input === "digits" ? "numeric" : undefined}
             className="conb-input"
             value={text}
             placeholder={item.placeholder}
             min={item.input === "number" ? 0 : undefined}
-            maxLength={item.input === "gstin" ? 15 : item.input === "pan" ? 10 : undefined}
+            maxLength={item.input === "gstin" ? 15 : item.input === "pan" ? 10 : item.input === "year" ? 4 : item.input === "digits" ? 3 : undefined}
             onKeyDown={item.input === "number" ? (e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); } : undefined}
-            onChange={(e) => setText(item.input === "number" || item.input === "decimal" ? e.target.value.replace(/[^0-9.]/g, "") : isUpperType ? e.target.value.toUpperCase() : e.target.value)}
+            onChange={(e) => setText(item.input === "number" || item.input === "decimal" ? e.target.value.replace(/[^0-9.]/g, "") : item.input === "year" || item.input === "digits" ? e.target.value.replace(/\D/g, "") : isUpperType ? e.target.value.toUpperCase() : e.target.value)}
             onBlur={handleTextBlur}
           />
           {item.input === "gstin" && text.length === 15 && !error && (
@@ -290,8 +309,11 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
       )}
 
       {item.input === "select" && (() => {
-        const manualTrigger = item.manualEntryOption || "Manual Entry";
-        const manualSelected = item.allowManualEntry && isManualEntrySelected(text, manualTrigger);
+        const hasOther = (item.options || []).includes("Other");
+        const allowManual = item.allowManualEntry || hasOther;
+        const manualTrigger = item.manualEntryOption || (hasOther ? "Other" : "Manual Entry");
+        const manualPrefix = manualTrigger === "Other" ? OTHER_PREFIX : MANUAL_ENTRY_PREFIX;
+        const manualSelected = allowManual && isManualEntrySelected(text, manualTrigger);
         return (
         <div>
           <select
@@ -299,9 +321,9 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             value={manualSelected ? manualTrigger : text}
             onChange={(e) => {
               const val = e.target.value;
-              if (item.allowManualEntry && val === manualTrigger) {
+              if (allowManual && val === manualTrigger) {
                 const trimmed = manualDesignation.trim();
-                const combined = trimmed ? `${MANUAL_ENTRY_PREFIX}${trimmed}` : manualTrigger;
+                const combined = trimmed ? `${manualPrefix}${trimmed}` : manualTrigger;
                 setText(combined);
                 commit(combined);
               } else {
@@ -325,7 +347,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
               onChange={(e) => setManualDesignation(e.target.value)}
               onBlur={() => {
                 const trimmed = manualDesignation.trim();
-                const combined = trimmed ? `${MANUAL_ENTRY_PREFIX}${trimmed}` : manualTrigger;
+                const combined = trimmed ? `${manualPrefix}${trimmed}` : manualTrigger;
                 setText(combined);
                 commit(combined);
               }}
@@ -363,17 +385,38 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
 
       {item.input === "multi" && item.id !== "panel" && (
         <div className="conb-chip-grid">
-          {(item.options || []).map((opt) => (
-            <button
-              type="button"
-              key={opt}
-              className={`conb-chip ${multiVal.includes(opt) ? "conb-chip-active" : ""}`}
-              onClick={() => toggleMultiOption(opt)}
-            >
-              {opt}
-            </button>
-          ))}
+          {(item.options || []).map((opt) => {
+            const isOther = opt === "Other";
+            const active = isOther ? multiHasOther(multiVal) : multiVal.includes(opt);
+            return (
+              <button
+                type="button"
+                key={opt}
+                className={`conb-chip ${active ? "conb-chip-active" : ""}`}
+                onClick={() => {
+                  if (!isOther) return toggleMultiOption(opt);
+                  const next = multiToggleOther(multiVal);
+                  setMultiVal(next);
+                  commit(next);
+                }}
+              >
+                {opt}
+              </button>
+            );
+          })}
         </div>
+      )}
+
+      {item.input === "multi" && item.id !== "panel" && (item.options || []).includes("Other") && multiHasOther(multiVal) && (
+        <input
+          type="text"
+          className="conb-input"
+          style={{ marginTop: 8 }}
+          placeholder="Please specify (other)"
+          value={multiOtherText(multiVal)}
+          onChange={(e) => setMultiVal(multiSetOther(multiVal, e.target.value))}
+          onBlur={(e) => commit(multiSetOther(multiVal, e.target.value.trim()))}
+        />
       )}
 
       {item.input === "people-list" && (
@@ -382,6 +425,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
           onChange={setMultiVal}
           onCommit={commit}
           rolePlaceholder="Designation (e.g. Talent Acquisition Lead)"
+          withContact
           addLabel={`+ Add ${item.id === "thiringmanagers" ? "hiring manager" : "recruiter"}`}
         />
       )}
@@ -400,7 +444,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
               {uploading ? "Uploading…" : <span><i className="fa-solid fa-cloud-arrow-up" style={{ marginRight: 6 }}></i> Click to upload</span>}
             </button>
           )}
-          <input ref={fileInputRef} type="file" style={{ display: "none" }} onChange={handleFileChange} />
+          <input ref={fileInputRef} type="file" accept={item.accept} style={{ display: "none" }} onChange={handleFileChange} />
         </div>
       )}
 

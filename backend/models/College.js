@@ -38,12 +38,12 @@ const CollegeSchema = new mongoose.Schema(
     },
     affiliation: {
       type: String,
-      default: "State University",
+      default: "",
       trim: true,
     },
     yearEstablished: {
       type: Number,
-      default: () => new Date().getFullYear() - 15,
+      default: null,
     },
     website: {
       type: String,
@@ -54,14 +54,15 @@ const CollegeSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // City / state are filled in on the College Profile tab after sign-in
     city: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     state: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     pincode: {
@@ -77,7 +78,7 @@ const CollegeSchema = new mongoose.Schema(
     // Placement Officer Details (Key Account Contact)
     placementOfficerName: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
     },
     placementOfficerEmail: {
@@ -89,8 +90,18 @@ const CollegeSchema = new mongoose.Schema(
     },
     placementOfficerMobile: {
       type: String,
-      required: true,
+      default: "",
       trim: true,
+    },
+    // Placement panel members (name, designation, email, mobile) added on the College Profile tab
+    placementPanel: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: () => [],
+    },
+    // True once the college has completed the post-sign-in College Profile
+    profileCompleted: {
+      type: Boolean,
+      default: false,
     },
     alternateContact: {
       type: String,

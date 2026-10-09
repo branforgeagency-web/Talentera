@@ -35,6 +35,8 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     state: "Tamil Nadu",
     pincode: "",
     primarySpecialty: "Medical Coding",
+    otherSpecialtyCourses: "",
+    branches: [],
     accreditations: ["AAPC Approved Education Partner"],
     certifiedTrainedCount: "2500+",
     activeBatchesPerYear: "12",
@@ -120,7 +122,11 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             city: kd.city || ac.headquarters || "",
             state: kd.state || "Tamil Nadu",
             pincode: kd.pincode || "",
-            primarySpecialty: kd.primarySpecialty || ac.specialty || "Medical Coding",
+            primarySpecialty: ["Medical Coding", "Medical Billing", "AR Calling"].includes(kd.primarySpecialty || ac.specialty || "Medical Coding")
+              ? (kd.primarySpecialty || ac.specialty || "Medical Coding")
+              : "Other RCM Services",
+            otherSpecialtyCourses: kd.otherSpecialtyCourses || (["Medical Coding", "Medical Billing", "AR Calling", "Other RCM Services", ""].includes(kd.primarySpecialty || "") ? "" : kd.primarySpecialty || ""),
+            branches: Array.isArray(kd.branches) ? kd.branches : [],
             accreditations: Array.isArray(kd.accreditations) && kd.accreditations.length > 0
               ? kd.accreditations
               : ["AAPC Approved Education Partner"],
@@ -203,6 +209,13 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     }
   };
 
+  const addBranch = () =>
+    setFormData((prev) => ({ ...prev, branches: [...(prev.branches || []), { name: "", city: "", state: "", address: "", phone: "" }] }));
+  const updateBranch = (idx, field, value) =>
+    setFormData((prev) => ({ ...prev, branches: prev.branches.map((b, i) => (i === idx ? { ...b, [field]: value } : b)) }));
+  const removeBranch = (idx) =>
+    setFormData((prev) => ({ ...prev, branches: prev.branches.filter((_, i) => i !== idx) }));
+
   const handleSubmitKyc = async (e) => {
     e.preventDefault();
 
@@ -216,6 +229,10 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     }
     if (!formData.signatoryName.trim() || !formData.signatoryMobile.trim()) {
       if (showToast) showToast("Authorized signatory name and mobile are required.", "error");
+      return;
+    }
+    if (formData.primarySpecialty === "Other RCM Services" && !formData.otherSpecialtyCourses.trim()) {
+      if (showToast) showToast("Please enter the courses you offer under Other RCM Services.", "error");
       return;
     }
     if (!formData.declarationAccepted) {
@@ -302,12 +319,12 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               <ShieldCheck size={22} />
             </div>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, fontFamily: "var(--font-heading)" }}>
-              Academy Institutional KYC Verification
+              Institutional KYC Verification
             </h1>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.75)", maxWidth: 680 }}>
-            Complete your institutional registration, regulatory tax identifiers (PAN/GSTIN), and authorized leadership sign-off.
-            Once audited and approved by Talentera Staff Compliance, student batches are fully activated for employer placement.
+            Submit your institution&apos;s registration, PAN/GSTIN and authorized signatory details below. Once Talentera Compliance approves them,
+            student onboarding, batch uploads and candidate invitations are unlocked.
           </p>
         </div>
 
@@ -471,33 +488,6 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             </div>
             <div style={{ fontSize: 12, color: "#7F1D1D", marginTop: 8 }}>
               Please correct the fields below and click <strong>"Update &amp; Re-Submit KYC"</strong>.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {serverKycStatus === "pending" && (
-        <div
-          style={{
-            background: "#FFFBEB",
-            border: "1px solid #FDE68A",
-            borderRadius: 14,
-            padding: "18px 22px",
-            marginBottom: 24,
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 14,
-          }}
-        >
-          <div style={{ color: "#D97706", marginTop: 2 }}>
-            <ShieldAlert size={24} />
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 14, color: "#92400E" }}>
-              KYC Verification Required to Add Students
-            </div>
-            <div style={{ fontSize: 13, color: "#B45309", marginTop: 4 }}>
-              To ensure compliance and secure candidate placements with partner hospitals and RCM companies, please complete and submit the institutional verification details below. Once approved by our team, student batch onboarding and candidate invitations will be fully unlocked.
             </div>
           </div>
         </div>
@@ -952,13 +942,27 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                   outline: "none",
                 }}
               >
-                <option value="Medical Coding">Medical Coding (CPC, CCS, CIC)</option>
-                <option value="Medical Billing">Medical Billing &amp; Claims Management</option>
-                <option value="AR Calling">AR Calling &amp; Denial Management</option>
-                <option value="RCM Comprehensive">RCM Comprehensive Suite</option>
-                <option value="Clinical Documentation">Clinical Documentation Improvement (CDI)</option>
+                <option value="Medical Coding">Medical Coding</option>
+                <option value="Medical Billing">Medical Billing</option>
+                <option value="AR Calling">AR Calling</option>
+                <option value="Other RCM Services">Other RCM Services</option>
               </select>
             </div>
+
+            {formData.primarySpecialty === "Other RCM Services" && (
+              <div style={{ gridColumn: "1 / -1" }}>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
+                  Courses Offered (Other RCM Services)
+                </label>
+                <input
+                  type="text"
+                  value={formData.otherSpecialtyCourses}
+                  onChange={(e) => handleInputChange("otherSpecialtyCourses", e.target.value)}
+                  placeholder="e.g. Clinical Documentation Improvement, Denial Management, Risk Adjustment"
+                  style={{ width: "100%", padding: "10px 14px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }}
+                />
+              </div>
+            )}
 
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
@@ -1039,6 +1043,57 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               })}
             </div>
           </div>
+        </div>
+
+        {/* BRANCHES */}
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: 16,
+            padding: "24px 28px",
+            marginBottom: 20,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16, borderBottom: "1px solid #F1F5F9", paddingBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Building2 size={20} color="#0A1F3D" />
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0A1F3D" }}>Branches &amp; Training Centres</h3>
+            </div>
+            <button
+              type="button"
+              onClick={addBranch}
+              style={{ background: "#0A1F3D", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              + Add Branch
+            </button>
+          </div>
+          {(formData.branches || []).length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "#64748B" }}>
+              Does your academy run more than one centre? Add each branch here (optional).
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {formData.branches.map((b, idx) => (
+                <div key={idx} style={{ border: "1px solid #E2E8F0", borderRadius: 12, padding: 14, background: "#F8FAFC" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <span style={{ fontSize: 12.5, fontWeight: 800, color: "#0A1F3D" }}>Branch {idx + 1}</span>
+                    <button type="button" onClick={() => removeBranch(idx)} style={{ background: "transparent", border: "none", color: "#DC2626", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                      Remove
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+                    <input type="text" value={b.name || ""} onChange={(e) => updateBranch(idx, "name", e.target.value)} placeholder="Branch name (e.g. Ameerpet)" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    <input type="text" value={b.city || ""} onChange={(e) => updateBranch(idx, "city", e.target.value)} placeholder="City" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    <input type="text" value={b.state || ""} onChange={(e) => updateBranch(idx, "state", e.target.value)} placeholder="State" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    <input type="text" value={b.phone || ""} onChange={(e) => updateBranch(idx, "phone", e.target.value)} placeholder="Branch contact number" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    <input type="text" value={b.address || ""} onChange={(e) => updateBranch(idx, "address", e.target.value)} placeholder="Full address" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* SECTION 6: DOCUMENT PROOFS */}

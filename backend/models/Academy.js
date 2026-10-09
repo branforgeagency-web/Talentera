@@ -137,6 +137,15 @@ const AcademySchema = new mongoose.Schema(
     courses: [CourseSubSchema],
     questions: [QuestionSubSchema],
     placements: [PlacementSubSchema],
+    // Pictures / videos the academy shows candidates and companies on its public profile
+    gallery: [
+      {
+        type: { type: String, enum: ["image", "video"], default: "image" },
+        url: { type: String, required: true },
+        caption: { type: String, default: "", maxlength: 160 },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
