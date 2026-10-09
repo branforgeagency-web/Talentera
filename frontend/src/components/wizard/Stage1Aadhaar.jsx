@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import { COUNTRIES } from "../../data/countries";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
 
 const INDIAN_STATES = [
@@ -621,6 +620,8 @@ function resolveStage1Data(existingData, candidate) {
   };
 }
 
+const WORK_SHIFT_OPTIONS = ["Day Shift", "Evening Shift", "Night Shift", "Rotational Shift", "Flexible / Any Shift"];
+
 export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved }) {
   const toast = useToast();
   const initAadhaar = resolveStage1Data(existingData, candidate);
@@ -736,24 +737,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [openToRelocate, setOpenToRelocate] = useState(
     (existingData?.openToRelocate && !/Tier-1/.test(existingData.openToRelocate) ? existingData.openToRelocate : "Yes — anywhere in India")
   );
-  // Open to Global Opportunities: a Yes / No choice; "Yes" reveals a searchable
-  // country picker. Older profiles stored a list of preset regions instead - map
-  // those onto the new Yes/No + countries shape on load.
-  const legacyGlobal = Array.isArray(existingData?.globalOpportunities) ? existingData.globalOpportunities : [];
-  const [openToGlobal, setOpenToGlobal] = useState(() => {
-    if (existingData?.openToGlobal === "yes" || existingData?.openToGlobal === "no") return existingData.openToGlobal;
-    if (legacyGlobal.includes("Not right now")) return "no";
-    return legacyGlobal.length > 0 ? "yes" : "";
-  });
-  const [globalCountries, setGlobalCountries] = useState(() => {
-    if (Array.isArray(existingData?.globalCountries)) return existingData.globalCountries;
-    const out = [];
-    if (legacyGlobal.includes("US (offshore night shift)")) out.push("United States");
-    if (legacyGlobal.includes("Philippines · UAE · Saudi")) out.push("Philippines", "United Arab Emirates", "Saudi Arabia");
-    return out;
-  });
-  const [countrySearch, setCountrySearch] = useState("");
-  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  // Preferred Work Shift(s): pick one or more (replaces the old "Open to Global Opportunities").
+  const [workShifts, setWorkShifts] = useState(
+    Array.isArray(existingData?.workShifts) ? existingData.workShifts.filter((x) => WORK_SHIFT_OPTIONS.includes(x)) : []
+  );
 
   // 5. SECTION 5 · BASIC EDUCATION
   const [educationStream, setEducationStream] = useState(
@@ -919,15 +906,15 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     setCityInputOpen(false);
   };
 
-  const addGlobalCountry = (country) => {
-    setGlobalCountries((prev) => (prev.includes(country) ? prev : [...prev, country]));
-    setCountrySearch("");
-    if (formErrors.globalCountries) setFormErrors((prev) => ({ ...prev, globalCountries: null }));
+  const toggleWorkShift = (shift) => {
+    setWorkShifts((prev) => {
+      if (prev.includes(shift)) return prev.filter((x) => x !== shift);
+      // "Flexible / Any Shift" already covers every other option, so the two don't mix
+      if (shift === "Flexible / Any Shift") return [shift];
+      return [...prev.filter((x) => x !== "Flexible / Any Shift"), shift];
+    });
+    if (formErrors.workShifts) setFormErrors((prev) => ({ ...prev, workShifts: null }));
   };
-  const removeGlobalCountry = (country) => setGlobalCountries((prev) => prev.filter((x) => x !== country));
-  const filteredCountries = COUNTRIES.filter(
-    (n) => !globalCountries.includes(n) && n.toLowerCase().includes(countrySearch.trim().toLowerCase())
-  );
 
   // Aadhaar Send OTP via Real UIDAI / Talentera Gateway
   const handleSendAadhaarOtp = async () => {
@@ -1373,13 +1360,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           errs.whatsappNumber = "Enter a valid 10-digit WhatsApp / alternate number";
         }
       }
-      // Open to Global Opportunities - a Yes/No answer, plus at least one country on "Yes"
-      if (!openToGlobal) {
-        missingFields.push("Open to Global Opportunities (Yes / No)");
-        errs.openToGlobal = "Please choose Yes or No";
-      } else if (openToGlobal === "yes" && globalCountries.length === 0) {
-        missingFields.push("At least one country for Global Opportunities");
-        errs.globalCountries = "Select at least one country";
+      // Preferred Work Shift(s) - at least one
+      if (workShifts.length === 0) {
+        missingFields.push("Preferred Work Shift(s)");
+        errs.workShifts = "Select at least one shift";
       }
       // Email validation
       if (!email || !email.includes("@")) {
@@ -1488,10 +1472,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       currentLocality,
       preferredCities: preferredCities.filter(Boolean).length > 0 ? preferredCities.filter(Boolean) : [resolvedCity],
       openToRelocate,
-      openToGlobal,
-      globalCountries: openToGlobal === "yes" ? globalCountries : [],
-      // Kept for older consumers of this field: the chosen countries, or "Not right now" for No
-      globalOpportunities: openToGlobal === "yes" ? globalCountries : openToGlobal === "no" ? ["Not right now"] : [],
+      workShifts,
 
       // Education
       educationStream,
@@ -3163,78 +3144,29 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
             </div>
 
-            <div className={`field ${formErrors.openToGlobal || formErrors.globalCountries ? "has-error" : ""}`}>
+            <div className={`field ${formErrors.workShifts ? "has-error" : ""}`}>
               <label>
-                Open to Global Opportunities? <span className="req">*</span>
+                Preferred Work Shift(s) <span className="req">*</span>
               </label>
               <div className="option-list">
-                {[
-                  { key: "yes", label: "Yes" },
-                  { key: "no", label: "No" },
-                ].map((item) => {
-                  const isChecked = openToGlobal === item.key;
+                {WORK_SHIFT_OPTIONS.map((shift) => {
+                  const isChecked = workShifts.includes(shift);
                   return (
                     <div
-                      key={item.key}
+                      key={shift}
                       className={`option-item ${isChecked ? "selected" : ""}`}
-                      onClick={() => {
-                        setOpenToGlobal(item.key);
-                        setCountryDropdownOpen(false);
-                        if (formErrors.openToGlobal) setFormErrors((prev) => ({ ...prev, openToGlobal: null }));
-                      }}
+                      onClick={() => toggleWorkShift(shift)}
                     >
                       <div className="box">{isChecked ? "✓" : ""}</div>
-                      <div>{item.label}</div>
+                      <div>{shift}</div>
                     </div>
                   );
                 })}
               </div>
-              {formErrors.openToGlobal && <div className="field-error-msg">{formErrors.openToGlobal}</div>}
-
-              {openToGlobal === "yes" && (
-                <div style={{ marginTop: 12, position: "relative" }}>
-                  <input
-                    type="text"
-                    placeholder="Search country..."
-                    value={countrySearch}
-                    onFocus={() => setCountryDropdownOpen(true)}
-                    onChange={(e) => { setCountrySearch(e.target.value); setCountryDropdownOpen(true); }}
-                    onBlur={() => setTimeout(() => setCountryDropdownOpen(false), 150)}
-                  />
-                  {countryDropdownOpen && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
-                      {filteredCountries.length === 0 && (
-                        <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
-                          {countrySearch.trim() ? `No countries match "${countrySearch}"` : "All countries selected"}
-                        </div>
-                      )}
-                      {filteredCountries.map((n) => (
-                        <div
-                          key={n}
-                          onMouseDown={() => addGlobalCountry(n)}
-                          style={{ padding: "9px 14px", cursor: "pointer", fontSize: 13.5 }}
-                        >
-                          {n}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {globalCountries.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                      {globalCountries.map((n) => (
-                        <span key={n} style={{ background: "#FDF6E4", border: "1px solid #F5B41A", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                          {n}
-                          <button type="button" aria-label={`Remove ${n}`} onClick={() => removeGlobalCountry(n)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#64748B", padding: "0 4px" }}>×</button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {formErrors.globalCountries ? (
-                    <div className="field-error-msg">{formErrors.globalCountries}</div>
-                  ) : (
-                    <div className="helper">Pick every country you&apos;d consider working for or relocating to.</div>
-                  )}
-                </div>
+              {formErrors.workShifts ? (
+                <div className="field-error-msg">{formErrors.workShifts}</div>
+              ) : (
+                <div className="helper">Choose every shift you are comfortable working.</div>
               )}
             </div>
           </div>
