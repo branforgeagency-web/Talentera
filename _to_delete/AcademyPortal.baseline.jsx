@@ -11,8 +11,6 @@ import ApprovalsQueue from "../components/academy/ApprovalsQueue";
 import AcademyAssessmentModule from "../components/academy/AcademyAssessmentModule";
 import AcademyCompanyData from "../components/academy/AcademyCompanyData";
 import AcademyGalleryManager from "../components/academy/AcademyGalleryManager";
-import AcademyPaymentOptions from "../components/academy/AcademyPaymentOptions";
-import CustomReportModal from "../components/academy/CustomReportModal";
 import PlacementCertModal from "../components/academy/PlacementCertModal";
 import MonthlyReportModal from "../components/academy/MonthlyReportModal";
 import StudentDetailModal from "../components/academy/StudentDetailModal";
@@ -135,8 +133,6 @@ export default function AcademyPortal() {
       setActiveMod("interviews");
     } else if (path.startsWith("/academy/placements")) {
       setActiveMod("placements");
-    } else if (path.startsWith("/academy/payments")) {
-      setActiveMod("payments");
     } else if (path.startsWith("/academy/analytics")) {
       setActiveMod("analytics");
     } else if (path.startsWith("/academy/notifications")) {
@@ -162,7 +158,6 @@ export default function AcademyPortal() {
       company_activity: "/academy/company-data",
       interviews: "/academy/interviews",
       placements: "/academy/placements",
-      payments: "/academy/payments",
       analytics: "/academy/analytics",
       notifications: "/academy/notifications",
       settings: "/academy/settings",
@@ -202,7 +197,6 @@ export default function AcademyPortal() {
   const [selectedStudentForDetail, setSelectedStudentForDetail] = useState(null);
   const [selectedCertData, setSelectedCertData] = useState(null);
   const [showMonthlyReportModal, setShowMonthlyReportModal] = useState(false);
-  const [showCustomReportModal, setShowCustomReportModal] = useState(false);
   const [showCreateBatchModal, setShowCreateBatchModal] = useState(false);
   const [showAddCourseModal, setShowAddCourseModal] = useState(false);
   const [editCourseModal, setEditCourseModal] = useState(null); // { _id, title, category, duration, totalHrs, syllabus } | null
@@ -1109,12 +1103,11 @@ export default function AcademyPortal() {
             <SidebarItem id="company_activity" label="8. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="interviews" label="9. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="placements" label="10. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="payments" label="11. Payment Options" icon="fa-wallet" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>INSIGHTS & ADMIN</div>
-            <SidebarItem id="analytics" label="12. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="notifications" label="13. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="settings" label="14. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="analytics" label="11. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="notifications" label="12. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="settings" label="13. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
           </div>
 
           <div onClick={() => { localStorage.removeItem("talentera_academy_token"); navigate("/academy/login"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, color: "rgba(255,255,255,0.5)", cursor: "pointer", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 16 }}>
@@ -1348,7 +1341,7 @@ export default function AcademyPortal() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 800, color: "#E5A82E", letterSpacing: "0.08em" }}>
-                    ACADEMY PARTNER DASHBOARD
+                    COHORT LIVE CONTROL CENTER · {clockNow.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}
                   </div>
                   <h2 style={{ margin: "2px 0 4px", fontSize: 22, fontWeight: 800, color: "#06152A" }}>
                     {clockNow.getHours() < 12 ? "Good morning" : clockNow.getHours() < 17 ? "Good afternoon" : clockNow.getHours() < 21 ? "Good evening" : "Good night"}, {academy.primaryAdmin || "Academy Admin"} 👋
@@ -1373,10 +1366,6 @@ export default function AcademyPortal() {
                   <button className="btn btn-outline" style={{ fontSize: 12 }} onClick={() => setShowMonthlyReportModal(true)}>
                     <i className="fa-solid fa-file-lines" style={{ marginRight: 6 }}></i>
                     Monthly Report
-                  </button>
-                  <button className="btn btn-outline" style={{ fontSize: 12 }} onClick={() => setShowCustomReportModal(true)}>
-                    <i className="fa-solid fa-calendar-days" style={{ marginRight: 6 }}></i>
-                    Custom Report
                   </button>
                 </div>
               </div>
@@ -2437,11 +2426,6 @@ export default function AcademyPortal() {
           )}
 
           {/* ========================================================= */}
-          {/* 11. PAYMENT OPTIONS */}
-          {/* ========================================================= */}
-          {activeMod === "payments" && <AcademyPaymentOptions getAuthHeader={getAuthHeader} />}
-
-          {/* ========================================================= */}
           {/* 12. ANALYTICS */}
           {/* ========================================================= */}
           {activeMod === "analytics" && (
@@ -2745,10 +2729,6 @@ export default function AcademyPortal() {
             fetchScoresAnalytics();
           }}
         />
-      )}
-
-      {showCustomReportModal && (
-        <CustomReportModal getAuthHeader={getAuthHeader} onClose={() => setShowCustomReportModal(false)} />
       )}
 
       {/* 2. Monthly Report Modal */}

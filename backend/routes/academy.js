@@ -1830,7 +1830,8 @@ async function handleAddSingleStudent(req, res) {
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
-    const { name, fullName, email, mobile, batch_id, batchCode, course_id, course, type, experienceRange, preferredSpecialty, expectedSalaryLpa, preferredCities, branch, state, preferredState, aadhaar, aadhaarLast4: aadhaarLast4Input } = req.body;
+    const { name, fullName, email, mobile, batch_id, batchCode, course_id, course, type, experienceRange, preferredSpecialty, expectedSalaryLpa, preferredCities, branch, state, preferredState, aadhaar, aadhaarLast4: aadhaarLast4Input, admissionMonthYear: admissionMonthYearInput } = req.body;
+    const admissionMonthYear = String(admissionMonthYearInput || "").trim().slice(0, 30);
     const studentName = (fullName || name || "").trim();
     // Freshers have no specialty/experience range yet; only an "experienced" submission
     // carries a real band (e.g. "1 to 3", "3 to 6" Years) - keep it out of stage1 otherwise.
@@ -1850,8 +1851,15 @@ async function handleAddSingleStudent(req, res) {
     if (process.env.NODE_ENV !== "test" && /@example\.com$/i.test(String(email).trim())) {
       return res.status(400).json({ message: "That email is the sample template's placeholder address - please enter the real student's email instead." });
     }
-    if (aadhaarRaw && aadhaarLast4.length !== 4) {
-      return res.status(400).json({ message: "Aadhaar number looks invalid - please provide at least the last 4 digits." });
+    // Same rules as the Bulk CSV upload: batch id and Aadhaar last 4 are required.
+    if (!String(batchCode || batch_id || "").trim()) {
+      return res.status(400).json({ message: "Academy batch unique ID is required." });
+    }
+    if (!aadhaarRaw) {
+      return res.status(400).json({ message: "Aadhaar last 4 digits are required." });
+    }
+    if (aadhaarLast4.length !== 4) {
+      return res.status(400).json({ message: "Aadhaar number looks invalid - please provide the last 4 digits." });
     }
 
     const cleanEmail = email ? email.toLowerCase().trim() : "";
@@ -1876,7 +1884,11 @@ async function handleAddSingleStudent(req, res) {
     const isNewCandidate = !candidate;
 
     if (aadhaarLast4.length === 4) {
-      const aadhaarDup = await Candidate.findOne({ "stage1.maskedAadhaar": new RegExp(`${aadhaarLast4}$`) }).lean();
+      // Last 4 digits alone repeat across unrelated people, so (like the bulk upload) a
+      // match only counts as a duplicate when the NAME matches too.
+      const nameKey = (v) => String(v || "").toLowerCase().replace(/[^a-z]/g, "");
+      const sameLast4 = await Candidate.find({ "stage1.maskedAadhaar": new RegExp(`${aadhaarLast4}$`) }, { "stage1.fullName": 1 }).lean();
+      const aadhaarDup = sameLast4.find((c) => nameKey(c.stage1?.fullName) === nameKey(studentName));
       if (aadhaarDup && (!candidate || String(aadhaarDup._id) !== String(candidate._id))) {
         return res.status(400).json({ message: `Aadhaar (last 4 digits: ${aadhaarLast4}) matches an already-registered candidate - possible duplicate entry.`, duplicate: true });
       }
@@ -1895,6 +1907,7 @@ async function handleAddSingleStudent(req, res) {
         academyName: academy.name,
         batch: targetBatch,
         branch: branch || "Coimbatore",
+        admissionMonthYear: admissionMonthYear || candidate.stage2?.admissionMonthYear || "",
         verified: true,
         status: "verified",
         autoApproved: true,
@@ -1937,6 +1950,7 @@ async function handleAddSingleStudent(req, res) {
           academyName: academy.name,
           batch: targetBatch,
           branch: branch || "Coimbatore",
+          admissionMonthYear,
           verified: true,
           status: "verified",
           autoApproved: true,
@@ -3922,6 +3936,77 @@ router.get("/placements/:id/certificate", requireAcademyAuth, async (req, res) =
   }
 });
 
+// GET /api/academy/reports/custom?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Custom-duration report: students enrolled or active in the window, plus hiring activity.
+router.get("/reports/custom", requireAcademyAuth, async (req, res) => {
+  try {
+    const from = new Date(`${req.query.from}T00:00:00.000Z`);
+    const to = new Date(`${req.query.to}T23:59:59.999Z`);
+    if (isNaN(from) || isNaN(to)) return res.status(400).json({ message: "Choose a valid start and end date." });
+    if (from > to) return res.status(400).json({ message: "The start date must be before the end date." });
+    if (to - from > 3 * 366 * 24 * 3600 * 1000) return res.status(400).json({ message: "Please choose a period of up to 3 years." });
+
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
+    const ids = candidates.map((c) => c._id);
+
+    const inRange = (d) => d && new Date(d) >= from && new Date(d) <= to;
+    const apps = ids.length ? await Application.find({ candidateId: { $in: ids }, $or: [{ createdAt: { $gte: from, $lte: to } }, { updatedAt: { $gte: from, $lte: to } }] }).lean() : [];
+    const results = ids.length ? await AcademyAssessmentResult.find({ academyId: req.academyId, createdAt: { $gte: from, $lte: to } }).lean() : [];
+
+    const rows = [];
+    candidates.forEach((c) => {
+      const enrolled = inRange(c.createdAt);
+      if (!enrolled && !inRange(c.updatedAt)) return;
+      const s1 = c.stage1 || {};
+      const s2 = c.stage2 || {};
+      const info = compute8Stages(c);
+      rows.push({
+        name: s1.fullName || String(c.email || "").split("@")[0],
+        email: c.email,
+        phone: s1.mobile || c.mobile || "",
+        batch: s2.batch || "",
+        specialty: s2.specialty || "",
+        branch: s2.branch || s1.city || "",
+        enrolledOn: c.createdAt,
+        enrolledInPeriod: !!enrolled,
+        verified: !!info.isComplete,
+        stagesDone: info.doneCount,
+        talenteraScore: info.talenteraScore || 0,
+        academyAssessmentScore: s2.academyAssessmentScore ?? "",
+        placementStatus: c.stage8?.placementStatus || (info.isComplete ? "Available for Placement" : `Stage ${info.currentStageNumber} in progress`),
+      });
+    });
+
+    const byStatus = (st) => apps.filter((a) => a.status === st && inRange(a.updatedAt)).length;
+    res.json({
+      report: {
+        academyName: academy?.name || "Academy Partner",
+        from: req.query.from,
+        to: req.query.to,
+        generatedAt: new Date(),
+        summary: {
+          enrolledInPeriod: rows.filter((r) => r.enrolledInPeriod).length,
+          activeInPeriod: rows.length,
+          totalStudents: candidates.length,
+          verificationComplete: rows.filter((r) => r.verified).length,
+          applications: apps.filter((a) => inRange(a.createdAt)).length,
+          shortlisted: byStatus("shortlisted"),
+          interviewing: byStatus("interviewing"),
+          hired: byStatus("hired"),
+          assessmentsRecorded: results.length,
+        },
+        rows,
+      },
+    });
+  } catch (err) {
+    logger.error(`Academy custom report error: ${err.message}`);
+    res.status(500).json({ message: "Failed to generate the report." });
+  }
+});
+
 // GET /api/academy/reports/monthly
 router.get("/reports/monthly", requireAcademyAuth, async (req, res) => {
   try {
@@ -4743,6 +4828,76 @@ router.delete("/gallery/:itemId", requireAcademyAuth, async (req, res) => {
     res.json({ success: true, gallery: academy.gallery });
   } catch (err) {
     res.status(500).json({ message: "Failed to delete the item." });
+  }
+});
+
+// ===========================================================================
+// PAYMENT OPTIONS - academy -> Talentera payments (mode of payment + reference)
+// ===========================================================================
+const AcademyPayment = require("../models/AcademyPayment");
+const { PAYMENT_MODES } = AcademyPayment;
+
+// GET /api/academy/payments
+router.get("/payments", requireAcademyAuth, async (req, res) => {
+  try {
+    const payments = await AcademyPayment.find({ academyId: req.academyId }).sort({ paidOn: -1, createdAt: -1 }).lean();
+    res.json({
+      modes: PAYMENT_MODES,
+      payments,
+      totals: {
+        submitted: payments.filter((p) => p.status === "submitted").reduce((a, p) => a + p.amount, 0),
+        verified: payments.filter((p) => p.status === "verified").reduce((a, p) => a + p.amount, 0),
+      },
+    });
+  } catch (err) {
+    logger.error(`Academy payments list error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load payments." });
+  }
+});
+
+// POST /api/academy/payments - record a payment. body: { amount, mode, purpose, paidOn, reference, detail, proofUrl, notes }
+router.post("/payments", requireAcademyAuth, async (req, res) => {
+  try {
+    const { amount, mode, purpose, paidOn, reference, detail, proofUrl, notes } = req.body;
+    if (!PAYMENT_MODES.includes(mode)) return res.status(400).json({ message: "Choose a mode of payment." });
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) return res.status(400).json({ message: "Enter a valid amount." });
+    const ref = String(reference || "").trim();
+    if (["UPI", "Bank Transfer / NEFT", "Credit Card", "Debit Card", "Cheque"].includes(mode) && !ref) {
+      const label = mode === "UPI" ? "UPI transaction ID" : mode === "Bank Transfer / NEFT" ? "UTR / reference number" : mode === "Cheque" ? "cheque number" : "transaction reference";
+      return res.status(400).json({ message: `Enter the ${label}.` });
+    }
+    if (mode === "Other" && !String(detail || "").trim()) return res.status(400).json({ message: "Tell us how the payment was made." });
+    if (proofUrl && !(/^https:\/\//i.test(proofUrl) || /^\/uploads\//.test(proofUrl))) return res.status(400).json({ message: "Invalid proof file." });
+    if (paidOn && isNaN(new Date(paidOn))) return res.status(400).json({ message: "Invalid payment date." });
+    const doc = await AcademyPayment.create({
+      academyId: req.academyId,
+      amount: amt,
+      mode,
+      purpose: String(purpose || "").trim().slice(0, 150),
+      paidOn: paidOn ? new Date(paidOn) : new Date(),
+      reference: ref.slice(0, 80),
+      detail: String(detail || "").trim().slice(0, 120),
+      proofUrl: proofUrl || "",
+      notes: String(notes || "").trim().slice(0, 300),
+    });
+    res.json({ success: true, payment: doc });
+  } catch (err) {
+    logger.error(`Academy payment create error: ${err.message}`);
+    res.status(500).json({ message: "Failed to record the payment." });
+  }
+});
+
+// DELETE /api/academy/payments/:id - withdraw an entry that staff have not verified yet
+router.delete("/payments/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const doc = await AcademyPayment.findOne({ _id: req.params.id, academyId: req.academyId });
+    if (!doc) return res.status(404).json({ message: "Payment not found." });
+    if (doc.status === "verified") return res.status(400).json({ message: "Verified payments can't be removed." });
+    await doc.deleteOne();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to remove the payment." });
   }
 });
 

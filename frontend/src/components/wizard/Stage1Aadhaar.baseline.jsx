@@ -1,0 +1,3644 @@
+import React, { useState, useEffect, useRef } from "react";
+import api from "../../api/client";
+import { useToast } from "../Toast.jsx";
+import { COUNTRIES } from "../../data/countries";
+import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
+  "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh",
+  "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh",
+  "Uttarakhand", "West Bengal",
+  "Andaman and Nicobar Islands", "Chandigarh", "Dadra and Nagar Haveili and Daman and Diu",
+  "Delhi (NCT)", "Jammu and Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+];
+
+const POPULAR_CITIES = [
+  "Bengaluru", "Hyderabad", "Chennai", "Coimbatore", "Mumbai", "Pune",
+  "Delhi NCR", "Noida", "Gurgaon", "Kolkata", "Ahmedabad", "Jaipur",
+  "Kochi", "Trivandrum", "Mysore", "Chandigarh", "Indore", "Nagpur",
+  "Bhubaneswar", "Visakhapatnam", "Trichy", "Madurai", "Salem"
+];
+
+// Course Name options are keyed by BOTH the Academic Stream (Life Science /
+// Non-Life Science) and the Highest Qualification level (10th / 12th /
+// Diploma / UG / PG), so the Course Name dropdown only ever shows options
+// that actually make sense together - a 10th-pass candidate never sees
+// "B.Pharm", and a PG candidate never sees an undergraduate-only degree.
+const TENTH_COURSE_OPTIONS = [
+  "SSLC / 10th Standard (State Board)",
+  "10th - CBSE",
+  "10th - ICSE",
+  "10th - NIOS / Open School",
+  "Other 10th Board",
+];
+
+const TWELFTH_LIFE_SCIENCE_COURSES = [
+  "12th - Biology (PCB)",
+  "12th - Science (PCMB)",
+  "12th - Science (PCB + Computer Science)",
+  "12th - Biology / Botany / Zoology (Bio-Maths)",
+  "12th - Nursing / Health Care Vocational",
+  "Vocational - Health Sciences (12th)",
+  "Other 12th (Life Science)",
+];
+
+const TWELFTH_NON_LIFE_SCIENCE_COURSES = [
+  "12th - Commerce",
+  "12th - Commerce (with Computer Applications)",
+  "12th - Commerce (with Accountancy)",
+  "12th - Arts / Humanities",
+  "12th - Science (PCM)",
+  "12th - Science (PCM + Computer Science)",
+  "12th - Vocational",
+  "12th - Technical / Polytechnic Entry",
+  "Other 12th (Non-Life Science)",
+];
+
+const DIPLOMA_LIFE_SCIENCE_COURSES = [
+  "Diploma in Pharmacy (D.Pharm)",
+  "Diploma in Nursing (GNM)",
+  "Diploma in Auxiliary Nurse Midwifery (ANM)",
+  "Diploma in Medical Lab Technology (DMLT)",
+  "Diploma in Radiography / X-Ray Technology",
+  "Diploma in Radiotherapy Technology",
+  "Diploma in Optometry",
+  "Diploma in Dialysis Technology",
+  "Diploma in Operation Theatre Technology",
+  "Diploma in Anaesthesia Technology",
+  "Diploma in Cardiac Care Technology",
+  "Diploma in ECG / Cardiology Technology",
+  "Diploma in Emergency & Trauma Care",
+  "Diploma in Physiotherapy",
+  "Diploma in Dental Mechanics / Hygiene",
+  "Diploma in Medical Records / Health Information",
+  "Diploma in Nutrition & Dietetics",
+  "Diploma in Ayurveda / Siddha / Unani Pharmacy",
+  "Diploma in Veterinary Science",
+  "Other Diploma (Life Science)",
+];
+
+const DIPLOMA_NON_LIFE_SCIENCE_COURSES = [
+  "Diploma in Computer Applications",
+  "Diploma in Computer Science / IT",
+  "Diploma in Engineering - Mechanical",
+  "Diploma in Engineering - Civil",
+  "Diploma in Engineering - Electrical & Electronics (EEE)",
+  "Diploma in Engineering - Electronics & Communication (ECE)",
+  "Diploma in Engineering - Computer Engineering",
+  "Diploma in Engineering - Other Branch",
+  "Diploma in Business Administration",
+  "Diploma in Commerce / Accounting",
+  "Diploma in Hotel Management / Catering",
+  "Diploma in Fashion / Interior Design",
+  "Diploma in Mass Communication / Journalism",
+  "Diploma in Teacher Education (D.Ed)",
+  "Diploma in Banking / Finance",
+  "ITI (Industrial Training Institute)",
+  "Other Diploma (Non-Life Science)",
+];
+
+const UG_LIFE_SCIENCE_COURSES = [
+  "B.Sc. Nursing",
+  "B.Sc. Biotechnology",
+  "B.Sc. Microbiology",
+  "B.Sc. Biochemistry",
+  "B.Sc. Zoology",
+  "B.Sc. Botany",
+  "B.Sc. Biology / Life Sciences",
+  "B.Sc. Chemistry",
+  "B.Sc. Genetics",
+  "B.Sc. Bioinformatics",
+  "B.Sc. Forensic Science",
+  "B.Sc. Food Science / Nutrition / Dietetics",
+  "B.Sc. Clinical Nutrition",
+  "B.Sc. Environmental Science",
+  "B.Sc. Agriculture / Horticulture",
+  "B.Sc. Psychology",
+  "B.Sc. Medical Lab Technology (MLT)",
+  "B.Sc. Health Information Management (HIM)",
+  "B.Sc. Medical Records Science",
+  "B.Sc. Radiology & Imaging Technology",
+  "B.Sc. Radiotherapy Technology",
+  "B.Sc. Optometry",
+  "B.Sc. Cardiac Care Technology",
+  "B.Sc. Dialysis Technology",
+  "B.Sc. Operation Theatre Technology",
+  "B.Sc. Anaesthesia Technology",
+  "B.Sc. Emergency & Trauma Care",
+  "B.Sc. Respiratory Therapy / Care Technology",
+  "B.Sc. Allied Health Sciences",
+  "B.Sc. Physician Assistant",
+  "B.Sc. Perfusion Technology",
+  "B.Sc. Neuro Technology",
+  "B.Sc. Audiology & Speech-Language Pathology",
+  "B.Sc. Occupational Therapy",
+  "B.Sc. Medical Sociology",
+  "B.Pharm (Bachelor of Pharmacy)",
+  "Pharm.D (Doctor of Pharmacy)",
+  "BPT (Bachelor of Physiotherapy)",
+  "BOT (Bachelor of Occupational Therapy)",
+  "BASLP (Audiology & Speech-Language Pathology)",
+  "BPMT (Paramedical Technology)",
+  "MBBS",
+  "BDS (Dental Surgery)",
+  "BAMS (Ayurveda)",
+  "BHMS (Homoeopathy)",
+  "BUMS (Unani)",
+  "BSMS (Siddha)",
+  "BNYS (Naturopathy & Yoga)",
+  "BVSc & AH (Veterinary Science)",
+  "B.Sc. Veterinary / Animal Husbandry",
+  "Other Life Science UG Degree",
+];
+
+const PG_LIFE_SCIENCE_COURSES = [
+  "M.Sc. Nursing",
+  "M.Sc. Life Sciences",
+  "M.Sc. Biotechnology",
+  "M.Sc. Microbiology",
+  "M.Sc. Biochemistry",
+  "M.Sc. Zoology",
+  "M.Sc. Botany",
+  "M.Sc. Genetics",
+  "M.Sc. Bioinformatics",
+  "M.Sc. Clinical Research",
+  "M.Sc. Medical Lab Technology",
+  "M.Sc. Medical Biochemistry / Microbiology / Anatomy / Physiology",
+  "M.Sc. Food Science / Nutrition / Dietetics",
+  "M.Sc. Forensic Science",
+  "M.Sc. Environmental Science",
+  "M.Sc. Psychology / Clinical Psychology",
+  "M.Sc. Health Information Management",
+  "M.Sc. Public Health",
+  "M.Sc. Radiology & Imaging Technology",
+  "M.Sc. Optometry",
+  "M.Sc. Allied Health Sciences",
+  "M.Pharm (Master of Pharmacy)",
+  "Pharm.D (Doctor of Pharmacy)",
+  "MPT (Master of Physiotherapy)",
+  "MOT (Master of Occupational Therapy)",
+  "MPH (Master of Public Health)",
+  "MHA (Master of Hospital Administration)",
+  "MD (Doctor of Medicine)",
+  "MS (Master of Surgery)",
+  "MDS (Master of Dental Surgery)",
+  "MD (Ayurveda / Homoeopathy / Unani / Siddha)",
+  "M.Phil (Life Sciences)",
+  "Ph.D (Life Sciences)",
+  "Other Life Science PG Degree",
+];
+
+const UG_NON_LIFE_SCIENCE_COURSES = [
+  "B.Com (General)",
+  "B.Com (Computer Applications)",
+  "B.Com (Accounting & Finance)",
+  "B.Com (Corporate Secretaryship)",
+  "B.Com (Banking & Insurance)",
+  "B.Com (Professional Accounting)",
+  "B.Com (Honours)",
+  "BBA (Business Administration)",
+  "BBM (Business Management)",
+  "BMS (Management Studies)",
+  "BBA (Hospital / Healthcare Management)",
+  "B.Sc. Computer Science",
+  "B.Sc. Information Technology",
+  "B.Sc. Mathematics",
+  "B.Sc. Physics",
+  "B.Sc. Statistics",
+  "B.Sc. Electronics",
+  "B.Sc. Data Science / AI",
+  "B.Sc. Visual Communication / Multimedia",
+  "B.Sc. Hotel Management / Catering",
+  "BCA (Bachelor of Computer Applications)",
+  "B.Tech / B.E. - Computer Science (CSE)",
+  "B.Tech / B.E. - Information Technology",
+  "B.Tech / B.E. - AI & Data Science",
+  "B.Tech / B.E. - Electronics & Communication (ECE)",
+  "B.Tech / B.E. - Electrical & Electronics (EEE)",
+  "B.Tech / B.E. - Mechanical",
+  "B.Tech / B.E. - Civil",
+  "B.Tech / B.E. - Biomedical Engineering",
+  "B.Tech / B.E. - Chemical",
+  "B.Tech / B.E. - Other Branch",
+  "B.A. English",
+  "B.A. Tamil / Hindi / Other Languages",
+  "B.A. History",
+  "B.A. Economics",
+  "B.A. Political Science",
+  "B.A. Sociology",
+  "B.A. Psychology",
+  "B.A. Journalism & Mass Communication",
+  "B.A. (Other)",
+  "BSW (Social Work)",
+  "B.Ed (Education)",
+  "LLB / BA LLB / BBA LLB (Law)",
+  "B.Arch (Architecture)",
+  "B.Des (Design)",
+  "BHM (Hotel Management)",
+  "BFA (Fine Arts)",
+  "B.Lib (Library Science)",
+  "CA / CMA / CS (Professional)",
+  "Other Non-Life Science UG Degree",
+];
+
+const PG_NON_LIFE_SCIENCE_COURSES = [
+  "MCA (Master of Computer Applications)",
+  "M.Sc. Computer Science",
+  "M.Sc. Information Technology",
+  "M.Sc. Mathematics",
+  "M.Sc. Physics",
+  "M.Sc. Statistics",
+  "M.Sc. Data Science / AI",
+  "M.Tech / M.E. - Computer Science",
+  "M.Tech / M.E. - Other Branch",
+  "MBA (General)",
+  "MBA (Finance)",
+  "MBA (Marketing)",
+  "MBA (HR)",
+  "MBA (Hospital / Healthcare Management)",
+  "MBA (Operations / Systems)",
+  "MBA (Other Specialization)",
+  "PGDM (Management)",
+  "M.Com (Master of Commerce)",
+  "M.Com (Computer Applications / Finance)",
+  "M.A. English",
+  "M.A. Tamil / Hindi / Other Languages",
+  "M.A. Economics",
+  "M.A. History",
+  "M.A. Sociology",
+  "M.A. Psychology",
+  "M.A. Journalism & Mass Communication",
+  "M.A. (Other)",
+  "MSW (Social Work)",
+  "M.Ed (Education)",
+  "LLM (Law)",
+  "M.Arch (Architecture)",
+  "M.Des (Design)",
+  "M.Lib (Library Science)",
+  "M.Phil (Non-Life Science)",
+  "Ph.D (Non-Life Science)",
+  "Other Non-Life Science PG Degree",
+];
+
+// Returns the Course Name options for a given Highest Qualification level
+// and Academic Stream. Falls back to the UG list for an unrecognized/blank
+// qualification, since UG is the platform's most common case.
+function getCourseOptions(qualification, stream) {
+  const isLifeScience = stream === "Life Science";
+  if (qualification === "10th") return TENTH_COURSE_OPTIONS;
+  if (qualification === "12th") {
+    return isLifeScience ? TWELFTH_LIFE_SCIENCE_COURSES : TWELFTH_NON_LIFE_SCIENCE_COURSES;
+  }
+  if (qualification === "Diploma") {
+    return isLifeScience ? DIPLOMA_LIFE_SCIENCE_COURSES : DIPLOMA_NON_LIFE_SCIENCE_COURSES;
+  }
+  if (qualification === "PG · Postgraduate") {
+    return isLifeScience ? PG_LIFE_SCIENCE_COURSES : PG_NON_LIFE_SCIENCE_COURSES;
+  }
+  return isLifeScience ? UG_LIFE_SCIENCE_COURSES : UG_NON_LIFE_SCIENCE_COURSES;
+}
+
+const MONTH_OPTIONS = [
+  { val: "01", label: "01 · Jan" },
+  { val: "02", label: "02 · Feb" },
+  { val: "03", label: "03 · Mar" },
+  { val: "04", label: "04 · Apr" },
+  { val: "05", label: "05 · May" },
+  { val: "06", label: "06 · Jun" },
+  { val: "07", label: "07 · Jul" },
+  { val: "08", label: "08 · Aug" },
+  { val: "09", label: "09 · Sep" },
+  { val: "10", label: "10 · Oct" },
+  { val: "11", label: "11 · Nov" },
+  { val: "12", label: "12 · Dec" },
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const GRAD_YEAR_OPTIONS = Array.from({ length: 45 }, (_, i) => String(CURRENT_YEAR + 6 - i));
+
+// ─── Indian Colleges & Universities (UGC-recognized, curated for medical coding candidates) ──
+const INDIAN_COLLEGES = [
+  // ── Central Universities ─────────────────────────────────────
+  "University of Delhi", "Jawaharlal Nehru University", "University of Hyderabad",
+  "Banaras Hindu University", "Aligarh Muslim University", "Jamia Millia Islamia",
+  "University of Allahabad", "University of Calcutta", "University of Mumbai",
+  "University of Madras", "University of Pune (Savitribai Phule Pune University)",
+  "University of Rajasthan", "Osmania University", "Andhra University",
+  "Annamalai University", "Bharathiar University", "Bharathidasan University",
+  "Madurai Kamaraj University", "Mother Teresa Women's University",
+  "Periyar University", "Tamil Nadu Teacher Education University",
+  "Thiruvalluvar University", "University of Mysore", "Bangalore University",
+  "Kuvempu University", "Mangalore University", "Karnatak University",
+  "Gulbarga University", "Davangere University", "Tumkur University",
+  "Visvesvaraya Technological University (VTU)", "Rajiv Gandhi University of Health Sciences",
+  "Kerala University", "Mahatma Gandhi University (Kerala)", "Calicut University",
+  "Kannur University", "Cochin University of Science and Technology (CUSAT)",
+  "APJ Abdul Kalam Technological University (KTU)", "University of Kerala",
+  "Mumbai University", "Pune University", "Shivaji University", "North Maharashtra University",
+  "Swami Ramanand Teerth Marathwada University", "Dr. Babasaheb Ambedkar Marathwada University",
+  "Sant Gadge Baba Amravati University", "Rashtrasant Tukadoji Maharaj Nagpur University",
+  "Solapur University", "Kaviyatri Bahinabai Chaudhari North Maharashtra University",
+  "Uttar Pradesh Rajarshi Tandon Open University", "Deen Dayal Upadhyaya Gorakhpur University",
+  "Mahatma Jyotiba Phule Rohilkhand University", "Ch. Charan Singh University",
+  "Bundelkhand University", "Lucknow University", "Dr. Ram Manohar Lohia Awadh University",
+  "Veer Bahadur Singh Purvanchal University", "Chaudhary Charan Singh University",
+  "Gauhati University", "Dibrugarh University", "Cotton University",
+  "Rabindra Bharati University", "Jadavpur University", "North Bengal University",
+  "Visva-Bharati University", "West Bengal State University", "Kalyani University",
+  "Vidyasagar University", "Burdwan University", "Calcutta University",
+  "Berhampur University", "Sambalpur University", "Utkal University",
+  "Ravenshaw University", "Fakir Mohan University", "Maharaja Sriram Chandra Bhanj Deo University",
+  "Magadh University", "Patna University", "Lalit Narayan Mithila University",
+  "Bhupendra Narayan Mandal University", "T.M. Bhagalpur University",
+  "Purnea University", "Muungger University", "Jai Prakash University",
+  "Guru Nanak Dev University", "Panjab University", "Punjabi University",
+  "Maharishi Dayanand University", "Kurukshetra University", "Chaudhary Devi Lal University",
+  "Deenbandhu Chhotu Ram University of Science and Technology",
+  "Maharaja Agrasen University", "Indira Gandhi University (Meerpur)",
+  "Shoolini University", "Himachal Pradesh University",
+  "University of Jammu", "University of Kashmir",
+  "Rajiv Gandhi Proudyogiki Vishwavidyalaya", "Vikram University",
+  "Devi Ahilya Vishwavidyalaya", "Barkatullah University",
+  "Rani Durgavati Vishwavidyalaya", "Jiwaji University",
+  "Mohanlal Sukhadia University", "University of Kota",
+  "Maharishi Dayanand Saraswati University", "Jai Narain Vyas University",
+  "Gujarat University", "Saurashtra University", "Veer Narmad South Gujarat University",
+  "Hemchandracharya North Gujarat University", "Sardar Patel University",
+  "Bhavnagar University", "M.K. Bhavnagar University",
+  "Osmania University", "Kakatiya University", "Andhra University",
+  "Sri Krishnadevaraya University", "Rayalaseema University",
+  "Yogi Vemana University", "JNTU-Hyderabad", "JNTU-Kakinada", "JNTU-Anantapur",
+  "Acharya Nagarjuna University", "Dr. B.R. Ambedkar University",
+  "Sri Padmavati Mahila Visvavidyalayam", "Sri Venkateswara University",
+  "Pondicherry University", "Manipal Academy of Higher Education (MAHE)",
+  "Sikkim University", "Tezpur University", "Tripura University",
+  "Mizoram University", "Nagaland University",
+
+  // ── Deemed Universities (Medical / Allied Health focus) ───────
+  "Sri Ramachandra Institute of Higher Education and Research",
+  "Amrita Vishwa Vidyapeetham", "Chettinad Academy of Research and Education",
+  "Saveetha Institute of Medical and Technical Sciences",
+  "SRM Institute of Science and Technology", "Vinayaka Mission's Research Foundation",
+  "Deemed University of Technology (Tamil Nadu)",
+  "Manonmaniam Sundaranar University (Tirunelveli)",
+  "Vels Institute of Science Technology and Advanced Studies",
+  "Vel Tech Rangarajan Dr. Sagunthala R&D Institute",
+  "Sathyabama Institute of Science and Technology",
+  "Bharath Institute of Higher Education and Research",
+  "Aarupadai Veedu Institute of Technology",
+  "Dr. M.G.R. Educational and Research Institute",
+  "Thandai Periyar Institution (Periyar University affiliated)",
+  "Dr. D.Y. Patil Vidyapeeth", "Symbiosis International University",
+  "Bharati Vidyapeeth Deemed University",
+  "D.Y. Patil University (Mumbai)", "KIMS (Krishna Institute of Medical Sciences)",
+  "JSS University", "Manipal University Jaipur",
+  "Nitte Deemed-to-be University", "Yenepoya University",
+  "Shri Dharmasthala Manjunatheshwara University",
+  "Rajagiri College of Social Sciences (Autonomous)",
+  "St. John's National Academy of Health Sciences",
+  "Father Muller Charitable Institutions (FM University)",
+  "KLE Academy of Higher Education and Research",
+
+  // ── IITs and NITs (non-life science backgrounds) ─────────────
+  "Indian Institute of Technology Madras (IIT Madras)",
+  "Indian Institute of Technology Bombay (IIT Bombay)",
+  "Indian Institute of Technology Delhi (IIT Delhi)",
+  "Indian Institute of Technology Kharagpur (IIT KGP)",
+  "Indian Institute of Technology Kanpur (IIT Kanpur)",
+  "Indian Institute of Technology Roorkee (IIT Roorkee)",
+  "Indian Institute of Technology Hyderabad (IIT Hyderabad)",
+  "Indian Institute of Technology Bangalore (IISc Bangalore)",
+  "NIT Trichy (National Institute of Technology, Tiruchirappalli)",
+  "NIT Warangal", "NIT Calicut", "NIT Surathkal", "NIT Rourkela",
+
+  // ── Popular Arts / Commerce / Science Autonomous Colleges ─────
+  "Loyola College, Chennai", "Stella Maris College, Chennai",
+  "Women's Christian College (WCC), Chennai", "Ethiraj College for Women, Chennai",
+  "Queen Mary's College, Chennai", "Meenakshi College for Women, Chennai",
+  "Presidency College, Chennai", "Madras Christian College, Chennai",
+  "Sri Venkateswara College of Engineering, Chennai",
+  "Vellore Institute of Technology (VIT University)",
+  "PSG College of Technology", "Kumaraguru College of Technology",
+  "Coimbatore Institute of Technology (CIT)",
+  "Sri Krishna College of Engineering and Technology",
+  "K.S. Rangasamy College of Technology", "SNS College of Technology",
+  "Karpagam Academy of Higher Education",
+  "Avinashilingam Institute for Home Science and Higher Education for Women",
+  "Kongu Engineering College", "Sri Ramakrishna Engineering College",
+  "Christian Medical College (CMC), Vellore",
+  "Sri Manakula Vinayagar Medical College and Hospital (Pondicherry)",
+  "SRM Medical College Hospital & Research Centre",
+  "Saveetha Medical College and Hospital",
+  "Prathima Institute of Medical Sciences",
+  "Deccan College of Medical Sciences",
+  "Kakatiya Medical College", "Gandhi Medical College",
+  "Osmania Medical College", "Nizams Institute of Medical Sciences",
+  "Mamata Medical College", "Guntur Medical College",
+  "Andhra Medical College", "S.V. Medical College",
+  "Rangaraya Medical College", "Kurnool Medical College",
+  "Maharaja's College (Ernakulam)", "Sacred Heart College (Ernakulam)",
+  "St. Albert's College (Ernakulam)", "St. Joseph's College, Bangalore",
+  "Christ University, Bangalore", "Mount Carmel College, Bangalore",
+  "St. Joseph's College of Commerce, Bangalore",
+  "Jyoti Nivas College, Bangalore",
+  "M.E.S. College, Bangalore",
+  "BMS College of Engineering", "PES University",
+  "RV College of Engineering", "Dayananda Sagar College of Engineering",
+  "KJ Somaiya College of Engineering",
+  "RAIT (Ramrao Adik Institute of Technology)",
+  "St. Xavier's College, Mumbai",
+  "Jai Hind College, Mumbai", "Ruparel College, Mumbai",
+  "Mithibai College of Arts, Chauhan Institute of Science",
+  "K.J. Somaiya College of Science and Commerce",
+  "Narsee Monjee College of Commerce and Economics",
+  "Fergusson College, Pune", "SP College, Pune",
+  "Symbiosis College of Arts and Commerce",
+  "Garware College of Commerce, Pune",
+  "Nowrosjee Wadia College, Pune",
+  "Modern College of Arts, Science and Commerce, Pune",
+  "Brihan Maharashtra College of Commerce, Pune",
+  "Delhi College of Arts and Commerce",
+  "Miranda House, Delhi", "Lady Shri Ram College, Delhi",
+  "Indraprastha College for Women, Delhi",
+  "Jesus and Mary College, Delhi",
+  "St. Stephens College, Delhi",
+  "Hans Raj College, Delhi", "Ramjas College, Delhi",
+  "Kirori Mal College, Delhi", "Maitreyi College, Delhi",
+  "Kamla Nehru College, Delhi",
+  "Presidency University, Kolkata",
+  "St. Xavier's College, Kolkata",
+  "Bethune College, Kolkata", "Lady Brabourne College, Kolkata",
+  "Scottish Church College, Kolkata", "Asutosh College, Kolkata",
+  "Hindu College, Kolkata",
+  "Fergusson College, Kolkata",
+  "Loyola College, Hyderabad",
+  "St. Francis College for Women, Hyderabad",
+  "Osmania University College for Women",
+  "Bhavan's Vivekananda College, Hyderabad",
+  "Holy Mary Institute of Technology and Science",
+  "CMR College of Engineering and Technology",
+  "MALLA REDDY Engineering College",
+  "Chaitanya Bharathi Institute of Technology",
+  "Shadan College of Engineering and Technology",
+  "Vardhaman College of Engineering",
+  "Gokaraju Rangaraju Institute of Engineering and Technology",
+  "Muffakham Jah College of Engineering and Technology",
+  "Institute of Aeronautical Engineering (IARE)",
+  "Vignan's Foundation for Science, Technology and Research",
+  "Koneru Lakshmaiah Education Foundation (KLEF)",
+  "Sri Indu College of Engineering and Technology",
+  "Vidya Jyothi Institute of Technology",
+  "St. Mary's College of Engineering and Technology",
+
+  // ── Open / Distance Universities ─────────────────────────────
+  "Indira Gandhi National Open University (IGNOU)",
+  "Yashwantrao Chavan Maharashtra Open University (YCMOU)",
+  "Tamil Nadu Open University (TNOU)",
+  "Karnataka State Open University (KSOU)",
+  "Dr. B.R. Ambedkar Open University (BRAOU)",
+  "Nalanda Open University", "Netaji Subhas Open University",
+  "Madhya Pradesh Bhoj Open University",
+  "Rajasthan State Open University",
+  "Uttarakhand Open University",
+  "Himachal Pradesh Open University",
+  "K.K. Handiqui State Open University (KKHSOU)",
+  "Punjab Technical University (Distance Learning)",
+  "Sikkim Manipal University (Distance)",
+
+  // ── Private Deemed (Commerce / BBA / B.Com focus) ─────────────
+  "ICFAI University", "ICFAI Business School (IBS)",
+  "Amity University (Noida)", "Amity University (Mumbai)",
+  "Amity University (Jaipur)", "Amity University (Hyderabad)",
+  "Lovely Professional University (LPU)",
+  "Chandigarh University", "Sharda University",
+  "Galgotias University", "Bennett University",
+  "UPES (University of Petroleum and Energy Studies)",
+  "MIT World Peace University (MIT-WPU), Pune",
+  "Presidency University, Bangalore",
+  "PES Modern College of Engineering",
+  "Alliance University, Bangalore",
+  "Jain University, Bangalore",
+  "REVA University", "Dayananda Sagar University",
+  "Ramaiah University of Applied Sciences",
+  "CMR University", "New Horizon College of Engineering",
+
+  // ── Pharmacy / Nursing / Allied Health colleges ───────────────
+  "Manipal College of Pharmaceutical Sciences",
+  "JSS College of Pharmacy", "PSG College of Pharmacy",
+  "SRM College of Pharmacy", "Saveetha College of Pharmacy",
+  "Vinayaka Mission's College of Pharmacy",
+  "KLE College of Pharmacy",
+  "Sri Venkateswara College of Pharmacy",
+  "Care College of Nursing", "Narayana College of Nursing",
+  "Manipal College of Nursing",
+  "Lourdes College of Nursing (Thiruvananthapuram)",
+  "St. Gregorios College of Nursing",
+  "Rajiv Gandhi Institute of Nursing Education",
+  "ESIC Nursing College",
+  "Government College of Nursing, Chennai",
+  "Apollo College of Nursing",
+  "Sri Ramachandra College of Nursing",
+];
+
+/** Filter colleges for typeahead — returns up to 10 best matches */
+function filterColleges(query) {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase();
+  const exact = [];
+  const starts = [];
+  const contains = [];
+  for (const c of INDIAN_COLLEGES) {
+    const cl = c.toLowerCase();
+    if (cl === q) exact.push(c);
+    else if (cl.startsWith(q)) starts.push(c);
+    else if (cl.includes(q)) contains.push(c);
+  }
+  return [...exact, ...starts, ...contains].slice(0, 10);
+}
+
+function resolveStage1Data(existingData, candidate) {
+  const s1 = existingData || candidate?.stage1 || {};
+  const lData = s1?.aadhaarLockedData || candidate?.stage1?.aadhaarLockedData || {};
+
+  const rawFullName =
+    lData.fullName ||
+    s1.fullName ||
+    candidate?.stage1?.fullName ||
+    candidate?.fullName ||
+    "";
+
+  const isDummyName =
+    !rawFullName ||
+    rawFullName.trim().toLowerCase() === "verified candidate" ||
+    rawFullName.trim().toLowerCase() === "candidate";
+
+  // Aadhaar is verified ONLY if explicitly verified via UIDAI / DigiLocker
+  // (NEVER check candidate.isVerified which is only the account login/signup flag)
+  const isAadhaarFlag = Boolean(
+    s1.aadhaarVerified === true ||
+    s1.aadhaarStatus === "VERIFIED" ||
+    candidate?.stage1?.aadhaarVerified === true ||
+    candidate?.stage1?.aadhaarStatus === "VERIFIED"
+  );
+
+  const isVerified = isAadhaarFlag && !isDummyName;
+
+  const maskedAadhaar =
+    s1.maskedAadhaar ||
+    lData.maskedAadhaar ||
+    candidate?.stage1?.maskedAadhaar ||
+    (s1.aadhaarNumber ? formatAadhaar(s1.aadhaarNumber) : "");
+
+  const fullName = isDummyName ? "" : rawFullName;
+
+  const dob = lData.dob || s1.dob || candidate?.stage1?.dob || "";
+  const gender = lData.gender || s1.gender || candidate?.stage1?.gender || "";
+  const locality = lData.locality || s1.permanentLocality || s1.address || candidate?.stage1?.address || "";
+  const district = lData.district || s1.permanentDistrict || s1.district || s1.city || candidate?.stage1?.district || candidate?.stage1?.city || "";
+  const state = lData.state || s1.permanentState || s1.state || candidate?.stage1?.state || "";
+  const careOf = lData.careOf || s1.careOf || candidate?.stage1?.careOf || "";
+  const pincode = lData.pincode || s1.pincode || candidate?.stage1?.pincode || "";
+  const photoUrl = lData.photoUrl || s1.photoUrl || candidate?.stage1?.photoUrl || "";
+  const maskedMobile = lData.maskedMobile || s1.maskedMobile || candidate?.stage1?.maskedMobile || "";
+  const transactionId = s1.aadhaarTransactionId || candidate?.stage1?.aadhaarTransactionId || "";
+
+  return {
+    isVerified,
+    maskedAadhaar,
+    fullName,
+    dob,
+    gender,
+    locality,
+    district,
+    state,
+    careOf,
+    pincode,
+    photoUrl,
+    maskedMobile,
+    transactionId,
+  };
+}
+
+export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved }) {
+  const toast = useToast();
+  const initAadhaar = resolveStage1Data(existingData, candidate);
+
+  // 1. SECTION 1 · AADHAAR STATE
+  const [aadhaarInput, setAadhaarInput] = useState(initAadhaar.maskedAadhaar);
+  const [aadhaarOtp, setAadhaarOtp] = useState("");
+  const [aadhaarOtpSent, setAadhaarOtpSent] = useState(false);
+  const [aadhaarOtpTimer, setAadhaarOtpTimer] = useState(0);
+  const [aadhaarSendingOtp, setAadhaarSendingOtp] = useState(false);
+  const [aadhaarVerifying, setAadhaarVerifying] = useState(false);
+  const [transactionId, setTransactionId] = useState(initAadhaar.transactionId);
+  const [maskedMobileInfo, setMaskedMobileInfo] = useState(initAadhaar.maskedMobile);
+  const [aadhaarCareOf, setAadhaarCareOf] = useState(initAadhaar.careOf);
+  const [aadhaarPincode, setAadhaarPincode] = useState(initAadhaar.pincode);
+  const [aadhaarPhoto, setAadhaarPhoto] = useState(initAadhaar.photoUrl);
+  const [isAadhaarVerified, setIsAadhaarVerified] = useState(initAadhaar.isVerified);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  // Message Central eKYCNow DigiLocker State
+  const [mcSession, setMcSession] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("talentera_mc_session");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [mcLoading, setMcLoading] = useState(false);
+  const [mcFetching, setMcFetching] = useState(false);
+
+  // Locked Profile Data from Aadhaar
+  const [lockedFullName, setLockedFullName] = useState(initAadhaar.fullName);
+  const [lockedDob, setLockedDob] = useState(initAadhaar.dob);
+  const [lockedGender, setLockedGender] = useState(initAadhaar.gender);
+  const [lockedLocality, setLockedLocality] = useState(initAadhaar.locality);
+  const [lockedDistrict, setLockedDistrict] = useState(initAadhaar.district);
+  const [lockedState, setLockedState] = useState(initAadhaar.state || "");
+
+  // 2. SECTION 2 · CONTACT DETAILS
+  const [mobile, setMobile] = useState(
+    existingData?.mobile ? formatMobile(existingData.mobile) : (candidate?.stage1?.mobile ? formatMobile(candidate.stage1.mobile) : (candidate?.mobile ? formatMobile(candidate.mobile) : ""))
+  );
+  const [isMobileVerified, setIsMobileVerified] = useState(
+    Boolean(existingData?.mobileVerified || candidate?.stage1?.mobile || candidate?.mobile || true)
+  );
+  const [isWhatsAppSame, setIsWhatsAppSame] = useState(
+    existingData?.isWhatsAppSame !== undefined ? existingData.isWhatsAppSame : true
+  );
+  // Separate WhatsApp / alternate number, only used when the candidate's WhatsApp
+  // number differs from their main mobile (checkbox unchecked).
+  const [whatsappNumber, setWhatsappNumber] = useState(
+    existingData?.whatsappNumber ? formatMobile(existingData.whatsappNumber) : ""
+  );
+  const [email, setEmail] = useState(
+    existingData?.email || candidate?.stage1?.email || candidate?.email || ""
+  );
+  const [bestTimeToContact, setBestTimeToContact] = useState(() => {
+    const raw = existingData?.bestTimeToContact;
+    if (!raw || raw === "Anytime") return "Anytime";
+    if (raw.toLowerCase().includes("morning")) return "Morning (9 AM to 12 PM)";
+    if (raw.toLowerCase().includes("afternoon")) return "Afternoon (12 PM to 5 PM)";
+    if (raw.toLowerCase().includes("evening")) return "Evening (5 PM to 9 PM)";
+    return raw;
+  });
+  // Multi-select - a candidate can be reached via more than one method, so
+  // this is an array of keys now rather than a single string. Older saved
+  // profiles may still have a single string value here (from before this
+  // was multi-select) - normalize that into a one-item array on load.
+  const [preferredContactMethods, setPreferredContactMethods] = useState(() => {
+    const existing = existingData?.preferredContactMethod;
+    if (Array.isArray(existing) && existing.length > 0) return existing;
+    if (typeof existing === "string" && existing) return [existing];
+    return ["WhatsApp"];
+  });
+  const toggleContactMethod = (key) => {
+    setPreferredContactMethods((prev) => {
+      if (prev.includes(key)) {
+        // Keep at least one selected - this field is required.
+        if (prev.length === 1) return prev;
+        return prev.filter((k) => k !== key);
+      }
+      return [...prev, key];
+    });
+  };
+
+  // 3. SECTION 3 · EXPERIENCE LEVEL
+  const [experience, setExperience] = useState(
+    existingData?.experience || candidate?.stage1?.experience || candidate?.experience || ""
+  );
+  const [currentRole, setCurrentRole] = useState(
+    existingData?.currentRole || candidate?.stage1?.currentRole || candidate?.currentRole || ""
+  );
+
+  // 4. SECTION 4 · LOCATION
+  const [isSameAddress, setIsSameAddress] = useState(
+    existingData?.isCurrentSameAsPermanent !== undefined ? existingData.isCurrentSameAsPermanent : false
+  );
+  const [currentState, setCurrentState] = useState(
+    existingData?.state || candidate?.stage1?.state || candidate?.state || "Tamil Nadu"
+  );
+  const [currentCity, setCurrentCity] = useState(
+    existingData?.city || candidate?.stage1?.city || candidate?.city || "Chennai"
+  );
+  const [currentLocality, setCurrentLocality] = useState(existingData?.currentLocality || candidate?.stage1?.currentLocality || "");
+  const [preferredCities, setPreferredCities] = useState(
+    Array.isArray(existingData?.preferredCities) && existingData.preferredCities.length > 0
+      ? existingData.preferredCities.filter(Boolean)
+      : []
+  );
+  const [cityInputOpen, setCityInputOpen] = useState(false);
+  const [selectedCityOption, setSelectedCityOption] = useState("");
+  const [openToRelocate, setOpenToRelocate] = useState(
+    (existingData?.openToRelocate && !/Tier-1/.test(existingData.openToRelocate) ? existingData.openToRelocate : "Yes — anywhere in India")
+  );
+  // Open to Global Opportunities: a Yes / No choice; "Yes" reveals a searchable
+  // country picker. Older profiles stored a list of preset regions instead - map
+  // those onto the new Yes/No + countries shape on load.
+  const legacyGlobal = Array.isArray(existingData?.globalOpportunities) ? existingData.globalOpportunities : [];
+  const [openToGlobal, setOpenToGlobal] = useState(() => {
+    if (existingData?.openToGlobal === "yes" || existingData?.openToGlobal === "no") return existingData.openToGlobal;
+    if (legacyGlobal.includes("Not right now")) return "no";
+    return legacyGlobal.length > 0 ? "yes" : "";
+  });
+  const [globalCountries, setGlobalCountries] = useState(() => {
+    if (Array.isArray(existingData?.globalCountries)) return existingData.globalCountries;
+    const out = [];
+    if (legacyGlobal.includes("US (offshore night shift)")) out.push("United States");
+    if (legacyGlobal.includes("Philippines · UAE · Saudi")) out.push("Philippines", "United Arab Emirates", "Saudi Arabia");
+    return out;
+  });
+  const [countrySearch, setCountrySearch] = useState("");
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+
+  // 5. SECTION 5 · BASIC EDUCATION
+  const [educationStream, setEducationStream] = useState(
+    existingData?.educationStream || ""
+  );
+  const [qualification, setQualification] = useState(
+    existingData?.qualification || ""
+  );
+  const [degree, setDegree] = useState(
+    existingData?.degree || ""
+  );
+  const [collegeName, setCollegeName] = useState(
+    existingData?.collegeName || ""
+  );
+  const [collegeSuggestions, setCollegeSuggestions] = useState([]);
+  const [collegeDropdownOpen, setCollegeDropdownOpen] = useState(false);
+  const [collegeHighlightIdx, setCollegeHighlightIdx] = useState(-1);
+  const collegeInputRef = useRef(null);
+  const collegeDropdownRef = useRef(null);
+  const [educationStatus, setEducationStatus] = useState(
+    existingData?.educationStatus || ""
+  );
+  const rawGrad = String(existingData?.graduationYear || existingData?.passingYear || "").trim();
+  const [graduationMonth, setGraduationMonth] = useState(
+    existingData?.graduationMonth || (rawGrad.includes("/") ? rawGrad.split("/")[0].padStart(2, "0") : "")
+  );
+  const [graduationYear, setGraduationYear] = useState(
+    rawGrad.includes("/") ? rawGrad.split("/")[1] : rawGrad
+  );
+  const [gradingScale, setGradingScale] = useState(
+    existingData?.gradingScale || "Percentage"
+  );
+  const [cgpa, setCgpa] = useState(
+    existingData?.cgpa || existingData?.percentage || ""
+  );
+  const [hasActiveBacklogs, setHasActiveBacklogs] = useState(
+    existingData?.hasActiveBacklogs || false
+  );
+  const [backlogCount, setBacklogCount] = useState(
+    existingData?.backlogCount || "0"
+  );
+
+  // 6. SAVING & GENERAL UI STATE
+  const [saving, setSaving] = useState(false);
+  const [savedBadgeText, setSavedBadgeText] = useState("✓ Saved just now");
+  const [formErrors, setFormErrors] = useState({});
+
+  // OTP Countdown timer
+  useEffect(() => {
+    let timer;
+    if (aadhaarOtpTimer > 0) {
+      timer = setInterval(() => {
+        setAadhaarOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [aadhaarOtpTimer]);
+
+  // Sync state whenever existingData or candidate props load or update
+  useEffect(() => {
+    const resolved = resolveStage1Data(existingData, candidate);
+    if (resolved.isVerified) {
+      setIsAadhaarVerified(true);
+      if (resolved.maskedAadhaar) setAadhaarInput(resolved.maskedAadhaar);
+      if (resolved.fullName) setLockedFullName(resolved.fullName);
+      if (resolved.dob) setLockedDob(resolved.dob);
+      if (resolved.gender) setLockedGender(resolved.gender);
+      if (resolved.locality) setLockedLocality(resolved.locality);
+      if (resolved.district) setLockedDistrict(resolved.district);
+      if (resolved.state) setLockedState(resolved.state);
+      if (resolved.careOf) setAadhaarCareOf(resolved.careOf);
+      if (resolved.pincode) setAadhaarPincode(resolved.pincode);
+      if (resolved.photoUrl) setAadhaarPhoto(resolved.photoUrl);
+      if (resolved.maskedMobile) setMaskedMobileInfo(resolved.maskedMobile);
+      if (resolved.transactionId) setTransactionId(resolved.transactionId);
+    } else {
+      setIsAadhaarVerified(false);
+      if (resolved.fullName) {
+        setLockedFullName(resolved.fullName);
+      }
+    }
+    // Also sync contact & location if current fields are empty
+    const s1 = existingData || candidate?.stage1 || {};
+    if (!mobile && (s1.mobile || candidate?.mobile)) {
+      setMobile(formatMobile(s1.mobile || candidate?.mobile));
+    }
+    if (!email && (s1.email || candidate?.email)) {
+      setEmail(s1.email || candidate?.email);
+    }
+    if (s1.state && (!currentState || currentState === "Tamil Nadu")) {
+      setCurrentState(s1.state);
+    }
+    if (s1.city && (!currentCity || currentCity === "Chennai")) {
+      setCurrentCity(s1.city);
+    }
+    if (s1.currentLocality && !currentLocality) {
+      setCurrentLocality(s1.currentLocality);
+    }
+  }, [existingData, candidate]);
+
+  // Close college dropdown when clicking outside
+  useEffect(() => {
+    function handleOutsideClick(e) {
+      if (
+        collegeDropdownRef.current &&
+        !collegeDropdownRef.current.contains(e.target) &&
+        collegeInputRef.current &&
+        !collegeInputRef.current.contains(e.target)
+      ) {
+        setCollegeDropdownOpen(false);
+        setCollegeHighlightIdx(-1);
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  // Handle stream change default degree - also re-derives the course list
+  // from the currently selected Highest Qualification, so switching stream
+  // never leaves a course selected that doesn't belong to that combination.
+  const handleStreamChange = (stream) => {
+    setEducationStream(stream);
+    if (stream === "Other") {
+      // No preset course list for "Other" - the candidate types their own
+      // qualification, so leave the field empty for them to fill in.
+      setDegree("");
+      return;
+    }
+    const options = getCourseOptions(qualification, stream);
+    setDegree(options[0]);
+  };
+
+  // Handle qualification (10th/12th/Diploma/UG/PG) change - re-derives the
+  // course list for the new level, keeping Course Name always valid for
+  // whatever qualification + stream combination is currently selected.
+  // When the stream is "Other" the candidate is typing their own course
+  // name manually, so this must never overwrite what they've typed.
+  const handleQualificationChange = (newQualification) => {
+    setQualification(newQualification);
+    if (educationStream === "Other") return;
+    const options = getCourseOptions(newQualification, educationStream);
+    setDegree(options[0]);
+  };
+
+  // Tag picker helpers
+  const handleRemoveCity = (cityToRemove) => {
+    setPreferredCities(preferredCities.filter((c) => c !== cityToRemove));
+  };
+
+  const handleAddCity = (cityToAdd) => {
+    if (!cityToAdd) {
+      toast("Please pick a city from the list first.", "!");
+      return;
+    }
+    if (preferredCities.length >= 5) {
+      toast("You can select up to 5 preferred cities.", "!");
+      return;
+    }
+    if (!preferredCities.includes(cityToAdd)) {
+      setPreferredCities([...preferredCities, cityToAdd]);
+    }
+    setSelectedCityOption("");
+    setCityInputOpen(false);
+  };
+
+  const addGlobalCountry = (country) => {
+    setGlobalCountries((prev) => (prev.includes(country) ? prev : [...prev, country]));
+    setCountrySearch("");
+    if (formErrors.globalCountries) setFormErrors((prev) => ({ ...prev, globalCountries: null }));
+  };
+  const removeGlobalCountry = (country) => setGlobalCountries((prev) => prev.filter((x) => x !== country));
+  const filteredCountries = COUNTRIES.filter(
+    (n) => !globalCountries.includes(n) && n.toLowerCase().includes(countrySearch.trim().toLowerCase())
+  );
+
+  // Aadhaar Send OTP via Real UIDAI / Talentera Gateway
+  const handleSendAadhaarOtp = async () => {
+    const raw = aadhaarInput.replace(/\s/g, "");
+    if (raw.length !== 12) {
+      toast("Please enter a valid 12-digit Aadhaar number.", "!");
+      return;
+    }
+    if (!verhoeffValidate(raw)) {
+      toast("Invalid Aadhaar number checksum. Please check your digits.", "!");
+      return;
+    }
+
+    setAadhaarSendingOtp(true);
+    try {
+      const res = await api.post("/aadhaar/send-otp", {
+        aadhaar: raw,
+        mobile: mobile ? mobile.replace(/\D/g, "") : (candidate?.stage1?.mobile || candidate?.mobile || ""),
+        email: email ? email.trim() : (candidate?.stage1?.email || candidate?.email || ""),
+      });
+
+      if (res.data && res.data.success) {
+        setTransactionId(res.data.transactionId);
+        setAadhaarOtpSent(true);
+        setAadhaarOtpTimer(res.data.resendCooldown || 60);
+
+        if (res.data.isMessageCentral && res.data.url) {
+          setMcSession({
+            url: res.data.url,
+            verificationId: res.data.transactionId,
+            referenceId: res.data.referenceId,
+          });
+
+          // Automatically open Message Central's secure DigiLocker gateway popup
+          const w = 620;
+          const h = 750;
+          const left = (window.innerWidth - w) / 2;
+          const top = (window.innerHeight - h) / 2;
+          window.open(
+            res.data.url,
+            "MessageCentralDigiLocker",
+            `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no`
+          );
+
+          toast(
+            "Message Central DigiLocker opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.",
+            <i className="fa-solid fa-circle-info" />
+          );
+          return;
+        }
+
+        if (res.data.maskedMobile) {
+          setMaskedMobileInfo(res.data.maskedMobile);
+        }
+
+        if (res.data.devOtp) {
+          setAadhaarOtp(res.data.devOtp);
+        }
+
+        toast(
+          res.data.message || `OTP sent via UIDAI to your Aadhaar-registered mobile (${res.data.maskedMobile || "registered SIM"}).`,
+          "✓"
+        );
+      }
+    } catch (err) {
+      console.error("Send Aadhaar OTP error:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to send Aadhaar OTP. Please check the Aadhaar number.";
+      toast(msg, "!");
+    } finally {
+      setAadhaarSendingOtp(false);
+    }
+  };
+
+  // Aadhaar Verify OTP & Auto-Fetch Verified Profile Data
+  const handleVerifyAadhaarOtp = async () => {
+    // If Message Central DigiLocker is active, fetch the verified document
+    if (mcSession?.referenceId || mcSession?.verificationId) {
+      return handleFetchMessageCentral();
+    }
+
+    const cleanOtp = aadhaarOtp.trim().replace(/\D/g, "");
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      toast("Please enter the complete 6-digit OTP received on your mobile.", "!");
+      return;
+    }
+
+    setAadhaarVerifying(true);
+    try {
+      const res = await api.post("/aadhaar/verify-otp", {
+        transactionId: transactionId || "cf_adh_active",
+        otp: cleanOtp,
+      });
+
+      if (res.data && res.data.verified) {
+        setIsAadhaarVerified(true);
+        setMcSession(null);
+        const details = res.data.details || {};
+
+        // 1. Auto-fetch and lock Full Name
+        if (details.fullName) {
+          setLockedFullName(details.fullName);
+        }
+
+        // 2. Auto-fetch and lock Date of Birth
+        if (details.dob) {
+          setLockedDob(details.dob);
+        }
+
+        // 3. Auto-fetch and lock Gender
+        if (details.gender) {
+          setLockedGender(details.gender);
+        }
+
+        // 4. Auto-fetch Address / Locality / District / State / Pincode
+        if (details.address) {
+          setLockedLocality(details.address);
+        }
+        if (details.district) {
+          setLockedDistrict(details.district);
+        }
+        if (details.state) {
+          setLockedState(details.state);
+        }
+        if (details.pincode) {
+          setAadhaarPincode(details.pincode);
+        }
+        if (details.careOf) {
+          setAadhaarCareOf(details.careOf);
+        }
+        if (details.photoUrl) {
+          setAadhaarPhoto(details.photoUrl);
+        }
+        if (details.maskedMobile) {
+          setMaskedMobileInfo(details.maskedMobile);
+        }
+
+        // 5. Auto-populate Current City & State if currently blank
+        if (!currentCity && (details.city || details.district)) {
+          setCurrentCity(details.city || details.district);
+        }
+        if (!currentState && details.state) {
+          setCurrentState(details.state);
+        }
+        if (!currentLocality && details.address) {
+          setCurrentLocality(details.address);
+        }
+
+        toast("✓ Aadhaar verified! Name, Address, DOB, and Gender auto-fetched from UIDAI.", "✓");
+      }
+    } catch (err) {
+      console.error("Verify Aadhaar OTP error:", err);
+      const msg = err.response?.data?.message || err.message || "Invalid or expired OTP. Please try again.";
+      toast(msg, "!");
+    } finally {
+      setAadhaarVerifying(false);
+    }
+  };
+
+  // Message Central Popup and Auto-Polling Refs
+  const mcPopupRef = useRef(null);
+  const mcPollIntervalRef = useRef(null);
+
+  const stopMcPolling = () => {
+    if (mcPollIntervalRef.current) {
+      clearInterval(mcPollIntervalRef.current);
+      mcPollIntervalRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopMcPolling();
+    };
+  }, []);
+
+  const applyMcDetails = (data) => {
+    setIsAadhaarVerified(true);
+    const details = data?.details || {};
+
+    if (details.fullName) setLockedFullName(details.fullName);
+    if (details.dob) setLockedDob(details.dob);
+    if (details.gender) setLockedGender(details.gender);
+    if (details.address) setLockedLocality(details.address);
+    if (details.district) setLockedDistrict(details.district);
+    if (details.state) setLockedState(details.state);
+    if (details.pincode) setAadhaarPincode(details.pincode);
+    if (details.careOf) setAadhaarCareOf(details.careOf);
+    if (details.photoUrl) setAadhaarPhoto(details.photoUrl);
+    if (details.maskedAadhaar) setAadhaarInput(details.maskedAadhaar);
+
+    if (!currentCity && (details.city || details.district)) setCurrentCity(details.city || details.district);
+    if (!currentState && details.state) setCurrentState(details.state);
+    if (!currentLocality && details.address) setCurrentLocality(details.address);
+
+    setMcSession(null);
+    try {
+      sessionStorage.removeItem("talentera_mc_session");
+    } catch (e) {}
+
+    if (typeof onSaved === "function" && data?.candidate) {
+      onSaved(data.candidate, { advance: false });
+    }
+
+    toast("✓ Aadhaar verified via DigiLocker! Identity details locked.", "✓");
+  };
+
+  const startMcPolling = (vId, refId) => {
+    stopMcPolling();
+    let attempts = 0;
+    mcPollIntervalRef.current = setInterval(async () => {
+      attempts++;
+      if (attempts > 120) {
+        stopMcPolling();
+        return;
+      }
+      try {
+        const res = await api.post("/aadhaar/messagecentral/fetch-document", {
+          referenceId: refId || "",
+          verificationId: vId || "",
+        });
+        if (res.data && res.data.verified) {
+          stopMcPolling();
+          try {
+            if (mcPopupRef.current && !mcPopupRef.current.closed) {
+              mcPopupRef.current.close();
+            }
+          } catch (e) {}
+          applyMcDetails(res.data);
+        }
+      } catch (pollErr) {
+        // Keep polling silently while UIDAI validation is in progress, but a
+        // duplicate-Aadhaar rejection is final: stop and tell the student.
+        if (pollErr.response?.data?.code === "AADHAAR_ALREADY_REGISTERED") {
+          stopMcPolling();
+          try {
+            if (mcPopupRef.current && !mcPopupRef.current.closed) mcPopupRef.current.close();
+          } catch (e) {
+            // popup already closed
+          }
+          toast(pollErr.response.data.message, "!");
+        }
+      }
+    }, 2500);
+  };
+
+  // Fetch verified Aadhaar details from Message Central
+  const handleFetchMessageCentral = async (overrideVId, overrideRefId) => {
+    let vId = overrideVId;
+    let refId = overrideRefId;
+
+    if (!vId && mcSession?.verificationId) vId = mcSession.verificationId;
+    if (!refId && mcSession?.referenceId) refId = mcSession.referenceId;
+
+    if (!vId || !refId) {
+      try {
+        const stored = sessionStorage.getItem("talentera_mc_session");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (!vId && parsed.verificationId) vId = parsed.verificationId;
+          if (!refId && parsed.referenceId) refId = parsed.referenceId;
+        }
+      } catch (e) {
+        // ignore storage error
+      }
+    }
+
+    if (!vId && candidate?.stage1?.pendingMcSession?.verificationId) {
+      vId = candidate.stage1.pendingMcSession.verificationId;
+    }
+    if (!refId && candidate?.stage1?.pendingMcSession?.referenceId) {
+      refId = candidate.stage1.pendingMcSession.referenceId;
+    }
+
+    if (!vId && !refId) {
+      toast("No active Message Central session found. Please click 'Verify with Aadhaar DigiLocker' first.", "!");
+      return;
+    }
+
+    setMcFetching(true);
+    try {
+      const res = await api.post("/aadhaar/messagecentral/fetch-document", {
+        referenceId: refId || "",
+        verificationId: vId || "",
+      });
+
+      if (res.data && res.data.verified) {
+        stopMcPolling();
+        try {
+          if (mcPopupRef.current && !mcPopupRef.current.closed) {
+            mcPopupRef.current.close();
+          }
+        } catch (e) {}
+        applyMcDetails(res.data);
+      }
+    } catch (err) {
+      console.error("Message Central fetch error:", err);
+      const msg = err.response?.data?.message || "Verification still pending. Finish the DigiLocker verification in the popup, then click Fetch Details.";
+      toast(msg, "!");
+    } finally {
+      setMcFetching(false);
+    }
+  };
+
+  // Start Message Central DigiLocker Aadhaar Verification
+  const handleStartMessageCentral = async () => {
+    setMcLoading(true);
+    try {
+      const res = await api.post("/aadhaar/messagecentral/start", {
+        redirectionUrl: `${window.location.origin}/wizard?stage=1&mc_done=1`,
+        userFlow: "signup",
+      });
+
+      if (res.data && res.data.success && res.data.url) {
+        const sessionObj = {
+          url: res.data.url,
+          verificationId: res.data.verificationId,
+          referenceId: res.data.referenceId,
+        };
+        setMcSession(sessionObj);
+        try {
+          sessionStorage.setItem("talentera_mc_session", JSON.stringify(sessionObj));
+        } catch (e) {}
+
+        // Open secure DigiLocker gateway in centered popup window
+        const w = 620;
+        const h = 750;
+        const left = (window.innerWidth - w) / 2;
+        const top = (window.innerHeight - h) / 2;
+        const popup = window.open(
+          res.data.url,
+          "MessageCentralDigiLocker",
+          `width=${w},height=${h},top=${top},left=${left},scrollbars=yes,status=no`
+        );
+        mcPopupRef.current = popup;
+
+        // Auto-poll in background to automatically detect completion and auto-close popup
+        startMcPolling(res.data.verificationId, res.data.referenceId);
+
+        toast("DigiLocker window opened! Enter your Aadhaar & mobile OTP on the official UIDAI page.", <i className="fa-solid fa-circle-info" />);
+      }
+    } catch (err) {
+      console.error("Message Central start error:", err);
+      const msg = err.response?.data?.message || "Failed to start Message Central verification session.";
+      toast(msg, "!");
+    } finally {
+      setMcLoading(false);
+    }
+  };
+
+  // Auto-detect Message Central redirect params & popup messages
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vId = params.get("verification_id") || params.get("verificationId") || params.get("request_id");
+    const refId = params.get("reference_id") || params.get("referenceId");
+    const isMcDone = params.get("mc_done") || params.get("mc") || Boolean(vId);
+
+    // If this instance is running in the popup window after DigiLocker redirected
+    if (window.opener && !window.opener.closed && (vId || isMcDone)) {
+      try {
+        window.opener.postMessage(
+          {
+            type: "TALENTERA_MC_DIGILOCKER_DONE",
+            verificationId: vId,
+            referenceId: refId,
+          },
+          "*"
+        );
+        setTimeout(() => {
+          try {
+            window.close();
+          } catch (e) {}
+        }, 800);
+        return;
+      } catch (e) {
+        console.warn("Could not postMessage to opener:", e);
+      }
+    }
+
+    // If main window returned from redirect directly
+    if (vId || (isMcDone && (mcSession || sessionStorage.getItem("talentera_mc_session")))) {
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {}
+
+      handleFetchMessageCentral(vId, refId);
+    }
+
+    // Listen for completion signal from popup window
+    const handlePopupMessage = (event) => {
+      if (event.data && event.data.type === "TALENTERA_MC_DIGILOCKER_DONE") {
+        const popupVId = event.data.verificationId;
+        const popupRefId = event.data.referenceId;
+        handleFetchMessageCentral(popupVId, popupRefId);
+      }
+    };
+
+    window.addEventListener("message", handlePopupMessage);
+    return () => window.removeEventListener("message", handlePopupMessage);
+  }, []);
+
+  // Calculate Progress Dots
+  const getSectionProgress = () => {
+    let completed = 0;
+    if (isAadhaarVerified) completed++;
+    if (mobile.trim() && email.trim()) completed++;
+    if (experience) completed++;
+    if (preferredCities.length > 0) completed++;
+    if (degree && collegeName.trim()) completed++;
+    return Math.min(completed + 1, 5);
+  };
+
+  // Save Function (Draft or Advance)
+  const handleSaveStage = async (advance = false) => {
+    const cleanMobile = mobile.replace(/\D/g, "");
+    const cleanAadhaar = aadhaarInput.replace(/\s/g, "");
+    const resolvedState = currentState || lockedState || "Tamil Nadu";
+    const resolvedCity = currentCity || lockedDistrict || "Chennai";
+
+    if (advance) {
+      const missingFields = [];
+      const errs = {};
+
+      // Aadhaar verification is strictly mandatory
+      if (!isAadhaarVerified) {
+        missingFields.push("Aadhaar Verification (DigiLocker)");
+        errs.aadhaar = "Aadhaar verification via DigiLocker is mandatory";
+      }
+      // Full name is required
+      if (!lockedFullName || lockedFullName.trim().length < 2) {
+        missingFields.push("Full Legal Name");
+        errs.fullName = "Full Legal Name is mandatory";
+      }
+      // Mobile validation
+      if (!cleanMobile || !isValidIndianMobile(cleanMobile)) {
+        missingFields.push("Valid 10-Digit Mobile Number");
+        errs.mobile = "Valid 10-digit mobile number is mandatory";
+      }
+      // Alternate WhatsApp number - required only when it differs from the main mobile
+      if (!isWhatsAppSame) {
+        const cleanWa = whatsappNumber.replace(/\D/g, "");
+        if (!cleanWa || !isValidIndianMobile(cleanWa)) {
+          missingFields.push("Valid 10-Digit WhatsApp / Alternate Number");
+          errs.whatsappNumber = "Enter a valid 10-digit WhatsApp / alternate number";
+        }
+      }
+      // Open to Global Opportunities - a Yes/No answer, plus at least one country on "Yes"
+      if (!openToGlobal) {
+        missingFields.push("Open to Global Opportunities (Yes / No)");
+        errs.openToGlobal = "Please choose Yes or No";
+      } else if (openToGlobal === "yes" && globalCountries.length === 0) {
+        missingFields.push("At least one country for Global Opportunities");
+        errs.globalCountries = "Select at least one country";
+      }
+      // Email validation
+      if (!email || !email.includes("@")) {
+        missingFields.push("Valid Email Address");
+        errs.email = "Valid email address is mandatory";
+      }
+      // Basic education validation
+      if (!educationStream) {
+        missingFields.push("Academic Stream");
+        errs.educationStream = "Please select an academic stream";
+      }
+      if (!degree || degree.trim().length === 0) {
+        missingFields.push("Course Name");
+        errs.degree = "Course name is mandatory";
+      }
+      if (!collegeName || collegeName.trim().length < 2) {
+        missingFields.push("University / College Name");
+        errs.collegeName = "University / College name is mandatory";
+      }
+      if (!educationStatus) {
+        missingFields.push("Education Status");
+        errs.educationStatus = "Education status is mandatory";
+      }
+      if (!graduationMonth || !graduationYear) {
+        missingFields.push("Passing Month & Year");
+        errs.graduation = "Passing month and year are mandatory";
+      }
+      if (!cgpa || cgpa.trim().length === 0) {
+        missingFields.push("CGPA / Percentage");
+        errs.cgpa = "CGPA or percentage is mandatory";
+      }
+
+      if (missingFields.length > 0) {
+        setFormErrors(errs);
+        const errorMsg = `Please fill all mandatory fields highlighted in red: ${missingFields.slice(0, 3).join(", ")}${missingFields.length > 3 ? ` and ${missingFields.length - 3} more` : ""}.`;
+        toast(errorMsg, "error", { title: "Mandatory Fields Required" });
+
+        // Smooth scroll to the first missing section
+        if (errs.aadhaar) {
+          document.getElementById("section-1")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else if (errs.mobile || errs.email || errs.fullName) {
+          document.getElementById("section-2")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          document.getElementById("section-5")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        return;
+      }
+      setFormErrors({});
+    }
+
+    setSaving(true);
+    setSavedBadgeText("Saving…");
+
+    const rawGradYear = String(graduationYear || "").trim();
+    const cleanGradYear = rawGradYear.includes("/") ? rawGradYear.split("/").pop() : rawGradYear;
+
+    const payload = {
+      // Aadhaar
+      aadhaarNumber: cleanAadhaar,
+      maskedAadhaar: cleanAadhaar && cleanAadhaar.length >= 4 ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (aadhaarInput || existingData?.maskedAadhaar || ""),
+      fullName: lockedFullName.trim(),
+      aadhaarVerified: isAadhaarVerified,
+      aadhaarVerifiedAt: existingData?.aadhaarVerifiedAt || (isAadhaarVerified ? new Date().toISOString() : null),
+      aadhaarTransactionId: transactionId || existingData?.aadhaarTransactionId || null,
+      maskedMobile: maskedMobileInfo || existingData?.maskedMobile || null,
+      careOf: aadhaarCareOf || existingData?.careOf || null,
+      pincode: aadhaarPincode || existingData?.pincode || null,
+      photoUrl: aadhaarPhoto || existingData?.photoUrl || null,
+      aadhaarLockedData: {
+        fullName: lockedFullName,
+        dob: lockedDob || existingData?.dob || "15/08/1998",
+        gender: lockedGender || existingData?.gender || "Male",
+        locality: lockedLocality || existingData?.address || "Chennai",
+        state: lockedState || resolvedState,
+        district: lockedDistrict || resolvedCity,
+        careOf: aadhaarCareOf || existingData?.careOf || "",
+        pincode: aadhaarPincode || existingData?.pincode || "",
+        maskedMobile: maskedMobileInfo || existingData?.maskedMobile || "",
+        photoUrl: aadhaarPhoto || existingData?.photoUrl || null,
+        maskedAadhaar: cleanAadhaar && cleanAadhaar.length >= 4 ? `XXXX XXXX ${cleanAadhaar.slice(-4)}` : (aadhaarInput || existingData?.maskedAadhaar || ""),
+      },
+      dob: lockedDob || existingData?.dob || "15/08/1998",
+      gender: lockedGender || existingData?.gender || "Male",
+      locality: lockedLocality || existingData?.address || "Chennai",
+
+      // Contact
+      mobile: cleanMobile,
+      mobileVerified: isMobileVerified,
+      isWhatsAppSame,
+      whatsappNumber: isWhatsAppSame ? "" : whatsappNumber.replace(/\D/g, ""),
+      email: email.trim(),
+      bestTimeToContact,
+      preferredContactMethod: preferredContactMethods,
+
+      // Experience
+      experience,
+      currentRole: experience === "Experienced" ? currentRole.trim() : "Fresher",
+
+      // Location
+      permanentState: lockedState || resolvedState,
+      permanentDistrict: lockedDistrict || resolvedCity,
+      permanentLocality: lockedLocality || currentLocality || "Chennai",
+      isCurrentSameAsPermanent: isSameAddress,
+      state: resolvedState,
+      city: resolvedCity,
+      currentLocality,
+      preferredCities: preferredCities.filter(Boolean).length > 0 ? preferredCities.filter(Boolean) : [resolvedCity],
+      openToRelocate,
+      openToGlobal,
+      globalCountries: openToGlobal === "yes" ? globalCountries : [],
+      // Kept for older consumers of this field: the chosen countries, or "Not right now" for No
+      globalOpportunities: openToGlobal === "yes" ? globalCountries : openToGlobal === "no" ? ["Not right now"] : [],
+
+      // Education
+      educationStream,
+      qualification,
+      degree: degree.trim(),
+      collegeName: collegeName.trim(),
+      educationStatus,
+      graduationMonth,
+      graduationYear: cleanGradYear,
+      gradingScale,
+      cgpa: cgpa.trim(),
+      percentage: cgpa.trim(),
+      hasActiveBacklogs,
+      backlogCount: hasActiveBacklogs ? backlogCount : "0",
+
+      isDraft: !advance,
+    };
+
+    try {
+      const res = await api.put("/candidate/stage/1", payload);
+      setSavedBadgeText("✓ Saved just now");
+      toast(advance ? "Stage 01 completed! Moving to Stage 02 →" : "✓ Progress saved successfully.", "✓");
+
+      if (onSaved) {
+        onSaved(res.data, { advance, nextStage: advance ? 2 : 1 });
+      }
+    } catch (err) {
+      console.error("Save Stage 1 error:", err);
+      const msg = err.response?.data?.message || "Failed to save Stage 1 details.";
+      toast(msg, "!");
+      setSavedBadgeText("Error saving");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="talentera-stage01-root">
+      <style>{`
+        .talentera-stage01-root {
+          --navy: #0F1B3D;
+          --navy-deep: #08122A;
+          --navy-lite: #1A2A55;
+          --navy-glow: #2A3B7A;
+          --gold: #F5B41A;
+          --gold-deep: #C99413;
+          --gold-pale: #FFF6E0;
+          --gold-soft: #FFEBB0;
+          --white: #FFFFFF;
+          --bg: #F5F7FB;
+          --card: #FFFFFF;
+          --border: #E5E7EB;
+          --gray-txt: #3A425A;
+          --gray-mute: #8A91A3;
+          --gray-soft: #F2F3F5;
+          --green: #1F7A3C;
+          --green-soft: #E8F5E9;
+          --red: #C0392B;
+          --red-soft: #FDECEA;
+          --blue: #1A4FB8;
+          --blue-soft: #EEF2FF;
+          font-family: 'Inter', 'Segoe UI', Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+          color: var(--gray-txt);
+          font-size: 14px;
+          line-height: 1.5;
+        }
+
+        .stage01-layout {
+          width: 100%;
+        }
+
+        /* ─── MAIN CONTENT ─── */
+        .stage01-main {
+          min-width: 0;
+        }
+        .breadcrumb {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 11px;
+          color: var(--gray-mute);
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 14px;
+          font-weight: 600;
+        }
+        .breadcrumb .sep { color: var(--border); }
+
+        /* HERO */
+        .hero {
+          background: linear-gradient(135deg, var(--navy) 0%, #1E3A8A 60%, #2A54B5 100%);
+          color: var(--white);
+          border-radius: 18px;
+          padding: 30px 32px;
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 20px;
+          box-shadow: 0 8px 24px rgba(15,27,61,.15);
+        }
+        .hero::before {
+          content: '';
+          position: absolute;
+          right: -80px;
+          top: -80px;
+          width: 280px;
+          height: 280px;
+          background: radial-gradient(circle, rgba(245,180,26,.16), transparent 60%);
+        }
+        .hero-icon {
+          width: 54px;
+          height: 54px;
+          background: var(--gold);
+          color: var(--navy);
+          border-radius: 14px;
+          display: grid;
+          place-items: center;
+          font-size: 24px;
+          margin-bottom: 14px;
+          box-shadow: 0 4px 12px rgba(245,180,26,.32);
+        }
+        .hero-badges {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+        .hero-chip {
+          background: rgba(255,255,255,.14);
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          backdrop-filter: blur(6px);
+        }
+        .hero-chip.gold { background: var(--gold); color: var(--navy); }
+        .hero-title,
+        h1.hero-title {
+          font-size: 44px;
+          font-weight: 800;
+          letter-spacing: -1px;
+          margin: 0;
+          line-height: 1;
+          color: #ffffff !important;
+        }
+        .hero-subtitle {
+          color: var(--gold-pale);
+          font-style: italic;
+          font-size: 17px;
+          margin-top: 6px;
+          font-weight: 500;
+        }
+        .hero-desc {
+          color: rgba(255,255,255,.85);
+          font-size: 14px;
+          margin-top: 16px;
+          max-width: 640px;
+          line-height: 1.6;
+        }
+        .hero-tiles {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 12px;
+          margin-top: 22px;
+        }
+        .hero-tile {
+          background: rgba(255,255,255,.12);
+          padding: 16px 14px;
+          border-radius: 12px;
+          text-align: center;
+          border: 1px solid rgba(255,255,255,.08);
+          backdrop-filter: blur(8px);
+        }
+        .hero-tile .big {
+          font-size: 20px;
+          font-weight: 800;
+          color: var(--white);
+          letter-spacing: -.3px;
+        }
+        .hero-tile .small {
+          font-size: 11px;
+          color: rgba(255,255,255,.7);
+          margin-top: 3px;
+          letter-spacing: .3px;
+        }
+
+        /* CARDS */
+        .stage01-card {
+          background: var(--card);
+          border-radius: 16px;
+          padding: 24px 26px;
+          box-shadow: 0 2px 10px rgba(15,27,61,.05);
+          margin-bottom: 18px;
+          border: 1px solid var(--border);
+        }
+        .stage01-card-title {
+          font-size: 20px;
+          font-weight: 800;
+          color: var(--navy);
+          margin: 0;
+        }
+        .stage01-card-eyebrow {
+          font-size: 10.5px;
+          letter-spacing: 1.5px;
+          color: var(--gold-deep);
+          text-transform: uppercase;
+          font-weight: 700;
+          margin-top: 8px;
+        }
+
+        /* HOW-IT-WORKS RULES */
+        .rules-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          margin-top: 18px;
+        }
+        @media (max-width: 680px) {
+          .rules-grid { grid-template-columns: 1fr; }
+          .hero-tiles { grid-template-columns: 1fr 1fr; }
+        }
+        .rule-tile {
+          background: var(--gold-pale);
+          padding: 16px 18px;
+          border-radius: 12px;
+          border-left: 4px solid var(--gold);
+        }
+        .rule-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+        .rule-ico {
+          width: 32px;
+          height: 32px;
+          background: var(--gold);
+          color: var(--navy);
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          font-size: 15px;
+          font-weight: 700;
+        }
+        .rule-title {
+          font-size: 13.5px;
+          font-weight: 800;
+          color: var(--navy);
+        }
+        .rule-body {
+          font-size: 12.5px;
+          color: var(--gray-txt);
+          line-height: 1.55;
+        }
+        .consent-pill {
+          background: var(--navy);
+          color: var(--gold-pale);
+          padding: 12px 16px;
+          border-radius: 12px;
+          font-style: italic;
+          font-size: 12.5px;
+          margin-top: 16px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .consent-pill .ico {
+          color: var(--gold);
+          font-size: 16px;
+        }
+
+        /* FORM */
+        .form-header {
+          margin-bottom: 16px;
+        }
+        .form-header h2 {
+          font-size: 22px;
+          font-weight: 800;
+          color: var(--navy);
+          margin: 0;
+        }
+        .form-header .sub {
+          color: var(--gold-deep);
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          margin-top: 6px;
+        }
+        .section {
+          background: #FAFAF7;
+          padding: 22px 24px;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          border: 1px solid var(--border);
+          position: relative;
+        }
+        .section-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 18px;
+          padding-bottom: 14px;
+          border-bottom: 1px dashed var(--border);
+        }
+        .section-num {
+          width: 32px;
+          height: 32px;
+          background: var(--gold);
+          color: var(--navy);
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          font-weight: 800;
+          font-size: 15px;
+        }
+        .section-title {
+          font-size: 16px;
+          font-weight: 800;
+          color: var(--navy);
+          flex: 1;
+        }
+        .status-chip {
+          background: var(--green-soft);
+          color: var(--green);
+          padding: 3px 10px;
+          border-radius: 12px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: .5px;
+        }
+        .status-chip.pending {
+          background: var(--gray-soft);
+          color: var(--gray-mute);
+        }
+        .status-chip.active {
+          background: var(--gold-pale);
+          color: var(--gold-deep);
+        }
+
+        /* FIELDS */
+        .field {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          margin-bottom: 14px;
+        }
+        .row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+        }
+        .row-3 {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 14px;
+        }
+        @media (max-width: 600px) {
+          .row, .row-3 { grid-template-columns: 1fr; }
+        }
+        label {
+          font-size: 12.5px;
+          font-weight: 700;
+          color: var(--navy);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        label .req { color: var(--red); font-weight: 700; }
+        label .lock { color: var(--gray-mute); font-size: 11px; }
+        .helper {
+          font-size: 11px;
+          color: var(--gray-mute);
+          font-style: italic;
+          margin-top: 2px;
+        }
+        input[type="text"], input[type="email"], input[type="tel"], input[type="number"], select, textarea {
+          background: var(--white);
+          border: 1.5px solid var(--border);
+          border-radius: 9px;
+          padding: 11px 14px;
+          font-size: 13.5px;
+          color: var(--navy);
+          outline: none;
+          transition: .15s;
+          width: 100%;
+        }
+        input:focus, select:focus, textarea:focus {
+          border-color: var(--gold);
+          box-shadow: 0 0 0 3px rgba(245,180,26,.14);
+        }
+        input:disabled, input[readonly] {
+          background: var(--gray-soft);
+          color: var(--navy);
+          font-weight: 600;
+          cursor: not-allowed;
+        }
+        input.locked {
+          background: #FDF6E4;
+          border-color: var(--gold-soft);
+          color: var(--navy);
+          font-weight: 700;
+        }
+
+        /* MANDATORY FIELD ERROR HIGHLIGHTING */
+        .field.has-error input, .field.has-error select, .field.has-error textarea,
+        input.has-error, select.has-error, textarea.has-error {
+          border: 2px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+        }
+        .choice-row.has-error .choice {
+          border-color: #EF4444 !important;
+          background-color: #FEF2F2 !important;
+        }
+        .row.has-error .option-item, .has-error .option-item {
+          border: 1.5px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+        }
+        .section.has-error {
+          border: 2px solid #EF4444 !important;
+          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12) !important;
+        }
+        .field-error-msg {
+          color: #DC2626;
+          font-size: 11.5px;
+          font-weight: 700;
+          margin-top: 4px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        /* BUTTONS */
+        .action-btn {
+          background: var(--gold);
+          color: var(--navy);
+          padding: 11px 20px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 800;
+          border: none;
+          cursor: pointer;
+          letter-spacing: .3px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          transition: .15s;
+        }
+        .action-btn:hover { background: var(--gold-soft); }
+        .action-btn.small { padding: 8px 14px; font-size: 12px; }
+        .action-btn.outline {
+          background: transparent;
+          color: var(--gold-deep);
+          border: 1.5px solid var(--gold);
+        }
+        .action-btn.outline:hover { background: var(--gold-pale); }
+
+        /* CHOICE CARDS */
+        .choice-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+        .choice {
+          background: var(--white);
+          border: 2px solid var(--border);
+          border-radius: 12px;
+          padding: 16px 18px;
+          cursor: pointer;
+          transition: .15s;
+          position: relative;
+        }
+        .choice:hover { border-color: var(--gold-soft); background: #FDF6E4; }
+        .choice.selected {
+          border-color: var(--gold);
+          background: var(--gold-pale);
+          box-shadow: 0 4px 10px rgba(245,180,26,.15);
+        }
+        .choice-icon {
+          width: 36px;
+          height: 36px;
+          background: var(--navy);
+          color: var(--gold);
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          font-size: 18px;
+          margin-bottom: 8px;
+        }
+        .choice.selected .choice-icon { background: var(--gold); color: var(--navy); }
+        .choice-title {
+          font-weight: 800;
+          color: var(--navy);
+          font-size: 14px;
+        }
+        .choice-sub {
+          font-size: 11.5px;
+          color: var(--gray-mute);
+          margin-top: 2px;
+        }
+        .choice-desc {
+          font-size: 11.5px;
+          color: var(--gray-txt);
+          margin-top: 8px;
+          line-height: 1.45;
+        }
+        .choice-check {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 2px solid var(--border);
+          display: grid;
+          place-items: center;
+          font-size: 11px;
+        }
+        .choice.selected .choice-check {
+          background: var(--gold);
+          border-color: var(--gold);
+          color: var(--navy);
+        }
+
+        /* TAG PICKER */
+        .tag-picker {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 7px;
+          padding: 10px 12px;
+          min-height: 44px;
+          background: var(--white);
+          border: 1.5px solid var(--border);
+          border-radius: 9px;
+        }
+        .tag {
+          background: var(--navy);
+          color: var(--white);
+          padding: 5px 11px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .tag .x {
+          opacity: .6;
+          cursor: pointer;
+          font-weight: 700;
+        }
+        .tag .x:hover { opacity: 1; }
+        .tag-add {
+          background: var(--gold-pale);
+          color: var(--gold-deep);
+          padding: 5px 11px;
+          border-radius: 12px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          border: 1px dashed var(--gold);
+        }
+
+        /* OPTION ITEMS */
+        .option-list { display: flex; flex-direction: column; gap: 8px; }
+        .option-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          background: var(--white);
+          border: 1.5px solid var(--border);
+          border-radius: 9px;
+          cursor: pointer;
+          transition: .15s;
+          font-size: 13px;
+          color: var(--navy);
+          font-weight: 600;
+        }
+        .option-item:hover { border-color: var(--gold-soft); background: #FDF6E4; }
+        .option-item.selected {
+          background: var(--gold-pale);
+          border-color: var(--gold);
+        }
+        .option-item .dot {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          border: 2px solid var(--border);
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+        }
+        .option-item.selected .dot {
+          border-color: var(--gold);
+          background: var(--white);
+        }
+        .option-item.selected .dot::after {
+          content: '';
+          width: 8px;
+          height: 8px;
+          background: var(--gold);
+          border-radius: 50%;
+        }
+        .option-item .box {
+          width: 16px;
+          height: 16px;
+          border: 2px solid var(--border);
+          border-radius: 4px;
+          flex-shrink: 0;
+          display: grid;
+          place-items: center;
+        }
+        .option-item.selected .box {
+          background: var(--gold);
+          border-color: var(--gold);
+          color: var(--navy);
+          font-size: 12px;
+          font-weight: 800;
+        }
+
+        /* AADHAAR CONFIRM CARD */
+        .aadhaar-confirm {
+          background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+          border-radius: 14px;
+          padding: 20px 22px;
+          border: 2px solid var(--green);
+          margin-top: 14px;
+        }
+        .aadhaar-confirm .head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+        .aadhaar-confirm .head .ok {
+          width: 32px;
+          height: 32px;
+          background: var(--green);
+          color: var(--white);
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          font-size: 16px;
+          font-weight: 800;
+        }
+        .aadhaar-confirm .head .title {
+          font-weight: 800;
+          color: var(--navy);
+          font-size: 15px;
+        }
+        .aadhaar-lock-row {
+          display: grid;
+          grid-template-columns: 110px 1fr auto;
+          gap: 12px;
+          padding: 8px 0;
+          border-bottom: 1px dashed rgba(31,122,60,.2);
+          align-items: center;
+        }
+        .aadhaar-lock-row:last-child { border: none; }
+        .aadhaar-lock-row .key {
+          font-size: 11.5px;
+          color: var(--green);
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: .5px;
+        }
+        .aadhaar-lock-row .val {
+          font-size: 13.5px;
+          color: var(--navy);
+          font-weight: 700;
+        }
+        .aadhaar-lock-row .lock {
+          color: var(--gold-deep);
+          font-size: 13px;
+        }
+        .aadhaar-btns {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
+        }
+        .link-btn {
+          background: transparent;
+          color: var(--gray-txt);
+          padding: 11px 20px;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 700;
+          border: 1.5px solid var(--border);
+          cursor: pointer;
+          transition: .15s;
+        }
+        .link-btn:hover { background: var(--white); }
+
+        /* PROGRESS RAIL */
+        .progress-rail {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: var(--white);
+          padding: 8px 14px;
+          border-radius: 20px;
+          border: 1px solid var(--border);
+          font-size: 11.5px;
+          color: var(--gray-mute);
+        }
+        .rail-dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: var(--border);
+        }
+        .rail-dot.done { background: var(--gold); }
+        .rail-dot.active {
+          background: var(--gold);
+          box-shadow: 0 0 0 3px var(--gold-pale);
+        }
+        .saved-badge {
+          color: var(--green);
+          font-weight: 700;
+          font-size: 11.5px;
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+
+        /* FORM TOOLBAR */
+        .form-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: linear-gradient(135deg, var(--gold-pale), #FFF9E0);
+          padding: 12px 20px;
+          border-radius: 12px;
+          margin-bottom: 16px;
+          border: 1px solid var(--gold-soft);
+        }
+
+        /* BOTTOM ACTION BAR */
+        .sticky-bar {
+          background: var(--white);
+          padding: 16px 24px;
+          border: 1px solid var(--border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          box-shadow: 0 4px 16px rgba(15,27,61,.04);
+          border-radius: 12px;
+          margin-top: 32px;
+          margin-bottom: 32px;
+        }
+        .sticky-progress {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          font-size: 12.5px;
+          color: var(--gray-txt);
+        }
+        .stick-bar-inner {
+          height: 8px;
+          width: 180px;
+          background: var(--gray-soft);
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .stick-bar-fill {
+          height: 100%;
+          width: 15%;
+          background: linear-gradient(90deg, var(--gold), var(--gold-deep));
+          border-radius: 4px;
+        }
+        .sticky-actions { display: flex; gap: 10px; }
+
+        /* ─── RIGHT SIDEBAR ─── */
+        .right-sidebar {
+          background: var(--gray-soft);
+          padding: 20px 18px 40px;
+          border-radius: 16px;
+          border: 1px solid var(--border);
+        }
+        .passport-card {
+          background: linear-gradient(135deg, var(--navy), #1E3A8A);
+          color: var(--white);
+          padding: 20px;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          position: relative;
+          overflow: hidden;
+        }
+        .passport-card::before {
+          content: '';
+          position: absolute;
+          right: -30px;
+          bottom: -30px;
+          width: 120px;
+          height: 120px;
+          background: radial-gradient(circle, rgba(245,180,26,.18), transparent 60%);
+        }
+        .passport-eyebrow {
+          color: var(--gold);
+          font-size: 9.5px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+        }
+        .passport-title {
+          font-size: 17px;
+          font-weight: 800;
+          margin-top: 4px;
+        }
+        .passport-status {
+          background: rgba(245,180,26,.14);
+          color: var(--gold);
+          padding: 6px 10px;
+          border-radius: 8px;
+          font-size: 11px;
+          font-weight: 700;
+          margin-top: 12px;
+          display: inline-block;
+        }
+        .passport-desc {
+          font-size: 11.5px;
+          color: rgba(255,255,255,.75);
+          margin-top: 10px;
+          line-height: 1.5;
+        }
+        .side-card {
+          background: var(--white);
+          padding: 16px 18px;
+          border-radius: 12px;
+          margin-bottom: 14px;
+          border: 1px solid var(--border);
+        }
+        .side-card .title {
+          font-size: 11px;
+          letter-spacing: 1.5px;
+          color: var(--gold-deep);
+          text-transform: uppercase;
+          font-weight: 700;
+          margin-bottom: 10px;
+        }
+        .side-card .title a {
+          float: right;
+          color: var(--gray-mute);
+          font-size: 10.5px;
+        }
+        .company-row {
+          display: grid;
+          grid-template-columns: 38px 1fr;
+          gap: 10px;
+          padding: 10px 0;
+          border-bottom: 1px dashed var(--border);
+          align-items: center;
+        }
+        .company-row:last-child { border: none; padding-bottom: 0; }
+        .company-row:first-child { padding-top: 0; }
+        .company-logo {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          font-weight: 800;
+          font-size: 15px;
+          color: var(--white);
+        }
+        .clr-1 { background: linear-gradient(135deg, #F5B41A, #C99413); }
+        .clr-2 { background: linear-gradient(135deg, #1A4FB8, #0F1B3D); }
+        .clr-3 { background: linear-gradient(135deg, #2E8B57, #1F7A3C); }
+        .clr-4 { background: linear-gradient(135deg, #8E44AD, #6D2C82); }
+        .clr-5 { background: linear-gradient(135deg, #E67E22, #C0392B); }
+        .company-name {
+          font-size: 12.5px;
+          font-weight: 800;
+          color: var(--navy);
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .hot-pill {
+          background: var(--red);
+          color: var(--white);
+          padding: 1px 6px;
+          border-radius: 6px;
+          font-size: 8.5px;
+          letter-spacing: .5px;
+          font-weight: 800;
+        }
+        .company-meta {
+          font-size: 10.5px;
+          color: var(--gray-mute);
+          margin-top: 1px;
+        }
+        .company-tags {
+          display: flex;
+          gap: 4px;
+          margin-top: 5px;
+          flex-wrap: wrap;
+        }
+        .comp-tag {
+          background: var(--gold-pale);
+          color: var(--gold-deep);
+          font-size: 9.5px;
+          padding: 1px 6px;
+          border-radius: 5px;
+          font-weight: 700;
+        }
+        .comp-tag.blue { background: var(--blue-soft); color: var(--blue); }
+        .comp-tag.green { background: var(--green-soft); color: var(--green); }
+        .verified-line {
+          font-size: 10px;
+          color: var(--green);
+          margin-top: 4px;
+          font-weight: 700;
+        }
+        .hot-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+        .hot-stat {
+          background: var(--gold-pale);
+          padding: 12px 12px;
+          border-radius: 10px;
+          text-align: center;
+        }
+        .hot-stat .big {
+          font-size: 18px;
+          font-weight: 800;
+          color: var(--navy);
+        }
+        .hot-stat .small {
+          font-size: 10px;
+          color: var(--gray-txt);
+          margin-top: 2px;
+        }
+      `}</style>
+
+      <div className="stage01-layout">
+        <div className="stage01-main">
+
+          {/* HERO */}
+          <div className="hero">
+            <div className="hero-icon"><i className="fa-solid fa-shield-halved" /></div>
+            <div className="hero-badges">
+              <span className="hero-chip">STAGE 01 OF 07 · ACTIVE</span>
+              <span className="hero-chip gold">+15 POINTS</span>
+            </div>
+            <h1 className="hero-title" style={{ color: "#ffffff" }}>Identity</h1>
+            <div className="hero-subtitle">Verified once. Trusted forever.</div>
+            <div className="hero-desc">
+              Aadhaar-lock your name, date of birth, address and contact — every stage that follows builds on top of this.
+            </div>
+          </div>
+
+          {/* HOW STAGE 01 WORKS */}
+          <div className="stage01-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="stage01-card-title">How Stage 01 Works</div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
+            <div className="stage01-card-eyebrow">WHY IT MATTERS · WHAT WE LOCK · WHAT'S PRIVATE</div>
+
+            <div className="rules-grid">
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico">?</div>
+                  <div className="rule-title">Why we start with identity</div>
+                </div>
+                <div className="rule-body">
+                  India's RCM industry runs on fake profiles, duplicate consultancy
+                  submissions, and identity mix-ups. Aadhaar OTP via UIDAI closes
+                  that gap in one tap. Without Stage 01 verified, every score and
+                  badge that follows is meaningless to companies. This is the gate.
+                </div>
+              </div>
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico"><i className="fa-solid fa-lock" /></div>
+                  <div className="rule-title">What we verify and lock</div>
+                </div>
+                <div className="rule-body">
+                  We Aadhaar-verify your name, DOB, gender, and permanent locality —
+                  locked to your profile forever. Your mobile is OTP-verified and
+                  your email is link-verified. These four locks are what make your
+                  Talentera Career Passport untamperable.
+                </div>
+              </div>
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico"><i className="fa-solid fa-location-dot" /></div>
+                  <div className="rule-title">What YOU tell us</div>
+                </div>
+                <div className="rule-body">
+                  Beyond Aadhaar-locked identity, you tell us your current address,
+                  preferred work cities, and openness to relocation or global
+                  opportunities. These are preferences — you can update them anytime
+                  as your life changes.
+                </div>
+              </div>
+              <div className="rule-tile">
+                <div className="rule-head">
+                  <div className="rule-ico"><i className="fa-solid fa-eye" /></div>
+                  <div className="rule-title">What stays private</div>
+                </div>
+                <div className="rule-body">
+                  Companies see your name, city, preferred work cities, and an
+                  "Aadhaar Verified" badge. Companies do NOT see your Aadhaar number,
+                  PAN, mobile, email, or full permanent address until they actively
+                  shortlist you and you accept.
+                </div>
+              </div>
+            </div>
+            </>
+            )}
+
+            <div className="consent-pill">
+              <span className="ico"></span>
+              <span><i>By continuing, you consent to Aadhaar OTP verification via UIDAI. DPDP Act compliant.</i></span>
+            </div>
+          </div>
+
+          {/* FORM TOOLBAR */}
+          <div className="form-toolbar">
+            <div className="progress-rail">
+              <span>Progress:</span>
+              {[1, 2, 3, 4, 5].map((idx) => {
+                const currentSec = getSectionProgress();
+                return (
+                  <span
+                    key={idx}
+                    className={`rail-dot ${idx < currentSec ? "done" : idx === currentSec ? "active" : ""}`}
+                  ></span>
+                );
+              })}
+              <span>Section {getSectionProgress()} of 5</span>
+            </div>
+            <div className="saved-badge">{savedBadgeText}</div>
+          </div>
+
+          {/* FORM HEADER */}
+          <div className="form-header">
+            <h2>Your Stage 01 information</h2>
+            <div className="sub">FILL IN · WE VERIFY · YOU EARN +15 POINTS</div>
+          </div>
+
+          {/* SECTION 1 · AADHAAR */}
+          <div className={`section ${formErrors.aadhaar ? "has-error" : ""}`} id="section-1">
+            <div className="section-header">
+              <div className="section-num">1</div>
+              <div className="section-title">Aadhaar Identity Verification</div>
+              <div className={`status-chip ${isAadhaarVerified ? "" : "active"}`}>
+                {isAadhaarVerified ? "✓ VERIFIED · +15" : "MANDATORY · +15"}
+              </div>
+            </div>
+            {formErrors.aadhaar && (
+              <div className="field-error-msg" style={{ background: "#FEF2F2", border: "1.5px solid #EF4444", borderRadius: 8, padding: "8px 12px", marginBottom: 12 }}>
+                {formErrors.aadhaar}
+              </div>
+            )}
+
+            {!isAadhaarVerified ? (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--navy)" }}>
+                      Instant Government UIDAI Verification via DigiLocker
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--gray-mute)", marginTop: 2 }}>
+                      Paperless identity verification with UIDAI — auto-fetches name, DOB, address, and photo.
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 10.5, background: "#FEF3C7", color: "#92400E", padding: "3px 9px", borderRadius: 6, fontWeight: 800, whiteSpace: "nowrap" }}>
+                    UIDAI CERTIFIED
+                  </span>
+                </div>
+
+                {!mcSession ? (
+                  <div>
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={handleStartMessageCentral}
+                      disabled={mcLoading}
+                      style={{
+                        width: "100%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 10,
+                        background: "linear-gradient(135deg, #0F1B3D, #1A2A55)",
+                        color: "#FFF",
+                        border: "none",
+                        padding: "13px 20px",
+                        borderRadius: 10,
+                        fontWeight: 700,
+                        fontSize: 14,
+                        cursor: "pointer",
+                        boxShadow: "0 2px 8px rgba(15, 27, 61, 0.15)",
+                      }}
+                    >
+                      {mcLoading ? (
+                        <>Opening Message Central DigiLocker…</>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: 18 }}><i className="fa-solid fa-landmark" /></span>
+                          <span>Verify with Aadhaar DigiLocker (Message Central) →</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: 14 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, color: "#166534", fontSize: 13, fontWeight: 700 }}>
+                      <span><i className="fa-solid fa-rotate" /></span>
+                      <span>DigiLocker popup active. Complete your OTP verification, then click Fetch Details below.</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="action-btn"
+                        onClick={handleFetchMessageCentral}
+                        disabled={mcFetching}
+                        style={{ flex: 1 }}
+                      >
+                        {mcFetching ? "Retrieving Details from UIDAI…" : "✓ I've Verified — Fetch My Details"}
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => window.open(mcSession.url, "MessageCentralDigiLocker", "width=620,height=750")}
+                      >
+                        Re-open Popup
+                      </button>
+                      <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => {
+                          setMcSession(null);
+                          try { sessionStorage.removeItem("talentera_mc_session"); } catch (e) {}
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* FULL LEGAL NAME — always shown, auto-filled by Aadhaar, editable if not verified */}
+            <div style={{ marginTop: 18 }}>
+              <div className="row">
+                <div className="field">
+                  <label>
+                    Full Legal Name <span className="req">*</span>
+                    {isAadhaarVerified && (
+                      <span style={{ marginLeft: 8, fontSize: 10.5, color: "#16a34a", fontWeight: 700 }}>
+                        Auto-filled from Aadhaar
+                      </span>
+                    )}
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ramkumar S"
+                    value={lockedFullName}
+                    disabled={isAadhaarVerified}
+                    onChange={(e) => setLockedFullName(e.target.value)}
+                    style={{
+                      background: isAadhaarVerified ? "#f0fdf4" : undefined,
+                      borderColor: isAadhaarVerified ? "#86efac" : undefined,
+                    }}
+                  />
+                  <span style={{ color: "var(--gray-mute, #64748B)", fontSize: 11.5, marginTop: 4, display: "block" }}>
+                    {isAadhaarVerified
+                      ? "Official name retrieved from Government UIDAI database."
+                      : "Enter your full legal name as it appears on official documents, or verify with DigiLocker below."}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* AADHAAR CONFIRM CARD (post-verify) */}
+            {isAadhaarVerified && (
+              <div className="aadhaar-confirm">
+                <div className="head">
+                  <div className="ok">✓</div>
+                  <div className="title">Aadhaar Verified — Identity Locked to Profile</div>
+                </div>
+
+                {aadhaarPhoto && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: "1px solid #E2E8F0", background: "#F8FAFC" }}>
+                    <img
+                      src={aadhaarPhoto.startsWith("data:") ? aadhaarPhoto : (aadhaarPhoto.startsWith("http") ? aadhaarPhoto : `data:image/jpeg;base64,${aadhaarPhoto}`)}
+                      alt="UIDAI Official Photo"
+                      style={{ width: 56, height: 68, objectFit: "cover", borderRadius: 6, border: "1.5px solid #CBD5E1", boxShadow: "0 1px 3px rgba(0,0,0,0.1)" }}
+                    />
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1E293B" }}>UIDAI Official Photo Verified</div>
+                      <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 2 }}>Securely fetched from Government UIDAI DigiLocker</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="aadhaar-lock-row">
+                  <div className="key">Aadhaar Number</div>
+                  <div className="val">{aadhaarInput || existingData?.maskedAadhaar || candidate?.stage1?.maskedAadhaar || "UIDAI Verified"}</div>
+                  <div className="lock">UIDAI Verified</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Full Name</div>
+                  <div className="val">{lockedFullName || "—"}</div>
+                  <div className="lock">Locked</div>
+                </div>
+                {aadhaarCareOf && (
+                  <div className="aadhaar-lock-row">
+                    <div className="key">Care Of</div>
+                    <div className="val">{aadhaarCareOf}</div>
+                    <div className="lock">Locked</div>
+                  </div>
+                )}
+                <div className="aadhaar-lock-row">
+                  <div className="key">Date of Birth</div>
+                  <div className="val">{lockedDob || "—"}</div>
+                  <div className="lock">Locked</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Gender</div>
+                  <div className="val">{lockedGender || "—"}</div>
+                  <div className="lock">Locked</div>
+                </div>
+                <div className="aadhaar-lock-row">
+                  <div className="key">Address</div>
+                  <div className="val">
+                    {lockedLocality || [lockedDistrict, lockedState].filter(Boolean).join(", ") || "—"}
+                  </div>
+                  <div className="lock">Locked</div>
+                </div>
+                {aadhaarPincode && (
+                  <div className="aadhaar-lock-row">
+                    <div className="key">Pincode</div>
+                    <div className="val">{aadhaarPincode}</div>
+                    <div className="lock">Locked</div>
+                  </div>
+                )}
+                {maskedMobileInfo && (
+                  <div className="aadhaar-lock-row">
+                    <div className="key">Aadhaar Phone</div>
+                    <div className="val">{maskedMobileInfo} (UIDAI Verified)</div>
+                    <div className="lock">Verified</div>
+                  </div>
+                )}
+                <div className="aadhaar-btns">
+                  <button
+                    type="button"
+                    className="action-btn"
+                    onClick={() => {
+                      const sec2 = document.getElementById("section-2");
+                      if (sec2) sec2.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
+                    Confirm &amp; continue →
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setIsAadhaarVerified(false);
+                      toast("You can now re-verify with Aadhaar DigiLocker.", <i className="fa-solid fa-circle-info" />);
+                    }}
+                  >
+                    Re-verify with DigiLocker
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => toast("Mismatch ticket raised with Talentera Support.", <i className="fa-solid fa-circle-info" />)}
+                  >
+                    Report mismatch
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 2 · CONTACT DETAILS */}
+          <div className="section" id="section-2">
+            <div className="section-header">
+              <div className="section-num">2</div>
+              <div className="section-title">Contact Details</div>
+              <div className={`status-chip ${mobile.trim() && email.trim() ? "completed" : "pending"}`}>
+                {mobile.trim() && email.trim() ? "✓ COMPLETED" : "PENDING"}
+              </div>
+            </div>
+
+            <div className="row">
+              <div className={`field ${formErrors.mobile ? "has-error" : ""}`}>
+                <label>
+                  Mobile Number (10 digits) <span className="req">*</span>
+                </label>
+                <input
+                  type="tel"
+                  placeholder="98765 43210"
+                  maxLength={12}
+                  value={mobile}
+                  onChange={(e) => {
+                    setMobile(formatMobile(e.target.value));
+                    if (formErrors.mobile) setFormErrors((prev) => ({ ...prev, mobile: null }));
+                  }}
+                />
+                {formErrors.mobile ? (
+                  <div className="field-error-msg">{formErrors.mobile}</div>
+                ) : (
+                  <div className="helper">Used for interview invites and recruiter calls.</div>
+                )}
+              </div>
+              <div className={`field ${formErrors.email ? "has-error" : ""}`}>
+                <label>
+                  Email ID <span className="req">*</span>
+                </label>
+                <input
+                  type="email"
+                  placeholder="name@example.com"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: null }));
+                  }}
+                />
+                {formErrors.email ? (
+                  <div className="field-error-msg">{formErrors.email}</div>
+                ) : (
+                  <div className="helper">Official communications and job offers will be sent here.</div>
+                )}
+              </div>
+            </div>
+
+            <div className="option-list" style={{ margin: "4px 0 14px" }}>
+              <div
+                className={`option-item ${isWhatsAppSame ? "selected" : ""}`}
+                onClick={() => setIsWhatsAppSame(!isWhatsAppSame)}
+              >
+                <div className="box">{isWhatsAppSame ? "✓" : ""}</div>
+                <div>Same mobile number is my WhatsApp number</div>
+              </div>
+            </div>
+
+            {!isWhatsAppSame && (
+              <div className="row">
+                <div className={`field ${formErrors.whatsappNumber ? "has-error" : ""}`}>
+                  <label>
+                    WhatsApp / Alternate Mobile Number (10 digits) <span className="req">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    placeholder="98765 43210"
+                    maxLength={12}
+                    value={whatsappNumber}
+                    onChange={(e) => {
+                      setWhatsappNumber(formatMobile(e.target.value));
+                      if (formErrors.whatsappNumber) setFormErrors((prev) => ({ ...prev, whatsappNumber: null }));
+                    }}
+                  />
+                  {formErrors.whatsappNumber ? (
+                    <div className="field-error-msg">{formErrors.whatsappNumber}</div>
+                  ) : (
+                    <div className="helper">We&apos;ll use this number for WhatsApp updates instead of your main mobile.</div>
+                  )}
+                </div>
+                <div />
+              </div>
+            )}
+
+            <div className="row">
+              <div className="field">
+                <label>Best time to contact</label>
+                <select
+                  value={bestTimeToContact}
+                  onChange={(e) => setBestTimeToContact(e.target.value)}
+                >
+                  <option value="Anytime">Anytime</option>
+                  <option value="Morning (9 AM to 12 PM)">Morning (9 AM to 12 PM)</option>
+                  <option value="Afternoon (12 PM to 5 PM)">Afternoon (12 PM to 5 PM)</option>
+                  <option value="Evening (5 PM to 9 PM)">Evening (5 PM to 9 PM)</option>
+                </select>
+                <div className="helper">Helps HRs and Talentera reach you at the right hours.</div>
+              </div>
+              <div className="field">
+                <label>
+                  Preferred contact method <span className="req">*</span>
+                </label>
+                <div className="row-3">
+                  {[
+                    { key: "WhatsApp", label: "WhatsApp" },
+                    { key: "Call", label: "Call" },
+                    { key: "Email", label: "Email" },
+                  ].map((item) => (
+                    <div
+                      key={item.key}
+                      className={`option-item ${preferredContactMethods.includes(item.key) ? "selected" : ""}`}
+                      onClick={() => toggleContactMethod(item.key)}
+                    >
+                      <div className="box">{preferredContactMethods.includes(item.key) ? "✓" : ""}</div>
+                      <div>{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3 · EXPERIENCE LEVEL */}
+          <div className="section" id="section-3">
+            <div className="section-header">
+              <div className="section-num">3</div>
+              <div className="section-title">Experience Level</div>
+              <div className="status-chip pending">PENDING</div>
+            </div>
+
+            <div className="field">
+              <label>
+                Which best describes you? <span className="req">*</span>
+              </label>
+              <div className="helper" style={{ marginBottom: 10 }}>
+                This locks the flow for Stage 02. Choose carefully.
+              </div>
+              <div className="choice-row">
+                <div
+                  className={`choice ${experience === "Fresher" ? "selected" : ""}`}
+                  onClick={() => setExperience("Fresher")}
+                >
+                  <div className="choice-check">{experience === "Fresher" ? "✓" : ""}</div>
+                  <div className="choice-icon"><i className="fa-solid fa-graduation-cap" /></div>
+                  <div className="choice-title">Fresher</div>
+                  <div className="choice-sub">New to Industry</div>
+                  <div className="choice-desc">
+                    Currently studying or recently graduated. No RCM work experience yet.
+                  </div>
+                </div>
+                <div
+                  className={`choice ${experience === "Experienced" ? "selected" : ""}`}
+                  onClick={() => setExperience("Experienced")}
+                >
+                  <div className="choice-check">{experience === "Experienced" ? "✓" : ""}</div>
+                  <div className="choice-icon"><i className="fa-solid fa-briefcase" /></div>
+                  <div className="choice-title">Experienced</div>
+                  <div className="choice-sub">1+ yrs in Coding / RCM</div>
+                  <div className="choice-desc">
+                    Currently or previously working in an RCM role. Job title, company, tenure required in Stage 02.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {experience === "Experienced" && (
+              <div className="field" style={{ marginTop: 14 }}>
+                <label>
+                  Current / Most Recent Role <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Senior Medical Coder / IP-DRG Specialist"
+                  value={currentRole}
+                  onChange={(e) => setCurrentRole(e.target.value)}
+                />
+                <div className="helper">Details regarding company and tenure will be expanded in Stage 02.</div>
+              </div>
+            )}
+          </div>
+
+          {/* SECTION 4 · LOCATION */}
+          <div className="section" id="section-4">
+            <div className="section-header">
+              <div className="section-num">4</div>
+              <div className="section-title">Location</div>
+            </div>
+
+            {/* Block A: Permanent */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ marginBottom: 8 }}>
+                Permanent Address {isAadhaarVerified ? <span className="lock">(auto-locked from Aadhaar)</span> : <span style={{ fontSize: 11.5, color: "#64748B", fontWeight: 500 }}>(auto-filled from Aadhaar or manual entry)</span>}
+              </label>
+              <div className="row-3">
+                <div className="field">
+                  <input
+                    type="text"
+                    className={isAadhaarVerified ? "locked" : ""}
+                    value={lockedState}
+                    readOnly={isAadhaarVerified}
+                    placeholder="e.g. Tamil Nadu"
+                    onChange={(e) => setLockedState(e.target.value)}
+                  />
+                  <div className="helper">State</div>
+                </div>
+                <div className="field">
+                  <input
+                    type="text"
+                    className={isAadhaarVerified ? "locked" : ""}
+                    value={lockedDistrict}
+                    readOnly={isAadhaarVerified}
+                    placeholder="e.g. Chennai"
+                    onChange={(e) => setLockedDistrict(e.target.value)}
+                  />
+                  <div className="helper">Locality</div>
+                </div>
+                <div className="field">
+                  <input
+                    type="text"
+                    className={isAadhaarVerified ? "locked" : ""}
+                    value={lockedLocality}
+                    readOnly={isAadhaarVerified}
+                    placeholder="e.g. T. Nagar"
+                    onChange={(e) => setLockedLocality(e.target.value)}
+                  />
+                  <div className="helper">Area</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Block B: Current */}
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ marginBottom: 8 }}>Current Address</label>
+              <div className="option-list" style={{ marginBottom: 10 }}>
+                <div
+                  className={`option-item ${isSameAddress ? "selected" : ""}`}
+                  onClick={() => {
+                    const next = !isSameAddress;
+                    setIsSameAddress(next);
+                    if (next) {
+                      setCurrentState(lockedState || "Tamil Nadu");
+                      setCurrentCity(lockedDistrict || "Chennai");
+                      setCurrentLocality(lockedLocality || "Chennai");
+                    }
+                  }}
+                >
+                  <div className="box">{isSameAddress ? "✓" : ""}</div>
+                  <div>Same as permanent address</div>
+                </div>
+              </div>
+              {!isSameAddress && (
+              <div className="row-3">
+                <div className="field">
+                  <select
+                    value={currentState}
+                    disabled={isSameAddress}
+                    onChange={(e) => setCurrentState(e.target.value)}
+                  >
+                    <option value="">Select State</option>
+                    {INDIAN_STATES.map((st) => (
+                      <option key={st} value={st}>
+                        {st}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="helper">State</div>
+                </div>
+                <div className="field">
+                  <select
+                    value={currentCity}
+                    disabled={isSameAddress}
+                    onChange={(e) => setCurrentCity(e.target.value)}
+                  >
+                    <option value="">Select City</option>
+                    {POPULAR_CITIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="helper">City</div>
+                </div>
+                <div className="field">
+                  <input
+                    type="text"
+                    placeholder="e.g. HSR Layout"
+                    value={currentLocality}
+                    disabled={isSameAddress}
+                    onChange={(e) => setCurrentLocality(e.target.value)}
+                  />
+                  <div className="helper">Locality (optional)</div>
+                </div>
+              </div>
+              )}
+            </div>
+
+            {/* Block C: Preferences */}
+            <div style={{ marginBottom: 18 }}>
+              <label>
+                Willing to Work In <span className="req">*</span>{" "}
+                <span className="helper" style={{ fontWeight: 500, fontStyle: "normal" }}>
+                  (pick up to 5 cities)
+                </span>
+              </label>
+              <div className="tag-picker">
+                {preferredCities.filter(Boolean).map((city) => (
+                  <span key={city} className="tag">
+                    {city} <span className="x" onClick={() => handleRemoveCity(city)}>×</span>
+                  </span>
+                ))}
+                {preferredCities.length < 5 && (
+                  <span
+                    className="tag-add"
+                    onClick={() => setCityInputOpen(!cityInputOpen)}
+                  >
+                    + Add city
+                  </span>
+                )}
+              </div>
+              {cityInputOpen && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+                  <select
+                    value={selectedCityOption}
+                    onChange={(e) => setSelectedCityOption(e.target.value)}
+                    style={{ maxWidth: 220 }}
+                  >
+                    <option value="">Select a city…</option>
+                    {POPULAR_CITIES.filter((c) => !preferredCities.includes(c)).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="action-btn small"
+                    onClick={() => handleAddCity(selectedCityOption)}
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    style={{ padding: "6px 12px", fontSize: 12 }}
+                    onClick={() => setCityInputOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="field">
+              <label>
+                Open to Relocate? <span className="req">*</span>
+              </label>
+              <div className="option-list">
+                {[
+                  "Yes — anywhere in India",
+                  "Yes — but only my preferred cities",
+                  "No — only my current city",
+                ].map((opt) => (
+                  <div
+                    key={opt}
+                    className={`option-item ${openToRelocate === opt ? "selected" : ""}`}
+                    onClick={() => setOpenToRelocate(opt)}
+                  >
+                    <div className="dot"></div>
+                    <div><b>{opt}</b></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className={`field ${formErrors.openToGlobal || formErrors.globalCountries ? "has-error" : ""}`}>
+              <label>
+                Open to Global Opportunities? <span className="req">*</span>
+              </label>
+              <div className="option-list">
+                {[
+                  { key: "yes", label: "Yes" },
+                  { key: "no", label: "No" },
+                ].map((item) => {
+                  const isChecked = openToGlobal === item.key;
+                  return (
+                    <div
+                      key={item.key}
+                      className={`option-item ${isChecked ? "selected" : ""}`}
+                      onClick={() => {
+                        setOpenToGlobal(item.key);
+                        setCountryDropdownOpen(false);
+                        if (formErrors.openToGlobal) setFormErrors((prev) => ({ ...prev, openToGlobal: null }));
+                      }}
+                    >
+                      <div className="box">{isChecked ? "✓" : ""}</div>
+                      <div>{item.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              {formErrors.openToGlobal && <div className="field-error-msg">{formErrors.openToGlobal}</div>}
+
+              {openToGlobal === "yes" && (
+                <div style={{ marginTop: 12, position: "relative" }}>
+                  <input
+                    type="text"
+                    placeholder="Search country..."
+                    value={countrySearch}
+                    onFocus={() => setCountryDropdownOpen(true)}
+                    onChange={(e) => { setCountrySearch(e.target.value); setCountryDropdownOpen(true); }}
+                    onBlur={() => setTimeout(() => setCountryDropdownOpen(false), 150)}
+                  />
+                  {countryDropdownOpen && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 260, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
+                      {filteredCountries.length === 0 && (
+                        <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
+                          {countrySearch.trim() ? `No countries match "${countrySearch}"` : "All countries selected"}
+                        </div>
+                      )}
+                      {filteredCountries.map((n) => (
+                        <div
+                          key={n}
+                          onMouseDown={() => addGlobalCountry(n)}
+                          style={{ padding: "9px 14px", cursor: "pointer", fontSize: 13.5 }}
+                        >
+                          {n}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {globalCountries.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                      {globalCountries.map((n) => (
+                        <span key={n} style={{ background: "#FDF6E4", border: "1px solid #F5B41A", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          {n}
+                          <button type="button" aria-label={`Remove ${n}`} onClick={() => removeGlobalCountry(n)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#64748B", padding: "0 4px" }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {formErrors.globalCountries ? (
+                    <div className="field-error-msg">{formErrors.globalCountries}</div>
+                  ) : (
+                    <div className="helper">Pick every country you&apos;d consider working for or relocating to.</div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* SECTION 5 · BASIC EDUCATION */}
+          <div className="section" id="section-5">
+            <div className="section-header">
+              <div className="section-num">5</div>
+              <div className="section-title">Basic Education</div>
+              <div className="status-chip pending">PENDING · +3</div>
+            </div>
+
+            <div className={`field ${formErrors.educationStream ? "has-error" : ""}`}>
+              <label>
+                Academic Stream <span className="req">*</span>
+              </label>
+              <div className={`choice-row ${formErrors.educationStream ? "has-error" : ""}`} style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+                <div
+                  className={`choice ${educationStream === "Life Science" ? "selected" : ""}`}
+                  onClick={() => {
+                    handleStreamChange("Life Science");
+                    if (formErrors.educationStream) setFormErrors((prev) => ({ ...prev, educationStream: null }));
+                  }}
+                >
+                  <div className="choice-check">{educationStream === "Life Science" ? "✓" : ""}</div>
+                  <div className="choice-icon"></div>
+                  <div className="choice-title">Life Science</div>
+                  <div className="choice-sub">B.Sc · Pharmacy · Nursing · Allied Health</div>
+                </div>
+                <div
+                  className={`choice ${educationStream === "Non-Life Science" ? "selected" : ""}`}
+                  onClick={() => {
+                    handleStreamChange("Non-Life Science");
+                    if (formErrors.educationStream) setFormErrors((prev) => ({ ...prev, educationStream: null }));
+                  }}
+                >
+                  <div className="choice-check">{educationStream === "Non-Life Science" ? "✓" : ""}</div>
+                  <div className="choice-icon"><i className="fa-solid fa-book" /></div>
+                  <div className="choice-title">Non-Life Science</div>
+                  <div className="choice-sub">B.Com · B.Tech · BCA · BBA · Arts</div>
+                </div>
+                <div
+                  className={`choice ${educationStream === "Other" ? "selected" : ""}`}
+                  onClick={() => {
+                    handleStreamChange("Other");
+                    if (formErrors.educationStream) setFormErrors((prev) => ({ ...prev, educationStream: null }));
+                  }}
+                >
+                  <div className="choice-check">{educationStream === "Other" ? "✓" : ""}</div>
+                  <div className="choice-icon"><i className="fa-solid fa-pen" /></div>
+                  <div className="choice-title">Other</div>
+                  <div className="choice-sub">Not listed - enter your own qualification</div>
+                </div>
+              </div>
+              {formErrors.educationStream && <div className="field-error-msg">{formErrors.educationStream}</div>}
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  Highest Qualification <span className="req">*</span>
+                </label>
+                <select
+                  value={qualification}
+                  onChange={(e) => handleQualificationChange(e.target.value)}
+                >
+                  <option>UG · Undergraduate</option>
+                  <option>PG · Postgraduate</option>
+                  <option>Diploma</option>
+                  <option>12th</option>
+                  <option>10th</option>
+                </select>
+              </div>
+              <div className={`field ${formErrors.degree ? "has-error" : ""}`}>
+                <label>
+                  Course Name <span className="req">*</span>
+                </label>
+                {educationStream === "Other" ? (
+                  <input
+                    type="text"
+                    value={degree}
+                    onChange={(e) => {
+                      setDegree(e.target.value);
+                      if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
+                    }}
+                    placeholder="Type your qualification / course name"
+                  />
+                ) : (
+                  <select
+                    value={degree}
+                    onChange={(e) => {
+                      setDegree(e.target.value);
+                      if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
+                    }}
+                  >
+                    {degree && !getCourseOptions(qualification, educationStream).includes(degree) && (
+                      <option value={degree}>{degree}</option>
+                    )}
+                    {getCourseOptions(qualification, educationStream).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {formErrors.degree && <div className="field-error-msg">{formErrors.degree}</div>}
+              </div>
+            </div>
+
+            <div className="row">
+              <div className={`field ${formErrors.collegeName ? "has-error" : ""}`}>
+                <label>
+                  University / College <span className="req">*</span>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    ref={collegeInputRef}
+                    type="text"
+                    placeholder="Start typing college or university name…"
+                    value={collegeName}
+                    autoComplete="off"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCollegeName(val);
+                      if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
+                      const suggestions = filterColleges(val);
+                      setCollegeSuggestions(suggestions);
+                      setCollegeDropdownOpen(suggestions.length > 0);
+                      setCollegeHighlightIdx(-1);
+                    }}
+                    onFocus={() => {
+                      if (collegeName.length >= 2) {
+                        const suggestions = filterColleges(collegeName);
+                        setCollegeSuggestions(suggestions);
+                        setCollegeDropdownOpen(suggestions.length > 0);
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (!collegeDropdownOpen || collegeSuggestions.length === 0) return;
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setCollegeHighlightIdx((prev) => Math.min(prev + 1, collegeSuggestions.length - 1));
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setCollegeHighlightIdx((prev) => Math.max(prev - 1, 0));
+                      } else if (e.key === "Enter" && collegeHighlightIdx >= 0) {
+                        e.preventDefault();
+                        const chosen = collegeSuggestions[collegeHighlightIdx];
+                        setCollegeName(chosen);
+                        setCollegeDropdownOpen(false);
+                        setCollegeHighlightIdx(-1);
+                        setCollegeSuggestions([]);
+                      } else if (e.key === "Escape") {
+                        setCollegeDropdownOpen(false);
+                        setCollegeHighlightIdx(-1);
+                      }
+                    }}
+                  />
+                  {collegeDropdownOpen && collegeSuggestions.length > 0 && (
+                    <div
+                      ref={collegeDropdownRef}
+                      style={{
+                        position: "absolute",
+                        top: "calc(100% + 4px)",
+                        left: 0,
+                        right: 0,
+                        background: "#FFFFFF",
+                        border: "1.5px solid #CBD5E1",
+                        borderRadius: 10,
+                        boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
+                        zIndex: 9999,
+                        maxHeight: 280,
+                        overflowY: "auto",
+                      }}
+                    >
+                      {collegeSuggestions.map((suggestion, idx) => {
+                        const q = collegeName.toLowerCase();
+                        const matchStart = suggestion.toLowerCase().indexOf(q);
+                        const before = matchStart >= 0 ? suggestion.slice(0, matchStart) : suggestion;
+                        const match = matchStart >= 0 ? suggestion.slice(matchStart, matchStart + q.length) : "";
+                        const after = matchStart >= 0 ? suggestion.slice(matchStart + q.length) : "";
+                        return (
+                          <div
+                            key={suggestion}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setCollegeName(suggestion);
+                              setCollegeDropdownOpen(false);
+                              setCollegeHighlightIdx(-1);
+                              setCollegeSuggestions([]);
+                              if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
+                            }}
+                            onMouseEnter={() => setCollegeHighlightIdx(idx)}
+                            style={{
+                              padding: "10px 14px",
+                              cursor: "pointer",
+                              fontSize: 13.5,
+                              background: idx === collegeHighlightIdx ? "#F1F5F9" : "transparent",
+                              borderBottom: idx < collegeSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              transition: "background 0.1s",
+                            }}
+                          >
+                            <i className="fa-solid fa-university" style={{ color: "#94A3B8", fontSize: 12, flexShrink: 0 }} />
+                            <span style={{ color: "#334155" }}>
+                              {before}
+                              <strong style={{ color: "#1D4ED8" }}>{match}</strong>
+                              {after}
+                            </span>
+                          </div>
+                        );
+                      })}
+                      <div
+                        style={{
+                          padding: "8px 14px",
+                          fontSize: 11.5,
+                          color: "#94A3B8",
+                          borderTop: "1px solid #F1F5F9",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <i className="fa-solid fa-circle-info" style={{ fontSize: 10 }} />
+                        Not listed? Type your full college name and press Enter.
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {formErrors.collegeName ? (
+                  <div className="field-error-msg">
+                    <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 5 }} />
+                    {formErrors.collegeName}
+                  </div>
+                ) : (
+                  <div className="helper">
+                    <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 5, color: "#94A3B8" }} />
+                    Type to search from {INDIAN_COLLEGES.length}+ UGC-recognized institutions. Not found? Type the full name directly.
+                  </div>
+                )}
+              </div>
+              <div className={`field ${formErrors.educationStatus ? "has-error" : ""}`}>
+                <label>
+                  Status <span className="req">*</span>
+                </label>
+                <div className={`row ${formErrors.educationStatus ? "has-error" : ""}`} style={{ gap: 8 }}>
+                  <div
+                    className={`option-item ${educationStatus === "Completed" ? "selected" : ""}`}
+                    onClick={() => {
+                      setEducationStatus("Completed");
+                      if (formErrors.educationStatus) setFormErrors((prev) => ({ ...prev, educationStatus: null }));
+                    }}
+                  >
+                    <div className="dot"></div>
+                    <div>Completed</div>
+                  </div>
+                  <div
+                    className={`option-item ${educationStatus === "Pursuing" ? "selected" : ""}`}
+                    onClick={() => {
+                      setEducationStatus("Pursuing");
+                      if (formErrors.educationStatus) setFormErrors((prev) => ({ ...prev, educationStatus: null }));
+                    }}
+                  >
+                    <div className="dot"></div>
+                    <div>Pursuing</div>
+                  </div>
+                </div>
+                {formErrors.educationStatus && <div className="field-error-msg">{formErrors.educationStatus}</div>}
+              </div>
+            </div>
+
+            <div className="row-3">
+              <div className={`field ${formErrors.graduation ? "has-error" : ""}`}>
+                <label>
+                  Passing Month & Year <span className="req">*</span>
+                </label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <select
+                    value={graduationMonth}
+                    onChange={(e) => {
+                      setGraduationMonth(e.target.value);
+                      if (formErrors.graduation && graduationYear) setFormErrors((prev) => ({ ...prev, graduation: null }));
+                    }}
+                  >
+                    <option value="">Month…</option>
+                    {MONTH_OPTIONS.map((m) => (
+                      <option key={m.val} value={m.val}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={graduationYear}
+                    onChange={(e) => {
+                      setGraduationYear(e.target.value);
+                      if (formErrors.graduation && graduationMonth) setFormErrors((prev) => ({ ...prev, graduation: null }));
+                    }}
+                  >
+                    <option value="">Year…</option>
+                    {GRAD_YEAR_OPTIONS.map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {formErrors.graduation ? (
+                  <div className="field-error-msg">{formErrors.graduation}</div>
+                ) : (
+                  <div className="helper">Month & year of completion.</div>
+                )}
+              </div>
+              <div className="field">
+                <label>
+                  Grading Scale <span className="req">*</span>
+                </label>
+                <select
+                  value={gradingScale}
+                  onChange={(e) => setGradingScale(e.target.value)}
+                >
+                  <option>Percentage</option>
+                  <option>CGPA (out of 10)</option>
+                </select>
+              </div>
+              <div className={`field ${formErrors.cgpa ? "has-error" : ""}`}>
+                <label>
+                  CGPA / Percentage <span className="req">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 78%"
+                  value={cgpa}
+                  onChange={(e) => {
+                    setCgpa(e.target.value);
+                    if (formErrors.cgpa) setFormErrors((prev) => ({ ...prev, cgpa: null }));
+                  }}
+                />
+                {formErrors.cgpa && <div className="field-error-msg">{formErrors.cgpa}</div>}
+              </div>
+            </div>
+
+            <div className="row">
+              <div className="field">
+                <label>
+                  Any Active Backlogs? <span className="req">*</span>
+                </label>
+                <div className="row" style={{ gap: 8 }}>
+                  <div
+                    className={`option-item ${hasActiveBacklogs ? "selected" : ""}`}
+                    onClick={() => setHasActiveBacklogs(true)}
+                  >
+                    <div className="dot"></div>
+                    <div>Yes</div>
+                  </div>
+                  <div
+                    className={`option-item ${!hasActiveBacklogs ? "selected" : ""}`}
+                    onClick={() => {
+                      setHasActiveBacklogs(false);
+                      setBacklogCount("0");
+                    }}
+                  >
+                    <div className="dot"></div>
+                    <div>No</div>
+                  </div>
+                </div>
+              </div>
+              <div className="field">
+                <label>Backlog Count</label>
+                <input
+                  type="text"
+                  value={backlogCount}
+                  onChange={(e) => setBacklogCount(e.target.value.replace(/\D/g, ""))}
+                  placeholder="If yes, enter number"
+                  disabled={!hasActiveBacklogs}
+                />
+                <div className="helper">Companies filter this before shortlisting.</div>
+              </div>
+            </div>
+          </div>
+
+          {/* STICKY BOTTOM BAR */}
+          <div className="sticky-bar">
+            <div className="sticky-progress">
+              <div className="stick-bar-inner">
+                <div className="stick-bar-fill"></div>
+              </div>
+              <div><b>15 / 100</b> · Stage 01 in progress</div>
+            </div>
+            <div className="sticky-actions">
+              <button
+                type="button"
+                className="action-btn"
+                onClick={() => handleSaveStage(true)}
+                disabled={saving}
+              >
+                {saving ? "Saving…" : "Save & continue to Stage 02 →"}
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
