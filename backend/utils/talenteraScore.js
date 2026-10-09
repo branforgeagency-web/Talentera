@@ -77,7 +77,12 @@ function compute8Stages(candidate) {
   const s4 = candidate.stage4 || {};
   const s5 = candidate.stage5 || {};
   const s6 = candidate.stage6 || {};
-  const s7 = candidate.stage7 || {};
+
+  // Stage 5 only counts when there is real evidence (a recorded video / AI score) or an explicit
+  // approval - being marked "completed" without ever recording anything earns nothing.
+  const hasNum = (v) => v !== undefined && v !== null && v !== "" && !isNaN(Number(v));
+  const s5Evidence = !!(s5.videoUrl || s5.introVideoUrl || s5.proctoredInterviewVideoUrl || s5.mockInterviewVideoUrl || hasNum(s5.overallScore) || hasNum(s5.aiScore) || hasNum(s5.score));
+  const stage5Counted = (completed.includes(5) && s5Evidence) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt;
 
   const hasRealAadhaar = !!s1.aadhaarVerified && (!!s1.maskedAadhaar || !!s1.dob || !!s1.gender || !!s1.verificationMethod || !!s1.aadhaarNumber || !!s1.aadhaarDigits || !!s1.verifiedAt);
   const stages = [
@@ -136,16 +141,16 @@ function compute8Stages(candidate) {
       title: "Portfolio Video",
       description: "2-min self-intro, AI-scored + employee-approved",
       whoDoesIt: "Student → Talentera Employee reviews",
-      isDone: (completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected",
-      inProgress: !((completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected"),
-      score: ((completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected")
+      isDone: stage5Counted && !s5.rejected && !s5.needsRevision && s5.status !== "rejected",
+      inProgress: !(stage5Counted && !s5.rejected && !s5.needsRevision && s5.status !== "rejected"),
+      score: (stage5Counted && !s5.rejected && !s5.needsRevision && s5.status !== "rejected")
         ? (s5.aiScore ? `AI Score ${(s5.aiScore / 10).toFixed(1)}/10 · Approved ✓` : "Video Approved ✓")
         : (s5.rejected || s5.status === "rejected" || s5.needsRevision)
         ? "Re-take Requested"
         : (s5.videoUrl || s5.proctoredInterviewVideoUrl ? "Video Uploaded (Pending Review)" : "Video Pending"),
       meta: (s5.rejected || s5.status === "rejected" || s5.needsRevision)
         ? `Revision: ${s5.rejectionReason || s5.feedback || "Re-take Required"}`
-        : ((completed.includes(5) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt) && !s5.rejected && !s5.needsRevision && s5.status !== "rejected")
+        : (stage5Counted && !s5.rejected && !s5.needsRevision && s5.status !== "rejected")
         ? "Approved by Talentera Team ✓"
         : (s5.videoUrl || s5.proctoredInterviewVideoUrl ? "Awaiting Talentera Review" : "No Video Uploaded"),
       needsApproval: false,
@@ -162,17 +167,6 @@ function compute8Stages(candidate) {
       meta: s6.chartsCompleted ? `${s6.chartsCompleted} Charts Audited` : "Medical Charts Practice",
       needsApproval: false,
     },
-    {
-      stageNumber: 7,
-      title: "References",
-      description: "Trainer + peer references",
-      whoDoesIt: "Student",
-      isDone: completed.includes(7) && Array.isArray(s7.references) && s7.references.length > 0,
-      inProgress: !(completed.includes(7) && Array.isArray(s7.references) && s7.references.length > 0),
-      score: (completed.includes(7) && Array.isArray(s7.references) && s7.references.length > 0) ? `${s7.references?.length || 2} References Verified` : "Pending References",
-      meta: (Array.isArray(s7.references) && s7.references.length > 0) ? "Trainer Endorsements" : "Professional References",
-      needsApproval: false,
-    },
   ];
 
   // Talentera Score is derived from Stages 1-6 only (Stage 7/8 are output-only,
@@ -180,20 +174,8 @@ function compute8Stages(candidate) {
   // since Stage 8's "Review & Publish" summary shows this exact number.
   const { score: talenteraScore, breakdown: scoreBreakdown } = calculateTalenteraScore(stages, candidate);
 
-  stages.push({
-    stageNumber: 8,
-    title: "Review & Publish",
-    description: "Talentera Score generated · profile goes live",
-    whoDoesIt: "System",
-    isDone: completed.includes(8) && !!candidate.isSubmitted,
-    inProgress: !completed.includes(8),
-    score: (completed.includes(8) && candidate.isSubmitted) ? `Talentera Score: ${talenteraScore}` : "Verification in Progress",
-    meta: (completed.includes(8) && candidate.isSubmitted) ? "Profile Live & Matched" : "Verification in Progress",
-    needsApproval: false,
-  });
-
   const doneCount = stages.filter((st) => st.isDone).length;
-  const pct = Math.round((doneCount / 8) * 100);
+  const pct = Math.round((doneCount / stages.length) * 100);
 
   return {
     stages,
@@ -201,8 +183,8 @@ function compute8Stages(candidate) {
     pct,
     talenteraScore,
     scoreBreakdown,
-    currentStageNumber: stages.findIndex((st) => !st.isDone) + 1 || 8,
-    isComplete: doneCount === 8,
+    currentStageNumber: stages.findIndex((st) => !st.isDone) + 1 || stages.length,
+    isComplete: doneCount === stages.length,
   };
 }
 

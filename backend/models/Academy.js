@@ -10,6 +10,7 @@ const CourseSubSchema = new mongoose.Schema({
   enrolled: { type: Number, default: 25 },
   status: { type: String, default: "active" },
   syllabus: { type: [String], default: ["ICD-10-CM Basics", "CPT Modifiers", "Documentation Review", "Capstone"] },
+  fees: { type: Number, default: null, min: 0 }, // optional course fee (INR)
 });
 
 const QuestionSubSchema = new mongoose.Schema({

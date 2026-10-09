@@ -10,7 +10,6 @@ export default function StageTracker8Dots({ stages = [], size = 10, showLabels =
     { num: 4, title: "4. Assessment", desc: "Talentera MCQ & Proctored Score" },
     { num: 5, title: "5. Portfolio Video", desc: "2-Min Video & AI Score" },
     { num: 6, title: "6. Live Chart Practice", desc: "10 Coded Medical Charts" },
-    { num: 7, title: "7. References", desc: "Trainer & Peer Endorsements" },
   ];
 
   const stageList = defaultStageDefs.map((def, idx) => {

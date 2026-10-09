@@ -392,7 +392,13 @@ router.post("/messagecentral/start", async (req, res) => {
 router.post("/messagecentral/fetch-document", async (req, res) => {
   let { referenceId, verificationId } = req.body;
 
-  const candidate = await Candidate.findById(req.candidateId);
+  let candidate;
+  try {
+    candidate = await Candidate.findById(req.candidateId);
+  } catch (lookupErr) {
+    logger.error(`Message Central fetch-document candidate lookup failed: ${lookupErr.message}`);
+    return res.status(500).json({ message: "Could not load your profile. Please refresh the page and try again." });
+  }
   if (!candidate) {
     return res.status(404).json({ message: "Candidate profile not found." });
   }
@@ -491,7 +497,11 @@ router.post("/messagecentral/fetch-document", async (req, res) => {
     });
   } catch (err) {
     logger.error(`Message Central fetch-document error: ${err.message}`);
-    res.status(400).json({ message: err.message || "Failed to retrieve verified Aadhaar document." });
+    const pending = /still in progress|still pending|not (yet )?(completed|verified)/i.test(err.message || "");
+    res.status(pending ? 202 : 400).json({
+      pending,
+      message: err.message || "Failed to retrieve verified Aadhaar document.",
+    });
   }
 });
 

@@ -12,9 +12,6 @@ import AcademyAssessmentModule from "../components/academy/AcademyAssessmentModu
 import AcademyCompanyData from "../components/academy/AcademyCompanyData";
 import AcademyGalleryManager from "../components/academy/AcademyGalleryManager";
 import AcademyPaymentOptions from "../components/academy/AcademyPaymentOptions";
-import AcademyCourses from "../components/academy/AcademyCourses";
-import AcademyReferrals from "../components/academy/AcademyReferrals";
-import AcademyCollegeMous from "../components/academy/AcademyCollegeMous";
 import CustomReportModal from "../components/academy/CustomReportModal";
 import PlacementCertModal from "../components/academy/PlacementCertModal";
 import MonthlyReportModal from "../components/academy/MonthlyReportModal";
@@ -128,8 +125,6 @@ export default function AcademyPortal() {
     } else if (path.startsWith("/academy/approvals")) {
       // Stage 2 sign-off now lives inside the Verification Tracker
       setActiveMod("verification");
-    } else if (path.startsWith("/academy/courses")) {
-      setActiveMod("academy_courses");
     } else if (path.startsWith("/academy/scores")) {
       setActiveMod("scores");
     } else if (path.startsWith("/academy/profile-live")) {
@@ -142,10 +137,6 @@ export default function AcademyPortal() {
       setActiveMod("placements");
     } else if (path.startsWith("/academy/payments")) {
       setActiveMod("payments");
-    } else if (path.startsWith("/academy/referrals")) {
-      setActiveMod("referrals");
-    } else if (path.startsWith("/academy/college-mous")) {
-      setActiveMod("college_mous");
     } else if (path.startsWith("/academy/analytics")) {
       setActiveMod("analytics");
     } else if (path.startsWith("/academy/notifications")) {
@@ -166,7 +157,6 @@ export default function AcademyPortal() {
       upload: "/academy/upload",
       assessment: "/academy/assessment",
       verification: "/academy/verification",
-      academy_courses: "/academy/courses",
       scores: "/academy/scores",
       profile_live: "/academy/profile-live",
       company_activity: "/academy/company-data",
@@ -174,8 +164,6 @@ export default function AcademyPortal() {
       placements: "/academy/placements",
       payments: "/academy/payments",
       analytics: "/academy/analytics",
-      referrals: "/academy/referrals",
-      college_mous: "/academy/college-mous",
       notifications: "/academy/notifications",
       settings: "/academy/settings",
     };
@@ -1114,22 +1102,19 @@ export default function AcademyPortal() {
             <SidebarItem id="upload" label="3. Upload Candidates" icon="fa-cloud-arrow-up" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="assessment" label="4. Academy Assessment" icon="fa-file-pen" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="verification" label="5. Verification Tracker" icon="fa-list-check" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined} badgeColor="#CA8A04" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="academy_courses" label="6. Academy Courses" icon="fa-book-open" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>TALENT & MATCHING</div>
-            <SidebarItem id="scores" label="7. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="profile_live" label="8. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="company_activity" label="9. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="payments" label="12. Payment Options" icon="fa-wallet" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="scores" label="6. Talentera Scores" icon="fa-award" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="profile_live" label="7. Profile Live" icon="fa-shield-halved" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={liveProfilesData.length > 0 ? liveProfilesData.length : undefined} badgeColor="#16A34A" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="company_activity" label="8. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="interviews" label="9. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="placements" label="10. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="payments" label="11. Payment Options" icon="fa-wallet" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>INSIGHTS & ADMIN</div>
-            <SidebarItem id="analytics" label="13. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="referrals" label="14. Academy Referrals" icon="fa-handshake" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="college_mous" label="15. College MoUs" icon="fa-file-signature" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="notifications" label="16. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="settings" label="17. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="analytics" label="12. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="notifications" label="13. Notifications" icon="fa-bell" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={notificationsData.unreadCount > 0 ? notificationsData.unreadCount : undefined} badgeColor="#DC2626" locked={dashData?.academy?.kycStatus !== "verified"} />
+            <SidebarItem id="settings" label="14. Academy Settings" icon="fa-gear" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
           </div>
 
           <div onClick={() => { localStorage.removeItem("talentera_academy_token"); navigate("/academy/login"); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, color: "rgba(255,255,255,0.5)", cursor: "pointer", borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: 16 }}>
@@ -2459,12 +2444,6 @@ export default function AcademyPortal() {
           {/* ========================================================= */}
           {/* 12. ANALYTICS */}
           {/* ========================================================= */}
-          {activeMod === "academy_courses" && <AcademyCourses getAuthHeader={getAuthHeader} courses={courses} onChanged={fetchDashboardData} />}
-
-          {activeMod === "referrals" && <AcademyReferrals getAuthHeader={getAuthHeader} />}
-
-          {activeMod === "college_mous" && <AcademyCollegeMous getAuthHeader={getAuthHeader} />}
-
           {activeMod === "analytics" && (
             <div className="space-y-6">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>

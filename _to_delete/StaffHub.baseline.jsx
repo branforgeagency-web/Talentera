@@ -749,9 +749,6 @@ export default function StaffHub() {
   const [candidateSearch, setCandidateSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("all");
   const [candidateCertFilter, setCandidateCertFilter] = useState("all");
-  const [candidateContactSearch, setCandidateContactSearch] = useState("");
-  const [candidateDomainFilter, setCandidateDomainFilter] = useState("all");
-  const [candidateExpFilter, setCandidateExpFilter] = useState("all");
   const [candidateReadinessFilter, setCandidateReadinessFilter] = useState("all");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [candidateModalTab, setCandidateModalTab] = useState("identity");
@@ -2776,35 +2773,7 @@ export default function StaffHub() {
                 const academyMatch = (c.stage2?.academyName || "").toLowerCase().includes(q);
                 const roleMatch = (c.currentRole || "").toLowerCase().includes(q);
                 const cityMatch = (c.city || c.stage1?.city || "").toLowerCase().includes(q);
-                const qd = q.replace(/\D/g, "");
-                const mobileDigitMatch = qd.length >= 4 && [c.mobile, c.stage1?.mobile].filter(Boolean).some((v) => String(v).replace(/\D/g, "").includes(qd));
-                if (!nameMatch && !emailMatch && !mobileMatch && !mobileDigitMatch && !academyMatch && !roleMatch && !cityMatch) return false;
-              }
-
-              // Contact number / email lookup (digits-only match for phone numbers, so +91 / spaces / dashes don't matter)
-              if (candidateContactSearch && candidateContactSearch.trim()) {
-                const raw = candidateContactSearch.trim().toLowerCase();
-                const qDigits = raw.replace(/\D/g, "");
-                const emails = [c.email, c.stage1?.email].filter(Boolean).map((v) => String(v).toLowerCase());
-                const phones = [c.mobile, c.stage1?.mobile, c.stage1?.alternateMobile, c.stage1?.whatsapp].filter(Boolean).map((v) => String(v).replace(/\D/g, ""));
-                const isEmailQuery = raw.includes("@") || /[a-z]/.test(raw);
-                const hit = isEmailQuery
-                  ? emails.some((e) => e.includes(raw))
-                  : qDigits.length > 0 && phones.some((ph) => ph.includes(qDigits) || (qDigits.length >= 10 && ph.endsWith(qDigits.slice(-10))));
-                if (!hit) return false;
-              }
-
-              // Domain filter (stage 2 training domain)
-              if (candidateDomainFilter !== "all") {
-                const dom = (c.stage2?.domain || c.stage1?.domain || "").toLowerCase();
-                if (dom !== candidateDomainFilter.toLowerCase()) return false;
-              }
-
-              // Experience filter (Fresher / Experienced)
-              if (candidateExpFilter !== "all") {
-                const exp = String(c.stage1?.experience || c.experience || "").toLowerCase();
-                if (candidateExpFilter === "fresher" && exp !== "fresher") return false;
-                if (candidateExpFilter === "experienced" && exp !== "experienced") return false;
+                if (!nameMatch && !emailMatch && !mobileMatch && !academyMatch && !roleMatch && !cityMatch) return false;
               }
 
               // Certification filter
@@ -2839,12 +2808,12 @@ export default function StaffHub() {
               return true;
             });
 
-            const domainOptions = Array.from(new Set(candidatesList.map((c) => c.stage2?.domain || c.stage1?.domain).filter(Boolean))).sort();
             const verifiedTotal = candidatesList.filter((c) => c.isVerified).length;
             const aadhaarTotal = candidatesList.filter((c) => c.aadhaarVerified || c.stage1?.aadhaarVerified).length;
             const inAssessmentTotal = candidatesList.filter((c) => (c.completedStages?.includes(4) || c.stage4?.score) && !c.isVerified).length;
             const pendingTotal = candidatesList.filter((c) => !c.isVerified).length;
             const pendingAuditTotal = candidatesList.filter((c) => (c.completedStages?.length >= 6 || c.aadhaarVerified) && !c.isVerified).length;
+            const totalAppsSum = candidatesList.reduce((sum, c) => sum + (c.applicationsCount || c.applicationMetrics?.total || 0), 0);
             const totalShortlistedSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.shortlisted || 0), 0);
             const totalInterviewingSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.interviewing || 0), 0);
             const totalHiredSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.hired || 0), 0);
@@ -2881,6 +2850,34 @@ export default function StaffHub() {
                       >
                         {candidatesLoading ? "Refreshing..." : <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> Refresh Directory</>}
                       </button>
+                    </div>
+                  </div>
+
+                  {/* HERO STATS PILL ROW */}
+                  <div className="sf-hero-stats-row">
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{candidatesList.length}</span>
+                      <span className="sf-hero-pill-lbl">Total Candidates</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{verifiedTotal}</span>
+                      <span className="sf-hero-pill-lbl">Gold Verified</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{aadhaarTotal}</span>
+                      <span className="sf-hero-pill-lbl">Aadhaar KYC Cleared</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{dashData?.stats?.pendingVerifications ?? pendingAuditTotal}</span>
+                      <span className="sf-hero-pill-lbl">Awaiting Audit</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val">{totalAppsSum}</span>
+                      <span className="sf-hero-pill-lbl">Job Applications</span>
+                    </div>
+                    <div className="sf-hero-pill-stat">
+                      <span className="sf-hero-pill-val" style={{ color: "#22C55E" }}><i className="fa-solid fa-award" style={{ marginRight: 6 }}></i>{totalHiredSum}</span>
+                      <span className="sf-hero-pill-lbl">Hired &amp; Placed</span>
                     </div>
                   </div>
                 </div>
@@ -2955,7 +2952,7 @@ export default function StaffHub() {
                       <Icon name="search" size={16} />
                       <input
                         type="text"
-                        placeholder="Search by name, academy, role, city..."
+                        placeholder="Search candidate by name, email, mobile, academy, role, city..."
                         value={candidateSearch}
                         onChange={(e) => setCandidateSearch(e.target.value)}
                       />
@@ -2970,43 +2967,6 @@ export default function StaffHub() {
                         </button>
                       )}
                     </div>
-
-                    <div className="sf-search-input-wrap">
-                      <Icon name="search" size={16} />
-                      <input
-                        type="text"
-                        placeholder="Find by contact number or email..."
-                        aria-label="Contact number or email"
-                        value={candidateContactSearch}
-                        onChange={(e) => setCandidateContactSearch(e.target.value)}
-                      />
-                      {candidateContactSearch && (
-                        <button type="button" className="sf-clear-btn" onClick={() => setCandidateContactSearch("")} title="Clear">
-                          <i className="fa-solid fa-xmark"></i>
-                        </button>
-                      )}
-                    </div>
-
-                    <select
-                      className="staff-filter-select"
-                      aria-label="Domain Filter"
-                      value={candidateDomainFilter}
-                      onChange={(e) => setCandidateDomainFilter(e.target.value)}
-                    >
-                      <option value="all">Domain: All</option>
-                      {domainOptions.map((d) => <option key={d} value={d}>{d}</option>)}
-                    </select>
-
-                    <select
-                      className="staff-filter-select"
-                      aria-label="Experience Filter"
-                      value={candidateExpFilter}
-                      onChange={(e) => setCandidateExpFilter(e.target.value)}
-                    >
-                      <option value="all">Experience: All</option>
-                      <option value="fresher">Fresher</option>
-                      <option value="experienced">Experienced</option>
-                    </select>
 
                     <select
                       className="staff-filter-select"

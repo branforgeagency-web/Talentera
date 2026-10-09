@@ -365,6 +365,32 @@ async function syncAcademyUploadedStage2(invites = []) {
   );
 }
 
+const escapeRegexText = (v) => String(v || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// A candidate who picked THIS academy by name in their own Stage 2 form (exact name match,
+// no academy link recorded yet) belongs to it: it is the academy they said they trained at,
+// so their Stage 2 sign-off must reach this academy's approval queue. Once seen, the link is
+// written down (stage2.academyId) so every later lookup is exact.
+const unclaimedNameMatch = (academyName) => {
+  const name = String(academyName || "").trim();
+  if (!name) return null;
+  return {
+    // same words in the same order, ignoring case / spacing / punctuation differences
+    "stage2.academyName": { $regex: `^[^a-z0-9]*${name.split(/[^a-z0-9]+/i).filter(Boolean).map(escapeRegexText).join("[^a-z0-9]*")}[^a-z0-9]*$`, $options: "i" },
+    $or: [{ "stage2.academyId": { $exists: false } }, { "stage2.academyId": null }, { "stage2.academyId": "" }],
+  };
+};
+
+async function claimNameMatchedCandidates(academy) {
+  if (!academy) return;
+  const match = unclaimedNameMatch(academy.name);
+  if (!match) return;
+  await Candidate.updateMany(
+    { ...match, isCollegeStudent: { $ne: true } },
+    { $set: { "stage2.academyId": academy._id.toString() } }
+  );
+}
+
 function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
   const invitedEmails = invites.map((inv) => (inv.email || "").toLowerCase().trim()).filter(Boolean);
   const candidateIds = invites.map((inv) => inv.candidateId).filter(Boolean);
@@ -379,6 +405,7 @@ function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
     { "stage2.academyId": academyId.toString() },
     ...(invitedEmails.length > 0 ? [{ email: { $in: invitedEmails } }] : []),
     ...(candidateIds.length > 0 ? [{ _id: { $in: candidateIds } }] : []),
+    ...(unclaimedNameMatch(academyName) ? [unclaimedNameMatch(academyName)] : []),
   ];
 
   return {
@@ -873,6 +900,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     // Fetch Invites and Candidates linked to this academy (matching by email, mobile, candidateId, or stage2)
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     await syncAcademyUploadedStage2(invites);
+    await claimNameMatchedCandidates(academy);
     const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
     const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
@@ -2873,6 +2901,7 @@ router.get("/live-profiles", requireAcademyAuth, async (req, res) => {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     await syncAcademyUploadedStage2(invites);
+    await claimNameMatchedCandidates(academy);
     const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
@@ -3191,6 +3220,7 @@ router.get("/approvals", requireAcademyAuth, async (req, res) => {
     const academy = await Academy.findById(req.academyId).lean();
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     await syncAcademyUploadedStage2(invites);
+    await claimNameMatchedCandidates(academy);
     const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
@@ -4210,19 +4240,27 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
 // POST /api/academy/create-course
 router.post("/create-course", requireAcademyAuth, async (req, res) => {
   try {
-    const { title, category, duration, totalHrs, syllabus } = req.body;
+    const { title, category, duration, totalHrs, syllabus, fees } = req.body;
+    if (!String(title || "").trim()) return res.status(400).json({ message: "Enter the course name." });
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
+
+    const feeNum = fees === undefined || fees === null || fees === "" ? null : Number(fees);
+    if (feeNum !== null && (!Number.isFinite(feeNum) || feeNum < 0)) return res.status(400).json({ message: "Enter a valid fee amount." });
+    const syllabusList = Array.isArray(syllabus)
+      ? syllabus.map((x) => String(x).trim()).filter(Boolean)
+      : syllabus ? String(syllabus).split(/[,\n]/).map((x) => x.trim()).filter(Boolean) : [];
 
     const newCourse = {
       category: category || "Medical Coding",
       duration: duration || "3 MONTHS",
-      title: title.trim(),
+      title: String(title).trim(),
       totalHrs: Number(totalHrs) || 120,
       batches: 1,
       enrolled: 15,
       status: "active",
-      syllabus: syllabus ? syllabus.split(",").map((s) => s.trim()) : ["ICD-10-CM", "CPT Modifiers", "Capstone"],
+      syllabus: syllabusList.length ? syllabusList : ["ICD-10-CM", "CPT Modifiers", "Capstone"],
+      fees: feeNum,
     };
 
     academy.courses.push(newCourse);
@@ -4242,7 +4280,12 @@ router.put("/courses/:id", requireAcademyAuth, async (req, res) => {
     const course = academy.courses.id(req.params.id);
     if (!course) return res.status(404).json({ message: "Course not found." });
 
-    const { title, category, duration, totalHrs, syllabus, status } = req.body;
+    const { title, category, duration, totalHrs, syllabus, status, fees } = req.body;
+    if (fees !== undefined) {
+      const feeNum = fees === null || fees === "" ? null : Number(fees);
+      if (feeNum !== null && (!Number.isFinite(feeNum) || feeNum < 0)) return res.status(400).json({ message: "Enter a valid fee amount." });
+      course.fees = feeNum;
+    }
     if (title !== undefined) {
       if (!String(title).trim()) return res.status(400).json({ message: "Course title cannot be empty." });
       course.title = String(title).trim();
@@ -4254,7 +4297,7 @@ router.put("/courses/:id", requireAcademyAuth, async (req, res) => {
     if (syllabus !== undefined) {
       course.syllabus = Array.isArray(syllabus)
         ? syllabus
-        : String(syllabus).split(",").map((s) => s.trim()).filter(Boolean);
+        : String(syllabus).split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
     }
 
     await academy.save();
@@ -4898,6 +4941,175 @@ router.delete("/payments/:id", requireAcademyAuth, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: "Failed to remove the payment." });
+  }
+});
+
+// ===========================================================================
+// ACADEMY REFERRALS - academies referred to Talentera by this academy
+// ===========================================================================
+const AcademyReferral = require("../models/AcademyReferral");
+
+router.get("/referrals", requireAcademyAuth, async (req, res) => {
+  try {
+    const referrals = await AcademyReferral.find({ academyId: req.academyId }).sort({ createdAt: -1 }).lean();
+    res.json({
+      referrals,
+      totals: {
+        total: referrals.length,
+        onboarded: referrals.filter((r) => r.status === "onboarded").length,
+        pending: referrals.filter((r) => r.status === "submitted" || r.status === "contacted").length,
+      },
+    });
+  } catch (err) {
+    logger.error(`Academy referrals list error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load referrals." });
+  }
+});
+
+router.post("/referrals", requireAcademyAuth, async (req, res) => {
+  try {
+    const { referredAcademyName, contactPerson, phone, email, city, studentsPerYear, notes } = req.body;
+    const name = String(referredAcademyName || "").trim();
+    const person = String(contactPerson || "").trim();
+    const ph = String(phone || "").replace(/[^\d+]/g, "");
+    if (!name) return res.status(400).json({ message: "Enter the academy's name." });
+    if (!person) return res.status(400).json({ message: "Enter a contact person." });
+    if (ph.replace(/\D/g, "").length < 10) return res.status(400).json({ message: "Enter a valid phone number." });
+    const mail = String(email || "").trim();
+    if (mail && !/^\S+@\S+\.\S+$/.test(mail)) return res.status(400).json({ message: "Enter a valid email address." });
+    const dup = await AcademyReferral.findOne({
+      academyId: req.academyId,
+      referredAcademyName: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+    });
+    if (dup) return res.status(400).json({ message: "You have already referred this academy." });
+    const doc = await AcademyReferral.create({
+      academyId: req.academyId,
+      referredAcademyName: name.slice(0, 150),
+      contactPerson: person.slice(0, 100),
+      phone: ph.slice(0, 20),
+      email: mail.slice(0, 120),
+      city: String(city || "").trim().slice(0, 80),
+      studentsPerYear: String(studentsPerYear || "").trim().slice(0, 30),
+      notes: String(notes || "").trim().slice(0, 300),
+    });
+    res.json({ success: true, referral: doc });
+  } catch (err) {
+    logger.error(`Academy referral create error: ${err.message}`);
+    res.status(500).json({ message: "Failed to submit the referral." });
+  }
+});
+
+router.delete("/referrals/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const doc = await AcademyReferral.findOne({ _id: req.params.id, academyId: req.academyId });
+    if (!doc) return res.status(404).json({ message: "Referral not found." });
+    if (doc.status !== "submitted") return res.status(400).json({ message: "Talentera has already started on this referral, so it can't be removed." });
+    await doc.deleteOne();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to remove the referral." });
+  }
+});
+
+// ===========================================================================
+// COLLEGE MoUs - campus tie-ups the academy has signed or is negotiating
+// ===========================================================================
+const AcademyMou = require("../models/AcademyMou");
+const { MOU_STATUSES } = AcademyMou;
+
+function mouEffectiveStatus(m) {
+  if (m.validUntil && new Date(m.validUntil) < new Date() && (m.status === "Signed" || m.status === "Active")) return "Expired";
+  return m.status;
+}
+
+function buildMouFields(body) {
+  const collegeName = String(body.collegeName || "").trim();
+  if (!collegeName) return { error: "Enter the college name." };
+  const status = MOU_STATUSES.includes(body.status) ? body.status : "Under Discussion";
+  const signedOn = body.signedOn ? new Date(body.signedOn) : null;
+  const validUntil = body.validUntil ? new Date(body.validUntil) : null;
+  if ((signedOn && isNaN(signedOn)) || (validUntil && isNaN(validUntil))) return { error: "Invalid date." };
+  if ((status === "Signed" || status === "Active") && !signedOn) return { error: "Enter the date the MoU was signed." };
+  if (signedOn && validUntil && validUntil < signedOn) return { error: "'Valid until' can't be before the signing date." };
+  const mail = String(body.email || "").trim();
+  if (mail && !/^\S+@\S+\.\S+$/.test(mail)) return { error: "Enter a valid email address." };
+  const documentUrl = String(body.documentUrl || "");
+  if (documentUrl && !(/^https:\/\//i.test(documentUrl) || /^\/uploads\//.test(documentUrl))) return { error: "Invalid MoU document." };
+  const covered = Number(body.studentsCovered || 0);
+  return {
+    fields: {
+      collegeName: collegeName.slice(0, 150),
+      city: String(body.city || "").trim().slice(0, 80),
+      contactPerson: String(body.contactPerson || "").trim().slice(0, 100),
+      phone: String(body.phone || "").replace(/[^\d+]/g, "").slice(0, 20),
+      email: mail.slice(0, 120),
+      status,
+      signedOn,
+      validUntil,
+      studentsCovered: Number.isFinite(covered) && covered > 0 ? Math.floor(covered) : 0,
+      scope: String(body.scope || "").trim().slice(0, 300),
+      documentUrl,
+      documentName: String(body.documentName || "").trim().slice(0, 150),
+    },
+  };
+}
+
+router.get("/mous", requireAcademyAuth, async (req, res) => {
+  try {
+    const rows = await AcademyMou.find({ academyId: req.academyId }).sort({ createdAt: -1 }).lean();
+    const mous = rows.map((m) => ({ ...m, status: mouEffectiveStatus(m) }));
+    res.json({
+      statuses: MOU_STATUSES,
+      mous,
+      totals: {
+        total: mous.length,
+        active: mous.filter((m) => m.status === "Active" || m.status === "Signed").length,
+        discussion: mous.filter((m) => m.status === "Under Discussion").length,
+        expired: mous.filter((m) => m.status === "Expired").length,
+        studentsCovered: mous.filter((m) => m.status === "Active" || m.status === "Signed").reduce((a, m) => a + (m.studentsCovered || 0), 0),
+      },
+    });
+  } catch (err) {
+    logger.error(`Academy MoU list error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load MoUs." });
+  }
+});
+
+router.post("/mous", requireAcademyAuth, async (req, res) => {
+  try {
+    const { fields, error } = buildMouFields(req.body);
+    if (error) return res.status(400).json({ message: error });
+    const doc = await AcademyMou.create({ academyId: req.academyId, ...fields });
+    res.json({ success: true, mou: doc });
+  } catch (err) {
+    logger.error(`Academy MoU create error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save the MoU." });
+  }
+});
+
+router.put("/mous/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const doc = await AcademyMou.findOne({ _id: req.params.id, academyId: req.academyId });
+    if (!doc) return res.status(404).json({ message: "MoU not found." });
+    const { fields, error } = buildMouFields(req.body);
+    if (error) return res.status(400).json({ message: error });
+    Object.assign(doc, fields);
+    await doc.save();
+    res.json({ success: true, mou: doc });
+  } catch (err) {
+    logger.error(`Academy MoU update error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update the MoU." });
+  }
+});
+
+router.delete("/mous/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const doc = await AcademyMou.findOne({ _id: req.params.id, academyId: req.academyId });
+    if (!doc) return res.status(404).json({ message: "MoU not found." });
+    await doc.deleteOne();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to remove the MoU." });
   }
 });
 

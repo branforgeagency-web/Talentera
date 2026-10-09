@@ -8,6 +8,7 @@ const AssessmentQuestion = require("../models/AssessmentQuestion");
 const { DEFAULT_ASSESSMENT_QUESTIONS } = require("../data/defaultAssessmentQuestions");
 const Notification = require("../models/Notification");
 const StudentInvite = require("../models/StudentInvite");
+const Academy = require("../models/Academy");
 const RetakeRequest = require("../models/RetakeRequest");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
@@ -656,6 +657,20 @@ router.put("/stage/:n", async (req, res) => {
       s2.specialty = Array.isArray(s2.specialties) && s2.specialties.length > 0 ? s2.specialties[0] : (s2.specialty || "");
       s2.batch = s2.batch || s2.batchNumber || s2.rollNumber || "";
       s2.duration = s2.duration || s2.totalHours || "";
+      // Link the academy the student picked by name to its real account, so the Stage 2
+      // sign-off lands in that academy's approval queue.
+      try {
+        const pickedName = String(s2.academyName || "").trim();
+        if (!s2.academyId && pickedName && !/^non-trained/i.test(pickedName)) {
+          const words = pickedName.split(/[^a-z0-9]+/i).filter(Boolean).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+          const linked = words.length
+            ? await Academy.findOne({ name: { $regex: `^[^a-z0-9]*${words.join("[^a-z0-9]*")}[^a-z0-9]*$`, $options: "i" } }, { _id: 1 }).lean()
+            : null;
+          if (linked) s2.academyId = String(linked._id);
+        }
+      } catch (e) {
+        logger.warn(`Stage 2 academy link lookup failed: ${e.message}`);
+      }
       // A student the academy itself uploaded (single add / bulk CSV) was already
       // vouched for by that academy - no Stage 2 sign-off needed. Only students who
       // entered the academy details themselves go to the academy's approval queue.

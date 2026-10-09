@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import { INDIAN_COLLEGES, filterColleges } from "../../data/indianColleges.js";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
 
 const INDIAN_STATES = [
@@ -317,6 +316,246 @@ const MONTH_OPTIONS = [
 
 const CURRENT_YEAR = new Date().getFullYear();
 const GRAD_YEAR_OPTIONS = Array.from({ length: 45 }, (_, i) => String(CURRENT_YEAR + 6 - i));
+
+// ─── Indian Colleges & Universities (UGC-recognized, curated for medical coding candidates) ──
+const INDIAN_COLLEGES = [
+  // ── Central Universities ─────────────────────────────────────
+  "University of Delhi", "Jawaharlal Nehru University", "University of Hyderabad",
+  "Banaras Hindu University", "Aligarh Muslim University", "Jamia Millia Islamia",
+  "University of Allahabad", "University of Calcutta", "University of Mumbai",
+  "University of Madras", "University of Pune (Savitribai Phule Pune University)",
+  "University of Rajasthan", "Osmania University", "Andhra University",
+  "Annamalai University", "Bharathiar University", "Bharathidasan University",
+  "Madurai Kamaraj University", "Mother Teresa Women's University",
+  "Periyar University", "Tamil Nadu Teacher Education University",
+  "Thiruvalluvar University", "University of Mysore", "Bangalore University",
+  "Kuvempu University", "Mangalore University", "Karnatak University",
+  "Gulbarga University", "Davangere University", "Tumkur University",
+  "Visvesvaraya Technological University (VTU)", "Rajiv Gandhi University of Health Sciences",
+  "Kerala University", "Mahatma Gandhi University (Kerala)", "Calicut University",
+  "Kannur University", "Cochin University of Science and Technology (CUSAT)",
+  "APJ Abdul Kalam Technological University (KTU)", "University of Kerala",
+  "Mumbai University", "Pune University", "Shivaji University", "North Maharashtra University",
+  "Swami Ramanand Teerth Marathwada University", "Dr. Babasaheb Ambedkar Marathwada University",
+  "Sant Gadge Baba Amravati University", "Rashtrasant Tukadoji Maharaj Nagpur University",
+  "Solapur University", "Kaviyatri Bahinabai Chaudhari North Maharashtra University",
+  "Uttar Pradesh Rajarshi Tandon Open University", "Deen Dayal Upadhyaya Gorakhpur University",
+  "Mahatma Jyotiba Phule Rohilkhand University", "Ch. Charan Singh University",
+  "Bundelkhand University", "Lucknow University", "Dr. Ram Manohar Lohia Awadh University",
+  "Veer Bahadur Singh Purvanchal University", "Chaudhary Charan Singh University",
+  "Gauhati University", "Dibrugarh University", "Cotton University",
+  "Rabindra Bharati University", "Jadavpur University", "North Bengal University",
+  "Visva-Bharati University", "West Bengal State University", "Kalyani University",
+  "Vidyasagar University", "Burdwan University", "Calcutta University",
+  "Berhampur University", "Sambalpur University", "Utkal University",
+  "Ravenshaw University", "Fakir Mohan University", "Maharaja Sriram Chandra Bhanj Deo University",
+  "Magadh University", "Patna University", "Lalit Narayan Mithila University",
+  "Bhupendra Narayan Mandal University", "T.M. Bhagalpur University",
+  "Purnea University", "Muungger University", "Jai Prakash University",
+  "Guru Nanak Dev University", "Panjab University", "Punjabi University",
+  "Maharishi Dayanand University", "Kurukshetra University", "Chaudhary Devi Lal University",
+  "Deenbandhu Chhotu Ram University of Science and Technology",
+  "Maharaja Agrasen University", "Indira Gandhi University (Meerpur)",
+  "Shoolini University", "Himachal Pradesh University",
+  "University of Jammu", "University of Kashmir",
+  "Rajiv Gandhi Proudyogiki Vishwavidyalaya", "Vikram University",
+  "Devi Ahilya Vishwavidyalaya", "Barkatullah University",
+  "Rani Durgavati Vishwavidyalaya", "Jiwaji University",
+  "Mohanlal Sukhadia University", "University of Kota",
+  "Maharishi Dayanand Saraswati University", "Jai Narain Vyas University",
+  "Gujarat University", "Saurashtra University", "Veer Narmad South Gujarat University",
+  "Hemchandracharya North Gujarat University", "Sardar Patel University",
+  "Bhavnagar University", "M.K. Bhavnagar University",
+  "Osmania University", "Kakatiya University", "Andhra University",
+  "Sri Krishnadevaraya University", "Rayalaseema University",
+  "Yogi Vemana University", "JNTU-Hyderabad", "JNTU-Kakinada", "JNTU-Anantapur",
+  "Acharya Nagarjuna University", "Dr. B.R. Ambedkar University",
+  "Sri Padmavati Mahila Visvavidyalayam", "Sri Venkateswara University",
+  "Pondicherry University", "Manipal Academy of Higher Education (MAHE)",
+  "Sikkim University", "Tezpur University", "Tripura University",
+  "Mizoram University", "Nagaland University",
+
+  // ── Deemed Universities (Medical / Allied Health focus) ───────
+  "Sri Ramachandra Institute of Higher Education and Research",
+  "Amrita Vishwa Vidyapeetham", "Chettinad Academy of Research and Education",
+  "Saveetha Institute of Medical and Technical Sciences",
+  "SRM Institute of Science and Technology", "Vinayaka Mission's Research Foundation",
+  "Deemed University of Technology (Tamil Nadu)",
+  "Manonmaniam Sundaranar University (Tirunelveli)",
+  "Vels Institute of Science Technology and Advanced Studies",
+  "Vel Tech Rangarajan Dr. Sagunthala R&D Institute",
+  "Sathyabama Institute of Science and Technology",
+  "Bharath Institute of Higher Education and Research",
+  "Aarupadai Veedu Institute of Technology",
+  "Dr. M.G.R. Educational and Research Institute",
+  "Thandai Periyar Institution (Periyar University affiliated)",
+  "Dr. D.Y. Patil Vidyapeeth", "Symbiosis International University",
+  "Bharati Vidyapeeth Deemed University",
+  "D.Y. Patil University (Mumbai)", "KIMS (Krishna Institute of Medical Sciences)",
+  "JSS University", "Manipal University Jaipur",
+  "Nitte Deemed-to-be University", "Yenepoya University",
+  "Shri Dharmasthala Manjunatheshwara University",
+  "Rajagiri College of Social Sciences (Autonomous)",
+  "St. John's National Academy of Health Sciences",
+  "Father Muller Charitable Institutions (FM University)",
+  "KLE Academy of Higher Education and Research",
+
+  // ── IITs and NITs (non-life science backgrounds) ─────────────
+  "Indian Institute of Technology Madras (IIT Madras)",
+  "Indian Institute of Technology Bombay (IIT Bombay)",
+  "Indian Institute of Technology Delhi (IIT Delhi)",
+  "Indian Institute of Technology Kharagpur (IIT KGP)",
+  "Indian Institute of Technology Kanpur (IIT Kanpur)",
+  "Indian Institute of Technology Roorkee (IIT Roorkee)",
+  "Indian Institute of Technology Hyderabad (IIT Hyderabad)",
+  "Indian Institute of Technology Bangalore (IISc Bangalore)",
+  "NIT Trichy (National Institute of Technology, Tiruchirappalli)",
+  "NIT Warangal", "NIT Calicut", "NIT Surathkal", "NIT Rourkela",
+
+  // ── Popular Arts / Commerce / Science Autonomous Colleges ─────
+  "Loyola College, Chennai", "Stella Maris College, Chennai",
+  "Women's Christian College (WCC), Chennai", "Ethiraj College for Women, Chennai",
+  "Queen Mary's College, Chennai", "Meenakshi College for Women, Chennai",
+  "Presidency College, Chennai", "Madras Christian College, Chennai",
+  "Sri Venkateswara College of Engineering, Chennai",
+  "Vellore Institute of Technology (VIT University)",
+  "PSG College of Technology", "Kumaraguru College of Technology",
+  "Coimbatore Institute of Technology (CIT)",
+  "Sri Krishna College of Engineering and Technology",
+  "K.S. Rangasamy College of Technology", "SNS College of Technology",
+  "Karpagam Academy of Higher Education",
+  "Avinashilingam Institute for Home Science and Higher Education for Women",
+  "Kongu Engineering College", "Sri Ramakrishna Engineering College",
+  "Christian Medical College (CMC), Vellore",
+  "Sri Manakula Vinayagar Medical College and Hospital (Pondicherry)",
+  "SRM Medical College Hospital & Research Centre",
+  "Saveetha Medical College and Hospital",
+  "Prathima Institute of Medical Sciences",
+  "Deccan College of Medical Sciences",
+  "Kakatiya Medical College", "Gandhi Medical College",
+  "Osmania Medical College", "Nizams Institute of Medical Sciences",
+  "Mamata Medical College", "Guntur Medical College",
+  "Andhra Medical College", "S.V. Medical College",
+  "Rangaraya Medical College", "Kurnool Medical College",
+  "Maharaja's College (Ernakulam)", "Sacred Heart College (Ernakulam)",
+  "St. Albert's College (Ernakulam)", "St. Joseph's College, Bangalore",
+  "Christ University, Bangalore", "Mount Carmel College, Bangalore",
+  "St. Joseph's College of Commerce, Bangalore",
+  "Jyoti Nivas College, Bangalore",
+  "M.E.S. College, Bangalore",
+  "BMS College of Engineering", "PES University",
+  "RV College of Engineering", "Dayananda Sagar College of Engineering",
+  "KJ Somaiya College of Engineering",
+  "RAIT (Ramrao Adik Institute of Technology)",
+  "St. Xavier's College, Mumbai",
+  "Jai Hind College, Mumbai", "Ruparel College, Mumbai",
+  "Mithibai College of Arts, Chauhan Institute of Science",
+  "K.J. Somaiya College of Science and Commerce",
+  "Narsee Monjee College of Commerce and Economics",
+  "Fergusson College, Pune", "SP College, Pune",
+  "Symbiosis College of Arts and Commerce",
+  "Garware College of Commerce, Pune",
+  "Nowrosjee Wadia College, Pune",
+  "Modern College of Arts, Science and Commerce, Pune",
+  "Brihan Maharashtra College of Commerce, Pune",
+  "Delhi College of Arts and Commerce",
+  "Miranda House, Delhi", "Lady Shri Ram College, Delhi",
+  "Indraprastha College for Women, Delhi",
+  "Jesus and Mary College, Delhi",
+  "St. Stephens College, Delhi",
+  "Hans Raj College, Delhi", "Ramjas College, Delhi",
+  "Kirori Mal College, Delhi", "Maitreyi College, Delhi",
+  "Kamla Nehru College, Delhi",
+  "Presidency University, Kolkata",
+  "St. Xavier's College, Kolkata",
+  "Bethune College, Kolkata", "Lady Brabourne College, Kolkata",
+  "Scottish Church College, Kolkata", "Asutosh College, Kolkata",
+  "Hindu College, Kolkata",
+  "Fergusson College, Kolkata",
+  "Loyola College, Hyderabad",
+  "St. Francis College for Women, Hyderabad",
+  "Osmania University College for Women",
+  "Bhavan's Vivekananda College, Hyderabad",
+  "Holy Mary Institute of Technology and Science",
+  "CMR College of Engineering and Technology",
+  "MALLA REDDY Engineering College",
+  "Chaitanya Bharathi Institute of Technology",
+  "Shadan College of Engineering and Technology",
+  "Vardhaman College of Engineering",
+  "Gokaraju Rangaraju Institute of Engineering and Technology",
+  "Muffakham Jah College of Engineering and Technology",
+  "Institute of Aeronautical Engineering (IARE)",
+  "Vignan's Foundation for Science, Technology and Research",
+  "Koneru Lakshmaiah Education Foundation (KLEF)",
+  "Sri Indu College of Engineering and Technology",
+  "Vidya Jyothi Institute of Technology",
+  "St. Mary's College of Engineering and Technology",
+
+  // ── Open / Distance Universities ─────────────────────────────
+  "Indira Gandhi National Open University (IGNOU)",
+  "Yashwantrao Chavan Maharashtra Open University (YCMOU)",
+  "Tamil Nadu Open University (TNOU)",
+  "Karnataka State Open University (KSOU)",
+  "Dr. B.R. Ambedkar Open University (BRAOU)",
+  "Nalanda Open University", "Netaji Subhas Open University",
+  "Madhya Pradesh Bhoj Open University",
+  "Rajasthan State Open University",
+  "Uttarakhand Open University",
+  "Himachal Pradesh Open University",
+  "K.K. Handiqui State Open University (KKHSOU)",
+  "Punjab Technical University (Distance Learning)",
+  "Sikkim Manipal University (Distance)",
+
+  // ── Private Deemed (Commerce / BBA / B.Com focus) ─────────────
+  "ICFAI University", "ICFAI Business School (IBS)",
+  "Amity University (Noida)", "Amity University (Mumbai)",
+  "Amity University (Jaipur)", "Amity University (Hyderabad)",
+  "Lovely Professional University (LPU)",
+  "Chandigarh University", "Sharda University",
+  "Galgotias University", "Bennett University",
+  "UPES (University of Petroleum and Energy Studies)",
+  "MIT World Peace University (MIT-WPU), Pune",
+  "Presidency University, Bangalore",
+  "PES Modern College of Engineering",
+  "Alliance University, Bangalore",
+  "Jain University, Bangalore",
+  "REVA University", "Dayananda Sagar University",
+  "Ramaiah University of Applied Sciences",
+  "CMR University", "New Horizon College of Engineering",
+
+  // ── Pharmacy / Nursing / Allied Health colleges ───────────────
+  "Manipal College of Pharmaceutical Sciences",
+  "JSS College of Pharmacy", "PSG College of Pharmacy",
+  "SRM College of Pharmacy", "Saveetha College of Pharmacy",
+  "Vinayaka Mission's College of Pharmacy",
+  "KLE College of Pharmacy",
+  "Sri Venkateswara College of Pharmacy",
+  "Care College of Nursing", "Narayana College of Nursing",
+  "Manipal College of Nursing",
+  "Lourdes College of Nursing (Thiruvananthapuram)",
+  "St. Gregorios College of Nursing",
+  "Rajiv Gandhi Institute of Nursing Education",
+  "ESIC Nursing College",
+  "Government College of Nursing, Chennai",
+  "Apollo College of Nursing",
+  "Sri Ramachandra College of Nursing",
+];
+
+/** Filter colleges for typeahead — returns up to 10 best matches */
+function filterColleges(query) {
+  if (!query || query.length < 2) return [];
+  const q = query.toLowerCase();
+  const exact = [];
+  const starts = [];
+  const contains = [];
+  for (const c of INDIAN_COLLEGES) {
+    const cl = c.toLowerCase();
+    if (cl === q) exact.push(c);
+    else if (cl.startsWith(q)) starts.push(c);
+    else if (cl.includes(q)) contains.push(c);
+  }
+  return [...exact, ...starts, ...contains].slice(0, 10);
+}
 
 function resolveStage1Data(existingData, candidate) {
   const s1 = existingData || candidate?.stage1 || {};
@@ -3070,26 +3309,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                       if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
                       const suggestions = filterColleges(val);
                       setCollegeSuggestions(suggestions);
-                      setCollegeDropdownOpen(val.trim().length >= 2);
+                      setCollegeDropdownOpen(suggestions.length > 0);
                       setCollegeHighlightIdx(-1);
                     }}
                     onFocus={() => {
                       if (collegeName.length >= 2) {
                         const suggestions = filterColleges(collegeName);
                         setCollegeSuggestions(suggestions);
-                        setCollegeDropdownOpen(true);
+                        setCollegeDropdownOpen(suggestions.length > 0);
                       }
                     }}
                     onKeyDown={(e) => {
-                      if (!collegeDropdownOpen) return;
-                      if (e.key === "Enter") {
-                        if (collegeHighlightIdx < 0 || collegeSuggestions.length === 0) {
-                          e.preventDefault();
-                          setCollegeDropdownOpen(false);
-                          return;
-                        }
-                      }
-                      if (collegeSuggestions.length === 0) return;
+                      if (!collegeDropdownOpen || collegeSuggestions.length === 0) return;
                       if (e.key === "ArrowDown") {
                         e.preventDefault();
                         setCollegeHighlightIdx((prev) => Math.min(prev + 1, collegeSuggestions.length - 1));
@@ -3109,7 +3340,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                       }
                     }}
                   />
-                  {collegeDropdownOpen && collegeName.trim().length >= 2 && (
+                  {collegeDropdownOpen && collegeSuggestions.length > 0 && (
                     <div
                       ref={collegeDropdownRef}
                       style={{
@@ -3126,18 +3357,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                         overflowY: "auto",
                       }}
                     >
-                      {collegeSuggestions.length === 0 && (
-                        <div
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setCollegeDropdownOpen(false);
-                          }}
-                          style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, color: "#334155", display: "flex", alignItems: "center", gap: 8 }}
-                        >
-                          <i className="fa-solid fa-pen" style={{ color: "#94A3B8", fontSize: 12 }} />
-                          <span>No match in our list. Use <strong style={{ color: "#1D4ED8" }}>{collegeName.trim()}</strong> as entered</span>
-                        </div>
-                      )}
                       {collegeSuggestions.map((suggestion, idx) => {
                         const q = collegeName.toLowerCase();
                         const matchStart = suggestion.toLowerCase().indexOf(q);

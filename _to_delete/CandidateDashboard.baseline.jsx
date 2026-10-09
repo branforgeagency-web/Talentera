@@ -13,151 +13,194 @@ import CandidateEmployerReferralsSection from '../components/CandidateEmployerRe
 import CandidateAcademyReferralsSection from '../components/CandidateAcademyReferralsSection.jsx';
 import './CandidateDashboard.css';
 
-// Points are earned only for what the candidate has actually done - being marked "completed",
-// or having chosen a path, is not evidence on its own. Keep these rules in sync with
-// backend/utils/verificationScore.js (the server-side source of truth).
-const LIVE_CHART_EXEMPT = ['Medical Billing', 'AR Calling', 'Accounts Receivable', 'Eligibility & Verification'];
+// Real dynamic verification score calculator across Stages 1–8
+export function calculateRealStageScore(profile) {
+  if (!profile) return 0;
+  const completedStages = Array.isArray(profile.completedStages) ? profile.completedStages : [];
+  let score = 0;
 
-function hasRealCertification(s3 = {}) {
-  const type = String(s3.certType || s3.status || '').toLowerCase();
-  if (s3.nonCertified === true || s3.isCertified === false || s3.certStatus === 'non-certified') return false;
-  if (type.includes('non-cert') || type.includes('pursu')) return false;
-  if (String(s3.certName || '').toLowerCase().startsWith('pursuing')) return false;
-  const code = String(s3.certCode || '').toUpperCase();
-  return (Array.isArray(s3.certifications) && s3.certifications.length > 0) || (!!code && code !== 'NON-CERT');
+  // Stage 1: Basic Identity & Aadhaar OTP (+15 pts)
+  if (completedStages.includes(1) || profile.stage1?.aadhaarVerified || profile.stage1?.fullName || profile.stage1?.fullname) {
+    score += 15;
+  }
+
+  // Stage 2: Foundation & Academics (+15 pts: 10 base + 3/4/5 from assessment score)
+  if (completedStages.includes(2) || profile.stage2?.academyName || profile.stage2?.instituteName || profile.stage2?.domain) {
+    const s2 = profile.stage2 || {};
+    const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "—"
+      ? s2.academyAssessmentScore
+      : (s2.assessmentScore !== undefined && s2.assessmentScore !== null ? s2.assessmentScore : s2.score);
+    let step3Pts = 5;
+    if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+      const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
+      step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
+    }
+    score += 10 + step3Pts;
+  }
+
+  // Stage 3: Certification (+15 pts)
+  if (completedStages.includes(3) || (profile.stage3?.certifications?.length > 0) || profile.stage3?.certCode) {
+    if (profile.stage3?.certStatus === 'verified' || profile.stage3?.status === 'verified' || profile.stage3?.verified === true) {
+      score += 15;
+    } else {
+      score += 11;
+    }
+  }
+
+  // Stage 4: Domain Assessment (+20 pts)
+  if (completedStages.includes(4) || profile.stage4?.score !== undefined || profile.stage4?.foundationScore !== undefined) {
+    const fScore = profile.stage4?.foundationScore !== undefined ? Number(profile.stage4.foundationScore) : (profile.stage4?.score !== undefined ? Number(profile.stage4.score) : 0);
+    if (profile.stage4?.passed === true || fScore >= 70) {
+      score += 20;
+    } else if (fScore > 0) {
+      score += Math.round((fScore / 100) * 20);
+    } else {
+      score += 12;
+    }
+  }
+
+  // Stage 5: Video Pitch & AI Communication (+15 pts)
+  if (completedStages.includes(5) || profile.stage5?.overallScore != null || profile.stage5?.verified) {
+    score += 15;
+  }
+
+  // Stage 6: Live Charts Audit (+20 pts)
+  if (completedStages.includes(6) || (profile.stage6?.totalCharts || 0) > 0 || profile.stage6?.evidencePath) {
+    const s6 = profile.stage6 || {};
+    const opt = (s6.evidencePath || s6.option || '').toLowerCase();
+    if (opt === 'a' || opt.includes('api') || opt === 'practicode') {
+      score += 20;
+    } else if (opt === 'b' || opt.includes('academy') || opt === 'upload') {
+      score += 20;
+    } else if (opt === 'c' || opt.includes('self') || opt === 'declare') {
+      score += 16;
+    } else {
+      score += 20;
+    }
+  }
+
+  // Stage 7: Resume (Output stage · 0 pts)
+  // Stage 8: Placement & Live For Hiring Track (Output stage · 0 pts)
+
+  return Math.min(100, Math.max(0, score));
 }
 
-function hasStage5Evidence(s5 = {}) {
-  const num = (v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v));
-  return !!(
-    s5.videoUrl || s5.introVideoUrl || s5.proctoredInterviewVideoUrl || s5.mockInterviewVideoUrl ||
-    num(s5.overallScore) || num(s5.aiScore) || num(s5.score) || s5.verified
-  );
-}
-
-// Per-stage score breakdown for the "Why is my score X?" analytics view: earned/max points per
-// stage plus a concrete tip for improving that stage's score.
+// Per-stage score breakdown for the "Why is my score X?" analytics view.
+// Mirrors calculateRealStageScore's logic exactly, but returns earned/max
+// points per stage plus a concrete tip for improving that stage's score.
 export function getScoreBreakdown(profile) {
   if (!profile) profile = {};
   const completedStages = Array.isArray(profile.completedStages) ? profile.completedStages : [];
   const rows = [];
 
-  // Stage 1 - Identity (needs a verified Aadhaar)
+  // Stage 1
   {
-    const s1 = profile.stage1 || {};
-    const verified = s1.aadhaarVerified === true || s1.aadhaarStatus === 'VERIFIED';
+    const done = completedStages.includes(1) || profile.stage1?.aadhaarVerified || profile.stage1?.fullName || profile.stage1?.fullname;
     rows.push({
       num: 1,
       name: 'Identity Verification',
       max: 15,
-      earned: verified ? 15 : 0,
-      tip: verified ? 'Fully earned — your identity is verified.' : 'Verify your mobile via Aadhaar OTP and fill in your basic identity details in Stage 1 to earn 15 points.',
+      earned: done ? 15 : 0,
+      tip: done ? 'Fully earned — your identity is verified.' : 'Verify your mobile via Aadhaar OTP and fill in your basic identity details in Stage 1 to earn 15 points.',
     });
   }
 
-  // Stage 2 - Foundation (needs the academy's sign-off)
+  // Stage 2
   {
+    const done = completedStages.includes(2) || profile.stage2?.academyName || profile.stage2?.instituteName || profile.stage2?.domain;
     const s2 = profile.stage2 || {};
-    const submitted = completedStages.includes(2) || s2.academyName || s2.instituteName || s2.domain;
-    const signedOff = s2.verified === true;
-    const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== '—'
+    const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "—"
       ? s2.academyAssessmentScore
       : (s2.assessmentScore !== undefined && s2.assessmentScore !== null ? s2.assessmentScore : s2.score);
     let step3Pts = 5;
     let hasScore = false;
-    if (rawScore !== undefined && rawScore !== null && rawScore !== '—' && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, '')))) {
-      const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ''));
+    if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+      const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
       step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
       hasScore = true;
     }
-    const earned = signedOff ? 10 + step3Pts : 0;
-    let tip;
-    if (signedOff) {
-      tip = hasScore ? `Earned ${earned}/15 points (${step3Pts}/5 from Academy Assessment Score: ${rawScore}%).` : 'Earned 15/15 points — your academy has signed off on your training.';
-    } else if (submitted) {
-      tip = 'Your academy details are submitted — the 15 points unlock once your academy approves them.';
-    } else {
-      tip = 'Add your academy/institute name, training domain and specialties in Stage 2 to earn up to 15 points.';
-    }
-    rows.push({ num: 2, name: 'Foundation & Academics', max: 15, earned, tip });
+    const earned = done ? 10 + step3Pts : 0;
+    rows.push({
+      num: 2,
+      name: 'Foundation & Academics',
+      max: 15,
+      earned,
+      tip: done
+        ? (hasScore ? `Earned ${earned}/15 points (${step3Pts}/5 from Academy Assessment Score: ${rawScore}%).` : 'Earned 15/15 points — your academy and training domain are on file.')
+        : 'Add your academy/institute name, training domain and specialties in Stage 2 to earn up to 15 points.',
+    });
   }
 
-  // Stage 3 - Certification (a real certification only; Non-Certified / Pursuing earn nothing)
+  // Stage 3
   {
-    const s3 = profile.stage3 || {};
-    const hasCert = hasRealCertification(s3);
-    const verified = s3.certStatus === 'verified' || s3.status === 'verified' || s3.verified === true;
-    const nonCert = s3.nonCertified === true || s3.certStatus === 'non-certified' || s3.certType === 'non-certified';
+    const hasCert = completedStages.includes(3) || (profile.stage3?.certifications?.length > 0) || profile.stage3?.certCode;
+    const verified = profile.stage3?.certStatus === 'verified' || profile.stage3?.status === 'verified' || profile.stage3?.verified === true;
     let earned = 0, tip;
     if (hasCert && verified) {
       earned = 15;
-      tip = 'Fully earned — your certification is verified.';
+      tip = 'Fully earned — your certification is API-verified.';
     } else if (hasCert) {
       earned = 11;
       tip = 'Your certification is on file but still pending verification — get it verified to unlock the remaining 4 points.';
-    } else if (nonCert) {
-      tip = 'You chose Non-Certified, so this stage earns no points. Add a certification (e.g. CPC, CCS, CPB) to earn up to 15 points.';
     } else {
+      earned = 0;
       tip = 'Add at least one certification (e.g. CPC, CCS, CPB) in Stage 3 to earn up to 15 points.';
     }
     rows.push({ num: 3, name: 'Certifications', max: 15, earned, tip });
   }
 
-  // Stage 4 - Domain Assessment (scaled by the actual score)
+  // Stage 4
   {
-    const s4 = profile.stage4 || {};
-    const raw = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
-    const attempted = raw !== undefined && raw !== null && raw !== '' && !isNaN(Number(raw));
-    const fScore = attempted ? Number(raw) : 0;
+    const hasScore = completedStages.includes(4) || profile.stage4?.score !== undefined || profile.stage4?.foundationScore !== undefined;
     let earned = 0, tip;
-    if (attempted && (s4.passed === true || fScore >= 70)) {
-      earned = 20;
-      tip = 'Fully earned — you passed the Stage 4 domain assessment.';
-    } else if (attempted && fScore > 0) {
-      earned = Math.round((fScore / 100) * 20);
-      tip = `You scored ${fScore}/100 on the assessment — retake it and aim for 70+ to unlock the full 20 points.`;
+    if (hasScore) {
+      const fScore = profile.stage4?.foundationScore !== undefined ? Number(profile.stage4.foundationScore) : (profile.stage4?.score !== undefined ? Number(profile.stage4.score) : 0);
+      if (profile.stage4?.passed === true || fScore >= 70) {
+        earned = 20;
+        tip = 'Fully earned — you passed the Stage 4 domain assessment.';
+      } else if (fScore > 0) {
+        earned = Math.round((fScore / 100) * 20);
+        tip = `You scored ${fScore}/100 on the assessment — retake it and aim for 70+ to unlock the full 20 points.`;
+      } else {
+        earned = 12;
+        tip = 'Retake the Stage 4 assessment and aim for 70+ to earn the full 20 points.';
+      }
     } else {
       tip = 'Take the Stage 4 domain assessment (proctored) to earn up to 20 points.';
     }
     rows.push({ num: 4, name: 'Domain Assessment', max: 20, earned, tip });
   }
 
-  // Stage 5 - Video Pitch & AI Communication (needs a recorded pitch / AI score)
+  // Stage 5
   {
-    const done = hasStage5Evidence(profile.stage5 || {});
+    const done = completedStages.includes(5) || profile.stage5?.overallScore != null || profile.stage5?.verified;
     rows.push({
       num: 5,
       name: 'Video Pitch & AI Communication',
       max: 15,
       earned: done ? 15 : 0,
-      tip: done ? 'Fully earned — your video pitch is on file.' : 'Record and submit your Stage 5 video pitch and AI interview to earn 15 points.',
+      tip: done ? 'Fully earned — your video pitch is on file.' : 'Record and submit your Stage 5 video pitch to earn 15 points.',
     });
   }
 
-  // Stage 6 - Live Charts (not required for billing / AR style roles)
+  // Stage 6
   {
-    const s6 = profile.stage6 || {};
-    if (LIVE_CHART_EXEMPT.includes((profile.stage2 && profile.stage2.domain) || '')) {
-      rows.push({ num: 6, name: 'Live Charts Audit', max: 0, earned: 0, tip: 'Not required for your role — it does not lower your score.' });
-    } else {
+    const hasCharts = completedStages.includes(6) || (profile.stage6?.totalCharts || 0) > 0 || profile.stage6?.evidencePath;
+    let earned = 0, tip;
+    if (hasCharts) {
+      const s6 = profile.stage6 || {};
       const opt = (s6.evidencePath || s6.option || '').toLowerCase();
-      let earned = 0, tip;
-      if (s6.skipped || opt === 'd' || opt.includes('none')) {
-        tip = 'No live chart evidence logged — add your charts with evidence in Stage 6 to earn up to 20 points.';
-      } else if (typeof s6.verificationPoints === 'number') {
-        earned = Math.min(20, Math.max(0, Math.round((s6.verificationPoints / 10) * 20)));
-        tip = earned >= 20 ? 'Fully earned — your live chart evidence is on file.' : `Your chart evidence earned ${earned}/20 — add more verified charts to raise it.`;
-      } else if ((s6.totalCharts || 0) > 0) {
-        const selfDeclared = opt === 'c' || opt.includes('self') || opt === 'declare';
-        earned = selfDeclared ? 16 : 20;
-        tip = selfDeclared
-          ? 'Your charts are self-declared (16/20 pts) — switch to API-verified or academy-verified evidence in Stage 6 to unlock the full 20 points.'
-          : 'Fully earned — your live chart evidence is on file.';
+      if (opt === 'c' || opt.includes('self') || opt === 'declare') {
+        earned = 16;
+        tip = 'Your charts are self-declared (16/20 pts) — switch to API-verified or academy-verified evidence in Stage 6 to unlock the full 20 points.';
       } else {
-        tip = 'Log your live coding/billing charts with evidence in Stage 6 to earn up to 20 points.';
+        earned = 20;
+        tip = 'Fully earned — your live chart evidence is on file.';
       }
-      rows.push({ num: 6, name: 'Live Charts Audit', max: 20, earned, tip });
+    } else {
+      tip = 'Log your live coding/billing charts with evidence in Stage 6 to earn up to 20 points.';
     }
+    rows.push({ num: 6, name: 'Live Charts Audit', max: 20, earned, tip });
   }
 
   // Stage 7
@@ -185,16 +228,6 @@ export function getScoreBreakdown(profile) {
   }
 
   return rows;
-}
-
-// Total score = sum of what each stage actually earned. When Live Charts doesn't apply to the
-// role, the remaining stages (worth 80) are rescaled to /100, same as the server.
-export function calculateRealStageScore(profile) {
-  if (!profile) return 0;
-  const rows = getScoreBreakdown(profile);
-  const earned = rows.reduce((sum, r) => sum + r.earned, 0);
-  const max = rows.reduce((sum, r) => sum + r.max, 0) || 100;
-  return Math.min(100, Math.max(0, Math.round((earned / max) * 100)));
 }
 
 export default function CandidateDashboard({ profile: propProfile, onEditStage }) {

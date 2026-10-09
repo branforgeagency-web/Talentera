@@ -223,6 +223,14 @@ class MessageCentralService {
       }
 
       const rootData = respData.api_data || respData.data || respData;
+      // Never mark someone verified off an empty/pending reply: parseDemographics fills in
+      // placeholder values, so require at least one real identity field from the provider first.
+      const rawDoc = rootData.document_data || rootData.aadhaar_data || rootData.user_data || rootData;
+      const hasIdentity = rawDoc && (rawDoc.name || rawDoc.full_name || rawDoc.user_name || rawDoc.candidate_name || rawDoc.dob || rawDoc.date_of_birth || rawDoc.aadhaar_number || rawDoc.masked_aadhaar || rawDoc.uid);
+      if (!hasIdentity) {
+        logger.warn(`[MESSAGECENTRAL] get-document returned no identity data yet: ${JSON.stringify(respData).slice(0, 300)}`);
+        throw new Error("DigiLocker verification is still in progress. Please finish the OTP step on the UIDAI page, then click Fetch Details again.");
+      }
       return this.parseDemographics(rootData);
     } catch (err) {
       if (!err.response) throw err;
