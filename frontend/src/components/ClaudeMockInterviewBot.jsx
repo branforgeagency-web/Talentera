@@ -3,6 +3,7 @@ import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 import Vapi from "@vapi-ai/web";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
+import { applyFemaleVoice, warmUpVoices } from "../utils/femaleVoice";
 import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMotionDetector";
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
@@ -257,9 +258,10 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       width: 120,
       height: 90,
       checkIntervalMs: 80,
-      lumaDiffThreshold: 26,
-      motionRatioThreshold: 0.035,
-      minPixelsThreshold: 140,
+      lumaDiffThreshold: 38,
+      motionRatioThreshold: 0.09,
+      minPixelsThreshold: 600,
+      sustainFrames: 10,
     });
   }, []);
 
@@ -858,8 +860,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     try {
       synth.cancel();
       const utter = new SpeechSynthesisUtterance(String(text).replace(/\s+/g, " "));
-      utter.lang = "en-IN";
       utter.rate = 1;
+      warmUpVoices();
+      applyFemaleVoice(utter, "en-IN");
       utter.onstart = () => {
         setIsSpeaking(true);
         clearInactivityTimer();
@@ -978,7 +981,6 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       isSwitchingCallRef.current = false;
     }, 1500);
     console.warn("Switching to browser voice:", reason);
-    toast("AI voice server isn't responding — switched to browser voice. The interviewer will speak and you can answer by speaking or typing.", "!");
 
     const s = sessionRef.current;
     const idx = s?.currentQuestionIndex ?? 0;
@@ -1155,8 +1157,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             try {
               window.speechSynthesis.cancel();
               const utter = new SpeechSynthesisUtterance(String(msg.transcript));
-              utter.lang = "en-IN";
               utter.rate = 1;
+              applyFemaleVoice(utter, "en-IN");
               window.speechSynthesis.speak(utter);
             } catch (e) { /* best effort */ }
           }

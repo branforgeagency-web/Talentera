@@ -15,6 +15,7 @@ export function createMotionDetector(options = {}) {
   const lumaDiffThreshold = options.lumaDiffThreshold || 26; // Pixel delta (0-255)
   const motionRatioThreshold = options.motionRatioThreshold || 0.035; // 3.5% of background pixels
   const minPixelsThreshold = options.minPixelsThreshold || 140; // Absolute pixel count
+  const sustainFrames = options.sustainFrames || 3; // Consecutive motion samples before alerting
 
   // Offscreen canvas for lightweight pixel extraction (~0.1ms per frame)
   let offscreenCanvas = null;
@@ -33,6 +34,7 @@ export function createMotionDetector(options = {}) {
     lumaDiffThreshold,
     motionRatioThreshold,
     minPixelsThreshold,
+    sustainFrames,
     offscreenCanvas,
     offscreenCtx,
     prevLuma: new Uint8Array(width * height),
@@ -115,6 +117,21 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
       hasCandidateMask = true;
     }
 
+    // Pass 1: mean background brightness, so webcam auto-exposure / lighting flicker (which shifts
+    // every pixel at once) is cancelled out instead of being read as movement.
+    let lumaSum = 0;
+    let lumaCount = 0;
+    for (let y = 0; y < height; y++) {
+      const rowCand = hasCandidateMask && y >= exclTop && y <= exclBottom;
+      for (let x = 0; x < width; x++) {
+        if (rowCand && x >= exclLeft && x <= exclRight) continue;
+        const di = (y * width + x) * 4;
+        lumaSum += (data[di] * 299 + data[di + 1] * 587 + data[di + 2] * 114) >> 10;
+        lumaCount++;
+      }
+    }
+    const meanLuma = lumaCount ? lumaSum / lumaCount : 0;
+
     let movedPixels = 0;
     let totalBgPixels = 0;
     const prevLuma = detector.prevLuma;
@@ -133,7 +150,7 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
         const dataIdx = idx * 4;
 
         // Fast perceptual luminance: 0.299R + 0.587G + 0.114B
-        const luma = (data[dataIdx] * 299 + data[dataIdx + 1] * 587 + data[dataIdx + 2] * 114) >> 10;
+        const luma = ((data[dataIdx] * 299 + data[dataIdx + 1] * 587 + data[dataIdx + 2] * 114) >> 10) - meanLuma + 128;
 
         if (!isFirstFrame) {
           const prev = prevLuma[idx];
@@ -164,14 +181,14 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
     if (frameMotion) {
       detector.consecutiveMotionFrames++;
       detector.consecutiveStillFrames = 0;
-      // Trigger after 3 consecutive motion samples (~240ms) - was 2 (~180ms),
-      // widened so brief/small movements don't immediately flag as sustained motion
-      if (detector.consecutiveMotionFrames >= 3) {
+      // Only flag sustained movement (sustainFrames consecutive samples), so camera noise,
+      // brief flickers and tiny shifts don't raise a false alert
+      if (detector.consecutiveMotionFrames >= detector.sustainFrames) {
         detector.isMotionActive = true;
       }
     } else {
       detector.consecutiveStillFrames++;
-      // Clear after 3 consecutive clean samples (~270ms)
+      // Clear after 3 consecutive clean samples
       if (detector.consecutiveStillFrames >= 3) {
         detector.consecutiveMotionFrames = 0;
         detector.isMotionActive = false;

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import api from "../api/client";
 import { useToast } from "./Toast.jsx";
 import useFacePresence from "../utils/useFacePresence";
+import { applyFemaleVoice, warmUpVoices } from "../utils/femaleVoice";
 
 // How many seconds of silence during an answer before it auto-advances or auto-submits.
 const SILENCE_TIMEOUT_SECONDS = 20;
@@ -367,58 +368,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
         .trim();
 
       const utterance = new SpeechSynthesisUtterance(cleanQuestion);
-      utterance.lang = "en-US";
       utterance.rate = 0.95;
-      utterance.pitch = 1.0;
       utterance.volume = 1.0;
-      const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-      const realHumanVoicePatterns = [
-        /microsoft.*(jenny|aria|ava|emma|sonia|libby|michelle).*natural/i,
-        /samantha.*(enhanced|premium)/i,
-        /karen.*(enhanced|premium)/i,
-        /serena.*(enhanced|premium)/i,
-        /ava.*(enhanced|premium)/i,
-        /zoe.*(enhanced|premium)/i,
-        /google us english/i,
-        /google uk english female/i,
-        /google.*female/i,
-        /microsoft (jenny|aria|ava|emma|sonia|libby)/i,
-        /samantha/i,
-        /karen/i,
-        /victoria/i,
-        /serena/i,
-      ];
-      let selectedVoice = null;
-      for (const pattern of realHumanVoicePatterns) {
-        const match = voices.find(
-          (v) => pattern.test(v.name) && v.lang && v.lang.toLowerCase().startsWith("en") && !/desktop|espeak/i.test(v.name)
-        );
-        if (match) {
-          selectedVoice = match;
-          break;
-        }
-      }
-      if (!selectedVoice) {
-        selectedVoice = voices.find(
-          (v) =>
-            v.lang &&
-            v.lang.toLowerCase().startsWith("en") &&
-            /(natural|neural|female|enhanced)/i.test(v.name) &&
-            !/desktop|espeak|male/i.test(v.name)
-        );
-      }
-      if (!selectedVoice) {
-        selectedVoice = voices.find(
-          (v) =>
-            v.lang &&
-            (v.lang === "en-US" || v.lang === "en-GB" || v.lang.startsWith("en")) &&
-            !/desktop|espeak|male|david/i.test(v.name)
-        );
-      }
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-        if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
-      }
+      warmUpVoices();
+      applyFemaleVoice(utterance, "en-IN");
       setIsSpeaking(true);
       const finish = () => {
         setIsSpeaking(false);
@@ -825,8 +778,7 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.lang = "en-US";
+      applyFemaleVoice(utterance, "en-IN");
       setIsSpeaking(true);
       let ended = false;
       const finish = () => {
