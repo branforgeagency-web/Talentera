@@ -90,7 +90,7 @@ export default function CollegePicker({ mode = "college", value, onChange, onPic
               )}
             </div>
           ))}
-          {data && results.length >= 40 && <div style={{ padding: "6px 14px", fontSize: 11.5, color: "#94A3B8" }}>Showing top 40 — keep typing to narrow down.</div>}
+          {data && results.length >= 100 && <div style={{ padding: "6px 14px", fontSize: 11.5, color: "#94A3B8" }}>Showing top 100 — keep typing to narrow down.</div>}
         </div>
       )}
     </div>
