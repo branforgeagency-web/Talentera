@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import CollegePicker from "../CollegePicker.jsx";
+import SearchableSelect from "../SearchableSelect.jsx";
+import { CITIES_BY_STATE } from "../../data/indianCities.js";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
 
 const INDIAN_STATES = [
@@ -41,6 +43,16 @@ const TWELFTH_LIFE_SCIENCE_COURSES = [
   "12th - Biology / Botany / Zoology (Bio-Maths)",
   "12th - Nursing / Health Care Vocational",
   "Vocational - Health Sciences (12th)",
+  "12th - Biology (PCB) with Computer Science",
+  "12th - Science (PCMB) with Agriculture",
+  "12th - Home Science",
+  "12th - Agriculture / Horticulture",
+  "12th - Nursing (Bridge / Vocational)",
+  "12th - Medical Lab Technician (Vocational)",
+  "12th - Paramedical Vocational",
+  "12th - Biotechnology / Biochemistry",
+  "12th - Microbiology / Environmental Science",
+  "12th - Dairy / Poultry / Animal Husbandry (Vocational)",
   "Other 12th (Life Science)",
 ];
 
@@ -53,6 +65,18 @@ const TWELFTH_NON_LIFE_SCIENCE_COURSES = [
   "12th - Science (PCM + Computer Science)",
   "12th - Vocational",
   "12th - Technical / Polytechnic Entry",
+  "12th - Commerce (with Business Maths / Statistics)",
+  "12th - Commerce (with Economics)",
+  "12th - Humanities (History / Geography / Political Science)",
+  "12th - Computer Science / Information Technology",
+  "12th - Science (PCM + Electronics)",
+  "12th - Accounting & Auditing (Vocational)",
+  "12th - Marketing & Salesmanship (Vocational)",
+  "12th - Office Secretaryship (Vocational)",
+  "12th - Banking / Insurance (Vocational)",
+  "12th - Engineering Technology (Vocational)",
+  "12th - Open School / NIOS",
+  "12th - CBSE / ICSE / State Board (General)",
   "Other 12th (Non-Life Science)",
 ];
 
@@ -76,6 +100,22 @@ const DIPLOMA_LIFE_SCIENCE_COURSES = [
   "Diploma in Nutrition & Dietetics",
   "Diploma in Ayurveda / Siddha / Unani Pharmacy",
   "Diploma in Veterinary Science",
+  "Diploma in Medical Imaging Technology",
+  "Diploma in Medical Laboratory Assistant",
+  "Diploma in Orthopaedic Technology",
+  "Diploma in Neurophysiology Technology",
+  "Diploma in Blood Bank Technology",
+  "Diploma in Hospital Administration",
+  "Diploma in Hearing, Language & Speech",
+  "Diploma in Community Health / Rural Health",
+  "Diploma in Sanitary Inspector / Health Inspector",
+  "Diploma in Yoga / Naturopathy",
+  "Diploma in Dental Technician",
+  "Diploma in Neonatal / Critical Care Nursing",
+  "Diploma in Biotechnology / Microbiology",
+  "Diploma in Agriculture / Horticulture",
+  "Diploma in Food Technology / Processing",
+  "Diploma in Medical Coding / Billing",
   "Other Diploma (Life Science)",
 ];
 
@@ -96,6 +136,26 @@ const DIPLOMA_NON_LIFE_SCIENCE_COURSES = [
   "Diploma in Teacher Education (D.Ed)",
   "Diploma in Banking / Finance",
   "ITI (Industrial Training Institute)",
+  "Diploma in Engineering - Automobile",
+  "Diploma in Engineering - Aeronautical",
+  "Diploma in Engineering - Chemical",
+  "Diploma in Engineering - Textile",
+  "Diploma in Engineering - Instrumentation",
+  "Diploma in Engineering - Production / Industrial",
+  "Diploma in Engineering - Mining / Marine / Petroleum",
+  "Diploma in Engineering - Information Technology",
+  "Diploma in Architecture / Architectural Assistantship",
+  "Diploma in Animation / Multimedia / Graphic Design",
+  "Diploma in Computer Hardware & Networking",
+  "Diploma in Tally / Accounting & GST",
+  "Diploma in Hospitality & Tourism",
+  "Diploma in Event Management",
+  "Diploma in Beauty & Wellness",
+  "Diploma in Library Science",
+  "Diploma in Printing Technology",
+  "Diploma in Cyber Security / Ethical Hacking",
+  "PG Diploma in Computer Applications (PGDCA)",
+  "PG Diploma in Business Management",
   "Other Diploma (Non-Life Science)",
 ];
 
@@ -150,6 +210,47 @@ const UG_LIFE_SCIENCE_COURSES = [
   "BNYS (Naturopathy & Yoga)",
   "BVSc & AH (Veterinary Science)",
   "B.Sc. Veterinary / Animal Husbandry",
+  "B.Sc. Biomedical Science",
+  "B.Sc. Applied Microbiology / Industrial Microbiology",
+  "B.Sc. Medical Microbiology",
+  "B.Sc. Human Genetics / Molecular Biology",
+  "B.Sc. Anatomy / Physiology",
+  "B.Sc. Pharmacology",
+  "B.Sc. Neuroscience",
+  "B.Sc. Clinical Psychology",
+  "B.Sc. Home Science / Human Development",
+  "B.Sc. Sports Science / Exercise Physiology",
+  "B.Sc. Fisheries Science",
+  "B.Sc. Dairy Science / Poultry Science",
+  "B.Sc. Forestry / Wildlife Biology",
+  "B.Sc. Sericulture",
+  "B.Sc. Marine Biology / Aquaculture",
+  "B.Sc. Biophysics",
+  "B.Sc. Medical Laboratory Science",
+  "B.Sc. Nuclear Medicine Technology",
+  "B.Sc. Critical Care Technology",
+  "B.Sc. Cardiovascular Technology",
+  "B.Sc. Medical Imaging Technology (MIT)",
+  "B.Sc. Clinical Research / Pharmacovigilance",
+  "B.Sc. Nursing (Post Basic)",
+  "B.Sc. Genetic Counselling",
+  "B.Sc. Plant Biotechnology / Agri Biotechnology",
+  "B.Sc. Pathology / Cytotechnology",
+  "B.Sc. Hospital Management / Healthcare Administration",
+  "B.Sc. Physiotherapy",
+  "B.Optom (Optometry)",
+  "BMLT (Medical Laboratory Technology)",
+  "BRIT (Radiology & Imaging Technology)",
+  "B.Tech - Biotechnology",
+  "B.Tech - Biomedical Engineering",
+  "B.Tech - Food Technology",
+  "B.Tech - Pharmaceutical Technology",
+  "B.Tech - Agricultural Engineering",
+  "B.Tech - Dairy / Fisheries Technology",
+  "B.Tech - Genetic Engineering",
+  "BHA (Hospital Administration)",
+  "BNYS / Yoga & Naturopathy (Allied)",
+  "B.Voc - Healthcare / Medical Lab / Nursing Assistant",
   "Other Life Science UG Degree",
 ];
 
@@ -187,6 +288,39 @@ const PG_LIFE_SCIENCE_COURSES = [
   "MD (Ayurveda / Homoeopathy / Unani / Siddha)",
   "M.Phil (Life Sciences)",
   "Ph.D (Life Sciences)",
+  "M.Sc. Biomedical Science",
+  "M.Sc. Medical Microbiology",
+  "M.Sc. Applied / Industrial Microbiology",
+  "M.Sc. Molecular Biology / Human Genetics",
+  "M.Sc. Immunology / Virology",
+  "M.Sc. Pharmacology / Pharmaceutical Chemistry",
+  "M.Sc. Neuroscience",
+  "M.Sc. Anatomy / Physiology",
+  "M.Sc. Medical Imaging Technology",
+  "M.Sc. Cardiac / Critical Care Technology",
+  "M.Sc. Nuclear Medicine Technology",
+  "M.Sc. Genetic Counselling",
+  "M.Sc. Marine Biology / Aquaculture",
+  "M.Sc. Agriculture / Horticulture",
+  "M.Sc. Sports Science",
+  "M.Sc. Pharmacovigilance / Drug Regulatory Affairs",
+  "M.Sc. Hospital Administration",
+  "M.Tech - Biotechnology",
+  "M.Tech - Biomedical Engineering",
+  "M.Tech - Pharmaceutical Technology",
+  "MBA (Hospital / Healthcare) with Life Science background",
+  "MD / MS (Medical Specialties)",
+  "DNB (Diplomate of National Board)",
+  "DM / MCh (Super Specialty)",
+  "MVSc (Master of Veterinary Science)",
+  "MASLP (Audiology & Speech-Language Pathology)",
+  "MBA - Pharma / Biotech Management",
+  "PG Diploma in Clinical Research",
+  "PG Diploma in Hospital Administration",
+  "PG Diploma in Medical Coding / Health Information Management",
+  "PG Diploma in Pharmacovigilance",
+  "PG Diploma in Nutrition & Dietetics",
+  "PG Diploma in Public Health",
   "Other Life Science PG Degree",
 ];
 
@@ -240,6 +374,71 @@ const UG_NON_LIFE_SCIENCE_COURSES = [
   "BFA (Fine Arts)",
   "B.Lib (Library Science)",
   "CA / CMA / CS (Professional)",
+  "B.Com (Financial Accounting)",
+  "B.Com (E-Commerce)",
+  "B.Com (International Business)",
+  "B.Com (Taxation / Tax Procedure)",
+  "B.Com (Information Systems / Systems)",
+  "B.Com (Bank Management)",
+  "B.Com (Cost & Management Accounting)",
+  "B.Com (Travel & Tourism)",
+  "B.Com (Logistics / Supply Chain)",
+  "B.Com (Marketing / Retail Management)",
+  "B.Com LLB (Integrated)",
+  "BBA (Logistics / Supply Chain)",
+  "BBA (Banking & Finance)",
+  "BBA (Aviation Management)",
+  "BBA (Digital Marketing)",
+  "BBA (International Business)",
+  "BBA (Retail Management)",
+  "BBA (Tourism & Travel)",
+  "BBA LLB (Integrated)",
+  "BCA (Cyber Security / Data Science)",
+  "B.Sc. Chemistry",
+  "B.Sc. Geology",
+  "B.Sc. Applied Mathematics",
+  "B.Sc. Computer Applications",
+  "B.Sc. Cyber Security / Digital Forensics",
+  "B.Sc. Animation / Gaming",
+  "B.Sc. Interior / Fashion Design",
+  "B.Sc. Aviation",
+  "B.Sc. Textile / Apparel Design",
+  "B.Sc. Geography / Meteorology",
+  "B.Sc. Cloud Computing / IoT",
+  "B.Sc. Electronics & Communication",
+  "B.Tech / B.E. - Aeronautical",
+  "B.Tech / B.E. - Automobile",
+  "B.Tech / B.E. - Mechatronics / Robotics",
+  "B.Tech / B.E. - Production / Industrial",
+  "B.Tech / B.E. - Instrumentation / Control",
+  "B.Tech / B.E. - Petroleum / Mining / Marine",
+  "B.Tech / B.E. - Textile",
+  "B.Tech / B.E. - Cyber Security",
+  "B.Tech / B.E. - Cloud / IoT / Machine Learning",
+  "B.Tech / B.E. - Data Science",
+  "B.Tech / B.E. - Aerospace",
+  "B.Tech / B.E. - Environmental / Structural",
+  "B.A. Public Administration",
+  "B.A. Geography",
+  "B.A. Philosophy",
+  "B.A. Mathematics",
+  "B.A. Criminology",
+  "B.A. Tourism & Travel",
+  "B.A. Defence & Strategic Studies",
+  "B.A. Music / Dance / Theatre",
+  "B.A. Visual Communication",
+  "B.A. Business Economics",
+  "B.A. Fashion / Interior Design",
+  "B.A. LLB (Integrated)",
+  "B.P.Ed (Physical Education)",
+  "B.Voc (Vocational Degree)",
+  "B.Sc. Agri-Business / Food Technology",
+  "BTTM (Tourism & Travel Management)",
+  "BHMCT (Hotel Management & Catering)",
+  "Integrated B.Tech + M.Tech",
+  "ICWA / CMA Foundation",
+  "CFA / ACCA (Professional)",
+  "Integrated BA/BSc + B.Ed",
   "Other Non-Life Science UG Degree",
 ];
 
@@ -279,6 +478,60 @@ const PG_NON_LIFE_SCIENCE_COURSES = [
   "M.Lib (Library Science)",
   "M.Phil (Non-Life Science)",
   "Ph.D (Non-Life Science)",
+  "MCA (Cyber Security / AI)",
+  "M.Sc. Computer Applications",
+  "M.Sc. Electronics",
+  "M.Sc. Chemistry",
+  "M.Sc. Geology / Applied Geology",
+  "M.Sc. Operations Research",
+  "M.Sc. Cyber Security / Digital Forensics",
+  "M.Sc. Applied Mathematics / Actuarial Science",
+  "M.Sc. Geography / Remote Sensing / GIS",
+  "M.Sc. Animation / Multimedia",
+  "M.Tech / M.E. - Mechanical",
+  "M.Tech / M.E. - Civil / Structural",
+  "M.Tech / M.E. - Electrical / Power Systems",
+  "M.Tech / M.E. - ECE / VLSI",
+  "M.Tech / M.E. - IT / AI & Data Science",
+  "M.Tech / M.E. - Chemical",
+  "M.Tech / M.E. - Aerospace / Automobile",
+  "M.Tech / M.E. - Environmental / Manufacturing",
+  "MBA (IT / Systems)",
+  "MBA (Business Analytics)",
+  "MBA (International Business)",
+  "MBA (Logistics / Supply Chain)",
+  "MBA (Banking & Finance)",
+  "MBA (Entrepreneurship)",
+  "MBA (Digital Marketing)",
+  "MBA (Retail / Tourism / Aviation)",
+  "PGDM (Finance / Marketing / HR)",
+  "PGDBM (Business Management)",
+  "PGDCA (Computer Applications)",
+  "M.Com (Taxation / International Business)",
+  "M.Com (Banking & Insurance)",
+  "M.Com (Accounting & Finance)",
+  "M.A. Public Administration",
+  "M.A. Geography",
+  "M.A. Philosophy",
+  "M.A. Political Science",
+  "M.A. Mathematics",
+  "M.A. Criminology",
+  "M.A. Tourism",
+  "M.A. Defence & Strategic Studies",
+  "M.A. Linguistics / Translation",
+  "M.A. Music / Fine Arts",
+  "M.A. Human Resource Management",
+  "M.A. Visual Communication / Media",
+  "MFA (Fine Arts)",
+  "M.P.Ed (Physical Education)",
+  "MSW (Medical & Psychiatric Social Work)",
+  "MA LLB / LLM (Corporate / Criminal / Constitutional Law)",
+  "M.Voc (Vocational)",
+  "MHRM / MHROD (Human Resources)",
+  "MFM / MFC (Financial Management / Control)",
+  "CA / CMA / CS (Final / Qualified)",
+  "MBA + PGDM (Executive)",
+  "M.Sc. Agri-Business Management",
   "Other Non-Life Science PG Degree",
 ];
 
@@ -2798,7 +3051,12 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <select
                     value={currentState}
                     disabled={isSameAddress}
-                    onChange={(e) => setCurrentState(e.target.value)}
+                    onChange={(e) => {
+                      const st = e.target.value;
+                      setCurrentState(st);
+                      // keep the city only if it belongs to the newly chosen state
+                      if (currentCity && !(CITIES_BY_STATE[st] || []).includes(currentCity)) setCurrentCity("");
+                    }}
                   >
                     <option value="">Select State</option>
                     {INDIAN_STATES.map((st) => (
@@ -2815,8 +3073,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     disabled={isSameAddress}
                     onChange={(e) => setCurrentCity(e.target.value)}
                   >
-                    <option value="">Select City</option>
-                    {POPULAR_CITIES.map((c) => (
+                    <option value="">{currentState ? "Select City" : "Select state first"}</option>
+                    {(() => {
+                      const list = CITIES_BY_STATE[currentState] || [];
+                      return currentCity && !list.includes(currentCity) ? [currentCity, ...list] : list;
+                    })().map((c) => (
                       <option key={c} value={c}>
                         {c}
                       </option>
@@ -3028,22 +3289,15 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     placeholder="Type your qualification / course name"
                   />
                 ) : (
-                  <select
+                  <SearchableSelect
                     value={degree}
-                    onChange={(e) => {
-                      setDegree(e.target.value);
+                    options={getCourseOptions(qualification, educationStream)}
+                    placeholder="Search and select your course…"
+                    onChange={(v) => {
+                      setDegree(v);
                       if (formErrors.degree) setFormErrors((prev) => ({ ...prev, degree: null }));
                     }}
-                  >
-                    {degree && !getCourseOptions(qualification, educationStream).includes(degree) && (
-                      <option value={degree}>{degree}</option>
-                    )}
-                    {getCourseOptions(qualification, educationStream).map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 )}
                 {formErrors.degree && <div className="field-error-msg">{formErrors.degree}</div>}
               </div>

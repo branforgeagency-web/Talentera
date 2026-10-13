@@ -42,6 +42,8 @@ const BY_STATE = {
 
 // Flat, de-duplicated, sorted list: [{ city, state }]
 const seen = new Set();
+export const CITIES_BY_STATE = BY_STATE;
+
 export const INDIAN_CITIES = Object.entries(BY_STATE)
   .flatMap(([state, cities]) => cities.map((city) => ({ city, state })))
   .filter(({ city }) => {
