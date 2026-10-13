@@ -63,6 +63,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [optQuery, setOptQuery] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -399,8 +400,24 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
       )}
 
       {item.input === "multi" && item.id !== "panel" && (
-        <div className="conb-chip-grid">
-          {(item.options || []).map((opt) => {
+        <>
+        {item.searchable && (
+          <input
+            type="text"
+            className="conb-input"
+            style={{ marginBottom: 8 }}
+            placeholder={`Search ${item.name.toLowerCase()}…`}
+            value={optQuery}
+            onChange={(e) => setOptQuery(e.target.value)}
+          />
+        )}
+        {item.searchable && multiVal.filter((v) => (item.options || []).includes(v)).length > 0 && (
+          <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+            {multiVal.filter((v) => (item.options || []).includes(v)).length} selected
+          </div>
+        )}
+        <div className="conb-chip-grid" style={item.searchable ? { maxHeight: 240, overflowY: "auto", paddingRight: 4 } : undefined}>
+          {(item.options || []).filter((opt) => !item.searchable || !optQuery.trim() || opt === "Other" || multiVal.includes(opt) || opt.toLowerCase().includes(optQuery.trim().toLowerCase())).map((opt) => {
             const isOther = opt === "Other";
             const active = isOther ? multiHasOther(multiVal) : multiVal.includes(opt);
             return (
@@ -420,6 +437,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             );
           })}
         </div>
+        </>
       )}
 
       {item.input === "multi" && item.id !== "panel" && (item.options || []).includes("Other") && multiHasOther(multiVal) && (
