@@ -263,7 +263,7 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
     if (Array.isArray(stage6.selectedPlatforms) && stage6.selectedPlatforms.length > 0) {
       return stage6.selectedPlatforms;
     }
-    return ["Practicode", "Codivia", "3M 360 Encompass"];
+    return []; // only tools the candidate actually selected - never auto-filled
   }, [stage6]);
 
   // Education Details

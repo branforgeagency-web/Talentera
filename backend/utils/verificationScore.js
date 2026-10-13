@@ -71,6 +71,26 @@ function hasStage5Evidence(s5 = {}) {
   );
 }
 
+// Stage 5 points scale with the actual AI evaluation score (out of 100). A recording with no
+// AI score yet earns half credit until it is evaluated.
+function stage5Points(s5 = {}) {
+  const raw = [s5.overallScore, s5.aiScore, s5.score].find(
+    (v) => v !== undefined && v !== null && v !== "" && !isNaN(Number(v))
+  );
+  if (raw === undefined) return s5.verified ? STAGE_POINTS[5] : Math.round(STAGE_POINTS[5] / 2);
+  const n = Math.max(0, Math.min(100, Number(raw)));
+  return Math.round((n / 100) * STAGE_POINTS[5]);
+}
+
+// Experienced candidates have no academy to sign off Stage 2, so Foundation is scored from
+// their work history: 10 for current-employer details, +5 when experience proof is attached.
+function experiencedStage2Points(s2 = {}) {
+  let pts = 0;
+  if (String(s2.currentCompany || "").trim() && String(s2.jobTitle || "").trim()) pts += 10;
+  if (s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl) pts += 5;
+  return pts;
+}
+
 function calculateVerificationScore(completedStages = [], candidate = null) {
   let score = 0;
   const verifiedStages = [];
@@ -87,6 +107,15 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       stageScores[1] = STAGE_POINTS[1];
       verifiedStages.push(1);
     } else if (stage === 2) {
+      if (candidate && experienced) {
+        const pts2x = experiencedStage2Points(candidate.stage2 || {});
+        if (pts2x > 0) {
+          score += pts2x;
+          stageScores[2] = pts2x;
+          verifiedStages.push(2);
+        }
+        continue;
+      }
       if (candidate && candidate.stage2?.verified !== true) {
         continue; // academy has not signed off on the training yet
       }
@@ -163,8 +192,9 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       if (candidate && !hasStage5Evidence(candidate.stage5 || {})) {
         continue; // no video pitch / AI interview recorded
       }
-      score += STAGE_POINTS[5];
-      stageScores[5] = STAGE_POINTS[5];
+      const pts5 = candidate ? stage5Points(candidate.stage5 || {}) : STAGE_POINTS[5];
+      score += pts5;
+      stageScores[5] = pts5;
       verifiedStages.push(5);
     } else if (stage === 6) {
       // Live Chart Practice (Co-Flagship): rescaled onto STAGE_POINTS[6] from
