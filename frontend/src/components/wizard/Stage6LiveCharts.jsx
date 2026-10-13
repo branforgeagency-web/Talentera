@@ -449,13 +449,14 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
             </p>
           </div>
 
-          {/* SELF-TRAINED OPTIONAL BANNER */}
-          {isSelfTrained && (
+          {/* OPTIONAL / SKIP BANNER (everyone can skip Stage 06) */}
+          {(
+
             <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 <i className="fa-solid fa-circle-info" style={{ color: "#16A34A", fontSize: 18, marginTop: 2 }} />
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is optional for your role — bonus points only" : "Stage 06 is optional for self-trained candidates"}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is optional for your role — bonus points only" : "Stage 06 is optional — you can skip it"}</div>
                   <div style={{ fontSize: 12.5, color: "#166534", lineHeight: 1.5 }}>
                     {isExemptDomain
                       ? `Live chart coding isn't required for ${candidate?.stage2?.domain || "your"} roles. You can skip Stage 06 and go straight to Stage 07 · Resume — it won't lower your score. If you do have live chart exposure, add it here to earn bonus points.`
@@ -916,7 +917,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <button type="button" onClick={() => setShowHistoryModal(true)} style={{ background: "transparent", border: "1px solid #CBD5E1", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#334155", cursor: "pointer" }}>View my chart history</button>
                   {evidencePath === "B" && <button type="button" onClick={() => setShowVaultModal(true)} style={{ background: "transparent", border: "1px solid #CBD5E1", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#334155", cursor: "pointer" }}>Proof documents ({vaultDocuments.length})</button>}
-                  {isSelfTrained && (
+                  {(
                     <button type="button" onClick={handleSkipStage6} disabled={skipping} style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#15803D", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
                       <i className="fa-solid fa-forward" />
                       {skipping ? "Skipping…" : "Skip Stage 06 (Optional) →"}
