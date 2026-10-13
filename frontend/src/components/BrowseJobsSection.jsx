@@ -1,5 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api/client';
+import { isExperiencedCandidate } from '../data/wizardStages';
+
+// Role families used to show experienced candidates only jobs in their own line of work
+// (e.g. an Experienced Medical Biller should not be shown Medical Coder openings).
+const ROLE_FAMILIES = {
+  billing: /billing|biller|charge (entry|capture)|payment posting|claims? (submission|processing)|denial/i,
+  ar: /\bar\b|a\/r|accounts? receivable|ar calling|ar follow/i,
+  coding: /\bcod(er|ers|ing)\b|hcc|cpc|ccs|icd|cpt|drg|risk adjustment|auditor|e\/m|surgery coding/i,
+  eligibility: /eligibility|verification|prior auth|benefits/i,
+};
+const familiesOf = (text) => Object.keys(ROLE_FAMILIES).filter((k) => ROLE_FAMILIES[k].test(String(text || '')));
 
 const getCityIcon = (city = '') => {
   const c = (city || '').toLowerCase();
@@ -13,7 +24,8 @@ const getCityIcon = (city = '') => {
 };
 
 export default function BrowseJobsSection({ candidate, applications = [], onApplied }) {
-  const [jobs, setJobs] = useState([]);
+  const [allJobs, setJobs] = useState([]);
+  const [showAllRoles, setShowAllRoles] = useState(false);
   const [stats, setStats] = useState({
     totalOpenings: 0,
     companiesCount: 0,
@@ -26,6 +38,17 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   const [cityStats, setCityStats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [applyingJobId, setApplyingJobId] = useState(null);
+
+  // Experienced candidates: only roles in their own domain (billing / AR / coding / eligibility).
+  const candidateFamilies = familiesOf(`${candidate?.stage2?.domain || ''} ${candidate?.stage2?.jobTitle || ''} ${candidate?.stage1?.currentRole || ''}`);
+  const roleFilterOn = isExperiencedCandidate(candidate) && candidateFamilies.length > 0 && !showAllRoles;
+  const jobs = roleFilterOn
+    ? allJobs.filter((j) => {
+        const fams = familiesOf(`${j.title || ''} ${j.specialty || ''} ${j.projectClient || ''}`);
+        return fams.length === 0 || fams.some((f) => candidateFamilies.includes(f));
+      })
+    : allJobs;
+  const canToggleRoles = isExperiencedCandidate(candidate) && candidateFamilies.length > 0;
   const [appliedJobIds, setAppliedJobIds] = useState(new Set());
   const [toastMsg, setToastMsg] = useState(null);
   const [toastTone, setToastTone] = useState('success');
@@ -221,7 +244,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   });
 
   const anyFilterActive = Boolean(
-    selectedLocation || selectedSpecialty || selectedCompany || selectedProject || selectedSalaryBand || selectedWorkMode ||
+    roleFilterOn || selectedLocation || selectedSpecialty || selectedCompany || selectedProject || selectedSalaryBand || selectedWorkMode ||
     filterMatchProfile || filterSilverPlus || filterFeatured || filterWalkIn || filterOpenToGlobal
   );
   const sumOpenings = (list) => list.reduce((sum, j) => sum + (j.openings || 1), 0);
@@ -261,25 +284,11 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
 
       {/* Header Eyebrow & Title */}
       <div style={{ marginBottom: 24 }}>
-        <div style={{
-          fontSize: 11,
-          fontWeight: 800,
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          color: '#D97706',
-          marginBottom: 6,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}>
-          <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', background: '#F5B41A' }}></span>
-          LIVE · {totalOpeningsCount} OPEN ROLES ACROSS {totalCompaniesCount} RCM COMPANIES · DATABASE VERIFIED
-        </div>
         <h1 style={{ fontSize: 30, fontWeight: 800, color: '#0F1B3D', margin: 0, letterSpacing: '-0.02em' }}>
-          Browse Jobs · Everything Medical Coding
+          Browse Jobs
         </h1>
         <p style={{ fontSize: 13.5, color: '#64748B', margin: '6px 0 0', maxWidth: 820, lineHeight: 1.5 }}>
-          All open roles, all locations, all companies — in ONE place. No jumping to Naukri, Foundit, or LinkedIn. Filter, view full JD, and apply directly with your verified profile.
+          All open roles, all locations, all companies — in one place. Filter, view the full JD, and apply directly with your verified profile.
         </p>
       </div>
 
@@ -922,6 +931,15 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
               {filteredJobs.length} OPEN
             </span>
           </div>
+
+          {canToggleRoles && (
+            <button
+              onClick={() => setShowAllRoles((v) => !v)}
+              style={{ background: 'transparent', border: 'none', color: '#2563EB', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              {roleFilterOn ? `Showing only ${candidate?.stage2?.domain || 'your role'} jobs · Show all jobs` : 'Show only my role jobs'}
+            </button>
+          )}
 
           {(selectedLocation || selectedSpecialty || selectedCompany || selectedSalaryBand || selectedWorkMode || filterMatchProfile) && (
             <button

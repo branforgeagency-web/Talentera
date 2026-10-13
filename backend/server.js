@@ -94,6 +94,7 @@ app.use("/api/academy", academyRoutes);
 app.use("/api/staff/enquiries", require("./routes/staffEnquiries"));
 app.use("/api/staff", staffRoutes);
 app.use("/api/company/auth", companyAuthRoutes);
+app.use("/api/company/team", require("./routes/companyTeam"));
 app.use("/api/company", companyRoutes);
 app.use("/api/otp", otpRoutes);
 app.use("/api/aadhaar", aadhaarRoutes);

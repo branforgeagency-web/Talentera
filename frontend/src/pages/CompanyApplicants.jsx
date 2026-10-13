@@ -5,13 +5,16 @@ import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import AcademyProfileModal from "../components/AcademyProfileModal.jsx";
 
-const STATUS_OPTIONS = ["applied", "shortlisted", "interviewing", "hired", "rejected"];
+import HeadOnly from "../components/company/HeadOnly.jsx";
+const STATUS_OPTIONS = ["applied", "shortlisted", "interviewing", "hired", "on_hold", "rejected"];
+const statusLabel = (s) => (s === "on_hold" ? "On Hold (Selected)" : s === "all" ? "all" : String(s).charAt(0).toUpperCase() + String(s).slice(1));
 
 const STATUS_STYLE = {
   applied: { bg: "#F1F5F9", color: "#334155" },
   shortlisted: { bg: "#DBEAFE", color: "#1D4ED8" },
   interviewing: { bg: "#FEF3C7", color: "#B45309" },
   hired: { bg: "#DCFCE7", color: "#166534" },
+  on_hold: { bg: "#FEF3C7", color: "#92400E" },
   rejected: { bg: "#FEE2E2", color: "#B91C1C" },
 };
 
@@ -210,12 +213,13 @@ export default function CompanyApplicants() {
           <Link to="/companies/applicants" style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}>
             Applicants
           </Link>
-          <Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+          <HeadOnly><Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Plan &amp; Billing
-          </Link>
-          <Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+          </Link></HeadOnly>
+          <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
+          <HeadOnly><Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Edit Profile
-          </Link>
+          </Link></HeadOnly>
           {company && (
             <button
               type="button"
@@ -245,7 +249,7 @@ export default function CompanyApplicants() {
           {!isKycVerified && !loading && (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, maxWidth: 340 }}>
               🔒 Complete Account &amp; KYC verification to see full candidate contact details.{" "}
-              <Link to="/companies/dashboard" style={{ color: "#92400E", fontWeight: 800 }}>Verify now →</Link>
+              <HeadOnly><Link to="/companies/dashboard" style={{ color: "#92400E", fontWeight: 800 }}>Verify now →</Link></HeadOnly>
             </div>
           )}
         </div>
@@ -358,7 +362,7 @@ export default function CompanyApplicants() {
                   cursor: "pointer",
                 }}
               >
-                {s} {s !== "all" ? `(${applications.filter((a) => a.status === s).length})` : `(${applications.length})`}
+                {statusLabel(s)} {s !== "all" ? `(${applications.filter((a) => a.status === s).length})` : `(${applications.length})`}
               </button>
             ))}
           </div>
@@ -480,7 +484,7 @@ export default function CompanyApplicants() {
 
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
                     <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", background: style.bg, color: style.color, padding: "4px 12px", borderRadius: 999 }}>
-                      {app.status}
+                      {statusLabel(app.status)}
                     </span>
                     <select
                       value={app.status}
@@ -490,7 +494,7 @@ export default function CompanyApplicants() {
                       style={{ fontSize: 12.5, padding: "6px 10px", borderRadius: 8, border: "1px solid #CBD5E1", fontWeight: 600, color: "var(--navy)" }}
                     >
                       {STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                        <option key={s} value={s}>{statusLabel(s)}</option>
                       ))}
                     </select>
                     <span style={{ fontSize: 11, color: "#94A3B8" }}>View full profile →</span>
@@ -587,7 +591,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
                 </span>
               )}
               <span style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", background: style.bg, color: style.color, padding: "3px 10px", borderRadius: 999 }}>
-                {application.status}
+                {statusLabel(application.status)}
               </span>
             </div>
             <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--navy)", marginBottom: 2 }}>
@@ -611,7 +615,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
                   Upgrade to Growth Tier (₹4,999/mo) to unlock complete proctored test scorecards, live chart accuracy breakdowns, and AAPC/AHIMA verification.
                 </div>
               </div>
-              <Link
+              <HeadOnly><Link
                 to="/companies/billing"
                 style={{
                   background: "#1D4ED8",
@@ -625,7 +629,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
                 }}
               >
                 Upgrade to Growth →
-              </Link>
+              </Link></HeadOnly>
             </div>
           )}
 
@@ -654,6 +658,25 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               )}
               <Row label="Batch" value={training.batch} />
               <Row label="Verified" value={training.verified ? "Yes ✓" : "Self-reported"} />
+            </Section>
+          )}
+
+          {(training.certDocUrl || training.relievingLetterUrl) && (
+            <Section title="Experience proof (attached by candidate)">
+              {training.certDocUrl && (
+                <div style={{ padding: "6px 0", fontSize: 13.5 }}>
+                  <a href={training.certDocUrl} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>
+                    View {training.certDocName || "experience / certification document"} →
+                  </a>
+                </div>
+              )}
+              {training.relievingLetterUrl && (
+                <div style={{ padding: "6px 0", fontSize: 13.5 }}>
+                  <a href={training.relievingLetterUrl} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>
+                    View {training.relievingLetterName || "relieving letter"} →
+                  </a>
+                </div>
+              )}
             </Section>
           )}
 
@@ -871,7 +894,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               style={{ fontSize: 13, padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontWeight: 600, color: "var(--navy)" }}
             >
               {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                <option key={s} value={s}>{statusLabel(s)}</option>
               ))}
             </select>
           </div>

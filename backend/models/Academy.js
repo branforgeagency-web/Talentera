@@ -2,14 +2,14 @@ const mongoose = require("mongoose");
 const crypto = require("crypto");
 
 const CourseSubSchema = new mongoose.Schema({
-  category: { type: String, default: "Medical Coding" },
-  duration: { type: String, default: "3 MONTHS" },
+  category: { type: String, default: "" },
+  duration: { type: String, default: "" },
   title: { type: String, required: true },
-  totalHrs: { type: Number, default: 120 },
-  batches: { type: Number, default: 1 },
-  enrolled: { type: Number, default: 25 },
+  totalHrs: { type: Number, default: 0 },
+  batches: { type: Number, default: 0 },
+  enrolled: { type: Number, default: 0 },
   status: { type: String, default: "active" },
-  syllabus: { type: [String], default: ["ICD-10-CM Basics", "CPT Modifiers", "Documentation Review", "Capstone"] },
+  syllabus: { type: [String], default: [] },
   fees: { type: Number, default: null, min: 0 }, // optional course fee (INR)
 });
 
@@ -73,11 +73,11 @@ const AcademySchema = new mongoose.Schema(
     },
     primaryAdmin: {
       type: String,
-      default: "sdfd",
+      default: "",
     },
     phone: {
       type: String,
-      default: "+91 9765435676",
+      default: "",
     },
     specialty: {
       type: String,
@@ -89,7 +89,7 @@ const AcademySchema = new mongoose.Schema(
     },
     branches: {
       type: [String],
-      default: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+      default: [],
     },
     tier: {
       type: String,
@@ -97,7 +97,7 @@ const AcademySchema = new mongoose.Schema(
     },
     totalAlumni: {
       type: String,
-      default: "35,000+",
+      default: "0",
     },
     badgeToken: {
       type: String,
@@ -106,15 +106,15 @@ const AcademySchema = new mongoose.Schema(
     },
     partnerSince: {
       type: String,
-      default: () => "Jan 2025",
+      default: () => new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
     },
     studentsUploaded: {
       type: Number,
-      default: 100,
+      default: 0,
     },
     verifiedPct: {
       type: Number,
-      default: 94,
+      default: 0,
     },
     passwordHash: {
       type: String,

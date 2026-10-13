@@ -44,6 +44,7 @@ const APPLICATION_STATUS_LABELS = {
   shortlisted: "Shortlisted",
   interviewing: "moved to the interview stage",
   hired: "Hired / Offered",
+  on_hold: "Selected - On Hold (offer letter awaited)",
   rejected: "not selected for this role",
 };
 
@@ -933,7 +934,7 @@ router.get("/matched-candidates", async (req, res) => {
 // PUT /api/company/applications/:id/status - Recruiter status update (shortlisted/interviewing/hired/rejected)
 router.put("/applications/:id/status", async (req, res) => {
   const { status } = req.body;
-  const validStatuses = ["applied", "shortlisted", "interviewing", "hired", "rejected"];
+  const validStatuses = ["applied", "shortlisted", "interviewing", "hired", "on_hold", "rejected"];
   if (!validStatuses.includes(status)) {
     return res.status(400).json({ message: "Invalid application status." });
   }
@@ -949,6 +950,22 @@ router.put("/applications/:id/status", async (req, res) => {
 
   const previousStatus = application.status;
   application.status = status;
+  if (status === "interviewing") {
+    // Capture the interview slot the recruiter picked so the candidate's
+    // Interview Invites tab can show it. A new slot resets confirmation.
+    const rawWhen = req.body.interviewTime || req.body.interviewScheduledAt || req.body.scheduledAt;
+    if (rawWhen) {
+      const d = new Date(rawWhen);
+      if (!Number.isNaN(d.getTime())) application.interviewScheduledAt = d;
+      application.interviewTimeText = String(rawWhen).slice(0, 120);
+      application.interviewConfirmed = false;
+      application.interviewConfirmedAt = null;
+    }
+    if (req.body.interviewType) application.interviewType = String(req.body.interviewType).slice(0, 80);
+    if (req.body.meetingLink || req.body.interviewMeetingLink) {
+      application.interviewMeetingLink = String(req.body.meetingLink || req.body.interviewMeetingLink).slice(0, 500);
+    }
+  }
   if (status === "rejected") {
     application.rejectionReason = req.body.reason || req.body.rejectionReason || application.rejectionReason || "";
     application.rejectionDetails = req.body.details || req.body.rejectionDetails || application.rejectionDetails || "";
@@ -989,6 +1006,10 @@ router.put("/applications/:id/status", async (req, res) => {
           notifTitle = `Job Offer from ${companyName}! 🎉`;
           notifMsg = `Congratulations! You have received a formal offer from ${companyName} for "${roleTitle}".`;
           notifType = "offer_received";
+        } else if (status === "on_hold") {
+          notifTitle = `You're selected by ${companyName} - On Hold`;
+          notifMsg = `Good news! ${companyName} has selected you for "${roleTitle}". Your offer letter is still being prepared - we'll notify you as soon as it's released.`;
+          notifType = "application_update";
         } else if (status === "rejected") {
           notifTitle = `Application Status: ${companyName}`;
           notifMsg = `Your application for "${roleTitle}" at ${companyName} was not moved forward.`;

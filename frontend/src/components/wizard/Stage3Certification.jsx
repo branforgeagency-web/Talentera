@@ -208,6 +208,8 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   const s2 = candidate?.stage2 || {};
   const candidateName = s1.fullName || candidate.fullName || "Candidate";
   const candidateExp = s1.experienceLevel || s1.experience || candidate?.experience || "Fresher";
+  // Experienced candidates skip the Stage 04 Assessment, so the next stage after this one is 05.
+  const isExperiencedCand = /exp/i.test(String(s1.experience || ""));
   const isExperienced = /exp/i.test(String(s1.experienceLevel || s1.experience || candidate?.experience || candidateExp || ""));
   const academyName = s2.academyName || s2.instituteName || "Direct / Self-Trained";
   const specialty = s2.specialties?.[0] || s2.specialty || s2.domain || "Medical Coding";
@@ -2444,46 +2446,25 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
               <div className="s3-helper-card" style={{ marginTop: 14 }}>
                 <div className="ico"><i className="fa-solid fa-flask" /></div>
                 <div className="txt">
-                  <b>Bridging Path Active:</b> As a pursuing candidate, completing Stage 04 (Foundation Assessment) unlocks your verified candidate badge while your certification exam is pending.
+                  <b>Bridging Path Active:</b> {isExperiencedCand
+                    ? "As a pursuing candidate, your work experience carries your profile while your certification exam is pending."
+                    : "As a pursuing candidate, completing Stage 04 (Foundation Assessment) unlocks your verified candidate badge while your certification exam is pending."}
                 </div>
               </div>
             </div>
           )}
 
-          {/* SECTION 4 · NON-CERTIFIED (Visible if non-certified fresher) — shown as step 2 since it's mutually exclusive with the Certified/Pursuing sections */}
+          {/* SECTION 4 · NON-CERTIFIED (Visible if non-certified fresher) — simple, positive continue option */}
           {status === "non-certified" && !isExperienced && (
             <div className="s3-section">
-              <div className="s3-section-header">
-                <div className="s3-section-num">2</div>
-                <div className="s3-section-title">Non-Certified Decision</div>
-                <div className="s3-status-chip pending">NOTICE</div>
-              </div>
-
-              <div className="s3-warn-card">
-                <div className="s3-warn-head">
-                  <div className="ico"><i className="fa-solid fa-triangle-exclamation" /></div>
-                  <div className="s3-warn-title">What a Non-Certified Candidate Experience Looks Like</div>
-                </div>
-                <div className="s3-warn-body">
-                  <b>~87% of RCM companies filter for certified candidates before shortlisting.</b><br />
-                  Without a cert, your visibility drops sharply. You can still clear Stage 04 Assessment and stay in the pool — but top-tier companies filter uncertified freshers out at the first pass.
-                </div>
-                <div className="s3-warn-actions">
-                  <button
-                    type="button"
-                    className="s3-action-btn outline"
-                    onClick={() => toast("Recorded decision as Non-Certified Candidate.", <i className="fa-solid fa-circle-info" />)}
-                  >
-                    I understand · Proceed as Non-Certified
-                  </button>
-                  <button
-                    type="button"
-                    className="s3-link-btn"
-                    onClick={() => setStatus("pursuing")}
-                  >
-                    ← Go back and pick Pursuing
-                  </button>
-                </div>
+              <div className="s3-warn-actions">
+                <button
+                  type="button"
+                  className="s3-action-btn outline"
+                  onClick={() => toast("Continuing as Non-Certified. You can add a certification any time later.", <i className="fa-solid fa-circle-info" />)}
+                >
+                  Continue as Non-Certified
+                </button>
               </div>
             </div>
           )}
@@ -2503,7 +2484,7 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                 onClick={handleSaveAndContinue}
                 disabled={saving}
               >
-                {saving ? "Saving…" : "Save & continue to Stage 04 →"}
+                {saving ? "Saving…" : `Save & continue to Stage 0${isExperiencedCand ? 5 : 4} →`}
               </button>
             </div>
           </div>

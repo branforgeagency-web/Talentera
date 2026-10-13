@@ -18,7 +18,7 @@ const ApplicationSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["applied", "shortlisted", "interviewing", "hired", "rejected"],
+      enum: ["applied", "shortlisted", "interviewing", "hired", "on_hold", "rejected"],
       default: "applied",
     },
     coverNote: {
@@ -33,6 +33,13 @@ const ApplicationSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    // Interview scheduling + candidate confirmation (Interview Invites tab)
+    interviewScheduledAt: { type: Date, default: null },
+    interviewTimeText: { type: String, default: "" },
+    interviewType: { type: String, default: "" },
+    interviewMeetingLink: { type: String, default: "" },
+    interviewConfirmed: { type: Boolean, default: false },
+    interviewConfirmedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

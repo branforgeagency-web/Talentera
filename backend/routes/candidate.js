@@ -12,7 +12,27 @@ const Academy = require("../models/Academy");
 const RetakeRequest = require("../models/RetakeRequest");
 const { requireAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
-const { calculateVerificationScore } = require("../utils/verificationScore");
+const { calculateVerificationScore, isExperiencedCandidate } = require("../utils/verificationScore");
+
+// Experienced candidates don't take the Stage 4 Assessment (their score comes from certifications),
+// so Stage 4 is marked as not-required/complete for them. Returns true when the document changed.
+function ensureStage4ExemptForExperienced(candidate) {
+  if (!candidate || !isExperiencedCandidate(candidate)) return false;
+  let changed = false;
+  if (!Array.isArray(candidate.completedStages)) candidate.completedStages = [];
+  if (!candidate.completedStages.includes(4)) {
+    candidate.completedStages.push(4);
+    candidate.markModified("completedStages");
+    changed = true;
+  }
+  const s4 = candidate.stage4 || {};
+  if (s4.foundationScore === undefined && s4.score === undefined && !s4.notRequired) {
+    candidate.stage4 = { skipped: true, notRequired: true, reason: "Experienced candidate - scored on certifications", completedAt: new Date() };
+    candidate.markModified("stage4");
+    changed = true;
+  }
+  return changed;
+}
 const { parseAadhaarQr } = require("../utils/aadhaarQrDecoder");
 const { processAadhaarFile } = require("../utils/ekyc");
 const { evaluateAiVideoAssessment } = require("../utils/aiAssessment");
@@ -87,6 +107,9 @@ router.get("/profile", async (req, res) => {
       candidate.stage5.medal = "Verified";
       candidate.save().catch(() => {});
     }
+    if (ensureStage4ExemptForExperienced(candidate)) {
+      candidate.save().catch(() => {});
+    }
     const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
@@ -106,6 +129,9 @@ router.get("/me", async (req, res) => {
     }
     if (candidate.stage5?.medal && String(candidate.stage5.medal).toLowerCase().includes("practice")) {
       candidate.stage5.medal = "Verified";
+      candidate.save().catch(() => {});
+    }
+    if (ensureStage4ExemptForExperienced(candidate)) {
       candidate.save().catch(() => {});
     }
     const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
@@ -952,6 +978,7 @@ router.put("/stage/:n", async (req, res) => {
         ...req.body,
         consent: req.body.consent !== undefined ? req.body.consent : true,
         isLive: req.body.isLive !== undefined ? req.body.isLive : true,
+        liveForHiring: req.body.isLive !== undefined ? Boolean(req.body.isLive) : true,
         dpdpConsent: true,
         preferences: req.body.preferences || s8.preferences || {},
         activatedAt: s8.activatedAt || new Date(),
@@ -996,6 +1023,7 @@ router.put("/stage/:n", async (req, res) => {
     if (!req.body.isDraft && !candidate.completedStages.includes(stageNum)) {
       candidate.completedStages.push(stageNum);
     }
+    ensureStage4ExemptForExperienced(candidate);
     await candidate.save();
 
     const scoring = calculateVerificationScore(candidate.completedStages, candidate);
@@ -1066,6 +1094,32 @@ router.post("/upload/video", upload.single("video"), handleUpload({ resourceType
   } catch (err) {
     logger.error(`Video upload error: ${err.message}`);
     return res.status(500).json({ message: "Failed to upload video." });
+  }
+});
+
+// POST /api/candidate/stage5/skip-mock - Finish Stage 5 without the AI Mock Interview.
+// Keeps the already-saved Self-Introduction result; the mock interview simply scores 0.
+router.post("/stage5/skip-mock", async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) return res.status(404).json({ message: "Candidate profile not found." });
+    if (!candidate.completedStages.includes(1)) {
+      return res.status(400).json({ message: "You must complete Stage 1 before continuing." });
+    }
+    candidate.stage5 = {
+      ...(candidate.stage5 && typeof candidate.stage5.toObject === "function" ? candidate.stage5.toObject() : (candidate.stage5 || {})),
+      mockInterviewSkipped: true,
+      completedAt: (candidate.stage5 && candidate.stage5.completedAt) || new Date(),
+    };
+    candidate.markModified("stage5");
+    if (!candidate.completedStages.includes(5)) candidate.completedStages.push(5);
+    candidate.markModified("completedStages");
+    await candidate.save();
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
+    res.json({ success: true, candidate, ...scoring });
+  } catch (err) {
+    logger.error(`Stage 5 skip mock error: ${err.message}`);
+    res.status(500).json({ message: err.message || "Failed to continue to the next stage." });
   }
 });
 
@@ -3116,12 +3170,13 @@ router.get("/academies", async (req, res) => {
     let academies = await Academy.find({}).lean();
     
     const formatted = academies.map((acad) => {
-      const primaryCourse = Array.isArray(acad.courses) && acad.courses.length > 0 ? acad.courses[0] : null;
+      const realCourseList = require("../utils/academyData").stripSeedCourses(acad.courses);
+      const primaryCourse = realCourseList.length > 0 ? realCourseList[0] : null;
       return {
         id: acad._id.toString(),
         name: acad.name,
         city: acad.headquarters || (Array.isArray(acad.branches) && acad.branches.length > 0 ? acad.branches[0] : "Pan-India"),
-        branches: acad.branches || [],
+        branches: require("../utils/academyData").realBranches(acad),
         specialty: acad.specialty || "Medical Coding",
         course: primaryCourse ? primaryCourse.title : (acad.specialty || "Medical Coding"),
         courseDesc: primaryCourse ? `${primaryCourse.duration || '3-6 months'} · ${primaryCourse.category || 'Specialty'} · Fee: ₹30,000 - ₹45,000` : `${acad.specialty || 'Medical Coding'} Training`,
@@ -3697,6 +3752,59 @@ router.get("/companies", async (req, res) => {
   }
 });
 
+// GET /api/candidate/company-profiles - Full company details entered by each company's HR
+// (Company Profile onboarding stage) for the candidate "Company Full Details" tab.
+router.get("/company-profiles", async (req, res) => {
+  try {
+    const hasVal = (v) => v !== undefined && v !== null && String(v).trim() !== "";
+    const asList = (v) =>
+      Array.isArray(v)
+        ? v.map((x) => String(x).trim()).filter(Boolean)
+        : hasVal(v)
+        ? String(v).split(/[,;\n]/).map((x) => x.trim()).filter(Boolean)
+        : [];
+    const companies = await Company.find({
+      $or: [{ isVerified: true }, { kycStatus: "verified" }, { jdPublished: true }],
+    })
+      .select("companyName stage1a stage2 stage4 stage7")
+      .sort({ companyName: 1 })
+      .limit(200)
+      .lean();
+
+    const profiles = companies
+      .map((c) => {
+        const s1 = c.stage1a || {};
+        const s2 = c.stage2 || {};
+        const name = c.companyName || s1.legalname || "";
+        if (!name) return null;
+        return {
+          id: String(c._id),
+          name,
+          logo: c.stage4?.blogo?.docUrl || s2.logo?.docUrl || null,
+          about: hasVal(s2.about) ? String(s2.about) : "",
+          mission: hasVal(s2.mission) ? String(s2.mission) : "",
+          departments: asList(s2.departments),
+          size: hasVal(s1.cosize) ? String(s1.cosize) : "",
+          headquarters: hasVal(s2.hq) ? String(s2.hq) : "",
+          branches: asList(s2.branches),
+          operatingAddresses: (Array.isArray(s1.opaddress)
+            ? s1.opaddress.map((a) => (typeof a === "string" ? { branch: "", address: a } : { branch: String(a?.branch || ""), address: String(a?.address || "") }))
+            : hasVal(s1.opaddress) ? String(s1.opaddress).split(/\r?\n/).filter(Boolean).map((l) => ({ branch: "", address: l.trim() })) : []
+          ).filter((a) => a.address.trim()),
+          policies: asList(s2.policies),
+          yearEstablished: hasVal(s2.yearest) ? String(s2.yearest) : "",
+          website: hasVal(s1.website) ? String(s1.website) : "",
+        };
+      })
+      .filter(Boolean);
+
+    res.json({ success: true, companies: profiles });
+  } catch (err) {
+    logger.error(`Fetch company profiles error: ${err.message}`);
+    res.status(500).json({ message: "Failed to fetch company details." });
+  }
+});
+
 // GET /api/candidate/invites - Real interview invitations
 router.get("/invites", async (req, res) => {
   try {
@@ -3713,7 +3821,8 @@ router.get("/invites", async (req, res) => {
       company: app.companyId?.companyName || "Partner Employer",
       role: app.jobTitle || "Medical Coder",
       type: app.interviewType || "Video Call (MS Teams)",
-      time: app.interviewScheduledAt ? new Date(app.interviewScheduledAt).toLocaleString("en-IN") : "Upcoming",
+      time: app.interviewScheduledAt ? new Date(app.interviewScheduledAt).toLocaleString("en-IN") : (app.interviewTimeText || "Upcoming"),
+      meetingLink: app.interviewMeetingLink || "",
       duration: "45-60 min",
       panel: "Technical Hiring Team",
       status: app.interviewConfirmed ? "confirmed" : "pending",
@@ -3736,12 +3845,36 @@ router.post("/invites/:id/confirm", async (req, res) => {
       candidateId: req.candidateId,
     });
     if (!app) return res.status(404).json({ message: "Interview application not found." });
+    if (!["shortlisted", "interviewing"].includes(app.status)) {
+      return res.status(400).json({ message: "This interview invite is no longer active." });
+    }
 
+    const alreadyConfirmed = app.interviewConfirmed === true;
     app.interviewConfirmed = true;
-    app.interviewConfirmedAt = new Date();
+    app.interviewConfirmedAt = app.interviewConfirmedAt || new Date();
+    // Confirming the slot moves the application to the Interviewing stage
+    if (app.status === "shortlisted") app.status = "interviewing";
     await app.save();
 
-    res.json({ success: true, message: "Interview slot confirmed successfully!" });
+    // Tell the company (in-app) that the candidate confirmed - best effort
+    if (!alreadyConfirmed) {
+      try {
+        const cand = await Candidate.findById(req.candidateId).select("stage1.fullName email").lean();
+        const candName = cand?.stage1?.fullName || cand?.email || "A candidate";
+        await Notification.create({
+          recipientType: "company",
+          recipientId: String(app.companyId),
+          title: "Interview slot confirmed",
+          message: `${candName} confirmed the interview slot${app.interviewTimeText ? ` (${app.interviewTimeText})` : ""}.`,
+          type: "interview_confirmed",
+          meta: { source: "candidate", applicationId: String(app._id), candidateId: String(req.candidateId) },
+        });
+      } catch (notifErr) {
+        logger.warn(`Interview confirm notification failed: ${notifErr.message}`);
+      }
+    }
+
+    res.json({ success: true, status: app.status, message: "Interview slot confirmed successfully!" });
   } catch (err) {
     logger.error(`Confirm interview invite error: ${err.message}`);
     res.status(500).json({ message: "Failed to confirm interview slot." });
@@ -3819,7 +3952,10 @@ router.put("/settings", async (req, res) => {
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     if (!candidate.stage8) candidate.stage8 = {};
-    if (typeof liveForHiring === "boolean") candidate.stage8.liveForHiring = liveForHiring;
+    if (typeof liveForHiring === "boolean") {
+      candidate.stage8.liveForHiring = liveForHiring;
+      candidate.stage8.isLive = liveForHiring;
+    }
     if (typeof stealthMode === "boolean") candidate.stage8.stealthMode = stealthMode;
     if (Array.isArray(preferredCities)) candidate.stage8.preferredCities = preferredCities;
 

@@ -36,13 +36,17 @@ const STAGE_POINTS = {
 
 const GOLD_BADGE_THRESHOLD = 75;
 
-// Live Chart (Stage 06) doesn't apply to AR Calling or Eligibility & Verification work, so it
-// must never lower their profile. For these domains Stage 06 is left out of the score entirely
-// and the remaining stages (worth 80) are rescaled to /100.
-// Keep in sync with LIVE_CHART_EXEMPT_DOMAINS in routes/candidate.js and frontend/src/data/wizardStages.js.
-const LIVE_CHART_EXEMPT_DOMAINS = ["Medical Billing", "AR Calling", "Accounts Receivable", "Eligibility & Verification"];
-function isLiveChartExempt(candidate) {
-  return LIVE_CHART_EXEMPT_DOMAINS.includes((candidate && candidate.stage2 && candidate.stage2.domain) || "");
+// Live Chart (Stage 06) doesn't apply to AR Calling / Eligibility & Verification / Billing work.
+// For those domains it is a BONUS stage: it earns points only when the candidate has real chart
+// exposure (the normal Stage 06 scoring below gives 0 for "no exposure" / skipped), and the other
+// stages are NOT rescaled - so a candidate with Stages 1-2 done simply scores 30, not 38.
+// Keep the domain list in sync with LIVE_CHART_EXEMPT_DOMAINS in routes/candidate.js and
+// frontend/src/data/wizardStages.js.
+
+// Experienced candidates skip the Stage 04 Assessment. Their 20 points move to Stage 03
+// (Certification), so the score is driven by certifications and still adds up to 100.
+function isExperiencedCandidate(candidate) {
+  return /exp/i.test(String((candidate && candidate.stage1 && candidate.stage1.experience) || ""));
 }
 
 // ---- Evidence checks -------------------------------------------------------------------
@@ -71,13 +75,10 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   let score = 0;
   const verifiedStages = [];
   const stageScores = {};
-  const stage6Exempt = isLiveChartExempt(candidate);
+  const experienced = isExperiencedCandidate(candidate);
+  const stage3Max = experienced ? STAGE_POINTS[3] + STAGE_POINTS[4] : STAGE_POINTS[3];
 
   for (const stage of completedStages) {
-    if (stage === 6 && stage6Exempt) {
-      // Not required for this role - contributes nothing and is excluded from the maximum.
-      continue;
-    }
     if (stage === 1) {
       if (candidate && !(candidate.stage1?.aadhaarVerified === true || candidate.stage1?.aadhaarStatus === "VERIFIED")) {
         continue; // identity not actually verified yet
@@ -122,16 +123,19 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         continue; // non-certified / still pursuing: no certification, no points
       }
       if (!candidate || candidate.stage3?.certStatus === "verified" || candidate.stage3?.status === "verified" || candidate.stage3?.verified === true) {
-        score += STAGE_POINTS[3];
-        stageScores[3] = STAGE_POINTS[3];
+        score += stage3Max;
+        stageScores[3] = stage3Max;
         verifiedStages.push(3);
       } else {
-        const pts3 = Math.round(STAGE_POINTS[3] * 0.75);
+        const pts3 = Math.round(stage3Max * 0.75);
         score += pts3;
         stageScores[3] = pts3;
         verifiedStages.push(3);
       }
     } else if (stage === 4) {
+      if (experienced) {
+        continue; // Not required for experienced candidates - points moved to Certification
+      }
       // Assessment (Flagship): points scale with the actual MCQ/proctored score,
       // not just binary completion.
       if (!candidate) {
@@ -212,9 +216,6 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
     }
   }
 
-  if (stage6Exempt) {
-    score = Math.round((score / (100 - STAGE_POINTS[6])) * 100);
-  }
   score = Math.min(100, Math.max(0, score));
 
   return {
@@ -228,4 +229,4 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   };
 }
 
-module.exports = { calculateVerificationScore, STAGE_POINTS, GOLD_BADGE_THRESHOLD };
+module.exports = { calculateVerificationScore, isExperiencedCandidate, STAGE_POINTS, GOLD_BADGE_THRESHOLD };

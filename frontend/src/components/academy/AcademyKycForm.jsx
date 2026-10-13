@@ -46,10 +46,11 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     primarySpecialty: "Medical Coding",
     otherSpecialtyCourses: "",
     branches: [],
+    courses: [],
     accreditations: ["AAPC Approved Education Partner"],
     otherAccreditation: "",
-    certifiedTrainedCount: "2500+",
-    activeBatchesPerYear: "12",
+    certifiedTrainedCount: "",
+    activeBatchesPerYear: "",
     regCertificateUrl: "",
     gstCertificateUrl: "",
     panDocumentUrl: "",
@@ -121,7 +122,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             legalEntityName: kd.legalEntityName || ac.name || "",
             registrationType: kd.registrationType || "Private Limited",
             cinOrRegistrationNumber: kd.cinOrRegistrationNumber || "",
-            yearEstablished: kd.yearEstablished || "2020",
+            yearEstablished: kd.yearEstablished || "",
             website: kd.website || "",
             panNumber: kd.panNumber || "",
             gstin: kd.gstin || "",
@@ -138,14 +139,15 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               : "Other RCM Services",
             otherSpecialtyCourses: kd.otherSpecialtyCourses || (["Medical Coding", "Medical Billing", "AR Calling", "Other RCM Services", ""].includes(kd.primarySpecialty || "") ? "" : kd.primarySpecialty || ""),
             branches: Array.isArray(kd.branches) ? kd.branches : [],
+            courses: Array.isArray(data.courses) && data.courses.length > 0 ? data.courses : Array.isArray(kd.courses) ? kd.courses : [],
             accreditations: (() => {
               const saved = Array.isArray(kd.accreditations) && kd.accreditations.length > 0 ? kd.accreditations : ["AAPC Approved Education Partner"];
               const standard = saved.filter((x) => ACCREDITATION_OPTIONS.includes(x));
               return saved.some((x) => !ACCREDITATION_OPTIONS.includes(x)) ? [...standard, "Other"] : standard;
             })(),
             otherAccreditation: (Array.isArray(kd.accreditations) ? kd.accreditations : []).filter((x) => !ACCREDITATION_OPTIONS.includes(x)).join(", "),
-            certifiedTrainedCount: kd.certifiedTrainedCount || ac.totalAlumni || "2,500+",
-            activeBatchesPerYear: kd.activeBatchesPerYear || "12",
+            certifiedTrainedCount: kd.certifiedTrainedCount || (ac.totalAlumni && ac.totalAlumni !== "0" && ac.totalAlumni !== "35,000+" ? ac.totalAlumni : ""),
+            activeBatchesPerYear: kd.activeBatchesPerYear || "",
             regCertificateUrl: kd.regCertificateUrl || "",
             gstCertificateUrl: kd.gstCertificateUrl || "",
             panDocumentUrl: kd.panDocumentUrl || "",
@@ -227,6 +229,12 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     setFormData((prev) => ({ ...prev, branches: [...(prev.branches || []), { name: "", city: "", state: "", address: "", phone: "" }] }));
   const updateBranch = (idx, field, value) =>
     setFormData((prev) => ({ ...prev, branches: prev.branches.map((b, i) => (i === idx ? { ...b, [field]: value } : b)) }));
+  const addCourse = () =>
+    setFormData((prev) => ({ ...prev, courses: [...(prev.courses || []), { title: "", duration: "" }] }));
+  const updateCourse = (idx, field, value) =>
+    setFormData((prev) => ({ ...prev, courses: prev.courses.map((c, i) => (i === idx ? { ...c, [field]: value } : c)) }));
+  const removeCourse = (idx) =>
+    setFormData((prev) => ({ ...prev, courses: prev.courses.filter((_, i) => i !== idx) }));
   const removeBranch = (idx) =>
     setFormData((prev) => ({ ...prev, branches: prev.branches.filter((_, i) => i !== idx) }));
 
@@ -1112,6 +1120,49 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                     <input type="text" value={b.phone || ""} onChange={(e) => updateBranch(idx, "phone", e.target.value)} placeholder="Branch contact number" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                     <input type="text" value={b.address || ""} onChange={(e) => updateBranch(idx, "address", e.target.value)} placeholder="Full address" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* COURSES OFFERED - typed in manually, nothing is pre-filled */}
+        <div
+          style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: 16,
+            padding: "24px 28px",
+            marginBottom: 20,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16, borderBottom: "1px solid #F1F5F9", paddingBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Award size={20} color="#0A1F3D" />
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#0A1F3D" }}>Courses Offered</h3>
+            </div>
+            <button
+              type="button"
+              onClick={addCourse}
+              style={{ background: "#0A1F3D", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              + Add Course
+            </button>
+          </div>
+          {(formData.courses || []).length === 0 ? (
+            <div style={{ fontSize: 12.5, color: "#64748B" }}>
+              Add each course your academy teaches with its own name and duration (optional). Course names and durations differ for every academy, so type yours exactly.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {formData.courses.map((c, idx) => (
+                <div key={idx} style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 10, alignItems: "center" }}>
+                  <input type="text" value={c.title || ""} onChange={(e) => updateCourse(idx, "title", e.target.value)} placeholder="Course name (e.g. Medical Coding with CPC prep)" maxLength={120} style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  <input type="text" value={c.duration || ""} onChange={(e) => updateCourse(idx, "duration", e.target.value)} placeholder="Duration (e.g. 4 months)" maxLength={40} style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                  <button type="button" onClick={() => removeCourse(idx)} style={{ background: "transparent", border: "none", color: "#DC2626", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    Remove
+                  </button>
                 </div>
               ))}
             </div>

@@ -1,0 +1,1432 @@
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import companyApi from "../api/companyClient";
+import { useCompanyAuth } from "../context/CompanyAuthContext";
+
+// Maps a domain filter option to the words that actually show up in a
+// candidate's free-text `currentRole`. Plain "includes(selectedDomain)"
+// used to miss real matches - e.g. selecting "Medical Coding (CPC)"
+// checked currentRole for the substring "coding", but candidates are
+// listed with roles like "Medical Coder", which doesn't contain "coding"
+// at all, so coders were being filtered out of their own category.
+const DOMAIN_KEYWORDS = {
+  Coding: ["coding", "coder", "cpc"],
+  AR: ["ar caller", "ar executive", "ar follow", "accounts receivable"],
+  Billing: ["billing", "claims"],
+  Denial: ["denial"],
+  Payment: ["payment"],
+};
+
+function getAssetUrl(url) {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
+  const base = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/api\/?$/, "");
+  return `${base}${url.startsWith("/") ? url : "/" + url}`;
+}
+
+export default function CompanyPortal() {
+  const navigate = useNavigate();
+  const { company, logout, refreshCompany } = useCompanyAuth();
+
+  const [candidates, setCandidates] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [minScore, setMinScore] = useState(70);
+  const [selectedExp, setSelectedExp] = useState("All");
+  const [selectedDomain, setSelectedDomain] = useState("All");
+  const [selectedCandidate, setSelectedCandidate] = useState(null);
+  const [shortlistedIds, setShortlistedIds] = useState([]);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addingCandidate, setAddingCandidate] = useState(false);
+
+  // Verification & Access State
+  const [companyKycStatus, setCompanyKycStatus] = useState(() => (company?.kycStatus === "verified" || company?.kycVerifiedAt) ? "verified" : (company?.kycStatus || "pending"));
+  const [companyPlan, setCompanyPlan] = useState(() => company?.plan || "free");
+  const [contactCandidateModal, setContactCandidateModal] = useState(null);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [showPlanUpgradeModal, setShowPlanUpgradeModal] = useState(false);
+  const [planUpgradeFeature, setPlanUpgradeFeature] = useState("");
+
+  const [formData, setFormData] = useState({
+    fullName: "",
+    email: "",
+    mobile: "",
+    city: "",
+    experience: "1-3",
+    currentRole: "",
+    academyName: "",
+    certificationName: "",
+    assessmentScore: "",
+    accuracyScore: "",
+    summary: "",
+    noticePeriod: "",
+    expectedCtc: "",
+  });
+
+  useEffect(() => {
+    fetchCandidates();
+    fetchCompanyProfile();
+  }, []);
+
+  useEffect(() => {
+    if (company?.kycStatus === "verified" || company?.kycVerifiedAt) {
+      setCompanyKycStatus("verified");
+    } else if (company?.kycStatus) {
+      setCompanyKycStatus(company.kycStatus);
+    }
+    if (company?.plan) {
+      setCompanyPlan(company.plan);
+    }
+  }, [company]);
+
+  const fetchCompanyProfile = async () => {
+    try {
+      const res = await companyApi.get("/company/me");
+      if (res.data?.company) {
+        const c = res.data.company;
+        const verified = c.kycStatus === "verified" || Boolean(c.kycVerifiedAt);
+        setCompanyKycStatus(verified ? "verified" : (c.kycStatus || "pending"));
+        setCompanyPlan(c.plan || "free");
+        if (refreshCompany) refreshCompany();
+      }
+    } catch (err) {
+      console.log("No active company session or error loading profile:", err?.message);
+    }
+  };
+
+  // Masking helpers for unverified companies
+  const maskEmail = (email) => {
+    if (!email) return "••••••••@••••.com";
+    const parts = email.split("@");
+    if (parts.length !== 2) return "••••••••@••••.com";
+    const [name, domain] = parts;
+    const maskedName = name.length > 2 ? name.substring(0, 2) + "••••" : name + "••••";
+    return `${maskedName}@${domain}`;
+  };
+
+  const maskMobile = (mobile) => {
+    if (!mobile) return "+91 98765 XXXXX";
+    return mobile.replace(/(\+?\d{2,4}\s?\d{2,5})\d{4,5}/, "$1 XXXXX");
+  };
+
+  const isVerifiedCompany = companyKycStatus === "verified" || company?.kycStatus === "verified" || Boolean(company?.kycVerifiedAt);
+
+  const fetchCandidates = async () => {
+    setLoadError(null);
+    try {
+      // Using companyApi (not a plain fetch) so a logged-in, verified
+      // company's auth token is sent along - the backend now decides
+      // server-side whether to return real or masked contact info based on
+      // that token, so it has to actually reach the request.
+      const res = await companyApi.get("/public/candidates");
+      setCandidates(res.data?.candidates || []);
+      if (res.data?.isVerifiedCompany) {
+        setCompanyKycStatus("verified");
+      }
+      if (res.data?.plan) {
+        setCompanyPlan(res.data.plan);
+      }
+    } catch (err) {
+      console.error(err);
+      setLoadError("Couldn't load the candidate directory. Please refresh the page.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const triggerUpgrade = (feature) => {
+    setPlanUpgradeFeature(feature);
+    setShowPlanUpgradeModal(true);
+  };
+
+  const handleAddCandidateSubmit = async (e) => {
+    e.preventDefault();
+    if (!company) {
+      alert("Please log in to your company account before adding a candidate profile.");
+      setShowAddModal(false);
+      navigate("/companies/login");
+      return;
+    }
+    setAddingCandidate(true);
+    try {
+      const res = await companyApi.post("/public/candidate", formData);
+      alert(res.data?.message || "Candidate added successfully!");
+      setShowAddModal(false);
+      setFormData({
+        fullName: "",
+        email: "",
+        mobile: "",
+        city: "",
+        experience: "1-3",
+        currentRole: "",
+        academyName: "",
+        certificationName: "",
+        assessmentScore: "",
+        accuracyScore: "",
+        summary: "",
+        noticePeriod: "",
+        expectedCtc: "",
+      });
+      fetchCandidates();
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.message || "Error adding candidate.");
+    } finally {
+      setAddingCandidate(false);
+    }
+  };
+
+  const filteredCandidates = candidates.filter((c) => {
+    if (companyPlan === "free") return true;
+    if (c.verificationScore < minScore) return false;
+    if (selectedExp !== "All" && c.experience !== selectedExp) return false;
+    if (selectedDomain !== "All") {
+      const roleText = (c.currentRole || "").toLowerCase();
+      const keywords = DOMAIN_KEYWORDS[selectedDomain] || [selectedDomain.toLowerCase()];
+      if (!keywords.some((kw) => roleText.includes(kw))) return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = (c.name || "").toLowerCase().includes(q);
+      const matchRole = (c.currentRole || "").toLowerCase().includes(q);
+      const matchSummary = (c.summary || "").toLowerCase().includes(q);
+      const matchCity = (c.city || "").toLowerCase().includes(q);
+      if (!matchName && !matchRole && !matchSummary && !matchCity) return false;
+    }
+    return true;
+  });
+
+  const toggleShortlist = (id, e) => {
+    if (e) e.stopPropagation();
+    if (companyPlan === "free") {
+      triggerUpgrade("shortlist");
+      return;
+    }
+    setShortlistedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleContactClick = (candidate, e) => {
+    if (e) e.stopPropagation();
+    if (companyPlan === "free") {
+      triggerUpgrade("contact");
+      return;
+    }
+    if (isVerifiedCompany) {
+      setContactCandidateModal(candidate);
+    } else {
+      setShowUnlockModal(true);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#F4F6FA" }}>
+      {/* ====== STICKY NAVBAR ====== */}
+      <nav style={{ background: "var(--navy)", padding: "14px 36px", color: "#fff", position: "sticky", top: 0, zIndex: 100, display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-dark)" }}>
+        <div style={{ display: "flex", alignItems: "center", cursor: "pointer", gap: 16 }} onClick={() => navigate("/companies/directory")}>
+          <img src="/logo-white.png" alt="Talentera" style={{ height: 38, width: "auto" }} />
+          <div>
+            <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 10, letterSpacing: "0.14em", color: "var(--gold)" }}>
+              COMPANY HIRING PORTAL
+            </div>
+            <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>Candidate Directory &amp; Audit Database</div>
+          </div>
+        </div>
+
+        {/* Company Navigation Links & Status */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "6px 14px",
+              borderRadius: 20,
+              background: isVerifiedCompany ? "rgba(34, 197, 94, 0.15)" : "rgba(245, 158, 11, 0.15)",
+              border: `1px solid ${isVerifiedCompany ? "#22C55E" : "#F59E0B"}`,
+              fontSize: 12,
+              fontWeight: 700,
+              color: isVerifiedCompany ? "#4ADE80" : "#FBBF24"
+            }}
+          >
+            <span>{isVerifiedCompany ? <i className="fa-solid fa-check"></i> : <i className="fa-solid fa-lock"></i>}</span>
+            <span>{isVerifiedCompany ? "Verified Company" : "Unverified Account"}</span>
+          </div>
+
+          <Link
+            to="/companies/billing"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 20,
+              background: companyPlan === "enterprise" ? "rgba(229,168,46,0.2)" : companyPlan === "growth" ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.1)",
+              border: `1px solid ${companyPlan === "enterprise" ? "var(--gold)" : companyPlan === "growth" ? "#60A5FA" : "rgba(255,255,255,0.2)"}`,
+              fontSize: 12,
+              fontWeight: 800,
+              color: companyPlan === "enterprise" ? "var(--gold)" : companyPlan === "growth" ? "#93C5FD" : "#fff",
+              textDecoration: "none",
+              textTransform: "uppercase",
+            }}
+          >
+            <span>{companyPlan === "enterprise" ? <i className="fa-solid fa-gem" style={{ color: "#8B5CF6" }}></i> : companyPlan === "growth" ? <i className="fa-solid fa-bolt" style={{ color: "#3B82F6" }}></i> : <i className="fa-solid fa-seedling" style={{ color: "#10B981" }}></i>}</span>
+            <span>{companyPlan} Tier</span>
+          </Link>
+
+          <Link
+            to="/companies/directory"
+            style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}
+          >
+            Hire Verified Talent
+          </Link>
+          <Link
+            to="/companies/jobs"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Job Posts
+          </Link>
+          <Link
+            to="/companies/applicants"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Applicants
+          </Link>
+          <Link
+            to="/companies/billing"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Plan &amp; Billing
+          </Link>
+          <Link
+            to="/companies/dashboard"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Edit Profile
+          </Link>
+
+          {company && (
+            <button
+              type="button"
+              onClick={() => { logout(); navigate("/companies"); }}
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              Logout
+            </button>
+          )}
+        </div>
+      </nav>
+
+      {/* ====== SEARCH & CANDIDATE DIRECTORY SECTION ====== */}
+      <div id="directory" className="container" style={{ padding: "30px 0 60px" }}>
+        {/* Verification Status Banner */}
+        {!isVerifiedCompany ? (
+          <div
+            style={{
+              background: "#FFFBEB",
+              border: "1.5px solid #F59E0B",
+              borderRadius: 12,
+              padding: "18px 24px",
+              marginBottom: 20,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+              boxShadow: "0 4px 14px rgba(245,158,11,0.12)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#D97706" }}>
+                <i className="fa-solid fa-lock"></i>
+              </div>
+              <div>
+                <strong style={{ fontSize: 14.5, color: "#92400E", letterSpacing: "0.02em" }}>
+                  UNVERIFIED COMPANY ACCOUNT — CANDIDATE CONTACTS & PROFILES GATED
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#B45309", lineHeight: 1.45 }}>
+                  Unverified companies see masked contacts & gated profiles. Complete your <strong>Account &amp; KYC Verification (Stage 1)</strong> in your dashboard to unlock full candidate phone numbers, emails, and direct interview scheduling.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              style={{
+                background: "#D97706",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "10px 20px",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => navigate("/companies/dashboard")}
+            >
+              Verify Account & Unlock Full Access →
+            </button>
+          </div>
+        ) : (
+          <div
+            style={{
+              background: "#F0FDF4",
+              border: "1.5px solid #22C55E",
+              borderRadius: 12,
+              padding: "16px 24px",
+              marginBottom: 20,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 12,
+              boxShadow: "0 4px 14px rgba(34,197,94,0.12)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#16A34A" }}>
+                <i className="fa-solid fa-check"></i>
+              </div>
+              <div>
+                <strong style={{ fontSize: 14, color: "#15803D" }}>
+                  VERIFIED COMPANY ACCOUNT — DIRECT CONTACTS UNLOCKED
+                </strong>
+                <p style={{ margin: "2px 0 0", fontSize: 12.5, color: "#166534" }}>
+                  You have complete access to candidate direct contact numbers, email addresses, and interview scheduling.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Free Tier Notice Banner */}
+        {companyPlan === "free" && (
+          <div
+            style={{
+              background: "#EFF6FF",
+              border: "1.5px solid #3B82F6",
+              borderRadius: 12,
+              padding: "16px 24px",
+              marginBottom: 24,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 16,
+              boxShadow: "0 4px 14px rgba(59,130,246,0.1)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DBEAFE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#2563EB" }}>
+                <i className="fa-solid fa-bolt"></i>
+              </div>
+              <div>
+                <strong style={{ fontSize: 14.5, color: "#1E40AF", letterSpacing: "0.02em" }}>
+                  FREE TIER SUBSCRIPTION — DIRECT CANDIDATE SEARCH, SCORES &amp; SHORTLISTING LOCKED
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#1D4ED8", lineHeight: 1.45 }}>
+                  Free Tier gives you 1 active job post and candidate application tracking. Upgrade to <strong>Growth Tier (₹4,999/mo)</strong> to search &amp; filter talent directly, view proctored test &amp; chart audit scores, AAPC/AHIMA certificates, and shortlist candidates.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              style={{
+                background: "#1D4ED8",
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "10px 20px",
+                fontSize: 13,
+                fontWeight: 800,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+              onClick={() => navigate("/companies/billing")}
+            >
+              Upgrade to Growth (₹4,999/mo) →
+            </button>
+          </div>
+        )}
+
+        <div className="cp-directory-grid" style={{ gap: 24 }}>
+          {/* FILTER SIDEBAR */}
+          <aside style={{ background: "#fff", borderRadius: 12, padding: 22, border: "1px solid var(--border-light)", alignSelf: "start", position: "sticky", top: 80, maxHeight: "calc(100vh - 100px)", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 17, fontWeight: 700, margin: 0 }}>Filter Talent</h3>
+              <button
+                style={{ fontSize: 12, color: "var(--gold)", fontWeight: 700, border: "none", background: "none", cursor: "pointer" }}
+                onClick={() => {
+                  if (companyPlan === "free") {
+                    triggerUpgrade("search");
+                    return;
+                  }
+                  setMinScore(0);
+                  setSelectedExp("All");
+                  setSelectedDomain("All");
+                  setSearchQuery("");
+                }}
+              >
+                Reset
+              </button>
+            </div>
+
+            {companyPlan === "free" && (
+              <div style={{ background: "#EFF6FF", border: "1.5px solid #3B82F6", borderRadius: 10, padding: "12px 14px", marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#1E40AF", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i></span> FILTERING LOCKED (FREE TIER)
+                </div>
+                <div style={{ fontSize: 11.5, color: "#1D4ED8", marginTop: 4, lineHeight: 1.4 }}>
+                  Upgrade to Growth Tier (₹4,999/mo) to filter by minimum verification score, experience, and domain.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/companies/billing")}
+                  style={{
+                    marginTop: 8,
+                    background: "#1D4ED8",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "6px 12px",
+                    fontSize: 11.5,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                    width: "100%",
+                  }}
+                >
+                  Upgrade to Growth →
+                </button>
+              </div>
+            )}
+
+            {/* Score Slider */}
+            <div style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #F1F5F9" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, fontSize: 12, fontWeight: 700, color: "#64748B" }}>
+                <span>MIN VERIFICATION SCORE</span>
+                <span style={{ color: "var(--navy)", fontFamily: "var(--font-mono)" }}>
+                  {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</> : `${minScore}/100`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="95"
+                step="5"
+                value={minScore}
+                disabled={companyPlan === "free"}
+                onChange={(e) => {
+                  if (companyPlan === "free") {
+                    triggerUpgrade("search");
+                    return;
+                  }
+                  setMinScore(Number(e.target.value));
+                }}
+                style={{ width: "100%", accentColor: "var(--gold)", cursor: companyPlan === "free" ? "not-allowed" : "pointer" }}
+              />
+              <div style={{ fontSize: 11, color: "var(--gold)", fontWeight: 700, marginTop: 6 }}>
+                {companyPlan === "free" ? (
+                  <span style={{ color: "#64748B" }}>Score filtering requires Growth Tier</span>
+                ) : minScore >= 75 ? (
+                  <span><i className="fa-solid fa-star" style={{ marginRight: 4 }}></i> Showing Gold-Badged Verified Talent Only</span>
+                ) : (
+                  "Showing all verified scores"
+                )}
+              </div>
+            </div>
+
+            {/* Experience Filter */}
+            <div style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #F1F5F9" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 12 }}>
+                EXPERIENCE LEVEL
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {["All", "Fresher", "1-3", "3-5", "5+"].map((exp) => (
+                  <button
+                    key={exp}
+                    onClick={() => {
+                      if (companyPlan === "free") {
+                        triggerUpgrade("search");
+                        return;
+                      }
+                      setSelectedExp(exp);
+                    }}
+                    style={{
+                      padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                      background: selectedExp === exp ? "var(--navy)" : "#F1F5F9",
+                      color: selectedExp === exp ? "#fff" : "var(--navy)",
+                      border: "none", cursor: "pointer"
+                    }}
+                  >
+                    {exp === "1-3" || exp === "3-5" ? `${exp} yrs` : exp === "5+" ? "5+ yrs" : exp}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Domain Filter */}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 12 }}>
+                RCM SPECIALIZATION
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {["All", "AR", "Coding", "Billing", "Denial", "Payment"].map((domain) => (
+                  <label key={domain} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                    <input
+                      type="radio"
+                      name="domain"
+                      checked={selectedDomain === domain}
+                      onChange={() => {
+                        if (companyPlan === "free") {
+                          triggerUpgrade("search");
+                          return;
+                        }
+                        setSelectedDomain(domain);
+                      }}
+                      style={{ accentColor: "var(--gold)" }}
+                    />
+                    {domain === "AR" ? "AR Follow-up" : domain === "Coding" ? "Medical Coding (CPC)" : domain === "Billing" ? "Billing & Claims" : domain === "Denial" ? "Denial Management" : domain === "Payment" ? "Payment Posting" : "All Roles"}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </aside>
+
+          {/* MAIN RESULTS AREA */}
+          <main>
+            {/* Search Bar */}
+            <div style={{ background: "#fff", borderRadius: 12, padding: "16px 20px", marginBottom: 16, border: "1px solid var(--border-light)" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  background: companyPlan === "free" ? "#F8FAFC" : "#F8FAFC",
+                  border: `1px solid ${companyPlan === "free" ? "#CBD5E1" : "#E2E8F0"}`,
+                  borderRadius: 8,
+                  padding: "10px 14px",
+                  cursor: companyPlan === "free" ? "pointer" : "text",
+                }}
+                onClick={() => {
+                  if (companyPlan === "free") triggerUpgrade("search");
+                }}
+              >
+                <span style={{ color: "#94A3B8" }}>
+                  {companyPlan === "free" ? <i className="fa-solid fa-lock"></i> : <i className="fa-solid fa-magnifying-glass"></i>}
+                </span>
+                <input
+                  type="text"
+                  placeholder={companyPlan === "free" ? "Search locked on Free Tier — Upgrade to Growth (₹4,999/mo) to search talent" : "Search by candidate name, skill (CPC, Denial, Payment Posting), or city..."}
+                  value={companyPlan === "free" ? "" : searchQuery}
+                  disabled={companyPlan === "free"}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ border: "none", background: "transparent", outline: "none", width: "100%", fontSize: 14, fontFamily: "var(--font-body)", cursor: companyPlan === "free" ? "pointer" : "text" }}
+                />
+                {companyPlan === "free" && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate("/companies/billing");
+                    }}
+                    style={{
+                      background: "#1D4ED8",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 11,
+                      fontWeight: 800,
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Unlock Search →
+                  </button>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+                <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>Popular:</span>
+                {["CPC Certified", "AR Caller", "Denial Management", "Bengaluru"].map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      if (companyPlan === "free") {
+                        triggerUpgrade("search");
+                      } else {
+                        setSearchQuery(tag);
+                      }
+                    }}
+                    style={{ background: "#F1F5F9", fontSize: 11, padding: "3px 8px", borderRadius: 4, color: "var(--navy)", border: "none", fontWeight: 600, cursor: "pointer" }}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Results Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700 }}>
+                Verified Candidates <span style={{ color: "var(--gold)" }}>({filteredCandidates.length})</span>
+              </h3>
+              <div style={{ fontSize: 12, color: "#64748B" }}>
+                {companyPlan === "free"
+                  ? "Candidate Scores Locked (Free Tier)"
+                  : isVerifiedCompany
+                  ? "Full Profile & Direct Contacts Unlocked"
+                  : "Contacts Masked (Unverified Account)"}
+              </div>
+            </div>
+
+            {/* Candidates Grid */}
+            {loading ? (
+              <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>Loading verified candidate database...</div>
+            ) : loadError ? (
+              <div style={{ background: "#FEF2F2", borderRadius: 12, padding: 40, textAlign: "center", border: "1px dashed #FCA5A5" }}>
+                <div style={{ fontSize: 32, marginBottom: 12, color: "#F59E0B" }}><i className="fa-solid fa-triangle-exclamation"></i></div>
+                <h4 style={{ color: "#B91C1C" }}>{loadError}</h4>
+                <button
+                  onClick={() => { setLoading(true); fetchCandidates(); }}
+                  style={{ marginTop: 12, background: "#B91C1C", color: "#fff", border: "none", borderRadius: 6, padding: "8px 16px", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : filteredCandidates.length === 0 ? (
+              <div style={{ background: "#fff", borderRadius: 12, padding: 40, textAlign: "center", border: "1px dashed var(--border-light)" }}>
+                <div style={{ fontSize: 32, marginBottom: 12, color: "#94A3B8" }}><i className="fa-solid fa-magnifying-glass"></i></div>
+                <h4>No verified candidates match your criteria.</h4>
+                <p style={{ fontSize: 13, color: "#64748B" }}>Try resetting your score slider or search query.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+                {filteredCandidates.map((c) => (
+                  <div
+                    key={c.id}
+                    onClick={() => setSelectedCandidate(c)}
+                    style={{
+                      background: "#fff",
+                      borderRadius: 12,
+                      padding: 20,
+                      border: "1px solid var(--border-light)",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+                      position: "relative",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                        <div style={{ width: 44, height: 44, borderRadius: "50%", background: "var(--navy)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 16, fontFamily: "var(--font-display)" }}>
+                          {(c.name || "C").charAt(0)}
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 16, color: "var(--navy)", display: "flex", alignItems: "center", gap: 6 }}>
+                            {c.name} {c.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 14 }} title="Aadhaar Verified"><i className="fa-solid fa-check"></i></span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#64748B" }}>{c.currentRole || "Role not specified"}{c.experience ? ` • ${c.experience} yrs` : ""}</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontFamily: "var(--font-display)", fontWeight: 800, fontSize: (companyPlan === "free" || c.verificationScore == null) ? 17 : 24, color: "var(--navy)", lineHeight: 1 }}>
+                          {companyPlan === "free" || c.verificationScore == null ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</> : c.verificationScore}
+                        </div>
+                        <div style={{ fontSize: 9, color: companyPlan === "free" ? "#94A3B8" : "var(--gold)", fontWeight: 800, letterSpacing: "0.06em", marginTop: 3 }}>
+                          {companyPlan === "free" ? "GROWTH TIER" : c.badgeLabel}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Contact Info Box - Verified vs Unverified */}
+                    <div
+                      style={{
+                        background: isVerifiedCompany ? "#F0FDF4" : "#FFFBEB",
+                        border: `1px solid ${isVerifiedCompany ? "#BBF7D0" : "#FDE68A"}`,
+                        borderRadius: 8,
+                        padding: "8px 12px",
+                        fontSize: 12,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ color: isVerifiedCompany ? "#166534" : "#92400E", fontWeight: 600 }}>
+                          <><i className="fa-solid fa-envelope" style={{ marginRight: 6, color: "#64748B" }}></i> {isVerifiedCompany ? c.email : maskEmail(c.email)}</>
+                        </span>
+                        {!isVerifiedCompany && <span style={{ fontSize: 10, background: "#F59E0B", color: "#fff", padding: "1px 5px", borderRadius: 4, fontWeight: 700 }}>LOCKED</span>}
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ color: isVerifiedCompany ? "#166534" : "#92400E", fontWeight: 600 }}>
+                          <><i className="fa-solid fa-phone" style={{ marginRight: 6, color: "#64748B" }}></i> {isVerifiedCompany ? c.mobile : maskMobile(c.mobile)}</>
+                        </span>
+                        {isVerifiedCompany && <span style={{ fontSize: 10, color: "#15803D", fontWeight: 700 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 3 }}></i> Verified</span>}
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.15)", color: "#92400E", fontWeight: 700 }}>
+                        <><i className="fa-solid fa-location-dot" style={{ marginRight: 6, color: "#64748B" }}></i> {c.city || "Location not specified"}</>
+                      </span>
+                      {companyPlan === "free" ? (
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700 }}>
+                          <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Verified Audit (Growth Tier)</>
+                        </span>
+                      ) : (
+                        <>
+                          {c.academyName && (
+                            <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DCFCE7", color: "#15803D", fontWeight: 700 }}>
+                              Academy Verified
+                            </span>
+                          )}
+                          {c.certificationName && (
+                            <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "#DBEAFE", color: "#1E40AF", fontWeight: 700 }}>
+                              {c.certificationName}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {c.videoUrl && (
+                        <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "rgba(229,168,46,0.18)", color: "#B45309", fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <i className="fa-solid fa-video" style={{ fontSize: 10 }}></i> Video Intro <i className="fa-solid fa-check" style={{ marginLeft: 3 }}></i>
+                        </span>
+                      )}
+                    </div>
+
+                    <p style={{ fontSize: 12, color: "#475569", lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", margin: 0 }}>
+                      {c.summary}
+                    </p>
+
+                    {/* Bottom Action Footer */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: 10, borderTop: "1px solid #F1F5F9", gap: 8 }}>
+                      <button
+                        onClick={(e) => handleContactClick(c, e)}
+                        style={{
+                          background: isVerifiedCompany ? "#166534" : "#D97706",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "6px 12px",
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        {isVerifiedCompany ? <><i className="fa-solid fa-phone" style={{ marginRight: 6 }}></i> Contact Candidate</> : <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> Unlock Contact</>}
+                      </button>
+
+                      <button
+                        onClick={(e) => toggleShortlist(c.id, e)}
+                        style={{
+                          background: companyPlan === "free" ? "#F1F5F9" : shortlistedIds.includes(c.id) ? "#15803D" : "var(--gold)",
+                          color: companyPlan === "free" ? "#64748B" : shortlistedIds.includes(c.id) ? "#fff" : "var(--navy)",
+                          border: companyPlan === "free" ? "1px solid #CBD5E1" : "none",
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          fontSize: 11.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist</> : shortlistedIds.includes(c.id) ? "Shortlisted" : "Shortlist"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </main>
+        </div>
+      </div>
+
+      {/* ====== CANDIDATE RESUME / PROFILE MODAL ====== */}
+      {selectedCandidate && (
+        <div className="modal-overlay" onClick={() => setSelectedCandidate(null)}>
+          <div className="modal-content" style={{ maxWidth: 720 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setSelectedCandidate(null)}
+              aria-label="Close candidate profile"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+
+            <div style={{ padding: 32 }}>
+              {/* Plan Tier Callout */}
+              {companyPlan === "free" && (
+                <div style={{ background: "#EFF6FF", border: "1px solid #3B82F6", borderRadius: 8, padding: "10px 16px", marginBottom: 16, marginRight: 36, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, color: "#1E40AF", fontWeight: 700 }}>
+                    <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> Candidate Assessment Scores, Live Chart Audits & AAPC Certifications Locked on Free Tier</>
+                  </span>
+                  <button
+                    style={{ background: "#1D4ED8", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
+                    onClick={() => navigate("/companies/billing")}
+                  >
+                    Upgrade to Growth Tier →
+                  </button>
+                </div>
+              )}
+
+              {/* Header Status Callout */}
+              {!isVerifiedCompany ? (
+                <div style={{ background: "#FFFBEB", border: "1px solid #F59E0B", borderRadius: 8, padding: "10px 16px", marginBottom: 20, marginRight: 36, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "#92400E", fontWeight: 700 }}>
+                    <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> Candidate Contacts & Full Profile Gated (Unverified Company)</>
+                  </span>
+                  <button
+                    style={{ background: "#D97706", color: "#fff", border: "none", borderRadius: 6, padding: "6px 12px", fontSize: 11.5, fontWeight: 800, cursor: "pointer" }}
+                    onClick={() => navigate("/companies/dashboard")}
+                  >
+                    Verify Account to Unlock →
+                  </button>
+                </div>
+              ) : (
+                <div style={{ background: "#F0FDF4", border: "1px solid #22C55E", borderRadius: 8, padding: "10px 16px", marginBottom: 20, marginRight: 36, display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ color: "#15803D", fontWeight: 800 }}><i className="fa-solid fa-check"></i></span>
+                  <span style={{ fontSize: 13, color: "#166534", fontWeight: 700 }}>
+                    Full Candidate Profile &amp; Direct Contact Details Unlocked for Verified Company
+                  </span>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+                <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                  <div style={{ width: 60, height: 60, borderRadius: "50%", background: "var(--navy)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 24, fontFamily: "var(--font-display)", textAlign: "center", lineHeight: "60px" }}>
+                    {selectedCandidate.name.charAt(0)}
+                  </div>
+                  <div>
+                    <h2 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 800, margin: 0 }}>
+                      {selectedCandidate.name} {selectedCandidate.aadhaarVerified && <span style={{ color: "#22C55E", fontSize: 18 }} title="Aadhaar Verified"><i className="fa-solid fa-shield-halved" style={{ marginRight: 4 }}></i> Aadhaar Verified</span>}
+                    </h2>
+                    <div style={{ fontSize: 14, color: "#64748B" }}>{selectedCandidate.currentRole || "Role not specified"}{selectedCandidate.city ? ` • ${selectedCandidate.city}` : ""}</div>
+                  </div>
+                </div>
+
+                <div style={{ background: "rgba(229,168,46,0.15)", padding: "10px 16px", borderRadius: 10, textAlign: "center" }}>
+                  <div style={{ fontFamily: "var(--font-display)", fontSize: (companyPlan === "free" || selectedCandidate.verificationScore == null) ? 19 : 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
+                    {companyPlan === "free" || selectedCandidate.verificationScore == null ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</> : `${selectedCandidate.verificationScore}/100`}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "var(--gold)", letterSpacing: "0.06em", marginTop: 4 }}>
+                    {companyPlan === "free" ? "GROWTH TIER" : selectedCandidate.badgeLabel}
+                  </div>
+                </div>
+              </div>
+
+              {/* Direct Contact Info Box */}
+              <div
+                style={{
+                  background: isVerifiedCompany ? "#F0FDF4" : "#F8FAFC",
+                  border: `1.5px solid ${isVerifiedCompany ? "#86EFAC" : "#CBD5E1"}`,
+                  borderRadius: 10,
+                  padding: 16,
+                  marginBottom: 20,
+                }}
+              >
+                <h4 style={{ fontSize: 12, fontWeight: 800, color: isVerifiedCompany ? "#166534" : "#475569", letterSpacing: "0.08em", marginBottom: 8, margin: 0 }}>
+                  {isVerifiedCompany ? <><i className="fa-solid fa-lock-open" style={{ marginRight: 6 }}></i> UNLOCKED CANDIDATE CONTACT DETAILS</> : <><i className="fa-solid fa-lock" style={{ marginRight: 6 }}></i> CANDIDATE CONTACT DETAILS (GATED)</>}
+                </h4>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 10, fontSize: 13.5 }}>
+                  <div>
+                    <strong style={{ color: "#64748B" }}>EMAIL ADDRESS: </strong>
+                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>
+                      {isVerifiedCompany ? selectedCandidate.email : maskEmail(selectedCandidate.email)}
+                    </span>
+                    {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</span>}
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748B" }}>MOBILE NUMBER: </strong>
+                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>
+                      {isVerifiedCompany ? (selectedCandidate.mobile || "Not provided") : maskMobile(selectedCandidate.mobile)}
+                    </span>
+                    {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</span>}
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748B" }}>AVAILABILITY / NOTICE: </strong>
+                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>{selectedCandidate.noticePeriod || "Not specified"}</span>
+                  </div>
+                  <div>
+                    <strong style={{ color: "#64748B" }}>EXPECTED CTC: </strong>
+                    <span style={{ color: "var(--navy)", fontWeight: 700 }}>{selectedCandidate.expectedCtc || "Not specified"}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Verified Audit Breakdown */}
+              <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em", marginBottom: 10, margin: 0 }}>VERIFICATION AUDIT BREAKDOWN</h4>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, fontSize: 13, marginTop: 10 }}>
+                  <div>{selectedCandidate.aadhaarVerified ? (<><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Basic Identity: <strong style={{ color: "#15803D" }}>Aadhaar Verified</strong></>) : (<>Basic Identity: <strong style={{ color: "#94A3B8" }}>Not verified</strong></>)}</div>
+                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Academy Claim: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : (selectedCandidate.academyName || "Not claimed")}</strong></div>
+                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Proctored Test: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : selectedCandidate.assessmentScore != null ? `${selectedCandidate.assessmentScore}% Score` : "Not yet completed"}</strong></div>
+                  <div><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Live Chart Audit: <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>{companyPlan === "free" ? (<><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Free Tier)</>) : selectedCandidate.accuracyScore != null ? `${selectedCandidate.accuracyScore}% Accuracy (${selectedCandidate.chartsAudited ?? 0} Charts)` : "Not yet completed"}</strong></div>
+                  {companyPlan !== "free" && selectedCandidate.chartTier && (
+                    <div>Chart Rating: <strong style={{ color: "#15803D" }}>{selectedCandidate.chartTier} Tier</strong> <span style={{ color: "#94A3B8", fontWeight: 600 }}>({selectedCandidate.chartsVerified ? (selectedCandidate.chartsVerificationMethod || "Verified") : "Self-Reported, pending review"})</span></div>
+                  )}
+                </div>
+              </div>
+
+              {/* AI Self-Introduction & Video Assessment Section */}
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18, marginBottom: 20 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", margin: 0, display: "flex", alignItems: "center", gap: 8, letterSpacing: "0.08em" }}>
+                    <i className="fa-solid fa-video" style={{ color: "var(--gold)" }}></i>
+                    STAGE 5 · AI SELF-INTRODUCTION &amp; VIDEO INTERVIEW
+                  </h4>
+                  {selectedCandidate.videoUrl && (
+                    <span style={{ fontSize: 11, fontWeight: 800, background: "#DCFCE7", color: "#15803D", padding: "2px 8px", borderRadius: 999 }}>
+                      <><i className="fa-solid fa-check" style={{ color: "#16A34A", marginRight: 4 }}></i> Video Recorded</>
+                    </span>
+                  )}
+                </div>
+
+                {selectedCandidate.videoUrl ? (
+                  <div>
+                    <video
+                      controls
+                      src={getAssetUrl(selectedCandidate.videoUrl)}
+                      style={{ width: "100%", maxHeight: 320, borderRadius: 10, background: "#000", display: "block", marginBottom: 10 }}
+                    />
+                    <div style={{ fontSize: 12, color: "#64748B", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                      <span>Recorded on Talentera Single-Take Assessment Platform</span>
+                      {selectedCandidate.stage5Score !== null && selectedCandidate.stage5Score !== undefined && (
+                        <strong style={{ color: companyPlan === "free" ? "#64748B" : "#15803D" }}>
+                          AI Communication Score: {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked (Growth Tier)</> : `${selectedCandidate.stage5Score}%`}
+                        </strong>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ padding: 18, textAlign: "center", color: "#64748B", fontSize: 12.5, background: "#fff", borderRadius: 8, border: "1px dashed #CBD5E1" }}>
+                    <i className="fa-solid fa-video-slash" style={{ fontSize: 20, color: "#94A3B8", marginBottom: 6, display: "block" }}></i>
+                    Candidate has not completed their AI video introduction yet.
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <h4 style={{ fontSize: 12, fontWeight: 800, color: "#64748B", letterSpacing: "0.08em", marginBottom: 6 }}>CANDIDATE SUMMARY</h4>
+                <p style={{ fontSize: 14, color: "var(--navy)", lineHeight: 1.6 }}>{selectedCandidate.summary || "No summary provided yet."}</p>
+              </div>
+
+              {/* Modal Buttons */}
+              <div style={{ display: "flex", gap: 10, marginTop: 24, flexWrap: "wrap" }}>
+                <button
+                  className="btn-gold"
+                  style={{ flex: 1, minWidth: 140, justifyContent: "center" }}
+                  onClick={(e) => handleContactClick(selectedCandidate, e)}
+                >
+                  <i className="fa-solid fa-phone" style={{ marginRight: 6 }}></i> Contact Candidate
+                </button>
+                <button
+                  style={{
+                    flex: 1,
+                    minWidth: 140,
+                    padding: 12,
+                    borderRadius: 8,
+                    background: companyPlan === "free" ? "#F1F5F9" : shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9",
+                    color: companyPlan === "free" ? "#64748B" : shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)",
+                    fontWeight: 700,
+                    border: companyPlan === "free" ? "1px solid #CBD5E1" : "none",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => toggleShortlist(selectedCandidate.id)}
+                >
+                  {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist (Growth Tier)</> : shortlistedIds.includes(selectedCandidate.id) ? <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Shortlisted</> : "+ Shortlist Profile"}
+                </button>
+
+                <Link
+                  to={`/verify/${selectedCandidate.id}`}
+                  target="_blank"
+                  style={{ padding: "12px 16px", borderRadius: 8, background: "var(--navy)", color: "#fff", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
+                >
+                  <i className="fa-solid fa-link"></i> Public Audit Page
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== CONTACT CANDIDATE MODAL (VERIFIED COMPANIES) ====== */}
+      {contactCandidateModal && (
+        <div className="modal-overlay" onClick={() => setContactCandidateModal(null)}>
+          <div className="modal-content" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setContactCandidateModal(null)}
+              aria-label="Close contact modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div style={{ padding: 28 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, paddingRight: 36 }}>
+                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "#DCFCE7", color: "#15803D", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fa-solid fa-phone"></i></div>
+                <div>
+                  <h3 style={{ margin: 0, fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 800 }}>
+                    Contact {contactCandidateModal.name}
+                  </h3>
+                  <div style={{ fontSize: 12, color: "#15803D", fontWeight: 700 }}>
+                    <><i className="fa-solid fa-circle-check" style={{ marginRight: 4 }}></i> Verified Company Direct Access</>
+                  </div>
+                </div>
+              </div>
+
+              <p style={{ fontSize: 13, color: "#475569", marginBottom: 20 }}>
+                You have full verified access to candidate contact information. Use the options below to reach out directly:
+              </p>
+
+              <div style={{ background: "#F8FAFC", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>MOBILE NUMBER</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--navy)", marginTop: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>{contactCandidateModal.mobile}</span>
+                    <a
+                      href={`tel:${contactCandidateModal.mobile.replace(/\s+/g, "")}`}
+                      style={{ background: "#166534", color: "#fff", textDecoration: "none", padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}
+                    >
+                      Call Now
+                    </a>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B" }}>EMAIL ADDRESS</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", marginTop: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>{contactCandidateModal.email}</span>
+                    <a
+                      href={`mailto:${contactCandidateModal.email}`}
+                      style={{ background: "#1D4ED8", color: "#fff", textDecoration: "none", padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}
+                    >
+                      Send Email
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  style={{ flex: 1, padding: 12, borderRadius: 8, background: "#F1F5F9", border: "none", fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => setContactCandidateModal(null)}
+                >
+                  Close
+                </button>
+                <button
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={() => {
+                    alert(`Interview invitation sent to ${contactCandidateModal.name}! Candidate will receive your email/SMS prompt.`);
+                    setContactCandidateModal(null);
+                  }}
+                >
+                  Schedule Interview →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== UNLOCK PROMPT MODAL (UNVERIFIED COMPANIES) ====== */}
+      {showUnlockModal && (
+        <div className="modal-overlay" onClick={() => setShowUnlockModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setShowUnlockModal(false)}
+              aria-label="Close unlock modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div style={{ padding: 28, textAlign: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#FEF3C7", color: "#D97706", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 16px" }}><i className="fa-solid fa-lock"></i></div>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "var(--navy)" }}>
+                Account Verification Required
+              </h3>
+              <p style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.55, marginBottom: 20 }}>
+                To view candidate phone numbers, email addresses, and schedule direct interviews, your company must complete <strong>Stage 1 Account &amp; KYC Verification</strong>.
+              </p>
+
+              <div style={{ background: "#FFFBEB", border: "1px solid #FDE68A", borderRadius: 8, padding: "12px 16px", marginBottom: 24, textAlign: "left", fontSize: 12.5, color: "#B45309" }}>
+                <strong>Why verify?</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                  <li>Direct candidate contact numbers &amp; emails</li>
+                  <li>1-click interview scheduling &amp; status tracking</li>
+                  <li>Full candidate video introductions &amp; chart audits</li>
+                </ul>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  style={{ flex: 1, padding: 12, borderRadius: 8, background: "#F1F5F9", border: "none", fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => setShowUnlockModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={() => {
+                    setShowUnlockModal(false);
+                    navigate("/companies/dashboard");
+                  }}
+                >
+                  Verify Account Now →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== PLAN UPGRADE MODAL (FREE TIER GATING) ====== */}
+      {showPlanUpgradeModal && (
+        <div className="modal-overlay" onClick={() => setShowPlanUpgradeModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setShowPlanUpgradeModal(false)}
+              aria-label="Close plan upgrade modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <div style={{ padding: 28, textAlign: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: "50%", background: "#EFF6FF", color: "#2563EB", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 16px" }}><i className="fa-solid fa-bolt"></i></div>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "var(--navy)" }}>
+                Upgrade to Growth Tier
+              </h3>
+              <p style={{ fontSize: 13.5, color: "#64748B", lineHeight: 1.55, marginBottom: 20 }}>
+                {planUpgradeFeature === "search"
+                  ? "Direct candidate directory searching and score filtering require Growth Tier (₹4,999/mo)."
+                  : planUpgradeFeature === "shortlist"
+                  ? "Candidate shortlisting and pipeline management require Growth Tier (₹4,999/mo)."
+                  : "Direct candidate contacts, verification scorecards, and shortlisting are unlocked on Growth Tier (₹4,999/mo)."}
+              </p>
+
+              <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: "14px 16px", marginBottom: 24, textAlign: "left", fontSize: 12.5, color: "#334155" }}>
+                <strong>What Growth Tier (₹4,999/mo) unlocks:</strong>
+                <ul style={{ margin: "6px 0 0", paddingLeft: 18, color: "#475569", lineHeight: 1.6 }}>
+                  <li>Up to 5 Active Job Posts simultaneously</li>
+                  <li>Direct verified candidate search &amp; filtering</li>
+                  <li>Full candidate test scores &amp; AAPC/AHIMA certificates</li>
+                  <li>Candidate shortlisting &amp; hiring pipeline actions</li>
+                  <li>Priority KYC verification audit</li>
+                </ul>
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  style={{ flex: 1, padding: 12, borderRadius: 8, background: "#F1F5F9", border: "none", fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => setShowPlanUpgradeModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  onClick={() => {
+                    setShowPlanUpgradeModal(false);
+                    navigate("/companies/billing");
+                  }}
+                >
+                  View Plans &amp; Upgrade →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ====== ADD CANDIDATE MODAL ====== */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal-content" style={{ maxWidth: 540 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="modal-close-btn"
+              onClick={() => setShowAddModal(false)}
+              aria-label="Close add candidate modal"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+            <form onSubmit={handleAddCandidateSubmit} style={{ padding: 32 }}>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
+                + Add Real Candidate Profile
+              </h3>
+              <p style={{ fontSize: 13, color: "#64748B", marginBottom: 20 }}>
+                Enter real candidate data to persist directly into MongoDB database.
+              </p>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>FULL NAME</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.fullName}
+                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                    placeholder="e.g. Srikant Reddy"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>EMAIL</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    placeholder="srikant@example.com"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>MOBILE NUMBER</label>
+                  <input
+                    type="text"
+                    value={formData.mobile}
+                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>CITY</label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    placeholder="Hyderabad"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>EXPERIENCE</label>
+                  <select
+                    value={formData.experience}
+                    onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
+                  >
+                    <option value="Fresher">Fresher</option>
+                    <option value="1-3">1-3 yrs</option>
+                    <option value="3-5">3-5 yrs</option>
+                    <option value="5+">5+ yrs</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>ROLE / DOMAIN</label>
+                  <input
+                    type="text"
+                    value={formData.currentRole}
+                    onChange={(e) => setFormData({ ...formData, currentRole: e.target.value })}
+                    placeholder="e.g. Senior AR Caller"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>ACADEMY NAME</label>
+                  <input
+                    type="text"
+                    value={formData.academyName}
+                    onChange={(e) => setFormData({ ...formData, academyName: e.target.value })}
+                    placeholder="Apex Medical Coding Institute"
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>CERTIFICATION</label>
+                  <input
+                    type="text"
+                    value={formData.certificationName}
+                    onChange={(e) => setFormData({ ...formData, certificationName: e.target.value })}
+                    placeholder="CPC Certified (AAPC)"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>TEST SCORE (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.assessmentScore}
+                    onChange={(e) => setFormData({ ...formData, assessmentScore: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>CHART ACCURACY (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formData.accuracyScore}
+                    onChange={(e) => setFormData({ ...formData, accuracyScore: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, marginBottom: 4 }}>PROFILE SUMMARY</label>
+                <textarea
+                  rows="2"
+                  value={formData.summary}
+                  onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
+                  placeholder="Summary of experience and RCM expertise..."
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  type="button"
+                  style={{ flex: 1, padding: 12, borderRadius: 8, border: "1px solid #E5E7EB" }}
+                  onClick={() => setShowAddModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-gold"
+                  style={{ flex: 1, justifyContent: "center" }}
+                  disabled={addingCandidate}
+                >
+                  {addingCandidate ? "Saving..." : "Save Candidate →"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -11,11 +11,14 @@ import BrowseJobsSection from '../components/BrowseJobsSection.jsx';
 import CandidateReferralPortalSection from '../components/CandidateReferralPortalSection.jsx';
 import CandidateEmployerReferralsSection from '../components/CandidateEmployerReferralsSection.jsx';
 import CandidateAcademyReferralsSection from '../components/CandidateAcademyReferralsSection.jsx';
+import CompanyFullDetails from '../components/CompanyFullDetails.jsx';
 import './CandidateDashboard.css';
 
 // Points are earned only for what the candidate has actually done - being marked "completed",
 // or having chosen a path, is not evidence on its own. Keep these rules in sync with
 // backend/utils/verificationScore.js (the server-side source of truth).
+// Experienced candidates skip the Stage 4 Assessment; its 20 points move to Certification (Stage 3).
+const isExperiencedProfile = (p) => /exp/i.test(String((p && p.stage1 && p.stage1.experience) || ''));
 const LIVE_CHART_EXEMPT = ['Medical Billing', 'AR Calling', 'Accounts Receivable', 'Eligibility & Verification'];
 
 function hasRealCertification(s3 = {}) {
@@ -37,6 +40,14 @@ function hasStage5Evidence(s5 = {}) {
 
 // Per-stage score breakdown for the "Why is my score X?" analytics view: earned/max points per
 // stage plus a concrete tip for improving that stage's score.
+// Go Live (end of the resume stage) saves stage8.isLive; the settings toggle saves
+// stage8.liveForHiring. An explicit toggle value wins, otherwise Go Live counts.
+function isProfileLive(profile) {
+  const s8 = profile?.stage8 || {};
+  if (typeof s8.liveForHiring === "boolean") return s8.liveForHiring;
+  return Boolean(s8.isLive || s8.consent || profile?.isSubmitted);
+}
+
 export function getScoreBreakdown(profile) {
   if (!profile) profile = {};
   const completedStages = Array.isArray(profile.completedStages) ? profile.completedStages : [];
@@ -85,26 +96,29 @@ export function getScoreBreakdown(profile) {
   // Stage 3 - Certification (a real certification only; Non-Certified / Pursuing earn nothing)
   {
     const s3 = profile.stage3 || {};
+    const maxPts = isExperiencedProfile(profile) ? 35 : 15;
     const hasCert = hasRealCertification(s3);
     const verified = s3.certStatus === 'verified' || s3.status === 'verified' || s3.verified === true;
     const nonCert = s3.nonCertified === true || s3.certStatus === 'non-certified' || s3.certType === 'non-certified';
     let earned = 0, tip;
     if (hasCert && verified) {
-      earned = 15;
+      earned = maxPts;
       tip = 'Fully earned — your certification is verified.';
     } else if (hasCert) {
-      earned = 11;
-      tip = 'Your certification is on file but still pending verification — get it verified to unlock the remaining 4 points.';
+      earned = Math.round(maxPts * 0.75);
+      tip = `Your certification is on file but still pending verification — get it verified to unlock the remaining ${maxPts - earned} points.`;
     } else if (nonCert) {
-      tip = 'You chose Non-Certified, so this stage earns no points. Add a certification (e.g. CPC, CCS, CPB) to earn up to 15 points.';
+      tip = 'You chose Non-Certified, so this stage earns no points. Add a certification (e.g. CPC, CCS, CPB) to earn up to ' + maxPts + ' points.';
     } else {
-      tip = 'Add at least one certification (e.g. CPC, CCS, CPB) in Stage 3 to earn up to 15 points.';
+      tip = 'Add at least one certification (e.g. CPC, CCS, CPB) in Stage 3 to earn up to ' + maxPts + ' points.';
     }
-    rows.push({ num: 3, name: 'Certifications', max: 15, earned, tip });
+    rows.push({ num: 3, name: 'Certifications', max: maxPts, earned, tip });
   }
 
-  // Stage 4 - Domain Assessment (scaled by the actual score)
-  {
+  // Stage 4 - Domain Assessment (scaled by the actual score). Not required for experienced candidates.
+  if (isExperiencedProfile(profile)) {
+    rows.push({ num: 4, name: 'Domain Assessment', max: 0, earned: 0, tip: 'Not required for experienced candidates — your score is based on your certifications.' });
+  } else {
     const s4 = profile.stage4 || {};
     const raw = s4.foundationScore !== undefined ? s4.foundationScore : s4.score;
     const attempted = raw !== undefined && raw !== null && raw !== '' && !isNaN(Number(raw));
@@ -137,8 +151,12 @@ export function getScoreBreakdown(profile) {
   // Stage 6 - Live Charts (not required for billing / AR style roles)
   {
     const s6 = profile.stage6 || {};
-    if (LIVE_CHART_EXEMPT.includes((profile.stage2 && profile.stage2.domain) || '')) {
-      rows.push({ num: 6, name: 'Live Charts Audit', max: 0, earned: 0, tip: 'Not required for your role — it does not lower your score.' });
+    const s6optForRole = String(s6.evidencePath || s6.option || '').toLowerCase();
+    const s6HasEvidence =
+      !(s6.skipped || s6optForRole === 'd' || s6optForRole.includes('none') || s6optForRole === 'no_exposure') &&
+      ((s6.totalCharts || 0) > 0 || (typeof s6.verificationPoints === 'number' && s6.verificationPoints > 0));
+    if (LIVE_CHART_EXEMPT.includes((profile.stage2 && profile.stage2.domain) || '') && !s6HasEvidence) {
+      rows.push({ num: 6, name: 'Live Charts (Bonus)', max: 0, earned: 0, tip: 'Optional for your role — it does not lower your score. Add live chart exposure to earn bonus points.' });
     } else {
       const opt = (s6.evidencePath || s6.option || '').toLowerCase();
       let earned = 0, tip;
@@ -184,17 +202,30 @@ export function getScoreBreakdown(profile) {
     });
   }
 
+  // The server is the source of truth for points earned per stage - use its numbers so the
+  // breakdown always adds up to the score shown on the profile.
+  const serverScores = profile.stageScores;
+  if (serverScores && typeof serverScores === 'object') {
+    rows.forEach((r) => {
+      if (r.num <= 6 && r.max > 0) {
+        const earned = Math.min(r.max, Math.max(0, Number(serverScores[r.num]) || 0));
+        if (earned !== r.earned) {
+          r.earned = earned;
+          if (/^Fully earned/.test(r.tip) && earned < r.max) r.tip = `Earned ${earned}/${r.max} points so far.`;
+        }
+      }
+    });
+  }
   return rows;
 }
 
 // Total score = sum of what each stage actually earned. When Live Charts doesn't apply to the
-// role, the remaining stages (worth 80) are rescaled to /100, same as the server.
+// role, Live Charts is a bonus stage (no rescaling), same as the server.
 export function calculateRealStageScore(profile) {
   if (!profile) return 0;
   const rows = getScoreBreakdown(profile);
   const earned = rows.reduce((sum, r) => sum + r.earned, 0);
-  const max = rows.reduce((sum, r) => sum + r.max, 0) || 100;
-  return Math.min(100, Math.max(0, Math.round((earned / max) * 100)));
+  return Math.min(100, Math.max(0, Math.round(earned)));
 }
 
 export default function CandidateDashboard({ profile: propProfile, onEditStage }) {
@@ -211,6 +242,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   }, []);
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [companyFilter, setCompanyFilter] = useState('all');
   const PROFILE_GROUP = ['dashboard', 'profile', 'documents', 'resumes'];
   const COMPANIES_GROUP = ['companies', 'applications', 'invites', 'feedback'];
   const SUBTAB_ICONS = {
@@ -299,6 +331,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const [applications, setApplications] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [invites, setInvites] = useState([]);
+  const [confirmingInviteId, setConfirmingInviteId] = useState(null);
   const [referrals, setReferrals] = useState([]);
   const [vaultDocs, setVaultDocs] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -310,6 +343,21 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  const confirmInvite = async (inviteId) => {
+    if (!inviteId || confirmingInviteId) return;
+    setConfirmingInviteId(inviteId);
+    try {
+      await api.post(`/candidate/invites/${inviteId}/confirm`);
+      setInvites((prev) => prev.map((i) => (i.id === inviteId ? { ...i, status: 'confirmed' } : i)));
+      triggerToast("Interview slot confirmed. The company has been notified.");
+      fetchDashboardData();
+    } catch (err) {
+      triggerToast(err?.response?.data?.message || "Could not confirm the slot. Please try again.");
+    } finally {
+      setConfirmingInviteId(null);
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
@@ -317,7 +365,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       try {
         const res = await api.get('/candidate/profile');
         if (res.data?.candidate) {
-          p = { ...res.data.candidate, score: res.data.score, verificationScore: res.data.score };
+          p = { ...res.data.candidate, score: res.data.score, verificationScore: res.data.score, stageScores: res.data.stageScores };
         } else {
           p = res.data;
         }
@@ -325,7 +373,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         try {
           const resMe = await api.get('/candidate/me');
           if (resMe.data?.candidate) {
-            p = { ...resMe.data.candidate, score: resMe.data.score, verificationScore: resMe.data.score };
+            p = { ...resMe.data.candidate, score: resMe.data.score, verificationScore: resMe.data.score, stageScores: resMe.data.stageScores };
           } else {
             p = resMe.data;
           }
@@ -445,13 +493,26 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   // Stages 1-7 are the core verification wizard; Stage 8 (Placement & Hiring /
   // employment preferences) is a separate, optional step folded into Stage 07's
   // "Go Live" action, so it should not gate or inflate the 7-stage completion count.
-  const coreStagesCompleted = completedStages.filter((n) => n <= 7).length;
+  // Stages that don't apply to this candidate (Stage 04 for experienced; Stage 06 when Live Charts
+  // isn't required for the role or was skipped / "no exposure") are left out of the "x/y done" counts
+  // so they never show as pending.
+  const s6Path = String(profile?.stage6?.evidencePath || profile?.stage6?.option || '').toLowerCase();
+  const stage6NotApplicable =
+    LIVE_CHART_EXEMPT.includes((profile?.stage2 && profile.stage2.domain) || '') ||
+    Boolean(profile?.stage6?.skipped) ||
+    ((s6Path === 'd' || s6Path.includes('none') || s6Path === 'no_exposure') && !((profile?.stage6?.totalCharts || 0) > 0));
+  const removedStageNums = new Set();
+  if (isExperiencedProfile(profile)) removedStageNums.add(4);
+  if (stage6NotApplicable) removedStageNums.add(6);
+  const totalStageCount = 7 - removedStageNums.size;
+  const coreStagesCompleted = completedStages.filter((n) => n <= 7 && !removedStageNums.has(n)).length;
+  const stagesLeft = Math.max(0, totalStageCount - coreStagesCompleted);
   const candidateName = profile?.stage1?.fullName || profile?.stage1?.fullname || profile?.fullname || (profile?.email ? profile.email.split('@')[0] : 'Candidate');
   const candidateEmail = profile?.email || '';
   const candidatePhone = profile?.stage1?.mobile || profile?.mobile || '';
   // Real dynamic verification score computed from previous stages
   const profileScore = profile?.score ?? profile?.verificationScore ?? calculateRealStageScore(profile);
-  const profileCompleteness = Math.min(100, Math.round((coreStagesCompleted / 7) * 100));
+  const profileCompleteness = Math.min(100, Math.round((coreStagesCompleted / totalStageCount) * 100));
   const referralCode = profile?._id ? profile._id.slice(-6).toUpperCase() : 'TALENT';
   const referralLink = typeof window !== 'undefined' ? `${window.location.origin}/register?ref=${profile?._id || ''}` : '';
 
@@ -473,7 +534,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     { key: 'resume', label: 'Resume Built', icon: <i className="fa-solid fa-file-lines" />, earned: completedStages.includes(7) },
     { key: 'track', label: 'Employment Status Set', icon: <i className="fa-solid fa-location-dot" />, earned: completedStages.includes(8) },
   ];
-  const badgesEarnedCount = badgeCriteria.filter((b) => b.earned).length;
+  const visibleBadgeCriteria = badgeCriteria.filter((b) => !(b.key === 'assessment' && isExperiencedProfile(profile)));
+  const badgesEarnedCount = visibleBadgeCriteria.filter((b) => b.earned).length;
 
   const appliedJobIds = new Set(applications.map((a) => a.jobId));
   const handleApplyToJob = async (job) => {
@@ -635,7 +697,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           >
             <span className="stages-icon-pulse"><i className="fa-solid fa-bolt" /></span>
             <span>7 Stages Dashboard</span>
-            <span className="stages-count-pill">{coreStagesCompleted}/7 Done</span>
+            <span className="stages-count-pill">{coreStagesCompleted}/{totalStageCount} Done</span>
           </button>
 
           {academyTestsPending > 0 && (
@@ -735,14 +797,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <div className="sb-swb-icon-wrap"><i className="fa-solid fa-bolt" /></div>
               <div className="sb-swb-text">
                 <div className="sb-swb-title">7 Stages Dashboard</div>
-                <div className="sb-swb-sub">{coreStagesCompleted}/7 Completed · {profileScore} pts</div>
+                <div className="sb-swb-sub">{coreStagesCompleted}/{totalStageCount} Completed · {profileScore} pts</div>
               </div>
             </div>
             <div className="sb-swb-bar">
-              <div className="sb-swb-bar-fill" style={{ width: `${Math.round((coreStagesCompleted / 7) * 100)}%` }}></div>
+              <div className="sb-swb-bar-fill" style={{ width: `${Math.round((coreStagesCompleted / totalStageCount) * 100)}%` }}></div>
             </div>
             <div className="sb-swb-action">
-              <span>{coreStagesCompleted === 7 ? 'Review / Edit 7 Stages' : 'Complete 7 Stages'}</span>
+              <span>{stagesLeft === 0 ? `Review / Edit ${totalStageCount} Stages` : `Complete ${totalStageCount} Stages`}</span>
               <span className="sb-swb-arrow">→</span>
             </div>
           </div>
@@ -784,6 +846,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <div data-tab="learning" className={'sb-item ' + (activeTab === 'learning' ? 'active' : '')} onClick={() => setActiveTab('learning')}>
                 <span className="ico"><i className="fa-solid fa-book" /></span>
                 <span>Learning Hub</span>
+              </div>
+              <div data-tab="companydetails" className={'sb-item ' + (activeTab === 'companydetails' ? 'active' : '')} onClick={() => setActiveTab('companydetails')}>
+                <span className="ico"><i className="fa-solid fa-building" /></span>
+                <span>Company Full Details</span>
               </div>
               <div data-tab="analytics" className={'sb-item ' + (activeTab === 'analytics' ? 'active' : '')} onClick={() => setActiveTab('analytics')}>
                 <span className="ico"><i className="fa-solid fa-chart-line" /></span>
@@ -860,7 +926,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="wh-tagline">{(companiesAttendedCount > 0 || pendingInvites.length > 0) ? `Your Career Passport is live. ${companiesAttendedCount} ${companiesAttendedCount === 1 ? 'company' : 'companies'} tracked · ${pendingInvites.length} pending interview ${pendingInvites.length === 1 ? 'invite' : 'invites'}.` : 'Your Career Passport is live. Stage verification score computed live from Stages 1–8.'}</div>
             <div className="wh-badges">
               <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}>{profileScore >= 75 ? 'Talentera Verified (75+)' : `Stage Score: ${profileScore}/100`}</span>
-              <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? 'LIVE FOR HIRING' : 'Not Live Yet'}</span>
+              <span className={"wh-chip " + (isProfileLive(profile) ? 'green' : '')}>{isProfileLive(profile) ? 'LIVE FOR HIRING' : 'Not Live Yet'}</span>
               <span className="wh-chip"><i className="fa-solid fa-graduation-cap" style={{ marginRight: 5 }} />{profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}</span>
               <span className="wh-chip"><i className="fa-solid fa-location-dot" style={{ marginRight: 5 }} />{profile?.stage1?.city || 'Location not set'}</span>
             </div>
@@ -874,7 +940,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 title="Launch the Candidate 7 Stages Verification Dashboard"
               >
                 <span><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open 7 Stages Dashboard</span>
-                <span className="hero-btn-pill">{coreStagesCompleted}/7 Done</span>
+                <span className="hero-btn-pill">{coreStagesCompleted}/{totalStageCount} Done</span>
                 <span style={{ fontSize: '15px' }}>→</span>
               </button>
               <button
@@ -919,14 +985,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="quick-stats">
         <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico blue"><i className="fa-solid fa-building" /></div><div><div className="qs-val">{companiesAttendedCount}</div><div className="qs-lbl">Companies Attended</div><div className="qs-trend">{applications.length > 0 ? `${applications.length} total applications` : 'No applications yet'}</div></div></div>
         <div className="qs-card" onClick={() => setActiveTab("companies")}><div className="qs-ico green"><i className="fa-solid fa-check" /></div><div><div className="qs-val">{offersReceivedCount}</div><div className="qs-lbl">Offers Received</div><div className="qs-trend">{bestOfferCtc > 0 ? `↑ Best ₹${bestOfferCtc} LPA` : 'No offers yet'}</div></div></div>
-        <div className="qs-card" onClick={() => handleOpenStagesWizard(6)}><div className="qs-ico gold"><i className="fa-solid fa-laptop" /></div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Open Stage 06'}</div></div></div>
-        <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple"><i className="fa-solid fa-award" /></div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${badgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
+        {!(stage6NotApplicable && chartsCoded === 0) && <div className="qs-card" onClick={() => handleOpenStagesWizard(6)}><div className="qs-ico gold"><i className="fa-solid fa-laptop" /></div><div><div className="qs-val">{chartsCoded}</div><div className="qs-lbl">Charts Coded</div><div className="qs-trend">{chartsCoded > 0 ? (profile?.stage6?.tier || 'Logged') : 'Open Stage 06'}</div></div></div>}
+        <div className="qs-card" onClick={() => setActiveTab("badges")}><div className="qs-ico purple"><i className="fa-solid fa-award" /></div><div><div className="qs-val">{badgesEarnedCount}</div><div className="qs-lbl">Badges Earned</div><div className="qs-trend">{badgesEarnedCount > 0 ? `of ${visibleBadgeCriteria.length} available` : 'Complete stages to earn'}</div></div></div>
       </div>
 
       <div className="sec">
         <div className="sec-head"><div className="sec-title"><div className="mod-ico"><i className="fa-solid fa-bullseye" /></div>Priority Actions</div></div>
         <div className="card" style={{"background":"linear-gradient(135deg,var(--gold-pale),#FFF9E0)","borderColor":"var(--gold)"}}>
-          {(hiredApplications.length > 0 || pendingInvites.length > 0 || profileScore < 100) ? (
+          {(hiredApplications.length > 0 || pendingInvites.length > 0 || stagesLeft > 0 || profileScore < 100) ? (
           <div style={{"display":"grid","gridTemplateColumns":"1fr 1fr 1fr","gap":"12px"}}>
             {hiredApplications.length > 0 ? (
               <button onClick={() => setActiveTab("companies")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico green"><i className="fa-solid fa-envelope" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Accept {hiredApplications[0].companyName} Offer</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Review your offer details</div></div></button>
@@ -938,8 +1004,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             ) : (
               <button onClick={() => setActiveTab("invites")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico blue"><i className="fa-solid fa-calendar-days" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>No Interviews Pending</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>You'll see invites here</div></div></button>
             )}
-            {profileScore < 100 ? (
-              <button onClick={() => handleOpenStagesWizard(1)} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple"><i className="fa-solid fa-bolt" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete 7 Stages</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {7 - coreStagesCompleted} stage{(7 - coreStagesCompleted) === 1 ? '' : 's'} left</div></div></button>
+            {stagesLeft > 0 ? (
+              <button onClick={() => handleOpenStagesWizard(1)} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple"><i className="fa-solid fa-bolt" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Complete {totalStageCount} Stages</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>{profileScore}/100 stage score · {stagesLeft} stage{stagesLeft === 1 ? '' : 's'} left</div></div></button>
             ) : (
               <button onClick={() => setActiveTab("learning")} className="qs-card" style={{"textAlign":"left","background":"var(--white)"}}><div className="qs-ico purple"><i className="fa-solid fa-book" /></div><div><div style={{"fontWeight":"800","color":"var(--navy)","fontSize":"13px"}}>Keep Learning</div><div style={{"fontSize":"11px","color":"var(--gray-mute)","marginTop":"2px"}}>Stage score 100/100 · Fully verified</div></div></button>
             )}
@@ -969,7 +1035,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         >
           <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
           <span>Open 7 Stages Dashboard</span>
-          <span className="hero-btn-pill">{coreStagesCompleted}/7 Completed</span>
+          <span className="hero-btn-pill">{coreStagesCompleted}/{totalStageCount} Completed</span>
         </button>
       </div>
 
@@ -982,7 +1048,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="profile-name">{candidateName}</div>
           <div className="profile-title">{profile?.stage1?.currentRole || profile?.stage2?.domain || 'Candidate'}{profile?.stage3?.certifications?.length ? ` · ${profile.stage3.certifications.map((c) => c.code || c.certCode).filter(Boolean).join(' + ')}` : ''}{profileScore >= 75 ? ' · Talentera Verified' : ''}</div>
           <div className="profile-meta">
-            <span className={"wh-chip " + (profile?.stage8?.liveForHiring ? 'green' : '')}>{profile?.stage8?.liveForHiring ? 'LIVE FOR HIRING' : 'Not Live Yet'}</span>
+            <span className={"wh-chip " + (isProfileLive(profile) ? 'green' : '')}>{isProfileLive(profile) ? 'LIVE FOR HIRING' : 'Not Live Yet'}</span>
             <span className={"wh-chip " + (profileScore >= 75 ? 'gold' : '')}><><i className="fa-solid fa-trophy" style={{ color: "#E5A82E", marginRight: 5 }} /> {profileScore}/100 Verified</></span>
             <span className="wh-chip"><i className="fa-solid fa-location-dot" style={{ marginRight: 5 }} />{profile?.stage1?.city || 'Location not set'}</span>
             <span className="wh-chip"><i className="fa-solid fa-cake-candles" style={{ marginRight: 5 }} />{profile?.stage1?.dob ? new Date(profile.stage1.dob).toLocaleDateString('en-IN') : 'DOB not set'}{profile?.stage1?.gender ? ` · ${profile.stage1.gender}` : ''}</span>
@@ -1057,6 +1123,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         </div>
       </div>
 
+      {!isExperiencedProfile(profile) && (
       <div className="stage-detail">
         <div className="stage-detail-head">
           <div className="stage-detail-title">
@@ -1073,6 +1140,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           )}
         </div>
       </div>
+      )}
 
       <div className="stage-detail">
         <div className="stage-detail-head">
@@ -1083,11 +1151,15 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(5)}><><i className="fa-solid fa-video" style={{ marginRight: 6 }} />Open Stage 05 Pitch</></button></div>
         </div>
         <div className="stage-fields">
-          <div className="field"><div className="k">Clarity</div><div className="v">{profile?.stage5?.clarityScore != null ? `${profile.stage5.clarityScore} / 100` : '—'}</div></div>
-          <div className="field"><div className="k">Fluency</div><div className="v">{profile?.stage5?.fluencyScore != null ? `${profile.stage5.fluencyScore} / 100` : '—'}</div></div>
-          <div className="field"><div className="k">Vocab</div><div className="v">{(profile?.stage5?.vocabScore ?? profile?.stage5?.vocabularyScore) != null ? `${profile?.stage5?.vocabScore ?? profile?.stage5?.vocabularyScore} / 100` : '—'}</div></div>
-          <div className="field"><div className="k">Confidence</div><div className="v">{profile?.stage5?.confidenceScore != null ? `${profile.stage5.confidenceScore} / 100` : '—'}</div></div>
-          <div className="field"><div className="k">Content</div><div className="v">{profile?.stage5?.contentScore != null ? `${profile.stage5.contentScore} / 100` : '—'}</div></div>
+          {[
+            ["Clarity", profile?.stage5?.clarityScore ?? profile?.stage5?.rubric?.clarity],
+            ["Fluency", profile?.stage5?.fluencyScore ?? profile?.stage5?.rubric?.fluency],
+            ["Vocab", profile?.stage5?.vocabScore ?? profile?.stage5?.vocabularyScore ?? profile?.stage5?.rubric?.vocabularyGrammar],
+            ["Confidence", profile?.stage5?.confidenceScore ?? profile?.stage5?.rubric?.confidenceDelivery],
+            ["Content", profile?.stage5?.contentScore ?? profile?.stage5?.rubric?.contentRelevance],
+          ].map(([label, val]) => (
+            <div className="field" key={label}><div className="k">{label}</div><div className="v">{Number.isFinite(Number(val)) && val !== null && val !== undefined && val !== "" ? `${Math.round(Number(val))} / 100` : "—"}</div></div>
+          ))}
           <div className="field"><div className="k">Recorded</div><div className="v">{profile?.stage5?.completedAt ? new Date(profile.stage5.completedAt).toLocaleDateString('en-IN') : '—'}</div></div>
         </div>
       </div>
@@ -1131,12 +1203,12 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">08</div>
-            <div><div className="stage-detail-name">Placement &amp; Hiring · {profile?.stage8?.liveForHiring ? 'Live For Hiring' : (completedStages.includes(8) ? 'Preferences Configured' : 'Not Completed')}</div><div className="stage-detail-tag">0 pts · {completedStages.includes(8) ? 'Ready' : 'Pending'}</div></div>
+            <div><div className="stage-detail-name">Placement &amp; Hiring · {isProfileLive(profile) ? 'Live For Hiring' : (completedStages.includes(8) ? 'Preferences Configured' : 'Not Completed')}</div><div className="stage-detail-tag">0 pts · {completedStages.includes(8) ? 'Ready' : 'Pending'}</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(7)}><><i className="fa-solid fa-location-dot" style={{ marginRight: 6 }} />Open Stage 07 · Go Live</></button></div>
         </div>
         <div className="stage-fields">
-          <div className="field"><div className="k">Status</div><div className="v">{profile?.stage8?.liveForHiring ? 'Live For Hiring' : 'Not Live'}</div></div>
+          <div className="field"><div className="k">Status</div><div className="v">{isProfileLive(profile) ? 'Live For Hiring' : 'Not Live'}</div></div>
           <div className="field"><div className="k">Employment</div><div className="v">{profile?.stage8?.employmentStatus || 'Actively Looking'}</div></div>
           <div className="field"><div className="k">Work Mode</div><div className="v">{profile?.stage8?.workMode || 'Hybrid / Remote / Onsite'}</div></div>
           <div className="field"><div className="k">Preferred Cities</div><div className="v">{Array.isArray(profile?.stage8?.preferredCities) ? profile.stage8.preferredCities.join(', ') : 'All locations'}</div></div>
@@ -1172,7 +1244,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         </div>
         <div className="badge-sec-sub">These come directly from your 8 verification stages and are what companies check first.</div>
         <div className="badge-grid">
-          {badgeCriteria.map((b) => (
+          {visibleBadgeCriteria.map((b) => (
             <div className={"badge " + (b.earned ? "earned priority" : "locked")} key={b.key}>
               {b.earned && <div className="badge-crown"><i className="fa-solid fa-crown" /></div>}
               {b.earned && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
@@ -1240,6 +1312,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="badge-sub">{profile?.stage5?.regionalLanguage ? `English + ${profile.stage5.regionalLanguage}` : 'Add a regional-language video in Stage 05'}</div>
             <span className={"badge-value " + (profile?.stage5?.regionalLanguage ? "regular" : "locked-tag")}>{profile?.stage5?.regionalLanguage ? 'Earned' : 'Locked'}</span>
           </div>
+          {!isExperiencedProfile(profile) && (
           <div className={"badge " + (profile?.stage4?.medal === 'Gold' ? "earned" : "locked")}>
             {profile?.stage4?.medal === 'Gold' && <div className="badge-verified"><i className="fa-solid fa-check" /></div>}
             <div className="badge-ico"><i className="fa-solid fa-medal" /></div>
@@ -1247,6 +1320,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="badge-sub">{profile?.stage4?.medal === 'Gold' ? 'Scored 85+ on the assessment' : 'Score 85+ to unlock'}</div>
             <span className={"badge-value " + (profile?.stage4?.medal === 'Gold' ? "regular" : "locked-tag")}>{profile?.stage4?.medal === 'Gold' ? 'Earned' : 'Locked'}</span>
           </div>
+          )}
         </div>
       </div>
 
@@ -1303,20 +1377,38 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       </div>
 
       <div className="co-pipeline">
-        <div className="co-pipe-stage"><div className="count">{applications.length}</div><div className="lbl">Applied</div></div>
-        <div className="co-pipe-stage"><div className="count">{applications.filter((a) => a.status === 'shortlisted').length}</div><div className="lbl">Shortlisted</div></div>
-        <div className="co-pipe-stage active"><div className="count">{applications.filter((a) => a.status === 'interviewing').length}</div><div className="lbl">Interviewing</div></div>
-        <div className="co-pipe-stage selected"><div className="count">{applications.filter((a) => a.status === 'hired').length}</div><div className="lbl">Selected</div></div>
-        <div className="co-pipe-stage rejected"><div className="count">{applications.filter((a) => a.status === 'rejected').length}</div><div className="lbl">Rejected</div></div>
+        {[
+          ['all', 'Applied', '', applications.length],
+          ['shortlisted', 'Shortlisted', '', applications.filter((a) => a.status === 'shortlisted').length],
+          ['interviewing', 'Interviewing', 'active', applications.filter((a) => a.status === 'interviewing').length],
+          ['hired', 'Selected', 'selected', applications.filter((a) => a.status === 'hired').length],
+          ['on_hold', 'On Hold', 'hold', applications.filter((a) => a.status === 'on_hold').length],
+          ['rejected', 'Rejected', 'rejected', applications.filter((a) => a.status === 'rejected').length],
+        ].map(([key, label, tint, count]) => (
+          <div
+            key={key}
+            className={"co-pipe-stage " + tint + (companyFilter === key ? " pick" : "")}
+            style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+            onClick={() => setCompanyFilter(key)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setCompanyFilter(key); }}
+          >
+            <div className="count">{count}</div><div className="lbl">{label}</div>
+          </div>
+        ))}
       </div>
 
       <div className="co-list">
-        {applications.length > 0 ? applications.map((app) => {
+        {applications.length > 0 && companyFilter !== 'all' && applications.filter((a) => a.status === companyFilter).length === 0 ? (
+          <div style={{ padding: '30px', textAlign: 'center', color: 'var(--gray-mute)' }}>No companies in this stage yet. <a onClick={() => setCompanyFilter('all')} style={{ color: 'var(--gold-deep)', fontWeight: 800, cursor: 'pointer' }}>Show all</a></div>
+        ) : applications.length > 0 ? applications.filter((a) => companyFilter === 'all' || a.status === companyFilter).map((app) => {
           const statusMap = {
             applied: { cls: 'applied', label: 'Applied', cta: 'View' },
             shortlisted: { cls: 'shortlisted', label: 'Shortlisted', cta: null },
             interviewing: { cls: 'interviewed', label: 'Interviewing', cta: null },
             hired: { cls: 'selected', label: 'OFFER', cta: 'Accept →' },
+            on_hold: { cls: 'hold', label: 'Selected · On Hold — offer letter awaited', cta: null },
             rejected: { cls: 'rejected', label: 'Not Selected', cta: 'Feedback' },
           };
           const st = statusMap[app.status] || statusMap.applied;
@@ -1362,7 +1454,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="co-logo" style={{"background":inv.logoBg || 'var(--navy)'}}>{inv.logoLetter || (inv.company || 'C')[0]}</div>
             <div className="co-info"><div className="name">{inv.company} · {inv.role}</div><div className="role">{inv.type}{inv.duration ? ` · ${inv.duration}` : ''}</div><div className="timeline">{inv.time}</div></div>
             <div className={"co-status " + (inv.status === 'confirmed' ? 'selected' : 'shortlisted')}>{inv.status === 'confirmed' ? 'Confirmed' : 'Pending'}</div>
-            {inv.status !== 'confirmed' && <button className="co-cta-btn" onClick={() => triggerToast("Slot confirmed. Calendar invite sent.")}>Confirm</button>}
+            {inv.status !== 'confirmed' && <button className="co-cta-btn" disabled={confirmingInviteId === inv.id} onClick={() => confirmInvite(inv.id)}>{confirmingInviteId === inv.id ? 'Confirming…' : 'Confirm'}</button>}
+            {inv.status === 'confirmed' && inv.meetingLink && <a className="co-cta-btn" href={inv.meetingLink} target="_blank" rel="noreferrer">Join</a>}
           </div>
         )) : (
           <div style={{"padding":"30px","textAlign":"center","color":"var(--gray-mute)"}}>No interview invites yet. They'll show up here once a company shortlists you.</div>
@@ -1579,6 +1672,8 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     </div>
 )}
 
+          {activeTab === 'companydetails' && <CompanyFullDetails />}
+
           {activeTab === 'analytics' && (
 <div className="page active" id="page-analytics">
       <div className="page-head">
@@ -1611,7 +1706,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
       <div className="settings-grid">
         <div className="settings-card">
           <h3 style={{"fontSize":"15px","fontWeight":"800","color":"var(--navy)","margin":"0 0 12px"}}>Visibility & Hiring</h3>
-          <div className="setting-row"><div><div className="setting-label">Profile Live for Hiring</div><div className="setting-desc">Companies can find you</div></div><div className={"toggle " + (profile?.stage8?.liveForHiring ? "on" : "")} onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
+          <div className="setting-row"><div><div className="setting-label">Profile Live for Hiring</div><div className="setting-desc">Companies can find you</div></div><div className={"toggle " + (isProfileLive(profile) ? "on" : "")} onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
           <div className="setting-row"><div><div className="setting-label">Available Immediately</div><div className="setting-desc">Show green available badge</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
           <div className="setting-row"><div><div className="setting-label">Open to Relocation</div><div className="setting-desc">Anywhere in India</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>
           <div className="setting-row"><div><div className="setting-label">US Night Shift</div><div className="setting-desc">Accept US-facing roles</div></div><div className="toggle" onClick={(e) => e.currentTarget.classList.toggle("on")}></div></div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
-import { INDIAN_COLLEGES, filterColleges } from "../../data/indianColleges.js";
+import CollegePicker from "../CollegePicker.jsx";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
 
 const INDIAN_STATES = [
@@ -488,11 +488,20 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     existingData?.city || candidate?.stage1?.city || candidate?.city || "Chennai"
   );
   const [currentLocality, setCurrentLocality] = useState(existingData?.currentLocality || candidate?.stage1?.currentLocality || "");
-  const [preferredCities, setPreferredCities] = useState(
-    Array.isArray(existingData?.preferredCities) && existingData.preferredCities.length > 0
-      ? existingData.preferredCities.filter(Boolean)
-      : []
-  );
+  // Preferred work cities are chosen MANUALLY by the candidate. Older saves auto-filled
+  // the permanent-address city as the only entry; drop that auto-pulled value unless the
+  // candidate explicitly saved it (preferredCitiesManual flag).
+  const [preferredCities, setPreferredCities] = useState(() => {
+    const saved = Array.isArray(existingData?.preferredCities) ? existingData.preferredCities.filter(Boolean) : [];
+    if (saved.length === 0) return [];
+    if (existingData?.preferredCitiesManual) return saved;
+    const norm = (v) => String(v || "").trim().toLowerCase();
+    const addressNames = [initAadhaar.locality, initAadhaar.district, existingData?.city, existingData?.permanentDistrict, existingData?.permanentLocality]
+      .map(norm)
+      .filter(Boolean);
+    if (saved.length === 1 && addressNames.includes(norm(saved[0]))) return [];
+    return saved;
+  });
   const [cityInputOpen, setCityInputOpen] = useState(false);
   const [selectedCityOption, setSelectedCityOption] = useState("");
   const [openToRelocate, setOpenToRelocate] = useState(
@@ -516,11 +525,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [collegeName, setCollegeName] = useState(
     existingData?.collegeName || ""
   );
-  const [collegeSuggestions, setCollegeSuggestions] = useState([]);
-  const [collegeDropdownOpen, setCollegeDropdownOpen] = useState(false);
-  const [collegeHighlightIdx, setCollegeHighlightIdx] = useState(-1);
-  const collegeInputRef = useRef(null);
-  const collegeDropdownRef = useRef(null);
+  const [collegeState, setCollegeState] = useState(existingData?.collegeState || "");
+  const [collegeLocation, setCollegeLocation] = useState(existingData?.collegeLocation || "");
   const [educationStatus, setEducationStatus] = useState(
     existingData?.educationStatus || ""
   );
@@ -601,23 +607,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       setCurrentLocality(s1.currentLocality);
     }
   }, [existingData, candidate]);
-
-  // Close college dropdown when clicking outside
-  useEffect(() => {
-    function handleOutsideClick(e) {
-      if (
-        collegeDropdownRef.current &&
-        !collegeDropdownRef.current.contains(e.target) &&
-        collegeInputRef.current &&
-        !collegeInputRef.current.contains(e.target)
-      ) {
-        setCollegeDropdownOpen(false);
-        setCollegeHighlightIdx(-1);
-      }
-    }
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
 
   // Handle stream change default degree - also re-derives the course list
   // from the currently selected Highest Qualification, so switching stream
@@ -1141,6 +1130,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         missingFields.push("Preferred Work Shift(s)");
         errs.workShifts = "Select at least one shift";
       }
+      if (preferredCities.filter(Boolean).length === 0) {
+        missingFields.push("Willing to Work In (add at least one city)");
+        errs.preferredCities = "Add at least one city you are willing to work in";
+      }
       // Email validation
       if (!email || !email.includes("@")) {
         missingFields.push("Valid Email Address");
@@ -1163,11 +1156,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         missingFields.push("Education Status");
         errs.educationStatus = "Education status is mandatory";
       }
-      if (!graduationMonth || !graduationYear) {
+      if (educationStatus !== "Pursuing" && (!graduationMonth || !graduationYear)) {
         missingFields.push("Passing Month & Year");
         errs.graduation = "Passing month and year are mandatory";
       }
-      if (!cgpa || cgpa.trim().length === 0) {
+      if (educationStatus !== "Pursuing" && (!cgpa || cgpa.trim().length === 0)) {
         missingFields.push("CGPA / Percentage");
         errs.cgpa = "CGPA or percentage is mandatory";
       }
@@ -1246,7 +1239,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       state: resolvedState,
       city: resolvedCity,
       currentLocality,
-      preferredCities: preferredCities.filter(Boolean).length > 0 ? preferredCities.filter(Boolean) : [resolvedCity],
+      preferredCities: preferredCities.filter(Boolean),
+      preferredCitiesManual: true,
       openToRelocate,
       workShifts,
 
@@ -1255,6 +1249,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       qualification,
       degree: degree.trim(),
       collegeName: collegeName.trim(),
+      collegeLocation: collegeLocation.trim(),
+      collegeState: collegeState.trim(),
       educationStatus,
       graduationMonth,
       graduationYear: cleanGradYear,
@@ -2693,7 +2689,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="choice-title">Fresher</div>
                   <div className="choice-sub">New to Industry</div>
                   <div className="choice-desc">
-                    Currently studying or recently graduated. No RCM work experience yet.
+                    New to the RCM industry, including students, recent graduates and candidates who have completed training but do not yet have professional RCM work experience.
                   </div>
                 </div>
                 <div
@@ -2705,7 +2701,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="choice-title">Experienced</div>
                   <div className="choice-sub">1+ yrs in Coding / RCM</div>
                   <div className="choice-desc">
-                    Currently or previously working in an RCM role. Job title, company, tenure required in Stage 02.
+                    Currently or previously employed in a medical coding, medical billing or other healthcare RCM role. Relevant work experience will be collected in the next stage.
                   </div>
                 </div>
               </div>
@@ -2896,6 +2892,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   </button>
                 </div>
               )}
+              {formErrors.preferredCities && preferredCities.length === 0 && <div className="field-error-msg">{formErrors.preferredCities}</div>}
             </div>
 
             <div className="field">
@@ -3057,143 +3054,19 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <label>
                   University / College <span className="req">*</span>
                 </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    ref={collegeInputRef}
-                    type="text"
-                    placeholder="Start typing college or university name…"
-                    value={collegeName}
-                    autoComplete="off"
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCollegeName(val);
-                      if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
-                      const suggestions = filterColleges(val);
-                      setCollegeSuggestions(suggestions);
-                      setCollegeDropdownOpen(val.trim().length >= 2);
-                      setCollegeHighlightIdx(-1);
-                    }}
-                    onFocus={() => {
-                      if (collegeName.length >= 2) {
-                        const suggestions = filterColleges(collegeName);
-                        setCollegeSuggestions(suggestions);
-                        setCollegeDropdownOpen(true);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (!collegeDropdownOpen) return;
-                      if (e.key === "Enter") {
-                        if (collegeHighlightIdx < 0 || collegeSuggestions.length === 0) {
-                          e.preventDefault();
-                          setCollegeDropdownOpen(false);
-                          return;
-                        }
-                      }
-                      if (collegeSuggestions.length === 0) return;
-                      if (e.key === "ArrowDown") {
-                        e.preventDefault();
-                        setCollegeHighlightIdx((prev) => Math.min(prev + 1, collegeSuggestions.length - 1));
-                      } else if (e.key === "ArrowUp") {
-                        e.preventDefault();
-                        setCollegeHighlightIdx((prev) => Math.max(prev - 1, 0));
-                      } else if (e.key === "Enter" && collegeHighlightIdx >= 0) {
-                        e.preventDefault();
-                        const chosen = collegeSuggestions[collegeHighlightIdx];
-                        setCollegeName(chosen);
-                        setCollegeDropdownOpen(false);
-                        setCollegeHighlightIdx(-1);
-                        setCollegeSuggestions([]);
-                      } else if (e.key === "Escape") {
-                        setCollegeDropdownOpen(false);
-                        setCollegeHighlightIdx(-1);
-                      }
-                    }}
-                  />
-                  {collegeDropdownOpen && collegeName.trim().length >= 2 && (
-                    <div
-                      ref={collegeDropdownRef}
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 4px)",
-                        left: 0,
-                        right: 0,
-                        background: "#FFFFFF",
-                        border: "1.5px solid #CBD5E1",
-                        borderRadius: 10,
-                        boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
-                        zIndex: 9999,
-                        maxHeight: 280,
-                        overflowY: "auto",
-                      }}
-                    >
-                      {collegeSuggestions.length === 0 && (
-                        <div
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setCollegeDropdownOpen(false);
-                          }}
-                          style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, color: "#334155", display: "flex", alignItems: "center", gap: 8 }}
-                        >
-                          <i className="fa-solid fa-pen" style={{ color: "#94A3B8", fontSize: 12 }} />
-                          <span>No match in our list. Use <strong style={{ color: "#1D4ED8" }}>{collegeName.trim()}</strong> as entered</span>
-                        </div>
-                      )}
-                      {collegeSuggestions.map((suggestion, idx) => {
-                        const q = collegeName.toLowerCase();
-                        const matchStart = suggestion.toLowerCase().indexOf(q);
-                        const before = matchStart >= 0 ? suggestion.slice(0, matchStart) : suggestion;
-                        const match = matchStart >= 0 ? suggestion.slice(matchStart, matchStart + q.length) : "";
-                        const after = matchStart >= 0 ? suggestion.slice(matchStart + q.length) : "";
-                        return (
-                          <div
-                            key={suggestion}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              setCollegeName(suggestion);
-                              setCollegeDropdownOpen(false);
-                              setCollegeHighlightIdx(-1);
-                              setCollegeSuggestions([]);
-                              if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
-                            }}
-                            onMouseEnter={() => setCollegeHighlightIdx(idx)}
-                            style={{
-                              padding: "10px 14px",
-                              cursor: "pointer",
-                              fontSize: 13.5,
-                              background: idx === collegeHighlightIdx ? "#F1F5F9" : "transparent",
-                              borderBottom: idx < collegeSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              transition: "background 0.1s",
-                            }}
-                          >
-                            <i className="fa-solid fa-university" style={{ color: "#94A3B8", fontSize: 12, flexShrink: 0 }} />
-                            <span style={{ color: "#334155" }}>
-                              {before}
-                              <strong style={{ color: "#1D4ED8" }}>{match}</strong>
-                              {after}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      <div
-                        style={{
-                          padding: "8px 14px",
-                          fontSize: 11.5,
-                          color: "#94A3B8",
-                          borderTop: "1px solid #F1F5F9",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <i className="fa-solid fa-circle-info" style={{ fontSize: 10 }} />
-                        Not listed? Type your full college name and press Enter.
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <CollegePicker
+                  mode="college"
+                  value={collegeName}
+                  placeholder="Search your college or university…"
+                  onChange={(v) => {
+                    setCollegeName(v);
+                    if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
+                  }}
+                  onPick={(r) => {
+                    setCollegeLocation(r.district || "");
+                    setCollegeState(r.state || "");
+                  }}
+                />
                 {formErrors.collegeName ? (
                   <div className="field-error-msg">
                     <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 5 }} />
@@ -3202,9 +3075,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                   <div className="helper">
                     <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 5, color: "#94A3B8" }} />
-                    Type to search from {INDIAN_COLLEGES.length}+ UGC-recognized institutions. Not found? Type the full name directly.
+                    Search from 53,000+ colleges across India. Not found? Type the full name directly.
                   </div>
                 )}
+                <label style={{ marginTop: 12 }}>College location <span style={{ fontWeight: 500, opacity: 0.7 }}>(district / city)</span></label>
+                <CollegePicker
+                  mode="location"
+                  value={collegeLocation}
+                  state={collegeState}
+                  placeholder="Auto-filled when you pick a college — or search"
+                  onChange={setCollegeLocation}
+                  onPick={(r) => setCollegeState(r.state || "")}
+                />
               </div>
               <div className={`field ${formErrors.educationStatus ? "has-error" : ""}`}>
                 <label>
@@ -3239,7 +3121,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             <div className="row-3">
               <div className={`field ${formErrors.graduation ? "has-error" : ""}`}>
                 <label>
-                  Passing Month & Year <span className="req">*</span>
+                  {educationStatus === "Pursuing" ? "Expected Passing Month & Year" : "Passing Month & Year"} {educationStatus !== "Pursuing" && <span className="req">*</span>}
+                  {educationStatus === "Pursuing" && <span style={{ fontWeight: 500, opacity: 0.7 }}> (optional)</span>}
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <select
@@ -3274,7 +3157,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 {formErrors.graduation ? (
                   <div className="field-error-msg">{formErrors.graduation}</div>
                 ) : (
-                  <div className="helper">Month & year of completion.</div>
+                  <div className="helper">{educationStatus === "Pursuing" ? "Optional — add your expected completion if you know it." : "Month & year of completion."}</div>
                 )}
               </div>
               <div className="field">
@@ -3291,7 +3174,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               <div className={`field ${formErrors.cgpa ? "has-error" : ""}`}>
                 <label>
-                  CGPA / Percentage <span className="req">*</span>
+                  CGPA / Percentage {educationStatus !== "Pursuing" && <span className="req">*</span>}
+                  {educationStatus === "Pursuing" && <span style={{ fontWeight: 500, opacity: 0.7 }}> (optional)</span>}
                 </label>
                 <input
                   type="text"

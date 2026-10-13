@@ -1,0 +1,609 @@
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import companyApi from "../api/companyClient";
+import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
+import { useToast } from "../components/Toast.jsx";
+import { getStage } from "../data/companyOnboardingStages";
+import EditableNameList from "../components/company/EditableNameList.jsx";
+import { OTHER, isOtherVal, otherTextOf, otherValue, multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../utils/otherOption.js";
+
+const STAGE9 = getStage("9");
+const EXPERIENCE_IDS = new Set(["expmin", "expmax"]);
+const REQUIRED_IDS = new Set(STAGE9.items.filter((i) => i.tag === "must").map((i) => i.id));
+
+function emptyFormState() {
+  const state = {};
+  STAGE9.items.forEach((item) => {
+    state[item.id] = item.input === "multi" ? [] : item.input === "file" ? null : "";
+  });
+  return state;
+}
+
+function isFresherJob(f) {
+  if (!f) return false;
+  const lvl = String(f.level || "").trim().toLowerCase();
+  if (lvl === "fresher only" || lvl === "fresher" || lvl.includes("fresher")) return true;
+  if (f.isFresher === true) return true;
+  if (f.expmin !== "" && f.expmin !== undefined && f.expmin !== null) {
+    const min = Number(f.expmin);
+    const max = (f.expmax !== "" && f.expmax !== undefined && f.expmax !== null) ? Number(f.expmax) : min;
+    if (min === 0 && max <= 1) return true;
+  }
+  return false;
+}
+
+export default function CompanyJobs() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const toast = useToast();
+  const { company: authCompany, logout, refreshCompany } = useCompanyAuth();
+
+  const [jobs, setJobs] = useState([]);
+  const [canPostMoreJobs, setCanPostMoreJobs] = useState(true);
+  const [isCompanyVerified, setIsCompanyVerified] = useState(() => Boolean(authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt));
+  const [kycStatus, setKycStatus] = useState(() => (authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt) ? "verified" : (authCompany?.kycStatus || "pending"));
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
+  const [form, setForm] = useState(emptyFormState);
+  const [submitting, setSubmitting] = useState(false);
+  const [togglingId, setTogglingId] = useState(null);
+  const [uploadingId, setUploadingId] = useState(null);
+
+  // Interview panel suggestions come from Team Setup (recruiters + hiring managers)
+  const teamSuggestions = ["trecruiters", "thiringmanagers"]
+    .flatMap((k) => (Array.isArray(authCompany?.stage3?.[k]) ? authCompany.stage3[k] : []))
+    .map((m) => String(m || "").split(" | ")[0].trim())
+    .filter(Boolean);
+
+  async function uploadFile(id, file, accept) {
+    if (!file) return;
+    if (accept && !accept.split(",").includes(file.type)) {
+      toast("Please upload a PDF or image file (JPG, PNG, WEBP).", "!");
+      return;
+    }
+    setUploadingId(id);
+    try {
+      const fd = new FormData();
+      fd.append("doc", file);
+      const res = await companyApi.post("/company/upload/doc/9", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setField(id, { docUrl: res.data.docUrl, docName: res.data.docName });
+      toast(`"${res.data.docName}" uploaded`, "✓");
+    } catch (err) {
+      toast(err.response?.data?.message || "Upload failed.", "!");
+    } finally {
+      setUploadingId(null);
+    }
+  }
+
+  useEffect(() => {
+    fetchJobs();
+    if (refreshCompany) {
+      refreshCompany().then((c) => {
+        if (c && (c.kycStatus === "verified" || c.kycVerifiedAt)) {
+          setIsCompanyVerified(true);
+          setKycStatus("verified");
+        }
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt) {
+      setIsCompanyVerified(true);
+      setKycStatus("verified");
+    }
+  }, [authCompany]);
+
+  async function fetchJobs() {
+    setLoading(true);
+    try {
+      const res = await companyApi.get("/company/jobs");
+      setJobs(res.data?.jobs || []);
+      setCanPostMoreJobs(Boolean(res.data?.canPostMoreJobs));
+      const verified = Boolean(res.data?.isVerified || authCompany?.kycStatus === "verified" || authCompany?.kycVerifiedAt);
+      setIsCompanyVerified(verified);
+      setKycStatus(verified ? "verified" : (res.data?.kycStatus || authCompany?.kycStatus || "pending"));
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't load your job posts.", "!");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function setField(id, value) {
+    setForm((prev) => {
+      const next = { ...prev, [id]: value };
+      if (id === "level") {
+        const lvl = String(value || "").toLowerCase().trim();
+        if (lvl === "fresher only" || lvl === "fresher" || lvl.includes("fresher")) {
+          next.notice = "";
+          next.expmin = "";
+          next.expmax = "";
+        }
+      } else if (id === "expmin") {
+        if (value !== "" && Number(value) === 0 && (next.expmax === "" || Number(next.expmax) <= 1)) {
+          next.notice = "";
+        }
+      }
+      return next;
+    });
+  }
+
+  function toggleMulti(id, opt) {
+    setForm((prev) => {
+      const current = prev[id] || [];
+      const next = current.includes(opt) ? current.filter((o) => o !== opt) : [...current, opt];
+      return { ...prev, [id]: next };
+    });
+  }
+
+  function isEmpty(v) {
+    if (v === undefined || v === null) return true;
+    if (typeof v === "string") return v.trim() === "";
+    if (Array.isArray(v)) return v.length === 0;
+    if (typeof v === "object") return !v.docUrl && !v.docName;
+    return false;
+  }
+
+  async function handlePost(e) {
+    e.preventDefault();
+    if (!isCompanyVerified) {
+      toast("Account & KYC approval required. Only KYC-approved companies can post jobs.", "!");
+      navigate("/companies/dashboard");
+      return;
+    }
+    const missing = STAGE9.items.filter((i) => REQUIRED_IDS.has(i.id) && isEmpty(form[i.id]));
+    if (missing.length > 0) {
+      toast(`Fill in: ${missing.map((i) => i.name).join(", ")}`, "!");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      // Experience range and notice period don't apply when hiring freshers
+      const isFresher = isFresherJob(form);
+      const payload = isFresher ? { ...form, expmin: "", expmax: "", notice: "" } : { ...form };
+      payload.panel = (Array.isArray(payload.panel) ? payload.panel : []).map((n) => String(n).trim()).filter(Boolean);
+      await companyApi.post("/company/jobs", payload);
+      toast("Job posted and published live! ✓", "✓");
+      setShowForm(false);
+      setForm(emptyFormState());
+      fetchJobs();
+    } catch (err) {
+      const missingIds = err.response?.data?.missing;
+      if (Array.isArray(missingIds) && missingIds.length > 0) {
+        const missingNames = missingIds.map((id) => STAGE9.items.find((i) => i.id === id)?.name || id);
+        toast(`Fill in: ${missingNames.join(", ")}`, "!");
+      } else {
+        toast(err.response?.data?.message || "Couldn't post this job.", "!");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function toggleJob(job) {
+    if (job.source !== "posted") return; // the onboarding first-JD has no close toggle
+    setTogglingId(job.id);
+    try {
+      await companyApi.put(`/company/jobs/${job.id}`, { published: !job.published });
+      fetchJobs();
+    } catch (err) {
+      toast(err.response?.data?.message || "Couldn't update this job.", "!");
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  const inputStyle = { width: "100%", padding: "12px 14px", border: "1.5px solid #CBD5E1", borderRadius: 10, fontSize: 14, color: "var(--navy)", outline: "none", boxSizing: "border-box" };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#FAF7F2", color: "var(--navy)" }}>
+      <header style={{ background: "var(--navy)", padding: "16px 48px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 100 }}>
+        <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
+          <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+          <div style={{ fontFamily: "var(--font-mono)", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", color: "var(--gold)", marginTop: 4 }}>
+            JOB POSTS
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+          <Link to="/companies/directory" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Hire Verified Talent
+          </Link>
+          <Link to="/companies/jobs" style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}>
+            Job Posts
+          </Link>
+          <Link to="/companies/applicants" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Applicants
+          </Link>
+          <Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Plan &amp; Billing
+          </Link>
+          <Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+            Edit Profile
+          </Link>
+          {authCompany && (
+            <button
+              type="button"
+              onClick={() => { logout(); navigate("/companies"); }}
+              style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)", color: "#fff", padding: "8px 14px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              Logout
+            </button>
+          )}
+        </div>
+      </header>
+
+      <main style={{ maxWidth: 800, margin: "0 auto", padding: "32px 24px 80px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
+          <div>
+            <h1 style={{ fontFamily: "var(--font-display)", fontSize: 26, fontWeight: 800, marginBottom: 4 }}>Job Posts &amp; Requisitions</h1>
+            <p style={{ fontSize: 13.5, color: "#64748B" }}>
+              Create, publish, and manage job requisitions whenever you have active vacancies.
+              Postings go live immediately once your company Account &amp; KYC is approved.
+            </p>
+          </div>
+          {!isCompanyVerified ? (
+            <div
+              style={{
+                background: "#FEF3C7",
+                border: "1px solid #FCD34D",
+                color: "#92400E",
+                padding: "10px 18px",
+                borderRadius: 10,
+                fontWeight: 700,
+                fontSize: 13.5,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span>⏳</span> Wait for KYC approval to post jobs
+            </div>
+          ) : canPostMoreJobs ? (
+            <button
+              type="button"
+              onClick={() => setShowForm((v) => !v)}
+              style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "12px 20px", borderRadius: 10, fontWeight: 800, fontSize: 13.5, cursor: "pointer" }}
+            >
+              {showForm ? "Cancel" : "+ Post a new job"}
+            </button>
+          ) : (
+            <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, maxWidth: 320 }}>
+              Active job posting limit reached for your current plan tier.{" "}
+              <Link to="/companies/billing" style={{ color: "var(--navy)", fontWeight: 800, textDecoration: "underline" }}>
+                Upgrade plan →
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {!isCompanyVerified ? (
+          <div
+            style={{
+              background: "#FFFBEB",
+              border: "1px solid #FDE68A",
+              color: "#92400E",
+              padding: "14px 18px",
+              borderRadius: 12,
+              fontSize: 13.5,
+              marginBottom: 24,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>⏳</span>
+              <div>
+                <strong style={{ display: "block", marginBottom: 2, fontSize: 14 }}>
+                  {kycStatus === "under_review" ? "KYC Under Review" : "Wait for KYC Approval"}
+                </strong>
+                <span style={{ color: "#78350F", fontSize: 13 }}>
+                  {kycStatus === "under_review"
+                    ? "Your company documents are under review. Once KYC is approved, you can post and manage active jobs."
+                    : "Please wait for KYC approval before posting jobs. Complete and submit your KYC details if not submitted yet."}
+                </span>
+              </div>
+            </div>
+            <Link
+              to="/companies/dashboard"
+              style={{
+                background: "var(--navy)",
+                color: "#fff",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontWeight: 700,
+                textDecoration: "none",
+                whiteSpace: "nowrap",
+                fontSize: 12.5,
+              }}
+            >
+              Check KYC Status →
+            </Link>
+          </div>
+        ) : (
+          <div style={{ background: "#DCFCE7", border: "1px solid #86EFAC", color: "#166534", padding: "12px 18px", borderRadius: 12, fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>✓</span>
+            <span><strong>KYC Verified:</strong> Your company is approved! Any jobs you post are published live immediately without employee review.</span>
+          </div>
+        )}
+
+        {isCompanyVerified && showForm && (
+          <form onSubmit={handlePost} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: 24, marginBottom: 28 }}>
+            <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>New job details</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              {STAGE9.items.map((item) => {
+                const isFullWidth = item.input === "textarea" || item.input === "multi";
+                const isFresher = isFresherJob(form);
+                // "Hiring freshers" checked or 0-exp role -> hide the experience inputs
+                const hideExperience = isFresher && EXPERIENCE_IDS.has(item.id);
+                // Notice period is completely removed for freshers (freshers join immediately)
+                if (isFresher && item.id === "notice") return null;
+                // Passout year only matters when freshers can apply
+                if (item.id === "elgpassout" && String(form.level || "") === "Experienced only") return null;
+                return (
+                  <React.Fragment key={item.id}>
+                  {item.section && (
+                    <div style={{ gridColumn: "1 / -1", marginTop: 8, paddingTop: 12, borderTop: "1px solid #E5E7EB", fontSize: 13, fontWeight: 800, color: "var(--navy)" }}>
+                      {item.section}
+                    </div>
+                  )}
+                  {item.id === "expmin" && (
+                    <div
+                      style={{
+                        gridColumn: "1 / -1",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        flexWrap: "wrap",
+                        background: isFresher ? "#F0FDF4" : "#F8FAFC",
+                        border: isFresher ? "1.5px solid #86EFAC" : "1.5px solid #E2E8F0",
+                        borderRadius: 10,
+                        padding: "10px 14px",
+                      }}
+                    >
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "#0F172A" }}>
+                        <input
+                          type="checkbox"
+                          checked={isFresher}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setForm((prev) => ({
+                              ...prev,
+                              // Unchecking must never leave the required "Hiring level" field
+                              // blank - fall back to the most permissive valid selection instead
+                              // of "", so an unrelated toggle can't silently break Publish.
+                              level: checked ? "Fresher only" : (prev.level === "Fresher only" ? "Open to both" : prev.level),
+                              notice: checked ? "" : prev.notice,
+                              expmin: checked ? "" : prev.expmin,
+                              expmax: checked ? "" : prev.expmax,
+                            }));
+                          }}
+                          style={{ width: 16, height: 16, accentColor: "var(--navy)", cursor: "pointer" }}
+                        />
+                        🎓 Hiring freshers
+                      </label>
+                      <span style={{ fontSize: 12, color: isFresher ? "#166534" : "#64748B", fontWeight: isFresher ? 600 : 400 }}>
+                        {isFresher
+                          ? "✓ Experience range & Notice period removed for freshers (immediate joining)."
+                          : "Experience range is optional. Select this if you're hiring freshers."}
+                      </span>
+                    </div>
+                  )}
+                  {!hideExperience && (
+                  <div style={{ gridColumn: isFullWidth ? "1 / -1" : "auto" }}>
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em", textTransform: "uppercase", color: "#475569", marginBottom: 6 }}>
+                      {item.name}
+                      {REQUIRED_IDS.has(item.id) && <span style={{ color: "#DC2626" }}>*</span>}
+                    </label>
+                    {item.desc && <div style={{ fontSize: 12, color: "#64748B", marginTop: -2, marginBottom: 6 }}>{item.desc}</div>}
+
+                    {["text", "number", "decimal"].includes(item.input) && (
+                      <input
+                        type={item.input === "number" ? "number" : "text"}
+                        inputMode={item.input === "decimal" ? "decimal" : undefined}
+                        min={item.input === "number" ? 0 : undefined}
+                        onKeyDown={item.input === "number" ? (e) => { if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault(); } : undefined}
+                        style={inputStyle}
+                        placeholder={item.placeholder}
+                        value={form[item.id]}
+                        onChange={(e) => setField(item.id, (item.input === "number" || item.input === "decimal") ? e.target.value.replace(/[^0-9.]/g, "") : e.target.value)}
+                      />
+                    )}
+
+                    {item.input === "select" && (
+                      <>
+                        <select
+                          style={{ ...inputStyle, background: "#fff" }}
+                          value={isOtherVal(form[item.id]) ? OTHER : form[item.id]}
+                          onChange={(e) => setField(item.id, e.target.value)}
+                        >
+                          <option value="">Select…</option>
+                          {(item.options || []).map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                        {(item.options || []).includes(OTHER) && isOtherVal(form[item.id]) && (
+                          <input
+                            type="text"
+                            style={{ ...inputStyle, marginTop: 8 }}
+                            placeholder="Please specify (other)"
+                            value={otherTextOf(form[item.id])}
+                            onChange={(e) => setField(item.id, otherValue(e.target.value))}
+                          />
+                        )}
+                      </>
+                    )}
+
+                    {item.input === "textarea" && (
+                      <textarea
+                        style={{ ...inputStyle, minHeight: 70 }}
+                        placeholder={item.placeholder}
+                        maxLength={item.maxlength}
+                        value={form[item.id]}
+                        onChange={(e) => setField(item.id, e.target.value)}
+                      />
+                    )}
+
+                    {item.input === "multi" && item.id === "panel" && (
+                      <EditableNameList
+                        value={form.panel}
+                        onChange={(next) => setField("panel", next)}
+                        suggestions={teamSuggestions}
+                      />
+                    )}
+
+                    {item.input === "file" && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <label style={{ ...inputStyle, display: "inline-block", width: "auto", cursor: "pointer", background: "#fff", fontWeight: 600 }}>
+                          {uploadingId === item.id ? "Uploading…" : form[item.id] ? "Replace file" : "Upload file"}
+                          <input
+                            type="file"
+                            accept={item.accept}
+                            style={{ display: "none" }}
+                            onChange={(e) => { uploadFile(item.id, e.target.files?.[0], item.accept); e.target.value = ""; }}
+                          />
+                        </label>
+                        {form[item.id]?.docName && <span style={{ fontSize: 12, color: "#166534", fontWeight: 600 }}>✓ {form[item.id].docName}</span>}
+                      </div>
+                    )}
+
+                    {item.input === "multi" && item.id !== "panel" && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                        {(item.options || []).map((opt) => {
+                          const isOther = opt === OTHER;
+                          const active = isOther ? multiHasOther(form[item.id]) : (form[item.id] || []).includes(opt);
+                          return (
+                            <button
+                              type="button"
+                              key={opt}
+                              onClick={() => (isOther ? setField(item.id, multiToggleOther(form[item.id])) : toggleMulti(item.id, opt))}
+                              style={{
+                                padding: "6px 12px",
+                                borderRadius: 999,
+                                border: active ? "1.5px solid var(--navy)" : "1.5px solid #E2E8F0",
+                                background: active ? "var(--navy)" : "#fff",
+                                color: active ? "#fff" : "#475569",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {item.input === "multi" && item.id !== "panel" && (item.options || []).includes(OTHER) && multiHasOther(form[item.id]) && (
+                      <input
+                        type="text"
+                        style={{ ...inputStyle, marginTop: 8 }}
+                        placeholder="Please specify (other)"
+                        value={multiOtherText(form[item.id])}
+                        onChange={(e) => setField(item.id, multiSetOther(form[item.id], e.target.value))}
+                      />
+                    )}
+                  </div>
+                  )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              style={{ marginTop: 20, width: "100%", padding: 14, background: "var(--gold)", color: "var(--navy)", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
+            >
+              {submitting ? "Publishing…" : "Publish Job Now →"}
+            </button>
+          </form>
+        )}
+
+        {loading && <div style={{ textAlign: "center", padding: 60, color: "#64748B" }}>Loading your job posts…</div>}
+
+        {!loading && jobs.length === 0 && (
+          <div style={{ textAlign: "center", padding: 60, color: "#64748B", background: "#fff", borderRadius: 16, border: "1px dashed #E2E8F0" }}>
+            No jobs posted yet.
+          </div>
+        )}
+
+        {!loading &&
+          jobs.map((job) => {
+            const f = job.fields || {};
+            const isOpen = job.published && !job.closedAt;
+            const isVerifiedEmployer = isCompanyVerified || authCompany?.kycStatus === "verified" || Boolean(authCompany?.kycVerifiedAt);
+            const rawStatus = job.approvalStatus || "pending";
+            const approvalStatus = (isVerifiedEmployer && rawStatus !== "rejected") ? "approved" : rawStatus;
+
+            let statusLabel = isOpen ? "Live ✓" : "Closed";
+            let statusBg = isOpen ? "#DCFCE7" : "#F1F5F9";
+            let statusColor = isOpen ? "#166534" : "#64748B";
+            if (isOpen && approvalStatus === "pending") {
+              statusLabel = "⏳ Waiting for approval";
+              statusBg = "#FEF3C7";
+              statusColor = "#92400E";
+            } else if (isOpen && approvalStatus === "rejected") {
+              statusLabel = "✕ Rejected";
+              statusBg = "#FEE2E2";
+              statusColor = "#B91C1C";
+            }
+
+            return (
+              <div key={job.jobId} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, padding: "18px 20px", marginBottom: 14, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+                    <strong style={{ fontSize: 15.5 }}>{f.roletitle || "Untitled role"}</strong>
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", padding: "2px 9px", borderRadius: 999, background: statusBg, color: statusColor }}>
+                      {statusLabel}
+                    </span>
+                    {job.source === "onboarding" && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#94A3B8" }}>· From onboarding</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 6 }}>
+                    {job.jobId} {f.location ? `· ${f.location}` : ""} {f.workmode ? `· ${f.workmode}` : ""}
+                  </div>
+                  {isOpen && approvalStatus === "pending" && (
+                    <div style={{ fontSize: 12, color: "#92400E", marginBottom: 6 }}>
+                      Talentera staff are reviewing this job post — it will go live upon company verification.
+                    </div>
+                  )}
+                  {isOpen && approvalStatus === "approved" && (
+                    <div style={{ fontSize: 12, color: "#166534", marginBottom: 6 }}>
+                      ✓ Live on public job board — candidates can discover and apply now.
+                    </div>
+                  )}
+                  {approvalStatus === "rejected" && job.rejectionReason && (
+                    <div style={{ fontSize: 12, color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 10px", marginBottom: 6, maxWidth: 480 }}>
+                      <strong>Not approved:</strong> {job.rejectionReason}
+                      {job.source === "posted" && " Fix the issue and use Reopen listing below to resubmit."}
+                    </div>
+                  )}
+                  <Link to="/companies/applicants" style={{ fontSize: 12.5, color: "var(--gold)", fontWeight: 700, textDecoration: "none" }}>
+                    {job.applicantsCount} applicant{job.applicantsCount === 1 ? "" : "s"} →
+                  </Link>
+                </div>
+
+                {job.source === "posted" && (
+                  <button
+                    type="button"
+                    disabled={togglingId === job.id}
+                    onClick={() => toggleJob(job)}
+                    style={{ alignSelf: "flex-start", padding: "8px 16px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                  >
+                    {isOpen ? "Close listing" : approvalStatus === "rejected" ? "Reopen & resubmit" : "Reopen listing"}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+      </main>
+    </div>
+  );
+}

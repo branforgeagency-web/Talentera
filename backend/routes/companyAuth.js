@@ -2,7 +2,8 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { body, validationResult } = require("express-validator");
 const Company = require("../models/Company");
-const { signToken, requireCompanyAuth } = require("../middleware/auth");
+const { signToken, signCompanyUserToken, requireCompanyAuth } = require("../middleware/auth");
+const CompanyUser = require("../models/CompanyUser");
 const { verifyWidgetAccessToken } = require("../utils/msg91Widget");
 const { authLimiter, otpLimiter } = require("../middleware/rateLimit");
 const { generateResetOtp, verifyAndConsumeResetOtp } = require("../utils/passwordReset");
@@ -10,6 +11,15 @@ const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
 const router = express.Router();
+
+// Company JSON plus, for team logins, who is actually signed in (null for the head admin).
+function withTeamUser(company, teamUser) {
+  const json = company.toJSON ? company.toJSON() : { ...company };
+  json.teamUser = teamUser
+    ? { id: String(teamUser._id), name: teamUser.name, email: teamUser.email, role: teamUser.role, branch: teamUser.branch, designation: teamUser.designation || "" }
+    : null;
+  return json;
+}
 
 const VALID_STAGE_IDS = ["1a", "1b", "2", "3", "4", "5", "6", "7", "8", "9"];
 
@@ -128,6 +138,18 @@ router.post(
     try {
       const company = await Company.findOne({ email });
       if (!company) {
+        // Not a head-admin email: maybe a team (sub-admin) login created by a company head.
+        const teamUser = await CompanyUser.findOne({ email });
+        if (teamUser && (await bcrypt.compare(password, teamUser.passwordHash))) {
+          if (!teamUser.active) {
+            return res.status(403).json({ message: "This login has been disabled by your company admin." });
+          }
+          const parent = await Company.findById(teamUser.companyId);
+          if (!parent) return res.status(401).json({ message: "Invalid email or password." });
+          teamUser.lastLoginAt = new Date();
+          await teamUser.save();
+          return res.json({ token: signCompanyUserToken(parent._id, teamUser._id), company: withTeamUser(parent, teamUser) });
+        }
         return res.status(401).json({ message: "Invalid email or password." });
       }
 
@@ -296,7 +318,7 @@ router.get("/me", requireCompanyAuth, async (req, res) => {
   try {
     const company = await Company.findById(req.companyId);
     if (!company) return res.status(401).json({ message: "Company session expired or account not found." });
-    res.json({ company });
+    res.json({ company: withTeamUser(company, req.companyUser || null) });
   } catch (err) {
     res.status(500).json({ message: "Server error." });
   }

@@ -2,7 +2,7 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 
-export default function CompanyRequireAuth({ children }) {
+export default function CompanyRequireAuth({ children, headOnly = false }) {
   const { company, loading } = useCompanyAuth();
 
   if (loading) {
@@ -15,6 +15,11 @@ export default function CompanyRequireAuth({ children }) {
 
   if (!company) {
     return <Navigate to="/companies/login" replace />;
+  }
+
+  // Team (sub-admin) logins can't open head-admin pages (profile/KYC, billing, team management).
+  if (headOnly && company.teamUser) {
+    return <Navigate to="/companies/jobs" replace />;
   }
 
   return children;

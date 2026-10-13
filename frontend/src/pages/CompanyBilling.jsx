@@ -4,6 +4,7 @@ import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 
+import HeadOnly from "../components/company/HeadOnly.jsx";
 const PLAN_CARDS = [
   {
     id: "free",
@@ -160,7 +161,7 @@ export default function CompanyBilling() {
           >
             Applicants
           </Link>
-          <Link
+          <HeadOnly><Link
             to="/companies/billing"
             style={{
               color: "var(--gold)",
@@ -173,13 +174,14 @@ export default function CompanyBilling() {
             }}
           >
             Plan &amp; Billing
-          </Link>
-          <Link
+          </Link></HeadOnly>
+          <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
+          <HeadOnly><Link
             to="/companies/dashboard"
             style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
           >
             Edit Profile
-          </Link>
+          </Link></HeadOnly>
 
           {company && (
             <button

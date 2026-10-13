@@ -1,0 +1,856 @@
+import React, { useEffect, useState, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import companyApi from "../api/companyClient";
+import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
+import { useToast } from "../components/Toast.jsx";
+import {
+  ONBOARDING_STAGES,
+  STAGE_BANNERS,
+  STAGE_COLORS,
+  TOTAL_FIELDS,
+  stageDoneFields,
+  stageTotalFields,
+  isFullyOnboarded,
+} from "../data/companyOnboardingStages";
+import OnboardingField from "../components/company/OnboardingField.jsx";
+
+export default function CompanyDashboardSetup() {
+  const navigate = useNavigate();
+  const { company: authCompany, logout, refreshCompany } = useCompanyAuth();
+  const toast = useToast();
+  const mainContentRef = useRef(null);
+
+  const [company, setCompany] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeStageId, setActiveStageId] = useState("1a");
+  const [stageErrors, setStageErrors] = useState({});
+  const [missingFields, setMissingFields] = useState(null);
+  const [submittingKyc, setSubmittingKyc] = useState(false);
+  const [showHeroOverview, setShowHeroOverview] = useState(true);
+
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
+
+  useEffect(() => {
+    fetchCompany();
+    fetchCompanyNotifications();
+  }, []);
+
+  const fetchCompany = () => {
+    companyApi
+      .get("/company/me")
+      .then((res) => {
+        setCompany(res.data.company);
+        if (refreshCompany) refreshCompany();
+      })
+      .finally(() => setLoading(false));
+  };
+
+  const fetchCompanyNotifications = async () => {
+    try {
+      const res = await companyApi.get("/company/notifications");
+      setNotifications(res.data.notifications || []);
+      setUnreadCount(res.data.unreadCount || 0);
+    } catch (err) {
+      console.error("Failed to fetch notifications", err);
+    }
+  };
+
+  const handleMarkNotifRead = async () => {
+    try {
+      await companyApi.post("/company/notifications/mark-read");
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  function checkMustFields(stageId, updatedCompany = company) {
+    const st = ONBOARDING_STAGES.find((s) => s.id === stageId);
+    if (!st || !updatedCompany) return [];
+    const stData = updatedCompany[`stage${stageId}`] || {};
+    const fresherOnly = stageId === "9" && (
+      stData.level === "Fresher only" ||
+      stData.level === "Fresher" ||
+      String(stData.level || "").toLowerCase().includes("fresher") ||
+      (stData.expmin !== "" && stData.expmin !== undefined && Number(stData.expmin) === 0 && (stData.expmax === "" || Number(stData.expmax) <= 1))
+    );
+    const mustItems = st.items.filter((i) => i.tag === "must" && !(fresherOnly && (i.id === "expmin" || i.id === "expmax")));
+    return mustItems.filter((item) => {
+      const val = stData[item.id];
+      if (val === undefined || val === null) return true;
+      if (typeof val === "string") return val.trim() === "";
+      if (Array.isArray(val)) return val.length === 0;
+      if (typeof val === "object") {
+        if (item.input === "name-email") return !val.name || !String(val.name).trim() || !val.email || !String(val.email).trim();
+        if (item.input === "file") return !val.docName && !val.docUrl;
+      }
+      return false;
+    });
+  }
+
+  async function handleVerifyKyc() {
+    if (company?.kycStatus === "verified" || company?.kycVerifiedAt) {
+      toast("Your Account & KYC details are already verified by Staff Auditor ✓", "✓");
+      return;
+    }
+    if (company?.kycStatus === "under_review") {
+      toast("Your Account & KYC details are currently under review by Staff Auditor.", "!");
+      return;
+    }
+
+    const missing = checkMustFields("1a");
+    if (missing.length > 0) {
+      setStageErrors((prev) => ({ ...prev, "1a": missing.map((i) => i.name) }));
+      toast(`Please fill all required inputs in Section 1 before submitting for KYC audit.`, "!");
+      return;
+    }
+
+    setSubmittingKyc(true);
+    try {
+      const res = await companyApi.post("/company/verify-kyc");
+      setCompany(res.data.company);
+      if (refreshCompany) refreshCompany();
+      setStageErrors((prev) => ({ ...prev, "1a": null }));
+      toast(res.data.message || "Account & KYC submitted for verification!", "✓");
+    } catch (err) {
+      toast(err.response?.data?.message || "Verification submission failed.", "!");
+    } finally {
+      setSubmittingKyc(false);
+    }
+  }
+
+  if (loading || !company) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-body)" }}>
+        Loading your company account…
+      </div>
+    );
+  }
+
+  const activeStage = ONBOARDING_STAGES.find((s) => s.id === activeStageId) || ONBOARDING_STAGES[0];
+  const effectiveStageId = activeStage.id;
+  const banner = STAGE_BANNERS[effectiveStageId] || STAGE_BANNERS["1a"];
+  let activeData = company[`stage${effectiveStageId}`] || {};
+  if (effectiveStageId === "1a" && !activeData.legalname && (company.companyName || authCompany?.companyName)) {
+    activeData = { ...activeData, legalname: company.companyName || authCompany?.companyName || "" };
+  }
+  if (activeStageId === "1b") {
+    activeData = {
+      ...activeData,
+      pocname: activeData.pocname || company.contactName || authCompany?.contactName || "",
+      pocemail: activeData.pocemail || company.email || authCompany?.email || "",
+      pocmobile: activeData.pocmobile || company.mobile || authCompany?.mobile || "",
+    };
+  }
+
+  const totalDone = ONBOARDING_STAGES.reduce((sum, s) => sum + stageDoneFields(s.id, company[`stage${s.id}`]), 0);
+  const overallPct = Math.round((totalDone / TOTAL_FIELDS) * 100);
+
+  async function saveField(itemId, value) {
+    const res = await companyApi.put(`/company/stage/${activeStageId}`, { [itemId]: value });
+    const updated = res.data.company;
+    setCompany(updated);
+
+    const remainingMissing = checkMustFields(activeStageId, updated);
+    if (remainingMissing.length === 0) {
+      setStageErrors((prev) => ({ ...prev, [activeStageId]: null }));
+    } else if (stageErrors[activeStageId]) {
+      setStageErrors((prev) => ({ ...prev, [activeStageId]: remainingMissing.map((i) => i.name) }));
+    }
+  }
+
+  async function goToStage(targetId) {
+    const currentIdx = ONBOARDING_STAGES.findIndex((s) => s.id === activeStageId);
+    const targetIdx = ONBOARDING_STAGES.findIndex((s) => s.id === targetId);
+
+    // Only block if trying to move FORWARD to a future section
+    if (targetIdx > currentIdx) {
+      const missing = checkMustFields(activeStageId);
+      if (missing.length > 0) {
+        setStageErrors((prev) => ({ ...prev, [activeStageId]: missing.map((i) => i.name) }));
+        toast(`Please complete all required (*) fields in Section ${activeStage.key} before advancing.`, "!");
+        return;
+      }
+
+      // If completing Stage 1 (1a or 1b), automatically submit KYC details to employee / staff verification queue
+      // DO NOT submit if already verified, already approved, or already under review!
+      const isAlreadyVerifiedOrReview = company?.kycStatus === "verified" || company?.kycStatus === "under_review" || Boolean(company?.kycVerifiedAt);
+      if ((activeStageId === "1a" || activeStageId === "1b") && !isAlreadyVerifiedOrReview) {
+        try {
+          const res = await companyApi.post("/company/verify-kyc");
+          if (res.data?.company) {
+            setCompany(res.data.company);
+            if (refreshCompany) refreshCompany();
+          }
+          toast("Stage 1 details submitted for Employee KYC verification ✓", "✓");
+        } catch (err) {
+          console.warn("KYC auto-submit note:", err.response?.data?.message || err.message);
+        }
+      }
+    }
+
+    // Always allow moving backward to previous sections or switching to an earlier stage
+    setActiveStageId(targetId);
+    setMissingFields(null);
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#FAF7F2" }}>
+        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--navy)" }}>Loading company workspace...</div>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#FAF7F2", gap: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: "var(--navy)" }}>Please sign in to access your company dashboard</div>
+        <button
+          onClick={() => navigate("/companies")}
+          style={{ padding: "10px 20px", background: "var(--navy, #0f172a)", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontWeight: 700 }}
+        >
+          Go to Company Sign In
+        </button>
+      </div>
+    );
+  }
+
+  const contactName = (authCompany?.contactName || company?.contactName || "there").split(" ")[0];
+  const companyName = authCompany?.companyName || company?.companyName || "your company";
+
+  // A submitted JD (company.jdPublished) still needs a Talentera staff
+  // sign-off (company.jdApprovalStatus) before candidates can actually see
+  // it - see routes/staff.js POST /verify-job and routes/public.js GET
+  // /jobs. "Live" is reserved for the approved state so this dashboard
+  // doesn't tell a company their JD is visible before it actually is.
+  const jdApprovalStatus = company?.jdApprovalStatus || "pending";
+  const jdIsLive = Boolean(company?.jdPublished && jdApprovalStatus === "approved");
+  const jdIsPendingApproval = Boolean(company?.jdPublished && jdApprovalStatus === "pending");
+  const jdIsRejected = Boolean(company?.jdPublished && jdApprovalStatus === "rejected");
+
+  return (
+    <div
+      className="conb-page-shell"
+      style={{
+        height: "100vh",
+        maxHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "#FAF7F2",
+        color: "var(--navy)",
+        fontFamily: "var(--font-body)",
+      }}
+    >
+      {/* TOP STICKY DASHBOARD NAV */}
+      <header className="conb-topnav">
+        <div className="conb-topnav-brand" onClick={() => navigate("/companies/dashboard")} style={{ cursor: "pointer" }}>
+          <div>
+            <img src="/logo-white.png" alt="Talentera — The Era of Talent Begins Here" style={{ height: 36, width: "auto" }} />
+            <div className="conb-topnav-tag">COMPANY DASHBOARD</div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <Link
+            to="/companies/directory"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Hire Verified Talent
+          </Link>
+          <Link
+            to="/companies/jobs?create=1"
+            style={{
+              color: "var(--navy)",
+              background: "var(--gold)",
+              fontSize: 13,
+              fontWeight: 800,
+              textDecoration: "none",
+              padding: "8px 16px",
+              borderRadius: 8,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+            }}
+          >
+            <span>+</span> Create / Post JD
+          </Link>
+          <Link
+            to="/companies/applicants"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Applicants
+          </Link>
+          <Link
+            to="/companies/billing"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Plan &amp; Billing
+          </Link>
+          {/* IN-APP NOTIFICATION BELL & DROPDOWN */}
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "#fff",
+                borderRadius: "50%",
+                width: 38,
+                height: 38,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                position: "relative",
+              }}
+              onClick={() => {
+                setShowNotifDropdown(!showNotifDropdown);
+                if (unreadCount > 0) handleMarkNotifRead();
+              }}
+            >
+              <span>🔔</span>
+              {unreadCount > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    right: -4,
+                    background: "#EF4444",
+                    color: "#fff",
+                    borderRadius: "50%",
+                    width: 18,
+                    height: 18,
+                    fontSize: 10,
+                    fontWeight: 900,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "2px solid var(--navy)",
+                  }}
+                >
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* NOTIFICATION PANEL */}
+            {showNotifDropdown && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: 48,
+                  right: 0,
+                  width: 340,
+                  background: "#fff",
+                  borderRadius: 14,
+                  boxShadow: "0 20px 40px rgba(0,0,0,0.25)",
+                  border: "1px solid #E2E8F0",
+                  zIndex: 9999,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    background: "var(--navy)",
+                    color: "#fff",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <strong style={{ fontSize: 13 }}>COMPANY NOTIFICATIONS</strong>
+                  <span style={{ fontSize: 10, background: "rgba(255,255,255,0.2)", padding: "2px 6px", borderRadius: 4 }}>
+                    {notifications.length} Total
+                  </span>
+                </div>
+
+                <div style={{ maxHeight: 320, overflowY: "auto" }}>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: "center", color: "#94A3B8", fontSize: 12 }}>
+                      No notifications yet
+                    </div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n._id}
+                        style={{
+                          padding: "12px 16px",
+                          borderBottom: "1px solid #F1F5F9",
+                          background: n.read ? "#fff" : "#FEFCE8",
+                        }}
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", marginBottom: 2 }}>
+                          {n.title}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.4 }}>{n.message}</div>
+                        <div style={{ fontSize: 9.5, color: "#94A3B8", marginTop: 4 }}>
+                          {new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
+                          {new Date(n.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="conb-topnav-user">
+            <span className="conb-topnav-dot" />
+            <span><strong style={{ color: "var(--gold)" }}>{contactName}</strong> · {companyName}</span>
+          </div>
+          <button
+            className="conb-topnav-logout"
+            onClick={() => {
+              logout();
+              navigate("/companies");
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {/* MAIN TWO-COLUMN WORKSPACE */}
+      <div className="conb-workspace">
+        {/* LEFT SIDEBAR (FIXED IN POSITION, FLUSH TO LEFT) */}
+        <aside className="conb-sidebar">
+          <div className="conb-sidebar-eyebrow">ONBOARDING</div>
+          <h2 className="conb-sidebar-title" style={{ color: "#FFFFFF" }}>
+            Register yourself with <span style={{ color: "var(--gold)" }}>Talentera</span>
+          </h2>
+
+          <div className="conb-sidebar-progress">
+            <div className="conb-sidebar-progress-row">
+              <span style={{ color: "var(--gold)", fontFamily: "var(--font-mono)", fontWeight: 800 }}>{overallPct}%</span>
+              <span style={{ color: "rgba(255,255,255,0.6)" }}>{totalDone} of {TOTAL_FIELDS} done</span>
+            </div>
+            <div className="conb-sidebar-progress-track">
+              <div className="conb-sidebar-progress-fill" style={{ width: `${overallPct}%` }} />
+            </div>
+          </div>
+
+          <div className="conb-sidebar-section-label">SECTIONS</div>
+
+          <div className="conb-stage-list">
+            {ONBOARDING_STAGES.map((st) => {
+              const isActive = activeStageId === st.id;
+              const done = stageDoneFields(st.id, company[`stage${st.id}`]);
+              const total = stageTotalFields(st.id);
+              const isKycStage = st.id === "1a";
+              return (
+                <div
+                  key={st.id}
+                  onClick={() => goToStage(st.id)}
+                  className={`conb-stage-item ${isActive ? "conb-stage-item-active" : ""}`}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div className="conb-stage-badge" style={{ background: isActive ? "var(--gold)" : "rgba(255,255,255,0.1)", color: isActive ? "var(--navy-deep)" : "#fff" }}>
+                      {st.key}
+                    </div>
+                    <div>
+                      <div className="conb-stage-item-title">{st.name}</div>
+                      <div className="conb-stage-item-status">
+                        {isKycStage && (company.kycStatus === "verified" || company.kycVerifiedAt) ? "KYC VERIFIED ✓" : isKycStage && company.kycStatus === "under_review" ? "KYC AUDIT ⌛" : `${done} of ${total} done`}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: isActive ? "var(--gold)" : "rgba(255,255,255,0.3)" }}>›</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ textAlign: "center", fontSize: 12 }}>
+            <Link to="/companies/directory" style={{ color: "var(--gold)", textDecoration: "none", fontWeight: 600 }}>
+              Skip for now — Browse candidates →
+            </Link>
+          </div>
+        </aside>
+
+        {/* RIGHT MAIN WORKSPACE (INDEPENDENTLY SCROLLABLE) */}
+        <main className="conb-main-workspace" ref={mainContentRef}>
+          {/* WELCOME BANNER / OVERVIEW CARD */}
+          <section className="conb-hero">
+            <div className="conb-hero-inner">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: showHeroOverview ? 10 : 0 }}>
+                <div>
+                  <div className="conb-hero-eyebrow">
+                    <span className="conb-hero-eyebrow-dot" />
+                    {jdIsLive
+                      ? "JOB LIVE · SETUP IN PROGRESS"
+                      : jdIsPendingApproval
+                      ? "JOB AWAITING APPROVAL · SETUP IN PROGRESS"
+                      : jdIsRejected
+                      ? "JOB NEEDS REVISION · SETUP IN PROGRESS"
+                      : "ACCOUNT CREATED · SETUP IN PROGRESS"}
+                  </div>
+
+                  <h1 className="conb-hero-title" style={{ color: "#FFFFFF", fontSize: showHeroOverview ? "clamp(20px, 2.2vw, 26px)" : 17, margin: "2px 0 0" }}>
+                    Welcome, <span className="gold-italic">{contactName}</span> — let's get{" "}
+                    <span className="gold-italic">{companyName}</span> hiring.
+                  </h1>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowHeroOverview(!showHeroOverview)}
+                  style={{
+                    background: "rgba(255,255,255,0.1)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    color: "#FFFFFF",
+                    borderRadius: 8,
+                    padding: "5px 12px",
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    transition: "all 0.2s ease",
+                  }}
+                  title={showHeroOverview ? "Minimize overview stats" : "Expand overview stats"}
+                >
+                  <span>{showHeroOverview ? "▴ Minimize Overview" : "▾ Expand Overview & Stats"}</span>
+                </button>
+              </div>
+
+              {showHeroOverview && (
+                <>
+                  <p className="conb-hero-sub" style={{ color: "rgba(226, 232, 240, 0.9)" }}>
+                    Complete your profile to unlock the full verified candidate pool. Your information is encrypted and securely protected.
+                  </p>
+
+                  {company.intakeNotes && (
+                    <div
+                      style={{
+                        background: "rgba(255,255,255,0.06)",
+                        border: "1px solid rgba(229,168,46,0.35)",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        marginBottom: 16,
+                        fontSize: 12.5,
+                        color: "rgba(255,255,255,0.85)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      <strong style={{ color: "var(--gold)" }}>What you told us when you signed up: </strong>
+                      {company.intakeNotes.flow === "job" ? (
+                        <span>
+                          Hiring for <strong>{company.intakeNotes.jobTitle || "a role"}</strong>
+                          {company.intakeNotes.jobSpecialty ? ` · ${company.intakeNotes.jobSpecialty}` : ""}
+                          {company.intakeNotes.jobLocation ? ` · ${company.intakeNotes.jobLocation}` : ""}
+                          {company.intakeNotes.jobExperience ? ` · ${company.intakeNotes.jobExperience}` : ""}
+                          {company.intakeNotes.jobEmploymentType ? ` · ${company.intakeNotes.jobEmploymentType}` : ""}
+                          {company.intakeNotes.jobSalaryRange ? ` · ${company.intakeNotes.jobSalaryRange}` : ""}
+                        </span>
+                      ) : (
+                        <span>
+                          {company.intakeNotes.location ? `Hiring in ${company.intakeNotes.location}` : "Hiring"}
+                          {company.intakeNotes.teamSize ? ` · Team size ${company.intakeNotes.teamSize}` : ""}
+                          {company.intakeNotes.department ? ` · ${company.intakeNotes.department}` : ""}
+                          {company.intakeNotes.frequency ? ` · ${company.intakeNotes.frequency}` : ""}
+                        </span>
+                      )}
+                      {" "}We've pre-filled what we could into the sections below.
+                    </div>
+                  )}
+
+                  {isFullyOnboarded(company) && (
+                    <div
+                      style={{
+                        background: "rgba(34,197,94,0.12)",
+                        border: "1px solid rgba(34,197,94,0.4)",
+                        borderRadius: 12,
+                        padding: "12px 16px",
+                        marginBottom: 16,
+                        fontSize: 12.5,
+                        color: "rgba(255,255,255,0.9)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <span>
+                        <strong style={{ color: "#4ADE80" }}>✓ Profile complete &amp; KYC verified — </strong>
+                        you don't need to come back here unless something changes. Post and manage roles from Job Posts instead.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/companies/jobs")}
+                        style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "8px 16px", borderRadius: 8, fontWeight: 800, fontSize: 12.5, cursor: "pointer", whiteSpace: "nowrap" }}
+                      >
+                        Go to Job Posts →
+                      </button>
+                    </div>
+                  )}
+
+                  {(() => {
+                    let score = 25;
+                    if (company.stage1a && Object.keys(company.stage1a).length > 2) score += 20;
+                    if (company.kycStatus === "verified" || company.kycVerifiedAt) score += 35;
+                    else if (company.kycStatus === "under_review") score += 15;
+                    if (company.stage2 && Object.keys(company.stage2).length > 2) score += 10;
+                    if (company.jdPublished) score += 10;
+                    const trustScore = Math.min(score, 100);
+
+                    const badge =
+                      trustScore >= 85
+                        ? { label: "GOLD TRUST 🛡️", color: "#15803D", bg: "#DCFCE7" }
+                        : trustScore >= 60
+                        ? { label: "SILVER TRUST ⭐", color: "#B45309", bg: "#FEF3C7" }
+                        : { label: "LOW TRUST ⚠️", color: "#B91C1C", bg: "#FEE2E2" };
+
+                    return (
+                      <div className="conb-hero-stats">
+                        <div style={{ background: badge.bg, border: `1.5px solid ${badge.color}`, borderRadius: 10, padding: "8px 12px", minWidth: 130 }}>
+                          <div className="conb-hero-stat-val" style={{ color: badge.color, fontSize: 22, fontWeight: 900 }}>
+                            {trustScore}%
+                          </div>
+                          <div className="conb-hero-stat-label" style={{ color: badge.color, fontWeight: 800 }}>
+                            {badge.label}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="conb-hero-stat-val">{overallPct}%</div>
+                          <div className="conb-hero-stat-label">PROFILE COMPLETE</div>
+                        </div>
+                        <div>
+                          <div className="conb-hero-stat-val">{totalDone}/{TOTAL_FIELDS}</div>
+                          <div className="conb-hero-stat-label">FIELDS SAVED</div>
+                        </div>
+                        <div>
+                          <div className="conb-hero-stat-val">
+                            {(company.kycStatus === "verified" || company.kycVerifiedAt) ? "VERIFIED ✓" : company.kycStatus === "under_review" ? "REVIEW" : company.kycStatus === "rejected" ? "REVISION" : "PENDING"}
+                          </div>
+                          <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
+                        </div>
+                        <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
+                          <div className="conb-hero-stat-val" style={{ fontSize: company.jobId ? 24 : 18 }}>
+                            {jdIsLive ? "1 LIVE" : jdIsPendingApproval ? "IN REVIEW" : "+ POST JD"}
+                          </div>
+                          <div className="conb-hero-stat-label">JOB REQUISITIONS</div>
+                        </div>
+                        <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/billing")}>
+                          <div className="conb-hero-stat-val" style={{ fontSize: 17, color: "var(--gold)" }}>
+                            {(company.plan || "free").toUpperCase()} ⚡
+                          </div>
+                          <div className="conb-hero-stat-label">PLAN TIER (CHANGE)</div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          </section>
+          <div className="conb-banner" style={{ "--banner-color": STAGE_COLORS[activeStageId] }}>
+            <div className="conb-banner-icon"><i className={banner.icon}></i></div>
+            <div>
+              <div className="conb-banner-eyebrow">STAGE {activeStage.key} · WHY THIS MATTERS</div>
+              <h3 className="conb-banner-title" style={{ color: "#FFFFFF" }}>{banner.title}</h3>
+              <p className="conb-banner-desc" style={{ color: "rgba(241, 245, 249, 0.9)" }}>{banner.desc}</p>
+              <div className="conb-banner-unlocks">
+                {banner.unlocks.map((u) => <span key={u}><i className="fa-solid fa-check" style={{ marginRight: 4, color: "var(--gold)" }}></i> {u}</span>)}
+              </div>
+            </div>
+          </div>
+
+          <div className="conb-form-card">
+            <div className="conb-form-eyebrow">
+              STAGE {activeStage.key} · {stageDoneFields(activeStageId, activeData)}/{stageTotalFields(activeStageId)} COMPLETE
+            </div>
+            <h2 className="conb-form-title">{activeStage.name}</h2>
+            <p className="conb-form-sub">{activeStage.sub}</p>
+
+            {/* INLINE SECTION ERROR BANNER FOR MISSING MUST INPUTS */}
+            {stageErrors[activeStageId] && stageErrors[activeStageId].length > 0 && (
+              <div
+                style={{
+                  background: "#FEE2E2",
+                  border: "1.5px solid #EF4444",
+                  borderRadius: 10,
+                  padding: "14px 18px",
+                  marginBottom: 24,
+                  color: "#991B1B",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 22, lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <strong style={{ fontSize: 14, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    SECTION {activeStage.key} INCOMPLETE: REQUIRED INPUTS MISSING
+                  </strong>
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#B91C1C", fontWeight: 600 }}>
+                    Each required input in this section must be filled. Please enter values for:{" "}
+                    <strong style={{ textDecoration: "underline" }}>{stageErrors[activeStageId].join(", ")}</strong>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {activeStageId === "5" && ["No", "Mix"].includes(activeData?.qdefault) && (
+              <div style={{ background: "#ECFDF5", border: "1.5px solid #6EE7B7", borderRadius: 12, padding: "14px 18px", marginBottom: 20 }}>
+                <strong style={{ fontSize: 13.5, color: "#047857", display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>📝</span> {activeData.qdefault === "No" ? "YOUR OWN QUESTION BANK" : "TALENTERA + YOUR OWN QUESTION BANK"}
+                </strong>
+                <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#065F46", lineHeight: 1.5 }}>
+                  {activeData.qdefault === "No"
+                    ? "Upload your own interview questions below (Excel/CSV). Candidates will be interviewed with your questions instead of Talentera's default bank."
+                    : "Upload your own interview questions below (Excel/CSV). They'll be used alongside Talentera's default bank."}
+                </p>
+              </div>
+            )}
+
+            {activeStageId === "5" && !["No", "Mix"].includes(activeData?.qdefault) && (
+              <div
+                style={{
+                  background: "#FFFBEB",
+                  border: "1.5px solid #F59E0B",
+                  borderRadius: 12,
+                  padding: "16px 20px",
+                  marginBottom: 20,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <strong style={{ fontSize: 13.5, color: "#92400E", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span>⚡</span> TALENTERA DEFAULT QUESTION BANK ACTIVE
+                  </strong>
+                  <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#B45309", lineHeight: 1.5 }}>
+                    Your candidate interviews are powered by Talentera's verified AAPC/AHIMA-aligned question bank. Want to use your own questions? Set &ldquo;Use Talentera default bank&rdquo; to No (or Mix) to add your own question bank.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="conb-field-list">
+              {activeStage.items
+                .filter((item) => {
+                  if (activeStageId === "9") {
+                    const isFresher =
+                      activeData?.level === "Fresher only" ||
+                      activeData?.level === "Fresher" ||
+                      String(activeData?.level || "").toLowerCase().includes("fresher") ||
+                      (activeData?.expmin !== "" && activeData?.expmin !== undefined && Number(activeData?.expmin) === 0 && (activeData?.expmax === "" || Number(activeData?.expmax) <= 1));
+                    if (isFresher && (item.id === "expmin" || item.id === "expmax" || item.id === "notice")) return false;
+                  }
+                  return true;
+                })
+                .filter((item) => !(activeStageId === "5" && item.id === "qcustom" && !["No", "Mix"].includes(activeData?.qdefault)))
+                .map((item) => (
+                <OnboardingField
+                  key={`${activeStageId}-${item.id}`}
+                  item={item}
+                  value={activeData[item.id]}
+                  stageId={activeStageId}
+                  companyPlan={company?.plan || "free"}
+                  onSave={saveField}
+                  showStageErrors={Boolean(stageErrors[activeStageId])}
+                  isRejectedField={Boolean(company.rejectedKycFields?.includes(item.id))}
+                />
+              ))}
+            </div>
+
+            <div className="conb-form-footer" style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+              {(() => {
+                const idx = ONBOARDING_STAGES.findIndex((s) => s.id === activeStageId);
+                const next = ONBOARDING_STAGES[idx + 1];
+                if (next) {
+                  return (
+                    <button
+                      type="button"
+                      className="conb-cta-btn"
+                      onClick={() => goToStage(next.id)}
+                    >
+                      Continue: Stage {next.key}: {next.name} →
+                    </button>
+                  );
+                }
+                // Final stage in onboarding flow (Stage 8: Settings & Integrations)
+                return (
+                  <>
+                    <button
+                      type="button"
+                      className="conb-cta-btn"
+                      style={{ background: "#16A34A", color: "#fff" }}
+                      onClick={() => {
+                        const missing = checkMustFields(activeStageId);
+                        if (missing.length > 0) {
+                          setStageErrors((prev) => ({ ...prev, [activeStageId]: missing.map((i) => i.name) }));
+                          toast(`Please complete required fields: ${missing.map((i) => i.name).join(", ")}`, "!");
+                          return;
+                        }
+                        toast("Registration completed successfully! Redirecting to Job Posts…", "✓");
+                        navigate("/companies/jobs");
+                      }}
+                    >
+                      ✓ Complete Registration →
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* MISSING FIELDS MODAL */}
+      {missingFields && (
+        <div className="conb-modal-backdrop" onClick={() => setMissingFields(null)}>
+          <div className="conb-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>A few required fields are still missing</h3>
+            <ul className="conb-modal-list">
+              {missingFields.map((f) => <li key={f}>{f}</li>)}
+            </ul>
+            <button type="button" className="conb-cta-btn" onClick={() => setMissingFields(null)}>
+              Got it — let me fill them
+            </button>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}

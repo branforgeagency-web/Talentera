@@ -3,7 +3,8 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
 import { joinUnique } from "../../utils/resumeSubtitle.js";
-import { buildResumeSkills } from "../../utils/resumeSkills.js";
+import { buildResumeSkills, buildSoftSkills } from "../../utils/resumeSkills.js";
+import { durationBetween, formatDateRange } from "../../utils/resumeFormat.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
 // Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
@@ -121,7 +122,9 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   // Default to Fresher unless explicitly "Experienced" - matches getExperienceLevel() in utils/careerObjective.js
   // and Stage2Training.jsx's isFresherCandidate (a legacy "1-3" years-range placeholder must not read as Experienced).
   const isExperienced = /exp/i.test(String(stage1.experience || candidateObj.experience || ""));
-  const expLabel = isExperienced ? (stage2.totalExperience || "Experienced") : "Fresher";
+  const workDuration = isExperienced ? durationBetween(stage2.workStartDate, stage2.employmentStatus === "relieved" ? stage2.workEndDate : null) : "";
+  const workDateRange = isExperienced ? formatDateRange(stage2.workStartDate, stage2.workEndDate, stage2.employmentStatus !== "relieved") : "";
+  const expLabel = isExperienced ? (workDuration || stage2.totalExperience || "Experienced") : "Fresher";
   const domainName = stage2.domain || stage2.courseName || stage2.specialty || "Medical Coding";
   const currentRoleTitle = isExperienced
     ? (stage2.jobTitle || stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist"))
@@ -173,6 +176,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   // Experienced-candidate work history (Stage 2 · "Your Work Experience")
   const workCompany = stage2.currentCompany || "";
   const workProjectDetails = stage2.projectDetails || "";
+  const workRolesList = String(stage2.rolesResponsibilities || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[\s•*\-–—·]+/, "").trim())
+    .filter(Boolean);
   const workTotalExperience = stage2.totalExperience || "";
   const workNoticePeriod = stage2.noticePeriod || "";
 
@@ -234,7 +241,15 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     return isExactLegacyList && s2Specs.length > 0 && !s2Specs.every(s => legacyNames.includes(s));
   }, [stage6.specialtyCharts, stage2.specialties]);
   
+  // "No exposure yet" (path D) / skipped / no charts logged => no Live Chart section on the resume
+  const stage6PathKey = String(stage6.evidencePath || stage6.option || "").toLowerCase();
+  const noChartExposure =
+    Boolean(stage6.skipped) ||
+    stage6PathKey === "d" || stage6PathKey.includes("none") || stage6PathKey === "no_exposure" ||
+    (!(Number(totalCharts) > 0) && !(Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.some((c) => Number(c && c.count) > 0)));
+
   const specialtyCharts = useMemo(() => {
+    if (noChartExposure) return [];
     if (Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.length > 0 && !isLegacyMock) {
       return stage6.specialtyCharts;
     }
@@ -254,7 +269,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       return [{ id: 1, name: domainName || "Medical Coding", icon: "stethoscope", count: totalCharts, accuracy: overallAccuracy || 0, timePerChart: "5.0 min", lastCoded: "Recent", active: true }];
     }
     return [];
-  }, [stage6, stage2, totalCharts, overallAccuracy, domainName, isLegacyMock]);
+  }, [stage6, stage2, totalCharts, overallAccuracy, domainName, isLegacyMock, noChartExposure]);
 
   const selectedPlatforms = useMemo(() => {
     if (Array.isArray(stage6.selectedPlatforms) && stage6.selectedPlatforms.length > 0) {
@@ -287,7 +302,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
       return stage1.preferredCities.trim();
     }
-    return city ? city : "Open to Relocation";
+    return "Open to Relocation";
   }, [stage1, city]);
   const shiftPreference = stage1.shiftPreference || "Day shift";
   const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
@@ -463,6 +478,9 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     return "";
   });
 
+  // Candidate's own Professional Summary (manual entry, shown on the resume under the objective).
+  const [professionalSummary, setProfessionalSummary] = useState(() => String(stage7Data.professionalSummary || ""));
+
   const [formErrors, setFormErrors] = useState({});
 
   // --- AI Career Objective Assistant (Claude-powered) ---------------------
@@ -508,6 +526,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     setCareerObjective(text);
     if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
     toast("Added to your Career Objective. Scroll up to review & edit.", "✓");
+  };
+
+  const handleUseAiSummary = (text) => {
+    if (!text) return;
+    setProfessionalSummary(text);
+    toast("Added to your Professional Summary. Scroll up to review & edit.", "✓");
   };
 
   // Version history state from Database or initialized
@@ -622,14 +646,18 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
   // ---- Plain, professional resume body (no emojis). Shared by the live preview, the full-preview
   // modal and therefore the PDF export. Work experience comes straight from Stage 2.
   const SHIFT_LABELS = { day: "Day shift", night: "US night shift", uk_evening: "UK evening shift", rotational: "Rotational" };
-  const resumeShiftText = Array.isArray(stage2.shifts) && stage2.shifts.length > 0
+  const resumeShiftText = Array.isArray(stage1.workShifts) && stage1.workShifts.length > 0
+    ? stage1.workShifts.join(", ")
+    : Array.isArray(stage2.shifts) && stage2.shifts.length > 0
     ? stage2.shifts.map((x) => SHIFT_LABELS[x] || x).join(", ")
     : shiftPreference;
   const resumeRelocationText = stage1.openToRelocate || relocationPref;
   const ownSkills = String(stage2.skills || "").split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
   const resumeSkillList = ownSkills.length > 0 ? ownSkills : resumeSkills;
   const hasWorkExperience = isExperienced && Boolean(workCompany || stage2.jobTitle);
-  const showTrainingBlock = !isExperienced || Boolean(stage2.academyName || stage2.instituteName);
+  const isNonTrainedProfile = /non[\s-]?trained|direct entry/i.test(`${stage2.academyName || ""} ${stage2.trainingLevel || ""}`) || stage2.trainingPath === "non_trained" || stage2.isNonTrained === true;
+  const showTrainingBlock = !isNonTrainedProfile && (!isExperienced || Boolean(stage2.academyName || stage2.instituteName));
+  const softSkillList = buildSoftSkills(stage2.softSkills);
   const employmentStatusText = stage2.employmentStatus === "working" ? "Currently working" : stage2.employmentStatus === "relieved" ? "Relieved" : "";
   const avgChartTime = (() => {
     let total = 0;
@@ -735,6 +763,12 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           ) : (
             <div className="s7-resume-obj" style={{ fontStyle: "normal", color: "#9CA3AF" }}>Click here to add your summary.</div>
           )}
+          {professionalSummary.trim() && (
+            <>
+              {!isExperienced && <div className="s7-resume-sec-title" style={{ marginTop: 10 }}>Professional Summary</div>}
+              <div className="s7-resume-obj" style={{ fontStyle: "normal", marginTop: isExperienced ? 6 : 0 }}>{professionalSummary.trim()}</div>
+            </>
+          )}
         </div>
       ), interactive)}
 
@@ -743,15 +777,30 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           <div className="s7-resume-sec-title">Work Experience</div>
           <div className="s7-r-block">
             <div className="k">{stage2.jobTitle || currentRoleTitle}</div>
-            <div className="v">{workCompany}</div>
-            <div className="details">
+            <div className="v">
               {[
-                employmentStatusText,
-                workTotalExperience ? `${workTotalExperience} total experience` : "",
-                stage2.employmentStatus === "working" && workNoticePeriod ? `Notice period: ${workNoticePeriod}` : "",
-              ].filter(Boolean).join("  |  ")}
+                workCompany,
+                workDateRange ? `${workDateRange}${workDuration ? ` (${workDuration})` : ""}` : "",
+                stage2.employmentStatus === "working" && workNoticePeriod ? `Notice Period: ${workNoticePeriod}` : "",
+              ].filter(Boolean).join(", ")}
             </div>
+            {!workDateRange && (
+              <div className="details">
+                {[
+                  employmentStatusText,
+                  workTotalExperience ? `${workTotalExperience} total experience` : "",
+                ].filter(Boolean).join("  |  ")}
+              </div>
+            )}
             {workProjectDetails && <div style={{ ...resumeSectionBody, marginTop: 8 }}>{workProjectDetails}</div>}
+            {workRolesList.length > 0 && (
+              <div style={{ ...resumeSectionBody, marginTop: 8 }}>
+                <b>Roles &amp; Responsibilities:</b>
+                <ul style={{ margin: "4px 0 0 18px", padding: 0 }}>
+                  {workRolesList.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         </>
       ), interactive)}
@@ -759,7 +808,14 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       {resumeSkillList.length > 0 && editableSection("skills", [{ stage: 2, label: "Edit skills (Stage 2)" }], (
         <>
           <div className="s7-resume-sec-title">Skills</div>
-          <div style={resumeSectionBody}>{resumeSkillList.join("  |  ")}</div>
+          <div style={{ ...resumeSectionBody, fontWeight: 700, marginBottom: 2 }}>Technical Skills</div>
+          <ul style={{ ...resumeSectionBody, margin: "2px 0 8px 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+            {resumeSkillList.map((sk, i) => <li key={i} style={{ breakInside: "avoid" }}>{sk}</li>)}
+          </ul>
+          <div style={{ ...resumeSectionBody, fontWeight: 700, marginBottom: 2 }}>Soft Skills</div>
+          <ul style={{ ...resumeSectionBody, margin: "2px 0 0 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+            {softSkillList.map((sk, i) => <li key={i} style={{ breakInside: "avoid" }}>{sk}</li>)}
+          </ul>
         </>
       ), interactive)}
 
@@ -811,7 +867,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
             <div className="k">{academyName}{academyLocality ? `, ${academyLocality}` : ""}</div>
             <div className="v">{trainingFoundationLine}</div>
             <div className="details">
-              {[trainingDuration, trainingAssessmentScore ? `Assessment ${trainingAssessmentScore}/100` : ""].filter(Boolean).join("  |  ")}
+              {[trainingDuration].filter(Boolean).join("  |  ")}
             </div>
           </div>
         </>
@@ -854,16 +910,6 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           )}
         </>
       ), interactive)}
-
-      <div className="s7-resume-sec-title">Talentera Verification</div>
-      <div style={resumeSectionBody}>
-        {assessmentScore !== null && <div><b>Skill assessment:</b> {assessmentScore}/100 ({assessmentMedal})</div>}
-        {videoScore !== null && (
-          <div><b>Video interview:</b> {videoScore}/100 (clarity {clarityScore}, fluency {fluencyScore}, confidence {confidenceScore})</div>
-        )}
-        {totalCharts > 0 && <div><b>Live chart practice:</b> {totalCharts} charts at {overallAccuracy}% accuracy</div>}
-        <div><b>Overall verification score:</b> {totalPoints}/100</div>
-      </div>
 
       {editableSection("prefs", [{ stage: 1, label: "Edit locations (Stage 1)" }, { stage: 2, label: "Edit shifts (Stage 2)" }], (
         <>
@@ -981,6 +1027,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
       "------------------------------------------------------------------",
       careerObjective,
+      ...(professionalSummary.trim() ? ["", "PROFESSIONAL SUMMARY (continued)", professionalSummary.trim()] : []),
       "",
       "------------------------------------------------------------------",
       "TALENTERA VERIFIED CREDENTIALS & SCORECARD",
@@ -996,14 +1043,24 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         ...certificationsList.map((c) => `* ${c.body || 'AAPC'} ${c.code || c.name} (Member ID: ${c.memberId || 'Verified'}) - Valid through: ${c.expiryDate || 'Active'}${Number.isFinite(c.percentage) ? ` - Score: ${c.percentage}%` : ''}`),
         ""
       ].join("\n") : "",
-      "------------------------------------------------------------------",
-      "TRAINING FOUNDATION",
-      "------------------------------------------------------------------",
-      `* Academy: ${academyName} (${academyLocality})`,
-      `* Specialty: ${trainingSpecialties} - ${trainingLevel}`,
-      `* Duration: ${trainingDuration}`,
-      trainingAssessmentScore ? `* Academy Assessment Score: ${trainingAssessmentScore}/100` : "",
-      "",
+      hasWorkExperience ? [
+        "------------------------------------------------------------------",
+        "WORK EXPERIENCE",
+        "------------------------------------------------------------------",
+        `* ${stage2.jobTitle || currentRoleTitle}${workCompany ? ` - ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}`,
+        workProjectDetails ? `  ${workProjectDetails}` : "",
+        workRolesList.length > 0 ? ["  Roles & Responsibilities:", ...workRolesList.map((r) => `   - ${r}`)].join("\n") : "",
+        ""
+      ].filter((l) => l !== "").join("\n") : "",
+      showTrainingBlock ? [
+        "------------------------------------------------------------------",
+        "TRAINING FOUNDATION",
+        "------------------------------------------------------------------",
+        `* Academy: ${academyName} (${academyLocality})`,
+        `* Specialty: ${trainingSpecialties} - ${trainingLevel}`,
+        `* Duration: ${trainingDuration}`,
+        ""
+      ].join("\n") : "",
       "------------------------------------------------------------------",
       "ACADEMIC EDUCATION",
       "------------------------------------------------------------------",
@@ -1014,7 +1071,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         "------------------------------------------------------------------",
         "SKILLS",
         "------------------------------------------------------------------",
-        `* ${resumeSkills.join(" | ")}`,
+        "Technical Skills:",
+        ...resumeSkills.map((sk) => `  - ${sk}`),
+        "Soft Skills:",
+        ...softSkillList.map((sk) => `  - ${sk}`),
         ""
       ].join("\n") : "",
       "------------------------------------------------------------------",
@@ -1074,6 +1134,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         objective: careerObjective,
         objectiveKey,
         summary: careerObjective,
+        professionalSummary: professionalSummary.trim(),
         resumeUrl: liveResumeUrl,
         slug: candidateSlug,
         verificationId,
@@ -2125,6 +2186,20 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
               </div>
             </div>
 
+            {/* Manual Professional Summary - candidate's own words */}
+            <div className="s7-obj-editor" style={{ marginTop: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: "#0F1B3D", marginBottom: 6 }}>Professional Summary (write your own)</div>
+              <textarea
+                value={professionalSummary}
+                onChange={(e) => setProfessionalSummary(e.target.value)}
+                maxLength={600}
+                placeholder="Optional: write your own professional summary - your background, strengths and what you bring to the role..."
+              />
+              <div className="s7-obj-editor-footer">
+                <span>{professionalSummary.length} / 600 characters</span>
+              </div>
+            </div>
+
             {/* AI Career Objective Assistant - Claude-powered generator */}
             <div className="s7-ai-widget">
               <div className="s7-ai-widget-header">
@@ -2170,8 +2245,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                     <div className="s7-ai-widget-result-card">
                       <div className="s7-ai-widget-result-label">Professional Summary</div>
                       <div className="s7-ai-widget-result-text">{aiResult.summary}</div>
-                      <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.summary)}>
-                        + Add to Career Objective
+                      <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiSummary(aiResult.summary)}>
+                        + Add to Professional Summary
                       </button>
                     </div>
                   )}
@@ -2209,7 +2284,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                 <div className="s7-locked-ico"><i className="fa-solid fa-graduation-cap" /></div>
                 <div className="s7-locked-info">
                   <div className="title">Training Foundation <span className="s7-lock-badge">Stage 02</span></div>
-                  <div className="meta"><b>{academyName}</b> · {domainName} · {trainingLevel} · {trainingSpecialties} · {trainingDuration}{trainingAssessmentScore ? ` · Batch score: ${trainingAssessmentScore}/100` : ""}</div>
+                  <div className="meta"><b>{academyName}</b> · {domainName} · {trainingLevel} · {trainingSpecialties} · {trainingDuration}</div>
                 </div>
                 <div className="s7-verified-tag">Academy-Signed</div>
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(2)} className="s7-edit-stage-btn">
@@ -2297,11 +2372,11 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
                         {chartTier === "Platinum" ? <i className="fa-solid fa-trophy" /> : chartTier === "Gold" ? <i className="fa-solid fa-medal" /> : chartTier === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{chartTier} · {totalCharts} charts · {overallAccuracy}% acc</b> · {specialtyCharts.map((s) => `${s.name} ${s.count}`).join(" · ")} · {selectedPlatforms.join(" + ")}
                       </>
                     ) : (
-                      <span>Live Chart Practice Log · Declared Exposure</span>
+                      <span>{noChartExposure ? "No live chart exposure declared — not shown on your resume" : "Live Chart Practice Log · Declared Exposure"}</span>
                     )}
                   </div>
                 </div>
-                <div className="s7-verified-tag">API-Verified</div>
+                {!noChartExposure && <div className="s7-verified-tag">API-Verified</div>}
                 <button type="button" onClick={() => onNavigateStage && onNavigateStage(6)} className="s7-edit-stage-btn">
                   ✎ Update in Stage 06
                 </button>

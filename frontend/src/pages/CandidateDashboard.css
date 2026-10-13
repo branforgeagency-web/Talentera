@@ -1737,6 +1737,10 @@ button { border: none; background: none; }
   border: 2px solid var(--gold);
   box-shadow: 0 4px 14px rgba(245, 166, 35, 0.2);
 }
+.co-pipe-stage.pick {
+  box-shadow: 0 0 0 3px var(--navy), 0 6px 16px rgba(10, 37, 64, 0.15);
+  transform: translateY(-2px);
+}
 .co-pipe-stage.selected {
   background: var(--green-soft);
   border: 2px solid var(--green);

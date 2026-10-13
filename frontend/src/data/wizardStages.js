@@ -344,13 +344,21 @@ export function isStage6Optional(candidate) {
   return isSelfTrainedCandidate(candidate) || isLiveChartExemptDomain(candidate);
 }
 
+// Experienced candidates skip the Stage 04 Assessment - their score comes from certifications
+// instead (keep in sync with isExperiencedCandidate in backend/utils/verificationScore.js).
+export function isExperiencedCandidate(candidate) {
+  return /exp/i.test(String(candidate?.stage1?.experience || ""));
+}
+
 export function getWizardStages(candidate) {
   const stage6Optional = isStage6Optional(candidate);
   return RAW_WIZARD_STAGES.map((s) => {
     const isStage6Optional = s.num === 6 && stage6Optional;
-    const isSkippable = SKIPPABLE_STAGE_NUMS.includes(s.num) || isStage6Optional;
+    const hidden = s.num === 4 && isExperiencedCandidate(candidate);
+    const isSkippable = SKIPPABLE_STAGE_NUMS.includes(s.num) || isStage6Optional || hidden;
     return {
       ...s,
+      hidden,
       mandatory: !isSkippable,
       skippable: isSkippable,
       isOptional: isStage6Optional,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import CollegePicker from "../CollegePicker.jsx";
 
 const card = { background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 18 };
 const inputStyle = { width: "100%", padding: "9px 11px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, boxSizing: "border-box", background: "#fff" };
@@ -138,8 +139,8 @@ export default function AcademyCollegeMous({ getAuthHeader }) {
       <div style={card}>
         <div style={{ fontWeight: 800, fontSize: 14, color: "#06152A", marginBottom: 12 }}>{editingId ? "Edit MoU" : "Add a college MoU"}</div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-          <div><label style={labelStyle}>College name *</label><input style={inputStyle} value={form.collegeName} onChange={set("collegeName")} maxLength={150} /></div>
-          <div><label style={labelStyle}>City</label><input style={inputStyle} value={form.city} onChange={set("city")} maxLength={80} /></div>
+          <div><label style={labelStyle}>College name *</label><CollegePicker mode="college" inputStyle={inputStyle} value={form.collegeName} onChange={(v) => setForm((f) => ({ ...f, collegeName: v }))} onPick={(r) => setForm((f) => ({ ...f, city: r.district || f.city, collegeState: r.state }))} /></div>
+          <div><label style={labelStyle}>City</label><CollegePicker mode="location" inputStyle={inputStyle} value={form.city} state={form.collegeState || ""} onChange={(v) => setForm((f) => ({ ...f, city: v }))} /></div>
           <div><label style={labelStyle}>Contact person</label><input style={inputStyle} value={form.contactPerson} onChange={set("contactPerson")} maxLength={100} /></div>
           <div><label style={labelStyle}>Phone</label><input style={inputStyle} value={form.phone} onChange={set("phone")} maxLength={20} inputMode="tel" /></div>
           <div><label style={labelStyle}>Email</label><input style={inputStyle} type="email" value={form.email} onChange={set("email")} maxLength={120} /></div>

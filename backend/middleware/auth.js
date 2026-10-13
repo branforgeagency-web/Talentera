@@ -130,6 +130,24 @@ async function requireCompanyAuth(req, res, next) {
       return res.status(401).json({ message: "Invalid or expired token." });
     }
     req.companyId = decoded.id;
+    // Team (sub-admin) logins: checked live so removing/disabling a login cuts access at once.
+    if (decoded.subId) {
+      const CompanyUser = require("../models/CompanyUser");
+      const sub = await CompanyUser.findById(decoded.subId).lean();
+      if (!sub || !sub.active || String(sub.companyId) !== String(decoded.id)) {
+        return res.status(401).json({ message: "This login has been disabled or removed by your company admin." });
+      }
+      req.companyUser = sub;
+      // Read-only logins can look but not change anything.
+      if (sub.role === "viewer" && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+        return res.status(403).json({ message: "Your login is view-only. Ask your head admin for edit access." });
+      }
+      // Company profile / KYC / plan are for the head admin only.
+      const headOnly = /^\/(stage|verify-|billing)/.test(req.path) && !["GET", "HEAD", "OPTIONS"].includes(req.method);
+      if (headOnly) {
+        return res.status(403).json({ message: "Only the company head admin can change the company profile, KYC or plan." });
+      }
+    }
     next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token." });
@@ -291,4 +309,19 @@ function signToken(id, role = "candidate") {
   });
 }
 
-module.exports = { requireAuth, requireCompanyAuth, requireAcademyAuth, requireStaffAuth, requireCollegeAuth, signToken, JWT_SECRET };
+// Head-admin-only gate (use after requireCompanyAuth): team members get 403.
+function requireCompanyHead(req, res, next) {
+  if (req.companyUser) {
+    return res.status(403).json({ message: "Only the company head admin can manage team logins." });
+  }
+  next();
+}
+
+// Session token for a team (sub-admin) login: same company access, plus the sub-user id.
+function signCompanyUserToken(companyId, userId) {
+  return jwt.sign({ id: String(companyId), role: "company", subId: String(userId) }, JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRES_IN || "30d",
+  });
+}
+
+module.exports = { requireCompanyHead, signCompanyUserToken, requireAuth, requireCompanyAuth, requireAcademyAuth, requireStaffAuth, requireCollegeAuth, signToken, JWT_SECRET };

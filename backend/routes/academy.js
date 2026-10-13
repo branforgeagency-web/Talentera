@@ -1,4 +1,5 @@
 const express = require("express");
+const { stripSeedCourses, stripSeedQuestions } = require("../utils/academyData");
 const Candidate = require("../models/Candidate");
 const Academy = require("../models/Academy");
 const AcademyBatch = require("../models/AcademyBatch");
@@ -416,6 +417,16 @@ function buildAcademyCandidateFilter(academyId, academyName, invites = []) {
   };
 }
 
+// Ownership guard: an academy may only open or act on its OWN candidates (linked by
+// stage2.academyId, invited by it, or exact-name match) - never someone else's by ID.
+async function findOwnedCandidate(req, candidateId) {
+  if (!candidateId || !require("mongoose").Types.ObjectId.isValid(String(candidateId))) return null;
+  const academy = await Academy.findById(req.academyId).lean();
+  const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+  const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+  return Candidate.findOne({ $and: [filter, { _id: candidateId }] });
+}
+
 // Computes an academy's real, verifiable metrics from its actual linked candidates
 // and recorded placements — used for the cross-academy insights/benchmark feature.
 // Returns null for academies with no enrolled students (nothing meaningful to compare).
@@ -520,10 +531,10 @@ router.post("/register", authLimiter, async (req, res) => {
         kycStatus: "pending",
         specialty: "Medical Coding",
         headquarters: "Coimbatore",
-        branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+        branches: [],
         tier: "Partner Academy",
         totalAlumni: "0",
-        partnerSince: "Jan 2025",
+        partnerSince: new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
         studentsUploaded: 0,
         verifiedPct: 0,
       });
@@ -602,13 +613,13 @@ router.post("/login", authLimiter, async (req, res) => {
         email: cleanEmail,
         contactName: fullName || "Dr. Rajesh Kumar",
         primaryAdmin: fullName || "Dr. Rajesh Kumar",
-        phone: mobile || phone || "+91 9765435676",
+        phone: mobile || phone || "",
         specialty: "Medical Coding",
         headquarters: "Coimbatore",
-        branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+        branches: [],
         tier: "Verified Partner",
-        totalAlumni: "35,000+",
-        partnerSince: "Jan 2025",
+        totalAlumni: "0",
+        partnerSince: new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
         studentsUploaded: 0,
         verifiedPct: 0,
       });
@@ -649,10 +660,10 @@ router.post("/demo-login", async (req, res) => {
         phone: "+91 9765435676",
         specialty: "Medical Coding",
         headquarters: "Coimbatore",
-        branches: ["Coimbatore", "Chennai", "Hyderabad", "Vizag"],
+        branches: [],
         tier: "Verified Partner",
-        totalAlumni: "35,000+",
-        partnerSince: "Jan 2025",
+        totalAlumni: "0",
+        partnerSince: new Date().toLocaleDateString("en-IN", { month: "short", year: "numeric" }),
         studentsUploaded: 0,
         verifiedPct: 0,
         isVerified: true,
@@ -690,6 +701,7 @@ router.get("/kyc", requireAcademyAuth, async (req, res) => {
       kycNotes: academy.kycNotes || "",
       kycRejectionReason: academy.kycRejectionReason || "",
       kycData: academy.kycData || {},
+      courses: stripSeedCourses(academy.courses).map((c) => ({ title: c.title, duration: c.duration || "" })),
       isVerified: Boolean(academy.isVerified || academy.kycStatus === "verified"),
       academy: {
         _id: academy._id,
@@ -765,6 +777,7 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       otherSpecialtyCourses,
       branches,
       accreditations,
+      courses: kycCourses,
       certifiedTrainedCount,
       activeBatchesPerYear,
       regCertificateUrl,
@@ -777,6 +790,20 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
 
     if (!declarationAccepted) {
       return res.status(400).json({ message: "You must accept the institutional declaration to submit KYC." });
+    }
+
+    // Courses the academy typed in manually (name + duration) - no presets.
+    const cleanKycCourses = (Array.isArray(kycCourses) ? kycCourses : [])
+      .slice(0, 40)
+      .map((c) => ({ title: String(c?.title || "").trim().slice(0, 120), duration: String(c?.duration || "").trim().slice(0, 40) }))
+      .filter((c) => c.title);
+    for (const c of cleanKycCourses) {
+      const existing = (academy.courses || []).find((x) => String(x.title || "").toLowerCase() === c.title.toLowerCase());
+      if (existing) {
+        if (c.duration) existing.duration = c.duration;
+      } else {
+        academy.courses.push({ title: c.title, duration: c.duration || "", category: "", totalHrs: 0, batches: 0, enrolled: 0, status: "active", syllabus: [] });
+      }
     }
 
     // Save submitted KYC form data
@@ -809,6 +836,7 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
         }))
         .filter((b) => b.name || b.city || b.address),
       accreditations: Array.isArray(accreditations) ? accreditations : [],
+      courses: cleanKycCourses,
       certifiedTrainedCount: certifiedTrainedCount || "",
       activeBatchesPerYear: activeBatchesPerYear || "",
       regCertificateUrl: regCertificateUrl || "",
@@ -871,29 +899,13 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       return res.status(404).json({ message: "Academy account not found." });
     }
 
-    // Ensure default courses if empty
-    if (!academy.courses || academy.courses.length === 0) {
-      academy.courses = [
-        { category: "HCC / RISK ADJUSTMENT", duration: "3 MONTHS", title: "HCC Coding Specialization", totalHrs: 120, batches: 1, enrolled: 30, status: "active", syllabus: ["ICD-10-CM Basics", "RAF Score Calculation", "Documentation Review", "HCC Chart Audits", "Capstone"] },
-        { category: "EMERGENCY DEPT CODING", duration: "3 MONTHS", title: "ED Coding Foundation", totalHrs: 110, batches: 1, enrolled: 15, status: "active", syllabus: ["ED Levels & E/M", "Critical Care", "Modifier 25 / 59", "Trauma Cases", "Capstone"] },
-        { category: "AR CALLING / RCM", duration: "2 MONTHS", title: "AR Calling Bootcamp", totalHrs: 80, batches: 1, enrolled: 25, status: "active", syllabus: ["Denial Codes", "Payer Workflows", "Communication", "Compliance", "Live Floor"] },
-        { category: "SURGERY CODING", duration: "3 MONTHS", title: "Surgery Coding Mastery", totalHrs: 130, batches: 1, enrolled: 20, status: "active", syllabus: ["CPT Surgery Sections", "Modifiers (50/51/59)", "Global Period", "Multi-Procedure", "Capstone"] },
-        { category: "OP / E&M", duration: "3 MONTHS", title: "OP / E&M Specialization", totalHrs: 100, batches: 1, enrolled: 18, status: "active", syllabus: ["E&M Levels", "MDM Complexity", "Time-Based Coding", "2021 Guidelines", "Capstone"] },
-        { category: "IP DRG", duration: "3 MONTHS", title: "IP DRG Specialization", totalHrs: 140, batches: 0, enrolled: 0, status: "idle", syllabus: ["MS-DRG vs APR-DRG", "POA Indicators", "CC/MCC Logic", "Audit Scenarios", "Capstone"] },
-      ];
-      await academy.save();
-    }
-
-    // Ensure default questions if empty
-    if (!academy.questions || academy.questions.length === 0) {
-      academy.questions = [
-        { question: "HCC Risk Adjustment Factor (RAF) score is primarily used to...", topic: "HCC", type: "MCQ", difficulty: "Entry", marks: 1, status: "Locked", courseTitle: "HCC Coding Specialization" },
-        { question: "Which ICD-10-CM code captures Type 2 Diabetes with diabetic peripheral neuropathy?", topic: "ICD-10", type: "MCQ", difficulty: "Mid", marks: 2, status: "Locked", courseTitle: "HCC Coding Specialization" },
-        { question: "Scenario: A 67-year-old patient is documented with CKD Stage 4 and on dialysis. Which HCC code(s) apply?", topic: "HCC", type: "Scenario", difficulty: "Senior", marks: 3, status: "Editable", courseTitle: "HCC Coding Specialization" },
-        { question: "CMS-HCC v24 risk model uses how many diagnosis groups?", topic: "HCC", type: "MCQ", difficulty: "Mid", marks: 2, status: "Locked", courseTitle: "HCC Coding Specialization" },
-        { question: "Which of the following requires \"with\" combination coding in ICD-10-CM?", topic: "ICD-10", type: "MCQ", difficulty: "Mid", marks: 2, status: "Editable", courseTitle: "HCC Coding Specialization" },
-        { question: "Documentation states \"history of CHF\". Should HCC 85 be captured?", topic: "Documentation", type: "Scenario", difficulty: "Senior", marks: 3, status: "Editable", courseTitle: "HCC Coding Specialization" },
-      ];
+    // Older accounts were auto-filled with sample courses/questions. Remove those
+    // once so the academy only ever sees what it entered itself.
+    const realCourses = stripSeedCourses(academy.courses);
+    const realQuestions = stripSeedQuestions(academy.questions);
+    if (realCourses.length !== (academy.courses || []).length || realQuestions.length !== (academy.questions || []).length) {
+      academy.courses = realCourses;
+      academy.questions = realQuestions;
       await academy.save();
     }
 
@@ -2357,7 +2369,7 @@ router.get("/invite/:token", async (req, res) => {
 // GET /api/academy/students/:id/stage-progress
 router.get("/students/:id/stage-progress", requireAcademyAuth, async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const stageData = compute8Stages(candidate);
@@ -2394,7 +2406,7 @@ router.get("/students/:id/stage-progress", requireAcademyAuth, async (req, res) 
 // PUT /api/academy/students/:id - Update candidate details
 router.put("/students/:id", requireAcademyAuth, async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const { name, email, mobile, batchCode, course, experience, experienceRange, city, branch, specialty, expectedSalaryLpa, aadhaarLast4 } = req.body;
@@ -2519,7 +2531,7 @@ router.put("/students/:id", requireAcademyAuth, async (req, res) => {
 router.delete("/students/:id", requireAcademyAuth, async (req, res) => {
   try {
     const academy = await Academy.findById(req.academyId);
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const candBatchCode = candidate.stage2?.batch;
@@ -2573,7 +2585,7 @@ router.delete("/students/:id", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/students/:id/timeline
 router.get("/students/:id/timeline", requireAcademyAuth, async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const timeline = [];
@@ -3073,7 +3085,7 @@ router.get("/stuck-students", requireAcademyAuth, async (req, res) => {
 // POST /api/academy/students/:id/nudge - Multi-channel reminder (Email, SMS, WhatsApp)
 router.post("/students/:id/nudge", requireAcademyAuth, async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const academy = await Academy.findById(req.academyId);
@@ -3112,7 +3124,7 @@ router.post("/students/:id/nudge", requireAcademyAuth, async (req, res) => {
 // RetakeRequest so it shows up in the same audit trail/history as staff-approved retakes.
 router.put("/students/:id/grant-retake", requireAcademyAuth, async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const academy = await Academy.findById(req.academyId);
@@ -3294,7 +3306,7 @@ router.post("/approvals/:stage_id/approve", requireAcademyAuth, async (req, res)
   try {
     const { stage_id } = req.params;
     const [candidateId, stagePart] = stage_id.split("_");
-    const candidate = await Candidate.findById(candidateId);
+    const candidate = await findOwnedCandidate(req, candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate record not found." });
 
     const targetStage = stagePart === "stage5" || req.body.stageNumber === 5 ? 5 : 2;
@@ -3378,7 +3390,7 @@ router.post("/approvals/:stage_id/reject", requireAcademyAuth, async (req, res) 
     const { stage_id } = req.params;
     const { reason = "Please re-record or update course hours.", stageNumber } = req.body;
     const [candidateId, stagePart] = stage_id.split("_");
-    const candidate = await Candidate.findById(candidateId);
+    const candidate = await findOwnedCandidate(req, candidateId);
     if (!candidate) return res.status(404).json({ message: "Candidate record not found." });
 
     const targetStage = stagePart === "stage5" || stageNumber === 5 ? 5 : 2;
@@ -3556,7 +3568,7 @@ router.get("/activity-stream", requireAcademyAuth, async (req, res) => {
 // GET /api/academy/students/:id/timeline
 router.get("/students/:id/timeline", requireAcademyAuth, async (req, res) => {
   try {
-    const candidate = await Candidate.findById(req.params.id);
+    const candidate = await findOwnedCandidate(req, req.params.id);
     if (!candidate) return res.status(404).json({ message: "Candidate not found." });
 
     const events = await AcademyActivityEvent.find({
@@ -4257,9 +4269,9 @@ router.post("/create-course", requireAcademyAuth, async (req, res) => {
       title: String(title).trim(),
       totalHrs: Number(totalHrs) || 120,
       batches: 1,
-      enrolled: 15,
+      enrolled: 0,
       status: "active",
-      syllabus: syllabusList.length ? syllabusList : ["ICD-10-CM", "CPT Modifiers", "Capstone"],
+      syllabus: syllabusList,
       fees: feeNum,
     };
 

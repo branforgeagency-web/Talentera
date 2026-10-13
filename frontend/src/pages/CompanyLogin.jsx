@@ -24,7 +24,7 @@ export default function CompanyLogin() {
 
   useEffect(() => {
     if (company) {
-      navigate(isFullyOnboarded(company) ? "/companies/jobs" : "/companies/dashboard", { replace: true });
+      navigate(company.teamUser || isFullyOnboarded(company) ? "/companies/jobs" : "/companies/dashboard", { replace: true });
     }
   }, [company, navigate]);
 
@@ -34,7 +34,7 @@ export default function CompanyLogin() {
     setSubmitting(true);
     try {
       const loggedInCompany = await login(email, password);
-      navigate(isFullyOnboarded(loggedInCompany) ? "/companies/jobs" : "/companies/dashboard");
+      navigate(loggedInCompany.teamUser || isFullyOnboarded(loggedInCompany) ? "/companies/jobs" : "/companies/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || err.message || "Login failed. Please try again.");
     } finally {
