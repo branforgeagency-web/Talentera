@@ -211,6 +211,10 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
   // Experienced candidates skip the Stage 04 Assessment, so the next stage after this one is 05.
   const isExperiencedCand = /exp/i.test(String(s1.experience || ""));
   const isExperienced = /exp/i.test(String(s1.experienceLevel || s1.experience || candidate?.experience || candidateExp || ""));
+  // AR / billing-side roles don't need a coding certification, so "Not Certified" is not a drawback there
+  const certOptional = /billing|accounts receivable|\bAR\b|ar calling|denial|payment posting|eligibility|claims/i.test(
+    [s2.domain, s2.specialty, ...(Array.isArray(s2.specialties) ? s2.specialties : []), candidate?.targetRole, candidate?.stage1?.targetRole, candidate?.stage1?.preferredRole].filter(Boolean).join(" ")
+  );
   const academyName = s2.academyName || s2.instituteName || "Direct / Self-Trained";
   const specialty = s2.specialties?.[0] || s2.specialty || s2.domain || "Medical Coding";
   const candidateCity = s1.city || candidate.city || "—";
@@ -1831,10 +1835,12 @@ export default function Stage3Certification({ stage, existingData = {}, candidat
                   <div className="sub">
                     {isExperienced
                       ? "Relying on direct on-the-job coding experience and production accuracy."
+                      : certOptional
+                      ? "Certification isn't required for AR / billing roles — I'll rely on my training and other credentials."
                       : "No cert and no immediate plan — I'll rely on other credentials."}
                   </div>
-                  <span className={`badge-hint ${isExperienced ? "blue" : "red"}`}>
-                    {isExperienced ? "Evaluated on work experience" : "Lower visibility to top companies"}
+                  <span className={`badge-hint ${isExperienced || certOptional ? "blue" : "red"}`}>
+                    {isExperienced ? "Evaluated on work experience" : certOptional ? "Certification optional for this role" : "Lower visibility to top companies"}
                   </span>
                 </div>
               </div>
