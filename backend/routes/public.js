@@ -1,4 +1,5 @@
 const express = require("express");
+const { stripSeedCourses, realBranches } = require("../utils/academyData");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -763,10 +764,10 @@ router.get("/academy/:id/profile", async (req, res) => {
         name: a.name,
         specialty: a.specialty,
         headquarters: a.headquarters,
-        branches: a.branches || [],
+        branches: realBranches(a),
         partnerSince: a.partnerSince,
         website: kyc.website || "",
-        courses: (a.courses || []).map((c) => ({ title: c.title, category: c.category, duration: c.duration, totalHrs: c.totalHrs })),
+        courses: stripSeedCourses(a.courses).map((c) => ({ title: c.title, category: c.category, duration: c.duration, totalHrs: c.totalHrs })),
         gallery: (a.gallery || []).map((g) => ({ _id: g._id, type: g.type, url: g.url, caption: g.caption })),
       },
     });

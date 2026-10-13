@@ -35,6 +35,7 @@ import RequireAuth from "./components/RequireAuth.jsx";
 import CompanyRequireAuth from "./components/CompanyRequireAuth.jsx";
 import CollegeRequireAuth from "./components/CollegeRequireAuth.jsx";
 
+import CompanyTeam from "./pages/CompanyTeam.jsx";
 export default function App() {
   return (
     <Routes>
@@ -51,7 +52,7 @@ export default function App() {
       <Route
         path="/companies/dashboard"
         element={
-          <CompanyRequireAuth>
+          <CompanyRequireAuth headOnly>
             <CompanyDashboardSetup />
           </CompanyRequireAuth>
         }
@@ -59,7 +60,7 @@ export default function App() {
       <Route
         path="/companies/onboarding"
         element={
-          <CompanyRequireAuth>
+          <CompanyRequireAuth headOnly>
             <CompanyDashboardSetup />
           </CompanyRequireAuth>
         }
@@ -91,9 +92,17 @@ export default function App() {
         }
       />
       <Route
+        path="/companies/team"
+        element={
+          <CompanyRequireAuth headOnly>
+            <CompanyTeam />
+          </CompanyRequireAuth>
+        }
+      />
+      <Route
         path="/companies/billing"
         element={
-          <CompanyRequireAuth>
+          <CompanyRequireAuth headOnly>
             <CompanyBilling />
           </CompanyRequireAuth>
         }

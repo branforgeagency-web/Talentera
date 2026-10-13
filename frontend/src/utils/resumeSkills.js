@@ -38,12 +38,24 @@ const SPECIALTY_SKILLS = {
 // any candidate regardless of domain, so they never crowd out the domain-specific ones above.
 const GENERIC_SKILLS = [
   "HIPAA Compliance & Data Confidentiality",
+  "MS Office (Excel, Word)",
+];
+
+// Soft / personal skills shown next to the technical skills so recruiters get the full picture.
+// Candidates can type their own in Stage 2; these are the defaults when they haven't.
+export const DEFAULT_SOFT_SKILLS = [
+  "Verbal & Written Communication",
   "Attention to Detail & Accuracy",
   "Analytical & Problem-Solving Skills",
-  "Verbal & Written Communication",
-  "MS Office (Excel, Word)",
   "Time Management",
+  "Team Collaboration",
+  "Adaptability & Willingness to Learn",
 ];
+
+export function buildSoftSkills(own) {
+  const list = String(own || "").split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  return list.length > 0 ? list.slice(0, 10) : DEFAULT_SOFT_SKILLS;
+}
 
 const MIN_SKILLS = 6;
 const MAX_SKILLS = 9;

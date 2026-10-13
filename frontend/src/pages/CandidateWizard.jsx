@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import api from "../api/client";
 import { useToast } from "../components/Toast.jsx";
-import { WIZARD_STAGES, getStage, isStage6Optional, getWizardStages } from "../data/wizardStages";
+import { WIZARD_STAGES, getStage, isStage6Optional, getWizardStages, isExperiencedCandidate, isLiveChartExemptDomain } from "../data/wizardStages";
 import WizardSidebar from "../components/WizardSidebar.jsx";
 import WizardStagePane from "../components/WizardStagePane.jsx";
 import Stage1Aadhaar from "../components/wizard/Stage1Aadhaar.jsx";
@@ -152,7 +152,8 @@ export default function CandidateWizard() {
   // report step + "Continue to Next Stage" button, which re-calls onSaved
   // with advance left at its default true once the candidate is ready).
   function handleStageSaved(data, opts = {}) {
-    const { advance = true, nextStage } = opts;
+    const { advance = true } = opts;
+    let { nextStage } = opts;
 
     let mergedProfile = profile;
     if (data?.candidate) {
@@ -170,6 +171,8 @@ export default function CandidateWizard() {
 
     const candidateObj = mergedProfile?.candidate || mergedProfile || {};
     const completed = Array.isArray(candidateObj.completedStages) ? candidateObj.completedStages : [];
+    // Experienced candidates have no Stage 4 (Assessment) - go straight to Stage 5
+    if (nextStage === 4 && isExperiencedCandidate(candidateObj)) nextStage = 5;
 
     if (completed.length >= 8) {
       setShowVerifiedPool(false);
@@ -262,7 +265,10 @@ export default function CandidateWizard() {
   }
 
   const isSelfTrained = isStage6Optional(candidateObj);
-  const activeStage = getStage(activeStageId, candidateObj) || WIZARD_STAGES[0];
+  const skipStage4 = isExperiencedCandidate(candidateObj);
+  // Never land on the (removed) Assessment stage for an experienced candidate
+  const shownStageId = skipStage4 && activeStageId === 4 ? 5 : activeStageId;
+  const activeStage = getStage(shownStageId, candidateObj) || WIZARD_STAGES[0];
   const stageKey = `stage${activeStage.num}`;
   const existingData = candidateObj?.[stageKey] || {};
   const completedStages = Array.isArray(candidateObj?.completedStages) ? candidateObj.completedStages : [];
@@ -275,16 +281,18 @@ export default function CandidateWizard() {
     <div className="wiz-shell">
       <WizardSidebar
         completedStages={completedStages}
-        activeStageId={activeStageId}
+        activeStageId={shownStageId}
         onSelect={handleSelectStage}
         earnedPoints={profile?.score || profile?.earnedPoints || candidateObj?.score || 0}
         onSubmit={handleSubmitForVerification}
         onSaveExit={handleSaveExit}
         onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
         isSelfTrained={isSelfTrained}
+        hiddenStages={skipStage4 ? [4] : []}
+        bonusStages={isLiveChartExemptDomain(candidateObj) ? [6] : []}
       />
 
-      {activeStageId >= 1 && activeStageId <= 7 ? (
+      {shownStageId >= 1 && shownStageId <= 7 ? (
         <div style={{ flex: 1, minWidth: 0, padding: "20px 28px", overflowY: "auto", height: "100vh" }}>
           {canViewDashboard && (
             <div style={{ marginBottom: 14 }}>
@@ -309,42 +317,42 @@ export default function CandidateWizard() {
               </button>
             </div>
           )}
-          {activeStageId === 1 ? (
+          {shownStageId === 1 ? (
             <Stage1Aadhaar
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : activeStageId === 2 ? (
+          ) : shownStageId === 2 ? (
             <Stage2Training
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : activeStageId === 3 ? (
+          ) : shownStageId === 3 ? (
             <Stage3Certification
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : activeStageId === 4 ? (
+          ) : shownStageId === 4 ? (
             <Stage4Assessment
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : activeStageId === 5 ? (
+          ) : shownStageId === 5 ? (
             <Stage5VideoPitch
               stage={activeStage}
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
             />
-          ) : activeStageId === 6 ? (
+          ) : shownStageId === 6 ? (
             <Stage6LiveCharts
               stage={activeStage}
               existingData={existingData}

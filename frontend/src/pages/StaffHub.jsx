@@ -5,6 +5,8 @@ import { safeJson } from "../utils/safeJson.js";
 import { CERT_ID_PATTERNS, CERT_LIBRARY } from "../data/certLibrary.js";
 import "../styles/staffHub.css";
 
+import CandidateResumeSection from "../components/CandidateResumeSection.jsx";
+import { normalizeAddresses } from "../components/company/AddressListField.jsx";
 function isPdfUrl(url = "", fileName = "") {
   const lowerUrl = String(url || "").toLowerCase();
   const lowerName = String(fileName || "").toLowerCase();
@@ -189,14 +191,16 @@ function getDeptLiveData(deptId, dashData) {
   }
 }
 
-// 5 Curated Luxury Themes for the Employee Dashboard
+// Light themes only - bright content area so all data stays easy to read.
 const STAFF_THEMES = [
-  { id: "navy", name: "Executive Navy & Gold", color: "#0A1F3D", accent: "#FAB12F", desc: "Signature brand luxury" },
-  { id: "obsidian", name: "Obsidian Onyx", color: "#090D16", accent: "#38BDF8", desc: "High-tech OLED dark glass" },
-  { id: "emerald", name: "Emerald Sovereign", color: "#064E3B", accent: "#10B981", desc: "Medical & Fintech prestige" },
-  { id: "royal", name: "Royal Amethyst", color: "#2D1B4E", accent: "#F472B6", desc: "Plum & champagne rose gold" },
+  { id: "ivory", name: "Ivory & Gold", color: "#FFFDF8", accent: "#B7791F", desc: "Warm ivory, gold accents" },
+  { id: "sky", name: "Sky Light", color: "#EEF6FD", accent: "#0284C7", desc: "Fresh, airy blue" },
+  { id: "mint", name: "Mint Fresh", color: "#ECF8F2", accent: "#059669", desc: "Calm, clean green" },
+  { id: "blush", name: "Blush Rose", color: "#FDF1F3", accent: "#BE185D", desc: "Soft rose and white" },
   { id: "nordic", name: "Nordic Crisp Light", color: "#FFFFFF", accent: "#0284C7", desc: "Porcelain minimalist slate" },
+  { id: "navy", name: "Executive Navy & Gold", color: "#0A1F3D", accent: "#FAB12F", desc: "Light content, navy sidebar" },
 ];
+const LIGHT_SIDEBAR_THEMES = ["ivory", "sky", "mint", "blush", "nordic"];
 
 // --- CREDENTIAL VERIFICATION PANEL (3-SIGNAL AUDIT) ---
 function CertAuditVerificationPanel({
@@ -559,9 +563,11 @@ export default function StaffHub() {
   // --- MULTI-THEME STATE ---
   const [staffTheme, setStaffTheme] = useState(() => {
     try {
-      return localStorage.getItem("talentera_staff_theme") || "navy";
+      const saved = localStorage.getItem("talentera_staff_theme");
+      // Dark themes were removed - anyone who had one saved lands on the light default.
+      return STAFF_THEMES.some((t) => t.id === saved) ? saved : "ivory";
     } catch {
-      return "navy";
+      return "ivory";
     }
   });
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
@@ -741,7 +747,11 @@ export default function StaffHub() {
   const [activeModal, setActiveModal] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [toastMsg, setToastMsg] = useState("");
-  const [modalForm, setModalForm] = useState({ name: "", email: "", phone: "", role: "", company: "", notes: "" });
+  const [modalForm, setModalForm] = useState({ name: "", email: "", aadhaar: "", phone: "", role: "", company: "", notes: "" });
+  const [modalSaving, setModalSaving] = useState(false);
+  const [modalError, setModalError] = useState("");
+  const [pushingIds, setPushingIds] = useState([]);
+  const [notifDept, setNotifDept] = useState("all");
 
   // --- MASTER DIRECTORIES STATE (ALL DATA: CANDIDATES, COMPANIES, ACADEMIES) ---
   const [candidatesList, setCandidatesList] = useState([]);
@@ -749,6 +759,9 @@ export default function StaffHub() {
   const [candidateSearch, setCandidateSearch] = useState("");
   const [candidateStatusFilter, setCandidateStatusFilter] = useState("all");
   const [candidateCertFilter, setCandidateCertFilter] = useState("all");
+  const [candidateContactSearch, setCandidateContactSearch] = useState("");
+  const [candidateDomainFilter, setCandidateDomainFilter] = useState("all");
+  const [candidateExpFilter, setCandidateExpFilter] = useState("all");
   const [candidateReadinessFilter, setCandidateReadinessFilter] = useState("all");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [candidateModalTab, setCandidateModalTab] = useState("identity");
@@ -778,6 +791,10 @@ export default function StaffHub() {
   const [academiesList, setAcademiesList] = useState([]);
   const [academiesLoading, setAcademiesLoading] = useState(false);
   const [academySearch, setAcademySearch] = useState("");
+  const [collegesList, setCollegesList] = useState([]);
+  const [collegesLoading, setCollegesLoading] = useState(false);
+  const [collegeSearch, setCollegeSearch] = useState("");
+  const [collegeStatusFilter, setCollegeStatusFilter] = useState("ALL");
   const [selectedAcademy, setSelectedAcademy] = useState(null);
   const [academyModalTab, setAcademyModalTab] = useState("profile");
   const [academyAuditNotes, setAcademyAuditNotes] = useState("");
@@ -973,13 +990,16 @@ export default function StaffHub() {
     if (activeNav === "academies") {
       fetchAcademies(academySearch);
     }
+    if (activeNav === "colleges") {
+      fetchColleges(collegeSearch, collegeStatusFilter);
+    }
     if (activeNav === "employees") {
       fetchEmployees(employeeSearch, employeeStatusFilter);
     }
   }, [activeNav]);
 
-  const fetchDashboard = async () => {
-    setLoading(true);
+  const fetchDashboard = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch("/api/staff/dashboard", { headers: { ...getAuthHeader() } });
       if (res.status === 401) {
@@ -990,17 +1010,39 @@ export default function StaffHub() {
       setDashData(data);
       const incoming = Array.isArray(data?.incomingBucket) ? data.incomingBucket : [];
       setPartnerBucket(incoming.slice(0, 5));
-      setRecentUploadsList(incoming.map((c) => ({
+      const candidateRows = incoming.map((c) => ({
         id: c.id,
+        kind: "candidate",
         avatar: c.avatar || "CD",
         name: c.name || "Candidate",
         timeAgo: c.time || "Recently",
+        createdAt: c.createdAt || null,
         source: c.academy || "Unspecified",
-        specialty: c.specialty || "Medical Coding",
+        specialty: c.specialty || "—",
         stage: c.stage || "PROFILE PENDING",
         stageColor: c.stageColor || "#475569",
         stageBg: c.stageBg || "#F1F5F9",
-      })));
+        pushed: !!c.pushed,
+        verified: !!c.isVerifiedFinal,
+      }));
+      const leadRows = (Array.isArray(data?.recentLeads) ? data.recentLeads : []).map((l) => ({
+        id: "lead_" + l.id,
+        kind: "lead",
+        avatar: l.avatar || "L",
+        name: l.name,
+        timeAgo: l.time || "Recently",
+        createdAt: l.createdAt || null,
+        source: l.academy || "Direct lead",
+        specialty: "—",
+        stage: "LEAD · NOT REGISTERED",
+        stageColor: "#0369A1",
+        stageBg: "#E0F2FE",
+        pushed: false,
+        verified: false,
+      }));
+      setRecentUploadsList(
+        [...candidateRows, ...leadRows].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -1419,6 +1461,49 @@ export default function StaffHub() {
     }
   };
 
+  const fetchColleges = async (search = "", status = "ALL") => {
+    setCollegesLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search && search.trim()) params.append("search", search.trim());
+      if (status && status !== "ALL") params.append("status", status);
+      const qs = params.toString();
+      const res = await fetch(`/api/staff/colleges${qs ? `?${qs}` : ""}`, { headers: { ...getAuthHeader() } });
+      if (res.status === 401) {
+        navigate("/staff/login");
+        return;
+      }
+      const data = await safeJson(res);
+      setCollegesList(Array.isArray(data?.colleges) ? data.colleges : []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCollegesLoading(false);
+    }
+  };
+
+  const updateCollegeStatus = async (college, status) => {
+    let rejectionReason = "";
+    if (status === "REJECTED") {
+      rejectionReason = window.prompt(`Reason for rejecting ${college.name}?`) || "";
+      if (!rejectionReason.trim()) return;
+    }
+    try {
+      const res = await fetch(`/api/staff/colleges/${college._id}/verify`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ status, rejectionReason }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data?.message || "Update failed");
+      showToast(data?.message || "College updated.");
+      fetchColleges(collegeSearch, collegeStatusFilter);
+      fetchDashboard();
+    } catch (err) {
+      showToast(err.message || "Could not update college.");
+    }
+  };
+
   const fetchEmployees = async (search = "", status = "all") => {
     setEmployeesLoading(true);
     try {
@@ -1775,11 +1860,69 @@ export default function StaffHub() {
     setTodayTasksList((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const handleFormSubmit = (e, modalName) => {
+  const handleFormSubmit = async (e, modalName) => {
     e.preventDefault();
-    showToast(`Success! ${modalName} recorded successfully.`);
-    setActiveModal(null);
-    setModalForm({ name: "", email: "", phone: "", role: "", company: "", notes: "" });
+    if (modalSaving) return;
+    setModalError("");
+    setModalSaving(true);
+    try {
+      const res = await fetch("/api/staff/quick-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({
+          kind: String(modalName || "quick_add").toLowerCase(),
+          name: modalForm.name,
+          email: modalForm.email,
+          aadhaar: modalForm.aadhaar,
+          phone: modalForm.phone,
+          institute: modalForm.company,
+          notes: modalForm.notes,
+        }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setModalError(data?.message || "Could not save this record.");
+        return;
+      }
+      showToast("Saved. No duplicate found - record added.");
+      setActiveModal(null);
+      setModalForm({ name: "", email: "", aadhaar: "", phone: "", role: "", company: "", notes: "" });
+      fetchDashboard(true);
+    } catch (err) {
+      console.error(err);
+      setModalError("Network error - please try again.");
+    } finally {
+      setModalSaving(false);
+    }
+  };
+
+  // Push candidate(s) into the staff verification queue (Recent Uploads -> Push).
+  const pushToVerification = async (ids) => {
+    const list = (Array.isArray(ids) ? ids : [ids]).filter(Boolean);
+    if (list.length === 0) {
+      showToast("Nothing to push - everyone is already in the verification queue.");
+      return;
+    }
+    setPushingIds((prev) => [...prev, ...list]);
+    try {
+      const res = await fetch("/api/staff/push-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ candidateIds: list }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        showToast(data?.message || "Could not push to verification.");
+        return;
+      }
+      showToast(data?.message || "Pushed to verification.");
+      fetchDashboard(true);
+    } catch (err) {
+      console.error(err);
+      showToast("Network error - could not push to verification.");
+    } finally {
+      setPushingIds((prev) => prev.filter((id) => !list.includes(id)));
+    }
   };
 
   const handleAuditKyc = async (companyId, action, rejectionReason = "") => {
@@ -2058,6 +2201,96 @@ export default function StaffHub() {
     rejected: (jobApprovalQueue || []).filter((j) => j.approvalStatus === "rejected").length,
   };
 
+  // --- MY TASKS: auto-fetched from the live queues + the staff member's own to-dos.
+  // The sidebar badge, the My Tasks tab KPIs and the list all read from these
+  // same values so the numbers can never drift apart.
+  const autoTasks = [
+    { id: "auto_audit", count: dashData?.stats?.pendingCandidateAudits || 0, noun: "candidate profile", tail: "awaiting verification audit", where: "Candidate Acquisition", priority: "HIGH", nav: "dept_candidate_acquisition" },
+    { id: "auto_kyc", count: kycCounts.pending, noun: "company KYC", tail: "to review", where: "KYC Verification", priority: "HIGH", nav: "kyc" },
+    { id: "auto_jobs", count: jobCounts.pending, noun: "job posting", tail: "awaiting approval", where: "Company Relations", priority: "MED", nav: "dept_company_relations" },
+    { id: "auto_certs", count: certCounts.pending, noun: "certificate", tail: "to verify", where: "Certifications", priority: "MED", nav: "certifications" },
+    { id: "auto_videos", count: videoCounts.pending, noun: "self-intro video", tail: "to review", where: "Assessment + Video", priority: "MED", nav: "dept_assessment_video" },
+    { id: "auto_retakes", count: retakeCounts.pending, noun: "assessment retake request", tail: "pending", where: "Assessment Retakes", priority: "MED", nav: "retakes" },
+    { id: "auto_enq", count: enquiryCounts.open, noun: "candidate enquiry", tail: "open", where: "Candidate Enquiries", priority: "LOW", nav: "enquiries" },
+  ]
+    .filter((t) => t.count > 0)
+    .map((t) => ({ ...t, title: `${t.count} ${t.noun}${t.count === 1 ? "" : "s"} ${t.tail}`, detail: `Auto-fetched · ${t.where}` }));
+  const manualPending = todayTasksList.filter((t) => !t.completed).length;
+  const myTasksPendingTotal = autoTasks.length + manualPending;
+
+  // --- DEPARTMENT NOTIFICATIONS: live items computed from the same data plus the
+  // stored staff notifications, grouped per department.
+  const DEPT_NOTIF_ORDER = ["dept_candidate_acquisition", "dept_company_relations", "dept_mapping_engine", "dept_assessment_video", "dept_crm_data", "dept_success_revenue"];
+  const deptOfNotifType = (type) => {
+    if (["job_submitted", "job_approved", "job_rejected", "kyc_submitted", "kyc_approved", "kyc_revision", "kyc_verified", "doc_updated"].includes(type)) return "dept_company_relations";
+    if (["assessment_passed", "ai_interview_done", "retake_approved", "retake_rejected"].includes(type)) return "dept_assessment_video";
+    if (["application_submitted", "application_shortlisted", "interview_scheduled", "offer_received", "application_update"].includes(type)) return "dept_success_revenue";
+    if (["resume_ready"].includes(type)) return "dept_candidate_acquisition";
+    return "dept_crm_data";
+  };
+  const deptNotifItems = (deptId) => {
+    const live = [];
+    const push = (id, title, message, icon, nav, time) => live.push({ id, title, message, icon, nav, time: time || null, live: true });
+    const stats = dashData?.stats || {};
+    if (deptId === "dept_candidate_acquisition") {
+      if ((stats.pendingCandidateAudits || 0) > 0) push("l_audit", `${stats.pendingCandidateAudits} candidate profile${stats.pendingCandidateAudits === 1 ? "" : "s"} awaiting verification audit`, "Open the candidate directory to review and push them forward.", "userPlus", "dept_candidate_acquisition");
+      (dashData?.recentLeads || []).slice(0, 3).forEach((l) => push("l_lead_" + l.id, `New lead added: ${l.name}`, `${l.academy}${l.addedBy ? " · added by " + l.addedBy : ""}`, "plus", null, l.createdAt));
+      (dashData?.incomingBucket || []).slice(0, 3).forEach((c) => push("l_cand_" + c.id, `New candidate registered: ${c.name}`, `${c.stage}${c.academy && c.academy !== "Not specified" ? " · " + c.academy : ""}`, "user", "dept_candidate_acquisition", c.createdAt));
+    }
+    if (deptId === "dept_company_relations") {
+      if (kycCounts.pending > 0) push("l_kyc", `${kycCounts.pending} company KYC submission${kycCounts.pending === 1 ? "" : "s"} waiting for review`, "Verify documents so companies can start hiring.", "eye", "kyc");
+      if (jobCounts.pending > 0) push("l_jobs", `${jobCounts.pending} job posting${jobCounts.pending === 1 ? "" : "s"} awaiting approval`, "Approve or send back for revision.", "briefcase", "dept_company_relations");
+    }
+    if (deptId === "dept_assessment_video") {
+      if (videoCounts.pending > 0) push("l_vid", `${videoCounts.pending} self-intro video${videoCounts.pending === 1 ? "" : "s"} pending review`, "Watch and verify in the Assessment + Video dashboard.", "video", "dept_assessment_video");
+      if (certCounts.pending > 0) push("l_cert", `${certCounts.pending} certificate${certCounts.pending === 1 ? "" : "s"} pending verification`, "Open Certifications to approve or reject.", "graduation", "certifications");
+      if (retakeCounts.pending > 0) push("l_retake", `${retakeCounts.pending} assessment retake request${retakeCounts.pending === 1 ? "" : "s"} pending`, "Candidates are waiting for a decision.", "zap", "retakes");
+    }
+    if (deptId === "dept_crm_data") {
+      if (enquiryCounts.open > 0) push("l_enq", `${enquiryCounts.open} open candidate enquir${enquiryCounts.open === 1 ? "y" : "ies"}`, "Reply from Candidate Enquiries.", "message", "enquiries");
+    }
+    if (deptId === "dept_success_revenue") {
+      if ((stats.placedThisMonth || 0) > 0) push("l_placed", `${stats.placedThisMonth} candidate${stats.placedThisMonth === 1 ? "" : "s"} placed this month`, "Placements recorded from accepted offers.", "award", null);
+    }
+    const stored = (staffNotifications || [])
+      .filter((n) => deptOfNotifType(n.type) === deptId)
+      .map((n) => ({ id: n._id, title: n.title || n.message, message: n.title ? n.message : "", icon: ({ job_submitted: "briefcase", job_approved: "check", job_rejected: "alertTriangle", kyc_submitted: "eye", kyc_approved: "shieldCheck", kyc_revision: "alertTriangle", doc_updated: "doc" })[n.type] || "bell", time: n.createdAt, unread: !n.read, live: false }));
+    return [...live, ...stored];
+  };
+  const renderDeptNotifs = (deptId) => {
+    const items = deptNotifItems(deptId);
+    const dept = DEPARTMENTS[deptId];
+    return (
+      <div className="tt-content" style={{ paddingBottom: 0 }}>
+        <div className="tt-card">
+          <div className="tt-card-head">
+            <div>
+              <div className="tt-card-title">{dept ? dept.title : "Department"} · Notifications{items.length > 0 ? ` (${items.length})` : ""}</div>
+              <div className="tt-card-sub">Alerts that belong to this dashboard only</div>
+            </div>
+            <span className="tt-card-link" onClick={() => { setNotifDept(deptId); setActiveNav("notifications"); }}>All notifications →</span>
+          </div>
+          <div style={{ padding: "2px 0 4px" }}>
+            {items.length === 0 ? (
+              <div style={{ padding: "18px 22px", color: "var(--text-muted)", fontSize: 13 }}>No notifications for this dashboard right now.</div>
+            ) : (
+              items.slice(0, 5).map((n) => (
+                <div key={n.id} className="sf-feed-item" style={{ padding: "10px 22px", cursor: n.nav ? "pointer" : "default", background: n.unread ? "rgba(229,168,46,0.06)" : "transparent" }} onClick={() => n.nav && setActiveNav(n.nav)}>
+                  <div className="sf-feed-icon" style={{ background: "rgba(229,168,46,0.15)", color: "#B47E0E" }}><Icon name={n.icon || "bell"} size={15} /></div>
+                  <div className="sf-feed-info">
+                    <div className="sf-feed-text" style={{ fontWeight: 600 }}>{n.title}</div>
+                    {n.message && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{n.message}</div>}
+                    {n.time && <div className="sf-feed-time">{new Date(n.time).toLocaleString()}</div>}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   function StatPill({ count, label, tone }) {
     const tones = {
       pending: { bg: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)", border: "rgba(245, 158, 11, 0.3)", color: "#92400E", dot: "#F59E0B" },
@@ -2127,7 +2360,7 @@ export default function StaffHub() {
         {/* LEFT SIDEBAR (DARK NAVY BRAND THEME - Matching Candidate & Company Dashboards) */}
         <aside className="staff-sidebar">
           <div className="staff-sidebar-brand">
-            <img className="staff-sidebar-logo" src="/logo-white.png" alt="Talentera" />
+            <img className="staff-sidebar-logo" src={LIGHT_SIDEBAR_THEMES.includes(staffTheme) ? "/logo.png" : "/logo-white.png"} alt="Talentera" />
             {/* <div className="staff-sidebar-tag" style={{ marginTop: 0, fontSize: 10 }}>STAFF OPERATIONS</div> */}
           </div>
 
@@ -2149,12 +2382,12 @@ export default function StaffHub() {
               <button type="button" className={`staff-nav-item${activeNav === "my_tasks" ? " active" : ""}`} onClick={() => setActiveNav("my_tasks")}>
                 <Icon name="checklist" size={18} style={{ color: "inherit" }} />
                 <span style={{ flex: 1 }}>My Tasks</span>
-                <span className="staff-nav-badge">5</span>
+                {myTasksPendingTotal > 0 && <span className="staff-nav-badge">{myTasksPendingTotal}</span>}
               </button>
               <button type="button" className={`staff-nav-item${activeNav === "notifications" ? " active" : ""}`} onClick={() => setActiveNav("notifications")}>
                 <Icon name="bell" size={18} style={{ color: "inherit" }} />
                 <span style={{ flex: 1 }}>Notifications</span>
-                <span className="staff-nav-badge">3</span>
+                {staffUnreadCount > 0 && <span className="staff-nav-badge">{staffUnreadCount}</span>}
               </button>
             </nav>
 
@@ -2184,6 +2417,18 @@ export default function StaffHub() {
                 <Icon name="graduation" size={18} style={{ color: "inherit" }} />
                 <span style={{ flex: 1 }}>All Academies</span>
                 <span className="staff-nav-badge">{dashData?.reportsData?.totalAcademies || dashData?.stats?.totalAcademies || academiesList.length || 0}</span>
+              </button>
+              <button
+                type="button"
+                className={`staff-nav-item${activeNav === "colleges" ? " active" : ""}`}
+                onClick={() => {
+                  setActiveNav("colleges");
+                  fetchColleges(collegeSearch, collegeStatusFilter);
+                }}
+              >
+                <Icon name="graduation" size={18} style={{ color: "inherit" }} />
+                <span style={{ flex: 1 }}>All Colleges</span>
+                <span className="staff-nav-badge">{dashData?.reportsData?.totalColleges ?? collegesList.length ?? 0}</span>
               </button>
             </nav>
 
@@ -2387,7 +2632,7 @@ export default function StaffHub() {
               >
                 <Icon name="userPlus" size={14} sw={2.4} /> + Create Employee
               </button>
-              <button type="button" className="staff-quick-btn" onClick={() => setActiveModal("quick_add")}>
+              <button type="button" className="staff-quick-btn" onClick={() => { setModalError(""); setActiveModal("quick_add"); }}>
                 <Icon name="plus" size={14} sw={2.4} /> Quick Add
               </button>
             </div>
@@ -2403,19 +2648,13 @@ export default function StaffHub() {
               <div className="sf-welcome">
                 <div className="sf-welcome-row">
                   <div className="sf-welcome-info">
-                    <div className="sf-greet">Hello, Anita!</div>
-                    <div className="sf-meta">
-                      <span className="sf-day-pill">DAY 47</span>
-                      <span className="sf-meta-pill">CANDIDATE ACQUISITION</span>
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="pin" size={14} /> Hyderabad</span>
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: "0.06em", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>Today's Goal</div>
-                    <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 32, fontWeight: 700, color: "var(--gold)", lineHeight: 1 }}>
-                      18<span style={{ color: "rgba(255,255,255,0.4)", fontSize: 20 }}>/25</span>
-                    </div>
-                    <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>profiles registered</div>
+                    <div className="sf-greet">Hello, {String(dashData?.staffProfile?.name || "").trim().split(/\s+/)[0] || "there"}!</div>
+                    {(dashData?.staffProfile?.role || dashData?.staffProfile?.badge) && (
+                      <div className="sf-meta">
+                        {dashData?.staffProfile?.role && <span className="sf-meta-pill">{String(dashData.staffProfile.role).toUpperCase()}</span>}
+                        {dashData?.staffProfile?.badge && <span className="sf-day-pill">{String(dashData.staffProfile.badge).toUpperCase()}</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -2474,126 +2713,72 @@ export default function StaffHub() {
                 <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#64748B", textTransform: "uppercase", marginBottom: 12, fontFamily: "var(--font-mono, monospace)" }}>
                   Admin Master Data Directories
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
-                  {/* Candidates Directory Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: 16,
-                      padding: "20px 22px",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      position: "relative",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
-                    }}
-                    onClick={() => { setActiveNav("dept_candidate_acquisition"); fetchCandidates(candidateSearch, candidateStatusFilter); }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                        <i className="fa-solid fa-users"></i>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {[
+                    {
+                      key: "candidates",
+                      icon: "fa-users",
+                      count: dashData?.reportsData?.totalCandidates || candidatesList.length || 0,
+                      title: "Candidate Acquisition",
+                      desc: "Full details across Stages 1–8, Aadhaar, AAPC certs, MCQ test, AI video, and placement track.",
+                      badge: `${dashData?.reportsData?.verifiedCandidates ?? 0} VERIFIED`,
+                      badgeBg: "#DCFCE7", badgeColor: "#15803D",
+                      cta: "Open Candidate Acquisition →",
+                      onClick: () => { setActiveNav("dept_candidate_acquisition"); fetchCandidates(candidateSearch, candidateStatusFilter); },
+                    },
+                    {
+                      key: "companies",
+                      icon: "fa-building",
+                      count: dashData?.reportsData?.totalCompanies || companiesList.length || 0,
+                      title: "Company Relations",
+                      desc: "Legal entity details, GSTIN, PAN, KYC docs, plans, posted jobs, and applicant pipelines.",
+                      badge: `${dashData?.stats?.pendingCompanyKycs ?? 0} PENDING KYC`,
+                      badgeBg: "#FEF3C7", badgeColor: "#B45309",
+                      cta: "Open Company Relations →",
+                      onClick: () => { setActiveNav("dept_company_relations"); fetchCompanies(companySearch, companyKycFilter); },
+                    },
+                    {
+                      key: "academies",
+                      icon: "fa-graduation-cap",
+                      count: dashData?.reportsData?.totalAcademies || dashData?.stats?.totalAcademies || academiesList.length || 0,
+                      title: "All Academies Directory",
+                      desc: "Partner academies, student batches, course catalogs, enrolled trainees, and alumni placements.",
+                      badge: "PARTNER NETWORK",
+                      badgeBg: "#EDE9FE", badgeColor: "#6D28D9",
+                      cta: "Browse All Academies →",
+                      onClick: () => { setActiveNav("academies"); fetchAcademies(academySearch); },
+                    },
+                    {
+                      key: "colleges",
+                      icon: "fa-school",
+                      count: dashData?.reportsData?.totalColleges ?? collegesList.length ?? 0,
+                      title: "All Colleges Directory",
+                      desc: "Partner colleges, placement officers, departments, student strength, MOU status, and campus hiring.",
+                      badge: `${dashData?.stats?.pendingColleges ?? 0} PENDING KYC`,
+                      badgeBg: "#E0F2FE", badgeColor: "#0369A1",
+                      cta: "Browse All Colleges →",
+                      onClick: () => { setActiveNav("colleges"); fetchColleges(collegeSearch, collegeStatusFilter); },
+                    },
+                  ].map((row) => (
+                    <div
+                      key={row.key}
+                      className="sf-dir-row"
+                      role="button"
+                      tabIndex={0}
+                      onClick={row.onClick}
+                      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") row.onClick(); }}
+                    >
+                      <div className="sf-dir-icon"><i className={`fa-solid ${row.icon}`}></i></div>
+                      <div className="sf-dir-count">{row.count}</div>
+                      <div className="sf-dir-text">
+                        <div className="sf-dir-title">{row.title}</div>
+                        <div className="sf-dir-desc">{row.desc}</div>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#DCFCE7", color: "#15803D" }}>
-                        {dashData?.reportsData?.verifiedCandidates ?? 0} VERIFIED
-                      </span>
+                      <span className="sf-dir-badge" style={{ background: row.badgeBg, color: row.badgeColor }}>{row.badge}</span>
+                      <div className="sf-dir-cta">{row.cta}</div>
                     </div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-                      {dashData?.reportsData?.totalCandidates || candidatesList.length || 0}
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>Candidate Acquisition</div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
-                      Full details across Stages 1–8, Aadhaar, AAPC certs, MCQ test, AI video, and placement track.
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                      Open Candidate Acquisition →
-                    </div>
-                  </div>
-
-                  {/* Companies Directory Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: 16,
-                      padding: "20px 22px",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      position: "relative",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
-                    }}
-                    onClick={() => { setActiveNav("dept_company_relations"); fetchCompanies(companySearch, companyKycFilter); }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                        <i className="fa-solid fa-building"></i>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#FEF3C7", color: "#B45309" }}>
-                        {dashData?.stats?.pendingCompanyKycs ?? 0} PENDING KYC
-                      </span>
-                    </div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-                      {dashData?.reportsData?.totalCompanies || companiesList.length || 0}
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>Company Relations</div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
-                      Legal entity details, GSTIN, PAN, KYC docs, plans, posted jobs, and applicant pipelines.
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                      Open Company Relations →
-                    </div>
-                  </div>
-
-                  {/* Academies Directory Card */}
-                  <div
-                    style={{
-                      background: "#FFFFFF",
-                      border: "1px solid #E2E8F0",
-                      borderRadius: 16,
-                      padding: "20px 22px",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease",
-                      position: "relative",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.03)"
-                    }}
-                    onClick={() => { setActiveNav("academies"); fetchAcademies(academySearch); }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(10,31,61,0.08)", color: "var(--navy, #0A1F3D)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
-                        <i className="fa-solid fa-graduation-cap"></i>
-                      </div>
-                      <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 999, background: "#EDE9FE", color: "#6D28D9" }}>
-                        PARTNER NETWORK
-                      </span>
-                    </div>
-                    <div style={{ fontFamily: "var(--font-display)", fontSize: 28, fontWeight: 800, color: "var(--navy)", lineHeight: 1 }}>
-                      {dashData?.reportsData?.totalAcademies || dashData?.stats?.totalAcademies || academiesList.length || 0}
-                    </div>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy)", marginTop: 6 }}>All Academies Directory</div>
-                    <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, lineHeight: 1.4 }}>
-                      Partner academies, student batches, course catalogs, enrolled trainees, and alumni placements.
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B45309)", marginTop: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                      Browse All Academies →
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              </div>
-
-              {/* 4 QUICK ACTION CARDS GRID */}
-              <div className="sf-actions-grid">
-                {[
-                  { title: "Upload Candidate", desc: "Add a new resume from your visit. Send for auto-verification.", action: "Add now →", modal: "upload", icon: "upload", cls: "sf-a1" },
-                  { title: "Add Company Lead", desc: "Log a hiring company you met. Move to Company Relations team.", action: "Capture lead →", modal: "lead", icon: "briefcase", cls: "sf-a2" },
-                  { title: "Send for Verification", desc: "Push your uploaded candidates into the 4-layer verification pipeline.", action: "Push now →", modal: "verify", icon: "zap", cls: "sf-a3" },
-                  { title: "Log Site Visit", desc: "Record an academy / college / company visit with notes and outcomes.", action: "Log visit →", modal: "visit", icon: "pin", cls: "sf-a4" },
-                ].map((act, idx) => (
-                  <button key={idx} type="button" className="sf-action" onClick={() => setActiveModal(act.modal)}>
-                    <div className={`sf-action-icon ${act.cls}`}><Icon name={act.icon} size={22} /></div>
-                    <div className="sf-action-title">{act.title}</div>
-                    <div className="sf-action-desc">{act.desc}</div>
-                    <div className="sf-action-cta">{act.action}</div>
-                  </button>
-                ))}
               </div>
 
               {/* CORE PIPELINE VISUALIZATION */}
@@ -2601,8 +2786,8 @@ export default function StaffHub() {
                 <span className="sf-pipeline-badge">CORE PIPELINE</span>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
                   <div>
-                    <div className="tt-card-title">My Active Pipeline</div>
-                    <div className="tt-card-sub">Candidates I've personally onboarded · Click any stage to drill down</div>
+                    <div className="tt-card-title">Candidate Pipeline</div>
+                    <div className="tt-card-sub">All candidates on the platform · each box shows how many have completed that stage · Click any stage to drill down</div>
                   </div>
                   <span className="tt-card-link" onClick={() => setActiveModal("kanban")}>Open Full Kanban →</span>
                 </div>
@@ -2611,7 +2796,7 @@ export default function StaffHub() {
                     GET /dashboard), each a genuine completedStages count */}
                 <div className="sf-pipeline-stages">
                   {(dashData?.pipeline || []).map((stg, idx) => (
-                    <div key={idx} className={`sf-pipe-stage${stg.isPlaced ? " placed" : ""}`} onClick={() => setActiveModal("kanban")}>
+                    <div key={idx} className={`sf-pipe-stage${stg.isPlaced ? " placed" : ""}`} title={stg.hint || stg.stage} onClick={() => setActiveModal("kanban")}>
                       <div className="sf-pipe-num">{stg.count}</div>
                       <div className="sf-pipe-label">{stg.stage}</div>
                     </div>
@@ -2649,7 +2834,7 @@ export default function StaffHub() {
                           {recentUploadsList.length === 0 ? (
                             <tr><td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--text-muted, #4A5568)" }}>No recent candidate uploads.</td></tr>
                           ) : (
-                            recentUploadsList.map((row) => (
+                            recentUploadsList.slice(0, 15).map((row) => (
                               <tr key={row.id}>
                                 <td>
                                   <div className="sf-name-cell">
@@ -2664,7 +2849,22 @@ export default function StaffHub() {
                                 <td>{row.specialty}</td>
                                 <td><span className="sf-stage-pill" style={{ background: row.stageBg, color: row.stageColor }}>{row.stage}</span></td>
                                 <td style={{ textAlign: "right" }}>
-                                  <button type="button" className="sf-action-btn outline" onClick={() => showToast(`Pushed ${row.name} to next stage.`)}>Push →</button>
+                                  {row.kind === "lead" ? (
+                                    <span style={{ fontSize: 11, color: "#64748B", fontWeight: 600 }}>Awaiting signup</span>
+                                  ) : row.verified ? (
+                                    <span style={{ fontSize: 12, color: "#15803D", fontWeight: 700 }}>Verified ✓</span>
+                                  ) : row.pushed ? (
+                                    <span style={{ fontSize: 12, color: "#6D28D9", fontWeight: 700 }}>Pushed ✓</span>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="sf-action-btn outline"
+                                      disabled={pushingIds.includes(row.id)}
+                                      onClick={() => pushToVerification([row.id])}
+                                    >
+                                      {pushingIds.includes(row.id) ? "Pushing…" : "Push →"}
+                                    </button>
+                                  )}
                                 </td>
                               </tr>
                             ))
@@ -2711,10 +2911,26 @@ export default function StaffHub() {
                     <div className="tt-card-head">
                       <div>
                         <div className="tt-card-title">Today's Tasks</div>
-                        <div className="tt-card-sub">Thursday, 27 Aug</div>
+                        <div className="tt-card-sub">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" })}</div>
                       </div>
                     </div>
                     <div style={{ padding: "4px 22px 18px" }}>
+                      {todayTasksList.length === 0 && autoTasks.length === 0 && (
+                        <div style={{ padding: "18px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No pending tasks.</div>
+                      )}
+                      {autoTasks.map((task) => {
+                        const pillCls = task.priority === "HIGH" ? "sf-task-p1" : task.priority === "MED" ? "sf-task-p2" : "sf-task-p3";
+                        return (
+                          <div key={task.id} className="sf-task" style={{ cursor: "pointer" }} onClick={() => setActiveNav(task.nav)}>
+                            <div className="sf-task-time">Auto</div>
+                            <div className="sf-task-info">
+                              <div className="sf-task-title">{task.title}</div>
+                              <div className="sf-task-meta">{task.detail}</div>
+                            </div>
+                            <span className={`sf-task-pill ${pillCls}`}>{task.priority === "HIGH" ? "High" : task.priority === "MED" ? "Med" : "Low"}</span>
+                          </div>
+                        );
+                      })}
                       {todayTasksList.map((task) => {
                         const pillCls = task.priority === "HIGH" ? "sf-task-p1" : task.priority === "MED" ? "sf-task-p2" : "sf-task-p3";
                         return (
@@ -2741,6 +2957,9 @@ export default function StaffHub() {
           {/* =========================================================================
               TAB MODULE: CANDIDATE ACQUISITION (ALL CANDIDATE DETAILS & PIPELINE)
              ========================================================================= */}
+          {/* Per-department notifications, shown at the top of every department dashboard */}
+          {activeNav.startsWith("dept_") && DEPARTMENTS[activeNav] && renderDeptNotifs(activeNav)}
+
           {(activeNav === "candidates" || activeNav === "dept_candidate_acquisition") && (() => {
             const filteredCandidates = candidatesList.filter((c) => {
               const m = c.applicationMetrics || {};
@@ -2773,7 +2992,35 @@ export default function StaffHub() {
                 const academyMatch = (c.stage2?.academyName || "").toLowerCase().includes(q);
                 const roleMatch = (c.currentRole || "").toLowerCase().includes(q);
                 const cityMatch = (c.city || c.stage1?.city || "").toLowerCase().includes(q);
-                if (!nameMatch && !emailMatch && !mobileMatch && !academyMatch && !roleMatch && !cityMatch) return false;
+                const qd = q.replace(/\D/g, "");
+                const mobileDigitMatch = qd.length >= 4 && [c.mobile, c.stage1?.mobile].filter(Boolean).some((v) => String(v).replace(/\D/g, "").includes(qd));
+                if (!nameMatch && !emailMatch && !mobileMatch && !mobileDigitMatch && !academyMatch && !roleMatch && !cityMatch) return false;
+              }
+
+              // Contact number / email lookup (digits-only match for phone numbers, so +91 / spaces / dashes don't matter)
+              if (candidateContactSearch && candidateContactSearch.trim()) {
+                const raw = candidateContactSearch.trim().toLowerCase();
+                const qDigits = raw.replace(/\D/g, "");
+                const emails = [c.email, c.stage1?.email].filter(Boolean).map((v) => String(v).toLowerCase());
+                const phones = [c.mobile, c.stage1?.mobile, c.stage1?.alternateMobile, c.stage1?.whatsapp].filter(Boolean).map((v) => String(v).replace(/\D/g, ""));
+                const isEmailQuery = raw.includes("@") || /[a-z]/.test(raw);
+                const hit = isEmailQuery
+                  ? emails.some((e) => e.includes(raw))
+                  : qDigits.length > 0 && phones.some((ph) => ph.includes(qDigits) || (qDigits.length >= 10 && ph.endsWith(qDigits.slice(-10))));
+                if (!hit) return false;
+              }
+
+              // Domain filter (stage 2 training domain)
+              if (candidateDomainFilter !== "all") {
+                const dom = (c.stage2?.domain || c.stage1?.domain || "").toLowerCase();
+                if (dom !== candidateDomainFilter.toLowerCase()) return false;
+              }
+
+              // Experience filter (Fresher / Experienced)
+              if (candidateExpFilter !== "all") {
+                const exp = String(c.stage1?.experience || c.experience || "").toLowerCase();
+                if (candidateExpFilter === "fresher" && exp !== "fresher") return false;
+                if (candidateExpFilter === "experienced" && exp !== "experienced") return false;
               }
 
               // Certification filter
@@ -2808,12 +3055,12 @@ export default function StaffHub() {
               return true;
             });
 
+            const domainOptions = Array.from(new Set(candidatesList.map((c) => c.stage2?.domain || c.stage1?.domain).filter(Boolean))).sort();
             const verifiedTotal = candidatesList.filter((c) => c.isVerified).length;
             const aadhaarTotal = candidatesList.filter((c) => c.aadhaarVerified || c.stage1?.aadhaarVerified).length;
             const inAssessmentTotal = candidatesList.filter((c) => (c.completedStages?.includes(4) || c.stage4?.score) && !c.isVerified).length;
             const pendingTotal = candidatesList.filter((c) => !c.isVerified).length;
             const pendingAuditTotal = candidatesList.filter((c) => (c.completedStages?.length >= 6 || c.aadhaarVerified) && !c.isVerified).length;
-            const totalAppsSum = candidatesList.reduce((sum, c) => sum + (c.applicationsCount || c.applicationMetrics?.total || 0), 0);
             const totalShortlistedSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.shortlisted || 0), 0);
             const totalInterviewingSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.interviewing || 0), 0);
             const totalHiredSum = candidatesList.reduce((sum, c) => sum + (c.applicationMetrics?.hired || 0), 0);
@@ -2850,34 +3097,6 @@ export default function StaffHub() {
                       >
                         {candidatesLoading ? "Refreshing..." : <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> Refresh Directory</>}
                       </button>
-                    </div>
-                  </div>
-
-                  {/* HERO STATS PILL ROW */}
-                  <div className="sf-hero-stats-row">
-                    <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val">{candidatesList.length}</span>
-                      <span className="sf-hero-pill-lbl">Total Candidates</span>
-                    </div>
-                    <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val">{verifiedTotal}</span>
-                      <span className="sf-hero-pill-lbl">Gold Verified</span>
-                    </div>
-                    <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val">{aadhaarTotal}</span>
-                      <span className="sf-hero-pill-lbl">Aadhaar KYC Cleared</span>
-                    </div>
-                    <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val">{dashData?.stats?.pendingVerifications ?? pendingAuditTotal}</span>
-                      <span className="sf-hero-pill-lbl">Awaiting Audit</span>
-                    </div>
-                    <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val">{totalAppsSum}</span>
-                      <span className="sf-hero-pill-lbl">Job Applications</span>
-                    </div>
-                    <div className="sf-hero-pill-stat">
-                      <span className="sf-hero-pill-val" style={{ color: "#22C55E" }}><i className="fa-solid fa-award" style={{ marginRight: 6 }}></i>{totalHiredSum}</span>
-                      <span className="sf-hero-pill-lbl">Hired &amp; Placed</span>
                     </div>
                   </div>
                 </div>
@@ -2952,7 +3171,7 @@ export default function StaffHub() {
                       <Icon name="search" size={16} />
                       <input
                         type="text"
-                        placeholder="Search candidate by name, email, mobile, academy, role, city..."
+                        placeholder="Search by name, academy, role, city..."
                         value={candidateSearch}
                         onChange={(e) => setCandidateSearch(e.target.value)}
                       />
@@ -2967,6 +3186,43 @@ export default function StaffHub() {
                         </button>
                       )}
                     </div>
+
+                    <div className="sf-search-input-wrap">
+                      <Icon name="search" size={16} />
+                      <input
+                        type="text"
+                        placeholder="Find by contact number or email..."
+                        aria-label="Contact number or email"
+                        value={candidateContactSearch}
+                        onChange={(e) => setCandidateContactSearch(e.target.value)}
+                      />
+                      {candidateContactSearch && (
+                        <button type="button" className="sf-clear-btn" onClick={() => setCandidateContactSearch("")} title="Clear">
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      className="staff-filter-select"
+                      aria-label="Domain Filter"
+                      value={candidateDomainFilter}
+                      onChange={(e) => setCandidateDomainFilter(e.target.value)}
+                    >
+                      <option value="all">Domain: All</option>
+                      {domainOptions.map((d) => <option key={d} value={d}>{d}</option>)}
+                    </select>
+
+                    <select
+                      className="staff-filter-select"
+                      aria-label="Experience Filter"
+                      value={candidateExpFilter}
+                      onChange={(e) => setCandidateExpFilter(e.target.value)}
+                    >
+                      <option value="all">Experience: All</option>
+                      <option value="fresher">Fresher</option>
+                      <option value="experienced">Experienced</option>
+                    </select>
 
                     <select
                       className="staff-filter-select"
@@ -4459,6 +4715,136 @@ export default function StaffHub() {
           {/* =========================================================================
               TAB MODULE: MASTER DIRECTORY - ALL ACADEMIES
              ========================================================================= */}
+          {activeNav === "colleges" && (() => {
+            const statusStyle = {
+              VERIFIED: { bg: "#DCFCE7", color: "#15803D", label: "Verified" },
+              UNDER_REVIEW: { bg: "#DBEAFE", color: "#1E40AF", label: "Under review" },
+              REJECTED: { bg: "#FEE2E2", color: "#B91C1C", label: "Rejected" },
+              PENDING: { bg: "#FEF3C7", color: "#B45309", label: "Pending" },
+            };
+            const totalStudents = collegesList.reduce((sum, c) => sum + (Number(c.totalStudentsCount) || (c.departments || []).reduce((a, d) => a + (Number(d.studentCount) || 0), 0)), 0);
+            return (
+              <div className="tt-content">
+                <QueuePageHeader
+                  icon={<i className="fa-solid fa-school" style={{ color: "#0369A1" }}></i>}
+                  accent="var(--navy, #0A1F3D)"
+                  title="Colleges Master Directory"
+                  subtitle="Registered partner colleges with placement officers, departments, student strength, MOU status and verification."
+                  pills={
+                    <>
+                      <StatPill count={collegesList.length} label="COLLEGES" tone="good" />
+                      <StatPill count={collegesList.filter((c) => c.verificationStatus === "VERIFIED").length} label="VERIFIED" tone="good" />
+                      <StatPill count={collegesList.filter((c) => c.verificationStatus === "PENDING" || c.verificationStatus === "UNDER_REVIEW").length} label="PENDING KYC" tone="pending" />
+                      <StatPill count={collegesList.filter((c) => c.mouSigned).length} label="MOU SIGNED" tone="good" />
+                      <StatPill count={totalStudents} label="STUDENTS" tone="good" />
+                    </>
+                  }
+                />
+
+                <div className="staff-search-filter-bar" style={{ marginTop: 20 }}>
+                  <input
+                    type="text"
+                    className="staff-filter-input"
+                    placeholder="Search college by name, city or placement officer email..."
+                    value={collegeSearch}
+                    onChange={(e) => setCollegeSearch(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") fetchColleges(collegeSearch, collegeStatusFilter); }}
+                  />
+                  <select
+                    className="staff-filter-input"
+                    style={{ maxWidth: 190 }}
+                    value={collegeStatusFilter}
+                    onChange={(e) => { setCollegeStatusFilter(e.target.value); fetchColleges(collegeSearch, e.target.value); }}
+                  >
+                    <option value="ALL">All statuses</option>
+                    <option value="PENDING">Pending</option>
+                    <option value="UNDER_REVIEW">Under review</option>
+                    <option value="VERIFIED">Verified</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                  <button
+                    type="button"
+                    className="sf-action-btn"
+                    onClick={() => fetchColleges(collegeSearch, collegeStatusFilter)}
+                    style={{ background: "var(--navy, #0A1F3D)", color: "#fff", border: "none", padding: "9px 16px" }}
+                  >
+                    {collegesLoading ? "Refreshing..." : <><i className="fa-solid fa-arrows-rotate" style={{ marginRight: 6 }}></i> Refresh Directory</>}
+                  </button>
+                </div>
+
+                <div className="tt-card" style={{ padding: 0, overflow: "hidden" }}>
+                  <div className="sf-table-wrap">
+                    <table className="sf-table">
+                      <thead>
+                        <tr>
+                          <th>College</th>
+                          <th>Placement officer</th>
+                          <th>Location</th>
+                          <th>Students &amp; departments</th>
+                          <th>Verification</th>
+                          <th>MOU</th>
+                          <th style={{ textAlign: "right" }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {collegesList.map((c) => {
+                          const st = statusStyle[c.verificationStatus] || statusStyle.PENDING;
+                          const deptCount = (c.departments || []).length;
+                          const students = Number(c.totalStudentsCount) || (c.departments || []).reduce((a, d) => a + (Number(d.studentCount) || 0), 0);
+                          return (
+                            <tr key={c._id}>
+                              <td>
+                                <div style={{ fontWeight: 800, color: "var(--navy, #0A1F3D)", fontSize: 13 }}>{c.name}</div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{[c.code, c.type].filter(Boolean).join(" · ")}</div>
+                                {c.affiliation && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{c.affiliation}{c.yearEstablished ? ` · Est. ${c.yearEstablished}` : ""}</div>}
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 700, color: "var(--navy, #0A1F3D)", fontSize: 12 }}>{c.placementOfficerName || "—"}</div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{c.placementOfficerEmail}</div>
+                                {c.placementOfficerMobile && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{c.placementOfficerMobile}</div>}
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>{[c.city, c.state].filter(Boolean).join(", ") || "—"}</div>
+                                {c.website && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{c.website}</div>}
+                              </td>
+                              <td>
+                                <div style={{ fontSize: 12, fontWeight: 700, color: "var(--navy, #0A1F3D)" }}>{students} students</div>
+                                <div style={{ fontSize: 11, color: "#64748B" }}>{deptCount} department{deptCount === 1 ? "" : "s"}</div>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 6, textTransform: "uppercase", background: st.bg, color: st.color }}>{st.label}</span>
+                                {c.tier && <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 4 }}>{c.tier}</div>}
+                                {c.verificationStatus === "REJECTED" && c.rejectionReason && <div style={{ fontSize: 10.5, color: "#B91C1C", marginTop: 4 }}>{c.rejectionReason}</div>}
+                              </td>
+                              <td>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: c.mouSigned ? "#15803D" : "#94A3B8" }}>{c.mouSigned ? "Signed" : "Not signed"}</span>
+                              </td>
+                              <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                                {c.verificationStatus !== "VERIFIED" && (
+                                  <button type="button" className="sf-action-btn green" onClick={() => updateCollegeStatus(c, "VERIFIED")}>Verify</button>
+                                )}
+                                {c.verificationStatus !== "REJECTED" && (
+                                  <button type="button" className="sf-action-btn outline" style={{ marginLeft: 6 }} onClick={() => updateCollegeStatus(c, "REJECTED")}>Reject</button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {!collegesLoading && collegesList.length === 0 && (
+                          <tr>
+                            <td colSpan={7} style={{ textAlign: "center", padding: 28, color: "#64748B", fontSize: 13 }}>
+                              No colleges found{collegeSearch || collegeStatusFilter !== "ALL" ? " for these filters" : " yet"}.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {activeNav === "academies" && (() => {
             const filteredAcademies = academiesList.filter((ac) => {
               if (academySearch && academySearch.trim()) {
@@ -4615,7 +5001,7 @@ export default function StaffHub() {
                                     {ac.enrolledCandidatesCount || ac.studentsUploaded || 0} enrolled trainees
                                   </span>
                                   <span style={{ fontSize: 10, color: "#15803D", fontWeight: 700 }}>
-                                    {ac.verifiedPct || 94}% verified rate
+                                    {ac.verifiedPct != null ? `${ac.verifiedPct}% verified rate` : ""}
                                   </span>
                                 </div>
                               </td>
@@ -5004,10 +5390,10 @@ export default function StaffHub() {
 
           {/* TAB MODULE: MY TASKS */}
           {activeNav === "my_tasks" && (() => {
-            const pending = todayTasksList.filter((t) => !t.completed).length;
+            const pending = myTasksPendingTotal;
             const done = todayTasksList.filter((t) => t.completed).length;
-            const highPriority = todayTasksList.filter((t) => !t.completed && t.priority === "HIGH").length;
-            const total = todayTasksList.length;
+            const highPriority = autoTasks.filter((t) => t.priority === "HIGH").length + todayTasksList.filter((t) => !t.completed && t.priority === "HIGH").length;
+            const total = autoTasks.length + todayTasksList.length;
             return (
               <div className="tt-content">
                 {/* WELCOME-STYLE HERO BANNER */}
@@ -5020,7 +5406,7 @@ export default function StaffHub() {
                       <div className="sf-meta">
                         <span className="sf-day-pill">{new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" }).toUpperCase()}</span>
                         <span className="sf-meta-pill">TO-DO LIST</span>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Visits, calls &amp; follow-ups · not yet synced to a shared backend</span>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>Auto-fetched from your live queues + your own to-dos</span>
                       </div>
                     </div>
                     <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
@@ -5088,9 +5474,23 @@ export default function StaffHub() {
                     </div>
                   </div>
                   <div style={{ padding: "4px 22px 18px" }}>
-                    {todayTasksList.length === 0 && (
-                      <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>No tasks yet — add one above.</div>
+                    {todayTasksList.length === 0 && autoTasks.length === 0 && (
+                      <div style={{ padding: "32px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>You&apos;re all caught up — no pending queue items. Add your own task above.</div>
                     )}
+                    {autoTasks.map((task) => {
+                      const pillCls = task.priority === "HIGH" ? "sf-task-p1" : task.priority === "MED" ? "sf-task-p2" : "sf-task-p3";
+                      return (
+                        <div key={task.id} className="sf-task" style={{ cursor: "pointer" }} onClick={() => setActiveNav(task.nav)} title="Open this queue">
+                          <div className="sf-task-time">Auto</div>
+                          <div className="sf-task-info">
+                            <div className="sf-task-title">{task.title}</div>
+                            <div className="sf-task-meta">{task.detail}</div>
+                          </div>
+                          <span className={`sf-task-pill ${pillCls}`}>{task.priority === "HIGH" ? "High" : task.priority === "MED" ? "Med" : "Low"}</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--gold, #B47E0E)", marginLeft: 8 }}>Open →</span>
+                        </div>
+                      );
+                    })}
                     {todayTasksList.map((task) => {
                       const pillCls = task.priority === "HIGH" ? "sf-task-p1" : task.priority === "MED" ? "sf-task-p2" : "sf-task-p3";
                       return (
@@ -5167,6 +5567,53 @@ export default function StaffHub() {
                 ))}
               </div>
 
+              {/* Department filter chips */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "0 0 14px" }}>
+                {[{ id: "all", label: "All", count: staffNotifications.length }, ...DEPT_NOTIF_ORDER.map((id) => ({ id, label: DEPARTMENTS[id].title, count: deptNotifItems(id).length }))].map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setNotifDept(chip.id)}
+                    style={{
+                      padding: "7px 14px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: "pointer",
+                      border: notifDept === chip.id ? "1px solid var(--gold, #B47E0E)" : "1px solid #CBD5E1",
+                      background: notifDept === chip.id ? "rgba(229,168,46,0.18)" : "#FFFFFF",
+                      color: notifDept === chip.id ? "#7A5206" : "#475569",
+                    }}
+                  >
+                    {chip.label} <span style={{ opacity: 0.7 }}>({chip.count})</span>
+                  </button>
+                ))}
+              </div>
+
+              {notifDept !== "all" && (
+                <div className="tt-card" style={{ marginBottom: 16 }}>
+                  <div className="tt-card-head">
+                    <div>
+                      <div className="tt-card-title">{DEPARTMENTS[notifDept]?.title} notifications</div>
+                      <div className="tt-card-sub">Only this dashboard&apos;s alerts</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "4px 0" }}>
+                    {deptNotifItems(notifDept).length === 0 ? (
+                      <div style={{ padding: "24px 22px", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>Nothing pending for this department.</div>
+                    ) : (
+                      deptNotifItems(notifDept).map((n) => (
+                        <div key={n.id} className="sf-feed-item" style={{ padding: "12px 22px", cursor: n.nav ? "pointer" : "default", background: n.unread ? "rgba(229,168,46,0.06)" : "transparent" }} onClick={() => n.nav && setActiveNav(n.nav)}>
+                          <div className="sf-feed-icon" style={{ background: "rgba(229,168,46,0.15)", color: "#B47E0E" }}><Icon name={n.icon || "bell"} size={15} /></div>
+                          <div className="sf-feed-info">
+                            <div className="sf-feed-text" style={{ fontWeight: 600 }}>{n.title}</div>
+                            {n.message && <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{n.message}</div>}
+                            {n.time && <div className="sf-feed-time">{new Date(n.time).toLocaleString()}</div>}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {notifDept === "all" && (
               <div className="tt-card">
                 <div className="tt-card-head">
                   <div>
@@ -5215,6 +5662,7 @@ export default function StaffHub() {
                   )}
                 </div>
               </div>
+              )}
             </div>
             );
           })()}
@@ -9285,7 +9733,7 @@ export default function StaffHub() {
               </h2>
               <button
                 type="button"
-                onClick={() => setActiveModal(null)}
+                onClick={() => { setActiveModal(null); setModalError(""); }}
                 style={{ background: "transparent", border: "none", fontSize: 20, color: "var(--text-muted, #4A5568)", cursor: "pointer" }}
               >
                 <i className="fa-solid fa-xmark"></i>
@@ -9515,6 +9963,39 @@ export default function StaffHub() {
                   />
                 </div>
 
+                {activeModal !== "visit" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)" }}>EMAIL ADDRESS *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="name@example.com"
+                        value={modalForm.email}
+                        onChange={(e) => setModalForm({ ...modalForm, email: e.target.value })}
+                        style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, fontFamily: "var(--font-body, 'Manrope', sans-serif)" }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)" }}>AADHAAR ID *</label>
+                      <input
+                        type="text"
+                        required
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="XXXX XXXX XXXX"
+                        value={modalForm.aadhaar}
+                        onChange={(e) => {
+                          const d = e.target.value.replace(/\D/g, "").slice(0, 12);
+                          setModalForm({ ...modalForm, aadhaar: d.replace(/(\d{4})(?=\d)/g, "$1 ") });
+                        }}
+                        style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, fontFamily: "var(--font-body, 'Manrope', sans-serif)", letterSpacing: "0.04em" }}
+                      />
+                    </div>
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: "#64748B", marginTop: -4 }}>Email, phone and Aadhaar are checked against existing candidates and leads so nobody is entered twice. Aadhaar is stored only as a secure hash.</div>
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", marginBottom: 4, fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)" }}>MOBILE / PHONE</label>
@@ -9549,11 +10030,18 @@ export default function StaffHub() {
                   />
                 </div>
 
+                {modalError && (
+                  <div role="alert" style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: "10px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 600 }}>
+                    {modalError}
+                  </div>
+                )}
+
                 <button
                   type="submit"
-                  style={{ background: "var(--navy, #0A1F3D)", color: "var(--gold, #E5A82E)", padding: 12, borderRadius: 8, border: "none", fontWeight: 800, fontSize: 14, cursor: "pointer", marginTop: 8, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}
+                  disabled={modalSaving}
+                  style={{ background: "var(--navy, #0A1F3D)", color: "var(--gold, #E5A82E)", padding: 12, borderRadius: 8, border: "none", fontWeight: 800, fontSize: 14, cursor: modalSaving ? "wait" : "pointer", opacity: modalSaving ? 0.7 : 1, marginTop: 8, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}
                 >
-                  Submit & Save Record →
+                  {modalSaving ? "Checking & saving…" : "Submit & Save Record →"}
                 </button>
               </form>
             )}
@@ -9566,7 +10054,7 @@ export default function StaffHub() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => { showToast("All pending candidates pushed to verification queue!"); setActiveModal(null); }}
+                  onClick={() => { pushToVerification(recentUploadsList.filter((r) => r.kind === "candidate" && !r.pushed && !r.verified).map((r) => r.id)); setActiveModal(null); }}
                   style={{ background: "#9333EA", color: "#FFFFFF", padding: "12px 24px", borderRadius: 8, border: "none", fontWeight: 800, fontSize: 13, cursor: "pointer", marginTop: 14, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}
                 >
                   <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }}></i> Push All Pending Candidates Now</>
@@ -9578,17 +10066,12 @@ export default function StaffHub() {
             {activeModal === "kanban" && (
               <div>
                 <p style={{ fontSize: 12, color: "var(--text-muted, #4A5568)", marginBottom: 16 }}>
-                  Detailed Candidate Breakdown across all 7 Verification Stages
+                  Exact number of candidates who have completed each verification stage
                 </p>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, maxHeight: 300, overflowY: "auto" }}>
-                  {[
-                    { title: "Stage 1: Profile", count: 5 },
-                    { title: "Stage 2: Assessment", count: 4 },
-                    { title: "Stage 3: Video", count: 3 },
-                    { title: "Stage 4: Aadhaar", count: 2 },
-                  ].map((kb, i) => (
-                    <div key={i} style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid var(--border-light, #E5E7EB)", textAlign: "center" }}>
-                      <strong style={{ fontSize: 12, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}>{kb.title}</strong>
+                  {(dashData?.pipeline || []).map((kb, i) => (
+                    <div key={i} title={kb.hint || kb.stage} style={{ background: "#F8FAFC", padding: 12, borderRadius: 8, border: "1px solid var(--border-light, #E5E7EB)", textAlign: "center" }}>
+                      <strong style={{ fontSize: 12, fontFamily: "var(--font-heading, 'Space Grotesk', sans-serif)" }}>{kb.stage}</strong>
                       <div style={{ fontSize: 18, fontWeight: 900, color: "var(--navy, #0A1F3D)", marginTop: 4, fontFamily: "var(--font-display, 'Bricolage Grotesque', sans-serif)" }}>{kb.count}</div>
                     </div>
                   ))}
@@ -10788,36 +11271,42 @@ export default function StaffHub() {
                 );
               })()}
 
-              {/* TAB 7: RESUME */}
+              {/* TAB 7: RESUME - the candidate's real resume, rendered read-only from their stage data */}
               {candidateModalTab === "resume" && (() => {
                 const s7 = selectedCandidate.stage7 || {};
+                const hasResumeData = (selectedCandidate.completedStages || []).includes(1) || !!selectedCandidate.stage1;
                 return (
                   <div>
                     <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 7: Professional Resume Profile</h3>
-                    <div className="staff-meta-grid">
-                      <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
-                        <div className="staff-meta-label">Professional Summary</div>
-                        <div className="staff-meta-value" style={{ fontSize: 13, lineHeight: 1.5 }}>
-                          {s7.summary || "Healthcare professional with specialized medical coding credentials, AAPC certified with hands-on ICD-10-CM, CPT, and HCPCS coding knowledge."}
-                        </div>
-                      </div>
+                    <div className="staff-meta-grid" style={{ marginBottom: 16 }}>
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Resume Template</div>
-                        <div className="staff-meta-value" style={{ textTransform: "capitalize" }}>{selectedCandidate.resumeTemplate || "Executive"}</div>
+                        <div className="staff-meta-value" style={{ textTransform: "capitalize" }}>{String(s7.template || selectedCandidate.resumeTemplate || "—").replace(/_/g, " ")}</div>
                       </div>
                       <div className="staff-meta-item">
-                        <div className="staff-meta-label">Generated Resume File</div>
-                        <div className="staff-meta-value">
-                          {selectedCandidate.resumeUrl ? (
-                            <a href={selectedCandidate.resumeUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB", textDecoration: "underline" }}>
-                              Download Resume PDF ↗
-                            </a>
-                          ) : (
-                            "Interactive Web Profile Active"
-                          )}
-                        </div>
+                        <div className="staff-meta-label">Resume Status</div>
+                        <div className="staff-meta-value">{(selectedCandidate.completedStages || []).includes(7) ? "Finalized (Stage 7 complete)" : s7.template ? "Draft saved" : "Not created yet"}</div>
                       </div>
+                      {selectedCandidate.resumeUrl && (
+                        <div className="staff-meta-item">
+                          <div className="staff-meta-label">Uploaded Resume File</div>
+                          <div className="staff-meta-value">
+                            <a href={selectedCandidate.resumeUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#2563EB", textDecoration: "underline" }}>
+                              {selectedCandidate.resumeFileName || "Open resume"} ↗
+                            </a>
+                          </div>
+                        </div>
+                      )}
                     </div>
+                    {hasResumeData ? (
+                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 12, background: "#F8FAFC", padding: 12, maxHeight: 560, overflowY: "auto" }}>
+                        <CandidateResumeSection candidate={selectedCandidate} readOnly />
+                      </div>
+                    ) : (
+                      <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
+                        This candidate has not built a resume yet.
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -11362,6 +11851,14 @@ export default function StaffHub() {
                       <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
                         <div className="staff-meta-label">Registered Office Address</div>
                         <div className="staff-meta-value">{s1a.regaddress || "Not provided"}</div>
+                      </div>
+                      <div className="staff-meta-item" style={{ gridColumn: "1 / -1" }}>
+                        <div className="staff-meta-label">Operating Addresses (by branch)</div>
+                        <div className="staff-meta-value">
+                          {normalizeAddresses(s1a.opaddress).length === 0 ? "Not provided" : normalizeAddresses(s1a.opaddress).map((a, i) => (
+                            <div key={i} style={{ marginBottom: 4 }}><strong>{a.branch || `Address ${i + 1}`}:</strong> {a.address}</div>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
@@ -12172,7 +12669,7 @@ export default function StaffHub() {
                           <div><strong>Legal Entity:</strong> {kd.legalEntityName || selectedAcademy.name || "N/A"}</div>
                           <div><strong>Type:</strong> {kd.registrationType || "Private Limited"}</div>
                           <div><strong>CIN / Reg No:</strong> <span style={{ fontFamily: "monospace" }}>{kd.cinOrRegistrationNumber || "N/A"}</span></div>
-                          <div><strong>Year Est:</strong> {kd.yearEstablished || "2020"}</div>
+                          <div><strong>Year Est:</strong> {kd.yearEstablished || "—"}</div>
                           {kd.website && (
                             <div>
                               <strong>Website:</strong>{" "}
@@ -12393,7 +12890,7 @@ export default function StaffHub() {
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Primary Admin / Lead</div>
-                      <div className="staff-meta-value">{selectedAcademy.primaryAdmin || selectedAcademy.contactName || "Academy Lead"}</div>
+                      <div className="staff-meta-value">{selectedAcademy.primaryAdmin || selectedAcademy.contactName || "—"}</div>
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Official Email</div>
@@ -12401,15 +12898,15 @@ export default function StaffHub() {
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Phone / Mobile</div>
-                      <div className="staff-meta-value">{selectedAcademy.phone || "Not specified"}</div>
+                      <div className="staff-meta-value">{selectedAcademy.phone || "—"}</div>
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Domain Specialty</div>
-                      <div className="staff-meta-value">{selectedAcademy.specialty || "Medical Coding"}</div>
+                      <div className="staff-meta-value">{selectedAcademy.specialty || "—"}</div>
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Headquarters</div>
-                      <div className="staff-meta-value">{selectedAcademy.headquarters || "Coimbatore"}</div>
+                      <div className="staff-meta-value">{selectedAcademy.headquarters || "—"}</div>
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Partner Tier</div>
@@ -12417,21 +12914,28 @@ export default function StaffHub() {
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Total Alumni Base</div>
-                      <div className="staff-meta-value">{selectedAcademy.totalAlumni || "35,000+"}</div>
+                      <div className="staff-meta-value">{selectedAcademy.totalAlumni || "—"}</div>
                     </div>
                     <div className="staff-meta-item">
-                      <div className="staff-meta-label">Partner Since</div>
-                      <div className="staff-meta-value">{selectedAcademy.partnerSince || "Jan 2025"}</div>
+                      <div className="staff-meta-label">Year Established</div>
+                      <div className="staff-meta-value">{selectedAcademy.yearEstablished || selectedAcademy.kycData?.yearEstablished || "—"}</div>
+                    </div>
+                    <div className="staff-meta-item">
+                      <div className="staff-meta-label">Registered on Talentera</div>
+                      <div className="staff-meta-value">{selectedAcademy.partnerSince || "—"}</div>
                     </div>
                     <div className="staff-meta-item">
                       <div className="staff-meta-label">Placement Verification %</div>
-                      <div className="staff-meta-value" style={{ color: "#15803D" }}>{selectedAcademy.verifiedPct || 94}%</div>
+                      <div className="staff-meta-value" style={{ color: "#15803D" }}>{selectedAcademy.verifiedPct ? `${selectedAcademy.verifiedPct}%` : "—"}</div>
                     </div>
                   </div>
 
                   <div style={{ marginTop: 14 }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>Campus Branches</div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(selectedAcademy.branches || []).length === 0 && (
+                        <span style={{ fontSize: 12, color: "#64748B" }}>No branch locations added by the academy.</span>
+                      )}
                       {(selectedAcademy.branches || []).map((b, idx) => (
                         <span key={idx} style={{ background: "#F1F5F9", border: "1px solid #E2E8F0", padding: "4px 10px", borderRadius: 6, fontSize: 12, color: "var(--navy)", fontWeight: 600 }}>
                           <><i className="fa-solid fa-location-dot" style={{ marginRight: 4 }}></i> {b}</>
@@ -12496,9 +13000,9 @@ export default function StaffHub() {
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
                         {courses.map((c, idx) => (
                           <div key={idx} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EDE9FE", color: "#6D28D9" }}>{c.category || "Medical Coding"}</span>
+                            {c.category && <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 4, background: "#EDE9FE", color: "#6D28D9" }}>{c.category}</span>}
                             <h4 style={{ margin: "8px 0 4px", fontSize: 14, fontWeight: 800, color: "var(--navy)" }}>{c.title}</h4>
-                            <div style={{ fontSize: 12, color: "#64748B" }}>⏱ {c.duration || "3 Months"} · {c.totalHrs || 120} hrs · {c.enrolled || 25} enrolled</div>
+                            <div style={{ fontSize: 12, color: "#64748B" }}>⏱ {c.duration || "Duration not set"}{c.totalHrs ? ` · ${c.totalHrs} hrs` : ""}{c.enrolled ? ` · ${c.enrolled} enrolled` : ""}</div>
                             {c.syllabus && c.syllabus.length > 0 && (
                               <div style={{ marginTop: 8, fontSize: 11, color: "#475569" }}>
                                 Modules: {c.syllabus.join(", ")}
@@ -12509,7 +13013,7 @@ export default function StaffHub() {
                       </div>
                     ) : (
                       <div style={{ padding: 24, textAlign: "center", color: "#64748B", background: "#F8FAFC", borderRadius: 12 }}>
-                        Standard Medical Coding Foundation modules active.
+                        This academy has not added any courses yet.
                       </div>
                     )}
                   </div>

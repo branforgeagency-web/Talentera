@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast.jsx";
-import { filterColleges } from "../data/indianColleges.js";
+import CollegePicker from "../components/CollegePicker.jsx";
 
 const COLLEGE_TYPES = [
   "Arts & Science",
@@ -48,7 +48,6 @@ export default function CollegeRegister() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
     type: "Arts & Science",
@@ -259,50 +258,14 @@ export default function CollegeRegister() {
           <form onSubmit={handleRegister} style={{ display: "grid", gap: 16 }}>
             <div style={{ position: "relative" }}>
               <label style={labelStyle}>College / University Name <span style={{ color: "#F87171" }}>*</span></label>
-              <input
-                type="text"
+              <CollegePicker
+                mode="college"
                 required
-                autoComplete="off"
                 value={formData.name}
-                onChange={(e) => {
-                  updateField("name", e.target.value);
-                  setSuggestions(filterColleges(e.target.value));
-                }}
-                onBlur={() => setTimeout(() => setSuggestions([]), 120)}
+                onChange={(v) => updateField("name", v)}
                 placeholder="Start typing your college name…"
-                style={inputStyle}
+                inputStyle={inputStyle}
               />
-              {suggestions.length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "calc(100% + 4px)",
-                    left: 0,
-                    right: 0,
-                    background: "#FFFFFF",
-                    border: "1.5px solid #CBD5E1",
-                    borderRadius: 10,
-                    boxShadow: "0 8px 24px rgba(15,23,42,0.25)",
-                    zIndex: 50,
-                    maxHeight: 240,
-                    overflowY: "auto",
-                  }}
-                >
-                  {suggestions.map((s) => (
-                    <div
-                      key={s}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        updateField("name", s);
-                        setSuggestions([]);
-                      }}
-                      style={{ padding: "9px 14px", fontSize: 13.5, color: "#0F172A", cursor: "pointer", borderBottom: "1px solid #F1F5F9" }}
-                    >
-                      {s}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
 
             <div>

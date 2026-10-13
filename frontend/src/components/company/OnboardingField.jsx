@@ -3,6 +3,9 @@ import { Link } from "react-router-dom";
 import companyApi from "../../api/companyClient";
 import { useToast } from "../Toast.jsx";
 import EditableNameList from "./EditableNameList.jsx";
+import AddressListField from "./AddressListField.jsx";
+import CityMultiSelect from "./CityMultiSelect.jsx";
+import RubricField from "./RubricField.jsx";
 import { multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../../utils/otherOption.js";
 
 const TAG_LABEL = { must: "MUST", opt: "OPT", cond: "COND" };
@@ -45,7 +48,7 @@ function isFieldEmpty(input, val) {
   return false;
 }
 
-export default function OnboardingField({ item, value, onSave, stageId, showStageErrors, isRejectedField, companyPlan = "free" }) {
+export default function OnboardingField({ item, value, onSave, stageId, showStageErrors, isRejectedField, companyPlan = "free", stageValues = {} }) {
   const toast = useToast();
   const isUpperType = item.input === "gstin" || item.input === "pan";
   const [text, setText] = useState(() => (typeof value === "string" ? value : ""));
@@ -357,6 +360,18 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         );
       })()}
 
+      {item.input === "city-multi" && (
+        <CityMultiSelect value={value} onCommit={commit} placeholder={item.placeholder} />
+      )}
+
+      {item.input === "rubric" && (
+        <RubricField value={value} roles={stageValues.rroles} onCommit={commit} />
+      )}
+
+      {item.input === "address-list" && (
+        <AddressListField value={value} onCommit={commit} />
+      )}
+
       {item.input === "textarea" && (
         <>
           <textarea
@@ -425,6 +440,9 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
           onChange={setMultiVal}
           onCommit={commit}
           rolePlaceholder="Designation (e.g. Talent Acquisition Lead)"
+          otherLists={item.id === "thiringmanagers"
+            ? [{ label: "Recruiters", items: stageValues.trecruiters }]
+            : [{ label: "Hiring Managers", items: stageValues.thiringmanagers }]}
           withContact
           addLabel={`+ Add ${item.id === "thiringmanagers" ? "hiring manager" : "recruiter"}`}
         />

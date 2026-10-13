@@ -1120,15 +1120,36 @@ Return STRICT JSON only:
 // with their verified Talentera profile facts (domain, training level, cert
 // status, assessment score, etc.) to draft a career objective + professional
 // summary the candidate can review, edit, and insert into their resume.
+function isSelfTrainedProfile(profile = {}) {
+  const src = `${profile.academyName || ""} ${profile.trainingLevel || ""}`;
+  return !profile.academyName || /self|other|web|online|non[\s-]?trained|direct/i.test(src);
+}
+
 function heuristicCareerObjective(profile = {}, candidateNotes = "") {
   const role = profile.roleTitle || (profile.domain ? `${profile.domain} Professional` : "Medical Coding Specialist");
-  const level = profile.level === "experienced" ? "Experienced" : "Detail-oriented, newly-trained";
+  const experienced = profile.level === "experienced";
   const domain = profile.domain || "medical coding and billing";
-  const cert = profile.status === "certified" ? "certified" : profile.status === "pursuing" ? "certification-track" : "trained";
-  const notesPart = candidateNotes ? ` ${String(candidateNotes).trim().replace(/\s+/g, " ")}` : "";
-  const objective = `${level} ${role} with a strong foundation in ${domain}, seeking to contribute accuracy, compliance awareness, and reliable turnaround to a growing healthcare revenue cycle team.${notesPart}`.trim();
-  const summary = `${cert.charAt(0).toUpperCase() + cert.slice(1)} ${role.toLowerCase()} trained through Talentera's verified program${profile.academyName ? ` at ${profile.academyName}` : ""}${profile.totalCharts ? `, with hands-on practice across ${profile.totalCharts}+ live charts` : ""}${profile.assessmentScore ? ` and a ${profile.assessmentScore}/100 domain assessment score` : ""}. Focused on ${domain} with strong attention to detail and a commitment to continuous learning.`;
-  return { objective, summary };
+  const selfTrained = isSelfTrainedProfile(profile);
+  const notes = String(candidateNotes || "").trim().replace(/\s+/g, " ");
+  const yrs = experienced && profile.years ? `${profile.years}+ years of experience in` : "";
+
+  const opener = experienced
+    ? `${role} with ${yrs || "hands-on experience in"} ${domain}`
+    : `${selfTrained ? "Self-motivated" : "Detail-oriented"} aspirant for a ${role} role in ${domain}`;
+  const objective = `${opener}, seeking to contribute accuracy, compliance awareness and reliable turnaround to a healthcare revenue cycle team.${notes ? ` ${notes}` : ""}`.trim();
+
+  const parts = [];
+  if (experienced) {
+    parts.push(`${role} with ${yrs || "experience in"} ${domain}${profile.currentCompany ? `, most recently at ${profile.currentCompany}` : ""}.`);
+  } else if (selfTrained) {
+    parts.push(`Self-taught ${domain} candidate who built skills through independent learning.`);
+  } else {
+    parts.push(`${domain} candidate trained${profile.academyName ? ` at ${profile.academyName}` : ""}.`);
+  }
+  if (profile.totalCharts) parts.push(`Hands-on practice across ${profile.totalCharts}+ live charts${profile.accuracy ? ` at ${profile.accuracy}% accuracy` : ""}.`);
+  if (profile.assessmentScore) parts.push(`Scored ${profile.assessmentScore}/100 in a domain skills assessment.`);
+  parts.push("Strong attention to detail and a commitment to continuous learning.");
+  return { objective, summary: parts.join(" ") };
 }
 
 async function generateCareerObjective({ profile = {}, candidateNotes = "" }) {
@@ -1168,6 +1189,9 @@ Write two short pieces of resume text:
 Rules:
 - Do NOT fabricate employers, certifications, scores, or experience not present in the profile facts or candidate notes.
 - Do NOT mention "Talentera" by name in the output text.
+- If "Trained at" is missing, or names self-learning / other channels / web sources, describe the candidate as self-taught - never say they were trained by an academy or program.
+- Never call an Experienced candidate a fresher or "newly trained"; never call a fresher experienced.
+- The candidate's own notes are the most reliable source - reflect them faithfully, do not contradict or embellish them.
 - Keep each field under 500 characters.
 - Return STRICT JSON only, no markdown: {"objective": string, "summary": string}`;
 

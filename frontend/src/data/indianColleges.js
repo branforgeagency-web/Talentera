@@ -220,20 +220,151 @@ export const INDIAN_COLLEGES = [
   "Government College of Nursing, Chennai",
   "Apollo College of Nursing",
   "Sri Ramachandra College of Nursing",
+  // ── Additional colleges (South India focus + major metros) ──
+  "CMS College of Science and Commerce, Coimbatore",
+  "CMS College Kottayam",
+  "PSG College of Arts and Science, Coimbatore",
+  "PSG College of Technology, Coimbatore",
+  "PSG Institute of Medical Sciences and Research, Coimbatore",
+  "Kongunadu Arts and Science College, Coimbatore",
+  "Sri Krishna Arts and Science College, Coimbatore",
+  "Sri Krishna College of Engineering and Technology, Coimbatore",
+  "Sri Ramakrishna Engineering College, Coimbatore",
+  "Sri Ramakrishna College of Arts and Science, Coimbatore",
+  "Hindusthan College of Arts and Science, Coimbatore",
+  "Dr. N.G.P. Arts and Science College, Coimbatore",
+  "Dr. N.G.P. Institute of Technology, Coimbatore",
+  "Nehru Arts and Science College, Coimbatore",
+  "Government Arts College, Coimbatore",
+  "Government College of Technology, Coimbatore",
+  "Coimbatore Medical College",
+  "Karpagam Academy of Higher Education, Coimbatore",
+  "Karpagam College of Engineering, Coimbatore",
+  "Karunya Institute of Technology and Sciences, Coimbatore",
+  "Amrita Vishwa Vidyapeetham, Coimbatore",
+  "Avinashilingam Institute for Home Science and Higher Education for Women, Coimbatore",
+  "Kumaraguru College of Technology, Coimbatore",
+  "Bharathiar University College, Coimbatore",
+  "Tamil Nadu Agricultural University, Coimbatore",
+  "Rathnavel Subramaniam College of Arts and Science, Coimbatore",
+  "Sri Ramakrishna Institute of Technology, Coimbatore",
+  "Park College of Engineering and Technology, Coimbatore",
+  "Nirmala College for Women, Coimbatore",
+  "Women's Christian College, Chennai",
+  "D.G. Vaishnav College, Chennai",
+  "SRM Institute of Science and Technology, Chennai",
+  "Sathyabama Institute of Science and Technology, Chennai",
+  "Saveetha Institute of Medical and Technical Sciences, Chennai",
+  "Vels Institute of Science, Technology and Advanced Studies (VISTAS), Chennai",
+  "Hindustan Institute of Technology and Science, Chennai",
+  "St. Joseph's College, Tiruchirappalli",
+  "Bishop Heber College, Tiruchirappalli",
+  "National College, Tiruchirappalli",
+  "Jamal Mohamed College, Tiruchirappalli",
+  "Holy Cross College, Tiruchirappalli",
+  "Lady Doak College, Madurai",
+  "The American College, Madurai",
+  "Thiagarajar College, Madurai",
+  "Fatima College, Madurai",
+  "Sourashtra College, Madurai",
+  "Kalasalingam Academy of Research and Education, Krishnankoil",
+  "Vellore Institute of Technology (VIT), Vellore",
+  "Voorhees College, Vellore",
+  "Thanthai Periyar Government Institute of Technology, Vellore",
+  "Government Arts College, Salem",
+  "Sri Sarada College for Women, Salem",
+  "Vinayaka Missions Research Foundation, Salem",
+  "Gobi Arts and Science College, Erode",
+  "Erode Arts and Science College",
+  "Kongu Engineering College, Erode",
+  "Bannari Amman Institute of Technology, Erode",
+  "Nandha Arts and Science College, Erode",
+  "Sona College of Technology, Salem",
+  "Muthayammal College of Arts and Science, Namakkal",
+  "Maharaja's College, Ernakulam",
+  "St. Teresa's College, Ernakulam",
+  "St. Albert's College, Ernakulam",
+  "Union Christian College, Aluva",
+  "Rajagiri College of Social Sciences, Kochi",
+  "Mahatma Gandhi University, Kottayam",
+  "University of Calicut",
+  "Government Medical College, Thiruvananthapuram",
+  "Government Medical College, Kozhikode",
+  "Government Medical College, Kottayam",
+  "Amrita School of Arts and Sciences, Kochi",
+  "Christ College, Irinjalakuda",
+  "St. Thomas College, Thrissur",
+  "Sacred Heart College, Thevara",
+  "Osmania Medical College, Hyderabad",
+  "Gandhi Medical College, Hyderabad",
+  "Nizam's Institute of Medical Sciences, Hyderabad",
+  "Badruka College of Commerce and Arts, Hyderabad",
+  "Nizam College, Hyderabad",
+  "Kakatiya University, Warangal",
+  "Telangana University, Nizamabad",
+  "Palamuru University, Mahabubnagar",
+  "Mahatma Gandhi University, Nalgonda",
+  "Jawaharlal Nehru Technological University, Hyderabad (JNTUH)",
+  "Vasavi College of Engineering, Hyderabad",
+  "CVR College of Engineering, Hyderabad",
+  "Gokaraju Rangaraju Institute of Engineering and Technology, Hyderabad",
+  "Mahindra University, Hyderabad",
+  "ICFAI Foundation for Higher Education, Hyderabad",
+  "Acharya Nagarjuna University, Guntur",
+  "Sri Venkateswara University, Tirupati",
+  "Sri Padmavathi Mahila Visvavidyalayam, Tirupati",
+  "Dravidian University, Kuppam",
+  "Krishna University, Machilipatnam",
+  "Rajiv Gandhi University of Health Sciences, Bengaluru",
+  "Christ University, Bengaluru",
+  "Mount Carmel College, Bengaluru",
+  "St. Joseph's College, Bengaluru",
+  "Jain University, Bengaluru",
+  "Kristu Jayanti College, Bengaluru",
+  "Manipal Academy of Higher Education, Manipal",
+  "Karnatak University, Dharwad",
+  "Visvesvaraya Technological University, Belagavi",
+  "Symbiosis International University, Pune",
+  "Government Medical College, Mumbai",
+  "Mithibai College, Mumbai",
+  "NMIMS, Mumbai",
+  "Amity University, Noida",
+  "Amity University, Mumbai",
+  "Lovely Professional University, Phagwara",
+  "Chandigarh University, Mohali",
+  "Panjab University, Chandigarh",
+  "Manipal University, Jaipur",
+  "Banasthali Vidyapith",
+  "Odisha University of Technology and Research, Bhubaneswar",
+  "Utkal University, Bhubaneswar",
+  "KIIT University, Bhubaneswar",
+  "SOA University, Bhubaneswar",
+  "Assam University, Silchar",
+  "North-Eastern Hill University, Shillong",
+  "Manipur University",
 ];
 
-/** Filter colleges for typeahead — returns up to 10 best matches */
+/** Filter colleges for typeahead - returns up to 12 best matches.
+ *  Matches exact name, name prefix, every typed word appearing anywhere in the name
+ *  (order doesn't matter, so "CMS College" finds "CMS College of Science and Commerce"),
+ *  and initials/acronyms (e.g. "cit" -> "Coimbatore Institute of Technology"). */
 export function filterColleges(query) {
-  if (!query || query.length < 2) return [];
-  const q = query.toLowerCase();
+  const q = String(query || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (q.length < 2) return [];
+  const tokens = q.split(/[^a-z0-9]+/).filter(Boolean);
   const exact = [];
   const starts = [];
-  const contains = [];
+  const words = [];
+  const acronym = [];
   for (const c of INDIAN_COLLEGES) {
     const cl = c.toLowerCase();
     if (cl === q) exact.push(c);
     else if (cl.startsWith(q)) starts.push(c);
-    else if (cl.includes(q)) contains.push(c);
+    else if (cl.includes(q) || (tokens.length > 0 && tokens.every((t) => cl.includes(t)))) words.push(c);
+    else if (q.length >= 2 && !q.includes(" ")) {
+      const initials = cl.replace(/\(.*?\)/g, " ").split(/[^a-z0-9]+/).filter((w) => w && !["of", "and", "the", "for", "in"].includes(w)).map((w) => w[0]).join("");
+      if (initials.startsWith(q) || cl.includes("(" + q + ")")) acronym.push(c);
+    }
   }
-  return [...exact, ...starts, ...contains].slice(0, 10);
+  return [...exact, ...starts, ...words, ...acronym].slice(0, 12);
 }

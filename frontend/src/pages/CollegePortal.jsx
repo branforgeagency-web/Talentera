@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import CollegePicker from "../components/CollegePicker.jsx";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useToast } from "../components/Toast.jsx";
 import { CERT_LIBRARY } from "../data/certLibrary.js";
@@ -2251,6 +2252,32 @@ export default function CollegePortal() {
                     {pair.map(([key, label, kind, ph]) => (
                       <div key={key}>
                         <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>{label}</label>
+                        {key === "name" ? (
+                          <CollegePicker
+                            mode="college"
+                            value={profileForm.name}
+                            placeholder={ph}
+                            inputStyle={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                            onChange={(v) => setProfileForm((f) => ({ ...f, name: v }))}
+                            onPick={(r) => setProfileForm((f) => ({
+                              ...f,
+                              city: r.district || f.city,
+                              state: INDIAN_STATES.includes(r.state) ? r.state : f.state,
+                              affiliation: f.affiliation || r.university || "",
+                              yearEstablished: f.yearEstablished || "",
+                            }))}
+                          />
+                        ) : key === "city" ? (
+                          <CollegePicker
+                            mode="location"
+                            value={profileForm.city}
+                            state={profileForm.state}
+                            placeholder={ph}
+                            inputStyle={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
+                            onChange={(v) => setProfileForm((f) => ({ ...f, city: v }))}
+                            onPick={(r) => setProfileForm((f) => ({ ...f, state: INDIAN_STATES.includes(r.state) ? r.state : f.state }))}
+                          />
+                        ) : (
                         <input
                           type="text"
                           inputMode={kind === "year" || kind === "tel" ? "numeric" : undefined}
@@ -2260,6 +2287,7 @@ export default function CollegePortal() {
                           onChange={(e) => setProfileForm({ ...profileForm, [key]: kind === "year" || kind === "tel" ? e.target.value.replace(/\D/g, "") : e.target.value })}
                           style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}
                         />
+                        )}
                       </div>
                     ))}
                   </div>

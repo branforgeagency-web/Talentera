@@ -4,7 +4,8 @@ import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
 import { joinUnique } from "../utils/resumeSubtitle.js";
 import { getMedalTier, medalLabel, medalBadgeStyle } from "../utils/medalBadge.js";
-import { buildResumeSkills } from "../utils/resumeSkills.js";
+import { buildResumeSkills, buildSoftSkills } from "../utils/resumeSkills.js";
+import { durationBetween, formatDateRange } from "../utils/resumeFormat.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
 // 7 Verified Resume Templates matching Talentera standards
@@ -117,7 +118,7 @@ export const SECTION_STYLES = [
   { id: "minimal_bold", name: "Minimalist Bold", desc: "Simple clean bold uppercase title" },
 ];
 
-export default function CandidateResumeSection({ candidate, onSaved }) {
+export default function CandidateResumeSection({ candidate, onSaved, readOnly = false }) {
   const toast = useToast();
   const resumePrintRef = useRef(null);
 
@@ -136,7 +137,11 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   // Default to Fresher unless explicitly "Experienced" - matches getExperienceLevel() in utils/careerObjective.js
   // and Stage2Training.jsx's isFresherCandidate (a legacy "1-3" years-range placeholder must not read as Experienced).
   const isExperienced = /exp/i.test(String(stage1.experience || candidateObj.experience || ""));
-  const expLabel = isExperienced ? (stage2.totalExperience || "Experienced") : "Fresher";
+  const workDuration = isExperienced ? durationBetween(stage2.workStartDate, stage2.employmentStatus === "relieved" ? stage2.workEndDate : null) : "";
+  const workDateRange = isExperienced ? formatDateRange(stage2.workStartDate, stage2.workEndDate, stage2.employmentStatus !== "relieved") : "";
+  const expLabel = isExperienced ? (workDuration || stage2.totalExperience || "Experienced") : "Fresher";
+  const isNonTrainedProfile = /non[\s-]?trained|direct entry/i.test(`${stage2.academyName || ""} ${stage2.trainingLevel || ""}`) || stage2.trainingPath === "non_trained" || stage2.isNonTrained === true;
+  const softSkillList = buildSoftSkills(stage2.softSkills);
   const domainName = stage2.domain || stage2.courseName || stage2.specialty || "Medical Coding";
   const currentRoleTitle = isExperienced
     ? (stage2.jobTitle || stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist"))
@@ -191,6 +196,10 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   // work experience to show instead.
   const workCompany = stage2.currentCompany || "";
   const workProjectDetails = stage2.projectDetails || "";
+  const workRolesList = String(stage2.rolesResponsibilities || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[\s•*\-–—·]+/, "").trim())
+    .filter(Boolean);
   const workTotalExperience = stage2.totalExperience || "";
   const workNoticePeriod = stage2.noticePeriod || "";
 
@@ -234,24 +243,21 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   const confidenceScore = stage5.confidenceScore || stage5.confidence || 75;
 
   // Stage 6 Live Charts
-  const totalCharts = stage6.totalCharts !== undefined ? stage6.totalCharts : (stage6.liveChartsAudited !== undefined ? stage6.liveChartsAudited : 50);
-  const overallAccuracy = stage6.overallAccuracy !== undefined ? stage6.overallAccuracy : (stage6.accuracyScore !== undefined ? stage6.accuracyScore : 82);
+  const totalCharts = stage6.totalCharts !== undefined ? stage6.totalCharts : (stage6.liveChartsAudited !== undefined ? stage6.liveChartsAudited : 0);
+  const overallAccuracy = stage6.overallAccuracy !== undefined ? stage6.overallAccuracy : (stage6.accuracyScore !== undefined ? stage6.accuracyScore : 0);
+
+  // Hide the Live Chart table when the candidate chose "No exposure yet" / skipped / logged no charts
+  const stage6PathKey = String(stage6.evidencePath || stage6.option || "").toLowerCase();
+  const hasChartExposure =
+    !(stage6.skipped || stage6PathKey === "d" || stage6PathKey.includes("none") || stage6PathKey === "no_exposure") &&
+    ((Number(stage6.totalCharts) || 0) > 0 || (Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.some((c) => Number(c && c.count) > 0)));
 
   const specialtyCharts = useMemo(() => {
     if (Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.length > 0) {
       return stage6.specialtyCharts;
     }
-    return [
-      {
-        id: 1,
-        name: "Inpatient Coding",
-        count: totalCharts || 50,
-        accuracy: overallAccuracy || 82,
-        timePerChart: "5.5 min",
-        lastCoded: "2 days ago",
-      }
-    ];
-  }, [stage6, totalCharts, overallAccuracy]);
+    return [];
+  }, [stage6]);
 
   const selectedPlatforms = useMemo(() => {
     if (Array.isArray(stage6.selectedPlatforms) && stage6.selectedPlatforms.length > 0) {
@@ -261,10 +267,10 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   }, [stage6]);
 
   // Education Details
-  const degree = stage1.degree || "BPT (BACHELOR OF PHYSIOTHERAPY)";
-  const collegeName = stage1.collegeName || stage1.university || "University";
-  const graduationYear = stage1.graduationYear || "2015";
-  const cgpa = stage1.cgpa ? `CGPA ${stage1.cgpa}` : (stage1.percentage ? `${stage1.percentage}%` : "CGPA 44");
+  const degree = stage1.degree || "";
+  const collegeName = stage1.collegeName || stage1.university || "";
+  const graduationYear = stage1.graduationYear || "";
+  const cgpa = stage1.cgpa ? `CGPA ${stage1.cgpa}` : (stage1.percentage ? `${stage1.percentage}%` : "");
 
   // Work Preferences
   const preferredCities = useMemo(() => {
@@ -343,7 +349,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
   // Section visibility toggles
   const initialSections = initialTheme.sections || {
     objective: true,
-    scorecard: true,
+    scorecard: false,
     certifications: true,
     training: true,
     liveCharts: true,
@@ -448,7 +454,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
     setCustomSectionHeadingStyle("bottom_line");
     setVisibleSections({
       objective: true,
-      scorecard: true,
+      scorecard: false,
       certifications: true,
       training: true,
       liveCharts: true,
@@ -591,12 +597,12 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       `CONTACT: Mobile: ${mobile} | Email: ${email} | Live: ${liveResumeUrl}`,
       "",
       visibleSections.objective ? `${isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}:\n${careerObjective}\n` : "",
-      visibleSections.scorecard ? `TALENTERA VERIFIED SCORECARD:\n* Foundation Assessment: ${assessmentScore}/100 (${assessmentMedal})\n* Video Pitch AI Score: ${videoScore}/100 (${videoMedal})\n* Live Charts: ${totalCharts} charts (${overallAccuracy}% accuracy)\n` : "",
-      !isExperienced && visibleSections.training ? `TRAINING FOUNDATION:\n* Academy: ${academyName} (${academyLocality}) - ${trainingSpecialties} (${trainingDuration})\n` : "",
-      isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails) ? `WORK EXPERIENCE:\n* ${currentRoleTitle}${workCompany ? ` · ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}\n${workProjectDetails ? `${workProjectDetails}\n` : ""}` : "",
+      visibleSections.scorecard ? `TALENTERA VERIFIED SCORECARD:\n* Foundation Assessment: ${assessmentScore}/100 (${assessmentMedal})\n* Video Pitch AI Score: ${videoScore}/100 (${videoMedal})\n${hasChartExposure ? `* Live Charts: ${totalCharts} charts (${overallAccuracy}% accuracy)\n` : ""}` : "",
+      !isExperienced && !isNonTrainedProfile && visibleSections.training ? `TRAINING FOUNDATION:\n* Academy: ${academyName} (${academyLocality}) - ${trainingSpecialties} (${trainingDuration})\n` : "",
+      isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workRolesList.length > 0) ? `WORK EXPERIENCE:\n* ${currentRoleTitle}${workCompany ? ` · ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}\n${workProjectDetails ? `${workProjectDetails}\n` : ""}${workRolesList.length > 0 ? `Roles & Responsibilities:\n${workRolesList.map((r) => `- ${r}`).join("\n")}\n` : ""}` : "",
       isExperienced && visibleSections.toolsUsed && selectedPlatforms.length > 0 ? `TOOLS USED:\n* ${selectedPlatforms.join(" · ")}\n` : "",
-      visibleSections.education ? `EDUCATION:\n* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `[${cgpa}]` : ""}\n` : "",
-      visibleSections.skills && resumeSkills.length > 0 ? `SKILLS:\n* ${resumeSkills.join(" · ")}\n` : "",
+      visibleSections.education && degree ? `EDUCATION:\n* ${degree}${collegeName ? ` - ${collegeName}` : ""}${graduationYear ? ` (${graduationYear})` : ""} ${cgpa ? `[${cgpa}]` : ""}\n` : "",
+      visibleSections.skills && resumeSkills.length > 0 ? `SKILLS:\nTechnical Skills:\n${resumeSkills.map((sk) => `- ${sk}`).join("\n")}\nSoft Skills:\n${softSkillList.map((sk) => `- ${sk}`).join("\n")}\n` : "",
       visibleSections.preferences ? `WORK PREFERENCES:\n* Cities: ${preferredCities} | Shifts: ${shiftPreference}\n` : "",
     ].filter(Boolean).join("\n");
 
@@ -733,6 +739,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
 
         {/* Right: Actions */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {!readOnly && (
           <button
             type="button"
             onClick={() => setShowThemeDrawer(!showThemeDrawer)}
@@ -753,6 +760,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             <span><i className="fa-solid fa-palette" /></span>
             <span>{showThemeDrawer ? "Hide Custom Themes" : "Customize Theme"}</span>
           </button>
+          )}
 
           <button
             type="button"
@@ -852,7 +860,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       </div>
 
       {/* Expandable Theme & Style Customizer Drawer */}
-      {showThemeDrawer && (
+      {showThemeDrawer && !readOnly && (
         <div style={{
           background: "#FFFFFF",
           border: `2px solid ${activeTmpl.accentColor || "#F5B41A"}`,
@@ -1304,7 +1312,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
       )}
 
       {/* Edit Objective Drawer */}
-      {isEditingObjective && (
+      {isEditingObjective && !readOnly && (
         <div style={{
           background: "#FFFDF5",
           border: "1.5px solid #F5B41A",
@@ -1665,6 +1673,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
             {renderSectionHeader(
               isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
               null,
+              readOnly ? null : (
               <button
                 type="button"
                 onClick={() => setIsEditingObjective(true)}
@@ -1672,10 +1681,19 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               >
                 ✎ Edit
               </button>
+              )
             )}
             <p style={{ fontSize: scale.base, lineHeight: lineHeightVal, color: "#334155", fontStyle: "italic", margin: 0 }}>
               "{careerObjective}"
             </p>
+            {String(stage7Data.professionalSummary || "").trim() && (
+              <>
+                {!isExperienced && <div style={{ marginTop: 10 }}>{renderSectionHeader("PROFESSIONAL SUMMARY", null)}</div>}
+                <p style={{ fontSize: scale.base, lineHeight: lineHeightVal, color: "#334155", margin: isExperienced ? "8px 0 0" : 0 }}>
+                  {String(stage7Data.professionalSummary).trim()}
+                </p>
+              </>
+            )}
           </div>
         )}
 
@@ -1694,6 +1712,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               gap: 10,
               flexWrap: "wrap",
             }}>
+{Number(assessmentScore) > 0 && (
               <span style={{
                 background: "#0F1B3D",
                 color: "#F5B41A",
@@ -1704,7 +1723,9 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               }}>
                 {assessmentMedal === "Gold" ? "Gold" : assessmentMedal === "Silver" ? "Silver" : assessmentMedal === "Bronze" ? "Bronze" : "Assessment"} · {assessmentStars.display} {assessmentStars.count}/5
               </span>
+)}
 
+{Number(videoScore) > 0 && (
               <span style={{
                 background: "#1E3A8A",
                 color: "#93C5FD",
@@ -1715,7 +1736,9 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               }}>
                 {videoMedal} · {videoStars.display} {videoStars.count}/5
               </span>
+)}
 
+{hasChartExposure && (
               <span style={{
                 background: "#E0F2FE",
                 color: "#0369A1",
@@ -1726,6 +1749,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
               }}>
                 {totalCharts} charts · {chartStars.display} {chartStars.count}/5
               </span>
+)}
 
               <span style={{
                 background: activeTmpl.accentColor || "#F5B41A",
@@ -1762,7 +1786,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         )}
 
         {/* 4. TRAINING FOUNDATION (Fresher only - see WORK EXPERIENCE below for Experienced) */}
-        {!isExperienced && visibleSections.training && (
+        {!isExperienced && !isNonTrainedProfile && visibleSections.training && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("TRAINING FOUNDATION", null)}
             <div style={{
@@ -1785,7 +1809,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         )}
 
         {/* WORK EXPERIENCE (Experienced only - replaces Training Foundation) */}
-        {isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workTotalExperience) && (
+        {isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workTotalExperience || workRolesList.length > 0) && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("WORK EXPERIENCE", null)}
             <div style={{
@@ -1798,16 +1822,24 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
                 <div style={{ fontSize: scale.base + 1, fontWeight: 800, color: "#0F1B3D" }}>
                   {currentRoleTitle}{workCompany ? ` · ${workCompany}` : ""}
                 </div>
-                {workTotalExperience && (
-                  <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>{workTotalExperience}</div>
+                {(workDateRange || workTotalExperience) && (
+                  <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>{workDateRange ? `${workDateRange}${workDuration ? ` (${workDuration})` : ""}` : workTotalExperience}</div>
                 )}
               </div>
               <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase", marginTop: 4 }}>
-                {domainName}{workNoticePeriod ? ` · Notice period: ${workNoticePeriod}` : ""}
+                {domainName}{stage2.employmentStatus !== "relieved" && workNoticePeriod ? ` · Notice period: ${workNoticePeriod}` : ""}
               </div>
               {workProjectDetails && (
                 <div style={{ fontSize: scale.base, color: "#475569", marginTop: 6, lineHeight: lineHeightVal }}>
                   {workProjectDetails}
+                </div>
+              )}
+              {workRolesList.length > 0 && (
+                <div style={{ fontSize: scale.base, color: "#475569", marginTop: 8, lineHeight: lineHeightVal }}>
+                  <div style={{ fontWeight: 800, color: "#0F1B3D", fontSize: scale.base }}>Roles &amp; Responsibilities</div>
+                  <ul style={{ margin: "4px 0 0 18px", padding: 0 }}>
+                    {workRolesList.map((r, i) => <li key={i}>{r}</li>)}
+                  </ul>
                 </div>
               )}
             </div>
@@ -1840,7 +1872,7 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         )}
 
         {/* 5. LIVE CHART PRACTICE - DEPARTMENT-WISE (Fresher only - see TOOLS USED above for Experienced) */}
-        {!isExperienced && visibleSections.liveCharts && (
+        {!isExperienced && visibleSections.liveCharts && hasChartExposure && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("LIVE CHART PRACTICE · DEPARTMENT-WISE", null)}
 
@@ -1915,20 +1947,22 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         )}
 
         {/* 7. EDUCATION */}
-        {visibleSections.education && (
+        {visibleSections.education && degree && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("EDUCATION", null)}
 
             <div style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 8, padding: "12px 14px" }}>
               <div style={{ fontSize: 11, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>
-                {degree} · {graduationYear}
+                {[degree, graduationYear].filter(Boolean).join(" · ")}
               </div>
               <div style={{ fontSize: scale.base + 1, fontWeight: 800, color: "#0F1B3D", marginTop: 2 }}>
                 {collegeName}
               </div>
+              {cgpa && (
               <div style={{ fontSize: scale.base, color: "#475569", marginTop: 2 }}>
                 {cgpa} · Verified Academic Record
               </div>
+              )}
             </div>
           </div>
         )}
@@ -1937,12 +1971,15 @@ export default function CandidateResumeSection({ candidate, onSaved }) {
         {visibleSections.skills && resumeSkills.length > 0 && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("SKILLS", null)}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {resumeSkills.map((skill) => (
-                <span key={skill} style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 999, padding: "6px 14px", fontSize: scale.base - 0.5, fontWeight: 700, color: "#0F1B3D" }}>
-                  {skill}
-                </span>
-              ))}
+            <div style={{ fontSize: scale.base, color: "#0F1B3D", lineHeight: lineHeightVal }}>
+              <div style={{ fontWeight: 800, marginBottom: 2 }}>Technical Skills</div>
+              <ul style={{ margin: "0 0 8px 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+                {resumeSkills.map((skill) => <li key={skill} style={{ breakInside: "avoid" }}>{skill}</li>)}
+              </ul>
+              <div style={{ fontWeight: 800, marginBottom: 2 }}>Soft Skills</div>
+              <ul style={{ margin: "0 0 0 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+                {softSkillList.map((skill) => <li key={skill} style={{ breakInside: "avoid" }}>{skill}</li>)}
+              </ul>
             </div>
           </div>
         )}

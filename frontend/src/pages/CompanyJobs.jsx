@@ -7,6 +7,7 @@ import { getStage } from "../data/companyOnboardingStages";
 import EditableNameList from "../components/company/EditableNameList.jsx";
 import { OTHER, isOtherVal, otherTextOf, otherValue, multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../utils/otherOption.js";
 
+import HeadOnly from "../components/company/HeadOnly.jsx";
 const STAGE9 = getStage("9");
 const EXPERIENCE_IDS = new Set(["expmin", "expmax"]);
 const REQUIRED_IDS = new Set(STAGE9.items.filter((i) => i.tag === "must").map((i) => i.id));
@@ -216,12 +217,13 @@ export default function CompanyJobs() {
           <Link to="/companies/applicants" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Applicants
           </Link>
-          <Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+          <HeadOnly><Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Plan &amp; Billing
-          </Link>
-          <Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
+          </Link></HeadOnly>
+          <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
+          <HeadOnly><Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Edit Profile
-          </Link>
+          </Link></HeadOnly>
           {authCompany && (
             <button
               type="button"
@@ -271,9 +273,9 @@ export default function CompanyJobs() {
           ) : (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, maxWidth: 320 }}>
               Active job posting limit reached for your current plan tier.{" "}
-              <Link to="/companies/billing" style={{ color: "var(--navy)", fontWeight: 800, textDecoration: "underline" }}>
+              <HeadOnly><Link to="/companies/billing" style={{ color: "var(--navy)", fontWeight: 800, textDecoration: "underline" }}>
                 Upgrade plan →
-              </Link>
+              </Link></HeadOnly>
             </div>
           )}
         </div>
@@ -308,7 +310,7 @@ export default function CompanyJobs() {
                 </span>
               </div>
             </div>
-            <Link
+            <HeadOnly><Link
               to="/companies/dashboard"
               style={{
                 background: "var(--navy)",
@@ -322,7 +324,7 @@ export default function CompanyJobs() {
               }}
             >
               Check KYC Status →
-            </Link>
+            </Link></HeadOnly>
           </div>
         ) : (
           <div style={{ background: "#DCFCE7", border: "1px solid #86EFAC", color: "#166534", padding: "12px 18px", borderRadius: 12, fontSize: 13, marginBottom: 20, display: "flex", alignItems: "center", gap: 8 }}>
@@ -451,6 +453,7 @@ export default function CompanyJobs() {
                     {item.input === "multi" && item.id === "panel" && (
                       <EditableNameList
                         value={form.panel}
+                        blockNames={teamSuggestions}
                         onChange={(next) => setField("panel", next)}
                         suggestions={teamSuggestions}
                       />

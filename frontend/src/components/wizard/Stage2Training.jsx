@@ -2,24 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { ACADEMY_REGIONS, ACADEMY_LOCATIONS_BY_REGION, ACADEMY_LOCATIONS, ACADEMIES_BY_LOCATION, ACADEMY_STATE_BY_LOCATION } from "../../data/academiesData.js";
+import { COMPANY_NAMES, getCompanyLocations } from "../../data/workCompanies.js";
+import SearchableSelect from "./SearchableSelect.jsx";
 
 // Common healthcare RCM / medical coding employers. Candidates pick from this
 // list; anything else goes through the "Other (not listed)" option.
 const COMPANY_OTHER = "__other__";
-const COMPANY_OPTIONS = [
-  "Access Healthcare", "AGS Health", "Allied Digital", "Altruista Health", "Apollo Health & Lifestyle",
-  "Apollo Hospitals", "Aspirion", "Athenahealth", "Cerner", "CitiusTech", "Clarus RCM",
-  "Cognizant", "Conifer Health Solutions", "Dignity Health Global Education", "eClinicalWorks",
-  "Episource", "Equinox Healthcare", "EXL Service", "Firstsource", "Fortis Healthcare",
-  "GeBBS Healthcare Solutions", "Genpact", "HCL Technologies", "HGS (Hinduja Global Solutions)",
-  "HealthAxis", "Healthcare Triangle", "Infosys BPM", "iMedX", "Ikigai Medical Billing", "Invensis",
-  "IQVIA", "Maxim Healthcare", "MCI (Medical Coding Inc.)", "MedQuist", "MediBuddy", "Medusind",
-  "Medi Assist", "Mphasis", "MTBC (CareCloud)", "Navigant (Guidehouse)", "Nuance", "nThrive",
-  "Omega Healthcare", "Optum (UnitedHealth Group)", "Parexel", "R1 RCM", "Runwal Healthcare",
-  "Sutherland Global", "SPi Global", "Sodexo Healthcare", "Tata Consultancy Services (TCS)",
-  "TeamHealth", "Tech Mahindra", "Teleperformance", "Wipro", "WNS Global Services",
-  "Xerox / Conduent", "Zenith Healthcare", "Zoho",
-];
+const COMPANY_OPTIONS = COMPANY_NAMES;
+const LOCATION_OTHER = "__other_location__";
 
 const DOMAINS = [
   {
@@ -115,6 +105,24 @@ const ALL_SPECIALTIES = [
   "Outpatient Coding",
 ];
 
+const BILLING_SPECIALTIES = [
+  "Charge Entry / Charge Capture",
+  "Claims Processing & Submission",
+  "Payment Posting",
+  "Patient Billing",
+  "Insurance Billing",
+  "Eligibility & Benefits Verification",
+  "Prior Authorization & Referral",
+  "Physician / Professional Billing",
+  "Claim Rejections",
+];
+
+const SPECIALTIES_BY_DOMAIN = {
+  "Medical Coding": ALL_SPECIALTIES,
+  "Medical Billing": BILLING_SPECIALTIES,
+};
+const PRESET_SPECIALTY_UNION = Array.from(new Set(Object.values(SPECIALTIES_BY_DOMAIN).flat()));
+
 const TRAINING_PATHS = [
   {
     id: "academy",
@@ -158,12 +166,6 @@ const TRAINING_MODES = ["Classroom", "Online", "Hybrid", "Self-paced"];
 const TOTAL_EXPERIENCE_OPTIONS = ["Less than 1 year", "1 – 2 years", "2 – 3 years", "3 – 5 years", "5 – 8 years", "8+ years"];
 const NOTICE_PERIOD_OPTIONS = ["Immediate Joiner", "15 Days", "30 Days", "45 Days", "60 Days", "90 Days"];
 const TOTAL_HOURS_OPTIONS = ["Less than 100 hrs", "100 – 200 hrs", "200 – 400 hrs", "400+ hrs"];
-const SHIFT_OPTIONS = [
-  { id: "day", label: "Day shift", icon: "fa-solid fa-sun" },
-  { id: "night", label: "US Night shift", icon: "fa-solid fa-moon" },
-  { id: "uk_evening", label: "UK Evening shift", icon: "fa-solid fa-earth-europe" },
-  { id: "rotational", label: "Rotational", icon: "fa-solid fa-arrows-rotate" },
-];
 
 const MONTH_OPTIONS = [
   { val: "01", label: "01 · Jan" },
@@ -209,7 +211,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const effectiveTrainingLevel = levelOtherSelected ? levelOtherText.trim() : trainingLevel;
 
   // Dynamic Training Levels matching selected domain
-  const currentTrainingLevels = (domain && DOMAIN_TRAINING_LEVELS[domain]) ? DOMAIN_TRAINING_LEVELS[domain] : DEFAULT_TRAINING_LEVELS;
+  // Levels and specialties always follow the selected domain (never show Coding options for Billing)
+  const currentTrainingLevels = (domain && DOMAIN_TRAINING_LEVELS[domain]) ? DOMAIN_TRAINING_LEVELS[domain] : ["Non-Trained"];
+  const currentSpecialties = SPECIALTIES_BY_DOMAIN[domain] || [];
 
   function handleSelectDomain(newDomainId) {
     if (formErrors.domain) {
@@ -223,6 +227,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       setSpecialties([]);
       if (formErrors.specialties) setFormErrors((prev) => ({ ...prev, specialties: "" }));
     }
+
+    // Drop preset specialties that belong to a different domain (custom typed ones are kept)
+    setSpecialties((prev) => prev.filter((sp) => !PRESET_SPECIALTY_UNION.includes(sp) || (SPECIALTIES_BY_DOMAIN[nextDomain] || []).includes(sp)));
 
     // If a preset training level was selected, dynamically map it to the corresponding tier in the newly selected domain
     if (!levelOtherSelected && trainingLevel) {
@@ -257,8 +264,16 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [expCompanyIsOther, setExpCompanyIsOther] = useState(
     !!existingData.currentCompany && !COMPANY_OPTIONS.includes(existingData.currentCompany)
   );
+  const [expLocation, setExpLocation] = useState(existingData.workLocation || "");
+  const [expLocationIsOther, setExpLocationIsOther] = useState(
+    !!existingData.workLocation && !getCompanyLocations(existingData.currentCompany).options.includes(existingData.workLocation)
+  );
   const [expJobTitle, setExpJobTitle] = useState(existingData.jobTitle || "");
   const [expProjectDetails, setExpProjectDetails] = useState(existingData.projectDetails || "");
+  const [expRoles, setExpRoles] = useState(existingData.rolesResponsibilities || "");
+  const [expStartDate, setExpStartDate] = useState(existingData.workStartDate || "");
+  const [expEndDate, setExpEndDate] = useState(existingData.workEndDate || "");
+  const [expSoftSkills, setExpSoftSkills] = useState(existingData.softSkills || "");
   const [expTotalYears, setExpTotalYears] = useState(existingData.totalExperience || "");
   const [expNoticePeriod, setExpNoticePeriod] = useState(existingData.noticePeriod || "");
   const [expCurrentSalary, setExpCurrentSalary] = useState(existingData.currentSalary || "");
@@ -413,11 +428,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     existingData.internshipRole || ""
   );
 
-  const [selectedShifts, setSelectedShifts] = useState(
-    Array.isArray(existingData.shifts) && existingData.shifts.length > 0
-      ? existingData.shifts
-      : []
-  );
 
   // UI / Submission state
   const [saving, setSaving] = useState(false);
@@ -558,17 +568,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     }
   };
 
-  function handleToggleShift(shiftId) {
-    if (selectedShifts.includes(shiftId)) {
-      if (selectedShifts.length === 1) {
-        toast("Please keep at least one preferred shift selected.", "!");
-        return;
-      }
-      setSelectedShifts(selectedShifts.filter((id) => id !== shiftId));
-    } else {
-      setSelectedShifts([...selectedShifts, shiftId]);
-    }
-  }
 
   // Build Payload
   function buildPayload(isDraft = false) {
@@ -582,8 +581,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       specialty: specialties[0] || (domain ? `${domain} General` : "RCM General"),
       // Experienced-candidate work history — replaces the training-path questions for them (Section 2)
       currentCompany: isFresherCandidate ? "" : expCompanyName.trim(),
+      workLocation: isFresherCandidate ? "" : expLocation.trim(),
       jobTitle: isFresherCandidate ? "" : expJobTitle.trim(),
       projectDetails: isFresherCandidate ? "" : expProjectDetails.trim(),
+      rolesResponsibilities: isFresherCandidate ? "" : expRoles.trim(),
+      workStartDate: isFresherCandidate ? "" : expStartDate,
+      workEndDate: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expEndDate,
+      softSkills: isFresherCandidate ? "" : expSoftSkills.trim(),
       totalExperience: isFresherCandidate ? "" : expTotalYears,
       noticePeriod: isFresherCandidate ? "" : expNoticePeriod,
       currentSalary: isFresherCandidate ? "" : expCurrentSalary.trim(),
@@ -629,7 +633,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       internshipWhere: internshipWhere.trim(),
       internshipDuration: internshipDuration.trim(),
       internshipRole: internshipRole.trim(),
-      shifts: selectedShifts,
     };
   }
 
@@ -681,6 +684,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         missing.push("Current / Most Recent Company (Section 2)");
         errs.expCompanyName = "Company name is mandatory";
       }
+      if (!expLocation || expLocation.trim().length < 2) {
+        missing.push("Work Location (Section 2)");
+        errs.expLocation = "Please select the location you work at";
+      }
       if (!expJobTitle || expJobTitle.trim().length < 2) {
         missing.push("Job Title (Section 2)");
         errs.expJobTitle = "Job title is mandatory";
@@ -688,6 +695,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       if (!expTotalYears) {
         missing.push("Total Experience (Section 2)");
         errs.expTotalYears = "Please select your total experience";
+      }
+      if (!expCertDocUrl) {
+        missing.push("Experience / Certification Attachment (Section 2)");
+        errs.expCertDoc = "Please attach an experience proof or certificate to verify your experience";
       }
     }
 
@@ -1741,7 +1752,6 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
           <div className="s2-form-header">
             <h2>Your Stage 02 information</h2>
-            <div className="sub">FILL IN · WE VERIFY · YOU EARN +15 POINTS</div>
           </div>
 
           {error && (
@@ -1754,7 +1764,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
           <div className="s2-section">
             <div className="s2-section-header">
               <div className="s2-section-num">1</div>
-              <div className="s2-section-title">{isFresherCandidate ? "What did you train for?" : "Your Domain"}</div>
+              <div className="s2-section-title">{isFresherCandidate ? "Which area are you interested in or trained in?" : "Your Domain"}</div>
               <div className="s2-status-chip">DONE · +3</div>
             </div>
 
@@ -1762,7 +1772,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               <label>
                 1.1 · Primary Domain <span className="req">*</span>
               </label>
-              <div className="s2-helper" style={{ marginBottom: 8 }}>{isFresherCandidate ? "Pick the primary RCM function you trained on." : "Pick the primary RCM domain you work in."}</div>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>{isFresherCandidate ? "Pick the primary RCM function you are interested in or trained in." : "Pick the primary RCM domain you work in."}</div>
               <div className="s2-choice-grid-4">
                 {DOMAINS.map((d) => (
                   <div
@@ -1859,7 +1869,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 <div className="field-error-msg">{formErrors.specialties}</div>
               )}
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-                {ALL_SPECIALTIES.map((spec) => (
+                {currentSpecialties.length === 0 && (
+                  <span className="s2-helper">Select your primary domain above to see its specialties.</span>
+                )}
+                {currentSpecialties.map((spec) => (
                   <span
                     key={spec}
                     className={`s2-tag-pill ${specialties.includes(spec) ? "selected" : ""}`}
@@ -1889,7 +1902,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                         handleAddCustomSpecialty();
                       }
                     }}
-                    placeholder="Type your specialty (e.g. Medical Billing, AR Calling)"
+                    placeholder={domain === "Medical Billing" ? "Type your specialty (e.g. Denial Management, AR Follow-up)" : "Type your specialty (e.g. Risk Adjustment, Pro-fee Coding)"}
                   />
                   <button type="button" className="s2-action-btn" onClick={handleAddCustomSpecialty} style={{ whiteSpace: "nowrap", padding: "9px 16px", borderRadius: 8, border: "none", background: "var(--gold)", color: "var(--navy)", fontWeight: 800, cursor: "pointer" }}>
                     Add
@@ -1897,11 +1910,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 </div>
               )}
               <div className="s2-helper" style={{ marginTop: 6 }}>
-                Not in the list — e.g. Billing, AR Calling, Denial Management? Choose Others and add your own.
+                Not in the list? Choose Others and add your own.
               </div>
-              <div className="s2-helper" style={{ marginTop: 6 }}>
-                Available for Coding: E/M · HCC · ED · Surgery · IP-DRG · Home Health · ObGyn · Radiology · Pediatrics · Anesthesia · Pathology
-              </div>
+              {currentSpecialties.length > 0 && (
+                <div className="s2-helper" style={{ marginTop: 6 }}>
+                  Available for {domain}: {currentSpecialties.join(" · ")}
+                </div>
+              )}
             </div>
             )}
           </div>
@@ -2549,10 +2564,14 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 <label>
                   Current / Most Recent Company <span className="req">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   value={expCompanyIsOther ? COMPANY_OTHER : expCompanyName}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  options={COMPANY_OPTIONS}
+                  placeholder="-- Select company --"
+                  searchPlaceholder="Search company name…"
+                  otherValue={COMPANY_OTHER}
+                  otherLabel="Other (company not listed)"
+                  onChange={(v) => {
                     if (v === COMPANY_OTHER) {
                       setExpCompanyIsOther(true);
                       setExpCompanyName("");
@@ -2560,15 +2579,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                       setExpCompanyIsOther(false);
                       setExpCompanyName(v);
                     }
+                    // Branch locations differ per company, so clear the previous pick
+                    setExpLocation("");
+                    setExpLocationIsOther(false);
                     if (formErrors.expCompanyName) setFormErrors((prev) => ({ ...prev, expCompanyName: "" }));
+                    if (formErrors.expLocation) setFormErrors((prev) => ({ ...prev, expLocation: "" }));
                   }}
-                >
-                  <option value="">-- Select company --</option>
-                  {COMPANY_OPTIONS.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                  <option value={COMPANY_OTHER}>Other (company not listed)</option>
-                </select>
+                />
                 {expCompanyIsOther && (
                   <input
                     type="text"
@@ -2608,6 +2625,58 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
             </div>
 
+            {(() => {
+              const locInfo = getCompanyLocations(expCompanyName);
+              return (
+                <div className="s2-row">
+                  <div className={`s2-field ${formErrors.expLocation ? "has-error" : ""}`}>
+                    <label>
+                      Work Location <span className="req">*</span>
+                    </label>
+                    <SearchableSelect
+                      value={expLocationIsOther ? LOCATION_OTHER : expLocation}
+                      options={locInfo.options}
+                      disabled={!expCompanyName && !expCompanyIsOther}
+                      placeholder={expCompanyName || expCompanyIsOther ? "-- Select location --" : "-- Select a company first --"}
+                      searchPlaceholder="Search location…"
+                      otherValue={LOCATION_OTHER}
+                      otherLabel="Other (type location)"
+                      onChange={(v) => {
+                        if (v === LOCATION_OTHER) {
+                          setExpLocationIsOther(true);
+                          setExpLocation("");
+                        } else {
+                          setExpLocationIsOther(false);
+                          setExpLocation(v);
+                        }
+                        if (formErrors.expLocation) setFormErrors((prev) => ({ ...prev, expLocation: "" }));
+                      }}
+                    />
+                    {expLocationIsOther && (
+                      <input
+                        type="text"
+                        style={{ marginTop: 8 }}
+                        value={expLocation}
+                        onChange={(e) => {
+                          setExpLocation(e.target.value);
+                          if (formErrors.expLocation) setFormErrors((prev) => ({ ...prev, expLocation: "" }));
+                        }}
+                        placeholder="Type your work location"
+                      />
+                    )}
+                    {expCompanyName && !formErrors.expLocation && (
+                      <div className="s2-helper">
+                        {locInfo.known ? `Branches of ${expCompanyName}` : "Pick the city you work in"}
+                      </div>
+                    )}
+                    {formErrors.expLocation && (
+                      <div className="field-error-msg">{formErrors.expLocation}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="s2-row">
               <div className={`s2-field ${formErrors.expJobTitle ? "has-error" : ""}`}>
                 <label>
@@ -2639,6 +2708,19 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   placeholder="e.g. ICD-10-CM, CPT coding, denial management, AR follow-up"
                 />
               </div>
+
+              <div className="s2-field">
+                <label>
+                  Soft / Personal Skills
+                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={expSoftSkills}
+                  onChange={(e) => setExpSoftSkills(e.target.value)}
+                  placeholder="e.g. communication, teamwork, time management, problem solving"
+                />
+              </div>
             </div>
 
             <div className="s2-field">
@@ -2654,6 +2736,23 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                 value={expProjectDetails}
                 onChange={(e) => setExpProjectDetails(e.target.value)}
                 placeholder="e.g. AR follow-up for a US multispecialty client — denial management and payer calling on outpatient claims"
+              />
+            </div>
+
+            <div className="s2-field">
+              <label>
+                Roles &amp; Responsibilities
+                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+              </label>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>
+                List the key roles and responsibilities you performed in this company — one per line.
+              </div>
+              <textarea
+                rows={6}
+                maxLength={3000}
+                value={expRoles}
+                onChange={(e) => setExpRoles(e.target.value)}
+                placeholder={"e.g.\nFollowed up with insurance payers on pending and denied claims\nWorked on denial management and prepared appeals\nMet daily productivity and quality targets"}
               />
             </div>
 
@@ -2717,6 +2816,35 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   </label>
                 ))}
               </div>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginTop: 12 }}>
+                <div style={{ flex: "1 1 200px" }}>
+                  <label style={{ fontSize: 12, fontWeight: 700 }}>
+                    Joining Date (Month &amp; Year)
+                    <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                  </label>
+                  <input
+                    type="month"
+                    value={expStartDate}
+                    max={new Date().toISOString().slice(0, 7)}
+                    onChange={(e) => setExpStartDate(e.target.value)}
+                  />
+                </div>
+                {expEmploymentStatus === "relieved" && (
+                  <div style={{ flex: "1 1 200px" }}>
+                    <label style={{ fontSize: 12, fontWeight: 700 }}>
+                      Last Working Month &amp; Year
+                      <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                    </label>
+                    <input
+                      type="month"
+                      value={expEndDate}
+                      min={expStartDate || undefined}
+                      max={new Date().toISOString().slice(0, 7)}
+                      onChange={(e) => setExpEndDate(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
               {expEmploymentStatus === "relieved" && (
                 <div style={{ marginTop: 8 }}>
                   <div className="s2-helper">Upload your relieving letter and latest pay slip — PDF, JPG or PNG, up to 10 MB each. Our team will verify them.</div>
@@ -2768,13 +2896,13 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               )}
             </div>
 
-            <div className="s2-field">
+            <div className={`s2-field ${formErrors.expCertDoc ? "has-error" : ""}`}>
               <label>
-                Additional Certification Attachment
-                <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                Experience / Certification Attachment
+                <span style={{ color: "#DC2626", fontWeight: 800 }}> *</span>
               </label>
               <div className="s2-helper" style={{ marginBottom: 8 }}>
-                Upload any certificate that supports your work experience (CPC, CPB, CRC, offer/relieving letter, etc.) — PDF, JPG or PNG, up to 10 MB.
+                Required to verify your experience. Upload a certificate or document that supports it (CPC, CPB, CRC, offer/relieving letter, experience letter, etc.) — PDF, JPG or PNG, up to 10 MB. Companies can see this while reviewing and interviewing you.
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
@@ -2797,38 +2925,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   {uploadingExpCertDoc ? "Uploading…" : expCertDocName ? "Change File" : "Choose File →"}
                 </button>
               </div>
+              {formErrors.expCertDoc && <div className="field-error-msg">{formErrors.expCertDoc}</div>}
             </div>
           </div>
             </>
           )}
-
-          {/* SECTION 4 · SHIFT PREFERENCE */}
-          <div className="s2-section">
-            <div className="s2-section-header">
-              <div className="s2-section-num">4</div>
-              <div className="s2-section-title">Preferred Shift</div>
-              <div className="s2-status-chip pending">PENDING · +3</div>
-            </div>
-
-            <div className="s2-field">
-              <label>Open to shift work <span className="req">*</span></label>
-              <div className="s2-option-list">
-                {SHIFT_OPTIONS.map((sh) => (
-                  <div
-                    key={sh.id}
-                    className={`s2-option-item ${selectedShifts.includes(sh.id) ? "selected" : ""}`}
-                    onClick={() => handleToggleShift(sh.id)}
-                  >
-                    <div className="box">{selectedShifts.includes(sh.id) ? <i className="fa-solid fa-check" style={{ fontSize: 9 }} /> : ""}</div>
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                      {sh.icon && <i className={sh.icon} style={{ fontSize: 13, color: "#64748B" }} />}
-                      <span>{sh.label}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
 
           {/* STICKY BOTTOM BAR */}
           <div className="s2-sticky-bar">

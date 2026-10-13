@@ -1,0 +1,2582 @@
+import React, { useState, useMemo, useRef, useEffect } from "react";
+import api from "../../api/client";
+import { useToast } from "../Toast.jsx";
+import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
+import { joinUnique } from "../../utils/resumeSubtitle.js";
+import { buildResumeSkills } from "../../utils/resumeSkills.js";
+import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
+
+// Clean inline SVGs for self-contained, CORS-safe rendering in html2canvas & exports
+const QrIconSvg = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5zm13-2h3v3h-3v-3zm-5 0h3v3h-3v-3zm2 5h3v3h-3v-3zm3 0h3v3h-3v-3zm-5-3h3v3h-3v-3zm5-2h3v2h-3v-2z" />
+  </svg>
+);
+
+// Color Palettes for Theme Customizer
+export const THEME_PALETTES = [
+  { id: "gold_navy", name: "Talentera Gold", headerBg: "#0F1B3D", accentColor: "#F5B41A" },
+  { id: "sapphire", name: "Sapphire Blue", headerBg: "#1E3A8A", accentColor: "#2563EB" },
+  { id: "emerald", name: "Emerald Forest", headerBg: "#064E3B", accentColor: "#10B981" },
+  { id: "amethyst", name: "Royal Purple", headerBg: "#4C1D95", accentColor: "#7C3AED" },
+  { id: "crimson", name: "Ruby Crimson", headerBg: "#7F1D1D", accentColor: "#DC2626" },
+  { id: "charcoal", name: "Slate Charcoal", headerBg: "#1E293B", accentColor: "#475569" },
+  { id: "onyx_mono", name: "ATS Monochrome", headerBg: "#000000", accentColor: "#000000" },
+  { id: "teal", name: "Deep Teal", headerBg: "#134E4A", accentColor: "#0D9488" },
+];
+
+// Font Families
+export const FONT_OPTIONS = [
+  { id: "sans", name: "Modern Sans (Inter)", fontFamily: "'Inter', sans-serif" },
+  { id: "serif", name: "Classic Editorial (Georgia)", fontFamily: "Georgia, 'Times New Roman', serif" },
+  { id: "grotesk", name: "Tech Grotesk (Space)", fontFamily: "'Space Grotesk', sans-serif" },
+  { id: "arial", name: "ATS Clean (Arial)", fontFamily: "Arial, Helvetica, sans-serif" },
+];
+
+// 7 Verified Resume Templates matching the design
+const RESUME_TEMPLATES = [
+  {
+    id: "fresher_modern",
+    name: "Fresher Modern",
+    sub: "Best for Silver+ freshers with verified skills. Clean, contemporary, HR-loved.",
+    badge: "AUTO-PICK",
+    headerBg: "#0F1B3D",
+    accentColor: "#F5B41A",
+    fontFamily: "'Inter', sans-serif",
+    type: "modern",
+  },
+  {
+    id: "plain_bw",
+    name: "Plain Black & White",
+    sub: "Pure monochrome & high-contrast layout. 100% ATS-compliant, photocopy & print-ready.",
+    badge: "ATS B&W",
+    headerBg: "#000000",
+    accentColor: "#000000",
+    fontFamily: "'Inter', Arial, sans-serif",
+    type: "plain_bw",
+  },
+  {
+    id: "fresher_classic",
+    name: "Fresher Classic",
+    sub: "Traditional layout. ATS-safe. Great for Bronze-tier candidates.",
+    headerBg: "#333333",
+    accentColor: "#8A91A3",
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    type: "classic",
+  },
+  {
+    id: "executive",
+    name: "Executive",
+    sub: "Best for 5+ yrs experienced. Unlocks in Experienced flow.",
+    headerBg: "#8B5CF6",
+    accentColor: "#7C3AED",
+    fontFamily: "'Inter', sans-serif",
+    type: "executive",
+  },
+  {
+    id: "global",
+    name: "Global",
+    sub: "US/UK/AU market-ready. For candidates who ticked Global Markets in Stage 03.",
+    headerBg: "#065F46",
+    accentColor: "#10B981",
+    fontFamily: "'Inter', sans-serif",
+    type: "global",
+  },
+  {
+    id: "compact_ats",
+    name: "Compact ATS",
+    sub: "Single-page, ATS-safe. For job-board first roles.",
+    headerBg: "#334155",
+    accentColor: "#F5B41A",
+    fontFamily: "'Inter', sans-serif",
+    type: "compact",
+  },
+  {
+    id: "specialty_dental",
+    name: "Specialty (Dental)",
+    sub: "For Dental Coding & niche specialty candidates. Auto-picked if Domain = Dental.",
+    headerBg: "#7C3AED",
+    accentColor: "#F5B41A",
+    fontFamily: "'Inter', sans-serif",
+    type: "dental",
+  },
+];
+
+export default function Stage7Resume({ stage, existingData, candidate, onSaved, onNavigateStage, onGoToDashboard }) {
+  const toast = useToast();
+  const resumePrintRef = useRef(null);
+
+  // Extract real candidate data from MongoDB
+  const candidateObj = candidate || {};
+  const stage1 = candidateObj.stage1 || {};
+  const stage2 = candidateObj.stage2 || {};
+  const stage3 = candidateObj.stage3 || {};
+  const stage4 = candidateObj.stage4 || {};
+  const stage5 = candidateObj.stage5 || {};
+  const stage6 = candidateObj.stage6 || {};
+  const stage7Data = existingData || candidateObj.stage7 || {};
+
+  // Candidate basics directly from database
+  const fullName = stage1.fullName || candidateObj.name || (candidateObj.email ? candidateObj.email.split("@")[0] : "Talentera Candidate");
+  // Default to Fresher unless explicitly "Experienced" - matches getExperienceLevel() in utils/careerObjective.js
+  // and Stage2Training.jsx's isFresherCandidate (a legacy "1-3" years-range placeholder must not read as Experienced).
+  const isExperienced = /exp/i.test(String(stage1.experience || candidateObj.experience || ""));
+  const expLabel = isExperienced ? (stage2.totalExperience || "Experienced") : "Fresher";
+  const domainName = stage2.domain || stage2.courseName || stage2.specialty || "Medical Coding";
+  const currentRoleTitle = isExperienced
+    ? (stage2.jobTitle || stage1.currentRole || (domainName ? `${domainName} Professional` : "Medical Coding Specialist"))
+    : (domainName ? `${domainName} Professional` : "Medical Coding Specialist");
+  
+  // Locality & Contact from Stage 1
+  const city = stage1.city || "";
+  const state = stage1.state || "";
+  const locality = city ? (state ? `${city}, ${state}, India` : `${city}, India`) : (state ? `${state}, India` : "India");
+  const mobile = stage1.mobile || candidateObj.mobile || "";
+  const email = stage1.email || candidateObj.email || "";
+  
+  // Unique Slug & Verification ID
+  const candidateSlug = (stage1.fullName || fullName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const verificationId = candidateObj.verificationId || (candidateObj._id ? `TLR-2026-${String(candidateObj._id).slice(-6).toUpperCase()}` : "TLR-2026-VERIFIED");
+  const liveResumeUrl = `https://talentera.io/${candidateSlug || "candidate"}`;
+
+  // Stage 2 Training Details from Database
+  const academyName = stage2.academyName || stage2.instituteName || "Talentera Partner Academy";
+  const academyLocality = stage2.academyCity || city || "India";
+  const trainingLevel = stage2.trainingLevel || stage2.level || "Professional Level";
+  const trainingSpecialties = Array.isArray(stage2.specialties) && stage2.specialties.length > 0
+    ? stage2.specialties.join(" + ")
+    : (stage2.specialty || domainName || "Medical Coding");
+  const trainingSpan = (() => {
+    const sm = parseInt(stage2.startMonth, 10);
+    const sy = parseInt(stage2.startYear, 10);
+    const em = parseInt(stage2.endMonth, 10);
+    const ey = parseInt(stage2.endYear, 10);
+    if (!sm || !sy || !em || !ey) return null;
+    const months = (ey - sy) * 12 + (em - sm) + 1;
+    if (months <= 0) return null;
+    if (months >= 12) {
+      const yrs = Math.floor(months / 12);
+      const rem = months % 12;
+      return `${yrs} yr${yrs > 1 ? "s" : ""}${rem ? ` ${rem} mo` : ""}`;
+    }
+    return `${months} mo${months > 1 ? "s" : ""}`;
+  })();
+  const trainingDuration = trainingSpan
+    ? `${trainingSpan}${stage2.totalHours ? ` · ${stage2.totalHours}` : ""}`
+    : (stage2.totalHours || stage2.duration || "Course Completed");
+  // // Accounts Receivable and Eligibility & Verification candidates don't pick a coding specialty (Stage 2 hides that field for them), so trainingSpecialties for them is only ever the placeholder fallback (e.g. "Eligibility & Verification General") - showing it alongside the domain and level was redundant/confusing. For those two domains, show the domain and a labeled training level instead.
+  const NO_SPECIALTY_DOMAINS = ["Accounts Receivable", "Eligibility & Verification"];
+  const trainingFoundationLine = NO_SPECIALTY_DOMAINS.includes(domainName)
+    ? `${domainName}${trainingLevel ? ` · Training level: ${trainingLevel}` : ""}`
+    : `${domainName} · ${trainingLevel} · ${trainingSpecialties}`;
+  const trainingAssessmentScore = stage2.assessmentScore || stage2.score || null;
+  // Experienced-candidate work history (Stage 2 · "Your Work Experience")
+  const workCompany = stage2.currentCompany || "";
+  const workProjectDetails = stage2.projectDetails || "";
+  const workRolesList = String(stage2.rolesResponsibilities || "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[\s•*\-–—·]+/, "").trim())
+    .filter(Boolean);
+  const workTotalExperience = stage2.totalExperience || "";
+  const workNoticePeriod = stage2.noticePeriod || "";
+
+  // Stage 3 Certifications from Database
+  const isNonCertified = stage3.nonCertified || stage3.isCertified === false || stage3.certType === "non-certified";
+  const isPursuing = stage3.pursuing === true;
+  const certificationsList = useMemo(() => {
+    if (isNonCertified) return [];
+    if (Array.isArray(stage3.certifications) && stage3.certifications.length > 0) {
+      return stage3.certifications;
+    }
+    if (stage3.certCode || stage3.certName || stage3.certificationName) {
+      return [{
+        code: stage3.certCode || "CPC",
+        name: stage3.certName || stage3.certificationName || "Certified Professional Coder",
+        body: stage3.issuingBody || stage3.body || "AAPC",
+        memberId: stage3.memberId || "",
+        issueDate: stage3.issueDate || "",
+        expiryDate: stage3.expiryDate || "",
+        percentage: Number.isFinite(Number(stage3.certPercentage)) ? Number(stage3.certPercentage) : null,
+      }];
+    }
+    return [];
+  }, [stage3, isNonCertified]);
+
+  // Skills chips - generated from the candidate's own domain,
+  // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
+  const resumeSkills = useMemo(
+    () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
+    [stage2.domain, domainName, stage2.specialties, isNonCertified]
+  );
+
+  // Stage 4 Assessment from Database
+  const assessmentScore = stage4.foundationScore !== undefined ? stage4.foundationScore : (stage4.score !== undefined ? stage4.score : null);
+  const rawMedal = stage4.medal && !String(stage4.medal).toLowerCase().includes("practice") ? stage4.medal : null;
+  const assessmentMedal = rawMedal || (assessmentScore !== null ? (assessmentScore >= 85 ? "Gold" : assessmentScore >= 70 ? "Silver" : assessmentScore >= 50 ? "Bronze" : "Assessment") : "Pending");
+
+  // Stage 5 Video Pitch from Database
+  const videoScore = stage5.aiScore !== undefined ? stage5.aiScore : (stage5.score !== undefined ? stage5.score : null);
+  const videoMedal = stage5.medal || (videoScore !== null ? (videoScore >= 85 ? "Gold" : videoScore >= 70 ? "Silver" : videoScore >= 50 ? "Bronze" : "Verified") : "Pending");
+  const clarityScore = stage5.clarityScore || stage5.clarity || (videoScore ? Math.min(100, videoScore + 4) : 0);
+  const fluencyScore = stage5.fluencyScore || stage5.fluency || (videoScore ? Math.max(50, videoScore - 3) : 0);
+  const vocabScore = stage5.vocabScore || stage5.vocabularyScore || (videoScore ? videoScore : 0);
+  const confidenceScore = stage5.confidenceScore || stage5.confidence || (videoScore ? videoScore : 0);
+  const contentScore = stage5.contentScore || stage5.relevanceScore || (videoScore ? videoScore : 0);
+  const regionalLang = stage5.regionalLanguage || "";
+
+  // Stage 6 Live Charts from Database
+  const totalCharts = stage6.totalCharts !== undefined ? stage6.totalCharts : (stage6.liveChartsAudited !== undefined ? stage6.liveChartsAudited : 0);
+  const overallAccuracy = stage6.overallAccuracy !== undefined ? stage6.overallAccuracy : (stage6.accuracyScore !== undefined ? stage6.accuracyScore : 0);
+  const chartTier = stage6.tier || (totalCharts >= 500 ? "Platinum" : totalCharts >= 201 ? "Gold" : totalCharts >= 51 ? "Silver" : totalCharts > 0 ? "Bronze" : "Declared");
+
+  // Check if saved stage6 was the old legacy mock
+  const isLegacyMock = useMemo(() => {
+    if (!Array.isArray(stage6.specialtyCharts) || stage6.specialtyCharts.length === 0) return false;
+    const legacyNames = ["HCC (Risk Adjustment)", "E/M (Evaluation)", "ED (Emergency)", "Surgery"];
+    const isExactLegacyList = stage6.specialtyCharts.length === 4 && stage6.specialtyCharts.every(s => legacyNames.includes(s.name));
+    const s2Specs = Array.isArray(stage2.specialties) ? stage2.specialties : [];
+    return isExactLegacyList && s2Specs.length > 0 && !s2Specs.every(s => legacyNames.includes(s));
+  }, [stage6.specialtyCharts, stage2.specialties]);
+  
+  // "No exposure yet" (path D) / skipped / no charts logged => no Live Chart section on the resume
+  const stage6PathKey = String(stage6.evidencePath || stage6.option || "").toLowerCase();
+  const noChartExposure =
+    Boolean(stage6.skipped) ||
+    stage6PathKey === "d" || stage6PathKey.includes("none") || stage6PathKey === "no_exposure" ||
+    (!(Number(totalCharts) > 0) && !(Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.some((c) => Number(c && c.count) > 0)));
+
+  const specialtyCharts = useMemo(() => {
+    if (noChartExposure) return [];
+    if (Array.isArray(stage6.specialtyCharts) && stage6.specialtyCharts.length > 0 && !isLegacyMock) {
+      return stage6.specialtyCharts;
+    }
+    if (Array.isArray(stage2.specialties) && stage2.specialties.length > 0) {
+      return stage2.specialties.map((spec, idx) => ({
+        id: idx + 1,
+        name: spec,
+        icon: "clipboard-list",
+        count: totalCharts > 0 ? Math.round(totalCharts / Math.max(1, stage2.specialties.length)) : 0,
+        accuracy: overallAccuracy || 0,
+        timePerChart: "5.0 min",
+        lastCoded: "Recent",
+        active: true,
+      }));
+    }
+    if (totalCharts > 0) {
+      return [{ id: 1, name: domainName || "Medical Coding", icon: "stethoscope", count: totalCharts, accuracy: overallAccuracy || 0, timePerChart: "5.0 min", lastCoded: "Recent", active: true }];
+    }
+    return [];
+  }, [stage6, stage2, totalCharts, overallAccuracy, domainName, isLegacyMock, noChartExposure]);
+
+  const selectedPlatforms = useMemo(() => {
+    if (Array.isArray(stage6.selectedPlatforms) && stage6.selectedPlatforms.length > 0) {
+      return stage6.selectedPlatforms;
+    }
+    if (stage6.primaryPlatform) return [stage6.primaryPlatform];
+    return [];
+  }, [stage6]);
+
+  // Education details from Stage 1 Database
+  const degree = stage1.degree || "Bachelor's Degree";
+  const collegeName = stage1.collegeName || stage1.university || "University";
+  const graduationYear = stage1.graduationYear || "";
+  const cgpa = stage1.cgpa ? `CGPA ${stage1.cgpa}` : (stage1.percentage ? `${stage1.percentage}%` : "");
+  const twelfthSchool = stage1.twelfthSchool || stage1.schoolName || "";
+  const twelfthYear = stage1.twelfthYear || "";
+  const twelfthScore = stage1.twelfthPercentage ? `${stage1.twelfthPercentage}%` : (stage1.twelfthBoard ? `${stage1.twelfthBoard} Board` : "");
+
+  // Work Preferences from Database
+  const preferredCities = useMemo(() => {
+    if (Array.isArray(stage1.preferredCities) && stage1.preferredCities.length > 0) {
+      return stage1.preferredCities.filter(Boolean).join(" · ");
+    }
+    if (Array.isArray(stage1.preferredLocations) && stage1.preferredLocations.length > 0) {
+      return stage1.preferredLocations.filter(Boolean).join(" · ");
+    }
+    if (typeof stage1.preferredLocations === "string" && stage1.preferredLocations.trim()) {
+      return stage1.preferredLocations.trim();
+    }
+    if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
+      return stage1.preferredCities.trim();
+    }
+    return "Open to Relocation";
+  }, [stage1, city]);
+  const shiftPreference = stage1.shiftPreference || "Day shift";
+  const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
+
+  // Total Genuine Points Calculation
+  const totalPoints = useMemo(() => {
+    let pts = 0;
+    if (stage1.aadhaarVerified || stage1.fullName) pts += 15;
+    if (stage2.academyName || stage2.courseName || stage2.domain) {
+      const rawScore = stage2.academyAssessmentScore ?? stage2.assessmentScore ?? stage2.score;
+      let step3Pts = 5;
+      if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
+        const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
+        step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
+      }
+      pts += 10 + step3Pts;
+    }
+    if (stage3.certStatus === "verified" || (certificationsList.length > 0 && !isNonCertified)) pts += 15;
+    if (assessmentScore !== null && assessmentScore >= 70) pts += 20;
+    else if (assessmentScore !== null && assessmentScore > 0) pts += Math.round((assessmentScore / 100) * 20);
+    if (stage5.videoUrl || (videoScore !== null && videoScore >= 70)) pts += 15;
+    if (totalCharts > 0) {
+      const opt = (stage6.evidencePath || stage6.option || "").toLowerCase();
+      pts += opt === "a" || opt.includes("api") || opt === "practicode" ? 20 : opt === "b" || opt.includes("upload") ? 20 : opt === "c" || opt.includes("declare") ? 16 : 20;
+    }
+    return Math.min(100, Math.max(pts, candidateObj.score || 0));
+  }, [stage1, stage2, stage3, certificationsList, isNonCertified, assessmentScore, stage5, videoScore, totalCharts, stage6, candidateObj]);
+
+  // Verified Fields Count
+  const verifiedFieldsCount = useMemo(() => {
+    let count = 0;
+    if (fullName) count += 1;
+    if (mobile) count += 1;
+    if (email) count += 1;
+    if (locality) count += 1;
+    if (degree) count += 1;
+    if (collegeName) count += 1;
+    if (graduationYear) count += 1;
+    if (academyName) count += 1;
+    if (domainName) count += 1;
+    if (trainingSpecialties) count += 1;
+    certificationsList.forEach(() => { count += 3; });
+    if (assessmentScore !== null) count += 2;
+    if (videoScore !== null) count += 3;
+    if (totalCharts > 0) count += 2;
+    specialtyCharts.forEach(() => { count += 2; });
+    return Math.max(count, 18);
+  }, [fullName, mobile, email, locality, degree, collegeName, graduationYear, academyName, domainName, trainingSpecialties, certificationsList, assessmentScore, videoScore, totalCharts, specialtyCharts]);
+
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
+  // Arrival links from the Documents vault's Master Resume card:
+  //  #preview-resume  -> jump to the Live Preview (Section 4)
+  //  #download-pdf    -> jump to the Live Preview and auto-run the real PDF export
+  //  #download-share  -> jump to the Download & Share section (Section 5)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    if (hash === "#preview-resume" || hash === "#download-pdf") {
+      const timer = setTimeout(() => {
+        const el = document.getElementById("s7-live-preview-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (hash === "#download-pdf") handleDownloadPdf();
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+    if (hash === "#download-share") {
+      const timer = setTimeout(() => {
+        const el = document.getElementById("s7-download-share-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Template selection state
+  const [selectedTemplate, setSelectedTemplate] = useState(() => {
+    if (stage7Data.template) return stage7Data.template;
+    if (stage2.domain?.toLowerCase().includes("dental")) return "specialty_dental";
+    if (isExperienced) return "executive";
+    return "fresher_modern";
+  });
+
+  const baseTemplateObj = useMemo(() => {
+    return RESUME_TEMPLATES.find((t) => t.id === selectedTemplate) || RESUME_TEMPLATES[0];
+  }, [selectedTemplate]);
+
+  // Theme customizer states (Colors, Font, Density)
+  const initialTheme = stage7Data.themeSettings || {};
+  const [customAccent, setCustomAccent] = useState(initialTheme.accentColor || baseTemplateObj.accentColor);
+  const [customHeaderBg, setCustomHeaderBg] = useState(initialTheme.headerBg || baseTemplateObj.headerBg);
+  const [customFont, setCustomFont] = useState(initialTheme.fontFamily || baseTemplateObj.fontFamily);
+  const [layoutDensity, setLayoutDensity] = useState(initialTheme.density || "normal");
+
+  // Synchronize active template styling with overrides
+  const activeTmpl = useMemo(() => {
+    return {
+      ...baseTemplateObj,
+      accentColor: customAccent || baseTemplateObj.accentColor,
+      headerBg: customHeaderBg || baseTemplateObj.headerBg,
+      fontFamily: customFont || baseTemplateObj.fontFamily,
+    };
+  }, [baseTemplateObj, customAccent, customHeaderBg, customFont]);
+
+  // Handle template selection & apply matching palette
+  function handleSelectTemplate(tmpl) {
+    setSelectedTemplate(tmpl.id);
+    setCustomAccent(tmpl.accentColor);
+    setCustomHeaderBg(tmpl.headerBg);
+    setCustomFont(tmpl.fontFamily);
+    toast(`Template switched to ${tmpl.name}`, "✓");
+  }
+
+  // Handle quick color palette selection
+  function handleSelectPalette(palette) {
+    setCustomAccent(palette.accentColor);
+    setCustomHeaderBg(palette.headerBg);
+    toast(`Applied "${palette.name}" color theme!`, "✓");
+  }
+
+  // Reset theme to template defaults
+  function handleResetTheme() {
+    setCustomAccent(baseTemplateObj.accentColor);
+    setCustomHeaderBg(baseTemplateObj.headerBg);
+    setCustomFont(baseTemplateObj.fontFamily);
+    setLayoutDensity("normal");
+    toast("Reset theme to default template styles.", "✓");
+  }
+
+  // Career objectives tailored to experience level (fresher / experienced) and Stage 3 certification
+  // status (certified / pursuing / non-certified) - see utils/careerObjective.js
+  const objectiveSet = useMemo(() => {
+    const { level, years } = getExperienceLevel(stage1, candidateObj);
+    return buildCareerObjectives({
+      level,
+      years,
+      status: getCertStatus(stage3, certificationsList),
+      certCodes: certificationsList.map((c) => c.code || c.name),
+      pursuingCert: stage3.pursuingDetails?.cert || stage3.pursuingCert || "",
+      expectedExam: stage3.pursuingDetails?.expectedDate || "",
+      totalCharts,
+      accuracy: overallAccuracy,
+      domain: domainName,
+      trainingLevel,
+      specialties: Array.isArray(stage2.specialties) && stage2.specialties.length > 0 ? stage2.specialties.slice(0, 3).join(", ") : (stage2.specialty || (specialtyCharts.length > 0 ? specialtyCharts.map((sc) => sc.name).filter(Boolean).slice(0, 3).join(", ") : domainName)),
+      roleTitle: stage2.jobTitle || stage1.currentRole || "",
+      academyName,
+      assessmentScore,
+      currentCompany: stage2.currentCompany || "",
+      projectDetails: stage2.projectDetails || "",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage1, stage3, certificationsList, totalCharts, overallAccuracy, specialtyCharts, domainName, academyName, assessmentScore, trainingLevel, stage2]);
+
+  const cleanObjectiveString = (str) => {
+    if (!str) return "";
+    return str
+      .replace(/Talentera[- ]verified/gi, "Qualified")
+      .replace(/Talentera[- ]validated/gi, "Qualified")
+      .replace(/Talentera skillset/gi, "skillset")
+      .replace(/Talentera/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  const objectiveKey = `${domainName}|${trainingLevel}|${objectiveSet.level}|${objectiveSet.status}`;
+  const [careerObjective, setCareerObjective] = useState(() => {
+    const saved = stage7Data.objective || stage7Data.summary;
+    // A saved objective written for a different domain / training level / experience is stale - discard it.
+    const stale = stage7Data.objectiveKey && stage7Data.objectiveKey !== objectiveKey;
+    if (saved && !stale && !isLegacyAutoObjective(saved)) return cleanObjectiveString(saved);
+    return "";
+  });
+
+  const [formErrors, setFormErrors] = useState({});
+
+  // --- AI Career Objective Assistant (Claude-powered) ---------------------
+  const [aiNotes, setAiNotes] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiResult, setAiResult] = useState(null); // { objective, summary, source }
+  const [aiError, setAiError] = useState("");
+
+  const handleGenerateAiObjective = async () => {
+    setAiGenerating(true);
+    setAiError("");
+    try {
+      const { years: expYears } = getExperienceLevel(stage1, candidateObj);
+      const res = await api.post("/candidate/stage7/generate-objective", {
+        candidateNotes: aiNotes,
+        profile: {
+          roleTitle: stage2.jobTitle || stage1.currentRole || "",
+          domain: domainName,
+          trainingLevel,
+          specialties: trainingSpecialties,
+          level: objectiveSet.level,
+          years: expYears,
+          status: objectiveSet.status,
+          certCodes: certificationsList.map((c) => c.code || c.name),
+          academyName,
+          assessmentScore,
+          totalCharts,
+          accuracy: overallAccuracy,
+          currentCompany: stage2.currentCompany || "",
+          projectDetails: stage2.projectDetails || "",
+        },
+      });
+      setAiResult(res.data);
+    } catch (err) {
+      setAiError(err.response?.data?.message || "Could not generate a career objective right now. Please try again.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleUseAiText = (text) => {
+    if (!text) return;
+    setCareerObjective(text);
+    if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
+    toast("Added to your Career Objective. Scroll up to review & edit.", "✓");
+  };
+
+  // Version history state from Database or initialized
+  const versionHistory = useMemo(() => {
+    if (Array.isArray(stage7Data.versionHistory) && stage7Data.versionHistory.length > 0) {
+      return stage7Data.versionHistory;
+    }
+    return [
+      {
+        version: "v3",
+        timestamp: "Live · Current Version",
+        title: `Career Objective active, template = ${selectedTemplate.replace(/_/g, " ")}, accent = ${activeTmpl.accentColor}`,
+        current: true,
+      },
+      {
+        version: "v2",
+        timestamp: "Verified Session",
+        title: `Stage 06 Live Chart sync (${totalCharts} charts)`,
+        current: false,
+      },
+      {
+        version: "v1",
+        timestamp: "Initial Record",
+        title: "Initial resume assembled after Stage 01-05 verification",
+        current: false,
+      },
+    ];
+  }, [stage7Data.versionHistory, selectedTemplate, activeTmpl.accentColor, totalCharts]);
+
+  // Live Hiring Companies from database API
+  const [liveCompanies, setLiveCompanies] = useState([]);
+  const [tickerData, setTickerData] = useState(null);
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get("/public/hiring-activity")
+      .then((res) => {
+        if (!isMounted || !res.data) return;
+        if (Array.isArray(res.data.companies) && res.data.companies.length > 0) {
+          setLiveCompanies(res.data.companies);
+        }
+        if (res.data.ticker) setTickerData(res.data.ticker);
+      })
+      .catch((err) => {
+        console.debug("Live hiring activity sync:", err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Modals & Actions state
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [activeResumeSection, setActiveResumeSection] = useState(null);
+  const [showFullPreviewModal, setShowFullPreviewModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  // Go Live activation state (Career Passport go-live, formerly Stage 08)
+  const stage8Data = candidateObj.stage8 || {};
+  const realCompaniesCount = tickerData?.companiesHiring || (liveCompanies.length > 0 ? liveCompanies.length : 0);
+  const [isLiveActive, setIsLiveActive] = useState(() => Boolean(candidateObj.isSubmitted || stage8Data.isLive || candidateObj.completedStages?.includes(8)));
+  const [activating, setActivating] = useState(false);
+  const [consents, setConsents] = useState({
+    verifiedPool: true,
+    interviewTracking: true,
+    lifetimePassport: true,
+  });
+  const allConsented = consents.verifiedPool && consents.interviewTracking && consents.lifetimePassport;
+
+  async function handleGoLive() {
+    if (!allConsented) {
+      toast("Please review and accept all consent items above to activate your live profile.", "!");
+      const el = document.getElementById("s7-golive-consents-block");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+      return;
+    }
+    setActivating(true);
+    try {
+      const payload = {
+        consent: true,
+        isLive: true,
+        dpdpConsent: true,
+        preferences: stage8Data.preferences || {},
+        activatedAt: new Date(),
+        totalPoints,
+      };
+      const res = await api.put("/candidate/stage/8", payload);
+      await api.post("/candidate/submit").catch(() => {});
+      setIsLiveActive(true);
+      toast("CONGRATULATIONS! You are now LIVE in the Talentera Verified Pool!", "✓");
+      if (onSaved) {
+        onSaved(res.data, { advance: false, nextStage: null });
+      }
+    } catch (err) {
+      console.error("Failed to go live:", err);
+      toast(err.response?.data?.message || "Failed to activate Career Passport. Please try again.", "!");
+    } finally {
+      setActivating(false);
+    }
+  }
+
+  // Copy Live URL
+  function handleCopyLiveUrl() {
+    navigator.clipboard.writeText(liveResumeUrl).then(() => {
+      toast("Live Resume URL copied to clipboard!", "✓");
+    }).catch(() => {
+      toast("Link ready: " + liveResumeUrl, "!");
+    });
+  }
+
+  // ---- Plain, professional resume body (no emojis). Shared by the live preview, the full-preview
+  // modal and therefore the PDF export. Work experience comes straight from Stage 2.
+  const SHIFT_LABELS = { day: "Day shift", night: "US night shift", uk_evening: "UK evening shift", rotational: "Rotational" };
+  const resumeShiftText = Array.isArray(stage1.workShifts) && stage1.workShifts.length > 0
+    ? stage1.workShifts.join(", ")
+    : Array.isArray(stage2.shifts) && stage2.shifts.length > 0
+    ? stage2.shifts.map((x) => SHIFT_LABELS[x] || x).join(", ")
+    : shiftPreference;
+  const resumeRelocationText = stage1.openToRelocate || relocationPref;
+  const ownSkills = String(stage2.skills || "").split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
+  const resumeSkillList = ownSkills.length > 0 ? ownSkills : resumeSkills;
+  const hasWorkExperience = isExperienced && Boolean(workCompany || stage2.jobTitle);
+  const showTrainingBlock = !isExperienced || Boolean(stage2.academyName || stage2.instituteName);
+  const employmentStatusText = stage2.employmentStatus === "working" ? "Currently working" : stage2.employmentStatus === "relieved" ? "Relieved" : "";
+  const avgChartTime = (() => {
+    let total = 0;
+    let weight = 0;
+    specialtyCharts.forEach((sc) => {
+      const mins = parseFloat(String(sc.timePerChart || "").replace(/[^0-9.]/g, ""));
+      const count = Number(sc.count) || 0;
+      if (Number.isFinite(mins) && count > 0) {
+        total += mins * count;
+        weight += count;
+      }
+    });
+    return weight > 0 ? `${(total / weight).toFixed(1)} min avg` : "-";
+  })();
+  const resumeSectionBody = { fontSize: 12, color: "#0F1B3D", lineHeight: 1.7, marginTop: 4 };
+
+  // Click a resume section to reveal an "Edit" button that jumps to the stage the data comes from.
+  const goEditTarget = (t) => {
+    if (t.stage === 7) {
+      const box = document.getElementById("s7-objective-editor");
+      if (box) {
+        box.scrollIntoView({ behavior: "smooth", block: "center" });
+        const ta = box.querySelector("textarea");
+        if (ta) setTimeout(() => ta.focus(), 400);
+      }
+      return;
+    }
+    if (onNavigateStage) onNavigateStage(t.stage);
+  };
+  const editableSection = (key, targets, content, interactive) => {
+    if (!interactive) return content;
+    const active = activeResumeSection === key;
+    return (
+      <div
+        onClick={() => setActiveResumeSection(active ? null : key)}
+        style={{ position: "relative", cursor: "pointer" }}
+        title={active ? undefined : "Click to edit this section"}
+      >
+        {content}
+        {active && (
+          <>
+            <div
+              data-html2canvas-ignore="true"
+              style={{ position: "absolute", top: -4, bottom: -4, left: -8, right: -8, border: "1.5px dashed #F5B41A", borderRadius: 6, pointerEvents: "none" }}
+            />
+            <div data-html2canvas-ignore="true" style={{ position: "absolute", top: -18, right: -4, display: "flex", gap: 8, zIndex: 5 }}>
+              {targets.map((t) => (
+                <button
+                  key={t.label}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    goEditTarget(t);
+                  }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "#0F1B3D", color: "#FFFFFF", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 13.5, fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 10px rgba(0,0,0,0.25)" }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                  </svg>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  const renderResumePaper = (interactive) => (
+    <>
+      {editableSection("header", [{ stage: 1, label: "Edit contact details (Stage 1)" }], (
+      <div className="s7-resume-header">
+        <div>
+          <div className="s7-resume-name">{fullName.toUpperCase()}</div>
+          <div className="s7-resume-title">{joinUnique(currentRoleTitle, expLabel)}</div>
+          <div className="s7-resume-contact">
+            {mobile && <span>Phone: {mobile}</span>}
+            {email && <span>Email: {email}</span>}
+            {locality && <span>{locality}</span>}
+            <span style={{ color: "#1A4FB8", fontWeight: 700 }}>{liveResumeUrl.replace("https://", "")}</span>
+          </div>
+        </div>
+        <div className="s7-verified-stamp">
+          <div className="top">TALENTERA<br />VERIFIED</div>
+          <div className="id">ID: {verificationId}</div>
+          <div
+            onClick={interactive ? (e) => { e.stopPropagation(); setShowQrModal(true); } : undefined}
+            className="s7-qr-box"
+            title={interactive ? "Click to view QR details" : undefined}
+          >
+            <QrIconSvg />
+          </div>
+        </div>
+      </div>
+      ), interactive)}
+
+      {(careerObjective.trim() || interactive) && editableSection("summary", [{ stage: 7, label: "Edit summary" }], (
+        <div data-html2canvas-ignore={careerObjective.trim() ? undefined : "true"}>
+          <div className="s7-resume-sec-title">{isExperienced ? "Professional Summary" : "Career Objective"}</div>
+          {careerObjective.trim() ? (
+            <div className="s7-resume-obj" style={{ fontStyle: "normal" }}>{careerObjective.trim()}</div>
+          ) : (
+            <div className="s7-resume-obj" style={{ fontStyle: "normal", color: "#9CA3AF" }}>Click here to add your summary.</div>
+          )}
+        </div>
+      ), interactive)}
+
+      {hasWorkExperience && editableSection("work", [{ stage: 2, label: "Edit work experience (Stage 2)" }], (
+        <>
+          <div className="s7-resume-sec-title">Work Experience</div>
+          <div className="s7-r-block">
+            <div className="k">{stage2.jobTitle || currentRoleTitle}</div>
+            <div className="v">{workCompany}</div>
+            <div className="details">
+              {[
+                employmentStatusText,
+                workTotalExperience ? `${workTotalExperience} total experience` : "",
+                stage2.employmentStatus === "working" && workNoticePeriod ? `Notice period: ${workNoticePeriod}` : "",
+              ].filter(Boolean).join("  |  ")}
+            </div>
+            {workProjectDetails && <div style={{ ...resumeSectionBody, marginTop: 8 }}>{workProjectDetails}</div>}
+            {workRolesList.length > 0 && (
+              <div style={{ ...resumeSectionBody, marginTop: 8 }}>
+                <b>Roles &amp; Responsibilities:</b>
+                <ul style={{ margin: "4px 0 0 18px", padding: 0 }}>
+                  {workRolesList.map((r, i) => <li key={i}>{r}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </>
+      ), interactive)}
+
+      {resumeSkillList.length > 0 && editableSection("skills", [{ stage: 2, label: "Edit skills (Stage 2)" }], (
+        <>
+          <div className="s7-resume-sec-title">Skills</div>
+          <div style={resumeSectionBody}>{resumeSkillList.join("  |  ")}</div>
+        </>
+      ), interactive)}
+
+      {editableSection("education", [{ stage: 1, label: "Edit education (Stage 1)" }], (
+        <>
+      <div className="s7-resume-sec-title">Education</div>
+      <div className="s7-grid-2">
+        <div className="s7-r-block">
+          <div className="k">{degree}{graduationYear ? `, ${graduationYear}` : ""}</div>
+          <div className="v">{collegeName}</div>
+          {cgpa && <div className="details">{cgpa}</div>}
+        </div>
+        {twelfthSchool && (
+          <div className="s7-r-block">
+            <div className="k">Class XII{twelfthYear ? `, ${twelfthYear}` : ""}</div>
+            <div className="v">{twelfthSchool}</div>
+            {twelfthScore && <div className="details">{twelfthScore}</div>}
+          </div>
+        )}
+      </div>
+        </>
+      ), interactive)}
+
+      {certificationsList.length > 0 && editableSection("certs", [{ stage: 3, label: "Edit certifications (Stage 3)" }], (
+        <>
+          <div className="s7-resume-sec-title">Certifications</div>
+          <div className="s7-grid-2">
+            {certificationsList.map((cert, idx) => (
+              <div key={idx} className="s7-r-block">
+                <div className="k">{cert.name || cert.code}</div>
+                <div className="v">{cert.body || "AAPC"}{cert.memberId ? `  |  Member ID ending ${String(cert.memberId).slice(-4)}` : ""}</div>
+                <div className="details">
+                  {[
+                    cert.issueDate ? `Issued ${cert.issueDate}` : "",
+                    cert.expiryDate ? `Valid until ${cert.expiryDate}` : "",
+                    Number.isFinite(cert.percentage) ? `Score ${cert.percentage}%` : "",
+                  ].filter(Boolean).join("  |  ")}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ), interactive)}
+
+      {showTrainingBlock && editableSection("training", [{ stage: 2, label: "Edit training (Stage 2)" }], (
+        <>
+          <div className="s7-resume-sec-title">Training</div>
+          <div className="s7-r-block">
+            <div className="k">{academyName}{academyLocality ? `, ${academyLocality}` : ""}</div>
+            <div className="v">{trainingFoundationLine}</div>
+            <div className="details">
+              {[trainingDuration].filter(Boolean).join("  |  ")}
+            </div>
+          </div>
+        </>
+      ), interactive)}
+
+      {specialtyCharts.length > 0 && editableSection("charts", [{ stage: 6, label: "Edit live charts (Stage 6)" }], (
+        <>
+          <div className="s7-resume-sec-title">Live Chart Practice</div>
+          <table className="s7-charts-table-mini">
+            <thead>
+              <tr>
+                <th>Specialty</th>
+                <th>Charts</th>
+                <th>Accuracy</th>
+                <th>Time per chart</th>
+                <th>Last coded</th>
+              </tr>
+            </thead>
+            <tbody>
+              {specialtyCharts.map((sc) => (
+                <tr key={sc.id || sc.name}>
+                  <td>{sc.name}</td>
+                  <td>{sc.count}</td>
+                  <td>{sc.accuracy}%</td>
+                  <td>{sc.timePerChart}</td>
+                  <td>{Number(sc.count) > 0 && sc.lastCodedDate ? new Date(sc.lastCodedDate).toLocaleDateString() : "-"}</td>
+                </tr>
+              ))}
+              <tr className="total">
+                <td><b>Total</b></td>
+                <td><b>{totalCharts || specialtyCharts.reduce((a, b) => a + (Number(b.count) || 0), 0)}</b></td>
+                <td><b>{overallAccuracy || 0}%</b></td>
+                <td><b>{avgChartTime}</b></td>
+                <td>-</td>
+              </tr>
+            </tbody>
+          </table>
+          {selectedPlatforms.length > 0 && (
+            <div style={{ fontSize: 10.5, color: "#6B7280", marginTop: 8 }}>Platforms: {selectedPlatforms.join(", ")}</div>
+          )}
+        </>
+      ), interactive)}
+
+      {editableSection("prefs", [{ stage: 1, label: "Edit locations (Stage 1)" }, { stage: 2, label: "Edit shifts (Stage 2)" }], (
+        <>
+      <div className="s7-resume-sec-title">Work Preferences</div>
+      <div style={resumeSectionBody}>
+        <div><b>Preferred locations:</b> {preferredCities}</div>
+        <div><b>Relocation:</b> {resumeRelocationText}</div>
+        <div><b>Shifts:</b> {resumeShiftText}</div>
+      </div>
+        </>
+      ), interactive)}
+
+      <div style={{ borderTop: "1px solid #E5E7EB", marginTop: 20, paddingTop: 10, textAlign: "center", fontSize: 10.5, color: "#6B7280" }}>
+        Credentials verified by Talentera. Verification ID {verificationId}. Scan the QR code or visit {liveResumeUrl.replace("https://", "")} to confirm.
+      </div>
+    </>
+  );
+
+  // Direct PDF Download using html2canvas + jsPDF (No window.print popup)
+  async function handleDownloadPdf() {
+    setDownloading(true);
+    toast("Generating verified high-resolution PDF...", "i");
+
+    try {
+      if (!resumePrintRef.current) {
+        throw new Error("Resume container is not ready.");
+      }
+      await exportResumePdf(resumePrintRef.current, fullName);
+      toast("Verified PDF downloaded successfully!", "✓");
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      toast("PDF export failed: " + (err.message || "Unknown error"), "!");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  // Word / DOCX Download with Rich Word XML Styling
+  function handleDownloadWord() {
+    try {
+      exportResumeWord({
+        fullName,
+        currentRoleTitle,
+        expLabel,
+        locality,
+        mobile,
+        email,
+        verificationId,
+        liveResumeUrl,
+        careerObjective,
+        totalPoints,
+        assessmentScore,
+        assessmentMedal,
+        videoScore,
+        videoMedal,
+        clarityScore,
+        fluencyScore,
+        confidenceScore,
+        totalCharts,
+        overallAccuracy,
+        chartTier,
+        certificationsList,
+        academyName,
+        academyLocality,
+        domainName,
+        trainingLevel,
+        trainingSpecialties,
+        trainingDuration,
+        trainingAssessmentScore,
+        specialtyCharts,
+        specialties: stage2.specialties,
+        isNonCertified,
+        city,
+        isExperienced,
+        workCompany,
+        workProjectDetails,
+        workTotalExperience,
+        workNoticePeriod,
+        selectedPlatforms,
+        degree,
+        collegeName,
+        graduationYear,
+        cgpa,
+        twelfthSchool,
+        twelfthYear,
+        twelfthScore,
+        preferredCities,
+        relocationPref,
+        shiftPreference,
+        templateId: selectedTemplate,
+        headerBg: activeTmpl.headerBg,
+        accentColor: activeTmpl.accentColor,
+      });
+      toast("Word document (.doc) downloaded with verified formatting!", "✓");
+    } catch (err) {
+      console.error("Word export error:", err);
+      toast("Word export failed: " + (err.message || "Unknown error"), "!");
+    }
+  }
+
+  // ATS Clean Text Download
+  function handleDownloadTxt() {
+    const textContent = [
+      "==================================================================",
+      "TALENTERA VERIFIED CANDIDATE RESUME",
+      `Verification ID: ${verificationId} | Verification Score: ${totalPoints}/100`,
+      "==================================================================",
+      "",
+      `NAME: ${fullName.toUpperCase()}`,
+      `TITLE: ${joinUnique(currentRoleTitle, expLabel)}`,
+      `CONTACT: Mobile: ${mobile} | Email: ${email} | Location: ${locality}`,
+      `LIVE VERIFICATION URL: ${liveResumeUrl}`,
+      "",
+      "------------------------------------------------------------------",
+      isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
+      "------------------------------------------------------------------",
+      careerObjective,
+      "",
+      "------------------------------------------------------------------",
+      "TALENTERA VERIFIED CREDENTIALS & SCORECARD",
+      "------------------------------------------------------------------",
+      assessmentScore !== null ? `* Foundation Assessment: ${assessmentMedal} Tier (${assessmentScore}/100)` : "* Foundation Assessment: Verified",
+      videoScore !== null ? `* Video Pitch Score: ${videoScore}/100 - Clarity: ${clarityScore}, Fluency: ${fluencyScore}, Confidence: ${confidenceScore}` : "* AI Video Pitch: Verified",
+      totalCharts > 0 ? `* Live Chart Production: ${chartTier} Tier (${totalCharts} charts coded, ${overallAccuracy}% accuracy)` : "* Live Chart: Foundation Track",
+      "",
+      certificationsList.length > 0 ? [
+        "------------------------------------------------------------------",
+        "CORE CERTIFICATIONS",
+        "------------------------------------------------------------------",
+        ...certificationsList.map((c) => `* ${c.body || 'AAPC'} ${c.code || c.name} (Member ID: ${c.memberId || 'Verified'}) - Valid through: ${c.expiryDate || 'Active'}${Number.isFinite(c.percentage) ? ` - Score: ${c.percentage}%` : ''}`),
+        ""
+      ].join("\n") : "",
+      hasWorkExperience ? [
+        "------------------------------------------------------------------",
+        "WORK EXPERIENCE",
+        "------------------------------------------------------------------",
+        `* ${stage2.jobTitle || currentRoleTitle}${workCompany ? ` - ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}`,
+        workProjectDetails ? `  ${workProjectDetails}` : "",
+        workRolesList.length > 0 ? ["  Roles & Responsibilities:", ...workRolesList.map((r) => `   - ${r}`)].join("\n") : "",
+        ""
+      ].filter((l) => l !== "").join("\n") : "",
+      "------------------------------------------------------------------",
+      "TRAINING FOUNDATION",
+      "------------------------------------------------------------------",
+      `* Academy: ${academyName} (${academyLocality})`,
+      `* Specialty: ${trainingSpecialties} - ${trainingLevel}`,
+      `* Duration: ${trainingDuration}`,
+      "",
+      "------------------------------------------------------------------",
+      "ACADEMIC EDUCATION",
+      "------------------------------------------------------------------",
+      `* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}`,
+      twelfthSchool ? `* Class XII: ${twelfthSchool} (${twelfthYear}) ${twelfthScore ? `- ${twelfthScore}` : ""}` : "",
+      "",
+      resumeSkills.length > 0 ? [
+        "------------------------------------------------------------------",
+        "SKILLS",
+        "------------------------------------------------------------------",
+        `* ${resumeSkills.join(" | ")}`,
+        ""
+      ].join("\n") : "",
+      "------------------------------------------------------------------",
+      "WORK PREFERENCES",
+      "------------------------------------------------------------------",
+      `* Locations: ${preferredCities}`,
+      `* Relocation: ${relocationPref} | Availability: Immediate | Shifts: ${shiftPreference}`,
+      "",
+      "==================================================================",
+      `Verified by Talentera Automated Credential Engine | Live at ${liveResumeUrl}`,
+      "=================================================================="
+    ].filter(Boolean).join("\n");
+
+    const blob = new Blob([textContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${fullName.replace(/\s+/g, "_")}_Talentera_Resume.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast("ATS Plain Text resume downloaded!", "✓");
+  }
+
+  // PNG Export
+  function handleDownloadPng() {
+    toast("Opening printable snapshot...", "i");
+    window.print();
+  }
+
+  // Regional Export
+  function handleDownloadRegional() {
+    toast(`Exporting ${regionalLang || "Regional"} verified summary...`, "✓");
+    handleDownloadWord();
+  }
+
+  // Save Stage 7 Data to MongoDB
+  async function handleSaveAndAdvance(advanceToStage8 = true) {
+    if (advanceToStage8 && (!careerObjective || careerObjective.trim().length < 5)) {
+      setFormErrors({ careerObjective: "Career Objective is mandatory (minimum 5 characters)." });
+      toast("Please provide or select a Career Objective in Section 2 to continue.", "error", { title: "Mandatory Field Required" });
+      window.scrollTo({ top: 400, behavior: "smooth" });
+      return;
+    }
+    setFormErrors({});
+    setSaving(true);
+    try {
+      const payload = {
+        template: selectedTemplate,
+        themeSettings: {
+          accentColor: activeTmpl.accentColor,
+          headerBg: activeTmpl.headerBg,
+          fontFamily: activeTmpl.fontFamily,
+          density: layoutDensity,
+        },
+        objective: careerObjective,
+        objectiveKey,
+        summary: careerObjective,
+        resumeUrl: liveResumeUrl,
+        slug: candidateSlug,
+        verificationId,
+        totalPoints,
+        versionHistory,
+        isDraft: !advanceToStage8,
+      };
+
+      const res = await api.put("/candidate/stage/7", payload);
+      toast(advanceToStage8 ? "Resume saved! Scroll down to go live." : "Resume theme & content saved successfully!", "✓");
+
+      if (onSaved) {
+        onSaved(res.data, { advance: false, nextStage: null });
+      }
+    } catch (err) {
+      console.error("Failed to save stage 7:", err);
+      toast(err.response?.data?.message || "Failed to save Stage 7. Please try again.", "!");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="stage7-root" style={{ color: "#3A425A", fontSize: 14, lineHeight: 1.5 }}>
+      <style>{`
+        .stage7-root * { box-sizing: border-box; }
+        .s7-shell { width: 100%; min-width: 0; }
+        .s7-main-column { width: 100%; min-width: 0; }
+        
+        .s7-hero {
+          background: linear-gradient(135deg, #0F1B3D 0%, #1E3A8A 60%, #2A54B5 100%);
+          color: #FFFFFF;
+          border-radius: 18px;
+          padding: 30px 32px;
+          position: relative;
+          overflow: hidden;
+          margin-bottom: 20px;
+          box-shadow: 0 8px 24px rgba(15,27,61,.15);
+        }
+        .s7-hero::before {
+          content: '';
+          position: absolute;
+          right: -80px;
+          top: -80px;
+          width: 280px;
+          height: 280px;
+          background: radial-gradient(circle, rgba(245,180,26,.16), transparent 60%);
+        }
+        .s7-hero-icon {
+          width: 54px;
+          height: 54px;
+          background: #F5B41A;
+          color: #0F1B3D;
+          border-radius: 14px;
+          display: grid;
+          place-items: center;
+          font-size: 26px;
+          margin-bottom: 14px;
+          box-shadow: 0 4px 12px rgba(245,180,26,.32);
+        }
+        .s7-hero-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+        .s7-hero-chip {
+          background: rgba(255,255,255,.14);
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 10.5px;
+          font-weight: 700;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          backdrop-filter: blur(6px);
+        }
+        .s7-hero-chip.green { background: rgba(31,122,60,.28); color: #7ED87E; }
+        .s7-hero-chip.gold { background: #F5B41A; color: #0F1B3D; }
+        .s7-hero-title { font-size: 44px; font-weight: 800; letter-spacing: -1px; margin: 0; line-height: 1; color: #FFFFFF !important; }
+        .s7-hero-subtitle { color: #FFF6E0 !important; font-style: italic; font-size: 17px; margin-top: 6px; font-weight: 500; }
+        .s7-hero-desc { color: rgba(255,255,255,.9) !important; font-size: 14px; margin-top: 16px; max-width: 680px; line-height: 1.6; }
+        .s7-hero-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 22px; }
+        @media (max-width: 768px) { .s7-hero-tiles { grid-template-columns: 1fr 1fr; } }
+        .s7-hero-tile {
+          background: rgba(255,255,255,.12);
+          padding: 16px 14px;
+          border-radius: 12px;
+          text-align: center;
+          border: 1px solid rgba(255,255,255,.08);
+          backdrop-filter: blur(8px);
+        }
+        .s7-hero-tile .big { font-size: 20px; font-weight: 800; color: #FFFFFF; letter-spacing: -.3px; }
+        .s7-hero-tile .small { font-size: 11px; color: rgba(255,255,255,.7); margin-top: 3px; letter-spacing: .3px; }
+
+        /* ID RECAP */
+        .s7-id-recap {
+          background: linear-gradient(90deg, #E8F5E9, #F5FDF9);
+          border: 1px solid #1F7A3C;
+          border-radius: 12px;
+          padding: 14px 18px;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          margin-bottom: 18px;
+        }
+        .s7-id-recap .check {
+          width: 36px;
+          height: 36px;
+          background: #1F7A3C;
+          color: #FFFFFF;
+          border-radius: 50%;
+          display: grid;
+          place-items: center;
+          font-size: 18px;
+          font-weight: 800;
+          flex-shrink: 0;
+        }
+        .s7-id-recap .lbl { font-size: 11px; color: #1F7A3C; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+        .s7-id-recap .val { font-size: 14px; color: #0F1B3D; font-weight: 800; margin-top: 2px; }
+        .s7-id-recap .small { font-size: 11.5px; color: #8A91A3; margin-top: 1px; font-style: italic; }
+        .s7-id-recap .locked-badge {
+          background: #F5B41A;
+          color: #0F1B3D;
+          padding: 5px 10px;
+          border-radius: 8px;
+          font-size: 10.5px;
+          font-weight: 800;
+          letter-spacing: .6px;
+          white-space: nowrap;
+        }
+
+        .s7-card {
+          background: #FFFFFF;
+          border-radius: 16px;
+          padding: 24px 26px;
+          box-shadow: 0 2px 10px rgba(15,27,61,.05);
+          margin-bottom: 18px;
+          border: 1px solid #E5E7EB;
+        }
+        .s7-card-title { font-size: 20px; font-weight: 800; color: #0F1B3D; margin: 0; }
+        .s7-card-eyebrow { font-size: 10.5px; letter-spacing: 1.5px; color: #C99413; text-transform: uppercase; font-weight: 700; margin-top: 8px; }
+
+        .s7-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; }
+        @media (max-width: 768px) { .s7-rules-grid { grid-template-columns: 1fr; } }
+        .s7-rule-tile { background: #FFF6E0; padding: 16px 18px; border-radius: 12px; border-left: 4px solid #F5B41A; }
+        .s7-rule-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .s7-rule-ico { width: 32px; height: 32px; background: #F5B41A; color: #0F1B3D; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 700; }
+        .s7-rule-title { font-size: 13.5px; font-weight: 800; color: #0F1B3D; }
+        .s7-rule-body { font-size: 12.5px; color: #3A425A; line-height: 1.55; }
+        .s7-consent-pill { background: #0F1B3D; color: #FFF6E0; padding: 12px 16px; border-radius: 12px; font-style: italic; font-size: 12.5px; margin-top: 16px; display: flex; align-items: center; gap: 10px; }
+
+        .s7-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: linear-gradient(135deg, #FFF6E0, #FFF9E0);
+          padding: 12px 20px;
+          border-radius: 12px;
+          margin-bottom: 16px;
+          border: 1px solid #FFEBB0;
+        }
+        .s7-progress-rail { display: flex; align-items: center; gap: 6px; background: #FFFFFF; padding: 8px 14px; border-radius: 20px; border: 1px solid #E5E7EB; font-size: 11.5px; color: #8A91A3; }
+        .s7-rail-dot { width: 9px; height: 9px; border-radius: 50%; background: #E5E7EB; }
+        .s7-rail-dot.done { background: #F5B41A; }
+        .s7-rail-dot.active { background: #F5B41A; box-shadow: 0 0 0 3px #FFF6E0; }
+        .s7-saved-badge { color: #1F7A3C; font-weight: 700; font-size: 11.5px; display: flex; align-items: center; gap: 4px; }
+
+        .s7-section { background: #FAFAF7; padding: 22px 24px; border-radius: 14px; margin-bottom: 16px; border: 1px solid #E5E7EB; position: relative; }
+        .s7-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed #E5E7EB; }
+        .s7-section-num { width: 32px; height: 32px; background: #F5B41A; color: #0F1B3D; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+        .s7-section-title { font-size: 16px; font-weight: 800; color: #0F1B3D; flex: 1; }
+        .s7-no-pts-chip { background: #F2F3F5; color: #8A91A3; padding: 3px 10px; border-radius: 12px; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; font-style: italic; }
+
+        /* ASSEMBLY BANNER */
+        .s7-assembly-banner {
+          background: linear-gradient(135deg, #0F1B3D, #1E3A8A);
+          color: #FFFFFF;
+          border-radius: 14px;
+          padding: 22px 26px;
+          display: grid;
+          grid-template-columns: 60px 1fr auto;
+          gap: 18px;
+          align-items: center;
+          margin-bottom: 16px;
+          position: relative;
+          overflow: hidden;
+        }
+        .s7-assembly-ico { width: 60px; height: 60px; background: #F5B41A; color: #0F1B3D; border-radius: 14px; display: grid; place-items: center; font-size: 28px; box-shadow: 0 4px 12px rgba(245,180,26,.4); }
+        .s7-assembly-txt .lbl { color: #F5B41A; font-size: 10.5px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+        .s7-assembly-txt .title { font-size: 19px; font-weight: 800; margin-top: 4px; }
+        .s7-assembly-txt .sub { font-size: 12.5px; color: rgba(255,255,255,.75); margin-top: 4px; line-height: 1.5; }
+        .s7-assembly-count { background: rgba(245,180,26,.2); color: #F5B41A; padding: 8px 16px; border-radius: 10px; font-weight: 800; font-size: 13px; text-align: center; }
+        .s7-assembly-count .big { font-size: 22px; font-weight: 800; color: #FFFFFF; }
+        .s7-assembly-count .small { font-size: 10px; letter-spacing: .5px; text-transform: uppercase; }
+
+        /* TEMPLATE GRID */
+        .s7-template-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        @media (max-width: 850px) { .s7-template-grid { grid-template-columns: 1fr 1fr; } }
+        @media (max-width: 550px) { .s7-template-grid { grid-template-columns: 1fr; } }
+        .s7-template-card {
+          background: #FFFFFF;
+          border: 2px solid #E5E7EB;
+          border-radius: 12px;
+          padding: 16px;
+          cursor: pointer;
+          transition: .15s;
+          position: relative;
+        }
+        .s7-template-card:hover { border-color: #FFEBB0; background: #FDF6E4; }
+        .s7-template-card.selected { border-color: #F5B41A; background: #FFF6E0; box-shadow: 0 4px 10px rgba(245,180,26,.15); }
+        .s7-template-card.recommended { border-color: #1F7A3C; }
+        .s7-template-card.recommended::before {
+          content: 'AUTO-PICK';
+          position: absolute;
+          top: -10px;
+          left: 12px;
+          background: #1F7A3C;
+          color: #FFFFFF;
+          padding: 2px 10px;
+          border-radius: 10px;
+          font-size: 9.5px;
+          font-weight: 800;
+          letter-spacing: .5px;
+        }
+        .s7-template-thumb {
+          aspect-ratio: 8.5/11;
+          background: linear-gradient(180deg, #F8F9FC, #EDF0F5);
+          border-radius: 8px;
+          margin-bottom: 10px;
+          position: relative;
+          overflow: hidden;
+          border: 1px solid #E5E7EB;
+        }
+        .s7-thumb-header { height: 22%; padding: 8px; }
+        .s7-thumb-name-bar { background: #F5B41A; height: 6px; width: 60%; border-radius: 2px; margin-bottom: 4px; }
+        .s7-thumb-line { background: rgba(255,255,255,.4); height: 3px; border-radius: 1.5px; margin-bottom: 3px; }
+        .s7-thumb-line.short { width: 40%; }
+        .s7-thumb-line.med { width: 70%; }
+        .s7-thumb-body { padding: 8px; }
+        .s7-thumb-body .s7-thumb-line { background: #E5E7EB; height: 3px; margin-bottom: 3px; }
+        .s7-thumb-body .s7-thumb-line.gold { background: #F5B41A; width: 50%; height: 4px; }
+        .s7-thumb-body .s7-thumb-line.long { width: 90%; }
+        .s7-template-name { font-weight: 800; color: #0F1B3D; font-size: 13px; }
+        .s7-template-sub { font-size: 11px; color: #8A91A3; margin-top: 2px; line-height: 1.4; }
+        .s7-template-check {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          width: 20px;
+          height: 20px;
+          border-radius: 50%;
+          border: 2px solid #E5E7EB;
+          display: grid;
+          place-items: center;
+          font-size: 11px;
+        }
+        .s7-template-card.selected .s7-template-check { background: #F5B41A; border-color: #F5B41A; color: #0F1B3D; font-weight: 800; }
+
+        /* CAREER OBJECTIVE */
+        .s7-obj-editor { background: #FFFFFF; border: 1.5px solid #F5B41A; border-radius: 10px; padding: 14px 16px; margin-top: 10px; }
+        .s7-obj-editor textarea { width: 100%; border: none; outline: none; font-size: 13px; color: #0F1B3D; line-height: 1.5; resize: vertical; min-height: 70px; font-family: inherit; }
+        .s7-obj-editor.has-error {
+          border: 2px solid #EF4444 !important;
+          background-color: #FEF2F2 !important;
+          box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
+        }
+        .s7-obj-editor.has-error textarea {
+          background-color: transparent !important;
+        }
+        .s7-field-error-msg {
+          color: #DC2626;
+          font-size: 12px;
+          font-weight: 700;
+          margin-top: 6px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .s7-obj-editor-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #E5E7EB; font-size: 11px; color: #8A91A3; }
+
+        /* LOCKED ROWS */
+        .s7-locked-sections { display: flex; flex-direction: column; gap: 10px; }
+        .s7-locked-row {
+          background: #FFFFFF;
+          border: 1.5px solid #E5E7EB;
+          border-radius: 12px;
+          padding: 14px 16px;
+          display: grid;
+          grid-template-columns: 44px 1fr auto auto;
+          gap: 14px;
+          align-items: center;
+        }
+        @media (max-width: 650px) { .s7-locked-row { grid-template-columns: 1fr; gap: 8px; } }
+        .s7-locked-ico { width: 44px; height: 44px; background: #FFF6E0; color: #C99413; border-radius: 10px; display: grid; place-items: center; font-size: 18px; }
+        .s7-locked-info .title { font-weight: 800; color: #0F1B3D; font-size: 13.5px; display: flex; align-items: center; gap: 6px; }
+        .s7-lock-badge { font-size: 10px; color: #8A91A3; background: #F2F3F5; padding: 2px 8px; border-radius: 6px; font-weight: 700; letter-spacing: .4px; }
+        .s7-locked-info .meta { font-size: 11.5px; color: #8A91A3; margin-top: 3px; line-height: 1.4; }
+        .s7-locked-info .meta b { color: #0F1B3D; }
+        .s7-edit-stage-btn { color: #C99413; font-size: 11px; font-weight: 800; padding: 6px 10px; border-radius: 8px; background: #FFF6E0; border: 1px solid #FFEBB0; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+        .s7-edit-stage-btn:hover { background: #F5B41A; color: #0F1B3D; }
+        .s7-verified-tag { background: #E8F5E9; color: #1F7A3C; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; letter-spacing: .3px; }
+
+        /* RESUME PREVIEW PAPER & DYNAMIC TEMPLATES */
+        .s7-resume-preview {
+          background: #FFFFFF;
+          border-radius: 14px;
+          padding: 30px 36px;
+          box-shadow: 0 8px 30px rgba(15,27,61,.08);
+          color: #222222;
+          position: relative;
+          overflow: hidden;
+          transition: all 0.2s ease;
+        }
+
+        /* Default / Fresher Modern */
+        .s7-resume-preview.tmpl-fresher_modern {
+          border: 2px solid var(--accent, #F5B41A);
+        }
+        .s7-resume-preview.tmpl-fresher_modern::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: var(--accent, #F5B41A);
+        }
+
+        /* Plain B&W Template (Strict Monochrome ATS) */
+        .s7-resume-preview.tmpl-plain_bw {
+          border: 2px solid #000000;
+          box-shadow: none;
+          background: #FFFFFF;
+        }
+        .s7-resume-preview.tmpl-plain_bw::before { display: none; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-header { border-bottom: 2px solid #000000; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-name { color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-title { color: #374151 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-contact { color: #4B5563 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-contact a,
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-contact span { color: #111827 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-verified-stamp { border: 2px solid #000000 !important; background: #FFFFFF !important; color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-verified-stamp .top,
+        .s7-resume-preview.tmpl-plain_bw .s7-verified-stamp .id { color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-qr-box { background: #000000 !important; color: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-sec-title { color: #000000 !important; border-bottom: 2px solid #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-resume-score-strip { background: #F9FAFB !important; border: 1.5px solid #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-score-badge { background: #000000 !important; color: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-r-block { border: 1px solid #000000 !important; background: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-r-block .v { color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-charts-table-mini th { background: #000000 !important; color: #FFFFFF !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-charts-table-mini tr.total td { background: #F3F4F6 !important; color: #000000 !important; }
+        .s7-resume-preview.tmpl-plain_bw .s7-qr-mini { background: #000000 !important; color: #FFFFFF !important; }
+
+        /* Fresher Classic Template (Editorial Serif, Academic) */
+        .s7-resume-preview.tmpl-fresher_classic {
+          border: 1.5px solid #CBD5E1;
+          font-family: Georgia, 'Times New Roman', serif;
+        }
+        .s7-resume-preview.tmpl-fresher_classic::before { display: none; }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-header {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
+          border-bottom: 3px double #333333;
+          padding-bottom: 14px;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-name {
+          font-family: Georgia, serif;
+          font-size: 28px;
+          color: #1F2937;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-contact {
+          justify-content: center;
+          margin-top: 6px;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-verified-stamp {
+          margin: 10px auto 0;
+          max-width: 240px;
+        }
+        .s7-resume-preview.tmpl-fresher_classic .s7-resume-sec-title {
+          font-family: Georgia, serif;
+          text-align: left;
+          color: #1F2937;
+          border-bottom: 1.5px solid #4B5563;
+        }
+
+        /* Executive Template (Executive Banner, Leadership) */
+        .s7-resume-preview.tmpl-executive {
+          border: 2px solid var(--accent, #7C3AED);
+        }
+        .s7-resume-preview.tmpl-executive::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 8px; height: 100%; background: var(--hdr-bg, #4C1D95);
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-header {
+          background: var(--hdr-bg, #4C1D95);
+          margin: -30px -36px 20px -36px;
+          padding: 24px 36px 20px 44px;
+          border-bottom: 3.5px solid var(--accent, #F5B41A);
+          color: #FFFFFF;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-name {
+          color: #FFFFFF !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-title {
+          color: var(--accent, #F5B41A) !important;
+          font-weight: 700;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-contact,
+        .s7-resume-preview.tmpl-executive .s7-resume-contact span {
+          color: #E2E8F0 !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-verified-stamp {
+          background: rgba(255,255,255,0.15) !important;
+          border: 1.5px solid var(--accent, #F5B41A) !important;
+          color: #FFFFFF !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-verified-stamp .top,
+        .s7-resume-preview.tmpl-executive .s7-verified-stamp .id {
+          color: #FFFFFF !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-qr-box {
+          background: #FFFFFF !important;
+          color: var(--hdr-bg, #4C1D95) !important;
+        }
+        .s7-resume-preview.tmpl-executive .s7-resume-sec-title {
+          color: var(--hdr-bg, #4C1D95);
+          border-bottom: 2px solid var(--accent, #7C3AED);
+        }
+
+        /* Global Template (US/UK International Format) */
+        .s7-resume-preview.tmpl-global {
+          border: 1.5px solid #E2E8F0;
+          box-shadow: 0 4px 20px rgba(6,95,70,0.06);
+        }
+        .s7-resume-preview.tmpl-global::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: #10B981;
+        }
+        .s7-resume-preview.tmpl-global .s7-resume-sec-title {
+          color: #064E3B;
+          border-bottom: 2px solid #10B981;
+        }
+        .s7-resume-preview.tmpl-global .s7-verified-stamp {
+          border-color: #064E3B;
+          background: #ECFDF5;
+        }
+        .s7-resume-preview.tmpl-global .s7-qr-box {
+          background: #064E3B;
+          color: #10B981;
+        }
+        .s7-resume-preview.tmpl-global .s7-charts-table-mini th {
+          background: #064E3B;
+          color: #A7F3D0;
+        }
+
+        /* Compact ATS Template (Dense 1-Page Format) */
+        .s7-resume-preview.tmpl-compact_ats {
+          padding: 18px 22px;
+          border: 1.5px solid #334155;
+          font-size: 11px;
+        }
+        .s7-resume-preview.tmpl-compact_ats::before {
+          width: 4px;
+          background: #334155;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-name {
+          font-size: 22px;
+          margin-bottom: 2px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-title {
+          font-size: 11.5px;
+          margin-bottom: 4px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-sec-title {
+          margin: 12px 0 4px;
+          padding-bottom: 2px;
+          font-size: 10.5px;
+          border-bottom: 1.5px solid #334155;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-resume-score-strip {
+          padding: 8px 10px;
+          margin-top: 8px;
+          gap: 6px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-score-badge {
+          font-size: 10px;
+          padding: 2px 6px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-r-block {
+          padding: 6px 10px;
+        }
+        .s7-resume-preview.tmpl-compact_ats .s7-charts-table-mini th,
+        .s7-resume-preview.tmpl-compact_ats .s7-charts-table-mini td {
+          padding: 3px 6px;
+          font-size: 10.5px;
+        }
+
+        /* Specialty Dental Template */
+        .s7-resume-preview.tmpl-specialty_dental {
+          border: 2px solid #7C3AED;
+        }
+        .s7-resume-preview.tmpl-specialty_dental::before {
+          content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: #7C3AED;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-resume-sec-title {
+          color: #4C1D95;
+          border-bottom: 2px solid #7C3AED;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-verified-stamp {
+          border-color: #7C3AED;
+          background: #F5F3FF;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-qr-box {
+          background: #7C3AED;
+          color: #F5B41A;
+        }
+        .s7-resume-preview.tmpl-specialty_dental .s7-charts-table-mini th {
+          background: #7C3AED;
+          color: #FFFFFF;
+        }
+
+        /* Common Elements within Resume */
+        .s7-resume-header { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid var(--hdr-bg, #0F1B3D); align-items: end; }
+        .s7-resume-name { font-size: 30px; font-weight: 800; color: var(--hdr-bg, #0F1B3D); letter-spacing: -.5px; line-height: 1; margin-bottom: 6px; }
+        .s7-resume-title { font-size: 14px; color: #3A425A; font-weight: 600; margin-bottom: 8px; }
+        .s7-resume-contact { font-size: 11.5px; color: #3A425A; display: flex; gap: 14px; flex-wrap: wrap; }
+        .s7-verified-stamp { border: 2px solid var(--hdr-bg, #0F1B3D); border-radius: 8px; padding: 10px 14px; text-align: center; background: #FFF6E0; }
+        .s7-verified-stamp .top { font-size: 9.5px; color: var(--hdr-bg, #0F1B3D); font-weight: 800; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; justify-content: center; }
+        .s7-verified-stamp .id { font-size: 10px; color: #3A425A; margin-top: 4px; font-family: monospace; }
+        .s7-qr-box { width: 56px; height: 56px; background: var(--hdr-bg, #0F1B3D); margin: 8px auto 0; border-radius: 4px; display: grid; place-items: center; color: var(--accent, #F5B41A); font-size: 24px; cursor: pointer; }
+
+        .s7-resume-sec-title { font-size: 12px; color: var(--hdr-bg, #0F1B3D); font-weight: 800; letter-spacing: 2px; text-transform: uppercase; margin: 20px 0 8px; padding-bottom: 4px; border-bottom: 1.5px solid var(--accent, #F5B41A); }
+        .s7-resume-obj { font-size: 13px; color: #333333; line-height: 1.6; font-style: italic; }
+        .s7-resume-score-strip {
+          background: linear-gradient(135deg, #FFF6E0, #FFF9E0);
+          border: 1.5px solid var(--accent, #F5B41A);
+          border-radius: 10px;
+          padding: 12px 16px;
+          margin-top: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          align-items: center;
+        }
+        .s7-score-badge { background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 11.5px; }
+        .s7-score-badge.silver { background: linear-gradient(135deg, #C0C0C0, #8B9199); color: #FFFFFF; }
+        .s7-score-badge.gold { background: linear-gradient(135deg, var(--accent, #F5B41A), #DAA520); color: var(--hdr-bg, #0F1B3D); }
+        .s7-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+        @media (max-width: 700px) { .s7-grid-2 { grid-template-columns: 1fr; } }
+        .s7-r-block { background: #FAFAF7; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px 14px; }
+        .s7-r-block .k { font-size: 10px; color: #8A91A3; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; margin-bottom: 4px; }
+        .s7-r-block .v { font-size: 13px; color: var(--hdr-bg, #0F1B3D); font-weight: 800; }
+        .s7-r-block .details { font-size: 11.5px; color: #3A425A; margin-top: 3px; line-height: 1.5; }
+        .s7-qr-mini { width: 34px; height: 34px; background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); border-radius: 4px; float: right; margin-left: 8px; display: grid; place-items: center; font-size: 14px; }
+
+        .s7-charts-table-mini { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        .s7-charts-table-mini th { background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); padding: 6px 10px; font-size: 10px; letter-spacing: .5px; text-align: left; font-weight: 800; }
+        .s7-charts-table-mini td { padding: 6px 10px; border-bottom: 1px dashed #E5E7EB; font-size: 11.5px; color: #0F1B3D; }
+        .s7-charts-table-mini tr.total td { background: #FFF6E0; font-weight: 800; border-bottom: none; }
+
+        /* DOWNLOAD GRID */
+        .s7-download-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+        @media (max-width: 600px) { .s7-download-grid { grid-template-columns: 1fr; } }
+        .s7-dl-card { background: #FFFFFF; border: 1.5px solid #E5E7EB; border-radius: 12px; padding: 14px; text-align: center; cursor: pointer; transition: .15s; }
+        .s7-dl-card:hover { border-color: #F5B41A; background: #FFF6E0; }
+        .s7-dl-card.hero { background: #F5B41A; border-color: #C99413; color: #0F1B3D; }
+        .s7-dl-card.hero:hover { background: #FFEBB0; }
+        .s7-dl-ico { font-size: 26px; margin-bottom: 6px; }
+        .s7-dl-name { font-size: 12px; font-weight: 800; color: #0F1B3D; }
+        .s7-dl-sub { font-size: 10.5px; color: #8A91A3; margin-top: 2px; }
+        .s7-dl-card.hero .s7-dl-sub { color: rgba(15,27,61,.7); }
+
+        /* LIVE URL CARD */
+        .s7-url-card { background: linear-gradient(135deg, #EEF2FF, #F5F8FF); border: 1.5px solid #1A4FB8; border-radius: 12px; padding: 16px 18px; margin-top: 12px; }
+        .s7-url-row { display: flex; align-items: center; gap: 10px; background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 8px; padding: 8px 12px; font-family: monospace; font-size: 12px; color: #0F1B3D; margin-top: 8px; }
+        .s7-url-row .link { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+        .s7-url-btn { background: #0F1B3D; color: #F5B41A; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 800; border: none; cursor: pointer; }
+        .s7-url-hint { font-size: 11px; color: #1A4FB8; margin-top: 8px; font-weight: 600; line-height: 1.5; }
+
+        /* VERSION HISTORY */
+        .s7-version-list { display: flex; flex-direction: column; gap: 8px; }
+        .s7-version-item { background: #FFFFFF; border: 1.5px solid #E5E7EB; border-radius: 10px; padding: 10px 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; font-size: 12px; }
+        .s7-version-item.current { border-color: #F5B41A; background: #FFF6E0; }
+        .s7-version-num { font-weight: 800; color: #0F1B3D; font-size: 13px; }
+        .s7-version-info { color: #3A425A; font-size: 11.5px; }
+        .s7-version-info b { color: #0F1B3D; }
+        .s7-version-tag { font-size: 10px; color: #C99413; background: #FFF6E0; padding: 2px 8px; border-radius: 6px; font-weight: 800; }
+
+        /* BUTTONS */
+        .s7-action-btn { background: #F5B41A; color: #0F1B3D; padding: 11px 22px; border-radius: 10px; font-size: 13px; font-weight: 800; border: none; cursor: pointer; letter-spacing: .3px; }
+        .s7-action-btn:hover { background: #FFEBB0; }
+        .s7-link-btn { background: #FFFFFF; color: #3A425A; padding: 11px 20px; border-radius: 10px; font-size: 13px; font-weight: 700; border: 1.5px solid #E5E7EB; cursor: pointer; }
+        .s7-link-btn:hover { background: #F9FAFB; }
+
+        /* RIGHT COMPANION */
+        .s7-right-rail { min-width: 0; }
+
+        /* AI CAREER OBJECTIVE ASSISTANT */
+        .s7-ai-widget {
+          background: linear-gradient(180deg, #FFFDF5 0%, #FFFFFF 100%);
+          border: 1.5px solid #F5B41A;
+          border-radius: 14px;
+          padding: 16px;
+          margin-top: 16px;
+        }
+        .s7-ai-widget-header { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+        .s7-ai-widget-icon { font-size: 20px; line-height: 1; }
+        .s7-ai-widget-title { font-weight: 800; color: #0F1B3D; font-size: 13.5px; }
+        .s7-ai-widget-sub { font-size: 11.5px; color: #8A91A3; margin-top: 2px; line-height: 1.4; }
+        .s7-ai-widget-input {
+          width: 100%;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          padding: 10px 12px;
+          font-size: 12.5px;
+          color: #0F1B3D;
+          font-family: inherit;
+          resize: vertical;
+          min-height: 60px;
+          outline: none;
+          box-sizing: border-box;
+        }
+        .s7-ai-widget-input:focus { border-color: #F5B41A; }
+        .s7-ai-widget-btn {
+          width: 100%;
+          margin-top: 10px;
+          background: #0F1B3D;
+          color: #F5B41A;
+          border: none;
+          border-radius: 8px;
+          padding: 10px 14px;
+          font-weight: 800;
+          font-size: 12.5px;
+          cursor: pointer;
+        }
+        .s7-ai-widget-btn:disabled { opacity: 0.6; cursor: wait; }
+        .s7-ai-widget-btn:not(:disabled):hover { background: #16224A; }
+        .s7-ai-widget-error { color: #DC2626; font-size: 11.5px; font-weight: 700; margin-top: 10px; }
+        .s7-ai-widget-results { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+        .s7-ai-widget-result-card { background: #FFFFFF; border: 1px solid #E5E7EB; border-radius: 10px; padding: 10px 12px; }
+        .s7-ai-widget-result-label { font-size: 10.5px; font-weight: 800; color: #F5B41A; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+        .s7-ai-widget-result-text { font-size: 12px; color: #0F1B3D; line-height: 1.5; }
+        .s7-ai-widget-use-btn {
+          margin-top: 8px;
+          background: #FFF7E0;
+          color: #0F1B3D;
+          border: 1px solid #F5B41A;
+          border-radius: 6px;
+          padding: 6px 10px;
+          font-size: 11.5px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .s7-ai-widget-use-btn:hover { background: #F5B41A; }
+        .s7-ai-widget-note { font-size: 10.5px; color: #8A91A3; margin-top: 10px; text-align: center; }
+        .s7-passport-card {
+          background: linear-gradient(135deg, #0F1B3D, #1E3A8A);
+          color: #FFFFFF;
+          padding: 20px;
+          border-radius: 14px;
+          margin-bottom: 16px;
+          position: relative;
+          overflow: hidden;
+        }
+        .s7-passport-eyebrow { color: #F5B41A; font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+        .s7-passport-title { font-size: 20px; font-weight: 800; margin-top: 4px; }
+        .s7-passport-status { background: rgba(31,122,60,.28); color: #7ED87E; padding: 6px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; margin-top: 12px; display: inline-block; }
+        .s7-passport-desc { font-size: 11.5px; color: rgba(255,255,255,.75); margin-top: 10px; line-height: 1.5; }
+
+        .s7-side-card { background: #FFFFFF; padding: 16px 18px; border-radius: 12px; margin-bottom: 14px; border: 1px solid #E5E7EB; }
+        .s7-side-card .title { font-size: 11px; letter-spacing: 1.5px; color: #C99413; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; }
+        .s7-company-row { display: grid; grid-template-columns: 38px 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px dashed #E5E7EB; align-items: center; }
+        .s7-company-row:last-child { border: none; padding-bottom: 0; }
+        .s7-company-row:first-child { padding-top: 0; }
+        .s7-company-logo { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 15px; color: #FFFFFF; }
+        .s7-clr-1 { background: linear-gradient(135deg, #F5B41A, #C99413); }
+        .s7-clr-2 { background: linear-gradient(135deg, #1A4FB8, #0F1B3D); }
+        .s7-clr-3 { background: linear-gradient(135deg, #2E8B57, #1F7A3C); }
+        .s7-clr-4 { background: linear-gradient(135deg, #8E44AD, #6D2C82); }
+        .s7-company-name { font-size: 12.5px; font-weight: 800; color: #0F1B3D; display: flex; align-items: center; gap: 5px; }
+        .s7-hot-pill { background: #C0392B; color: #FFFFFF; padding: 1px 6px; border-radius: 6px; font-size: 8.5px; letter-spacing: .5px; font-weight: 800; }
+        .s7-company-meta { font-size: 10.5px; color: #8A91A3; margin-top: 1px; }
+        .s7-company-tags { display: flex; gap: 4px; margin-top: 5px; flex-wrap: wrap; }
+        .s7-comp-tag { background: #FFF6E0; color: #C99413; font-size: 9.5px; padding: 1px 6px; border-radius: 5px; font-weight: 700; }
+        .s7-comp-tag.blue { background: #EEF2FF; color: #1A4FB8; }
+        .s7-comp-tag.green { background: #E8F5E9; color: #1F7A3C; }
+        .s7-verified-line { font-size: 10px; color: #1F7A3C; margin-top: 4px; font-weight: 700; }
+        .s7-hot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .s7-hot-stat { background: #FFF6E0; padding: 12px; border-radius: 10px; text-align: center; }
+        .s7-hot-stat .big { font-size: 18px; font-weight: 800; color: #0F1B3D; }
+        .s7-hot-stat .small { font-size: 10px; color: #3A425A; margin-top: 2px; }
+
+        /* GO LIVE · CAREER PASSPORT ACTIVATION (formerly Stage 08) */
+        .s7-golive-section { background: #FAFAF7; padding: 24px 26px; border-radius: 14px; margin-top: 24px; margin-bottom: 16px; border: 1px solid #E5E7EB; }
+        .s7-golive-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px dashed #E5E7EB; }
+        .s7-golive-section-num { width: 32px; height: 32px; background: #F5B41A; color: #0F1B3D; border-radius: 10px; display: grid; place-items: center; font-weight: 800; font-size: 15px; }
+        .s7-golive-section-title { font-size: 16px; font-weight: 800; color: #0F1B3D; flex: 1; }
+        .s7-golive-no-pts-chip { background: #F2F3F5; color: #8A91A3; padding: 3px 10px; border-radius: 12px; font-size: 10.5px; font-weight: 700; letter-spacing: .5px; font-style: italic; }
+
+        .s7-golive-consent-list { display: flex; flex-direction: column; gap: 10px; }
+        .s7-golive-consent-item {
+          display: grid;
+          grid-template-columns: 24px 1fr;
+          gap: 12px;
+          padding: 14px 16px;
+          background: #FFFFFF;
+          border: 1.5px solid #E5E7EB;
+          border-radius: 10px;
+          cursor: pointer;
+          transition: .15s;
+        }
+        .s7-golive-consent-item:hover { border-color: #FFEBB0; background: #FDF6E4; }
+        .s7-golive-consent-item.checked { border-color: #1F7A3C; background: #E8F5E9; }
+        .s7-golive-consent-box { width: 22px; height: 22px; border: 2px solid #E5E7EB; border-radius: 5px; display: grid; place-items: center; margin-top: 1px; }
+        .s7-golive-consent-item.checked .s7-golive-consent-box { background: #1F7A3C; border-color: #1F7A3C; color: #FFFFFF; font-weight: 800; font-size: 14px; }
+        .s7-golive-consent-item .txt { font-size: 13px; color: #0F1B3D; line-height: 1.5; }
+        .s7-golive-consent-item .sub { font-size: 11.5px; color: #8A91A3; margin-top: 4px; font-style: italic; line-height: 1.5; }
+
+        .s7-golive-block {
+          background: linear-gradient(135deg, #0F1B3D, #1E3A8A);
+          color: #FFFFFF;
+          border-radius: 16px;
+          padding: 32px;
+          text-align: center;
+          margin-top: 20px;
+          position: relative;
+          overflow: hidden;
+        }
+        .s7-golive-kicker { color: #F5B41A; font-size: 11.5px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; }
+        .s7-golive-title { font-size: 30px; font-weight: 800; margin: 8px 0 6px; line-height: 1.1; }
+        .s7-golive-sub { font-size: 14px; color: #FFF6E0; font-style: italic; }
+        .s7-golive-btn {
+          background: linear-gradient(135deg, #F5B41A, #DAA520);
+          color: #0F1B3D;
+          padding: 20px 60px;
+          border-radius: 14px;
+          font-size: 22px;
+          font-weight: 800;
+          border: none;
+          cursor: pointer;
+          letter-spacing: 1px;
+          margin-top: 22px;
+          box-shadow: 0 10px 30px rgba(245,180,26,.5);
+          text-transform: uppercase;
+          transition: transform .15s ease;
+        }
+        .s7-golive-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 34px rgba(245,180,26,.6); }
+        .s7-golive-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .s7-golive-note { font-size: 12px; color: rgba(255,255,255,.75); margin-top: 14px; line-height: 1.5; }
+        .s7-golive-dash-link { display: inline-block; margin-top: 16px; background: transparent; border: none; color: #F5B41A; font-size: 12.5px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+      `}</style>
+
+      {/* Main Layout Grid */}
+      <div className="s7-shell">
+        {/* Left / Center Main Content */}
+        <div className="s7-main-column">
+
+          {/* Hero Banner */}
+          <div className="s7-hero">
+            <div className="s7-hero-icon"><i className="fa-solid fa-file-lines" /></div>
+            <div className="s7-hero-badges">
+              <span className="s7-hero-chip">STAGE 07 OF 07 · FINAL</span>
+              <span className="s7-hero-chip green">{totalPoints}/100 SCORE {totalPoints >= 75 ? "VERIFIED" : "IN PROGRESS"}</span>
+              <span className="s7-hero-chip gold">OUTPUT · NO POINTS</span>
+            </div>
+            <h1 className="s7-hero-title" style={{ color: "#FFFFFF" }}>Resume</h1>
+            <div className="s7-hero-subtitle">You don't write it. Talentera builds it from everything you've already proven.</div>
+            <div className="s7-hero-desc">
+              Every line is auto-pulled from Stages 01 to 06 and verified — download it, share the live URL, or let HRs scan the QR to verify at source.
+            </div>
+          </div>
+
+          {/* ID Recap Strip */}
+          <div className="s7-id-recap">
+            <div className="check">✓</div>
+            <div style={{ flex: 1 }}>
+              <div className="lbl">FROM YOUR STAGES 01–06 · {totalPoints}/100 SCORE UNLOCKED</div>
+              <div className="val">
+                {fullName} · {expLabel} · {domainName}
+                {certificationsList.length > 0 ? ` · ${certificationsList.map((c) => c.code || c.name).join(" + ")}` : (isNonCertified ? " · Non-Certified Track" : "")}
+                {assessmentScore !== null ? ` · ${assessmentMedal} Assessment ${assessmentScore}` : ""}
+                {videoScore !== null ? ` · ${videoMedal} Video ${videoScore}` : ""}
+                {totalCharts > 0 ? ` · ${chartTier} Live Chart ${totalCharts} charts` : ""}
+              </div>
+              <div className="small">Every field on your resume traces back to a verified stage. Nothing typed here.</div>
+            </div>
+            <div className="locked-badge">SOURCE OF TRUTH</div>
+          </div>
+
+          {/* How Stage 07 Works Card */}
+          <div className="s7-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div className="s7-card-title">How Stage 07 Works</div>
+              <button type="button" onClick={() => setShowHowItWorks((p) => !p)} style={{ background: "transparent", border: "none", color: "#64748B", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {showHowItWorks ? "Hide Details" : "Show Details"}
+              </button>
+            </div>
+            {showHowItWorks && (
+            <>
+            <div className="s7-card-eyebrow">WHY WE BUILD IT · WHAT'S ON IT · WHAT COMPANIES SEE · NO POINTS</div>
+            <div className="s7-rules-grid">
+              <div className="s7-rule-tile">
+                <div className="s7-rule-head"><div className="s7-rule-ico">?</div><div className="s7-rule-title">Why Talentera builds it for you</div></div>
+                <div className="s7-rule-body">
+                  Self-written resumes are full of unverifiable claims. A Talentera Resume only contains what you actually proved — real assessment scores, academy-confirmed training, verified certification, live chart records. Companies trust it because every field passed through our checks.
+                </div>
+              </div>
+              <div className="s7-rule-tile">
+                <div className="s7-rule-head"><div className="s7-rule-ico"></div><div className="s7-rule-title">What goes on it</div></div>
+                <div className="s7-rule-body">
+                  Pulled automatically from Stages 01–06: your name and city, specialty, training, certifications, assessment scores, video pitch scores, live chart record, and verification badges. Nothing is typed here — if a section looks empty, go back and complete that stage to fill it in.
+                </div>
+              </div>
+              <div className="s7-rule-tile">
+                <div className="s7-rule-head"><div className="s7-rule-ico"><i className="fa-solid fa-eye" /></div><div className="s7-rule-title">What companies see</div></div>
+                <div className="s7-rule-body">
+                  The exact resume below plus a Live URL that always shows your current data + QR codes to verify Video Pitch and Live Chart in real-time. One standard format — so a hiring manager reads 50 resumes in the time it used to take for 10, and trusts every one.
+                </div>
+              </div>
+              <div className="s7-rule-tile">
+                <div className="s7-rule-head"><div className="s7-rule-ico"><i className="fa-solid fa-bullseye" /></div><div className="s7-rule-title">Why no points on this stage</div></div>
+                <div className="s7-rule-body">
+                  Stages 01–06 were about proving your skills — that's where points earn trust. Stage 07 is an OUTPUT of your work, not new proof. Your resume score = your Stages 01–06 score. Simple. Clean. Non-gameable.
+                </div>
+              </div>
+            </div>
+            </>
+            )}
+            <div className="s7-consent-pill">
+              <span style={{ color: "#F5B41A", fontSize: 16 }}><i className="fa-solid fa-shield-halved" /></span>
+              <span><i>Every downloaded PDF carries a Talentera Verified watermark + candidate ID + tamper-proof cryptographic hash. HRs can validate authenticity at any time.</i></span>
+            </div>
+          </div>
+
+          {/* Form Toolbar */}
+          <div className="s7-toolbar">
+            <div className="s7-progress-rail">
+              <span>Progress:</span>
+              <span className="s7-rail-dot done"></span>
+              <span className="s7-rail-dot done"></span>
+              <span className="s7-rail-dot active"></span>
+              <span className="s7-rail-dot"></span>
+              <span className="s7-rail-dot"></span>
+              <span style={{ fontWeight: 700, color: "#0F1B3D" }}>Section 3 of 5</span>
+            </div>
+            <div className="s7-saved-badge">✓ Auto-saved · Live updates enabled</div>
+          </div>
+
+          {/* Form Header */}
+          <div style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "#0F1B3D", margin: 0 }}>Your Stage 07 information</h2>
+            <div style={{ color: "#C99413", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>
+              CUSTOMIZE · DOWNLOAD · SHARE · NO POINTS TO EARN
+            </div>
+          </div>
+
+          {/* Assembly Banner */}
+          <div className="s7-assembly-banner">
+            <div className="s7-assembly-ico"><i className="fa-solid fa-bolt" /></div>
+            <div className="s7-assembly-txt">
+              <div className="lbl">Talentera Auto-Assembled</div>
+              <div className="title">{verifiedFieldsCount} verified data points wired into your resume</div>
+              <div className="sub">Every field below is pulled live from Stages 01–06. Update any stage → your resume updates in real-time.</div>
+            </div>
+            <div className="s7-assembly-count">
+              <div className="big">{verifiedFieldsCount}</div>
+              <div className="small">verified fields</div>
+            </div>
+          </div>
+
+          {/* SECTION 1 · TEMPLATE PICKER */}
+          <div className="s7-section">
+            <div className="s7-section-header">
+              <div className="s7-section-num">1</div>
+              <div className="s7-section-title">Pick a template — Talentera auto-suggested one for you</div>
+              <div className="s7-no-pts-chip">NO POINTS · OUTPUT</div>
+            </div>
+
+            <div className="s7-template-grid">
+              {RESUME_TEMPLATES.map((tmpl) => {
+                const isSelected = selectedTemplate === tmpl.id;
+                const isAutoPicked = tmpl.badge && !isExperienced && tmpl.id === "fresher_modern";
+                return (
+                  <div
+                    key={tmpl.id}
+                    onClick={() => handleSelectTemplate(tmpl)}
+                    className={`s7-template-card ${isSelected ? "selected" : ""} ${isAutoPicked ? "recommended" : ""}`}
+                  >
+                    <div className="s7-template-check">{isSelected ? "✓" : ""}</div>
+                    <div className="s7-template-thumb">
+                      <div className="s7-thumb-header" style={{ background: isSelected ? activeTmpl.headerBg : tmpl.headerBg }}>
+                        <div className="s7-thumb-name-bar" style={{ background: isSelected ? activeTmpl.accentColor : tmpl.accentColor }}></div>
+                        <div className="s7-thumb-line short"></div>
+                        <div className="s7-thumb-line med"></div>
+                      </div>
+                      <div className="s7-thumb-body">
+                        <div className="s7-thumb-line gold" style={{ background: isSelected ? activeTmpl.accentColor : tmpl.accentColor }}></div>
+                        <div className="s7-thumb-line long"></div>
+                        <div className="s7-thumb-line long"></div>
+                        <div className="s7-thumb-line gold" style={{ background: isSelected ? activeTmpl.accentColor : tmpl.accentColor, marginTop: 6 }}></div>
+                        <div className="s7-thumb-line long"></div>
+                        <div className="s7-thumb-line long"></div>
+                      </div>
+                    </div>
+                    <div className="s7-template-name">{tmpl.name}</div>
+                    <div className="s7-template-sub">{tmpl.sub}</div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* THEME & STYLE CUSTOMIZER CONTROLS */}
+            <div style={{
+              background: "#FFFFFF",
+              border: "1.5px solid #F5B41A",
+              borderRadius: "12px",
+              padding: "16px 20px",
+              marginTop: "16px",
+              boxShadow: "0 4px 14px rgba(245,180,26,0.1)"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "16px" }}><i className="fa-solid fa-palette" /></span>
+                  <span style={{ fontWeight: "800", color: "#0F1B3D", fontSize: "14px" }}>Theme &amp; Style Customizer</span>
+                  <span style={{ fontSize: "10.5px", background: "#FFF6E0", color: "#C99413", padding: "2px 8px", borderRadius: "6px", fontWeight: "800" }}>LIVE PREVIEW</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleResetTheme}
+                  style={{ background: "#F1F5F9", border: "1px solid #CBD5E1", borderRadius: "6px", padding: "4px 10px", fontSize: "11px", fontWeight: "700", color: "#475569", cursor: "pointer" }}
+                >
+                  ↺ Reset Theme
+                </button>
+              </div>
+
+              {/* Color Palettes */}
+              <div style={{ marginBottom: "14px" }}>
+                <div style={{ fontSize: "11px", fontWeight: "700", color: "#64748B", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                  1-Click Color Palettes
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                  {THEME_PALETTES.map((pal) => (
+                    <button
+                      key={pal.id}
+                      type="button"
+                      onClick={() => handleSelectPalette(pal)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        padding: "5px 10px",
+                        borderRadius: "8px",
+                        border: customAccent === pal.accentColor && customHeaderBg === pal.headerBg ? "2px solid #0F1B3D" : "1px solid #E2E8F0",
+                        background: customAccent === pal.accentColor && customHeaderBg === pal.headerBg ? "#FFF6E0" : "#FAFAFA",
+                        cursor: "pointer",
+                        fontSize: "11.5px",
+                        fontWeight: "700",
+                        color: "#0F1B3D",
+                      }}
+                    >
+                      <span style={{ display: "inline-block", width: "12px", height: "12px", borderRadius: "50%", background: pal.headerBg, border: "1px solid #CBD5E1" }}></span>
+                      <span style={{ display: "inline-block", width: "12px", height: "12px", borderRadius: "50%", background: pal.accentColor, border: "1px solid #CBD5E1" }}></span>
+                      <span>{pal.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Pickers & Font Selector Grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px", paddingTop: "10px", borderTop: "1px dashed #E2E8F0" }}>
+                {/* Accent Color */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748B", marginBottom: "4px", textTransform: "uppercase" }}>
+                    Accent Highlight
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="color"
+                      value={activeTmpl.accentColor}
+                      onChange={(e) => setCustomAccent(e.target.value)}
+                      style={{ width: "36px", height: "32px", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", padding: "2px", background: "#fff" }}
+                    />
+                    <input
+                      type="text"
+                      value={activeTmpl.accentColor}
+                      onChange={(e) => setCustomAccent(e.target.value)}
+                      style={{ width: "90px", padding: "6px 8px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "12px", fontWeight: "700", fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Header Background */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748B", marginBottom: "4px", textTransform: "uppercase" }}>
+                    Header Background
+                  </label>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="color"
+                      value={activeTmpl.headerBg}
+                      onChange={(e) => setCustomHeaderBg(e.target.value)}
+                      style={{ width: "36px", height: "32px", border: "1px solid #CBD5E1", borderRadius: "6px", cursor: "pointer", padding: "2px", background: "#fff" }}
+                    />
+                    <input
+                      type="text"
+                      value={activeTmpl.headerBg}
+                      onChange={(e) => setCustomHeaderBg(e.target.value)}
+                      style={{ width: "90px", padding: "6px 8px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "12px", fontWeight: "700", fontFamily: "monospace" }}
+                    />
+                  </div>
+                </div>
+
+                {/* Typography Font */}
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: "700", color: "#64748B", marginBottom: "4px", textTransform: "uppercase" }}>
+                    Typography Font
+                  </label>
+                  <select
+                    value={customFont}
+                    onChange={(e) => setCustomFont(e.target.value)}
+                    style={{ width: "100%", padding: "6px 8px", borderRadius: "6px", border: "1px solid #CBD5E1", fontSize: "12px", fontWeight: "600", color: "#0F1B3D", background: "#fff" }}
+                  >
+                    {FONT_OPTIONS.map((f) => (
+                      <option key={f.id} value={f.fontFamily}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2 · CAREER OBJECTIVE (ONLY EDITABLE) */}
+          <div className="s7-section">
+            <div className="s7-section-header">
+              <div className="s7-section-num">2</div>
+              <div className="s7-section-title">Career Objective — the ONLY editable section</div>
+              <div className="s7-no-pts-chip">AI-ASSISTED</div>
+            </div>
+
+            <div style={{ fontSize: 12.5, color: "#3A425A", marginBottom: 12, fontStyle: "italic", lineHeight: 1.55 }}>
+              Write your career objective in your own words. Everything else on your resume is locked and pulled from prior stages.
+            </div>
+
+            <div id="s7-objective-editor" className={`s7-obj-editor ${formErrors.careerObjective ? "has-error" : ""}`}>
+              <textarea
+                value={careerObjective}
+                onChange={(e) => {
+                  setCareerObjective(e.target.value);
+                  if (formErrors.careerObjective) setFormErrors((prev) => ({ ...prev, careerObjective: "" }));
+                }}
+                maxLength={500}
+                placeholder="Write your career objective here..."
+              />
+              {formErrors.careerObjective && (
+                <div className="s7-field-error-msg">{formErrors.careerObjective}</div>
+              )}
+              <div className="s7-obj-editor-footer">
+                <span>{careerObjective.length} / 500 characters</span>
+              </div>
+            </div>
+
+            {/* AI Career Objective Assistant - Claude-powered generator */}
+            <div className="s7-ai-widget">
+              <div className="s7-ai-widget-header">
+                <span className="s7-ai-widget-icon"><i className="fa-solid fa-wand-magic-sparkles" /></span>
+                <div>
+                  <div className="s7-ai-widget-title">AI Career Objective Assistant</div>
+                  <div className="s7-ai-widget-sub">Tell it about yourself, generate your own objective & summary</div>
+                </div>
+              </div>
+
+              <textarea
+                className="s7-ai-widget-input"
+                value={aiNotes}
+                onChange={(e) => setAiNotes(e.target.value)}
+                maxLength={800}
+                placeholder="Optional: add a few details - what role you want, strengths, goals, anything you'd like mentioned..."
+                rows={3}
+              />
+
+              <button
+                type="button"
+                className="s7-ai-widget-btn"
+                onClick={handleGenerateAiObjective}
+                disabled={aiGenerating}
+              >
+                {aiGenerating ? "Generating..." : aiResult ? "↻ Regenerate" : "Generate with AI"}
+              </button>
+
+              {aiError && <div className="s7-ai-widget-error">{aiError}</div>}
+
+              {aiResult && (
+                <div className="s7-ai-widget-results">
+                  {aiResult.objective && (
+                    <div className="s7-ai-widget-result-card">
+                      <div className="s7-ai-widget-result-label">Career Objective</div>
+                      <div className="s7-ai-widget-result-text">{aiResult.objective}</div>
+                      <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.objective)}>
+                        + Add to Career Objective
+                      </button>
+                    </div>
+                  )}
+                  {aiResult.summary && (
+                    <div className="s7-ai-widget-result-card">
+                      <div className="s7-ai-widget-result-label">Professional Summary</div>
+                      <div className="s7-ai-widget-result-text">{aiResult.summary}</div>
+                      <button type="button" className="s7-ai-widget-use-btn" onClick={() => handleUseAiText(aiResult.summary)}>
+                        + Add to Career Objective
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="s7-ai-widget-note">You choose what to keep - nothing is added automatically.</div>
+            </div>
+          </div>
+
+          {/* SECTION 3 · VERIFIED LOCKED SECTIONS */}
+          <div className="s7-section">
+            <div className="s7-section-header">
+              <div className="s7-section-num">3</div>
+              <div className="s7-section-title">Verified sections — pulled from Stages 01–06, non-editable</div>
+              <div className="s7-no-pts-chip">READ-ONLY · UPDATE AT SOURCE</div>
+            </div>
+
+            <div className="s7-locked-sections">
+              {/* Stage 1 */}
+              <div className="s7-locked-row">
+                <div className="s7-locked-ico"><i className="fa-solid fa-user" /></div>
+                <div className="s7-locked-info">
+                  <div className="title">Identity + Contact <span className="s7-lock-badge">Stage 01</span></div>
+                  <div className="meta"><b>{fullName}</b>{locality ? ` · ${locality}` : ""}{mobile ? ` · ${mobile}` : ""}{email ? ` · ${email}` : ""} · {stage1.aadhaarVerified ? "Aadhaar-verified" : "Profile Active"}</div>
+                </div>
+                <div className="s7-verified-tag">API-Verified</div>
+                <button type="button" onClick={() => onNavigateStage && onNavigateStage(1)} className="s7-edit-stage-btn">
+                  ✎ Edit in Stage 01
+                </button>
+              </div>
+
+              {/* Stage 2 */}
+              <div className="s7-locked-row">
+                <div className="s7-locked-ico"><i className="fa-solid fa-graduation-cap" /></div>
+                <div className="s7-locked-info">
+                  <div className="title">Training Foundation <span className="s7-lock-badge">Stage 02</span></div>
+                  <div className="meta"><b>{academyName}</b> · {domainName} · {trainingLevel} · {trainingSpecialties} · {trainingDuration}</div>
+                </div>
+                <div className="s7-verified-tag">Academy-Signed</div>
+                <button type="button" onClick={() => onNavigateStage && onNavigateStage(2)} className="s7-edit-stage-btn">
+                  ✎ Edit in Stage 02
+                </button>
+              </div>
+
+              {/* Stage 3 */}
+              <div className="s7-locked-row">
+                <div className="s7-locked-ico"><i className="fa-solid fa-trophy" /></div>
+                <div className="s7-locked-info">
+                  <div className="title">Certifications <span className="s7-lock-badge">Stage 03</span></div>
+                  <div className="meta">
+                    {certificationsList.length > 0 ? (
+                      certificationsList.map((c, i) => (
+                        <span key={i}>
+                          <b>{c.code || c.name}</b> ({c.body || "AAPC"}{c.memberId ? ` · ID ****${String(c.memberId).slice(-4)}` : ""}{c.expiryDate ? ` · Valid until ${c.expiryDate}` : ""}{Number.isFinite(c.percentage) ? ` · Score ${c.percentage}%` : ""}){i < certificationsList.length - 1 ? " · " : ""}
+                        </span>
+                      ))
+                    ) : isNonCertified ? (
+                      <span>Non-Certified Candidate · Proctored Talentera Assessment Track</span>
+                    ) : isPursuing ? (
+                      <span>Pursuing {stage3.targetCert || "Certification"} · Target Exam: {stage3.targetExamDate || "Scheduled"}</span>
+                    ) : (
+                      <span>AAPC/AHIMA Credential · Audit Pending</span>
+                    )}
+                  </div>
+                </div>
+                <div className="s7-verified-tag">API-Verified</div>
+                <button type="button" onClick={() => onNavigateStage && onNavigateStage(3)} className="s7-edit-stage-btn">
+                  ✎ Edit in Stage 03
+                </button>
+              </div>
+
+              {/* Stage 4 */}
+              <div className="s7-locked-row">
+                <div className="s7-locked-ico"><i className="fa-solid fa-flask" /></div>
+                <div className="s7-locked-info">
+                  <div className="title">Assessment Score <span className="s7-lock-badge">Stage 04</span></div>
+                  <div className="meta">
+                    {assessmentScore !== null ? (
+                      <>
+                        {assessmentMedal === "Gold" ? <i className="fa-solid fa-medal" /> : assessmentMedal === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{assessmentMedal} · {assessmentScore}/100</b> · Anatomy 85 · Med Term 78 · Aptitude 65 · Basic ICD 70 · HCC + E/M 62 · Percentile 68
+                      </>
+                    ) : (
+                      <span>Proctored Foundation Assessment · Ready to Take</span>
+                    )}
+                  </div>
+                </div>
+                <div className="s7-verified-tag">Talentera-Proctored</div>
+                <button type="button" onClick={() => onNavigateStage && onNavigateStage(4)} className="s7-edit-stage-btn">
+                  ✎ Retake in Stage 04
+                </button>
+              </div>
+
+              {/* Stage 5 */}
+              <div className="s7-locked-row">
+                <div className="s7-locked-ico"><i className="fa-solid fa-microphone" /></div>
+                <div className="s7-locked-info">
+                  <div className="title">Video Pitch <span className="s7-lock-badge">Stage 05</span></div>
+                  <div className="meta">
+                    {videoScore !== null ? (
+                      <>
+                        {videoMedal === "Gold" ? <i className="fa-solid fa-medal" /> : videoMedal === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{videoMedal} · {videoScore}/100</b> · Clarity {clarityScore} · Fluency {fluencyScore} · Vocab {vocabScore} · Confidence {confidenceScore} · Content {contentScore} · Live Verified{regionalLang ? ` · + ${regionalLang} bonus` : ""}
+                      </>
+                    ) : (
+                      <span>AI Communication Video Assessment · Ready to Record</span>
+                    )}
+                  </div>
+                </div>
+                <div className="s7-verified-tag">Face-Verified</div>
+                <button type="button" onClick={() => onNavigateStage && onNavigateStage(5)} className="s7-edit-stage-btn">
+                  ✎ Re-record in Stage 05
+                </button>
+              </div>
+
+              {/* Stage 6 */}
+              <div className="s7-locked-row">
+                <div className="s7-locked-ico"><i className="fa-solid fa-laptop" /></div>
+                <div className="s7-locked-info">
+                  <div className="title">Live Chart Record <span className="s7-lock-badge">Stage 06</span></div>
+                  <div className="meta">
+                    {totalCharts > 0 ? (
+                      <>
+                        {chartTier === "Platinum" ? <i className="fa-solid fa-trophy" /> : chartTier === "Gold" ? <i className="fa-solid fa-medal" /> : chartTier === "Silver" ? <i className="fa-solid fa-medal" /> : <i className="fa-solid fa-medal" />} <b>{chartTier} · {totalCharts} charts · {overallAccuracy}% acc</b> · {specialtyCharts.map((s) => `${s.name} ${s.count}`).join(" · ")} · {selectedPlatforms.join(" + ")}
+                      </>
+                    ) : (
+                      <span>{noChartExposure ? "No live chart exposure declared — not shown on your resume" : "Live Chart Practice Log · Declared Exposure"}</span>
+                    )}
+                  </div>
+                </div>
+                {!noChartExposure && <div className="s7-verified-tag">API-Verified</div>}
+                <button type="button" onClick={() => onNavigateStage && onNavigateStage(6)} className="s7-edit-stage-btn">
+                  ✎ Update in Stage 06
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 4 · LIVE PREVIEW */}
+          <div className="s7-section" id="s7-live-preview-section">
+            <div className="s7-section-header">
+              <div className="s7-section-num">4</div>
+              <div className="s7-section-title">Live preview — this is exactly what companies see</div>
+              <div className="s7-verified-tag" style={{ fontSize: 11 }}>{activeTmpl.name.toUpperCase()}</div>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#6B7280", margin: "0 0 10px" }}>
+              Click any section of the resume to edit it. The edit button takes you to the stage where that data comes from.
+            </div>
+
+            {/* Rendered Resume Paper */}
+            <div
+              ref={resumePrintRef}
+              className={`s7-resume-preview tmpl-${selectedTemplate}`}
+              style={{
+                fontFamily: activeTmpl.fontFamily,
+                "--hdr-bg": activeTmpl.headerBg,
+                "--accent": activeTmpl.accentColor,
+              }}
+            >
+              {renderResumePaper(true)}
+            </div>
+          </div>
+
+          {/* SECTION 5 · DOWNLOAD & SHARE */}
+          <div className="s7-section" id="s7-download-share-section">
+            <div className="s7-section-header">
+              <div className="s7-section-num">5</div>
+              <div className="s7-section-title">Download &amp; Share</div>
+              <div className="s7-no-pts-chip">2 FORMATS AVAILABLE</div>
+            </div>
+
+            <div className="s7-download-grid">
+              <div onClick={handleDownloadPdf} className="s7-dl-card hero">
+                <div className="s7-dl-ico"><i className="fa-solid fa-file-lines" /></div>
+                <div className="s7-dl-name">{downloading ? "Exporting..." : "Download PDF"}</div>
+                <div className="s7-dl-sub">High-res, verified watermark</div>
+              </div>
+              <div onClick={handleDownloadWord} className="s7-dl-card">
+                <div className="s7-dl-ico"><i className="fa-solid fa-pen-to-square" /></div>
+                <div className="s7-dl-name">Word (.docx)</div>
+                <div className="s7-dl-sub">Formatted &amp; structured</div>
+              </div>
+            </div>
+
+            {/* LIVE URL */}
+            <div className="s7-url-card">
+              <div style={{ fontWeight: 800, color: "#0F1B3D", fontSize: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                Live Resume URL — the killer feature
+              </div>
+              <div style={{ fontSize: 12, color: "#3A425A", marginTop: 4, lineHeight: 1.5 }}>
+                Share this URL instead of the PDF. It updates automatically every time you improve any stage. HRs who click on Day 1 see current data; if they revisit Day 30, they see your Gold-tier upgrade.
+              </div>
+              <div className="s7-url-row">
+                <span className="link">{liveResumeUrl}</span>
+                <button type="button" onClick={handleCopyLiveUrl} className="s7-url-btn">
+                  Copy Link
+                </button>
+                <button type="button" onClick={() => setShowQrModal(true)} className="s7-url-btn">
+                  QR Code
+                </button>
+              </div>
+              <div className="s7-url-hint">
+                3× more shortlists come from Live URLs vs static PDFs — the resume you send today is the same resume they see next month.
+              </div>
+            </div>
+
+            {/* VERSION HISTORY */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 11, letterSpacing: 1.5, color: "#C99413", textTransform: "uppercase", fontWeight: 700, marginBottom: 10 }}>
+                Version History · full transparency to companies
+              </div>
+              <div className="s7-version-list">
+                {versionHistory.map((ver, idx) => (
+                  <div key={idx} className={`s7-version-item ${ver.current ? "current" : ""}`}>
+                    <div className="s7-version-num">{ver.version}</div>
+                    <div className="s7-version-info">
+                      <b>{ver.timestamp}</b> · {ver.title}
+                    </div>
+                    <span className="s7-version-tag" style={!ver.current ? { background: "#F2F3F5", color: "#8A91A3" } : {}}>
+                      {ver.current ? "CURRENT" : "Archived"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Bottom Actions */}
+          <div style={{
+            background: "#FFFFFF",
+            padding: "16px 24px",
+            border: "1px solid #E2E8F0",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 32,
+            marginBottom: 40,
+            borderRadius: 12,
+            boxShadow: "0 4px 16px rgba(15,27,61,.04)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: "12.5px", color: "#64748B" }}>
+              <div style={{ height: 8, width: 180, background: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: "85%", background: "linear-gradient(90deg, #F5B41A, #D97706)", borderRadius: 4 }}></div>
+              </div>
+              <div><b>85 / 100</b> · Stage 07 in progress</div>
+            </div>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <button type="button" onClick={() => setShowFullPreviewModal(true)} className="s7-link-btn">
+                Preview full page
+              </button>
+              <button type="button" onClick={() => handleSaveAndAdvance(true)} disabled={saving} className="s7-action-btn">
+                {saving ? "Saving..." : "Save Resume"}
+              </button>
+            </div>
+          </div>
+
+          {/* GO LIVE · DPDP CONSENT + CAREER PASSPORT ACTIVATION */}
+          <div className="s7-golive-section">
+            <div className="s7-golive-section-header">
+              <div className="s7-golive-section-num"><i className="fa-solid fa-rocket" /></div>
+              <div className="s7-golive-section-title">Go live · your explicit permission to activate</div>
+              <div className="s7-golive-no-pts-chip">FINAL STEP</div>
+            </div>
+
+            <div id="s7-golive-consents-block" className="s7-golive-consent-list">
+              <div
+                onClick={() => setConsents((prev) => ({ ...prev, verifiedPool: !prev.verifiedPool }))}
+                className={`s7-golive-consent-item ${consents.verifiedPool ? "checked" : ""}`}
+              >
+                <div className="s7-golive-consent-box">{consents.verifiedPool ? "✓" : ""}</div>
+                <div>
+                  <div className="txt"><b>I consent to my verified profile being visible in the Talentera Verified Pool.</b></div>
+                  <div className="sub">Matched RCM companies can view my resume + scorecards. They see verified data only — never my Aadhaar number, PAN, full address, or private contact until they formally shortlist and I accept.</div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setConsents((prev) => ({ ...prev, interviewTracking: !prev.interviewTracking }))}
+                className={`s7-golive-consent-item ${consents.interviewTracking ? "checked" : ""}`}
+              >
+                <div className="s7-golive-consent-box">{consents.interviewTracking ? "✓" : ""}</div>
+                <div>
+                  <div className="txt"><b>I consent to Talentera auto-tracking every interview I attend through the platform.</b></div>
+                  <div className="sub">The Application Tracker logs each company interaction: round, date, result, feedback. Other companies see only an anonymized aggregate (3 applications · 1 shortlist), never specific feedback or salary offers.</div>
+                </div>
+              </div>
+
+              <div
+                onClick={() => setConsents((prev) => ({ ...prev, lifetimePassport: !prev.lifetimePassport }))}
+                className={`s7-golive-consent-item ${consents.lifetimePassport ? "checked" : ""}`}
+              >
+                <div className="s7-golive-consent-box">{consents.lifetimePassport ? "✓" : ""}</div>
+                <div>
+                  <div className="txt"><b>I understand my Talentera account is lifetime — updates itself as my career progresses.</b></div>
+                  <div className="sub">Every future job, promotion, cert renewal, and chart practice updates my Career Passport automatically. I can pause visibility, edit preferences, or request full deletion anytime.</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="s7-golive-block">
+              <div className="s7-golive-kicker">{isLiveActive ? "Status: Live & Active" : "Final Step · Ready to Launch"}</div>
+              <div className="s7-golive-title">{isLiveActive ? "Your Career Passport is Live!" : "Ready to make it public?"}</div>
+              <div className="s7-golive-sub">One click. {realCompaniesCount} hiring partners. Career Passport activated.</div>
+              <button
+                type="button"
+                onClick={handleGoLive}
+                disabled={activating || !allConsented}
+                className="s7-golive-btn"
+              >
+                {activating ? "Activating..." : isLiveActive ? "✓ LIVE FOR HIRING" : "GO LIVE FOR HIRING"}
+              </button>
+              <div className="s7-golive-note">
+                You can pause visibility anytime after going live. This is not a permanent commitment — it is just the moment your profile becomes discoverable.
+              </div>
+              {isLiveActive && onGoToDashboard && (
+                <button type="button" onClick={onGoToDashboard} className="s7-golive-dash-link">
+                  Go to my dashboard →
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* QR Code Modal Popup */}
+      {showQrModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20 }}>
+          <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 420, width: "100%", padding: 28, textAlign: "center", border: "2px solid #F5B41A", boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: "#0F1B3D" }}>Talentera QR Verification</div>
+              <button type="button" onClick={() => setShowQrModal(false)} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A91A3" }}>✕</button>
+            </div>
+            <div style={{ width: 160, height: 160, background: "#0F1B3D", color: "#F5B41A", borderRadius: 12, margin: "0 auto 16px", display: "grid", placeItems: "center", fontSize: 72 }}>
+              <i className="fa-solid fa-qrcode"></i>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#0F1B3D" }}>{verificationId}</div>
+            <div style={{ fontSize: 12, color: "#8A91A3", marginTop: 4 }}>Scan this QR code from any camera to verify candidate authenticity and audit proof records live.</div>
+            <div style={{ background: "#FAFAF7", padding: "10px 14px", borderRadius: 8, marginTop: 14, fontSize: 12, fontFamily: "monospace", color: "#1A4FB8", wordBreak: "break-all" }}>
+              {liveResumeUrl}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button type="button" onClick={handleCopyLiveUrl} style={{ flex: 1, padding: "10px 14px", background: "#0F1B3D", color: "#F5B41A", borderRadius: 8, fontWeight: 700, border: "none", cursor: "pointer", fontSize: 12 }}>
+                Copy Link
+              </button>
+              <button type="button" onClick={() => setShowQrModal(false)} style={{ flex: 1, padding: "10px 14px", background: "#E5E7EB", color: "#3A425A", borderRadius: 8, fontWeight: 700, border: "none", cursor: "pointer", fontSize: 12 }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Page Preview Modal */}
+      {showFullPreviewModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 24, overflowY: "auto" }}>
+          <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 900, width: "100%", maxHeight: "90vh", overflowY: "auto", padding: 32, position: "relative" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, borderBottom: "1px solid #E5E7EB", paddingBottom: 14 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 20, color: "#0F1B3D", fontWeight: 800 }}>Full Page Resume Preview</h3>
+                <div style={{ fontSize: 12, color: "#8A91A3", marginTop: 2 }}>{activeTmpl.name} · Live Candidate View</div>
+              </div>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button type="button" onClick={handleDownloadPdf} style={{ padding: "8px 16px", background: "#F5B41A", color: "#0F1B3D", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                  Download PDF
+                </button>
+                <button type="button" onClick={() => setShowFullPreviewModal(false)} style={{ padding: "8px 16px", background: "#E5E7EB", color: "#3A425A", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 12 }}>
+                  ✕ Close
+                </button>
+              </div>
+            </div>
+
+            {/* Embedded Resume View */}
+            <div
+              className={`s7-resume-preview tmpl-${selectedTemplate}`}
+              style={{
+                fontFamily: activeTmpl.fontFamily,
+                "--hdr-bg": activeTmpl.headerBg,
+                "--accent": activeTmpl.accentColor,
+              }}
+            >
+              {renderResumePaper(false)}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

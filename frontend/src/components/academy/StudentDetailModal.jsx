@@ -168,7 +168,6 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
   const stage4 = stageProgress?.stage4 || candidate?.stage4 || {};
   const stage5 = stageProgress?.stage5 || candidate?.stage5 || {};
   const stage6 = stageProgress?.stage6 || candidate?.stage6 || {};
-  const stage7 = stageProgress?.stage7 || candidate?.stage7 || {};
   const stage8 = stageProgress?.stage8 || candidate?.stage8 || {};
 
   const studentName = stage1?.fullName || stageProgress?.name || candidate?.name || candidate?.email || "Candidate";
@@ -183,7 +182,7 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
   const batchCode = stage2?.batch || stageProgress?.batchCode || candidate?.batch || "Unassigned";
   const courseTitle = stage2?.course || stageProgress?.courseTitle || stage1?.currentRole || candidate?.course || "Medical Coding";
   const candType = stage1?.experience || candidate?.type || "Fresher";
-  const isProfileLive = stageProgress?.isComplete || (candidate?.completedStages?.length >= 8 && candidate?.isSubmitted);
+  const isProfileLive = stageProgress?.isComplete || ([1,2,3,4,5,6].every((n) => candidate?.completedStages?.includes(n)));
 
   const videoUrl =
     stage5?.videoUrl ||
@@ -684,24 +683,6 @@ export default function StudentDetailModal({ studentId, candidate, token, onClos
                 ) : (
                   <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
                     Stage 6 pending · Candidate has not started sample medical chart coding practice yet.
-                  </div>
-                )}
-              </div>
-
-              {/* Stage 7 References */}
-              <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 16, background: "#F8FAFC" }}>
-                <div style={{ fontWeight: 800, fontSize: 14, color: "#06152A" }}>Professional References (Stage 7)</div>
-                {Array.isArray(stage7.references) && stage7.references.length > 0 ? (
-                  <div style={{ fontSize: 12, color: "#334155", marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-                    {stage7.references.map((ref, idx) => (
-                      <div key={idx}>
-                        <strong>{ref.name || "Reference"}</strong> ({ref.designation || ref.role || "Professional Contact"}) · {ref.verified ? "Verified ✓" : "Pending verification"}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
-                    Stage 7 pending · Candidate has not submitted trainer or professional references yet.
                   </div>
                 )}
               </div>

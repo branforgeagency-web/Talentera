@@ -200,6 +200,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   // "Meeting ended due to ejection" errors. Every call site now funnels
   // through this single mutex.
   const isConnectingCallRef = useRef(false);
+  const voiceFailedRef = useRef(false);
+  // Browser-voice fallback: when the Vapi voice can't connect (or never speaks),
+  // the interview continues with the browser's own text-to-speech + speech
+  // recognition so the candidate can always hear and answer the questions.
+  const browserVoiceRef = useRef(false);
+  const recognitionRef = useRef(null);
+  const vapiHeardRef = useRef(false);
+  const vapiWatchdogRef = useRef(null);
 
   // loading | setup | interview | report
   const [step, setStep] = useState("loading");
@@ -215,6 +223,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   const [micDenied, setMicDenied] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [isConnectingCall, setIsConnectingCall] = useState(false);
+  const [browserVoice, setBrowserVoice] = useState(false);
 
   // Candidate's own camera + mic preview.
   const candidateVideoRef = useRef(null);
@@ -319,9 +328,17 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   useEffect(() => {
     return () => {
       clearInactivityTimer();
+      clearTimeout(vapiWatchdogRef.current);
+      browserVoiceRef.current = false;
+      try {
+        recognitionRef.current?.abort?.();
+      } catch (e) { /* best effort */ }
+      try {
+        window.speechSynthesis?.cancel();
+      } catch (e) { /* best effort */ }
       try {
         vapiRef.current?.stop();
-      } catch (e) {}
+      } catch (e) { /* best effort */ }
       stopCandidateCamera();
     };
   }, []);
@@ -421,7 +438,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           });
         }
         if (!isRunning) {
-          try { landmarker.close?.(); } catch (e) {}
+          try { landmarker.close?.(); } catch (e) { /* best effort */ }
           return;
         }
         faceLandmarkerInstance = landmarker;
@@ -659,7 +676,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (faceLandmarkerInstance) {
         try {
           faceLandmarkerInstance.close?.();
-        } catch (e) {}
+        } catch (e) { /* best effort */ }
       }
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleWindowBlur);
@@ -754,6 +771,10 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     setHasStartedAnswering(false);
     stoppingAnswerRef.current = false;
     isSwitchingCallRef.current = true;
+    stopRecognition();
+    try {
+      window.speechSynthesis?.cancel();
+    } catch (e) { /* best effort */ }
 
     const finalAnswer = (text || "").trim() || (inputText || "").trim() || "(no answer)";
     setTranscript((prev) => [...prev, { speaker: "you", text: finalAnswer }]);
@@ -765,7 +786,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       if (vapiRef.current) {
         vapiRef.current.stop();
       }
-    } catch (e) {}
+    } catch (e) { /* best effort */ }
 
     // Allow Daily.co WebRTC peer connections and audio tracks to cleanly release
     await new Promise((resolve) => setTimeout(resolve, 800));
@@ -778,10 +799,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         candidateUtterance: finalAnswer,
         expectedQuestionIndex: currentQIdx,
       });
-      const messiReply = res.data.messiReply || "Thanks — let's continue.";
+      let messiReply = res.data.messiReply || "Thanks — let's continue.";
       const interviewEnded = Boolean(res.data.interviewEnded) || Boolean(res.data.result);
       const nextSession = res.data.session;
       if (nextSession) setSession(nextSession);
+      if (browserVoiceRef.current && !interviewEnded) {
+        const nextQ = res.data.nextQuestion?.question;
+        if (nextQ && !messiReply.includes(nextQ)) messiReply = `${messiReply}\n\n${nextQ}`;
+      }
       setTranscript((prev) => [...prev, { speaker: "messi", text: messiReply }]);
 
       if (interviewEnded) {
@@ -792,6 +817,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           onCompleted({ score: finalResult.overallScore });
         }
         toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
+      } else if (browserVoiceRef.current) {
+        speakBrowser(messiReply, () => {
+          openAnswerWindow();
+          startRecognition();
+        });
       } else {
         await startVapiCall(authToken);
       }
@@ -799,11 +829,173 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       console.error("AI Interview turn error:", err);
       toast("Connection issue reaching the AI interviewer — reconnecting…", "!");
       // Give the candidate another shot at the same question via voice.
-      await startVapiCall(authToken);
+      if (browserVoiceRef.current) {
+        openAnswerWindow();
+        startRecognition();
+      } else {
+        await startVapiCall(authToken);
+      }
     } finally {
       isSwitchingCallRef.current = false;
       setLoadingTurn(false);
     }
+  }
+
+  // ---- Browser voice fallback (works without Vapi) ----
+  function speakBrowser(text, onDone) {
+    const synth = typeof window !== "undefined" ? window.speechSynthesis : null;
+    if (!synth || typeof SpeechSynthesisUtterance === "undefined") {
+      if (onDone) onDone();
+      return;
+    }
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      setIsSpeaking(false);
+      if (onDone) onDone();
+    };
+    try {
+      synth.cancel();
+      const utter = new SpeechSynthesisUtterance(String(text).replace(/\s+/g, " "));
+      utter.lang = "en-IN";
+      utter.rate = 1;
+      utter.onstart = () => {
+        setIsSpeaking(true);
+        clearInactivityTimer();
+        setIsWaitingForAnswerStart(false);
+      };
+      utter.onend = done;
+      utter.onerror = done;
+      synth.speak(utter);
+      // Safety net: some browsers never fire onend for long text.
+      setTimeout(done, Math.min(60000, 4000 + String(text).length * 90));
+    } catch (e) {
+      done();
+    }
+  }
+
+  function stopRecognition() {
+    const rec = recognitionRef.current;
+    recognitionRef.current = null;
+    if (rec) {
+      try {
+        rec.onend = null;
+        rec.onresult = null;
+        rec.onerror = null;
+        rec.abort();
+      } catch (e) { /* best effort */ }
+    }
+  }
+
+  // Listens for the candidate's spoken answer; submits it after ~2.5s of silence.
+  function startRecognition() {
+    if (!browserVoiceRef.current) return;
+    const SR = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
+    if (!SR) {
+      toast("Your browser can't capture speech — please type your answer below.", "!");
+      return;
+    }
+    stopRecognition();
+    const rec = new SR();
+    rec.lang = "en-IN";
+    rec.continuous = true;
+    rec.interimResults = true;
+    let finalText = "";
+    let silenceTimer = null;
+    let submitted = false;
+
+    const submit = () => {
+      if (submitted) return;
+      const text = (finalText + " " + (liveInterimRef.current || "")).trim();
+      if (!text) return;
+      submitted = true;
+      clearTimeout(silenceTimer);
+      stopRecognition();
+      setIsListening(false);
+      advanceViaRest(text);
+    };
+
+    rec.onresult = (event) => {
+      let interim = "";
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const r = event.results[i];
+        if (r.isFinal) finalText += " " + r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      const shown = (finalText + " " + interim).trim();
+      if (shown) {
+        markAnswerStarted();
+        setIsListening(true);
+        liveInterimRef.current = interim;
+        setLiveInterim(shown);
+        lastSpeechAtRef.current = Date.now();
+      }
+      clearTimeout(silenceTimer);
+      silenceTimer = setTimeout(submit, 2500);
+    };
+    rec.onerror = (e) => {
+      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+        setMicDenied(true);
+        toast("Microphone access blocked — please allow it, or type your answer below.", "!");
+        stopRecognition();
+      }
+    };
+    rec.onend = () => {
+      // Browsers end recognition on their own after a pause; keep listening until answered.
+      if (submitted || recognitionRef.current !== rec || !browserVoiceRef.current) return;
+      if (finalText.trim()) {
+        submit();
+        return;
+      }
+      setTimeout(() => {
+        if (recognitionRef.current === rec && browserVoiceRef.current && !submitted) {
+          try {
+            rec.start();
+          } catch (e) { /* best effort */ }
+        }
+      }, 300);
+    };
+    recognitionRef.current = rec;
+    try {
+      rec.start();
+    } catch (e) { /* best effort */ }
+  }
+
+  // Switches the interview to browser voice and asks the current question aloud.
+  function fallbackToBrowserVoice(reason) {
+    if (browserVoiceRef.current) return;
+    browserVoiceRef.current = true;
+    setBrowserVoice(true);
+    clearTimeout(vapiWatchdogRef.current);
+    isSwitchingCallRef.current = true;
+    try {
+      vapiRef.current?.stop();
+    } catch (e) { /* best effort */ }
+    vapiRef.current = null;
+    setIsCallConnected(false);
+    setTimeout(() => {
+      isSwitchingCallRef.current = false;
+    }, 1500);
+    console.warn("Switching to browser voice:", reason);
+    toast("AI voice server isn't responding — switched to browser voice. The interviewer will speak and you can answer by speaking or typing.", "!");
+
+    const s = sessionRef.current;
+    const idx = s?.currentQuestionIndex ?? 0;
+    const q = s?.questions?.[idx];
+    if (!q) return;
+    const firstName = String(s?.candidateName || "").split(" ")[0];
+    const text = vapiHeardRef.current
+      ? `Let me ask that again. ${q.question}`
+      : idx === 0
+      ? `Hi ${firstName || "there"}! Welcome to your AI Mock Interview. I'm Jessy, your AI interviewer. Let's begin with our first question. ${q.question}`
+      : `Let's continue with question ${idx + 1}. ${q.question}`;
+    setTranscript((prev) => [...prev, { speaker: "messi", text }]);
+    setLoadingTurn(false);
+    speakBrowser(text, () => {
+      openAnswerWindow();
+      startRecognition();
+    });
   }
 
   function handleManualSkip() {
@@ -855,7 +1047,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           toast(`Mock interview completed! Score: ${finalResult?.overallScore ?? "-"} / 100`, "✓");
           try {
             vapiRef.current?.stop();
-          } catch (e) {}
+          } catch (e) { /* best effort */ }
         }
       }
     } catch (err) {
@@ -871,8 +1063,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     setIsWaitingForAnswerStart(false);
     setLoadingTurn(false);
 
-    if (isSwitchingCallRef.current) {
+    if (isSwitchingCallRef.current || browserVoiceRef.current) {
       // Normal internal transition to the next question - do not treat as a drop
+      return;
+    }
+
+    // The call ended before the interviewer ever spoke: the voice server failed.
+    if (!vapiHeardRef.current) {
+      fallbackToBrowserVoice("call ended before the interviewer spoke");
       return;
     }
 
@@ -909,6 +1107,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
 
     vapi.on("speech-start", () => {
       // Interviewer has started speaking.
+      vapiHeardRef.current = true;
       setIsSpeaking(true);
       clearInactivityTimer();
       setIsWaitingForAnswerStart(false);
@@ -948,7 +1147,19 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
             setLiveInterim(msg.transcript || "");
           }
         } else if (msg.role === "assistant" && msg.transcriptType === "final" && msg.transcript) {
+          vapiHeardRef.current = true;
           setTranscript((prev) => [...prev, { speaker: "messi", text: msg.transcript }]);
+          // If Vapi's own voice failed earlier in this call, read the interviewer's line aloud
+          // with the browser's built-in voice so the candidate can still hear the question.
+          if (voiceFailedRef.current && typeof window !== "undefined" && window.speechSynthesis) {
+            try {
+              window.speechSynthesis.cancel();
+              const utter = new SpeechSynthesisUtterance(String(msg.transcript));
+              utter.lang = "en-IN";
+              utter.rate = 1;
+              window.speechSynthesis.speak(utter);
+            } catch (e) { /* best effort */ }
+          }
           setLoadingTurn(false);
           refreshSessionState();
         }
@@ -975,7 +1186,8 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         setMicDenied(true);
         toast("Microphone access blocked — please allow microphone access and try again.", "!");
       } else {
-        toast("Voice connection issue with the AI interviewer — please try again.", "!");
+        voiceFailedRef.current = true;
+        fallbackToBrowserVoice(errorMsg || "vapi error");
       }
     });
   }
@@ -986,13 +1198,16 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     // rather than a second `new Vapi(...)` instance racing the first one.
     if (isConnectingCallRef.current) return;
     isConnectingCallRef.current = true;
+    voiceFailedRef.current = false;
+    vapiHeardRef.current = false;
+    clearTimeout(vapiWatchdogRef.current);
     setIsConnectingCall(true);
 
     try {
       const assistantId = import.meta.env.VITE_VAPI_ASSISTANT_ID;
       const publicKey = import.meta.env.VITE_VAPI_PUBLIC_KEY;
       if (!assistantId || !publicKey) {
-        toast("The AI interviewer's voice isn't configured yet — please contact support.", "!");
+        fallbackToBrowserVoice("Vapi keys not configured");
         return;
       }
 
@@ -1004,7 +1219,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         vapiRef.current = null;
         try {
           previousVapi.stop();
-        } catch (e) {}
+        } catch (e) { /* best effort */ }
         await new Promise((r) => setTimeout(r, 600));
       }
 
@@ -1018,11 +1233,20 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           variableValues: { authToken: authToken || "" },
         });
         setIsCallConnected(true);
+        // Watchdog: if the interviewer hasn't spoken within 25s, use browser voice.
+        vapiWatchdogRef.current = setTimeout(() => {
+          if (!vapiHeardRef.current && !browserVoiceRef.current && vapiRef.current === vapi) {
+            fallbackToBrowserVoice("no audio from the voice server within 25s");
+          }
+        }, 25000);
       } catch (err) {
         console.error("Vapi start error:", err);
         const errMsg = String(err?.message || "");
-        if (!/meeting has ended|ejection/i.test(errMsg)) {
-          toast("Couldn't connect to the AI interviewer's voice — please try again.", "!");
+        if (/permission|denied|mic/i.test(errMsg)) {
+          setMicDenied(true);
+          toast("Microphone access blocked — please allow microphone access and try again.", "!");
+        } else if (!/meeting has ended|ejection/i.test(errMsg)) {
+          fallbackToBrowserVoice(errMsg || "vapi start failed");
         }
       }
     } finally {
@@ -1518,6 +1742,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                       <span style={{ color: "#34D399", display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 10 }}>
                         <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399", display: "inline-block" }}></span>
                         Voice Live
+                      </span>
+                    ) : browserVoice ? (
+                      <span style={{ color: "#F5B41A", display: "flex", alignItems: "center", gap: 6, fontWeight: 800, fontSize: 10 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#F5B41A", display: "inline-block" }}></span>
+                        Browser Voice
                       </span>
                     ) : (
                       <button

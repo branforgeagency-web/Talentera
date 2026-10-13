@@ -1380,15 +1380,18 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     // finish later" is just a checkpoint (each real sub-flow already
     // persisted its own result the moment it completed), so it doesn't
     // need to block on the Mock Interview too.
-    if (advance && !hasRealMockInterview) {
-      toast("Please complete all 5 questions of the AI Mock Interview first (Section 3).", "error", { title: "Mandatory Interview Required" });
-      const el = document.getElementById("stage5-mock-section");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
+    // The Mock Interview is optional to move on: "Save & continue" skips it
+    // (it scores 0) and the server still marks Stage 05 complete.
     setIsSubmittingStage5(true);
     try {
+      if (advance && !hasRealMockInterview) {
+        try {
+          await api.post("/candidate/stage5/skip-mock");
+        } catch (skipErr) {
+          toast(skipErr?.response?.data?.message || "Could not continue to Stage 06. Please try again.", "error", { title: "Stage 05" });
+          return;
+        }
+      }
       toast(advance ? "Stage 05 Completed! Moving to Stage 06 →" : "✓ Stage 05 progress saved.", "✓");
       if (onSaved) {
         // Pull the latest candidate (with the server's completedStages) so the

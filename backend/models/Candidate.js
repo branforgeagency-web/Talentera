@@ -184,6 +184,13 @@ const CandidateSchema = new mongoose.Schema(
       default: "fresher_modern",
     },
 
+    // Set when a staff member pushes this candidate into the verification
+    // queue from the Staff Hub (Recent Uploads -> Push).
+    staffVerification: {
+      pushedAt: { type: Date, default: null },
+      pushedBy: { type: String, default: "" },
+    },
+
     isSubmitted: {
       type: Boolean,
       default: false,

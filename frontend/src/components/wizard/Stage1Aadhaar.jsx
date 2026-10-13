@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
+import CollegePicker from "../CollegePicker.jsx";
 import { verhoeffValidate, formatAadhaar, formatMobile, isValidIndianMobile } from "../../utils/verhoeff";
 
 const INDIAN_STATES = [
@@ -317,246 +318,6 @@ const MONTH_OPTIONS = [
 const CURRENT_YEAR = new Date().getFullYear();
 const GRAD_YEAR_OPTIONS = Array.from({ length: 45 }, (_, i) => String(CURRENT_YEAR + 6 - i));
 
-// ─── Indian Colleges & Universities (UGC-recognized, curated for medical coding candidates) ──
-const INDIAN_COLLEGES = [
-  // ── Central Universities ─────────────────────────────────────
-  "University of Delhi", "Jawaharlal Nehru University", "University of Hyderabad",
-  "Banaras Hindu University", "Aligarh Muslim University", "Jamia Millia Islamia",
-  "University of Allahabad", "University of Calcutta", "University of Mumbai",
-  "University of Madras", "University of Pune (Savitribai Phule Pune University)",
-  "University of Rajasthan", "Osmania University", "Andhra University",
-  "Annamalai University", "Bharathiar University", "Bharathidasan University",
-  "Madurai Kamaraj University", "Mother Teresa Women's University",
-  "Periyar University", "Tamil Nadu Teacher Education University",
-  "Thiruvalluvar University", "University of Mysore", "Bangalore University",
-  "Kuvempu University", "Mangalore University", "Karnatak University",
-  "Gulbarga University", "Davangere University", "Tumkur University",
-  "Visvesvaraya Technological University (VTU)", "Rajiv Gandhi University of Health Sciences",
-  "Kerala University", "Mahatma Gandhi University (Kerala)", "Calicut University",
-  "Kannur University", "Cochin University of Science and Technology (CUSAT)",
-  "APJ Abdul Kalam Technological University (KTU)", "University of Kerala",
-  "Mumbai University", "Pune University", "Shivaji University", "North Maharashtra University",
-  "Swami Ramanand Teerth Marathwada University", "Dr. Babasaheb Ambedkar Marathwada University",
-  "Sant Gadge Baba Amravati University", "Rashtrasant Tukadoji Maharaj Nagpur University",
-  "Solapur University", "Kaviyatri Bahinabai Chaudhari North Maharashtra University",
-  "Uttar Pradesh Rajarshi Tandon Open University", "Deen Dayal Upadhyaya Gorakhpur University",
-  "Mahatma Jyotiba Phule Rohilkhand University", "Ch. Charan Singh University",
-  "Bundelkhand University", "Lucknow University", "Dr. Ram Manohar Lohia Awadh University",
-  "Veer Bahadur Singh Purvanchal University", "Chaudhary Charan Singh University",
-  "Gauhati University", "Dibrugarh University", "Cotton University",
-  "Rabindra Bharati University", "Jadavpur University", "North Bengal University",
-  "Visva-Bharati University", "West Bengal State University", "Kalyani University",
-  "Vidyasagar University", "Burdwan University", "Calcutta University",
-  "Berhampur University", "Sambalpur University", "Utkal University",
-  "Ravenshaw University", "Fakir Mohan University", "Maharaja Sriram Chandra Bhanj Deo University",
-  "Magadh University", "Patna University", "Lalit Narayan Mithila University",
-  "Bhupendra Narayan Mandal University", "T.M. Bhagalpur University",
-  "Purnea University", "Muungger University", "Jai Prakash University",
-  "Guru Nanak Dev University", "Panjab University", "Punjabi University",
-  "Maharishi Dayanand University", "Kurukshetra University", "Chaudhary Devi Lal University",
-  "Deenbandhu Chhotu Ram University of Science and Technology",
-  "Maharaja Agrasen University", "Indira Gandhi University (Meerpur)",
-  "Shoolini University", "Himachal Pradesh University",
-  "University of Jammu", "University of Kashmir",
-  "Rajiv Gandhi Proudyogiki Vishwavidyalaya", "Vikram University",
-  "Devi Ahilya Vishwavidyalaya", "Barkatullah University",
-  "Rani Durgavati Vishwavidyalaya", "Jiwaji University",
-  "Mohanlal Sukhadia University", "University of Kota",
-  "Maharishi Dayanand Saraswati University", "Jai Narain Vyas University",
-  "Gujarat University", "Saurashtra University", "Veer Narmad South Gujarat University",
-  "Hemchandracharya North Gujarat University", "Sardar Patel University",
-  "Bhavnagar University", "M.K. Bhavnagar University",
-  "Osmania University", "Kakatiya University", "Andhra University",
-  "Sri Krishnadevaraya University", "Rayalaseema University",
-  "Yogi Vemana University", "JNTU-Hyderabad", "JNTU-Kakinada", "JNTU-Anantapur",
-  "Acharya Nagarjuna University", "Dr. B.R. Ambedkar University",
-  "Sri Padmavati Mahila Visvavidyalayam", "Sri Venkateswara University",
-  "Pondicherry University", "Manipal Academy of Higher Education (MAHE)",
-  "Sikkim University", "Tezpur University", "Tripura University",
-  "Mizoram University", "Nagaland University",
-
-  // ── Deemed Universities (Medical / Allied Health focus) ───────
-  "Sri Ramachandra Institute of Higher Education and Research",
-  "Amrita Vishwa Vidyapeetham", "Chettinad Academy of Research and Education",
-  "Saveetha Institute of Medical and Technical Sciences",
-  "SRM Institute of Science and Technology", "Vinayaka Mission's Research Foundation",
-  "Deemed University of Technology (Tamil Nadu)",
-  "Manonmaniam Sundaranar University (Tirunelveli)",
-  "Vels Institute of Science Technology and Advanced Studies",
-  "Vel Tech Rangarajan Dr. Sagunthala R&D Institute",
-  "Sathyabama Institute of Science and Technology",
-  "Bharath Institute of Higher Education and Research",
-  "Aarupadai Veedu Institute of Technology",
-  "Dr. M.G.R. Educational and Research Institute",
-  "Thandai Periyar Institution (Periyar University affiliated)",
-  "Dr. D.Y. Patil Vidyapeeth", "Symbiosis International University",
-  "Bharati Vidyapeeth Deemed University",
-  "D.Y. Patil University (Mumbai)", "KIMS (Krishna Institute of Medical Sciences)",
-  "JSS University", "Manipal University Jaipur",
-  "Nitte Deemed-to-be University", "Yenepoya University",
-  "Shri Dharmasthala Manjunatheshwara University",
-  "Rajagiri College of Social Sciences (Autonomous)",
-  "St. John's National Academy of Health Sciences",
-  "Father Muller Charitable Institutions (FM University)",
-  "KLE Academy of Higher Education and Research",
-
-  // ── IITs and NITs (non-life science backgrounds) ─────────────
-  "Indian Institute of Technology Madras (IIT Madras)",
-  "Indian Institute of Technology Bombay (IIT Bombay)",
-  "Indian Institute of Technology Delhi (IIT Delhi)",
-  "Indian Institute of Technology Kharagpur (IIT KGP)",
-  "Indian Institute of Technology Kanpur (IIT Kanpur)",
-  "Indian Institute of Technology Roorkee (IIT Roorkee)",
-  "Indian Institute of Technology Hyderabad (IIT Hyderabad)",
-  "Indian Institute of Technology Bangalore (IISc Bangalore)",
-  "NIT Trichy (National Institute of Technology, Tiruchirappalli)",
-  "NIT Warangal", "NIT Calicut", "NIT Surathkal", "NIT Rourkela",
-
-  // ── Popular Arts / Commerce / Science Autonomous Colleges ─────
-  "Loyola College, Chennai", "Stella Maris College, Chennai",
-  "Women's Christian College (WCC), Chennai", "Ethiraj College for Women, Chennai",
-  "Queen Mary's College, Chennai", "Meenakshi College for Women, Chennai",
-  "Presidency College, Chennai", "Madras Christian College, Chennai",
-  "Sri Venkateswara College of Engineering, Chennai",
-  "Vellore Institute of Technology (VIT University)",
-  "PSG College of Technology", "Kumaraguru College of Technology",
-  "Coimbatore Institute of Technology (CIT)",
-  "Sri Krishna College of Engineering and Technology",
-  "K.S. Rangasamy College of Technology", "SNS College of Technology",
-  "Karpagam Academy of Higher Education",
-  "Avinashilingam Institute for Home Science and Higher Education for Women",
-  "Kongu Engineering College", "Sri Ramakrishna Engineering College",
-  "Christian Medical College (CMC), Vellore",
-  "Sri Manakula Vinayagar Medical College and Hospital (Pondicherry)",
-  "SRM Medical College Hospital & Research Centre",
-  "Saveetha Medical College and Hospital",
-  "Prathima Institute of Medical Sciences",
-  "Deccan College of Medical Sciences",
-  "Kakatiya Medical College", "Gandhi Medical College",
-  "Osmania Medical College", "Nizams Institute of Medical Sciences",
-  "Mamata Medical College", "Guntur Medical College",
-  "Andhra Medical College", "S.V. Medical College",
-  "Rangaraya Medical College", "Kurnool Medical College",
-  "Maharaja's College (Ernakulam)", "Sacred Heart College (Ernakulam)",
-  "St. Albert's College (Ernakulam)", "St. Joseph's College, Bangalore",
-  "Christ University, Bangalore", "Mount Carmel College, Bangalore",
-  "St. Joseph's College of Commerce, Bangalore",
-  "Jyoti Nivas College, Bangalore",
-  "M.E.S. College, Bangalore",
-  "BMS College of Engineering", "PES University",
-  "RV College of Engineering", "Dayananda Sagar College of Engineering",
-  "KJ Somaiya College of Engineering",
-  "RAIT (Ramrao Adik Institute of Technology)",
-  "St. Xavier's College, Mumbai",
-  "Jai Hind College, Mumbai", "Ruparel College, Mumbai",
-  "Mithibai College of Arts, Chauhan Institute of Science",
-  "K.J. Somaiya College of Science and Commerce",
-  "Narsee Monjee College of Commerce and Economics",
-  "Fergusson College, Pune", "SP College, Pune",
-  "Symbiosis College of Arts and Commerce",
-  "Garware College of Commerce, Pune",
-  "Nowrosjee Wadia College, Pune",
-  "Modern College of Arts, Science and Commerce, Pune",
-  "Brihan Maharashtra College of Commerce, Pune",
-  "Delhi College of Arts and Commerce",
-  "Miranda House, Delhi", "Lady Shri Ram College, Delhi",
-  "Indraprastha College for Women, Delhi",
-  "Jesus and Mary College, Delhi",
-  "St. Stephens College, Delhi",
-  "Hans Raj College, Delhi", "Ramjas College, Delhi",
-  "Kirori Mal College, Delhi", "Maitreyi College, Delhi",
-  "Kamla Nehru College, Delhi",
-  "Presidency University, Kolkata",
-  "St. Xavier's College, Kolkata",
-  "Bethune College, Kolkata", "Lady Brabourne College, Kolkata",
-  "Scottish Church College, Kolkata", "Asutosh College, Kolkata",
-  "Hindu College, Kolkata",
-  "Fergusson College, Kolkata",
-  "Loyola College, Hyderabad",
-  "St. Francis College for Women, Hyderabad",
-  "Osmania University College for Women",
-  "Bhavan's Vivekananda College, Hyderabad",
-  "Holy Mary Institute of Technology and Science",
-  "CMR College of Engineering and Technology",
-  "MALLA REDDY Engineering College",
-  "Chaitanya Bharathi Institute of Technology",
-  "Shadan College of Engineering and Technology",
-  "Vardhaman College of Engineering",
-  "Gokaraju Rangaraju Institute of Engineering and Technology",
-  "Muffakham Jah College of Engineering and Technology",
-  "Institute of Aeronautical Engineering (IARE)",
-  "Vignan's Foundation for Science, Technology and Research",
-  "Koneru Lakshmaiah Education Foundation (KLEF)",
-  "Sri Indu College of Engineering and Technology",
-  "Vidya Jyothi Institute of Technology",
-  "St. Mary's College of Engineering and Technology",
-
-  // ── Open / Distance Universities ─────────────────────────────
-  "Indira Gandhi National Open University (IGNOU)",
-  "Yashwantrao Chavan Maharashtra Open University (YCMOU)",
-  "Tamil Nadu Open University (TNOU)",
-  "Karnataka State Open University (KSOU)",
-  "Dr. B.R. Ambedkar Open University (BRAOU)",
-  "Nalanda Open University", "Netaji Subhas Open University",
-  "Madhya Pradesh Bhoj Open University",
-  "Rajasthan State Open University",
-  "Uttarakhand Open University",
-  "Himachal Pradesh Open University",
-  "K.K. Handiqui State Open University (KKHSOU)",
-  "Punjab Technical University (Distance Learning)",
-  "Sikkim Manipal University (Distance)",
-
-  // ── Private Deemed (Commerce / BBA / B.Com focus) ─────────────
-  "ICFAI University", "ICFAI Business School (IBS)",
-  "Amity University (Noida)", "Amity University (Mumbai)",
-  "Amity University (Jaipur)", "Amity University (Hyderabad)",
-  "Lovely Professional University (LPU)",
-  "Chandigarh University", "Sharda University",
-  "Galgotias University", "Bennett University",
-  "UPES (University of Petroleum and Energy Studies)",
-  "MIT World Peace University (MIT-WPU), Pune",
-  "Presidency University, Bangalore",
-  "PES Modern College of Engineering",
-  "Alliance University, Bangalore",
-  "Jain University, Bangalore",
-  "REVA University", "Dayananda Sagar University",
-  "Ramaiah University of Applied Sciences",
-  "CMR University", "New Horizon College of Engineering",
-
-  // ── Pharmacy / Nursing / Allied Health colleges ───────────────
-  "Manipal College of Pharmaceutical Sciences",
-  "JSS College of Pharmacy", "PSG College of Pharmacy",
-  "SRM College of Pharmacy", "Saveetha College of Pharmacy",
-  "Vinayaka Mission's College of Pharmacy",
-  "KLE College of Pharmacy",
-  "Sri Venkateswara College of Pharmacy",
-  "Care College of Nursing", "Narayana College of Nursing",
-  "Manipal College of Nursing",
-  "Lourdes College of Nursing (Thiruvananthapuram)",
-  "St. Gregorios College of Nursing",
-  "Rajiv Gandhi Institute of Nursing Education",
-  "ESIC Nursing College",
-  "Government College of Nursing, Chennai",
-  "Apollo College of Nursing",
-  "Sri Ramachandra College of Nursing",
-];
-
-/** Filter colleges for typeahead — returns up to 10 best matches */
-function filterColleges(query) {
-  if (!query || query.length < 2) return [];
-  const q = query.toLowerCase();
-  const exact = [];
-  const starts = [];
-  const contains = [];
-  for (const c of INDIAN_COLLEGES) {
-    const cl = c.toLowerCase();
-    if (cl === q) exact.push(c);
-    else if (cl.startsWith(q)) starts.push(c);
-    else if (cl.includes(q)) contains.push(c);
-  }
-  return [...exact, ...starts, ...contains].slice(0, 10);
-}
-
 function resolveStage1Data(existingData, candidate) {
   const s1 = existingData || candidate?.stage1 || {};
   const lData = s1?.aadhaarLockedData || candidate?.stage1?.aadhaarLockedData || {};
@@ -727,11 +488,20 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     existingData?.city || candidate?.stage1?.city || candidate?.city || "Chennai"
   );
   const [currentLocality, setCurrentLocality] = useState(existingData?.currentLocality || candidate?.stage1?.currentLocality || "");
-  const [preferredCities, setPreferredCities] = useState(
-    Array.isArray(existingData?.preferredCities) && existingData.preferredCities.length > 0
-      ? existingData.preferredCities.filter(Boolean)
-      : []
-  );
+  // Preferred work cities are chosen MANUALLY by the candidate. Older saves auto-filled
+  // the permanent-address city as the only entry; drop that auto-pulled value unless the
+  // candidate explicitly saved it (preferredCitiesManual flag).
+  const [preferredCities, setPreferredCities] = useState(() => {
+    const saved = Array.isArray(existingData?.preferredCities) ? existingData.preferredCities.filter(Boolean) : [];
+    if (saved.length === 0) return [];
+    if (existingData?.preferredCitiesManual) return saved;
+    const norm = (v) => String(v || "").trim().toLowerCase();
+    const addressNames = [initAadhaar.locality, initAadhaar.district, existingData?.city, existingData?.permanentDistrict, existingData?.permanentLocality]
+      .map(norm)
+      .filter(Boolean);
+    if (saved.length === 1 && addressNames.includes(norm(saved[0]))) return [];
+    return saved;
+  });
   const [cityInputOpen, setCityInputOpen] = useState(false);
   const [selectedCityOption, setSelectedCityOption] = useState("");
   const [openToRelocate, setOpenToRelocate] = useState(
@@ -755,11 +525,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [collegeName, setCollegeName] = useState(
     existingData?.collegeName || ""
   );
-  const [collegeSuggestions, setCollegeSuggestions] = useState([]);
-  const [collegeDropdownOpen, setCollegeDropdownOpen] = useState(false);
-  const [collegeHighlightIdx, setCollegeHighlightIdx] = useState(-1);
-  const collegeInputRef = useRef(null);
-  const collegeDropdownRef = useRef(null);
+  const [collegeState, setCollegeState] = useState(existingData?.collegeState || "");
+  const [collegeLocation, setCollegeLocation] = useState(existingData?.collegeLocation || "");
   const [educationStatus, setEducationStatus] = useState(
     existingData?.educationStatus || ""
   );
@@ -840,23 +607,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       setCurrentLocality(s1.currentLocality);
     }
   }, [existingData, candidate]);
-
-  // Close college dropdown when clicking outside
-  useEffect(() => {
-    function handleOutsideClick(e) {
-      if (
-        collegeDropdownRef.current &&
-        !collegeDropdownRef.current.contains(e.target) &&
-        collegeInputRef.current &&
-        !collegeInputRef.current.contains(e.target)
-      ) {
-        setCollegeDropdownOpen(false);
-        setCollegeHighlightIdx(-1);
-      }
-    }
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, []);
 
   // Handle stream change default degree - also re-derives the course list
   // from the currently selected Highest Qualification, so switching stream
@@ -1124,12 +874,15 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const startMcPolling = (vId, refId) => {
     stopMcPolling();
     let attempts = 0;
+    let inFlight = false;
     mcPollIntervalRef.current = setInterval(async () => {
+      if (inFlight) return; // don't stack requests while the previous check is still running
       attempts++;
       if (attempts > 120) {
         stopMcPolling();
         return;
       }
+      inFlight = true;
       try {
         const res = await api.post("/aadhaar/messagecentral/fetch-document", {
           referenceId: refId || "",
@@ -1156,6 +909,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           }
           toast(pollErr.response.data.message, "!");
         }
+      } finally {
+        inFlight = false;
       }
     }, 2500);
   };
@@ -1208,10 +963,20 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
           }
         } catch (e) {}
         applyMcDetails(res.data);
+      } else {
+        // Provider says the DigiLocker step isn't finished yet (HTTP 202)
+        toast(res.data?.message || "DigiLocker verification is still in progress. Finish the OTP step in the popup, then click Fetch Details again.", "!");
       }
     } catch (err) {
       console.error("Message Central fetch error:", err);
-      const msg = err.response?.data?.message || "Verification still pending. Finish the DigiLocker verification in the popup, then click Fetch Details.";
+      let msg;
+      if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      } else if (!err.response) {
+        msg = "Could not reach the server (network issue or timeout). Wait a few seconds and click Fetch Details again.";
+      } else {
+        msg = `The verification service returned an error (${err.response.status}). Please try again in a moment. If it keeps happening, contact support.`;
+      }
       toast(msg, "!");
     } finally {
       setMcFetching(false);
@@ -1365,6 +1130,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         missingFields.push("Preferred Work Shift(s)");
         errs.workShifts = "Select at least one shift";
       }
+      if (preferredCities.filter(Boolean).length === 0) {
+        missingFields.push("Willing to Work In (add at least one city)");
+        errs.preferredCities = "Add at least one city you are willing to work in";
+      }
       // Email validation
       if (!email || !email.includes("@")) {
         missingFields.push("Valid Email Address");
@@ -1387,11 +1156,11 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
         missingFields.push("Education Status");
         errs.educationStatus = "Education status is mandatory";
       }
-      if (!graduationMonth || !graduationYear) {
+      if (educationStatus !== "Pursuing" && (!graduationMonth || !graduationYear)) {
         missingFields.push("Passing Month & Year");
         errs.graduation = "Passing month and year are mandatory";
       }
-      if (!cgpa || cgpa.trim().length === 0) {
+      if (educationStatus !== "Pursuing" && (!cgpa || cgpa.trim().length === 0)) {
         missingFields.push("CGPA / Percentage");
         errs.cgpa = "CGPA or percentage is mandatory";
       }
@@ -1470,7 +1239,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       state: resolvedState,
       city: resolvedCity,
       currentLocality,
-      preferredCities: preferredCities.filter(Boolean).length > 0 ? preferredCities.filter(Boolean) : [resolvedCity],
+      preferredCities: preferredCities.filter(Boolean),
+      preferredCitiesManual: true,
       openToRelocate,
       workShifts,
 
@@ -1479,6 +1249,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       qualification,
       degree: degree.trim(),
       collegeName: collegeName.trim(),
+      collegeLocation: collegeLocation.trim(),
+      collegeState: collegeState.trim(),
       educationStatus,
       graduationMonth,
       graduationYear: cleanGradYear,
@@ -2917,7 +2689,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="choice-title">Fresher</div>
                   <div className="choice-sub">New to Industry</div>
                   <div className="choice-desc">
-                    Currently studying or recently graduated. No RCM work experience yet.
+                    New to the RCM industry, including students, recent graduates and candidates who have completed training but do not yet have professional RCM work experience.
                   </div>
                 </div>
                 <div
@@ -2929,7 +2701,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div className="choice-title">Experienced</div>
                   <div className="choice-sub">1+ yrs in Coding / RCM</div>
                   <div className="choice-desc">
-                    Currently or previously working in an RCM role. Job title, company, tenure required in Stage 02.
+                    Currently or previously employed in a medical coding, medical billing or other healthcare RCM role. Relevant work experience will be collected in the next stage.
                   </div>
                 </div>
               </div>
@@ -3120,6 +2892,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   </button>
                 </div>
               )}
+              {formErrors.preferredCities && preferredCities.length === 0 && <div className="field-error-msg">{formErrors.preferredCities}</div>}
             </div>
 
             <div className="field">
@@ -3281,123 +3054,19 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <label>
                   University / College <span className="req">*</span>
                 </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    ref={collegeInputRef}
-                    type="text"
-                    placeholder="Start typing college or university name…"
-                    value={collegeName}
-                    autoComplete="off"
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCollegeName(val);
-                      if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
-                      const suggestions = filterColleges(val);
-                      setCollegeSuggestions(suggestions);
-                      setCollegeDropdownOpen(suggestions.length > 0);
-                      setCollegeHighlightIdx(-1);
-                    }}
-                    onFocus={() => {
-                      if (collegeName.length >= 2) {
-                        const suggestions = filterColleges(collegeName);
-                        setCollegeSuggestions(suggestions);
-                        setCollegeDropdownOpen(suggestions.length > 0);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (!collegeDropdownOpen || collegeSuggestions.length === 0) return;
-                      if (e.key === "ArrowDown") {
-                        e.preventDefault();
-                        setCollegeHighlightIdx((prev) => Math.min(prev + 1, collegeSuggestions.length - 1));
-                      } else if (e.key === "ArrowUp") {
-                        e.preventDefault();
-                        setCollegeHighlightIdx((prev) => Math.max(prev - 1, 0));
-                      } else if (e.key === "Enter" && collegeHighlightIdx >= 0) {
-                        e.preventDefault();
-                        const chosen = collegeSuggestions[collegeHighlightIdx];
-                        setCollegeName(chosen);
-                        setCollegeDropdownOpen(false);
-                        setCollegeHighlightIdx(-1);
-                        setCollegeSuggestions([]);
-                      } else if (e.key === "Escape") {
-                        setCollegeDropdownOpen(false);
-                        setCollegeHighlightIdx(-1);
-                      }
-                    }}
-                  />
-                  {collegeDropdownOpen && collegeSuggestions.length > 0 && (
-                    <div
-                      ref={collegeDropdownRef}
-                      style={{
-                        position: "absolute",
-                        top: "calc(100% + 4px)",
-                        left: 0,
-                        right: 0,
-                        background: "#FFFFFF",
-                        border: "1.5px solid #CBD5E1",
-                        borderRadius: 10,
-                        boxShadow: "0 8px 24px rgba(15,23,42,0.12)",
-                        zIndex: 9999,
-                        maxHeight: 280,
-                        overflowY: "auto",
-                      }}
-                    >
-                      {collegeSuggestions.map((suggestion, idx) => {
-                        const q = collegeName.toLowerCase();
-                        const matchStart = suggestion.toLowerCase().indexOf(q);
-                        const before = matchStart >= 0 ? suggestion.slice(0, matchStart) : suggestion;
-                        const match = matchStart >= 0 ? suggestion.slice(matchStart, matchStart + q.length) : "";
-                        const after = matchStart >= 0 ? suggestion.slice(matchStart + q.length) : "";
-                        return (
-                          <div
-                            key={suggestion}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              setCollegeName(suggestion);
-                              setCollegeDropdownOpen(false);
-                              setCollegeHighlightIdx(-1);
-                              setCollegeSuggestions([]);
-                              if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
-                            }}
-                            onMouseEnter={() => setCollegeHighlightIdx(idx)}
-                            style={{
-                              padding: "10px 14px",
-                              cursor: "pointer",
-                              fontSize: 13.5,
-                              background: idx === collegeHighlightIdx ? "#F1F5F9" : "transparent",
-                              borderBottom: idx < collegeSuggestions.length - 1 ? "1px solid #F1F5F9" : "none",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              transition: "background 0.1s",
-                            }}
-                          >
-                            <i className="fa-solid fa-university" style={{ color: "#94A3B8", fontSize: 12, flexShrink: 0 }} />
-                            <span style={{ color: "#334155" }}>
-                              {before}
-                              <strong style={{ color: "#1D4ED8" }}>{match}</strong>
-                              {after}
-                            </span>
-                          </div>
-                        );
-                      })}
-                      <div
-                        style={{
-                          padding: "8px 14px",
-                          fontSize: 11.5,
-                          color: "#94A3B8",
-                          borderTop: "1px solid #F1F5F9",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 6,
-                        }}
-                      >
-                        <i className="fa-solid fa-circle-info" style={{ fontSize: 10 }} />
-                        Not listed? Type your full college name and press Enter.
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <CollegePicker
+                  mode="college"
+                  value={collegeName}
+                  placeholder="Search your college or university…"
+                  onChange={(v) => {
+                    setCollegeName(v);
+                    if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
+                  }}
+                  onPick={(r) => {
+                    setCollegeLocation(r.district || "");
+                    setCollegeState(r.state || "");
+                  }}
+                />
                 {formErrors.collegeName ? (
                   <div className="field-error-msg">
                     <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 5 }} />
@@ -3406,9 +3075,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                   <div className="helper">
                     <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 5, color: "#94A3B8" }} />
-                    Type to search from {INDIAN_COLLEGES.length}+ UGC-recognized institutions. Not found? Type the full name directly.
+                    Search from 53,000+ colleges across India. Not found? Type the full name directly.
                   </div>
                 )}
+                <label style={{ marginTop: 12 }}>College location <span style={{ fontWeight: 500, opacity: 0.7 }}>(district / city)</span></label>
+                <CollegePicker
+                  mode="location"
+                  value={collegeLocation}
+                  state={collegeState}
+                  placeholder="Auto-filled when you pick a college — or search"
+                  onChange={setCollegeLocation}
+                  onPick={(r) => setCollegeState(r.state || "")}
+                />
               </div>
               <div className={`field ${formErrors.educationStatus ? "has-error" : ""}`}>
                 <label>
@@ -3443,7 +3121,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
             <div className="row-3">
               <div className={`field ${formErrors.graduation ? "has-error" : ""}`}>
                 <label>
-                  Passing Month & Year <span className="req">*</span>
+                  {educationStatus === "Pursuing" ? "Expected Passing Month & Year" : "Passing Month & Year"} {educationStatus !== "Pursuing" && <span className="req">*</span>}
+                  {educationStatus === "Pursuing" && <span style={{ fontWeight: 500, opacity: 0.7 }}> (optional)</span>}
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <select
@@ -3478,7 +3157,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 {formErrors.graduation ? (
                   <div className="field-error-msg">{formErrors.graduation}</div>
                 ) : (
-                  <div className="helper">Month & year of completion.</div>
+                  <div className="helper">{educationStatus === "Pursuing" ? "Optional — add your expected completion if you know it." : "Month & year of completion."}</div>
                 )}
               </div>
               <div className="field">
@@ -3495,7 +3174,8 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               </div>
               <div className={`field ${formErrors.cgpa ? "has-error" : ""}`}>
                 <label>
-                  CGPA / Percentage <span className="req">*</span>
+                  CGPA / Percentage {educationStatus !== "Pursuing" && <span className="req">*</span>}
+                  {educationStatus === "Pursuing" && <span style={{ fontWeight: 500, opacity: 0.7 }}> (optional)</span>}
                 </label>
                 <input
                   type="text"

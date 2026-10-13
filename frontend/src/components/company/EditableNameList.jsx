@@ -45,7 +45,9 @@ const inputStyle = {
   minWidth: 0,
 };
 
-export default function EditableNameList({ value, onChange, onCommit, suggestions = [], rolePlaceholder = "Role (e.g. HR)", addLabel = "+ Add member", withContact = false }) {
+const norm = (v) => String(v || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+export default function EditableNameList({ value, onChange, onCommit, suggestions = [], rolePlaceholder = "Role (e.g. HR)", addLabel = "+ Add member", withContact = false, otherLists = [], blockNames = [] }) {
   const list = (Array.isArray(value) ? value : []).filter((v) => String(v || "").trim());
   const [menuIdx, setMenuIdx] = useState(null);
   const [editIdx, setEditIdx] = useState(null); // index being edited, or list.length for a new member
@@ -95,12 +97,39 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
     setEditIdx(null);
   }
 
+  function findDuplicate() {
+    const name = norm(draftName);
+    const email = norm(draftEmail);
+    const phone = String(draftPhone || "").trim();
+    const sources = [{ label: "this list", items: list, own: true }, ...otherLists.map((o) => ({ label: o.label, items: (Array.isArray(o.items) ? o.items : []).filter((v) => String(v || "").trim()), own: false }))];
+    for (const src of sources) {
+      for (let i = 0; i < src.items.length; i += 1) {
+        if (src.own && i === editIdx) continue; // the member being edited
+        const m = parseMember(src.items[i]);
+        if (withContact) {
+          if (email && norm(m.email) === email) return `${draftEmail.trim()} is already added in ${src.label}${m.name ? ` (${m.name})` : ""}. The same person cannot be added twice.`;
+          if (phone && m.phone === phone) return `${phone} is already added in ${src.label}${m.name ? ` (${m.name})` : ""}. The same person cannot be added twice.`;
+        } else if (norm(m.name) === name) {
+          return `${draftName.trim()} is already added in ${src.label}.`;
+        }
+      }
+    }
+    if (!withContact && editIdx >= list.length && blockNames.some((b) => norm(parseMember(b).name) === name)) {
+      return `${draftName.trim()} is already in your Team Setup - pick them from the suggestions instead of adding again.`;
+    }
+    return "";
+  }
+
   function saveEdit() {
     if (!draftName.trim()) return; // name is required
     if (withContact) {
       if (!EMAIL_RE.test(draftEmail.trim())) { setDraftError("Enter a valid email address."); return; }
       if (!/^\d{10}$/.test(draftPhone.trim())) { setDraftError("Enter a valid 10-digit contact number."); return; }
     }
+    // Duplicate guard: the same person must not be added twice (within this list, or - for
+    // recruiters / hiring managers - in the other team list).
+    const dupMsg = findDuplicate();
+    if (dupMsg) { setDraftError(dupMsg); return; }
     setDraftError("");
     const formatted = withContact ? formatMember(draftName, draftRole, draftEmail, draftPhone) : formatMember(draftName, draftRole);
     const next = [...list];
@@ -116,7 +145,8 @@ export default function EditableNameList({ value, onChange, onCommit, suggestion
     if (editIdx === i) setEditIdx(null);
   }
 
-  const remainingSuggestions = suggestions.filter((s) => !list.includes(s));
+  const listNames = new Set(list.map((m) => norm(parseMember(m).name)));
+  const remainingSuggestions = suggestions.filter((s) => !list.includes(s) && !listNames.has(norm(parseMember(s).name)));
   const isAdding = editIdx !== null && editIdx >= list.length;
 
   const editor = (

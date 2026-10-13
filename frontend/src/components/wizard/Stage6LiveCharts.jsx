@@ -434,7 +434,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
                 <i className="fa-solid fa-chart-line" />
               </div>
               <span style={{ background: "#FEF3C7", color: "#92400E", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, letterSpacing: "0.04em" }}>STAGE 06 OF 07 · ACTIVE</span>
-              <span style={{ background: "#FDE68A", color: "#B45309", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>UP TO +20 POINTS</span>
+              <span style={{ background: "#FDE68A", color: "#B45309", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>{isExemptDomain ? "BONUS · OPTIONAL" : "UP TO +20 POINTS"}</span>
               <span style={{ background: "linear-gradient(135deg, #7C3AED 0%, #A855F7 100%)", color: "#FFFFFF", padding: "5px 12px", borderRadius: 999, fontSize: 11, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 5 }}>
                 <i className="fa-solid fa-star" style={{ fontSize: 9 }} /> CO-FLAGSHIP
               </span>
@@ -455,10 +455,10 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 <i className="fa-solid fa-circle-info" style={{ color: "#16A34A", fontSize: 18, marginTop: 2 }} />
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is not required for your role" : "Stage 06 is optional for self-trained candidates"}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is optional for your role — bonus points only" : "Stage 06 is optional for self-trained candidates"}</div>
                   <div style={{ fontSize: 12.5, color: "#166534", lineHeight: 1.5 }}>
                     {isExemptDomain
-                      ? "Live chart coding doesn't apply to AR calling or eligibility & verification work. You can skip Stage 06 and go straight to Stage 07 · Resume — it won't affect your profile or your score."
+                      ? `Live chart coding isn't required for ${candidate?.stage2?.domain || "your"} roles. You can skip Stage 06 and go straight to Stage 07 · Resume — it won't lower your score. If you do have live chart exposure, add it here to earn bonus points.`
                       : "You can fill in your chart data if you have it — this will boost your profile score. Or you can skip Stage 06 with zero penalty and proceed directly to Stage 07 · Resume. You can always return and update this later."}
                   </div>
                 </div>
@@ -511,7 +511,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
 
             <div style={{ marginBottom: 28 }}>
               <h2 style={{ fontSize: 26, fontWeight: 900, color: "var(--navy, #0F172A)", margin: "0 0 6px 0" }}>Your Stage 06 information</h2>
-              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--gold, #F59E0B)", letterSpacing: "0.08em", textTransform: "uppercase" }}>PROVE IT · WE SCORE IT · YOU EARN UP TO +20 POINTS</div>
+              <div style={{ fontSize: 11, fontWeight: 800, color: "var(--gold, #F59E0B)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{isExemptDomain ? "OPTIONAL · SHARE ANY LIVE CHART EXPOSURE FOR A BONUS BADGE" : "PROVE IT · WE SCORE IT · YOU EARN UP TO +20 POINTS"}</div>
             </div>
 
             {/* 1. EVIDENCE PATH */}

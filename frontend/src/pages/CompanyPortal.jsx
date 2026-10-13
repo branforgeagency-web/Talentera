@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext";
 
+import HeadOnly from "../components/company/HeadOnly.jsx";
 // Maps a domain filter option to the words that actually show up in a
 // candidate's free-text `currentRole`. Plain "includes(selectedDomain)"
 // used to miss real matches - e.g. selecting "Medical Coding (CPC)"
@@ -255,7 +256,7 @@ export default function CompanyPortal() {
             <span>{isVerifiedCompany ? "Verified Company" : "Unverified Account"}</span>
           </div>
 
-          <Link
+          <HeadOnly><Link
             to="/companies/billing"
             style={{
               display: "flex",
@@ -274,7 +275,7 @@ export default function CompanyPortal() {
           >
             <span>{companyPlan === "enterprise" ? <i className="fa-solid fa-gem" style={{ color: "#8B5CF6" }}></i> : companyPlan === "growth" ? <i className="fa-solid fa-bolt" style={{ color: "#3B82F6" }}></i> : <i className="fa-solid fa-seedling" style={{ color: "#10B981" }}></i>}</span>
             <span>{companyPlan} Tier</span>
-          </Link>
+          </Link></HeadOnly>
 
           <Link
             to="/companies/directory"
@@ -294,18 +295,19 @@ export default function CompanyPortal() {
           >
             Applicants
           </Link>
-          <Link
+          <HeadOnly><Link
             to="/companies/billing"
             style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
           >
             Plan &amp; Billing
-          </Link>
-          <Link
+          </Link></HeadOnly>
+          <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
+          <HeadOnly><Link
             to="/companies/dashboard"
             style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
           >
             Edit Profile
-          </Link>
+          </Link></HeadOnly>
 
           {company && (
             <button

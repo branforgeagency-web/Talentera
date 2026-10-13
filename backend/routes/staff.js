@@ -13,6 +13,10 @@ const InterviewQuestion = require("../models/InterviewQuestion");
 const AssessmentQuestion = require("../models/AssessmentQuestion");
 const { DEFAULT_ASSESSMENT_QUESTIONS } = require("../data/defaultAssessmentQuestions");
 const AuditLog = require("../models/AuditLog");
+const StaffLead = require("../models/StaffLead");
+const { stripSeedCourses, stripSeedQuestions, realBranches } = require("../utils/academyData");
+const crypto = require("crypto");
+const { validateAadhaarNumber } = require("../utils/verhoeffBackend");
 const RetakeRequest = require("../models/RetakeRequest");
 const { sendRetakeApprovedEmail, sendRetakeRejectedEmail } = require("../utils/emailService");
 const bcrypt = require("bcryptjs");
@@ -180,6 +184,19 @@ router.post("/demo-login", async (req, res) => {
   }
 });
 
+function timeAgo(d) {
+  const ms = Date.now() - new Date(d).getTime();
+  if (!isFinite(ms) || ms < 0) return "Recently";
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 // GET /api/staff/dashboard - Staff Operations Hub metrics (Protected)
 router.get("/dashboard", requireStaffAuth, async (req, res) => {
   try {
@@ -191,14 +208,13 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     // turns the previously fully-unbounded `.find()` into a bounded one -
     // see IMPROVEMENT_ROADMAP.md "No pagination on list endpoints."
     const DASHBOARD_FETCH_CAP = 1000;
-    const candidates = await Candidate.find().limit(DASHBOARD_FETCH_CAP).lean();
+    const candidates = await Candidate.find().sort({ createdAt: -1 }).limit(DASHBOARD_FETCH_CAP).lean();
     const companies = await Company.find().limit(DASHBOARD_FETCH_CAP).lean();
     const academies = await Academy.find().limit(DASHBOARD_FETCH_CAP).lean();
     const totalStaff = await Staff.countDocuments();
     const totalCandidates = candidates.length;
 
     // Filter candidate pending vs fully verified
-    const pendingCandidates = candidates.filter((c) => (c.completedStages || []).length < 8);
     const fullyVerified = candidates.filter((c) => (c.completedStages || []).length >= 8);
 
     const incomingBucket = candidates.map((c) => {
@@ -223,18 +239,21 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         avatar: initials,
         name: fullName,
         studentName: fullName,
-        academy: toStr(s2.academyName, "Apex Medical Coding Institute"),
-        batch: toStr(s2.batch, "Batch 2026-A"),
-        specialty: toStr(s1.currentRole || s2.domain, "Medical Coding"),
-        course: toStr(s1.currentRole || s2.courseName, "Medical Coding"),
-        cert: toStr(s3.certName || s3.name, c.completedStages?.includes(3) ? "CPC Certified" : "CPC-A"),
-        location: toStr(s1.city, "Hyderabad"),
-        time: "Recently",
-        score: s4.score || 88,
+        academy: toStr(s2.academyName, "Not specified"),
+        batch: toStr(s2.batch, ""),
+        specialty: toStr(s1.currentRole || s2.domain, ""),
+        course: toStr(s1.currentRole || s2.courseName, ""),
+        cert: toStr(s3.certName || s3.name, c.completedStages?.includes(3) ? "Certified" : "Not certified"),
+        location: toStr(s1.city, "—"),
+        time: c.createdAt ? timeAgo(c.createdAt) : "Recently",
+        createdAt: c.createdAt || null,
+        pushed: !!(c.staffVerification && c.staffVerification.pushedAt),
+        isVerifiedFinal: isVerified,
+        score: s4.score ?? null,
         status: isVerified ? "Verified" : "Pending Verification",
-        stage: isVerified ? "VERIFIED" : isAssessment ? "IN ASSESSMENT" : "PROFILE PENDING",
-        stageColor: isVerified ? "#15803D" : isAssessment ? "#B45309" : "#475569",
-        stageBg: isVerified ? "#DCFCE7" : isAssessment ? "#FEF3C7" : "#F1F5F9",
+        stage: isVerified ? "VERIFIED" : (c.staffVerification && c.staffVerification.pushedAt) ? "IN VERIFICATION QUEUE" : isAssessment ? "IN ASSESSMENT" : "PROFILE PENDING",
+        stageColor: isVerified ? "#15803D" : (c.staffVerification && c.staffVerification.pushedAt) ? "#6D28D9" : isAssessment ? "#B45309" : "#475569",
+        stageBg: isVerified ? "#DCFCE7" : (c.staffVerification && c.staffVerification.pushedAt) ? "#EDE9FE" : isAssessment ? "#FEF3C7" : "#F1F5F9",
       };
     });
 
@@ -527,38 +546,101 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     });
 
     const reportsData = {
-      totalCandidates,
-      totalCompanies: companies.length,
-      totalAcademies: academies.length,
+      totalCandidates: realTotalCandidates,
+      totalCompanies: realTotalCompanies,
+      totalAcademies: realTotalAcademies,
+      totalColleges: realTotalColleges,
+      verifiedColleges: realVerifiedColleges,
+      pendingColleges: realPendingColleges,
       totalEmployees: totalStaff,
       verifiedCompanies: companies.filter((c) => c.kycStatus === "verified").length,
       pendingCompanies: companies.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
-      verifiedCandidates: fullyVerified.length,
-      pendingCandidatesCount: pendingCandidates.length,
-      placementRate: totalCandidates > 0 ? `${Math.round((fullyVerified.length / totalCandidates) * 100)}%` : "0%",
+      verifiedCandidates: realFullyVerified,
+      pendingCandidatesCount: Math.max(0, realTotalCandidates - realFullyVerified),
+      placementRate: realTotalCandidates > 0 ? `${Math.round((realFullyVerified / realTotalCandidates) * 100)}%` : "0%",
       monthlyVerifications,
     };
 
-    const pipeline = [
-      { stage: "Basic Info", count: candidates.filter((c) => c.completedStages?.includes(1)).length || totalCandidates },
-      { stage: "Training Claim", count: candidates.filter((c) => c.completedStages?.includes(2)).length },
-      { stage: "Certification", count: candidates.filter((c) => c.completedStages?.includes(3)).length },
-      { stage: "Assessment", count: candidates.filter((c) => c.completedStages?.includes(4)).length },
-      { stage: "Video Intro", count: candidates.filter((c) => c.completedStages?.includes(5)).length },
-      { stage: "Live Charts", count: candidates.filter((c) => c.completedStages?.includes(6)).length },
-      { stage: "Placed", count: fullyVerified.length, isPlaced: true }
-    ];
 
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const verifiedTodayCount = await AuditLog.countDocuments({
-      action: { $in: verifyActions },
-      createdAt: { $gte: todayStart },
-    });
     const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const placedThisMonthCount = candidates.filter(
-      (c) => (c.completedStages || []).length >= 8 && c.updatedAt && new Date(c.updatedAt) >= thisMonthStart
-    ).length;
+
+    // Exact counts straight from the database (the in-memory lists above are capped at
+    // DASHBOARD_FETCH_CAP, and incomingBucket is every candidate, so neither can be counted).
+    const [
+      realTotalCandidates,
+      realTotalCompanies,
+      realTotalAcademies,
+      realTotalColleges,
+      realVerifiedColleges,
+      realPendingColleges,
+      realFullyVerified,
+      realAwaitingAudit,
+      realActiveCandidates,
+      realCompanyKycReview,
+      verifiedTodayIds,
+      placedThisMonthIds,
+    ] = await Promise.all([
+      Candidate.countDocuments({}),
+      Company.countDocuments({}),
+      Academy.countDocuments({}),
+      College.countDocuments({}),
+      College.countDocuments({ verificationStatus: "VERIFIED" }),
+      College.countDocuments({ verificationStatus: { $in: ["PENDING", "UNDER_REVIEW"] } }),
+      // 8+ completed stages == fully verified
+      Candidate.countDocuments({ "completedStages.7": { $exists: true } }),
+      // awaiting staff audit: not fully verified, but stages 1-6 done / Aadhaar verified / submitted
+      Candidate.countDocuments({
+        "completedStages.7": { $exists: false },
+        $or: [
+          { "completedStages.5": { $exists: true } },
+          { "stage1.aadhaarVerified": true },
+          { aadhaarVerified: true },
+          { isSubmitted: true },
+          { "staffVerification.pushedAt": { $ne: null } },
+        ],
+      }),
+      // active = live for hiring (went live and has not switched visibility off)
+      Candidate.countDocuments({
+        "stage8.liveForHiring": { $ne: false },
+        $or: [{ isSubmitted: true }, { "stage8.liveForHiring": true }, { "stage8.isLive": true }],
+      }),
+      Company.countDocuments({ kycStatus: "under_review" }),
+      // distinct candidates verified by staff today
+      AuditLog.distinct("targetId", { action: "verify_candidate", createdAt: { $gte: todayStart } }),
+      // distinct candidates hired (offer accepted/extended as "hired") this month
+      Application.distinct("candidateId", { status: "hired", updatedAt: { $gte: thisMonthStart } }),
+    ]);
+    // Pipeline: exact number of candidates (platform-wide) who have completed each stage.
+    // Counts are cumulative per stage, not "currently sitting in" a stage, so they don't
+    // have to decrease left to right (Stage 6 can be skipped for some roles, etc.).
+    const stageCounts = await Promise.all([1, 2, 3, 4, 5, 6].map((n) => Candidate.countDocuments({ completedStages: n })));
+    const pipeline = [
+      { stage: "Basic Info", count: stageCounts[0], hint: "Completed Stage 1 · Identity & basics" },
+      { stage: "Training Claim", count: stageCounts[1], hint: "Completed Stage 2 · Training / experience" },
+      { stage: "Certification", count: stageCounts[2], hint: "Completed Stage 3 · Certification" },
+      { stage: "Assessment", count: stageCounts[3], hint: "Completed Stage 4 · Skills assessment" },
+      { stage: "Video Intro", count: stageCounts[4], hint: "Completed Stage 5 · Video pitch & AI interview" },
+      { stage: "Live Charts", count: stageCounts[5], hint: "Completed Stage 6 · Live charts (skipped by some roles)" },
+      { stage: "Fully Verified", count: realFullyVerified, isPlaced: true, hint: "All 8 stages complete and verified by staff" },
+    ];
+
+    const recentLeadDocs = await StaffLead.find().sort({ createdAt: -1 }).limit(50).lean();
+    const recentLeads = recentLeadDocs.map((l) => ({
+      id: String(l._id),
+      name: l.name,
+      avatar: (l.name || "L").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "L",
+      email: l.email,
+      academy: l.institute || "Direct lead",
+      specialty: "",
+      time: timeAgo(l.createdAt),
+      createdAt: l.createdAt,
+      addedBy: l.createdByName || "",
+    }));
+
+    const verifiedTodayCount = verifiedTodayIds.length;
+    const placedThisMonthCount = placedThisMonthIds.length;
 
     res.json({
       liveQueueCount:
@@ -566,10 +648,14 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
         companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length +
         certificationQueue.filter((c) => c.certStatus === "pending").length,
       stats: {
-        pendingVerifications: incomingBucket.length + companyKycQueue.filter((c) => c.kycStatus === "under_review").length,
+        pendingVerifications: realAwaitingAudit + realCompanyKycReview,
+        pendingCandidateAudits: realAwaitingAudit,
         verifiedToday: verifiedTodayCount,
-        activeCandidates: totalCandidates,
-        totalAcademies: academies.length,
+        activeCandidates: realActiveCandidates,
+        totalAcademies: realTotalAcademies,
+        totalColleges: realTotalColleges,
+        verifiedColleges: realVerifiedColleges,
+        pendingColleges: realPendingColleges,
         totalEmployees: totalStaff,
         placedThisMonth: placedThisMonthCount,
         pendingCompanyKycs: companyKycQueue.filter((c) => c.kycStatus === "under_review" || c.kycStatus === "pending").length,
@@ -579,6 +665,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
       },
       pipeline,
       incomingBucket,
+      recentLeads,
       companyKycQueue,
       videoIntrosQueue,
       textAssessmentQueue,
@@ -750,6 +837,138 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Verify company error: ${err.message}`);
     res.status(500).json({ message: "Company verification action failed." });
+  }
+});
+
+// POST /api/staff/quick-add - capture a candidate / lead with duplicate protection (Protected)
+// Aadhaar + email are mandatory for candidate-type entries so the same person
+// cannot be entered twice (by email, phone, or Aadhaar).
+router.post("/quick-add", requireStaffAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const kind = ["quick_add", "upload", "lead", "visit"].includes(body.kind) ? body.kind : "quick_add";
+    const name = String(body.name || "").trim();
+    const email = String(body.email || "").trim().toLowerCase();
+    const phoneDigits = String(body.phone || "").replace(/\D/g, "");
+    const phoneKey = phoneDigits.length >= 10 ? phoneDigits.slice(-10) : "";
+    const institute = String(body.institute || "").trim();
+    const notes = String(body.notes || "").trim();
+    const needsIdentity = kind !== "visit";
+
+    if (!name) return res.status(400).json({ message: "Name is required." });
+    if (needsIdentity) {
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ message: "A valid email address is required." });
+      }
+    }
+    if (phoneDigits && !phoneKey) {
+      return res.status(400).json({ message: "Phone number must have at least 10 digits." });
+    }
+
+    let aadhaarHash = "";
+    let aadhaarLast4 = "";
+    if (needsIdentity) {
+      const check = validateAadhaarNumber(body.aadhaar);
+      if (!check.valid) return res.status(400).json({ message: check.error });
+      const pepper = process.env.AADHAAR_HASH_PEPPER || process.env.JWT_SECRET || "talentera-aadhaar";
+      aadhaarHash = crypto.createHash("sha256").update(check.cleanDigits + pepper).digest("hex");
+      aadhaarLast4 = check.cleanDigits.slice(-4);
+    }
+
+    if (needsIdentity) {
+      // 1) Already a registered candidate?
+      const phoneRe = phoneKey ? new RegExp(phoneKey.split("").join("\\s*") + "$") : null;
+      const candOr = [{ email }];
+      if (phoneRe) candOr.push({ mobile: phoneRe }, { "stage1.mobile": phoneRe });
+      const existingCand = await Candidate.findOne({ $or: candOr }).select("email mobile stage1.fullName").lean();
+      if (existingCand) {
+        const by = existingCand.email === email ? "email address" : "phone number";
+        return res.status(409).json({
+          message: `Duplicate: a registered candidate (${toStr(existingCand.stage1 && existingCand.stage1.fullName, existingCand.email)}) already uses this ${by}.`,
+          duplicateOf: { type: "candidate", field: by },
+        });
+      }
+      // Aadhaar is stored masked on candidates ("XXXX XXXX 1234") so we can only match
+      // last-4 together with the same name.
+      const nameRe = new RegExp("^" + name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$", "i");
+      const aadhaarCand = await Candidate.findOne({
+        "stage1.maskedAadhaar": new RegExp(aadhaarLast4 + "$"),
+        "stage1.fullName": nameRe,
+      }).select("email stage1.fullName").lean();
+      if (aadhaarCand) {
+        return res.status(409).json({
+          message: `Duplicate: a registered candidate named ${toStr(aadhaarCand.stage1 && aadhaarCand.stage1.fullName, name)} already has this Aadhaar (ending ${aadhaarLast4}).`,
+          duplicateOf: { type: "candidate", field: "Aadhaar" },
+        });
+      }
+      // 2) Already captured as a lead?
+      const leadOr = [{ email }, { aadhaarHash }];
+      if (phoneKey) leadOr.push({ phoneKey });
+      const existingLead = await StaffLead.findOne({ $or: leadOr, kind: { $ne: "visit" } }).lean();
+      if (existingLead) {
+        const field = existingLead.aadhaarHash === aadhaarHash ? "Aadhaar number" : existingLead.email === email ? "email address" : "phone number";
+        return res.status(409).json({
+          message: `Duplicate: ${existingLead.name} was already added as a lead (same ${field})${existingLead.createdByName ? " by " + existingLead.createdByName : ""}.`,
+          duplicateOf: { type: "lead", field },
+        });
+      }
+    }
+
+    const lead = await StaffLead.create({
+      kind,
+      name,
+      email,
+      phone: String(body.phone || "").trim(),
+      phoneKey,
+      aadhaarHash,
+      aadhaarLast4,
+      institute,
+      notes,
+      createdBy: req.staffId,
+      createdByName: req.staffName || "",
+    });
+    await recordAudit(req, {
+      action: "quick_add",
+      targetType: "other",
+      targetId: lead._id,
+      summary: `Quick-added ${kind === "visit" ? "visit" : "candidate/lead"} ${name}`,
+      meta: { kind, aadhaarLast4 },
+    });
+    res.status(201).json({ message: "Saved.", lead: { id: String(lead._id), name: lead.name } });
+  } catch (err) {
+    logger.error(`Staff quick-add error: ${err.message}`);
+    res.status(500).json({ message: "Failed to save the record." });
+  }
+});
+
+// POST /api/staff/push-verification - push candidate(s) into the verification queue (Protected)
+router.post("/push-verification", requireStaffAuth, async (req, res) => {
+  try {
+    const mongoose = require("mongoose");
+    const ids = (Array.isArray(req.body && req.body.candidateIds) ? req.body.candidateIds : [])
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .slice(0, 500);
+    if (ids.length === 0) return res.status(400).json({ message: "No candidates selected." });
+    const result = await Candidate.updateMany(
+      {
+        _id: { $in: ids },
+        "completedStages.7": { $exists: false },
+        $or: [{ "staffVerification.pushedAt": null }, { "staffVerification.pushedAt": { $exists: false } }],
+      },
+      { $set: { "staffVerification.pushedAt": new Date(), "staffVerification.pushedBy": req.staffName || String(req.staffId || "") } }
+    );
+    const pushed = result.modifiedCount || 0;
+    await recordAudit(req, {
+      action: "push_verification",
+      targetType: "candidate",
+      targetId: ids.length === 1 ? ids[0] : "",
+      summary: `Pushed ${pushed} candidate(s) to the verification queue`,
+      meta: { requested: ids.length, pushed },
+    });
+    res.json({ message: pushed ? `Pushed ${pushed} candidate(s) to verification.` : "Already in the verification queue or fully verified.", pushed, skipped: ids.length - pushed });
+  } catch (err) {
+    logger.error(`Staff push-verification error: ${err.message}`);
+    res.status(500).json({ message: "Failed to push to verification." });
   }
 });
 
@@ -2439,22 +2658,24 @@ router.get("/academies", requireStaffAuth, async (req, res) => {
       const acBatches = batchesByAcademy.get(aid) || [];
       const acCandidates = studentsByAcademy.get(aid) || studentsByAcademy.get(ac.name.trim().toLowerCase()) || [];
 
+      const kd = ac.kycData || {};
       return {
         _id: ac._id,
         id: ac._id,
         name: ac.name,
         email: ac.email,
-        contactName: ac.contactName || "Academy Partner",
-        primaryAdmin: ac.primaryAdmin || "N/A",
-        phone: ac.phone || "+91 9765435676",
-        specialty: ac.specialty || "Medical Coding",
-        headquarters: ac.headquarters || "Coimbatore",
-        branches: ac.branches || [],
+        contactName: ac.contactName || "",
+        primaryAdmin: kd.signatoryName || ac.primaryAdmin || ac.contactName || "",
+        phone: ac.phone || kd.signatoryMobile || "",
+        specialty: kd.primarySpecialty || ac.specialty || "",
+        headquarters: kd.city || ac.headquarters || "",
+        branches: realBranches(ac),
+        yearEstablished: kd.yearEstablished || "",
         tier: ac.tier || "Verified Partner",
-        totalAlumni: ac.totalAlumni || "35,000+",
-        partnerSince: ac.partnerSince || "Jan 2025",
+        totalAlumni: (ac.totalAlumni && ac.totalAlumni !== "35,000+" ? ac.totalAlumni : "") || kd.certifiedTrainedCount || "",
+        partnerSince: ac.createdAt ? new Date(ac.createdAt).toLocaleDateString("en-IN", { month: "short", year: "numeric" }) : "",
         studentsUploaded: ac.studentsUploaded || acCandidates.length,
-        verifiedPct: ac.verifiedPct || 94,
+        verifiedPct: (ac.placements || []).length ? (ac.verifiedPct || null) : null,
         isVerified: Boolean(ac.isVerified || ac.kycStatus === "verified"),
         kycStatus: ac.kycStatus || "pending",
         kycSubmittedAt: ac.kycSubmittedAt || null,
@@ -2462,10 +2683,10 @@ router.get("/academies", requireStaffAuth, async (req, res) => {
         kycNotes: ac.kycNotes || "",
         kycRejectionReason: ac.kycRejectionReason || "",
         kycData: ac.kycData || {},
-        courses: ac.courses || [],
-        coursesCount: (ac.courses || []).length,
-        questions: ac.questions || [],
-        questionsCount: (ac.questions || []).length,
+        courses: stripSeedCourses(ac.courses),
+        coursesCount: stripSeedCourses(ac.courses).length,
+        questions: stripSeedQuestions(ac.questions),
+        questionsCount: stripSeedQuestions(ac.questions).length,
         placements: ac.placements || [],
         placementsCount: (ac.placements || []).length,
         batches: acBatches,
@@ -2517,7 +2738,7 @@ router.get("/academies/:id", requireStaffAuth, async (req, res) => {
     ]);
 
     res.json({
-      academy,
+      academy: { ...academy, courses: stripSeedCourses(academy.courses), questions: stripSeedQuestions(academy.questions), branches: realBranches(academy) },
       batches,
       students,
     });

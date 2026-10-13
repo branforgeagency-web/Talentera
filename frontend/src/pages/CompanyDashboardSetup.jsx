@@ -318,6 +318,20 @@ export default function CompanyDashboardSetup() {
           >
             Plan &amp; Billing
           </Link>
+          <Link
+            to="/companies/team"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Team Logins
+          </Link>
           {/* IN-APP NOTIFICATION BELL & DROPDOWN */}
           <div style={{ position: "relative" }}>
             <button
@@ -784,6 +798,7 @@ export default function CompanyDashboardSetup() {
                   key={`${activeStageId}-${item.id}`}
                   item={item}
                   value={activeData[item.id]}
+                  stageValues={activeData}
                   stageId={activeStageId}
                   companyPlan={company?.plan || "free"}
                   onSave={saveField}

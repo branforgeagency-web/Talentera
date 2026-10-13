@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { WIZARD_STAGES } from "../data/wizardStages";
 
@@ -23,8 +23,22 @@ function isStageUnlocked(stageNum, completedStages = [], isSelfTrained = false) 
   return true;
 }
 
-export default function WizardSidebar({ completedStages = [], activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard, isSelfTrained = false }) {
+export default function WizardSidebar({ completedStages = [], activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard, isSelfTrained = false, hiddenStages = [], bonusStages = [] }) {
   const earnedPct = Math.round((earnedPoints / 100) * 100);
+  const navRef = useRef(null);
+
+  // Keep the active stage highlighted AND in view without manual scrolling.
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return undefined;
+    const t = setTimeout(() => {
+      const el = nav.querySelector(".wiz-nav-item.active");
+      if (el && typeof el.scrollIntoView === "function") {
+        el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [activeStageId, hiddenStages.length, completedStages.length]);
 
   return (
     <aside className="wiz-sidebar">
@@ -40,8 +54,8 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
         </div>
       </div>
 
-      <nav className="wiz-nav-list">
-        {WIZARD_STAGES.map((s) => {
+      <nav className="wiz-nav-list" ref={navRef}>
+        {WIZARD_STAGES.filter((s) => !hiddenStages.includes(s.num)).map((s) => {
           const isDone = completedStages.includes(s.num);
           const isOptional = s.num === 6 && isSelfTrained;
           const isUnlocked = isStageUnlocked(s.num, completedStages, isSelfTrained) || isDone;
@@ -67,7 +81,7 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
                 <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : (isOptional ? "· OPTIONAL" : ""))}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
-              <span className="wiz-nav-item-pts">{s.pts > 0 ? `+${s.pts}` : "0"}</span>
+              <span className="wiz-nav-item-pts">{bonusStages.includes(s.num) ? "BONUS" : (s.pts > 0 ? `+${s.pts}` : "0")}</span>
             </button>
           );
         })}
