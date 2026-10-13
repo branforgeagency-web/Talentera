@@ -452,7 +452,14 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         <div className={`conb-dropzone ${fileInfo ? "conb-dropzone-done" : ""}`}>
           {fileInfo ? (
             <div className="conb-file-done">
-              <span><i className="fa-solid fa-file-lines" style={{ marginRight: 6 }}></i> {fileInfo.docName}</span>
+              {item.accept && item.accept.includes("image/") && fileInfo.docUrl ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                  <img src={fileInfo.docUrl} alt="" style={{ maxHeight: 44, maxWidth: 120, objectFit: "contain", borderRadius: 6, background: "#fff", border: "1px solid #E2E8F0" }} />
+                  {fileInfo.docName}
+                </span>
+              ) : (
+                <span><i className="fa-solid fa-file-lines" style={{ marginRight: 6 }}></i> {fileInfo.docName}</span>
+              )}
               <button type="button" className="conb-file-replace" onClick={() => fileInputRef.current?.click()}>
                 Replace
               </button>
@@ -463,6 +470,14 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
             </button>
           )}
           <input ref={fileInputRef} type="file" accept={item.accept} style={{ display: "none" }} onChange={handleFileChange} />
+        </div>
+      )}
+
+      {item.id === "bsignaturelogo" && (fileInfo?.docUrl || stageValues.bsignature) && (
+        <div style={{ marginTop: 12, border: "1.5px dashed #CBD5E1", borderRadius: 10, padding: 14, background: "#fff" }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: 0.4, marginBottom: 8 }}>SIGNATURE PREVIEW</div>
+          {fileInfo?.docUrl && <img src={fileInfo.docUrl} alt="Company logo" style={{ maxHeight: 60, maxWidth: 200, objectFit: "contain", display: "block", marginBottom: 8 }} />}
+          <div style={{ whiteSpace: "pre-line", fontSize: 13.5, color: "#334155", lineHeight: 1.5 }}>{stageValues.bsignature}</div>
         </div>
       )}
 

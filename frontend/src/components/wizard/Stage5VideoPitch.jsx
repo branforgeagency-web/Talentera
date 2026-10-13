@@ -3,6 +3,7 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import AiVideoAssessment from "../AiVideoAssessment.jsx";
+import { applyFemaleVoice } from "../../utils/femaleVoice";
 import ClaudeMockInterviewBot from "../ClaudeMockInterviewBot.jsx";
 
 function getAssetUrl(url) {
@@ -445,7 +446,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // different (often male, default) voice mid-session. The active utterance
   // is kept alive on a ref/window global to prevent Chrome from garbage
   // collecting it mid-speech (a well-documented Chrome speechSynthesis bug).
-  const pinnedVoiceRef = useRef(null);
   const voicesReadyRef = useRef(false);
   const activeUtteranceRef = useRef(null);
   const speechDelayTimerRef = useRef(null);
@@ -842,60 +842,6 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     });
   };
 
-  // Resolve the voice ONCE per mount and cache it in pinnedVoiceRef - every
-  // subsequent speakAiVoice() call reuses the same cached voice instead of
-  // re-running getVoices().find(...), which is what let the voice drift
-  // between a good match and the male default across a single session.
-  const pickInterviewerVoice = () => {
-    try {
-      if (pinnedVoiceRef.current) return pinnedVoiceRef.current;
-      if (typeof window === "undefined" || !window.speechSynthesis) return null;
-      const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-      const realHumanVoicePatterns = [
-        /microsoft.*(jenny|aria|ava|emma|sonia|libby|michelle).*natural/i,
-        /samantha.*(enhanced|premium)/i,
-        /karen.*(enhanced|premium)/i,
-        /serena.*(enhanced|premium)/i,
-        /google us english/i,
-        /google uk english female/i,
-        /google.*female/i,
-        /microsoft (jenny|aria|ava|emma|sonia|libby)/i,
-        /samantha/i,
-        /karen/i,
-        /victoria/i,
-      ];
-
-      let selectedVoice = null;
-      for (const pattern of realHumanVoicePatterns) {
-        const match = voices.find(
-          (v) => pattern.test(v.name) && v.lang && v.lang.toLowerCase().startsWith("en") && !/desktop|espeak/i.test(v.name)
-        );
-        if (match) {
-          selectedVoice = match;
-          break;
-        }
-      }
-
-      if (!selectedVoice) {
-        selectedVoice = voices.find(
-          (v) =>
-            v.lang &&
-            v.lang.toLowerCase().startsWith("en") &&
-            /(natural|neural|female|enhanced)/i.test(v.name) &&
-            !/desktop|espeak|male/i.test(v.name)
-        );
-      }
-
-      // Cache whatever we found (even null) so we don't keep re-scanning on
-      // every call - null just means "use the browser default," which is at
-      // least now a STABLE choice for the rest of this session.
-      pinnedVoiceRef.current = selectedVoice || null;
-      return pinnedVoiceRef.current;
-    } catch (e) {
-      return null;
-    }
-  };
-
   const stopAiVoice = () => {
     if (speechDelayTimerRef.current) clearTimeout(speechDelayTimerRef.current);
     if (speechSafetyTimerRef.current) clearTimeout(speechSafetyTimerRef.current);
@@ -976,16 +922,10 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           // Chrome specifically, which silently kills playback.
           activeUtteranceRef.current = utterance;
           window.__stage5ActiveUtterance = utterance;
-          utterance.lang = "en-US";
           utterance.rate = 0.95;
-          utterance.pitch = 1.0;
           utterance.volume = 1.0;
-
-          const selectedVoice = pickInterviewerVoice();
-          if (selectedVoice) {
-            utterance.voice = selectedVoice;
-            if (selectedVoice.lang) utterance.lang = selectedVoice.lang;
-          }
+          // Always a female voice (pitched up if the device only has male voices).
+          applyFemaleVoice(utterance, "en-IN");
 
           utterance.onstart = () => setIsAiSpeaking(true);
           utterance.onend = finish;
