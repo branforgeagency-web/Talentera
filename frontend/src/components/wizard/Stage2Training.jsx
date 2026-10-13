@@ -275,6 +275,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [expEndDate, setExpEndDate] = useState(existingData.workEndDate || "");
   const [expSoftSkills, setExpSoftSkills] = useState(existingData.softSkills || "");
   const [expTotalYears, setExpTotalYears] = useState(existingData.totalExperience || "");
+  const [expTotalCustom, setExpTotalCustom] = useState(
+    !!existingData.totalExperience && !TOTAL_EXPERIENCE_OPTIONS.includes(existingData.totalExperience)
+  );
   const [expNoticePeriod, setExpNoticePeriod] = useState(existingData.noticePeriod || "");
   const [expCurrentSalary, setExpCurrentSalary] = useState(existingData.currentSalary || "");
   const [expSkills, setExpSkills] = useState(existingData.skills || "");
@@ -692,7 +695,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         missing.push("Job Title (Section 2)");
         errs.expJobTitle = "Job title is mandatory";
       }
-      if (!expTotalYears) {
+      if (!expTotalYears || !/[0-9]/.test(expTotalYears) && !TOTAL_EXPERIENCE_OPTIONS.includes(expTotalYears)) {
         missing.push("Total Experience (Section 2)");
         errs.expTotalYears = "Please select your total experience";
       }
@@ -2608,9 +2611,16 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   Total Experience <span className="req">*</span>
                 </label>
                 <select
-                  value={expTotalYears}
+                  value={expTotalCustom ? "__custom__" : expTotalYears}
                   onChange={(e) => {
-                    setExpTotalYears(e.target.value);
+                    const v = e.target.value;
+                    if (v === "__custom__") {
+                      setExpTotalCustom(true);
+                      setExpTotalYears("");
+                    } else {
+                      setExpTotalCustom(false);
+                      setExpTotalYears(v);
+                    }
                     if (formErrors.expTotalYears) setFormErrors((prev) => ({ ...prev, expTotalYears: "" }));
                   }}
                 >
@@ -2618,7 +2628,25 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   {TOTAL_EXPERIENCE_OPTIONS.map((o) => (
                     <option key={o} value={o}>{o}</option>
                   ))}
+                  <option value="__custom__">Type exact experience…</option>
                 </select>
+                {expTotalCustom && (
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    style={{ marginTop: 8 }}
+                    placeholder="Type exact experience, e.g. 1.5 years, 2.8 years"
+                    value={expTotalYears}
+                    onChange={(e) => {
+                      setExpTotalYears(e.target.value.replace(/[^0-9a-zA-Z.\s]/g, "").slice(0, 20));
+                      if (formErrors.expTotalYears) setFormErrors((prev) => ({ ...prev, expTotalYears: "" }));
+                    }}
+                    onBlur={() => {
+                      const t = expTotalYears.trim();
+                      if (/^[0-9]+(\.[0-9]+)?$/.test(t)) setExpTotalYears(`${t} ${parseFloat(t) === 1 ? "year" : "years"}`);
+                    }}
+                  />
+                )}
                 {formErrors.expTotalYears && (
                   <div className="field-error-msg">{formErrors.expTotalYears}</div>
                 )}

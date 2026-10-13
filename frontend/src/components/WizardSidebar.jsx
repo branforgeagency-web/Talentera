@@ -55,7 +55,10 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
       </div>
 
       <nav className="wiz-nav-list" ref={navRef}>
-        {WIZARD_STAGES.filter((s) => !hiddenStages.includes(s.num)).map((s) => {
+        {WIZARD_STAGES.filter((s) => !hiddenStages.includes(s.num)).map((s, visIdx) => {
+          // Sequential label numbers: if a stage is hidden (e.g. Stage 4 for experienced candidates)
+          // the following stages shift up so the list reads 01, 02, 03, 04...
+          const dispNum = visIdx + 1;
           const isDone = completedStages.includes(s.num);
           const isOptional = s.num === 6 && isSelfTrained;
           const isUnlocked = isStageUnlocked(s.num, completedStages, isSelfTrained) || isDone;
@@ -73,12 +76,12 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
                 opacity: isLocked ? 0.45 : 1,
                 cursor: isLocked ? "not-allowed" : "pointer"
               }}
-              title={isLocked ? `Complete Stage 0${s.num - 1} first to unlock Stage 0${s.num}` : (isDone ? `Stage 0${s.num} Completed (Click to review/edit)` : (isOptional ? `Stage 0${s.num} Optional for Self-Trained` : `Stage 0${s.num} Active`))}
+              title={isLocked ? `Complete the previous stage first to unlock Stage 0${dispNum}` : (isDone ? `Stage 0${dispNum} Completed (Click to review/edit)` : (isOptional ? `Stage 0${dispNum} Optional for Self-Trained` : `Stage 0${dispNum} Active`))}
               onClick={() => onSelect(s.num)}
             >
               <span className="wiz-nav-item-icon">{isDone ? <i className="fa-solid fa-check"></i> : isLocked ? <i className="fa-solid fa-lock"></i> : STAGE_ICONS[s.icon] || "•"}</span>
               <span className="wiz-nav-item-info">
-                <span className="wiz-nav-item-num">STAGE 0{s.num} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : (isOptional ? "· OPTIONAL" : ""))}</span>
+                <span className="wiz-nav-item-num">STAGE 0{dispNum} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : (isOptional ? "· OPTIONAL" : ""))}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
               <span className="wiz-nav-item-pts">{bonusStages.includes(s.num) ? "BONUS" : (s.pts > 0 ? `+${s.pts}` : "0")}</span>

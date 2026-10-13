@@ -81,9 +81,18 @@ export function getScoreBreakdown(profile) {
       step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
       hasScore = true;
     }
-    const earned = signedOff ? 10 + step3Pts : 0;
+    const expMode = isExperiencedProfile(profile);
+    const hasProof = !!(s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl);
+    const expEarned = (String(s2.currentCompany || '').trim() && String(s2.jobTitle || '').trim() ? 10 : 0) + (hasProof ? 5 : 0);
+    const earned = expMode ? expEarned : (signedOff ? 10 + step3Pts : 0);
     let tip;
-    if (signedOff) {
+    if (expMode) {
+      tip = expEarned >= 15
+        ? 'Fully earned — your work experience details and proof are on file.'
+        : expEarned > 0
+          ? `Earned ${expEarned}/15 — attach an experience letter, offer/relieving letter or certificate in Stage 2 to unlock the remaining 5 points.`
+          : 'Add your current/most recent company and job title (and experience proof) in Stage 2 to earn up to 15 points.';
+    } else if (signedOff) {
       tip = hasScore ? `Earned ${earned}/15 points (${step3Pts}/5 from Academy Assessment Score: ${rawScore}%).` : 'Earned 15/15 points — your academy has signed off on your training.';
     } else if (submitted) {
       tip = 'Your academy details are submitted — the 15 points unlock once your academy approves them.';
@@ -138,13 +147,22 @@ export function getScoreBreakdown(profile) {
 
   // Stage 5 - Video Pitch & AI Communication (needs a recorded pitch / AI score)
   {
-    const done = hasStage5Evidence(profile.stage5 || {});
+    const s5 = profile.stage5 || {};
+    const done = hasStage5Evidence(s5);
+    const rawS5 = [s5.overallScore, s5.aiScore, s5.score].find((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v)));
+    const hasS5Score = rawS5 !== undefined;
+    const s5Pct = hasS5Score ? Math.max(0, Math.min(100, Number(rawS5))) : null;
+    const earned5 = !done ? 0 : hasS5Score ? Math.round((s5Pct / 100) * 15) : (s5.verified ? 15 : 8);
     rows.push({
       num: 5,
       name: 'Video Pitch & AI Communication',
       max: 15,
-      earned: done ? 15 : 0,
-      tip: done ? 'Fully earned — your video pitch is on file.' : 'Record and submit your Stage 5 video pitch and AI interview to earn 15 points.',
+      earned: earned5,
+      tip: !done
+        ? 'Record and submit your Stage 5 video pitch and AI interview to earn 15 points.'
+        : hasS5Score
+          ? (earned5 >= 15 ? 'Fully earned — excellent AI communication score.' : `Your AI evaluation score is ${s5Pct}/100, so you earned ${earned5}/15 — redo the self-intro and mock interview to improve it.`)
+          : 'Your video is on file — the remaining points unlock once the AI evaluation score is available.',
     });
   }
 
@@ -505,6 +523,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   if (isExperiencedProfile(profile)) removedStageNums.add(4);
   if (stage6NotApplicable) removedStageNums.add(6);
   const totalStageCount = 7 - removedStageNums.size;
+  const wizardStageTotal = 7 - (isExperiencedProfile(profile) ? 1 : 0); // stages shown in the wizard sidebar
   const coreStagesCompleted = completedStages.filter((n) => n <= 7 && !removedStageNums.has(n)).length;
   const stagesLeft = Math.max(0, totalStageCount - coreStagesCompleted);
   const candidateName = profile?.stage1?.fullName || profile?.stage1?.fullname || profile?.fullname || (profile?.email ? profile.email.split('@')[0] : 'Candidate');
@@ -696,7 +715,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             title="Open Candidate 7 Stages Verification Wizard"
           >
             <span className="stages-icon-pulse"><i className="fa-solid fa-bolt" /></span>
-            <span>7 Stages Dashboard</span>
+            <span>{wizardStageTotal} Stages Dashboard</span>
             <span className="stages-count-pill">{coreStagesCompleted}/{totalStageCount} Done</span>
           </button>
 
@@ -796,7 +815,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             <div className="sb-swb-top">
               <div className="sb-swb-icon-wrap"><i className="fa-solid fa-bolt" /></div>
               <div className="sb-swb-text">
-                <div className="sb-swb-title">7 Stages Dashboard</div>
+                <div className="sb-swb-title">{wizardStageTotal} Stages Dashboard</div>
                 <div className="sb-swb-sub">{coreStagesCompleted}/{totalStageCount} Completed · {profileScore} pts</div>
               </div>
             </div>
@@ -931,7 +950,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <span className="wh-chip"><i className="fa-solid fa-location-dot" style={{ marginRight: 5 }} />{profile?.stage1?.city || 'Location not set'}</span>
             </div>
 
-            {/* Prominent Hero Action Buttons to Open 7 Stages Dashboard */}
+            {/* Prominent Hero Action Buttons to Open {wizardStageTotal} Stages Dashboard */}
             <div style={{ marginTop: '18px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
               <button
                 type="button"
@@ -939,7 +958,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 className="btn-open-stages-hero"
                 title="Launch the Candidate 7 Stages Verification Dashboard"
               >
-                <span><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open 7 Stages Dashboard</span>
+                <span><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open {wizardStageTotal} Stages Dashboard</span>
                 <span className="hero-btn-pill">{coreStagesCompleted}/{totalStageCount} Done</span>
                 <span style={{ fontSize: '15px' }}>→</span>
               </button>
@@ -1034,7 +1053,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           title="Open Candidate 7 Stages Verification Wizard"
         >
           <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
-          <span>Open 7 Stages Dashboard</span>
+          <span>Open {wizardStageTotal} Stages Dashboard</span>
           <span className="hero-btn-pill">{coreStagesCompleted}/{totalStageCount} Completed</span>
         </button>
       </div>
@@ -1233,7 +1252,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           title="Open 7 Stages Wizard to unlock badges"
         >
           <span style={{ color: 'var(--gold-lite)' }}><i className="fa-solid fa-bolt" /></span>
-          <span>Open 7 Stages Dashboard</span>
+          <span>Open {wizardStageTotal} Stages Dashboard</span>
         </button>
       </div>
 
@@ -1335,7 +1354,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           onClick={() => handleOpenStagesWizard(1)}
           className="btn-open-stages-hero"
         >
-          <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open 7 Stages Dashboard</>
+          <><i className="fa-solid fa-bolt" style={{ marginRight: 6 }} />Open {wizardStageTotal} Stages Dashboard</>
         </button>
       </div>
     </div>
