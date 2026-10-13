@@ -57,7 +57,7 @@ const VALID_STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
 // used to be skippable but are now mandatory, same as every other stage
 // except Build Resume (7) — matches frontend/src/data/wizardStages.js
 // SKIPPABLE_STAGE_NUMS exactly.
-const SKIPPABLE_STAGES = [7];
+const SKIPPABLE_STAGES = [5, 6, 7];
 
 // Self-trained = chose the self path, the "Non-Trained" level, or named a self-learning source instead of an academy.
 // Keep in sync with isSelfTrainedCandidate() in frontend/src/data/wizardStages.js.
@@ -1042,7 +1042,8 @@ router.post("/stage/:n/skip", async (req, res) => {
 
   const isSelfTrained = isSelfTrainedCandidate(candidate);
 
-  const allowedSkip = SKIPPABLE_STAGES.includes(stageNum) || (stageNum === 6 && (isSelfTrained || isLiveChartExemptDomain(candidate)));
+  // Stages 5 (video), 6 (live charts) and 7 can be skipped by anyone - skipping just earns no points for that stage.
+  const allowedSkip = SKIPPABLE_STAGES.includes(stageNum);
   if (!allowedSkip) {
     if (stageNum === 6) {
       return res.status(400).json({ message: "Live Charts is mandatory for academy-trained candidates. It is optional for self-trained candidates." });
@@ -1054,7 +1055,16 @@ router.post("/stage/:n/skip", async (req, res) => {
     return res.status(400).json({ message: "You must complete and save Stage 1 (Identity & Basics) before skipping higher stages." });
   }
 
-  if (stageNum === 6) {
+  if (stageNum === 5) {
+    // keep anything already recorded; just mark the stage as skipped
+    const prev5 = candidate.stage5 && typeof candidate.stage5.toObject === "function" ? candidate.stage5.toObject() : (candidate.stage5 || {});
+    candidate.stage5 = { ...prev5, skipped: true, completedAt: prev5.completedAt || new Date() };
+    candidate.markModified("stage5");
+  } else if (stageNum === 6 && Number(candidate.stage6?.totalCharts || 0) > 0) {
+    // charts already logged: keep them, just move on
+    candidate.stage6 = { ...(typeof candidate.stage6.toObject === "function" ? candidate.stage6.toObject() : candidate.stage6), skipped: false };
+    candidate.markModified("stage6");
+  } else if (stageNum === 6) {
     candidate.stage6 = {
       skipped: true,
       isOptional: true,
@@ -1072,6 +1082,7 @@ router.post("/stage/:n/skip", async (req, res) => {
   if (!candidate.completedStages.includes(stageNum)) {
     candidate.completedStages.push(stageNum);
   }
+  candidate.markModified("completedStages");
   await candidate.save();
 
   const scoring = calculateVerificationScore(candidate.completedStages, candidate);

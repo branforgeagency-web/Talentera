@@ -358,7 +358,10 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         setCameraError("Camera is not supported in this browser.");
         return;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
       candidateStreamRef.current = stream;
       if (candidateVideoRef.current) {
         candidateVideoRef.current.srcObject = stream;
@@ -904,9 +907,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     rec.lang = "en-IN";
     rec.continuous = true;
     rec.interimResults = true;
+    rec.maxAlternatives = 1;
     let finalText = "";
     let silenceTimer = null;
     let submitted = false;
+    let noSpeechCount = 0;
 
     const submit = () => {
       if (submitted) return;
@@ -938,16 +943,26 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       silenceTimer = setTimeout(submit, 2500);
     };
     rec.onerror = (e) => {
-      if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+      const err = e?.error;
+      if (err === "not-allowed" || err === "service-not-allowed") {
         setMicDenied(true);
         toast("Microphone access blocked — please allow it, or type your answer below.", "!");
         stopRecognition();
+      } else if (err === "audio-capture") {
+        toast("No microphone found — check your mic is plugged in and selected, or type your answer.", "!");
+      } else if (err === "network") {
+        toast("Speech service is unreachable — check your internet, or type your answer below.", "!");
+      } else if (err === "no-speech") {
+        noSpeechCount += 1;
+        if (noSpeechCount === 2) {
+          toast("We couldn't hear you — please speak clearly, closer to your mic.", "!");
+        }
       }
     };
     rec.onend = () => {
       // Browsers end recognition on their own after a pause; keep listening until answered.
       if (submitted || recognitionRef.current !== rec || !browserVoiceRef.current) return;
-      if (finalText.trim()) {
+      if (finalText.trim() || (liveInterimRef.current || "").trim()) {
         submit();
         return;
       }

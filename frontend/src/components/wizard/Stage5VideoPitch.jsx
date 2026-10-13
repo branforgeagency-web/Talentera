@@ -524,6 +524,8 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const mockMediaRecorderRef = useRef(null);
   const mediaStreamRef = useRef(null);
   const recognitionRef = useRef(null);
+  const mockTranscriptRef = useRef("");
+  const mockRecognizingRef = useRef(false);
 
   // Ensure that when introVideoUrl is set and recording is inactive, the video element loads and plays the recorded file
   useEffect(() => {
@@ -595,7 +597,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
         if (hasCam || hasMic) {
           const probeStream = await navigator.mediaDevices.getUserMedia({
             video: hasCam ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-            audio: hasMic,
+            audio: hasMic ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
           });
 
           const vTracks = probeStream.getVideoTracks();
@@ -784,6 +786,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       window.removeEventListener("focus", runHardwareCheck);
       window.removeEventListener("online", runHardwareCheck);
       window.removeEventListener("offline", runHardwareCheck);
+      mockRecognizingRef.current = false;
 
       if (mediaStreamRef.current) {
         mediaStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -1159,14 +1162,41 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = "en-US";
+        recognition.lang = "en-IN";
+        recognition.maxAlternatives = 1;
+        mockTranscriptRef.current = "";
+        mockRecognizingRef.current = true;
+        let committed = "";
 
         recognition.onresult = (event) => {
-          let fullTranscript = "";
-          for (let i = 0; i < event.results.length; i++) {
-            fullTranscript += event.results[i][0].transcript + " ";
+          let interim = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const r = event.results[i];
+            if (r.isFinal) committed += " " + r[0].transcript;
+            else interim += r[0].transcript;
           }
-          setMockLiveTranscript(fullTranscript);
+          const full = (committed + " " + interim).replace(/\s+/g, " ").trim();
+          mockTranscriptRef.current = full;
+          setMockLiveTranscript(full);
+        };
+        recognition.onerror = (e) => {
+          const err = e?.error;
+          if (err === "not-allowed" || err === "service-not-allowed") {
+            mockRecognizingRef.current = false;
+            toast("Microphone access blocked — allow it in the browser address bar and try again.", "!");
+          } else if (err === "audio-capture") {
+            toast("No microphone found — check your mic is connected and selected.", "!");
+          } else if (err === "network") {
+            toast("Speech service unreachable — check your internet connection.", "!");
+          }
+        };
+        recognition.onend = () => {
+          // Chrome stops recognition after silence; keep listening while the answer is being recorded.
+          if (!mockRecognizingRef.current) return;
+          setTimeout(() => {
+            if (!mockRecognizingRef.current) return;
+            try { recognition.start(); } catch (_) { /* already running */ }
+          }, 250);
         };
 
         recognition.start();
@@ -1191,7 +1221,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             questionId: q.id,
             completed: true,
             videoUrl: url,
-            transcript: mockLiveTranscript || "",
+            transcript: mockTranscriptRef.current || "",
             duration: mockRecordingTime || 0,
           },
         }));
@@ -1234,6 +1264,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const handleStopMockRecording = () => {
     stopAiVoice();
     setIsMockPrompting(false);
+    mockRecognizingRef.current = false;
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop();
@@ -1310,10 +1341,15 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // to reach "Stage 05 completed" from an unvalidated video with zero
   // keyword-matched interview answers.
   const handleSubmitAllVideos = async (advance = true) => {
+    // The video is no longer mandatory: "Save & continue" without a video skips Stage 05,
+    // and "Complete this stage later" just saves a checkpoint.
     if (!hasRealSelfIntro) {
-      toast("Please record and complete your 60-second Self-Introduction video first (Section 2).", "error", { title: "Mandatory Video Required" });
-      const el = document.getElementById("stage5-intro-section");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (advance) {
+        await handleSkipStage5();
+      } else {
+        toast("✓ Saved. You can record your video later.", "✓");
+        if (onSaved) onSaved(existingData, { advance: false, nextStage: null });
+      }
       return;
     }
     // Advancing to Stage 06 requires BOTH parts done for real; "save &
@@ -1348,6 +1384,28 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
       }
     } finally {
       setIsSubmittingStage5(false);
+    }
+  };
+
+  // Skip Stage 05 entirely (no points for it) and go straight to Stage 06
+  const [isSkippingStage5, setIsSkippingStage5] = useState(false);
+  const handleSkipStage5 = async () => {
+    setIsSkippingStage5(true);
+    try {
+      await api.post("/candidate/stage/5/skip");
+      toast("Stage 05 skipped. Moving to Stage 06 →", "✓");
+      let fresh = null;
+      try {
+        const res = await api.get("/candidate/me");
+        fresh = res.data || null;
+      } catch {
+        fresh = null;
+      }
+      if (onSaved) onSaved(fresh || existingData, { advance: true, nextStage: 6 });
+    } catch (err) {
+      toast(err?.response?.data?.message || "Could not skip Stage 05. Please try again.", "error", { title: "Stage 05" });
+    } finally {
+      setIsSkippingStage5(false);
     }
   };
 
@@ -2699,6 +2757,23 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   </>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      onClick={handleSkipStage5}
+                      disabled={isSkippingStage5 || isSubmittingStage5}
+                      style={{
+                        background: "#F0FDF4",
+                        color: "#15803D",
+                        padding: "11px 20px",
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        border: "1.5px solid #86EFAC",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {isSkippingStage5 ? "Skipping…" : "Skip Stage 05 →"}
+                    </button>
                     <button
                       type="button"
                       onClick={() => handleSubmitAllVideos(false)}

@@ -696,7 +696,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
         missing.push("Total Experience (Section 2)");
         errs.expTotalYears = "Please select your total experience";
       }
-      if (!expCertDocUrl) {
+      if (!expCertDocUrl && expEmploymentStatus !== "working") {
         missing.push("Experience / Certification Attachment (Section 2)");
         errs.expCertDoc = "Please attach an experience proof or certificate to verify your experience";
       }
@@ -2899,10 +2899,14 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             <div className={`s2-field ${formErrors.expCertDoc ? "has-error" : ""}`}>
               <label>
                 Experience / Certification Attachment
-                <span style={{ color: "#DC2626", fontWeight: 800 }}> *</span>
+                {expEmploymentStatus === "working" ? (
+                  <span className="s2-helper" style={{ fontWeight: 500, fontStyle: "normal" }}> (optional)</span>
+                ) : (
+                  <span style={{ color: "#DC2626", fontWeight: 800 }}> *</span>
+                )}
               </label>
               <div className="s2-helper" style={{ marginBottom: 8 }}>
-                Required to verify your experience. Upload a certificate or document that supports it (CPC, CPB, CRC, offer/relieving letter, experience letter, etc.) — PDF, JPG or PNG, up to 10 MB. Companies can see this while reviewing and interviewing you.
+                {expEmploymentStatus === "working" ? "Optional while you are currently working here." : "Required to verify your experience."} Upload a certificate or document that supports it (CPC, CPB, CRC, offer/relieving letter, experience letter, etc.) — PDF, JPG or PNG, up to 10 MB. Companies can see this while reviewing and interviewing you.
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ fontSize: 12.5, color: "#475569", fontWeight: 600 }}>
