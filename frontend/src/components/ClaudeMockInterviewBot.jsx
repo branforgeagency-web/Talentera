@@ -8,7 +8,13 @@ import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMo
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
 const INACTIVITY_TIMEOUT_SECONDS = 60; // time to think + start answering each question
-const ANSWER_PAUSE_SECONDS = 5; // pause allowed mid-answer before the answer is submitted and the next question starts
+// Pause allowed mid-answer before the answer is auto-submitted. 5 s was far too short: candidates who stop
+// to think between sentences were cut off mid-answer and moved to the next question. Short answers (a few
+// words so far) get an even longer grace period since the candidate has clearly not finished yet.
+const ANSWER_PAUSE_SECONDS = 12;
+const SHORT_ANSWER_PAUSE_SECONDS = 20;
+const SHORT_ANSWER_WORDS = 15;
+const VAPI_WAIT_SECONDS = 5; // Vapi's own turn-taking wait (its maximum allowed value)
 
 const TOPIC_CONFIG = [
   { key: "ICD-10-CM", label: "1. ICD-10-CM Coding", icon: "fa-notes-medical" },
@@ -941,7 +947,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         lastSpeechAtRef.current = Date.now();
       }
       clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(submit, ANSWER_PAUSE_SECONDS * 1000);
+      const wordsSoFar = shown ? shown.split(/\s+/).length : 0;
+      const pauseSecs = wordsSoFar < SHORT_ANSWER_WORDS ? SHORT_ANSWER_PAUSE_SECONDS : ANSWER_PAUSE_SECONDS;
+      silenceTimer = setTimeout(submit, pauseSecs * 1000);
     };
     rec.onerror = (e) => {
       const err = e?.error;
@@ -963,7 +971,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     rec.onend = () => {
       // Browsers end recognition on their own after a pause; keep listening until answered.
       if (submitted || recognitionRef.current !== rec || !browserVoiceRef.current) return;
-      // Keep listening through pauses: the 5s silence timer (not the browser's own cut-off) submits the answer.
+      // Keep listening through pauses: the silence timer (not the browser's own cut-off) submits the answer.
       setTimeout(() => {
         if (recognitionRef.current === rec && browserVoiceRef.current && !submitted) {
           try {
@@ -1249,7 +1257,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
           // so the candidate can pause, think and continue the same answer.
           await vapi.start(assistantId, {
             variableValues: { authToken: authToken || "" },
-            startSpeakingPlan: { waitSeconds: ANSWER_PAUSE_SECONDS },
+            startSpeakingPlan: { waitSeconds: VAPI_WAIT_SECONDS },
           });
         } catch (overrideErr) {
           if (/permission|denied|mic/i.test(String(overrideErr?.message || ""))) throw overrideErr;
@@ -1421,7 +1429,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                   <li>The AI asks each question out loud with natural voice speech.</li>
                   <li>You get up to <strong>1 minute</strong> to think and answer each question (speak into mic or type).</li>
-                  <li>Pause and think as you speak — the answer is only submitted after <strong>5 seconds of silence</strong>, then the next question starts.</li>
+                  <li>Pause and think as you speak — the answer is only submitted after <strong>{ANSWER_PAUSE_SECONDS} seconds of silence</strong> (longer for very short answers), then the next question starts.</li>
                   <li>If you don't answer within 1 minute, the interview moves to the next question.</li>
                   <li>The AI briefly acknowledges your response before presenting the next question.</li>
                 </ul>
