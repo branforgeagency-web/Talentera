@@ -525,11 +525,18 @@ const VALID_EVALUATIONS = ["correct", "partial", "incorrect", "no_answer"];
 function detectQuickIntent(utterance) {
   const t = String(utterance || "").trim().toLowerCase();
   if (!t) return "unclear";
-  if (/\b(stop|end|quit|terminate)\b[\s\S]*\binterview\b/.test(t) || /^(stop|end)( it| this)?$/.test(t)) return "stop";
-  if (/\brepeat\b|\bsay (that|it) again\b|didn't (catch|hear) that|come again/.test(t)) return "repeat";
-  if (/\bskip\b|\bnext question\b|move on|pass on this one|\b(i )?(don't|do not|dont) know\b|\bno idea\b|\bnot sure\b/.test(t)) return "skip";
-  if (/\bhint\b|\bclue\b|give me a hint|help me out/.test(t)) return "hint";
-  if (/what do you mean|\bclarify\b|rephrase|explain the question/.test(t)) return "clarify";
+  // Control commands ("skip", "repeat that", "give me a hint"...) are SHORT utterances. Inside a real,
+  // longer answer the same words are ordinary vocabulary - e.g. a Billing / AR Calling answer such as
+  // "move on to the next payer", "if the status is not sure we repeat the follow-up call", "skip tracing" -
+  // and must never be mistaken for a command, which previously made the bot skip the question (or
+  // re-ask it) while the candidate was still answering.
+  const wordCount = t.split(/\s+/).filter(Boolean).length;
+  const isShortCommand = wordCount <= 8;
+  if (isShortCommand && (/\b(stop|end|quit|terminate)\b[\s\S]*\binterview\b/.test(t) || /^(stop|end)( it| this)?$/.test(t))) return "stop";
+  if (isShortCommand && /\brepeat\b|\bsay (that|it) again\b|didn't (catch|hear) that|come again/.test(t)) return "repeat";
+  if (isShortCommand && /\bskip\b|\bnext question\b|move on|pass on this one|\b(i )?(don't|do not|dont) know\b|\bno idea\b|\bnot sure\b/.test(t)) return "skip";
+  if (isShortCommand && /\bhint\b|\bclue\b|give me a hint|help me out/.test(t)) return "hint";
+  if (isShortCommand && /what do you mean|\bclarify\b|rephrase|explain the question/.test(t)) return "clarify";
   return "answer";
 }
 
