@@ -52,8 +52,35 @@ export default function CollegeRegister() {
     name: "",
     type: "Arts & Science",
     placementOfficerEmail: "",
+    placementOfficerMobile: "",
+    otp: "",
     password: "",
   });
+  const [otpSent, setOtpSent] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+
+  async function handleSendOtp() {
+    setError("");
+    const email = formData.placementOfficerEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Enter a valid email first, then click Send OTP.");
+    setSendingOtp(true);
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not send OTP.");
+      setOtpSent(true);
+      toast(`OTP sent to ${email}`, "✓");
+    } catch (err) {
+      setError(err.message);
+      toast(err.message, "!");
+    } finally {
+      setSendingOtp(false);
+    }
+  }
 
   const updateField = (k, v) => setFormData((prev) => ({ ...prev, [k]: v }));
 
@@ -63,6 +90,8 @@ export default function CollegeRegister() {
 
     if (!formData.name.trim()) return setError("Enter your college name.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.placementOfficerEmail.trim())) return setError("Enter a valid placement email.");
+    if (formData.placementOfficerMobile.replace(/\D/g, "").length !== 10) return setError("Enter your 10-digit mobile number.");
+    if (!otpSent || !/^\d{6}$/.test(formData.otp.trim())) return setError("Click Send OTP and enter the 6-digit code sent to your email.");
     if (formData.password.length < 6) return setError("Password must be at least 6 characters.");
 
     setLoading(true);
@@ -70,7 +99,7 @@ export default function CollegeRegister() {
       const res = await fetch("/api/college/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, placementOfficerMobile: formData.placementOfficerMobile.replace(/\D/g, ""), otp: formData.otp.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to register college.");
@@ -255,7 +284,7 @@ export default function CollegeRegister() {
             </div>
           )}
 
-          <form onSubmit={handleRegister} style={{ display: "grid", gap: 16 }}>
+          <form onSubmit={handleRegister} autoComplete="off" style={{ display: "grid", gap: 16 }}>
             <div style={{ position: "relative" }}>
               <label style={labelStyle}>College / University Name <span style={{ color: "#F87171" }}>*</span></label>
               <CollegePicker
@@ -278,15 +307,61 @@ export default function CollegeRegister() {
             </div>
 
             <div>
-              <label style={labelStyle}>Placement Email <span style={{ color: "#F87171" }}>*</span></label>
-              <input
-                type="email"
-                required
-                value={formData.placementOfficerEmail}
-                onChange={(e) => updateField("placementOfficerEmail", e.target.value)}
-                placeholder="placement@college.edu.in"
-                style={inputStyle}
-              />
+              <label style={labelStyle}>Email ID <span style={{ color: "#F87171" }}>*</span></label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input
+                  type="email"
+                  name="college-contact-email"
+                  autoComplete="off"
+                  required
+                  value={formData.placementOfficerEmail}
+                  onChange={(e) => { updateField("placementOfficerEmail", e.target.value); if (otpSent) { setOtpSent(false); updateField("otp", ""); } }}
+                  placeholder="placement@college.edu.in"
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSendOtp}
+                  disabled={sendingOtp}
+                  style={{ padding: "0 16px", background: "rgba(229,168,46,0.15)", color: "#E5A82E", border: "1px solid rgba(229,168,46,0.5)", borderRadius: 10, fontWeight: 800, fontSize: 12.5, cursor: sendingOtp ? "not-allowed" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                >
+                  {sendingOtp ? "Sending…" : otpSent ? "Resend OTP" : "Send OTP"}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Mobile Number <span style={{ color: "#F87171" }}>*</span></label>
+                <input
+                  type="text"
+                  name="college-contact-mobile-number"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={10}
+                  required
+                  value={formData.placementOfficerMobile}
+                  onChange={(e) => updateField("placementOfficerMobile", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  placeholder="10-digit mobile number"
+                  style={inputStyle}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Email OTP <span style={{ color: "#F87171" }}>*</span></label>
+                <input
+                  type="text"
+                  name="college-email-otp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  disabled={!otpSent}
+                  value={formData.otp}
+                  onChange={(e) => updateField("otp", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder={otpSent ? "6-digit code" : "Click Send OTP first"}
+                  style={{ ...inputStyle, opacity: otpSent ? 1 : 0.6 }}
+                />
+              </div>
             </div>
 
             <div>

@@ -5,6 +5,7 @@ import DocumentVaultModal from "../DocumentVaultModal.jsx";
 import AiVideoAssessment from "../AiVideoAssessment.jsx";
 import { applyFemaleVoice } from "../../utils/femaleVoice";
 import ClaudeMockInterviewBot from "../ClaudeMockInterviewBot.jsx";
+import { isExperiencedCandidate } from "../../data/wizardStages";
 
 function getAssetUrl(url) {
   if (!url) return "";
@@ -354,13 +355,19 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     ? candidate.stage8.aiInterview.result.overallScore
     : null;
 
-  // Stage 05 requires BOTH genuine Self-Introduction and AI Mock Interview completed
-  const isCompleted = Boolean(hasRealSelfIntro && hasRealMockInterview && selfIntroScore !== null && mockScore !== null);
+  // Experienced candidates have NO AI Mock Interview: Stage 05 is the Self-Introduction alone and
+  // the score comes entirely from it. Everyone else needs BOTH Self-Introduction and Mock Interview.
+  const skipMock = isExperiencedCandidate(candidate);
+  const isCompleted = skipMock
+    ? Boolean(hasRealSelfIntro && selfIntroScore !== null)
+    : Boolean(hasRealSelfIntro && hasRealMockInterview && selfIntroScore !== null && mockScore !== null);
 
   // Correct calculated AI score:
   // - When BOTH completed: combined score (average of Spoken Communication & Technical Mock)
   // - Otherwise: null (strictly never dummy or partial as final score)
-  const candidateScore = isCompleted
+  const candidateScore = isCompleted && skipMock
+    ? selfIntroScore
+    : isCompleted
     ? Math.round((selfIntroScore + mockScore) / 2)
     : (hasRealSelfIntro && hasRealMockInterview && typeof stage5?.overallScore === "number")
     ? stage5.overallScore
@@ -1360,7 +1367,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     // (it scores 0) and the server still marks Stage 05 complete.
     setIsSubmittingStage5(true);
     try {
-      if (advance && !hasRealMockInterview) {
+      if (advance && !hasRealMockInterview && !skipMock) {
         try {
           await api.post("/candidate/stage5/skip-mock");
         } catch (skipErr) {
@@ -1478,7 +1485,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             if (data?.videoUrl) setIntroVideoUrl(data.videoUrl);
             if (onSaved) onSaved(data, { advance: false });
             setMode("overview");
-            toast("Self-Introduction Video saved! Section 3 AI Mock Interview is now unlocked.", "✓");
+            toast(skipMock ? "Self-Introduction Video saved!" : "Self-Introduction Video saved! Section 3 AI Mock Interview is now unlocked.", "✓");
           }}
         />
       </div>
@@ -1601,7 +1608,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               Video Pitch
             </h1>
             <div style={{ color: "rgba(255,255,255,0.85)", fontSize: 14, marginTop: 16, maxWidth: 640, lineHeight: 1.6 }}>
-              Record a self-introduction and AI mock interview — Talentera AI scores your clarity, fluency and confidence before companies ever call.
+              {skipMock ? "Record a self-introduction — Talentera AI scores your clarity, fluency and confidence before companies ever call." : "Record a self-introduction and AI mock interview — Talentera AI scores your clarity, fluency and confidence before companies ever call."}
             </div>
 
           </div>
@@ -1735,7 +1742,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   </div>
                 </div>
                 <div style={{ fontSize: 12.5, color: "var(--gray-txt)", lineHeight: 1.55 }}>
-                  A 60-second self-introduction + a 5-question AI mock interview. Live-record or upload — companies see the trust badge either way.
+                  {skipMock ? "A 60-second self-introduction. Live-record or upload — companies see the trust badge either way." : "A 60-second self-introduction + a 5-question AI mock interview. Live-record or upload — companies see the trust badge either way."}
                 </div>
               </div>
 
@@ -1782,9 +1789,9 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               <span>Progress:</span>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: isHardwareReady ? "var(--gold)" : "#E5E7EB" }} title="Studio Check"></span>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: hasRealSelfIntro ? "var(--gold)" : "#E5E7EB" }} title="Self-Introduction"></span>
-              <span style={{ width: 9, height: 9, borderRadius: "50%", background: isCompleted ? "var(--gold)" : "#E5E7EB" }} title="Mock Interview"></span>
+              {!skipMock && <span style={{ width: 9, height: 9, borderRadius: "50%", background: isCompleted ? "var(--gold)" : "#E5E7EB" }} title="Mock Interview"></span>}
               <span style={{ marginLeft: 6, fontWeight: 700, color: "var(--navy)" }}>
-                {isCompleted ? "Completed" : hasRealSelfIntro ? "Section 3 of 3" : isHardwareReady ? "Section 2 of 3" : "Section 1 of 3"}
+                {isCompleted ? "Completed" : hasRealSelfIntro ? "Section 3 of 3" : isHardwareReady ? `Section 2 of ${skipMock ? 2 : 3}` : `Section 1 of ${skipMock ? 2 : 3}`}
               </span>
             </div>
             <div style={{ color: "#1F7A3C", fontWeight: 700, fontSize: 11.5, marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
@@ -2201,6 +2208,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
           </div>
 
           {/* ═══════ SECTION 3 · AI MOCK INTERVIEW ═══════ */}
+          {!skipMock && (
           <div style={{ background: "#FAFAF7", padding: "22px 24px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, paddingBottom: 14, borderBottom: "1px dashed #E5E7EB" }}>
               <div style={{ width: 32, height: 32, background: "var(--gold)", color: "var(--navy)", borderRadius: 10, display: "grid", placeItems: "center", fontWeight: 800, fontSize: 15 }}>
@@ -2489,22 +2497,22 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </>
             )}
           </div>
-
+          )}
 
           {/* ══════════════════════════════════════════════════════════════ */}
           {/* RESULTS & SUBMISSION SECTION                                    */}
           {/* ══════════════════════════════════════════════════════════════ */}
           <div style={{ margin: "32px 0 20px", paddingTop: 24, borderTop: "2px dashed #FFEBB0", textAlign: "center" }}>
             <span style={{ background: isCompleted ? "var(--gold)" : "#FEF3C7", color: isCompleted ? "var(--navy)" : "#92400E", padding: "8px 20px", borderRadius: 20, fontWeight: 800, fontSize: 12, letterSpacing: 1, textTransform: "uppercase", display: "inline-block", marginBottom: 14 }}>
-              {isCompleted ? "✓ Official Video Pitch Recorded" : hasRealSelfIntro ? "Step 1 of 2 Complete · Mock Interview Required" : "↓ Results · Complete Self-Intro & AI Mock Interview"}
+              {isCompleted ? "✓ Official Video Pitch Recorded" : hasRealSelfIntro ? "Step 1 of 2 Complete · Mock Interview Required" : (skipMock ? "↓ Results · Complete your Self-Introduction" : "↓ Results · Complete Self-Intro & AI Mock Interview")}
             </span>
             <div style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-              {isCompleted ? "Your Video Pitch Results" : "AI Video Pitch & Mock Interview Results"}
+              {isCompleted ? "Your Video Pitch Results" : (skipMock ? "AI Video Pitch Results" : "AI Video Pitch & Mock Interview Results")}
             </div>
             <div style={{ fontSize: 12, color: "#8A91A3", marginTop: 4, fontStyle: "italic" }}>
               {isCompleted
                 ? "Official AI-evaluated communication and technical readiness score"
-                : "Your official AI score is calculated live once you complete both the Self-Introduction and AI Mock Interview."}
+                : (skipMock ? "Your official AI score is calculated entirely from your Self-Introduction video." : "Your official AI score is calculated live once you complete both the Self-Introduction and AI Mock Interview.")}
             </div>
           </div>
 
@@ -2519,7 +2527,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               <div style={{ background: isCompleted ? "#E8F5E9" : "#FEF3C7", color: isCompleted ? "#1F7A3C" : "#92400E", padding: "4px 12px", borderRadius: 12, fontSize: 11, fontWeight: 800 }}>
                 {isCompleted
                   ? `${medalEmoji} ${displayMedal?.toUpperCase()} · ${candidateScore} / 100`
-                  : hasRealSelfIntro && !hasRealMockInterview
+                  : hasRealSelfIntro && !hasRealMockInterview && !skipMock
                   ? "SELF-INTRO EVALUATED · MOCK INTERVIEW PENDING"
                   : !hasRealSelfIntro && hasRealMockInterview
                   ? "MOCK EVALUATED · SELF-INTRO PENDING"
@@ -2528,7 +2536,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             </div>
 
             {/* PROGRESS SUMMARY CARDS: 2 STAGES */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.2fr", gap: 12, marginBottom: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: skipMock ? "1fr 1.2fr" : "1fr 1fr 1.2fr", gap: 12, marginBottom: 20 }}>
               <div style={{ background: hasRealSelfIntro ? "#F0FDF4" : "#FFFFFF", border: `1.5px solid ${hasRealSelfIntro ? "#86EFAC" : "#E5E7EB"}`, borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, color: hasRealSelfIntro ? "#166534" : "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
                   Section 2 · Self-Introduction
@@ -2541,6 +2549,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 </div>
               </div>
 
+              {!skipMock && (
               <div style={{ background: hasRealMockInterview ? "#F0FDF4" : "#FFFFFF", border: `1.5px solid ${hasRealMockInterview ? "#86EFAC" : "#E5E7EB"}`, borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, color: hasRealMockInterview ? "#166534" : "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
                   Section 3 · AI Mock Interview
@@ -2552,6 +2561,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   {hasRealMockInterview ? "✓ Technical Domain readiness evaluated" : "5 technical questions required"}
                 </div>
               </div>
+              )}
 
               <div style={{ background: isCompleted ? "linear-gradient(135deg, #FFFBEB, #FEF3C7)" : "#F8FAFC", border: `1.5px solid ${isCompleted ? "var(--gold)" : "#E2E8F0"}`, borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10.5, fontWeight: 800, color: isCompleted ? "var(--gold-deep)" : "#64748B", textTransform: "uppercase", letterSpacing: 0.5 }}>
@@ -2561,7 +2571,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                   {candidateScore !== null ? `${candidateScore} / 100` : "— / 100"}
                 </div>
                 <div style={{ fontSize: 11, color: isCompleted ? "#B45309" : "#94A3B8", marginTop: 2 }}>
-                  {isCompleted ? `✓ ${displayMedal} Tier Awarded` : "Calculated after both sections completed"}
+                  {isCompleted ? `✓ ${displayMedal} Tier Awarded` : (skipMock ? "Calculated from your Self-Introduction" : "Calculated after both sections completed")}
                 </div>
               </div>
             </div>
@@ -2631,17 +2641,17 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                       gap: 6,
                     }}
                   >
-                    {hasRealSelfIntro ? "Mock Interview Pending" : hasRealMockInterview ? "Self-Intro Pending" : "Evaluation Pending"}
+                    {hasRealSelfIntro && !skipMock ? "Mock Interview Pending" : hasRealMockInterview ? "Self-Intro Pending" : "Evaluation Pending"}
                   </span>
                 )}
                 <div style={{ fontSize: 11.5, color: isCompleted ? "#1F7A3C" : "#64748B", fontWeight: 700, marginTop: 8, letterSpacing: 0.3, maxWidth: 360, lineHeight: 1.5 }}>
                   {isCompleted && recordedDateLabel
                     ? `Recorded ${recordedDateLabel} · Live Verified · Face-matched to Aadhaar`
-                    : hasRealSelfIntro && !hasRealMockInterview
+                    : hasRealSelfIntro && !hasRealMockInterview && !skipMock
                     ? `✓ Self-Introduction evaluated (${selfIntroScore}/100). Please complete Section 3 AI Mock Interview to calculate your final AI score.`
                     : !hasRealSelfIntro && hasRealMockInterview
                     ? `✓ AI Mock Interview evaluated (${mockScore}/100). Please complete Section 2 Self-Intro to calculate your final AI score.`
-                    : "Not yet recorded · Start Section 2 Self-Intro and Section 3 AI Mock Interview above to calculate your AI score."}
+                    : (skipMock ? "Not yet recorded · Record your Section 2 Self-Introduction above to get your AI score." : "Not yet recorded · Start Section 2 Self-Intro and Section 3 AI Mock Interview above to calculate your AI score.")}
                 </div>
               </div>
             </div>

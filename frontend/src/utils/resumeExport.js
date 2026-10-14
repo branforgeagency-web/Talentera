@@ -2,7 +2,7 @@ import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 import { joinUnique } from "./resumeSubtitle.js";
 import { getMedalTier, medalBadgeHtml } from "./medalBadge.js";
-import { buildResumeSkills } from "./resumeSkills.js";
+import { parseSkillList } from "./resumeSkills.js";
 
 /**
  * Export a DOM element directly to a high-resolution A4 PDF document.
@@ -215,7 +215,7 @@ export function exportResumeWord(data) {
     trainingDuration = "Course Completed",
     trainingAssessmentScore = null,
     specialtyCharts = [],
-    selectedPlatforms = ["Practicode", "Codivia", "3M 360 Encompass"],
+    selectedPlatforms = [],
     degree = "Bachelor's Degree",
     collegeName = "University",
     graduationYear = "",
@@ -223,9 +223,11 @@ export function exportResumeWord(data) {
     twelfthSchool = "",
     twelfthYear = "",
     twelfthScore = "",
-    preferredCities = "Bengaluru · Hyderabad · Chennai",
-    relocationPref = "Preferred Locality",
-    shiftPreference = "Day + US Night",
+    preferredCities = "",
+    relocationPref = "",
+    shiftPreference = "",
+    skills = [],
+    softSkills = [],
     specialties = [],
     isNonCertified = false,
     city = "",
@@ -264,8 +266,9 @@ export function exportResumeWord(data) {
 
   // Skills chips - generated from the candidate's own domain,
   // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
-  const resumeSkills = buildResumeSkills({ domain: domainName, specialties, certified: !isNonCertified });
-  const skillsHtml = resumeSkills.length
+  const resumeSkills = parseSkillList(skills);
+  const resumeSoftSkills = parseSkillList(softSkills);
+  const skillsHtml = (resumeSkills.length || resumeSoftSkills.length)
     ? `
     <div style="margin-top: 14pt;">
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
@@ -278,7 +281,7 @@ export function exportResumeWord(data) {
       <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
         <tr>
           <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
-            ${resumeSkills.join(' &nbsp;&bull;&nbsp; ')}
+            ${resumeSkills.length ? `<b>Technical:</b> ${resumeSkills.join(' &nbsp;&bull;&nbsp; ')}` : ''}${resumeSkills.length && resumeSoftSkills.length ? '<br/>' : ''}${resumeSoftSkills.length ? `<b>Soft Skills:</b> ${resumeSoftSkills.join(' &nbsp;&bull;&nbsp; ')}` : ''}
           </td>
         </tr>
       </table>
@@ -368,9 +371,9 @@ export function exportResumeWord(data) {
             </tr>
           </tbody>
         </table>
-        <div style="font-size: 9pt; color: #64748B; margin-top: 4pt;">
+        ${(Array.isArray(selectedPlatforms) ? selectedPlatforms.length : selectedPlatforms) ? `<div style="font-size: 9pt; color: #64748B; margin-top: 4pt;">
           Platforms Verified: ${Array.isArray(selectedPlatforms) ? selectedPlatforms.join(" · ") : selectedPlatforms}
-        </div>
+        </div>` : ""}
       </div>
     `;
   }
@@ -634,6 +637,7 @@ export function exportResumeWord(data) {
     ${skillsHtml}
 
     <!-- WORK PREFERENCES -->
+    ${(preferredCities || relocationPref || shiftPreference) ? `
     <div style="margin-top: 14pt;">
       <table style="width:100%; border-bottom: 2pt solid ${secAccentColor}; margin-bottom: 6pt;">
         <tr>
@@ -645,12 +649,11 @@ export function exportResumeWord(data) {
       <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
         <tr>
           <td style="padding: 6pt 8pt; background-color: ${lightBg}; border: 1pt solid ${borderColor};">
-            <b>Target Locations:</b> ${preferredCities}<br/>
-            <b>Relocation Flexibility:</b> ${relocationPref} &nbsp;|&nbsp; <b>Availability:</b> Immediate &nbsp;|&nbsp; <b>Shift Preference:</b> ${shiftPreference}
+            ${[preferredCities ? `<b>Target Locations:</b> ${preferredCities}` : "", relocationPref ? `<b>Relocation:</b> ${relocationPref}` : "", shiftPreference ? `<b>Shift Preference:</b> ${shiftPreference}` : ""].filter(Boolean).join("<br/>")}
           </td>
         </tr>
       </table>
-    </div>
+    </div>` : ""}
 
     <!-- FOOTER / AUDIT TRAIL -->
     <div style="border-top: 1pt solid ${borderColor}; margin-top: 20pt; padding-top: 8pt; text-align: center; font-size: 8.5pt; color: #64748B;">

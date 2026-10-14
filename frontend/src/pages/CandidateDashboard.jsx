@@ -106,7 +106,7 @@ export function getScoreBreakdown(profile) {
   // Stage 3 - Certification (a real certification only; Non-Certified / Pursuing earn nothing)
   {
     const s3 = profile.stage3 || {};
-    const maxPts = isExperiencedProfile(profile) ? 35 : 20;
+    const maxPts = isExperiencedProfile(profile) ? 40 : 20;
     const hasCert = hasRealCertification(s3);
     const verified = s3.certStatus === 'verified' || s3.status === 'verified' || s3.verified === true;
     const nonCert = s3.nonCertified === true || s3.certStatus === 'non-certified' || s3.certType === 'non-certified';
@@ -119,7 +119,7 @@ export function getScoreBreakdown(profile) {
       tip = `Your certification is on file but still pending verification — get it verified to unlock the remaining ${maxPts - earned} points.`;
     } else if (nonCert) {
       earned = 15;
-      tip = 'You chose Non-Certified, so this stage gives a fixed 15 points. Add a certification (e.g. CPC, CCS, CPB) to earn more' + (maxPts > 15 ? ' (up to ' + maxPts + ' points).' : ' and get it verified.');
+      tip = `You chose Non-Certified, so this stage gives a fixed ${earned} points. Add a certification (e.g. CPC, CCS, CPB) to earn more` + (maxPts > earned ? ' (up to ' + maxPts + ' points).' : ' and get it verified.');
     } else {
       tip = 'Add at least one certification (e.g. CPC, CCS, CPB) in Stage 3 to earn up to ' + maxPts + ' points.';
     }
@@ -151,7 +151,8 @@ export function getScoreBreakdown(profile) {
   {
     const s5 = profile.stage5 || {};
     const done = hasStage5Evidence(s5);
-    const rawS5 = [s5.overallScore, s5.aiScore, s5.score].find((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v)));
+    // Experienced candidates have no mock interview - Stage 5 is scored from the self-intro AI score alone.
+    const rawS5 = (isExperiencedProfile(profile) ? [s5.aiScore, s5.overallScore, s5.score] : [s5.overallScore, s5.aiScore, s5.score]).find((v) => v !== undefined && v !== null && v !== '' && !isNaN(Number(v)));
     const hasS5Score = rawS5 !== undefined;
     const s5Pct = hasS5Score ? Math.max(0, Math.min(100, Number(rawS5))) : null;
     const earned5 = !done ? 0 : hasS5Score ? Math.round((s5Pct / 100) * 15) : (s5.verified ? 15 : 8);
@@ -161,9 +162,9 @@ export function getScoreBreakdown(profile) {
       max: 15,
       earned: earned5,
       tip: !done
-        ? 'Record and submit your Stage 5 video pitch and AI interview to earn 15 points.'
+        ? (isExperiencedProfile(profile) ? 'Record and submit your Stage 5 self-introduction video to earn up to 15 points.' : 'Record and submit your Stage 5 video pitch and AI interview to earn 15 points.')
         : hasS5Score
-          ? (earned5 >= 15 ? 'Fully earned — excellent AI communication score.' : `Your AI evaluation score is ${s5Pct}/100, so you earned ${earned5}/15 — redo the self-intro and mock interview to improve it.`)
+          ? (earned5 >= 15 ? 'Fully earned — excellent AI communication score.' : `Your AI evaluation score is ${s5Pct}/100, so you earned ${earned5}/15 — redo the self-intro${isExperiencedProfile(profile) ? '' : ' and mock interview'} to improve it.`)
           : 'Your video is on file — the remaining points unlock once the AI evaluation score is available.',
     });
   }

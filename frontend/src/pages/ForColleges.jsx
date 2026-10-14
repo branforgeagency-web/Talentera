@@ -25,6 +25,9 @@ const DEFAULT_DEPARTMENTS = [
   { name: "Computer Science & IT", degrees: ["BCA", "B.Sc CS"], studentCount: 110 },
 ];
 
+const REGLABEL = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.65)", marginBottom: 6 };
+const REGINPUT = { width: "100%", padding: "11px 14px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#FAF7F0", fontFamily: "inherit", fontSize: 13.5, outline: "none", boxSizing: "border-box" };
+
 export default function ForColleges() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -38,18 +41,44 @@ export default function ForColleges() {
   const [loginPassword, setLoginPassword] = useState("");
 
   // Register form state
+  // Registration only collects the essentials (college name, email, mobile, OTP, password).
+  // Type, affiliation, city, state, placement head etc. are filled in the College Profile tab after login.
   const [regData, setRegData] = useState({
     name: "",
-    type: "Arts & Science",
-    affiliation: "",
-    city: "",
-    state: "Tamil Nadu",
-    placementOfficerName: "",
     placementOfficerEmail: "",
     placementOfficerMobile: "",
+    otp: "",
     password: "",
     confirmPassword: "",
   });
+  const [otpSent, setOtpSent] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+
+  async function handleSendOtp() {
+    setError("");
+    const email = regData.placementOfficerEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setError("Enter a valid placement email first, then click Send OTP.");
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const res = await fetch("/api/otp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) throw new Error(data.message || "Could not send OTP.");
+      setOtpSent(true);
+      toast(`OTP sent to ${email}`, "✓");
+    } catch (err) {
+      setError(err.message);
+      toast(err.message, "!");
+    } finally {
+      setSendingOtp(false);
+    }
+  }
 
   const updateRegField = (k, v) => setRegData((prev) => ({ ...prev, [k]: v }));
 
@@ -113,13 +142,23 @@ export default function ForColleges() {
     if (e) e.preventDefault();
     setError("");
 
-    if (!regData.name.trim() || !regData.city.trim() || !regData.state.trim()) {
-      setError("Please provide College Name, City, and State.");
+    if (!regData.name.trim()) {
+      setError("Please provide your College / University name.");
       return;
     }
 
-    if (!regData.placementOfficerName.trim() || !regData.placementOfficerEmail.trim() || !regData.placementOfficerMobile.trim()) {
-      setError("Please provide Placement Officer Name, Email, and Mobile number.");
+    if (!regData.placementOfficerEmail.trim()) {
+      setError("Please provide your email.");
+      return;
+    }
+
+    if (regData.placementOfficerMobile.replace(/\D/g, "").length !== 10) {
+      setError("Enter your 10-digit mobile number.");
+      return;
+    }
+
+    if (!otpSent || !/^\d{6}$/.test(regData.otp.trim())) {
+      setError("Click Send OTP and enter the 6-digit code sent to your email.");
       return;
     }
 
@@ -137,13 +176,9 @@ export default function ForColleges() {
     try {
       const payload = {
         name: regData.name.trim(),
-        type: regData.type,
-        affiliation: regData.affiliation.trim(),
-        city: regData.city.trim(),
-        state: regData.state.trim(),
-        placementOfficerName: regData.placementOfficerName.trim(),
         placementOfficerEmail: regData.placementOfficerEmail.trim().toLowerCase(),
-        placementOfficerMobile: regData.placementOfficerMobile.trim(),
+        placementOfficerMobile: regData.placementOfficerMobile.replace(/\D/g, ""),
+        otp: regData.otp.trim(),
         password: regData.password,
         departments: DEFAULT_DEPARTMENTS,
       };
@@ -653,362 +688,122 @@ export default function ForColleges() {
             </form>
           ) : (
             /* TAB 2: REGISTER FORM */
-            <form onSubmit={handleRegister}>
+            <form onSubmit={handleRegister} autoComplete="off">
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14, marginBottom: 14 }}>
                 <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      color: "rgba(255,255,255,0.65)",
-                      marginBottom: 6,
-                    }}
-                  >
+                  <label style={REGLABEL}>
                     COLLEGE / UNIVERSITY NAME <span style={{ color: "#F87171" }}>*</span>
                   </label>
                   <input
                     type="text"
+                    name="college-org-name"
+                    autoComplete="off"
                     required
                     value={regData.name}
                     onChange={(e) => updateRegField("name", e.target.value)}
                     placeholder="e.g. PSG College of Technology"
-                    style={{
-                      width: "100%",
-                      padding: "11px 14px",
-                      background: "rgba(0,0,0,0.3)",
-                      border: "1px solid rgba(255,255,255,0.15)",
-                      borderRadius: 10,
-                      color: "#FAF7F0",
-                      fontFamily: "inherit",
-                      fontSize: 14,
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
+                    style={REGINPUT}
                   />
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
-                      COLLEGE TYPE <span style={{ color: "#F87171" }}>*</span>
-                    </label>
-                    <select
-                      value={regData.type}
-                      onChange={(e) => updateRegField("type", e.target.value)}
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "#0A1F3D",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      {COLLEGE_TYPES.map((t) => (
-                        <option key={t} value={t} style={{ background: "#0A1F3D", color: "#FAF7F0" }}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
-                      AFFILIATION / UNIVERSITY
-                    </label>
-                    <input
-                      type="text"
-                      value={regData.affiliation}
-                      onChange={(e) => updateRegField("affiliation", e.target.value)}
-                      placeholder="e.g. Autonomous / Anna Univ"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
-                      CITY <span style={{ color: "#F87171" }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={regData.city}
-                      onChange={(e) => updateRegField("city", e.target.value)}
-                      placeholder="e.g. Coimbatore"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
-                      STATE <span style={{ color: "#F87171" }}>*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={regData.state}
-                      onChange={(e) => updateRegField("state", e.target.value)}
-                      placeholder="e.g. Tamil Nadu"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
                 </div>
 
                 <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      color: "rgba(255,255,255,0.65)",
-                      marginBottom: 6,
-                    }}
-                  >
-                    PLACEMENT OFFICER / DEAN NAME <span style={{ color: "#F87171" }}>*</span>
+                  <label style={REGLABEL}>
+                    EMAIL ID <span style={{ color: "#F87171" }}>*</span>
                   </label>
-                  <input
-                    type="text"
-                    required
-                    value={regData.placementOfficerName}
-                    onChange={(e) => updateRegField("placementOfficerName", e.target.value)}
-                    placeholder="e.g. Dr. K. Venkataraman"
-                    style={{
-                      width: "100%",
-                      padding: "11px 14px",
-                      background: "rgba(0,0,0,0.3)",
-                      border: "1px solid rgba(255,255,255,0.15)",
-                      borderRadius: 10,
-                      color: "#FAF7F0",
-                      fontFamily: "inherit",
-                      fontSize: 13.5,
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      type="email"
+                      name="college-contact-email"
+                      autoComplete="off"
+                      required
+                      value={regData.placementOfficerEmail}
+                      onChange={(e) => { updateRegField("placementOfficerEmail", e.target.value); if (otpSent) { setOtpSent(false); updateRegField("otp", ""); } }}
+                      placeholder="placement@college.edu.in"
+                      style={{ ...REGINPUT, flex: 1 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp}
+                      style={{ padding: "0 16px", background: "rgba(229,168,46,0.15)", color: "#E5A82E", border: "1px solid rgba(229,168,46,0.5)", borderRadius: 10, fontWeight: 800, fontSize: 12.5, cursor: sendingOtp ? "not-allowed" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}
+                    >
+                      {sendingOtp ? "Sending…" : otpSent ? "Resend OTP" : "Send OTP"}
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
-                      PLACEMENT EMAIL <span style={{ color: "#F87171" }}>*</span>
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={regData.placementOfficerEmail}
-                      onChange={(e) => updateRegField("placementOfficerEmail", e.target.value)}
-                      placeholder="placement@college.edu.in"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
+                    <label style={REGLABEL}>
                       MOBILE NUMBER <span style={{ color: "#F87171" }}>*</span>
                     </label>
                     <input
-                      type="tel"
+                      type="text"
+                      name="college-contact-mobile-number"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={10}
                       required
                       value={regData.placementOfficerMobile}
-                      onChange={(e) => updateRegField("placementOfficerMobile", e.target.value)}
-                      placeholder="+91 9876543210"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
+                      onChange={(e) => updateRegField("placementOfficerMobile", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                      placeholder="10-digit mobile number"
+                      style={REGINPUT}
+                    />
+                  </div>
+                  <div>
+                    <label style={REGLABEL}>
+                      EMAIL OTP <span style={{ color: "#F87171" }}>*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="college-email-otp"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      required
+                      disabled={!otpSent}
+                      value={regData.otp}
+                      onChange={(e) => updateRegField("otp", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      placeholder={otpSent ? "6-digit code" : "Click Send OTP first"}
+                      style={{ ...REGINPUT, opacity: otpSent ? 1 : 0.6 }}
                     />
                   </div>
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
+                    <label style={REGLABEL}>
                       CREATE PASSWORD <span style={{ color: "#F87171" }}>*</span>
                     </label>
                     <input
                       type="password"
+                      name="college-new-password"
+                      autoComplete="new-password"
                       required
                       value={regData.password}
                       onChange={(e) => updateRegField("password", e.target.value)}
                       placeholder="Min 6 chars"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
+                      style={REGINPUT}
                     />
                   </div>
                   <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        letterSpacing: "0.08em",
-                        textTransform: "uppercase",
-                        color: "rgba(255,255,255,0.65)",
-                        marginBottom: 6,
-                      }}
-                    >
+                    <label style={REGLABEL}>
                       CONFIRM PASSWORD <span style={{ color: "#F87171" }}>*</span>
                     </label>
                     <input
                       type="password"
+                      name="college-confirm-password"
+                      autoComplete="new-password"
                       required
                       value={regData.confirmPassword}
                       onChange={(e) => updateRegField("confirmPassword", e.target.value)}
                       placeholder="Repeat password"
-                      style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        background: "rgba(0,0,0,0.3)",
-                        border: "1px solid rgba(255,255,255,0.15)",
-                        borderRadius: 10,
-                        color: "#FAF7F0",
-                        fontFamily: "inherit",
-                        fontSize: 13.5,
-                        outline: "none",
-                        boxSizing: "border-box",
-                      }}
+                      style={REGINPUT}
                     />
                   </div>
+                </div>
+                <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+                  College type, affiliation, city, state and placement head details are added inside your portal after you log in.
                 </div>
               </div>
 

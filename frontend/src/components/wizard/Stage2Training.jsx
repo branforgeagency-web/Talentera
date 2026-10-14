@@ -601,11 +601,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       rolesResponsibilities: isFresherCandidate ? "" : expRoles.trim(),
       workStartDate: isFresherCandidate ? "" : expStartDate,
       workEndDate: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expEndDate,
-      softSkills: isFresherCandidate ? "" : expSoftSkills.trim(),
+      softSkills: expSoftSkills.trim(),
       totalExperience: isFresherCandidate ? "" : expTotalYears,
       noticePeriod: isFresherCandidate ? "" : expNoticePeriod,
       currentSalary: isFresherCandidate ? "" : expCurrentSalary.trim(),
-      skills: isFresherCandidate ? "" : expSkills.trim(),
+      skills: expSkills.trim(),
       employmentStatus: isFresherCandidate ? "" : expEmploymentStatus,
       relievingLetterName: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expRelievingLetterName,
       relievingLetterUrl: isFresherCandidate || expEmploymentStatus !== "relieved" ? "" : expRelievingLetterUrl,
@@ -2972,6 +2972,39 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             </div>
           </div>
             </>
+          )}
+
+          {/* SKILLS (freshers) - experienced candidates enter these in their work-experience section */}
+          {isFresherCandidate && (
+            <div className="s2-section">
+              <div className="s2-section-header">
+                <div className="s2-section-title">Your Skills</div>
+                <div className="s2-status-chip pending">OPTIONAL</div>
+              </div>
+              <div className="s2-helper" style={{ marginBottom: 8 }}>
+                These appear on your resume exactly as you type them. Leave blank to hide the Skills section.
+              </div>
+              <div className="s2-row">
+                <div className="s2-field">
+                  <label>Key / Technical Skills</label>
+                  <input
+                    type="text"
+                    value={expSkills}
+                    onChange={(e) => setExpSkills(e.target.value)}
+                    placeholder="e.g. ICD-10-CM, CPT coding, medical terminology, MS Excel"
+                  />
+                </div>
+                <div className="s2-field">
+                  <label>Soft / Personal Skills</label>
+                  <input
+                    type="text"
+                    value={expSoftSkills}
+                    onChange={(e) => setExpSoftSkills(e.target.value)}
+                    placeholder="e.g. communication, teamwork, time management"
+                  />
+                </div>
+              </div>
+            </div>
           )}
 
           {/* STICKY BOTTOM BAR */}
