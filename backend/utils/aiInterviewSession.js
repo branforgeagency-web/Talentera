@@ -79,10 +79,10 @@ function formatQuestionItem(q, idx) {
 
 // ---------------------------------------------------------------------------
 // Comprehensive Question Bank seeding. The AI Mock Interview asks ONLY questions from the staff-managed
-// InterviewQuestion bank. Each domain is topped up with built-in questions so it always has 10+ to shuffle.
+// InterviewQuestion bank. A domain that has NO questions at all is seeded once with the built-in 14; after
+// that the bank belongs to staff - disabled/deleted/edited questions are never re-added automatically.
 // ---------------------------------------------------------------------------
 const BANK_DOMAINS = ["Medical Coding", "Medical Billing", "Accounts Receivable", "Eligibility & Verification"];
-const MIN_QUESTIONS_PER_DOMAIN = 10;
 
 function getDefaultInterviewSeed() {
   const fromBuiltIn = [];
@@ -109,12 +109,11 @@ async function ensureDefaultInterviewBank(force = false) {
     const seed = getDefaultInterviewSeed();
     for (const domain of BANK_DOMAINS) {
       const aliases = getDomainQueryAliases(domain);
-      const existing = await InterviewQuestion.find({ domain: { $in: aliases } }).select("text active").lean();
-      const activeCount = existing.filter((q) => q.active !== false).length;
-      if (activeCount >= MIN_QUESTIONS_PER_DOMAIN) continue;
-      const have = new Set(existing.map((q) => normalizeQText(q.text)));
-      const missing = seed.filter((q) => q.domain === domain && !have.has(normalizeQText(q.text)));
-      if (missing.length) await InterviewQuestion.insertMany(missing, { ordered: false });
+      // Any existing question (active or not) means staff already manage this domain - leave it alone.
+      const existingCount = await InterviewQuestion.countDocuments({ domain: { $in: aliases } });
+      if (existingCount > 0) continue;
+      const toInsert = seed.filter((q) => q.domain === domain);
+      if (toInsert.length) await InterviewQuestion.insertMany(toInsert, { ordered: false });
     }
     interviewBankEnsured = true;
   } catch (e) {
@@ -130,15 +129,10 @@ async function buildFreshAiInterviewSession(candidate) {
   const role = candidate.stage1?.currentRole || candidateDomain;
   const experienceYears = candidate.stage1?.experience ?? null;
 
-  // Retrieve active interview questions from database bank matching domain (or general)
+  // Retrieve ACTIVE questions from the staff question bank for the candidate's selected domain ONLY.
   const allActiveBankQuestions = await InterviewQuestion.find({
     active: true,
-    $or: [
-      { domain: { $in: domainQueryAliases } },
-      { domain: "General" },
-      { domain: { $exists: false } },
-      { domain: null },
-    ],
+    domain: { $in: domainQueryAliases },
   }).lean();
 
   // Deduplicate active bank questions by normalized question text
@@ -189,9 +183,10 @@ async function buildFreshAiInterviewSession(candidate) {
 
   let finalRawQuestions = [...chosenQuestions];
 
-  // Bank-only: if staff have deactivated so many questions that fewer than 5 remain, top up from the
-  // built-in default bank copies of this domain's questions (never from AI-generated questions).
-  if (finalRawQuestions.length < 5) {
+  // Bank-only: if staff keep fewer than 5 active questions for this domain, the interview simply asks
+  // those (no padding, no random extras). Only when the domain has NO active questions at all do we use
+  // the built-in defaults so the interview never starts empty.
+  if (finalRawQuestions.length === 0) {
     const defaults = shuffleArray(
       getDefaultInterviewSeed().filter((q) => domainQueryAliases.includes(q.domain))
     );
