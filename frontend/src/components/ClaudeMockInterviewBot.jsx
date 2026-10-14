@@ -8,11 +8,10 @@ import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMo
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
 const INACTIVITY_TIMEOUT_SECONDS = 60; // time to think + start answering each question
-// Pause allowed mid-answer before the answer is auto-submitted. 5 s was far too short: candidates who stop
-// to think between sentences were cut off mid-answer and moved to the next question. Short answers (a few
-// words so far) get an even longer grace period since the candidate has clearly not finished yet.
-const ANSWER_PAUSE_SECONDS = 12;
-const SHORT_ANSWER_PAUSE_SECONDS = 20;
+// The interview only moves to the next question once the candidate has been SILENT for this long after
+// finishing their answer (and never while they are still speaking).
+const ANSWER_PAUSE_SECONDS = 10;
+const SHORT_ANSWER_PAUSE_SECONDS = 10; // same rule for short answers
 const SHORT_ANSWER_WORDS = 15;
 const VAPI_WAIT_SECONDS = 5; // Vapi's own turn-taking wait (its maximum allowed value)
 
@@ -1429,7 +1428,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                   <li>The AI asks each question out loud with natural voice speech.</li>
                   <li>You get up to <strong>1 minute</strong> to think and answer each question (speak into mic or type).</li>
-                  <li>Pause and think as you speak — the answer is only submitted after <strong>{ANSWER_PAUSE_SECONDS} seconds of silence</strong> (longer for very short answers), then the next question starts.</li>
+                  <li>Pause and think as you speak — the answer is only submitted after <strong>{ANSWER_PAUSE_SECONDS} seconds of silence</strong> after you finish speaking, then the next question starts.</li>
                   <li>If you don't answer within 1 minute, the interview moves to the next question.</li>
                   <li>The AI briefly acknowledges your response before presenting the next question.</li>
                 </ul>
