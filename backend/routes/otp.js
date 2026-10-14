@@ -146,4 +146,21 @@ router.post("/verify", otpLimiter, async (req, res) => {
   return res.status(400).json({ message: "Invalid OTP verification code. Please check and try again." });
 });
 
+// Server-side check used by other routes (e.g. college registration) so an OTP gate cannot be
+// bypassed by calling the registration endpoint directly. Consumes the code on success.
+router.verifyEmailOtp = function verifyEmailOtp(identifier, otp) {
+  const email = cleanEmail(identifier);
+  const record = localOtpStore.get(email);
+  if (!record || !otp) return { ok: false, message: "Please verify your email with the OTP sent to it." };
+  if (Date.now() > record.expiresAt) {
+    localOtpStore.delete(email);
+    return { ok: false, message: "OTP has expired. Please request a new OTP." };
+  }
+  if (String(record.otp).trim() !== String(otp).trim()) {
+    return { ok: false, message: "Invalid OTP. Please check and try again." };
+  }
+  localOtpStore.delete(email);
+  return { ok: true };
+};
+
 module.exports = router;

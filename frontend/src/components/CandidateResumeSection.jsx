@@ -4,7 +4,7 @@ import { useToast } from "./Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../utils/resumeExport.js";
 import { joinUnique } from "../utils/resumeSubtitle.js";
 import { getMedalTier, medalLabel, medalBadgeStyle } from "../utils/medalBadge.js";
-import { buildResumeSkills, buildSoftSkills } from "../utils/resumeSkills.js";
+import { parseSkillList, buildSoftSkills } from "../utils/resumeSkills.js";
 import { durationBetween, formatDateRange } from "../utils/resumeFormat.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../utils/careerObjective.js";
 
@@ -226,8 +226,8 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
   // Skills chips - generated from the candidate's own domain,
   // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
   const resumeSkills = useMemo(
-    () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
-    [stage2.domain, domainName, stage2.specialties, isNonCertified]
+    () => parseSkillList(stage2.skills),
+    [stage2.skills]
   );
 
   // Stage 4 Assessment
@@ -286,10 +286,16 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
     if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
       return stage1.preferredCities.trim();
     }
-    return city ? city : "Open to Relocation";
+    return "";
   }, [stage1, city]);
-  const shiftPreference = stage1.shiftPreference || "Day shift";
-  const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
+  // Real candidate data only (Stage 1 / Stage 2). Empty string = candidate has not provided it.
+  const SHIFT_LABELS_REAL = { day: "Day shift", night: "US night shift", uk_evening: "UK evening shift", rotational: "Rotational" };
+  const shiftPreference = Array.isArray(stage1.workShifts) && stage1.workShifts.length > 0
+    ? stage1.workShifts.join(", ")
+    : Array.isArray(stage2.shifts) && stage2.shifts.length > 0
+    ? stage2.shifts.map((x) => SHIFT_LABELS_REAL[x] || x).join(", ")
+    : (stage1.shiftPreference || "");
+  const relocationPref = stage1.openToRelocate || "";
 
   // Score Calculation
   const totalPoints = useMemo(() => {
@@ -577,6 +583,8 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
         preferredCities,
         relocationPref,
         shiftPreference,
+        skills: resumeSkills,
+        softSkills: softSkillList,
         templateId: selectedTemplate,
         headerBg: activeTmpl.headerBg,
         accentColor: activeTmpl.accentColor,
@@ -602,8 +610,8 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
       isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workRolesList.length > 0) ? `WORK EXPERIENCE:\n* ${currentRoleTitle}${workCompany ? ` · ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}\n${workProjectDetails ? `${workProjectDetails}\n` : ""}${workRolesList.length > 0 ? `Roles & Responsibilities:\n${workRolesList.map((r) => `- ${r}`).join("\n")}\n` : ""}` : "",
       isExperienced && visibleSections.toolsUsed && selectedPlatforms.length > 0 ? `TOOLS USED:\n* ${selectedPlatforms.join(" · ")}\n` : "",
       visibleSections.education && degree ? `EDUCATION:\n* ${degree}${collegeName ? ` - ${collegeName}` : ""}${graduationYear ? ` (${graduationYear})` : ""} ${cgpa ? `[${cgpa}]` : ""}\n` : "",
-      visibleSections.skills && resumeSkills.length > 0 ? `SKILLS:\nTechnical Skills:\n${resumeSkills.map((sk) => `- ${sk}`).join("\n")}\nSoft Skills:\n${softSkillList.map((sk) => `- ${sk}`).join("\n")}\n` : "",
-      visibleSections.preferences ? `WORK PREFERENCES:\n* Cities: ${preferredCities} | Shifts: ${shiftPreference}\n` : "",
+      visibleSections.skills && (resumeSkills.length > 0 || softSkillList.length > 0) ? `SKILLS:\n${resumeSkills.length > 0 ? `Technical Skills:\n${resumeSkills.map((sk) => `- ${sk}`).join("\n")}\n` : ""}${softSkillList.length > 0 ? `Soft Skills:\n${softSkillList.map((sk) => `- ${sk}`).join("\n")}\n` : ""}` : "",
+      visibleSections.preferences && (preferredCities || relocationPref || shiftPreference) ? `WORK PREFERENCES:\n${[preferredCities ? `Cities: ${preferredCities}` : "", relocationPref ? `Relocation: ${relocationPref}` : "", shiftPreference ? `Shifts: ${shiftPreference}` : ""].filter(Boolean).map((x) => `* ${x}`).join("\n")}\n` : "",
     ].filter(Boolean).join("\n");
 
     const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
@@ -1968,31 +1976,39 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
         )}
 
         {/* 8. SKILLS */}
-        {visibleSections.skills && resumeSkills.length > 0 && (
+        {visibleSections.skills && (resumeSkills.length > 0 || softSkillList.length > 0) && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("SKILLS", null)}
             <div style={{ fontSize: scale.base, color: "#0F1B3D", lineHeight: lineHeightVal }}>
-              <div style={{ fontWeight: 800, marginBottom: 2 }}>Technical Skills</div>
-              <ul style={{ margin: "0 0 8px 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
-                {resumeSkills.map((skill) => <li key={skill} style={{ breakInside: "avoid" }}>{skill}</li>)}
-              </ul>
-              <div style={{ fontWeight: 800, marginBottom: 2 }}>Soft Skills</div>
-              <ul style={{ margin: "0 0 0 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
-                {softSkillList.map((skill) => <li key={skill} style={{ breakInside: "avoid" }}>{skill}</li>)}
-              </ul>
+              {resumeSkills.length > 0 && (
+                <>
+                  <div style={{ fontWeight: 800, marginBottom: 2 }}>Technical Skills</div>
+                  <ul style={{ margin: "0 0 8px 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+                    {resumeSkills.map((skill) => <li key={skill} style={{ breakInside: "avoid" }}>{skill}</li>)}
+                  </ul>
+                </>
+              )}
+              {softSkillList.length > 0 && (
+                <>
+                  <div style={{ fontWeight: 800, marginBottom: 2 }}>Soft Skills</div>
+                  <ul style={{ margin: "0 0 0 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+                    {softSkillList.map((skill) => <li key={skill} style={{ breakInside: "avoid" }}>{skill}</li>)}
+                  </ul>
+                </>
+              )}
             </div>
           </div>
         )}
 
         {/* 9. WORK PREFERENCES */}
-        {visibleSections.preferences && (
+        {visibleSections.preferences && (preferredCities || relocationPref || shiftPreference) && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("WORK PREFERENCES", null)}
 
             <div style={{ fontSize: scale.base, color: "#0F1B3D", lineHeight: lineHeightVal }}>
-              <div><b>Cities open to:</b> {preferredCities}</div>
-              <div><b>Relocation:</b> {relocationPref} · <b>Availability:</b> Immediately</div>
-              <div><b>Shifts:</b> {shiftPreference} · <b>Trainee-role open:</b> Yes</div>
+              {preferredCities && <div><b>Cities open to:</b> {preferredCities}</div>}
+              {relocationPref && <div><b>Relocation:</b> {relocationPref}</div>}
+              {shiftPreference && <div><b>Shifts:</b> {shiftPreference}</div>}
             </div>
           </div>
         )}

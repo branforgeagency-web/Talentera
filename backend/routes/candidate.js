@@ -736,7 +736,9 @@ router.put("/stage/:n", async (req, res) => {
       const selfIntroScore = typeof req.body.aiScore === "number" ? req.body.aiScore : (typeof candidate.stage5?.aiScore === "number" ? candidate.stage5.aiScore : null);
       const mockScore = typeof req.body.mockScore === "number" ? req.body.mockScore : (typeof candidate.stage5?.mockScore === "number" ? candidate.stage5.mockScore : null);
       let calculatedScore = null;
-      if (selfIntroScore !== null && mockScore !== null) {
+      if (isExperiencedCandidate(candidate) && selfIntroScore !== null) {
+        calculatedScore = selfIntroScore; // experienced: scored completely on the Self-Introduction
+      } else if (selfIntroScore !== null && mockScore !== null) {
         calculatedScore = Math.round((selfIntroScore + mockScore) / 2);
       } else if (typeof req.body.score === "number") {
         calculatedScore = req.body.score;
@@ -1420,8 +1422,10 @@ router.post(
         candidate.stage5?.mockInterviewCompleted && typeof candidate.stage5?.mockScore === "number"
       );
       const mockScore = hasRealMock ? candidate.stage5.mockScore : null;
-      const isBothCompleted = hasRealMock && mockScore !== null;
-      const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null;
+      // Experienced candidates have no AI Mock Interview: Stage 5 is the Self-Introduction alone.
+      const skipMockInterview = isExperiencedCandidate(candidate);
+      const isBothCompleted = skipMockInterview ? true : (hasRealMock && mockScore !== null);
+      const combinedScore = skipMockInterview ? selfIntroScore : (isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null);
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),
@@ -1521,8 +1525,10 @@ router.post(
         candidate.stage5?.mockInterviewCompleted && typeof candidate.stage5?.mockScore === "number"
       );
       const mockScore = hasRealMock ? candidate.stage5.mockScore : null;
-      const isBothCompleted = hasRealMock && mockScore !== null;
-      const combinedScore = isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null;
+      // Experienced candidates have no AI Mock Interview: Stage 5 is the Self-Introduction alone.
+      const skipMockInterview = isExperiencedCandidate(candidate);
+      const isBothCompleted = skipMockInterview ? true : (hasRealMock && mockScore !== null);
+      const combinedScore = skipMockInterview ? selfIntroScore : (isBothCompleted ? Math.round((selfIntroScore + mockScore) / 2) : null);
 
       candidate.stage5 = {
         ...(candidate.stage5 || {}),

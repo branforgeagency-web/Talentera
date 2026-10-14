@@ -97,8 +97,11 @@ function hasStage5Evidence(s5 = {}) {
 
 // Stage 5 points scale with the actual AI evaluation score (out of 100). A recording with no
 // AI score yet earns half credit until it is evaluated.
-function stage5Points(s5 = {}) {
-  const raw = [s5.overallScore, s5.aiScore, s5.score].find(
+// Experienced candidates have no AI Mock Interview - Stage 5 is scored entirely from the
+// Self-Introduction AI score (aiScore), never from a blended overall score.
+function stage5Points(s5 = {}, experienced = false) {
+  const order = experienced ? [s5.aiScore, s5.overallScore, s5.score] : [s5.overallScore, s5.aiScore, s5.score];
+  const raw = order.find(
     (v) => v !== undefined && v !== null && v !== "" && !isNaN(Number(v))
   );
   if (raw === undefined) return s5.verified ? STAGE_POINTS[5] : Math.round(STAGE_POINTS[5] / 2);
@@ -123,7 +126,10 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
 // Certification is "added value": freshers get a fixed 15 even when Non-Certified (so having no
   // certificate never lowers a college student's score); a certificate on file keeps the 15 and a
   // verified one adds +5 on top. The total is still capped at 100.
-  const stage3Max = experienced ? STAGE_POINTS[3] + STAGE_POINTS[4] : STAGE_POINTS[3] + 5;
+  // Experienced candidates (no Stage 4, no AI mock interview) earn extra on a real certification: Stage 4's 20
+  // points move here, plus 5 more for the removed mock interview - total still capped at 100.
+  const EXPERIENCED_MOCK_REPLACEMENT_POINTS = 5;
+  const stage3Max = experienced ? STAGE_POINTS[3] + STAGE_POINTS[4] + EXPERIENCED_MOCK_REPLACEMENT_POINTS : STAGE_POINTS[3] + 5;
 
   for (const stage of completedStages) {
     if (stage === 1) {
@@ -182,7 +188,7 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       // a submitted-but-not-yet-audited certification earns partial credit.
       if (candidate && !hasRealCertification(candidate.stage3 || {})) {
         if (isNonCertified(candidate.stage3 || {})) {
-          // Chose "Non-Certified": fixed 15 points (not the 35 an experienced certified candidate can earn).
+          // Chose "Non-Certified": the same fixed 15 points for EVERY candidate (experienced or not).
           score += SKIP_CREDIT_POINTS;
           stageScores[3] = SKIP_CREDIT_POINTS;
           verifiedStages.push(3);
@@ -230,7 +236,7 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       if (candidate && !hasStage5Evidence(candidate.stage5 || {})) {
         continue; // no video pitch / AI interview recorded
       }
-      const pts5 = candidate ? stage5Points(candidate.stage5 || {}) : STAGE_POINTS[5];
+      const pts5 = candidate ? stage5Points(candidate.stage5 || {}, experienced) : STAGE_POINTS[5];
       score += pts5;
       stageScores[5] = pts5;
       verifiedStages.push(5);

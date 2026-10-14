@@ -52,9 +52,15 @@ export const DEFAULT_SOFT_SKILLS = [
   "Adaptability & Willingness to Learn",
 ];
 
+// Real data only: comma / semicolon / newline separated skills exactly as the candidate typed them.
+export function parseSkillList(value) {
+  const raw = Array.isArray(value) ? value.join(",") : String(value || "");
+  return raw.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean).slice(0, 20);
+}
+
+// Soft skills: only what the candidate entered - never auto-filled defaults.
 export function buildSoftSkills(own) {
-  const list = String(own || "").split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
-  return list.length > 0 ? list.slice(0, 10) : DEFAULT_SOFT_SKILLS;
+  return parseSkillList(own).slice(0, 10);
 }
 
 const MIN_SKILLS = 6;

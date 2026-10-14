@@ -3,7 +3,7 @@ import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { exportResumePdf, exportResumeWord } from "../../utils/resumeExport.js";
 import { joinUnique } from "../../utils/resumeSubtitle.js";
-import { buildResumeSkills, buildSoftSkills } from "../../utils/resumeSkills.js";
+import { parseSkillList, buildSoftSkills } from "../../utils/resumeSkills.js";
 import { durationBetween, formatDateRange } from "../../utils/resumeFormat.js";
 import { buildCareerObjectives, getCertStatus, getExperienceLevel, isLegacyAutoObjective } from "../../utils/careerObjective.js";
 
@@ -205,11 +205,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     return [];
   }, [stage3, isNonCertified]);
 
-  // Skills chips - generated from the candidate's own domain,
-  // specialties and certification status (see utils/resumeSkills.js), not hand-typed.
+  // Skills: real data only - exactly what the candidate typed in Stage 2 (no auto-generated skills).
   const resumeSkills = useMemo(
-    () => buildResumeSkills({ domain: stage2.domain || domainName, specialties: stage2.specialties, certified: !isNonCertified }),
-    [stage2.domain, domainName, stage2.specialties, isNonCertified]
+    () => parseSkillList(stage2.skills),
+    [stage2.skills]
   );
 
   // Stage 4 Assessment from Database
@@ -302,10 +301,16 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     if (typeof stage1.preferredCities === "string" && stage1.preferredCities.trim()) {
       return stage1.preferredCities.trim();
     }
-    return "Open to Relocation";
+    return "";
   }, [stage1, city]);
-  const shiftPreference = stage1.shiftPreference || "Day shift";
-  const relocationPref = stage1.willingToRelocate ? "Yes (Anywhere in India)" : "Preferred Locality";
+  // Real candidate data only (Stage 1 / Stage 2). Empty string = candidate has not provided it.
+  const SHIFT_LABELS_REAL = { day: "Day shift", night: "US night shift", uk_evening: "UK evening shift", rotational: "Rotational" };
+  const shiftPreference = Array.isArray(stage1.workShifts) && stage1.workShifts.length > 0
+    ? stage1.workShifts.join(", ")
+    : Array.isArray(stage2.shifts) && stage2.shifts.length > 0
+    ? stage2.shifts.map((x) => SHIFT_LABELS_REAL[x] || x).join(", ")
+    : (stage1.shiftPreference || "");
+  const relocationPref = stage1.openToRelocate || "";
 
   // Total Genuine Points Calculation
   const totalPoints = useMemo(() => {
@@ -651,9 +656,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
     : Array.isArray(stage2.shifts) && stage2.shifts.length > 0
     ? stage2.shifts.map((x) => SHIFT_LABELS[x] || x).join(", ")
     : shiftPreference;
-  const resumeRelocationText = stage1.openToRelocate || relocationPref;
-  const ownSkills = String(stage2.skills || "").split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
-  const resumeSkillList = ownSkills.length > 0 ? ownSkills : resumeSkills;
+  const resumeRelocationText = relocationPref;
+  const resumeSkillList = resumeSkills;
   const hasWorkExperience = isExperienced && Boolean(workCompany || stage2.jobTitle);
   const isNonTrainedProfile = /non[\s-]?trained|direct entry/i.test(`${stage2.academyName || ""} ${stage2.trainingLevel || ""}`) || stage2.trainingPath === "non_trained" || stage2.isNonTrained === true;
   const showTrainingBlock = !isNonTrainedProfile && (!isExperienced || Boolean(stage2.academyName || stage2.instituteName));
@@ -805,17 +809,28 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         </>
       ), interactive)}
 
-      {resumeSkillList.length > 0 && editableSection("skills", [{ stage: 2, label: "Edit skills (Stage 2)" }], (
+      {(resumeSkillList.length > 0 || softSkillList.length > 0 || interactive) && editableSection("skills", [{ stage: 2, label: "Add / edit skills (Stage 2)" }], (
         <>
           <div className="s7-resume-sec-title">Skills</div>
-          <div style={{ ...resumeSectionBody, fontWeight: 700, marginBottom: 2 }}>Technical Skills</div>
-          <ul style={{ ...resumeSectionBody, margin: "2px 0 8px 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
-            {resumeSkillList.map((sk, i) => <li key={i} style={{ breakInside: "avoid" }}>{sk}</li>)}
-          </ul>
-          <div style={{ ...resumeSectionBody, fontWeight: 700, marginBottom: 2 }}>Soft Skills</div>
-          <ul style={{ ...resumeSectionBody, margin: "2px 0 0 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
-            {softSkillList.map((sk, i) => <li key={i} style={{ breakInside: "avoid" }}>{sk}</li>)}
-          </ul>
+          {resumeSkillList.length === 0 && softSkillList.length === 0 && (
+            <div style={{ ...resumeSectionBody, color: "#94A3B8", fontStyle: "italic" }}>No skills added yet — add your skills in Stage 2 and they will appear here.</div>
+          )}
+          {resumeSkillList.length > 0 && (
+            <>
+              <div style={{ ...resumeSectionBody, fontWeight: 700, marginBottom: 2 }}>Technical Skills</div>
+              <ul style={{ ...resumeSectionBody, margin: "2px 0 8px 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+                {resumeSkillList.map((sk, i) => <li key={i} style={{ breakInside: "avoid" }}>{sk}</li>)}
+              </ul>
+            </>
+          )}
+          {softSkillList.length > 0 && (
+            <>
+              <div style={{ ...resumeSectionBody, fontWeight: 700, marginBottom: 2 }}>Soft Skills</div>
+              <ul style={{ ...resumeSectionBody, margin: "2px 0 0 18px", padding: 0, columnCount: 2, columnGap: 24 }}>
+                {softSkillList.map((sk, i) => <li key={i} style={{ breakInside: "avoid" }}>{sk}</li>)}
+              </ul>
+            </>
+          )}
         </>
       ), interactive)}
 
@@ -911,13 +926,16 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         </>
       ), interactive)}
 
-      {editableSection("prefs", [{ stage: 1, label: "Edit locations (Stage 1)" }, { stage: 2, label: "Edit shifts (Stage 2)" }], (
+      {(preferredCities || resumeRelocationText || resumeShiftText || interactive) && editableSection("prefs", [{ stage: 1, label: "Edit locations (Stage 1)" }, { stage: 2, label: "Edit shifts (Stage 2)" }], (
         <>
       <div className="s7-resume-sec-title">Work Preferences</div>
       <div style={resumeSectionBody}>
-        <div><b>Preferred locations:</b> {preferredCities}</div>
-        <div><b>Relocation:</b> {resumeRelocationText}</div>
-        <div><b>Shifts:</b> {resumeShiftText}</div>
+        {preferredCities && <div><b>Preferred locations:</b> {preferredCities}</div>}
+        {resumeRelocationText && <div><b>Relocation:</b> {resumeRelocationText}</div>}
+        {resumeShiftText && <div><b>Shifts:</b> {resumeShiftText}</div>}
+        {interactive && !preferredCities && !resumeRelocationText && !resumeShiftText && (
+          <div style={{ color: "#94A3B8", fontStyle: "italic" }}>No work preferences added yet — fill them in Stage 1.</div>
+        )}
       </div>
         </>
       ), interactive)}
@@ -999,6 +1017,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         preferredCities,
         relocationPref,
         shiftPreference,
+        skills: resumeSkills,
+        softSkills: softSkillList,
         templateId: selectedTemplate,
         headerBg: activeTmpl.headerBg,
         accentColor: activeTmpl.accentColor,
@@ -1067,21 +1087,19 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       `* ${degree} - ${collegeName} (${graduationYear}) ${cgpa ? `- ${cgpa}` : ""}`,
       twelfthSchool ? `* Class XII: ${twelfthSchool} (${twelfthYear}) ${twelfthScore ? `- ${twelfthScore}` : ""}` : "",
       "",
-      resumeSkills.length > 0 ? [
+      (resumeSkills.length > 0 || softSkillList.length > 0) ? [
         "------------------------------------------------------------------",
         "SKILLS",
         "------------------------------------------------------------------",
-        "Technical Skills:",
-        ...resumeSkills.map((sk) => `  - ${sk}`),
-        "Soft Skills:",
-        ...softSkillList.map((sk) => `  - ${sk}`),
+        ...(resumeSkills.length > 0 ? ["Technical Skills:", ...resumeSkills.map((sk) => `  - ${sk}`)] : []),
+        ...(softSkillList.length > 0 ? ["Soft Skills:", ...softSkillList.map((sk) => `  - ${sk}`)] : []),
         ""
       ].join("\n") : "",
       "------------------------------------------------------------------",
       "WORK PREFERENCES",
       "------------------------------------------------------------------",
-      `* Locations: ${preferredCities}`,
-      `* Relocation: ${relocationPref} | Availability: Immediate | Shifts: ${shiftPreference}`,
+      preferredCities ? `* Locations: ${preferredCities}` : "",
+      [relocationPref ? `Relocation: ${relocationPref}` : "", shiftPreference ? `Shifts: ${shiftPreference}` : ""].filter(Boolean).map((x) => `* ${x}`).join("\n"),
       "",
       "==================================================================",
       `Verified by Talentera Automated Credential Engine | Live at ${liveResumeUrl}`,

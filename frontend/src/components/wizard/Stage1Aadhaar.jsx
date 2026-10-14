@@ -930,7 +930,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
   const [cityInputOpen, setCityInputOpen] = useState(false);
   const [selectedCityOption, setSelectedCityOption] = useState("");
   const [openToRelocate, setOpenToRelocate] = useState(
-    (existingData?.openToRelocate && !/Tier-1/.test(existingData.openToRelocate) ? existingData.openToRelocate : "Yes — anywhere in India")
+    (existingData?.openToRelocate && !/Tier-1/.test(existingData.openToRelocate) ? existingData.openToRelocate : "")
   );
   // Preferred Work Shift(s): pick one or more (replaces the old "Open to Global Opportunities").
   const [workShifts, setWorkShifts] = useState(
@@ -1554,6 +1554,10 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
       if (workShifts.length === 0) {
         missingFields.push("Preferred Work Shift(s)");
         errs.workShifts = "Select at least one shift";
+      }
+      if (!openToRelocate) {
+        missingFields.push("Open to Relocate?");
+        errs.openToRelocate = "Select your relocation preference";
       }
       if (preferredCities.filter(Boolean).length === 0) {
         missingFields.push("Willing to Work In (add at least one city)");
@@ -3328,7 +3332,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               {formErrors.preferredCities && preferredCities.length === 0 && <div className="field-error-msg">{formErrors.preferredCities}</div>}
             </div>
 
-            <div className="field">
+            <div className={`field ${formErrors.openToRelocate ? "has-error" : ""}`}>
               <label>
                 Open to Relocate? <span className="req">*</span>
               </label>
@@ -3341,13 +3345,14 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <div
                     key={opt}
                     className={`option-item ${openToRelocate === opt ? "selected" : ""}`}
-                    onClick={() => setOpenToRelocate(opt)}
+                    onClick={() => { setOpenToRelocate(opt); if (formErrors.openToRelocate) setFormErrors((prev) => ({ ...prev, openToRelocate: null })); }}
                   >
                     <div className="dot"></div>
                     <div><b>{opt}</b></div>
                   </div>
                 ))}
               </div>
+              {formErrors.openToRelocate && <div className="field-error-msg">{formErrors.openToRelocate}</div>}
             </div>
 
             <div className={`field ${formErrors.workShifts ? "has-error" : ""}`}>

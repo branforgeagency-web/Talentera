@@ -15,6 +15,8 @@ const logger = require("../utils/logger");
 const { TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
 const { computeCandidateReadiness } = require("../utils/studentReadiness");
 
+const otpRouter = require("./otp");
+
 const router = express.Router();
 
 // ---------------------------------------------------------------------------
@@ -52,9 +54,9 @@ router.post("/register", authLimiter, async (req, res) => {
       return res.status(400).json({ message: "Password must be at least 6 characters." });
     }
 
-    // Mobile is optional at registration; if given it must be exactly 10 digits.
-    const cleanPlacementMobile = placementOfficerMobile ? String(placementOfficerMobile).replace(/\D/g, "") : "";
-    if (cleanPlacementMobile && cleanPlacementMobile.length !== 10) {
+    // Mobile is required at registration and must be exactly 10 digits (typed by the user).
+    const cleanPlacementMobile = placementOfficerMobile ? String(placementOfficerMobile).replace(/\D/g, "").slice(-10) : "";
+    if (cleanPlacementMobile.length !== 10) {
       return res.status(400).json({ message: "Mobile number must be exactly 10 digits." });
     }
 
@@ -62,6 +64,12 @@ router.post("/register", authLimiter, async (req, res) => {
     const existing = await College.findOne({ placementOfficerEmail: normalizedEmail });
     if (existing) {
       return res.status(400).json({ message: "A college placement account with this email is already registered." });
+    }
+
+    // Registration is gated by an email OTP (sent via /api/otp/send) - verified here server-side.
+    const otpCheck = otpRouter.verifyEmailOtp(placementOfficerEmail, req.body.otp);
+    if (!otpCheck.ok) {
+      return res.status(400).json({ message: otpCheck.message });
     }
 
     // Landline is optional, but if the college provided one it must be a
