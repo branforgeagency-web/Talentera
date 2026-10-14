@@ -84,7 +84,7 @@ export function getScoreBreakdown(profile) {
     const expMode = isExperiencedProfile(profile);
     const hasProof = !!(s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl);
     const expEarned = (String(s2.currentCompany || '').trim() && String(s2.jobTitle || '').trim() ? 10 : 0) + (hasProof ? 5 : 0);
-    const earned = expMode ? expEarned : (signedOff ? 10 + step3Pts : 0);
+    const earned = expMode ? expEarned : (signedOff ? 10 + step3Pts : (submitted ? 10 : 0));
     let tip;
     if (expMode) {
       tip = expEarned >= 15
@@ -95,7 +95,7 @@ export function getScoreBreakdown(profile) {
     } else if (signedOff) {
       tip = hasScore ? `Earned ${earned}/15 points (${step3Pts}/5 from Academy Assessment Score: ${rawScore}%).` : 'Earned 15/15 points — your academy has signed off on your training.';
     } else if (submitted) {
-      tip = 'Your academy details are submitted — the 15 points unlock once your academy approves them.';
+      tip = 'Your academy details are submitted — you have 10/15 points now; the remaining 5 unlock once your academy approves them.';
     } else {
       tip = 'Add your academy/institute name, training domain and specialties in Stage 2 to earn up to 15 points.';
     }

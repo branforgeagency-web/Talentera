@@ -471,7 +471,18 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
     };
   }, [candidateDomain]);
 
-  const domainSections = serverSections || getDomainSections(candidateDomain);
+  // Always 5 sections x 5 questions (25). Drop any extra section / extra questions a stale server bank may carry.
+  const domainSections = React.useMemo(() => {
+    const local = getDomainSections(candidateDomain);
+    if (!serverSections) return local;
+    let secs = serverSections;
+    if (secs.length > 5) {
+      // an oversized section (e.g. a stale 31-question bank) is not part of the 5x5 syllabus
+      const regular = secs.filter((x) => (x.questions || []).length <= 5);
+      if (regular.length >= 5) secs = regular;
+    }
+    return secs.slice(0, 5).map((x) => ({ ...x, questions: (x.questions || []).slice(0, 5) }));
+  }, [serverSections, candidateDomain]);
 
   // Derive Stage 3 certification strictly from stage 3 inputs
   const s3 = candidate?.stage3 || {};
@@ -1818,7 +1829,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                 2
               </div>
               <div style={{ fontSize: 15.5, fontWeight: 800, color: "var(--navy)", flex: 1 }}>
-                What You'll Take — 5 sections (25 questions total)
+                What You'll Take — {domainSections.length} sections ({fullTestQuestions.length} questions total)
               </div>
               <div style={{ background: "#FFF6E0", color: "#C99413", padding: "3px 10px", borderRadius: 12, fontSize: 10.5, fontWeight: 800 }}>
                 PROFILE-ADAPTIVE

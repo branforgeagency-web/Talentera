@@ -1,5 +1,6 @@
 const InterviewQuestion = require("../models/InterviewQuestion");
-const { generateInterviewQuestions, generateFinalReport } = require("./claudeInterview");
+const { generateFinalReport, DOMAIN_INTERVIEW_BANKS } = require("./claudeInterview");
+const { NEW_DEFAULT_INTERVIEW_QUESTIONS } = require("../data/defaultInterviewQuestions");
 
 // ---------------------------------------------------------------------------
 // Shared AI Mock Interview session helpers - build/finalize a
@@ -76,7 +77,53 @@ function formatQuestionItem(q, idx) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Comprehensive Question Bank seeding. The AI Mock Interview asks ONLY questions from the staff-managed
+// InterviewQuestion bank. Each domain is topped up with built-in questions so it always has 10+ to shuffle.
+// ---------------------------------------------------------------------------
+const BANK_DOMAINS = ["Medical Coding", "Medical Billing", "Accounts Receivable", "Eligibility & Verification"];
+const MIN_QUESTIONS_PER_DOMAIN = 10;
+
+function getDefaultInterviewSeed() {
+  const fromBuiltIn = [];
+  for (const domain of BANK_DOMAINS) {
+    const bankKey = domain === "Eligibility & Verification" ? "Front Office" : domain;
+    for (const q of DOMAIN_INTERVIEW_BANKS[bankKey] || []) {
+      fromBuiltIn.push({
+        domain,
+        text: q.question,
+        correctAnswer: q.correctAnswer || "",
+        keywords: Array.isArray(q.keywords) && q.keywords.length >= 3 ? q.keywords.slice(0, 3).map(String) : [],
+        mode: "both",
+        active: true,
+      });
+    }
+  }
+  return [...fromBuiltIn, ...NEW_DEFAULT_INTERVIEW_QUESTIONS];
+}
+
+let interviewBankEnsured = false;
+async function ensureDefaultInterviewBank(force = false) {
+  if (interviewBankEnsured && !force) return;
+  try {
+    const seed = getDefaultInterviewSeed();
+    for (const domain of BANK_DOMAINS) {
+      const aliases = getDomainQueryAliases(domain);
+      const existing = await InterviewQuestion.find({ domain: { $in: aliases } }).select("text active").lean();
+      const activeCount = existing.filter((q) => q.active !== false).length;
+      if (activeCount >= MIN_QUESTIONS_PER_DOMAIN) continue;
+      const have = new Set(existing.map((q) => normalizeQText(q.text)));
+      const missing = seed.filter((q) => q.domain === domain && !have.has(normalizeQText(q.text)));
+      if (missing.length) await InterviewQuestion.insertMany(missing, { ordered: false });
+    }
+    interviewBankEnsured = true;
+  } catch (e) {
+    console.warn("ensureDefaultInterviewBank notice:", e.message);
+  }
+}
+
 async function buildFreshAiInterviewSession(candidate) {
+  await ensureDefaultInterviewBank();
   const candidateName = candidate.stage1?.fullName || "Candidate";
   const candidateDomain = candidate.stage2?.domain || "Medical Coding";
   const domainQueryAliases = getDomainQueryAliases(candidateDomain);
@@ -142,22 +189,16 @@ async function buildFreshAiInterviewSession(candidate) {
 
   let finalRawQuestions = [...chosenQuestions];
 
-  // If active bank has fewer than 5 distinct questions, supplement using dynamic / diverse generator for this domain
+  // Bank-only: if staff have deactivated so many questions that fewer than 5 remain, top up from the
+  // built-in default bank copies of this domain's questions (never from AI-generated questions).
   if (finalRawQuestions.length < 5) {
-    const existingTexts = finalRawQuestions.map((q) => q.text || q.question);
-    const supplemental = await generateInterviewQuestions({
-      candidateName,
-      role,
-      experienceYears,
-      excludeQuestions: existingTexts,
-      domain: candidateDomain,
-    });
-
-    for (const sq of supplemental) {
+    const defaults = shuffleArray(
+      getDefaultInterviewSeed().filter((q) => domainQueryAliases.includes(q.domain))
+    );
+    for (const q of defaults) {
       if (finalRawQuestions.length >= 5) break;
-      const sqNorm = normalizeQText(sq.question || sq.text);
-      if (!finalRawQuestions.some((f) => normalizeQText(f.text || f.question) === sqNorm)) {
-        finalRawQuestions.push(sq);
+      if (!finalRawQuestions.some((c) => normalizeQText(c.text) === normalizeQText(q.text))) {
+        finalRawQuestions.push(q);
       }
     }
   }
@@ -240,4 +281,4 @@ async function finalizeAiInterviewSession(candidate, session, status) {
   return result;
 }
 
-module.exports = { buildFreshAiInterviewSession, finalizeAiInterviewSession, getDomainQueryAliases };
+module.exports = { buildFreshAiInterviewSession, finalizeAiInterviewSession, getDomainQueryAliases, ensureDefaultInterviewBank };

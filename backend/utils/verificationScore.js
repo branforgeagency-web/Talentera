@@ -117,7 +117,12 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         continue;
       }
       if (candidate && candidate.stage2?.verified !== true) {
-        continue; // academy has not signed off on the training yet
+        // Submitted but the academy has not signed off yet: provisional credit for the submitted
+        // training details; the rest (assessment-score part) unlocks on academy approval.
+        score += STAGE_POINTS[2] - 5;
+        stageScores[2] = STAGE_POINTS[2] - 5;
+        verifiedStages.push(2);
+        continue;
       }
       if (!candidate) {
         score += STAGE_POINTS[2];

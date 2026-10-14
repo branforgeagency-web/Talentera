@@ -6,6 +6,7 @@ import EditableNameList from "./EditableNameList.jsx";
 import AddressListField from "./AddressListField.jsx";
 import CityMultiSelect from "./CityMultiSelect.jsx";
 import RubricField from "./RubricField.jsx";
+import DeptGroupField from "./DeptGroupField.jsx";
 import { multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../../utils/otherOption.js";
 
 const TAG_LABEL = { must: "MUST", opt: "OPT", cond: "COND" };
@@ -363,6 +364,10 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
 
       {item.input === "city-multi" && (
         <CityMultiSelect value={value} onCommit={commit} placeholder={item.placeholder} />
+      )}
+
+      {item.input === "dept-groups" && (
+        <DeptGroupField value={value} onCommit={commit} />
       )}
 
       {item.input === "rubric" && (
