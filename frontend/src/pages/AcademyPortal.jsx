@@ -1701,9 +1701,10 @@ export default function AcademyPortal() {
                     ) : (
                       filteredCandidates.map((c) => {
                         const candIdShort = String(c.id || c._id || "").slice(-6).toUpperCase();
-                        const hasScoreValue = c.score && c.score !== "—" && c.score !== "Not Attempted";
+                        const regPending = !!c.registrationPending;
+                        const hasScoreValue = !regPending && c.score && c.score !== "—" && c.score !== "Not Attempted" && c.score !== "Registration pending";
                         const scoreVal = hasScoreValue ? parseInt(c.score, 10) : null;
-                        const isLive = (c.completion === 100 || c.completion === "100%" || c.status === "verified");
+                        const isLive = !regPending && (c.completion === 100 || c.completion === "100%" || c.status === "verified");
 
                         return (
                           <tr key={c.id || c._id} style={{ borderBottom: "1px solid #F1F5F9" }}>
@@ -1746,17 +1747,25 @@ export default function AcademyPortal() {
 
                             {/* 7-Stage Progress */}
                             <td style={{ padding: "12px 14px" }}>
+                              {regPending ? (
+                                <span style={{ color: "#94A3B8", fontSize: 11, fontWeight: 600 }}>Not started</span>
+                              ) : (
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <StageTracker8Dots stages={c.stages || []} size={13} onDotClick={() => setSelectedStudentForDetail(c)} />
                                 <span style={{ fontSize: 11, fontWeight: 800, color: "#06152A" }}>
                                   {c.completion || 0}%
                                 </span>
                               </div>
+                              )}
                             </td>
 
                             {/* Score */}
                             <td style={{ padding: "12px 14px" }}>
-                              {scoreVal !== null ? (
+                              {regPending ? (
+                                <span style={{ background: "#FEF3C7", color: "#92400E", padding: "2px 8px", borderRadius: 6, fontWeight: 800, fontSize: 11 }} title="Score will appear once the candidate registers on the candidate dashboard">
+                                  Registration pending
+                                </span>
+                              ) : scoreVal !== null ? (
                                 <span
                                   style={{
                                     background: scoreVal >= TALENTERA_PASS_PERCENTAGE ? "#DCFCE7" : "#FEE2E2",
@@ -1777,14 +1786,18 @@ export default function AcademyPortal() {
 
                             {/* Status */}
                             <td style={{ padding: "12px 14px" }}>
-                              <span style={{ background: isLive ? "#DCFCE7" : "#F1F5F9", color: isLive ? "#15803D" : "#64748B", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
-                                {isLive ? "Profile Live ✓" : (c.status || "In Progress")}
+                              <span style={{ background: regPending ? "#FEF3C7" : isLive ? "#DCFCE7" : "#F1F5F9", color: regPending ? "#92400E" : isLive ? "#15803D" : "#64748B", padding: "3px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                {regPending ? "Registration pending" : isLive ? "Profile Live ✓" : (c.status || "In Progress")}
                               </span>
                             </td>
 
                             {/* Match & Interview */}
                             <td style={{ padding: "12px 14px" }}>
-                              {c.status !== "placed" && scoreVal !== null && scoreVal < TALENTERA_PASS_PERCENTAGE ? (
+                              {regPending ? (
+                                <div style={{ fontSize: 11, color: "#92400E", fontWeight: 700 }}>
+                                  Awaiting candidate registration
+                                </div>
+                              ) : c.status !== "placed" && scoreVal !== null && scoreVal < TALENTERA_PASS_PERCENTAGE ? (
                                 <div style={{ fontSize: 11, color: "#B91C1C", fontWeight: 700 }}>
                                   Not Eligible - Below {TALENTERA_PASS_PERCENTAGE}% Pass Mark
                                 </div>
@@ -1794,7 +1807,7 @@ export default function AcademyPortal() {
                                 </div>
                               )}
                               <div style={{ fontSize: 10, color: "#64748B" }}>
-                                {c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Stage ${c.completion || "0%"}`)}
+                                {regPending ? "Score shows after registration" : c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Stage ${c.completion || "0%"}`)}
                               </div>
                             </td>
 
@@ -1813,7 +1826,7 @@ export default function AcademyPortal() {
                                   title="Send reminder via WhatsApp, SMS, and Email"
                                 >
                                   <Send style={{ width: 11, height: 11 }} />
-                                  Remind
+                                  {regPending ? "Remind to register" : "Remind"}
                                 </button>
 
                                 {scoreVal !== null && scoreVal < TALENTERA_PASS_PERCENTAGE && (

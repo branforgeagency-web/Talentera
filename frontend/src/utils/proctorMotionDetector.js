@@ -16,6 +16,7 @@ export function createMotionDetector(options = {}) {
   const motionRatioThreshold = options.motionRatioThreshold || 0.035; // 3.5% of background pixels
   const minPixelsThreshold = options.minPixelsThreshold || 140; // Absolute pixel count
   const sustainFrames = options.sustainFrames || 3; // Consecutive motion samples before alerting
+  const warmupFrames = options.warmupFrames || 0; // Samples ignored after start (camera auto-exposure settling)
 
   // Offscreen canvas for lightweight pixel extraction (~0.1ms per frame)
   let offscreenCanvas = null;
@@ -35,6 +36,8 @@ export function createMotionDetector(options = {}) {
     motionRatioThreshold,
     minPixelsThreshold,
     sustainFrames,
+    warmupFrames,
+    framesSeen: 0,
     offscreenCanvas,
     offscreenCtx,
     prevLuma: new Uint8Array(width * height),
@@ -176,7 +179,14 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
     detector.lastMovedPixels = movedPixels;
 
     // Motion trigger: exceed percentage threshold or significant absolute moved pixel count
-    const frameMotion = motionRatio >= detector.motionRatioThreshold || movedPixels >= detector.minPixelsThreshold;
+    detector.framesSeen++;
+    if (detector.framesSeen <= detector.warmupFrames) {
+      // Warm-up: let the baseline settle, never alert
+      return { isMotionDetected: false, motionRatio, movedPixels, totalBgPixels };
+    }
+    // Both the ratio AND the absolute pixel count must be exceeded (was OR), so a
+    // patterned/curtain background with sensor noise can't trip it on one criterion alone.
+    const frameMotion = motionRatio >= detector.motionRatioThreshold && movedPixels >= detector.minPixelsThreshold;
 
     if (frameMotion) {
       detector.consecutiveMotionFrames++;
@@ -188,7 +198,9 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
       }
     } else {
       detector.consecutiveStillFrames++;
-      // Clear after 3 consecutive clean samples
+      // Clear after 3 consecutive clean samples; a single clean sample also resets a
+      // half-built streak so only truly continuous movement ever alerts
+      if (detector.consecutiveStillFrames >= 1 && !detector.isMotionActive) detector.consecutiveMotionFrames = 0;
       if (detector.consecutiveStillFrames >= 3) {
         detector.consecutiveMotionFrames = 0;
         detector.isMotionActive = false;

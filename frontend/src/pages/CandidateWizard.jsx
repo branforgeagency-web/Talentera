@@ -44,6 +44,7 @@ export default function CandidateWizard() {
   const [activeStageId, setActiveStageId] = useState(1);
   const [loading, setLoading] = useState(true);
   const [showDashboard, setShowDashboard] = useState(false);
+  const [stage6Preview, setStage6Preview] = useState(null);
   const [showVerifiedPool, setShowVerifiedPool] = useState(false);
 
   useEffect(() => {
@@ -277,13 +278,22 @@ export default function CandidateWizard() {
   const StageComponent = STAGE_COMPONENTS[activeStage.num];
   const canViewDashboard = Boolean(candidateObj?.isSubmitted || completedStages.length >= 1);
 
+  // Base score from the server + live Stage 6 preview delta (typed but not yet saved)
+  const baseScore = profile?.score || profile?.earnedPoints || candidateObj?.score || 0;
+  const savedS6Pts = (candidateObj?.stage6 && !candidateObj.stage6.skipped && (candidateObj.completedStages || []).includes(6) && typeof candidateObj.stage6.verificationPoints === "number")
+    ? Math.round((candidateObj.stage6.verificationPoints / 10) * 20)
+    : 0;
+  const displayedScore = stage6Preview !== null && shownStageId === 6
+    ? Math.min(100, Math.max(0, baseScore - savedS6Pts + stage6Preview))
+    : baseScore;
+
   return (
     <div className="wiz-shell">
       <WizardSidebar
         completedStages={completedStages}
         activeStageId={shownStageId}
         onSelect={handleSelectStage}
-        earnedPoints={profile?.score || profile?.earnedPoints || candidateObj?.score || 0}
+        earnedPoints={displayedScore}
         onSubmit={handleSubmitForVerification}
         onSaveExit={handleSaveExit}
         onViewDashboard={canViewDashboard ? () => setShowDashboard(true) : null}
@@ -384,6 +394,7 @@ export default function CandidateWizard() {
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
+              {...(activeStage?.num === 6 ? { onPreviewPoints: setStage6Preview } : {})}
             />
           )}
         </WizardStagePane>

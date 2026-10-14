@@ -1377,7 +1377,10 @@ export default function StaffHub() {
         },
         body: JSON.stringify({ active: !q.active }),
       });
-      if (!res.ok) throw new Error("Failed to toggle question status.");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.message || "Failed to toggle question status.");
+      }
       showToast(`Question status updated to ${!q.active ? "Active" : "Inactive"}.`);
       setInterviewQuestions((prev) =>
         prev.map((item) => ((item._id || item.id) === qId ? { ...item, active: !item.active } : item))
@@ -1393,7 +1396,11 @@ export default function StaffHub() {
         method: "DELETE",
         headers: { ...getAuthHeader() },
       });
-      if (!res.ok) throw new Error("Failed to delete interview question.");
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        setQuestionDeleteConfirmId(null);
+        throw new Error(errBody.message || "Failed to delete interview question.");
+      }
       showToast("Interview question removed from bank.");
       setQuestionDeleteConfirmId(null);
       setInterviewQuestions((prev) => prev.filter((item) => (item._id || item.id) !== qId));
