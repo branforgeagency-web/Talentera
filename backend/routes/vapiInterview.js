@@ -2,7 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const Candidate = require("../models/Candidate");
 const logger = require("../utils/logger");
-const { getMessiTurn } = require("../utils/claudeInterview");
+const { getMessiTurn, detectQuickIntent } = require("../utils/claudeInterview");
 const { buildFreshAiInterviewSession, finalizeAiInterviewSession } = require("../utils/aiInterviewSession");
 
 const router = express.Router();
@@ -61,6 +61,31 @@ function withCandidateLock(candidateId, fn) {
     if (candidateLocks.get(key) === tracked) candidateLocks.delete(key);
   });
   return run;
+}
+
+// The candidate must be silent for ~10 s after finishing before the interview moves on. Vapi's own
+// turn-taking waits ~5 s (startSpeakingPlan.waitSeconds, its maximum), so hold the reply for the
+// remaining few seconds. If the candidate starts speaking again, Vapi aborts this in-flight request
+// (the response socket closes) - resolve true so the caller drops the turn WITHOUT recording or
+// advancing anything; the fuller answer arrives in the next webhook call.
+const EXTRA_SILENCE_HOLD_MS = 5000;
+function holdForContinuedSpeech(res, ms) {
+  return new Promise((resolve) => {
+    let done = false;
+    const onClose = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(!res.writableFinished);
+    };
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true;
+      res.off("close", onClose);
+      resolve(false);
+    }, ms);
+    res.on("close", onClose);
+  });
 }
 
 function extractAuthToken(messages) {
@@ -208,6 +233,12 @@ async function handleTurn(req, res, candidateId, messages) {
         ? `Question ${session.currentQuestionIndex + 1} of ${session.questions.length}: ${currentQ.question}`
         : `Thank you. ${CLOSING_PHRASE}.`;
       return sendAssistantReply(req, res, reply);
+    }
+
+    // Real answers (not short commands like "repeat" / "skip") wait for continued silence first.
+    if (detectQuickIntent(utterance) === "answer") {
+      const interrupted = await holdForContinuedSpeech(res, EXTRA_SILENCE_HOLD_MS);
+      if (interrupted) return; // candidate kept talking - Vapi cancelled this request
     }
 
     // A normal answered turn.
