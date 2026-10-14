@@ -32,6 +32,18 @@ const DASHBOARD_FETCH_CAP = 500;
 // Where a student invite's signup link points. Uses https://talentera-nine.vercel.app as requested.
 const APP_URL = (process.env.APP_URL || "https://talentera-nine.vercel.app").replace(/\/$/, "");
 
+// A candidate the academy added (CSV/manual/invite) who has not yet signed up
+// through the candidate dashboard: never OTP-verified, no Aadhaar eKYC, and Stage 1
+// not completed. Their Talentera score is just academy-seeded data, so the academy
+// dashboard shows "Registration pending" instead of a misleading low score.
+function isRegistrationPending(c) {
+  if (!c) return false;
+  if (c.isVerified || c.verifiedAt) return false;
+  if (c.stage1?.aadhaarVerified === true || c.stage1?.aadhaarStatus === "VERIFIED") return false;
+  if ((c.completedStages || []).includes(1)) return false;
+  return true;
+}
+
 function inviteSignupLink(inviteToken) {
   return `${APP_URL}/register?invite=${inviteToken}`;
 }
@@ -440,7 +452,7 @@ async function computeAcademyMetrics(academy) {
 
   // Talentera Score average (Stages 1-6 weighted, out of 100) - see
   // backend/utils/talenteraScore.js - not just the raw Stage 4 MCQ percentage.
-  const candidateScores = candidatesList.map((c) => compute8Stages(c).talenteraScore);
+  const candidateScores = candidatesList.map((c) => (isRegistrationPending(c) ? 0 : compute8Stages(c).talenteraScore));
   const scoredStudents = candidateScores.filter((sc) => sc > 0);
   const avgScore = scoredStudents.length > 0
     ? Math.round(scoredStudents.reduce((sum, sc) => sum + sc, 0) / scoredStudents.length)
@@ -925,9 +937,10 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       const initials = nameParts.length >= 2 ? `${nameParts[0][0]}${nameParts[1][0]}`.toUpperCase() : nameParts[0].slice(0, 2).toUpperCase();
 
       const stageInfo = compute8Stages(c);
+      const regPending = isRegistrationPending(c);
       const isPlaced = c.stage8?.placementStatus?.toLowerCase().includes("placed");
       const status = isPlaced ? "placed" : stageInfo.isComplete ? "verified" : stageInfo.doneCount > 0 ? "verifying" : "uploaded";
-      const placementStatus = c.stage8?.placementStatus || (stageInfo.isComplete ? "Available for Placement" : `Stage ${stageInfo.currentStageNumber} in Progress`);
+      const placementStatus = regPending ? "Awaiting candidate registration" : c.stage8?.placementStatus || (stageInfo.isComplete ? "Available for Placement" : `Stage ${stageInfo.currentStageNumber} in Progress`);
 
       const hasAiVideo = s5.aiScore !== undefined && s5.aiScore !== null && !isNaN(Number(s5.aiScore));
 
@@ -943,8 +956,9 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         status,
         // Talentera Score (Stages 1-6 weighted, out of 100) - not the raw Stage 4
         // MCQ percentage. See backend/utils/talenteraScore.js.
-        score: stageInfo.talenteraScore > 0 ? `${stageInfo.talenteraScore} / 100` : "Not Attempted",
-        talenteraScore: stageInfo.talenteraScore,
+        registrationPending: regPending,
+        score: regPending ? "Registration pending" : (stageInfo.talenteraScore > 0 ? `${stageInfo.talenteraScore} / 100` : "Not Attempted"),
+        talenteraScore: regPending ? 0 : stageInfo.talenteraScore,
         completion: `${stageInfo.pct}%`,
         cert: s3.certName || s3.certCode || "—",
         placementStatus,

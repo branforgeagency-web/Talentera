@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { safeJson } from "../../utils/safeJson.js";
+import SearchableSelect from "../SearchableSelect.jsx";
+import { CITIES_BY_STATE, INDIAN_CITIES } from "../../data/indianCities.js";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -16,6 +18,10 @@ import {
   Save,
   RotateCcw,
 } from "lucide-react";
+
+const BRANCH_STATES = Object.keys(CITIES_BY_STATE);
+const BRANCH_OTHER_CITY = "Other (type city)";
+const BRANCH_FIELD_STYLE = { width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" };
 
 const ACCREDITATION_OPTIONS = [
   "AAPC Approved Education Partner",
@@ -1115,8 +1121,50 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
                     <input type="text" value={b.name || ""} onChange={(e) => updateBranch(idx, "name", e.target.value)} placeholder="Branch name (e.g. Ameerpet)" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
-                    <input type="text" value={b.city || ""} onChange={(e) => updateBranch(idx, "city", e.target.value)} placeholder="City" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
-                    <input type="text" value={b.state || ""} onChange={(e) => updateBranch(idx, "state", e.target.value)} placeholder="State" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    {(() => {
+                      const stateCities = b.state && CITIES_BY_STATE[b.state] ? CITIES_BY_STATE[b.state] : null;
+                      const cityOptions = [...(stateCities || INDIAN_CITIES.map((c) => c.city)), BRANCH_OTHER_CITY];
+                      const customCity = b._cityOther || (b.city && !cityOptions.includes(b.city) && !stateCities?.includes(b.city) && !INDIAN_CITIES.some((c) => c.city === b.city));
+                      if (customCity) {
+                        return (
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <input type="text" value={b.city || ""} onChange={(e) => updateBranch(idx, "city", e.target.value)} placeholder="Type city / area" style={BRANCH_FIELD_STYLE} />
+                            <button type="button" title="Pick from the city list" onClick={() => { updateBranch(idx, "_cityOther", false); updateBranch(idx, "city", ""); }} style={{ border: "1px solid #CBD5E1", background: "#fff", borderRadius: 8, padding: "0 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>List</button>
+                          </div>
+                        );
+                      }
+                      return (
+                        <SearchableSelect
+                          value={b.city || ""}
+                          options={cityOptions}
+                          placeholder={b.state ? "Select city" : "Select city (or pick state first)"}
+                          inputStyle={BRANCH_FIELD_STYLE}
+                          onChange={(v) => {
+                            if (v === BRANCH_OTHER_CITY) {
+                              updateBranch(idx, "_cityOther", true);
+                              updateBranch(idx, "city", "");
+                              return;
+                            }
+                            updateBranch(idx, "city", v);
+                            if (!b.state) {
+                              const hit = INDIAN_CITIES.find((c) => c.city === v);
+                              if (hit) updateBranch(idx, "state", hit.state);
+                            }
+                          }}
+                        />
+                      );
+                    })()}
+                    <SearchableSelect
+                      value={b.state || ""}
+                      options={BRANCH_STATES}
+                      placeholder="Select state"
+                      inputStyle={BRANCH_FIELD_STYLE}
+                      onChange={(v) => {
+                        updateBranch(idx, "state", v);
+                        const list = CITIES_BY_STATE[v] || [];
+                        if (b.city && !list.includes(b.city) && !b._cityOther) updateBranch(idx, "city", "");
+                      }}
+                    />
                     <input type="text" value={b.phone || ""} onChange={(e) => updateBranch(idx, "phone", e.target.value)} placeholder="Branch contact number" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                     <input type="text" value={b.address || ""} onChange={(e) => updateBranch(idx, "address", e.target.value)} placeholder="Full address" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                   </div>

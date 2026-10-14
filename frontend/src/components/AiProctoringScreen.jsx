@@ -127,6 +127,7 @@ export default function AiProctoringScreen({
   const [bgMovementActive, setBgMovementActive] = useState(false);
   const [faceCountVal, setFaceCountVal] = useState(1);
   const motionDetectorRef = useRef(null);
+  const bgWarningsCountedRef = useRef(0);
   const audioContextRef = useRef(null);
 
   useEffect(() => {
@@ -134,9 +135,11 @@ export default function AiProctoringScreen({
       width: 120,
       height: 90,
       checkIntervalMs: 80,
-      lumaDiffThreshold: 34, // needs a bigger per-pixel brightness change to count as movement
-      motionRatioThreshold: 0.07, // needs ~2x more of the background to change before flagging
-      minPixelsThreshold: 260,
+      lumaDiffThreshold: 42, // needs a big per-pixel brightness change to count as movement
+      motionRatioThreshold: 0.12, // >=12% of the background must change
+      minPixelsThreshold: 900,
+      sustainFrames: 30, // ~2.4 s of CONTINUOUS movement before alerting (was ~0.25 s)
+      warmupFrames: 40, // ~3 s after camera start: ignore auto-exposure settling
     });
   }, []);
 
@@ -534,8 +537,15 @@ export default function AiProctoringScreen({
 
           // Log infraction with a 3.5s cooldown so continuous turning counts as 1 infraction rather than flooding state
           const now = Date.now();
-          if (now - lastInfractionTimestampRef.current > 3500) {
+          // Background movement alone is the least reliable signal (curtains, lighting, camera noise), so it
+          // is shown as a notice but only counts toward the 10-warning limit once per 20 s and at most 3 times
+          // in total - it can never auto-disconnect an honest candidate on its own.
+          const isBgOnly = anomaly === "background_movement";
+          const cooldown = isBgOnly ? 20000 : 3500;
+          const bgBudgetLeft = !isBgOnly || bgWarningsCountedRef.current < 3;
+          if (now - lastInfractionTimestampRef.current > cooldown && bgBudgetLeft) {
             lastInfractionTimestampRef.current = now;
+            if (isBgOnly) bgWarningsCountedRef.current += 1;
             attentionWarningsCountRef.current += 1;
             const currentCount = attentionWarningsCountRef.current;
             setAttentionWarningsCount(currentCount);

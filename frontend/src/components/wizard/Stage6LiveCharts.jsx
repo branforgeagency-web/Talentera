@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import { isSelfTrainedCandidate, isLiveChartExemptDomain } from "../../data/wizardStages.js";
@@ -134,7 +134,7 @@ function nextTierGoal(total, acc, tier) {
   return { done: false, next: next.tier, text: `${parts.join(" and ")} to reach ${next.tier} (${next.charts}+ charts at ${next.acc}%+ accuracy).` };
 }
 
-export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
+export default function Stage6LiveCharts({ existingData, candidate, onSaved, onPreviewPoints }) {
   const toast = useToast();
   const fileInputRef = useRef(null);
 
@@ -219,6 +219,14 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved }) {
     [evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, uploadedDocUrl, s6.employeeVerified]
   );
   const { totalCharts, overallAccuracy, tier } = result;
+
+  // Live-update the sidebar "Verification Score" while the candidate types their
+  // chart numbers (before they hit Save). Cleared when leaving Stage 6.
+  const previewPassportPoints = Math.round((result.points / 10) * 20);
+  useEffect(() => {
+    if (onPreviewPoints) onPreviewPoints(previewPassportPoints);
+  }, [previewPassportPoints]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => { if (onPreviewPoints) onPreviewPoints(null); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const goal = useMemo(() => nextTierGoal(totalCharts, overallAccuracy, tier), [totalCharts, overallAccuracy, tier]);
   const pathMeta = PATHS.find((p) => p.id === evidencePath) || PATHS[2];
 

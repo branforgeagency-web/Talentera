@@ -12,6 +12,7 @@ import CandidateReferralPortalSection from '../components/CandidateReferralPorta
 import CandidateEmployerReferralsSection from '../components/CandidateEmployerReferralsSection.jsx';
 import CandidateAcademyReferralsSection from '../components/CandidateAcademyReferralsSection.jsx';
 import CompanyFullDetails from '../components/CompanyFullDetails.jsx';
+import { isSelfTrainedCandidate } from '../data/wizardStages';
 import './CandidateDashboard.css';
 
 // Points are earned only for what the candidate has actually done - being marked "completed",
@@ -105,7 +106,7 @@ export function getScoreBreakdown(profile) {
   // Stage 3 - Certification (a real certification only; Non-Certified / Pursuing earn nothing)
   {
     const s3 = profile.stage3 || {};
-    const maxPts = isExperiencedProfile(profile) ? 35 : 15;
+    const maxPts = isExperiencedProfile(profile) ? 35 : 20;
     const hasCert = hasRealCertification(s3);
     const verified = s3.certStatus === 'verified' || s3.status === 'verified' || s3.verified === true;
     const nonCert = s3.nonCertified === true || s3.certStatus === 'non-certified' || s3.certType === 'non-certified';
@@ -114,10 +115,11 @@ export function getScoreBreakdown(profile) {
       earned = maxPts;
       tip = 'Fully earned — your certification is verified.';
     } else if (hasCert) {
-      earned = Math.round(maxPts * 0.75);
+      earned = isExperiencedProfile(profile) ? Math.round(maxPts * 0.75) : 15;
       tip = `Your certification is on file but still pending verification — get it verified to unlock the remaining ${maxPts - earned} points.`;
     } else if (nonCert) {
-      tip = 'You chose Non-Certified, so this stage earns no points. Add a certification (e.g. CPC, CCS, CPB) to earn up to ' + maxPts + ' points.';
+      earned = 15;
+      tip = 'You chose Non-Certified, so this stage gives a fixed 15 points. Add a certification (e.g. CPC, CCS, CPB) to earn more' + (maxPts > 15 ? ' (up to ' + maxPts + ' points).' : ' and get it verified.');
     } else {
       tip = 'Add at least one certification (e.g. CPC, CCS, CPB) in Stage 3 to earn up to ' + maxPts + ' points.';
     }
@@ -173,7 +175,11 @@ export function getScoreBreakdown(profile) {
     const s6HasEvidence =
       !(s6.skipped || s6optForRole === 'd' || s6optForRole.includes('none') || s6optForRole === 'no_exposure') &&
       ((s6.totalCharts || 0) > 0 || (typeof s6.verificationPoints === 'number' && s6.verificationPoints > 0));
-    if (LIVE_CHART_EXEMPT.includes((profile.stage2 && profile.stage2.domain) || '') && !s6HasEvidence) {
+    const selfTrained = isSelfTrainedCandidate(profile);
+    const s6Skipped = Boolean(s6.skipped) || s6optForRole === 'd' || s6optForRole.includes('none') || s6optForRole === 'no_exposure';
+    if (selfTrained && s6Skipped && !s6HasEvidence && (completedStages.includes(6) || s6.skipped)) {
+      rows.push({ num: 6, name: 'Live Charts Audit', max: 20, earned: 15, tip: 'You skipped Live Charts as a non-trained candidate — a fixed 15 points is added. Log charts with evidence in Stage 6 to earn up to 20.' });
+    } else if (LIVE_CHART_EXEMPT.includes((profile.stage2 && profile.stage2.domain) || '') && !s6HasEvidence) {
       rows.push({ num: 6, name: 'Live Charts (Bonus)', max: 0, earned: 0, tip: 'Optional for your role — it does not lower your score. Add live chart exposure to earn bonus points.' });
     } else {
       const opt = (s6.evidencePath || s6.option || '').toLowerCase();

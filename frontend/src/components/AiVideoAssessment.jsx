@@ -718,55 +718,63 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
     setQaTranscripts({});
     setSessionStarted(true);
 
-    try {
-      let mimeType = "";
-      const candidates = [
-        "video/webm;codecs=vp8,opus",
-        "video/webm;codecs=vp9,opus",
-        "video/webm",
-        "video/mp4",
-      ];
-      if (typeof MediaRecorder !== "undefined") {
-        for (const cand of candidates) {
-          if (MediaRecorder.isTypeSupported(cand)) {
-            mimeType = cand;
-            break;
+    // The AI reads the prompt FIRST (so its voice is never captured in the candidate's video);
+    // the recorder only starts once the announcement has finished.
+    const beginRecorder = () => {
+      try {
+        let mimeType = "";
+        const candidates = [
+          "video/webm;codecs=vp8,opus",
+          "video/webm;codecs=vp9,opus",
+          "video/webm",
+          "video/mp4",
+        ];
+        if (typeof MediaRecorder !== "undefined") {
+          for (const cand of candidates) {
+            if (MediaRecorder.isTypeSupported(cand)) {
+              mimeType = cand;
+              break;
+            }
           }
         }
-      }
 
-      let mediaRecorder;
-      try {
-        const recorderOptions = mimeType ? { mimeType } : {};
-        mediaRecorder = new MediaRecorder(activeStream, recorderOptions);
-      } catch (optErr) {
-        console.warn("Falling back to default recorder without options:", optErr.message);
-        mediaRecorder = new MediaRecorder(activeStream);
-      }
-      mediaRecorderRef.current = mediaRecorder;
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          recordedChunksRef.current.push(e.data);
+        let mediaRecorder;
+        try {
+          const recorderOptions = mimeType ? { mimeType } : {};
+          mediaRecorder = new MediaRecorder(activeStream, recorderOptions);
+        } catch (optErr) {
+          console.warn("Falling back to default recorder without options:", optErr.message);
+          mediaRecorder = new MediaRecorder(activeStream);
         }
-      };
+        mediaRecorderRef.current = mediaRecorder;
 
-      mediaRecorder.onerror = (e) => {
-        console.error("MediaRecorder runtime error:", e);
-      };
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            recordedChunksRef.current.push(e.data);
+          }
+        };
 
-      mediaRecorder.start(1000);
-      isRecordingActiveRef.current = true;
-    } catch (err) {
-      console.error("MediaRecorder start error:", err);
-      toast("Recording initialization error: " + err.message, "!");
-    } finally {
-      isStartingRef.current = false;
-    }
+        mediaRecorder.onerror = (e) => {
+          console.error("MediaRecorder runtime error:", e);
+        };
+
+        mediaRecorder.start(1000);
+        isRecordingActiveRef.current = true;
+      } catch (err) {
+        console.error("MediaRecorder start error:", err);
+        toast("Recording initialization error: " + err.message, "!");
+      } finally {
+        isStartingRef.current = false;
+      }
+
+    };
 
     // AI speaks the Self-Introduction prompt aloud first; the answer window (timer + speech recognition)
     // opens once it finishes speaking.
-    speakQuestion(questionsList[0].question, () => startAnswerWindow(0));
+    speakQuestion(questionsList[0].question, () => {
+      beginRecorder();
+      startAnswerWindow(0);
+    });
   }
 
   function speakQuestion(text, onComplete) {
@@ -790,8 +798,10 @@ export default function AiVideoAssessment({ existingData, onSaved, customQuestio
       };
       utterance.onend = finish;
       utterance.onerror = finish;
-      // Safety timeout in case onend event does not trigger
-      setTimeout(() => finish(), 6000);
+      // Safety timeout in case onend event does not trigger (scaled to the prompt length so a long
+      // announcement is never cut off - and recording never starts - while the AI is still talking)
+      const wordCount = String(text || "").trim().split(/\s+/).length;
+      setTimeout(() => finish(), Math.max(8000, wordCount * 600 + 4000));
       window.speechSynthesis.speak(utterance);
     } catch (e) {
       console.warn("TTS speak error:", e);

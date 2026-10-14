@@ -49,6 +49,30 @@ function isExperiencedCandidate(candidate) {
   return /exp/i.test(String((candidate && candidate.stage1 && candidate.stage1.experience) || ""));
 }
 
+// Fixed credit for the two "no evidence" cases the business rules give 15 points for:
+//  - a Non-Trained (self-trained) candidate who skips Live Charts / has no chart exposure
+//  - a candidate who chose Non-Certified in Stage 3
+const SKIP_CREDIT_POINTS = 15;
+
+// Keep in sync with isSelfTrainedCandidate() in routes/candidate.js and frontend/src/data/wizardStages.js.
+const SELF_SOURCE_RE = /self[\s-]?(learning|study|taught|trained)|youtube|udemy|coursera|\bedx\b|online course|aapc official|ahima study|blogs?,? forums|on-the-job/i;
+function isSelfTrainedCandidate(candidate) {
+  const s2 = (candidate && candidate.stage2) || {};
+  const level = String(s2.trainingLevel || s2.level || "");
+  const source = String(s2.selfLearningSource || s2.academyName || s2.instituteName || "");
+  return Boolean(
+    s2.trainingPath === "self" || s2.trainingPath === "non_trained" || s2.trainingPath === "non-trained" ||
+    s2.isNonTrained || s2.isSelfTrained || s2.trainingType === "self" ||
+    (candidate && (candidate.trainingPath === "self" || candidate.trainingPath === "non_trained" || candidate.trainingPath === "non-trained" || candidate.isSelfTrained || candidate.isNonTrained)) ||
+    s2.selfLearningSource || /non[\s-]?trained/i.test(level) || SELF_SOURCE_RE.test(source)
+  );
+}
+
+function isNonCertified(s3 = {}) {
+  const type = String(s3.certType || s3.status || "").toLowerCase();
+  return s3.nonCertified === true || s3.isCertified === false || s3.certStatus === "non-certified" || type.includes("non-cert");
+}
+
 // ---- Evidence checks -------------------------------------------------------------------
 // Points are only earned for what the candidate has actually done. Being marked "completed"
 // (or choosing a path) is not enough on its own - e.g. a Non-Certified candidate has no
@@ -96,7 +120,10 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   const verifiedStages = [];
   const stageScores = {};
   const experienced = isExperiencedCandidate(candidate);
-  const stage3Max = experienced ? STAGE_POINTS[3] + STAGE_POINTS[4] : STAGE_POINTS[3];
+// Certification is "added value": freshers get a fixed 15 even when Non-Certified (so having no
+  // certificate never lowers a college student's score); a certificate on file keeps the 15 and a
+  // verified one adds +5 on top. The total is still capped at 100.
+  const stage3Max = experienced ? STAGE_POINTS[3] + STAGE_POINTS[4] : STAGE_POINTS[3] + 5;
 
   for (const stage of completedStages) {
     if (stage === 1) {
@@ -154,14 +181,20 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       // Certification verification: only award full points if audit verified;
       // a submitted-but-not-yet-audited certification earns partial credit.
       if (candidate && !hasRealCertification(candidate.stage3 || {})) {
-        continue; // non-certified / still pursuing: no certification, no points
+        if (isNonCertified(candidate.stage3 || {})) {
+          // Chose "Non-Certified": fixed 15 points (not the 35 an experienced certified candidate can earn).
+          score += SKIP_CREDIT_POINTS;
+          stageScores[3] = SKIP_CREDIT_POINTS;
+          verifiedStages.push(3);
+        }
+        continue; // still pursuing / nothing entered: no points
       }
       if (!candidate || candidate.stage3?.certStatus === "verified" || candidate.stage3?.status === "verified" || candidate.stage3?.verified === true) {
         score += stage3Max;
         stageScores[3] = stage3Max;
         verifiedStages.push(3);
       } else {
-        const pts3 = Math.round(stage3Max * 0.75);
+        const pts3 = experienced ? Math.round(stage3Max * 0.75) : SKIP_CREDIT_POINTS;
         score += pts3;
         stageScores[3] = pts3;
         verifiedStages.push(3);
@@ -214,6 +247,10 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         const opt = (s6.evidencePath || s6.option || "").toLowerCase();
         let pts = 0;
         if (s6.skipped) {
+          if (isSelfTrainedCandidate(candidate)) {
+            score += SKIP_CREDIT_POINTS;
+            stageScores[6] = SKIP_CREDIT_POINTS;
+          }
           continue;
         }
         if (typeof s6.verificationPoints === "number") {
@@ -230,11 +267,11 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         } else if (opt === "c" || opt.includes("self") || opt === "declare") {
           pts = Math.round(STAGE_POINTS[6] * 0.8);
         } else if (opt === "d" || opt.includes("none") || opt === "no_exposure") {
-          pts = 0;
+          pts = isSelfTrainedCandidate(candidate) ? SKIP_CREDIT_POINTS : 0;
         } else if ((s6.totalCharts || 0) > 0) {
           pts = STAGE_POINTS[6];
         } else {
-          pts = 0; // no charts logged = nothing earned
+          pts = isSelfTrainedCandidate(candidate) ? SKIP_CREDIT_POINTS : 0; // no charts logged
         }
         score += pts;
         stageScores[6] = pts;

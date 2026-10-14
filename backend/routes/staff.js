@@ -1653,12 +1653,41 @@ router.post("/interview-questions", requireStaffAuth, async (req, res) => {
   }
 });
 
+// The AI Mock Interview asks 5 questions, so each candidate-facing domain must always keep at least 5 ACTIVE
+// questions in the bank. Disabling, deleting or moving a question out of a domain is refused below that.
+const MIN_ACTIVE_INTERVIEW_QUESTIONS = 5;
+const MIN_ACTIVE_DOMAINS = ["Medical Coding", "Medical Billing", "Accounts Receivable", "Front Office", "Eligibility & Verification"];
+
+async function wouldDropBelowMinimum(domain, excludeId) {
+  if (!MIN_ACTIVE_DOMAINS.includes(domain)) return false;
+  const { getDomainQueryAliases } = require("../utils/aiInterviewSession");
+  const remaining = await InterviewQuestion.countDocuments({
+    _id: { $ne: excludeId },
+    active: true,
+    domain: { $in: getDomainQueryAliases(domain) },
+  });
+  return remaining < MIN_ACTIVE_INTERVIEW_QUESTIONS;
+}
+
+const MIN_ACTIVE_MESSAGE = `Each domain must keep at least ${MIN_ACTIVE_INTERVIEW_QUESTIONS} active questions for the AI mock interview. Add or enable another question in this domain first.`;
+
 // PUT /api/staff/interview-questions/:id - edit an existing question
 router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
   try {
     const { text, correctAnswer, mode, order, active, domain, topic, keywords } = req.body;
     const question = await InterviewQuestion.findById(req.params.id);
     if (!question) return res.status(404).json({ message: "Interview question not found." });
+
+    // Minimum-5 guard: refuse if this edit takes the question out of its domain's active set.
+    const origActive = question.active !== false;
+    const origDomain = question.domain;
+    const nextActive = active !== undefined ? Boolean(active) : origActive;
+    const nextDomain = domain !== undefined && MIN_ACTIVE_DOMAINS.concat("General").includes(domain) ? domain : origDomain;
+    const { getDomainQueryAliases: aliasesOf } = require("../utils/aiInterviewSession");
+    const movesAway = !aliasesOf(origDomain).includes(nextDomain);
+    if (origActive && (!nextActive || movesAway) && (await wouldDropBelowMinimum(origDomain, question._id))) {
+      return res.status(400).json({ message: MIN_ACTIVE_MESSAGE });
+    }
 
     if (text !== undefined) {
       const trimmedText = text.trim();
@@ -1705,6 +1734,11 @@ router.put("/interview-questions/:id", requireStaffAuth, async (req, res) => {
 // DELETE /api/staff/interview-questions/:id - remove a question
 router.delete("/interview-questions/:id", requireStaffAuth, async (req, res) => {
   try {
+    const toDelete = await InterviewQuestion.findById(req.params.id).lean();
+    if (!toDelete) return res.status(404).json({ message: "Interview question not found." });
+    if (toDelete.active !== false && (await wouldDropBelowMinimum(toDelete.domain, toDelete._id))) {
+      return res.status(400).json({ message: MIN_ACTIVE_MESSAGE });
+    }
     const deleted = await InterviewQuestion.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Interview question not found." });
 
