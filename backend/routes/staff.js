@@ -1599,6 +1599,8 @@ router.get("/interview-questions", requireStaffAuth, async (req, res) => {
     if (req.query.domain && req.query.domain !== "all") {
       filter.domain = req.query.domain;
     }
+    // Make sure every domain has the built-in 10+ questions so staff can see / edit them.
+    await require("../utils/aiInterviewSession").ensureDefaultInterviewBank();
     const questions = await InterviewQuestion.find(filter).sort({ domain: 1, mode: 1, order: 1, createdAt: 1 }).lean();
     res.json({ questions });
   } catch (err) {

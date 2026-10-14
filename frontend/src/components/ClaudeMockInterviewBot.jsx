@@ -7,7 +7,8 @@ import { applyFemaleVoice, warmUpVoices } from "../utils/femaleVoice";
 import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMotionDetector";
 
 // Maximum seconds of inactivity allowed before auto-advancing to next question
-const INACTIVITY_TIMEOUT_SECONDS = 30;
+const INACTIVITY_TIMEOUT_SECONDS = 60; // time to think + start answering each question
+const ANSWER_PAUSE_SECONDS = 5; // pause allowed mid-answer before the answer is submitted and the next question starts
 
 const TOPIC_CONFIG = [
   { key: "ICD-10-CM", label: "1. ICD-10-CM Coding", icon: "fa-notes-medical" },
@@ -21,7 +22,7 @@ const EVAL_LABELS = {
   correct: { label: "Strong Answer", color: "#15803D", bg: "#DCFCE7" },
   partial: { label: "Good Foundation", color: "#B45309", bg: "#FEF3C7" },
   incorrect: { label: "Review Recommended", color: "#B91C1C", bg: "#FEE2E2" },
-  no_answer: { label: "No Response (30s)", color: "#64748B", bg: "#F1F5F9" },
+  no_answer: { label: "No Response (60s)", color: "#64748B", bg: "#F1F5F9" },
 };
 
 function formatDuration(totalSeconds) {
@@ -706,7 +707,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
-  // Starts the 5-second countdown to start answering
+  // Starts the 60-second countdown to start answering
   function startInactivityCountdown() {
     clearInactivityTimer();
     answerStartedRef.current = false;
@@ -731,14 +732,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }, 1000);
   }
 
-  // Triggered when 30 seconds pass with no speech or typing
+  // Triggered when 60 seconds pass with no speech or typing
   function handleInactivityTimeout() {
     if (answerStartedRef.current || stoppingAnswerRef.current) return;
     stoppingAnswerRef.current = true;
     setIsWaitingForAnswerStart(false);
     setHasStartedAnswering(false);
-    setAutoAdvanceNotice("30 seconds of inactivity — moving to the next question...");
-    toast("30 seconds of inactivity — moving to next question.", "!");
+    setAutoAdvanceNotice("1 minute with no answer — moving to the next question...");
+    toast("No answer within 1 minute — moving to the next question.", "!");
 
     setTimeout(() => {
       setAutoAdvanceNotice("");
@@ -758,7 +759,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   }
 
   // Opens the "start answering" window after Messi finishes asking a
-  // question - starts the 30s inactivity countdown
+  // question - starts the 60s inactivity countdown
   function openAnswerWindow() {
     liveInterimRef.current = "";
     setLiveInterim("");
@@ -894,7 +895,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     }
   }
 
-  // Listens for the candidate's spoken answer; submits it after ~2.5s of silence.
+  // Listens for the candidate's spoken answer; submits it after ANSWER_PAUSE_SECONDS of silence.
   function startRecognition() {
     if (!browserVoiceRef.current) return;
     const SR = typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
@@ -940,7 +941,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         lastSpeechAtRef.current = Date.now();
       }
       clearTimeout(silenceTimer);
-      silenceTimer = setTimeout(submit, 2500);
+      silenceTimer = setTimeout(submit, ANSWER_PAUSE_SECONDS * 1000);
     };
     rec.onerror = (e) => {
       const err = e?.error;
@@ -962,10 +963,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
     rec.onend = () => {
       // Browsers end recognition on their own after a pause; keep listening until answered.
       if (submitted || recognitionRef.current !== rec || !browserVoiceRef.current) return;
-      if (finalText.trim() || (liveInterimRef.current || "").trim()) {
-        submit();
-        return;
-      }
+      // Keep listening through pauses: the 5s silence timer (not the browser's own cut-off) submits the answer.
       setTimeout(() => {
         if (recognitionRef.current === rec && browserVoiceRef.current && !submitted) {
           try {
@@ -1024,7 +1022,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
   function handleTextChange(val) {
     setInputText(val);
     if (val.trim()) {
-      markAnswerStarted(); // User started typing! Cancel 30s timer
+      markAnswerStarted(); // User started typing! Cancel the 60s timer
     }
   }
 
@@ -1246,9 +1244,20 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       wireVapiEvents(vapi);
 
       try {
-        await vapi.start(assistantId, {
-          variableValues: { authToken: authToken || "" },
-        });
+        try {
+          // waitSeconds: how long the interviewer waits after the candidate stops talking before replying,
+          // so the candidate can pause, think and continue the same answer.
+          await vapi.start(assistantId, {
+            variableValues: { authToken: authToken || "" },
+            startSpeakingPlan: { waitSeconds: ANSWER_PAUSE_SECONDS },
+          });
+        } catch (overrideErr) {
+          if (/permission|denied|mic/i.test(String(overrideErr?.message || ""))) throw overrideErr;
+          console.warn("Vapi start with pause override failed, retrying without it:", overrideErr?.message);
+          await vapi.start(assistantId, {
+            variableValues: { authToken: authToken || "" },
+          });
+        }
         setIsCallConnected(true);
         // Watchdog: if the interviewer hasn't spoken within 25s, use browser voice.
         vapiWatchdogRef.current = setTimeout(() => {
@@ -1411,8 +1420,9 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 <strong><i className="fa-solid fa-circle-info" style={{ marginRight: 6 }}></i>How It Works:</strong>
                 <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
                   <li>The AI asks each question out loud with natural voice speech.</li>
-                  <li>You have up to <strong>30 seconds</strong> to start answering (speak into mic or type).</li>
-                  <li>If no response starts within 30s, the interview automatically moves to the next question.</li>
+                  <li>You get up to <strong>1 minute</strong> to think and answer each question (speak into mic or type).</li>
+                  <li>Pause and think as you speak — the answer is only submitted after <strong>5 seconds of silence</strong>, then the next question starts.</li>
+                  <li>If you don't answer within 1 minute, the interview moves to the next question.</li>
                   <li>The AI briefly acknowledges your response before presenting the next question.</li>
                 </ul>
               </div>
@@ -1839,7 +1849,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                   onChange={(e) => handleTextChange(e.target.value)}
                   placeholder={
                     isWaitingForAnswerStart
-                      ? "Speak into mic or type here (30s timeout)…"
+                      ? "Speak into mic or type here (1 minute to answer)…"
                       : isListening
                       ? "Speaking… (you can also type here)"
                       : "Type your response, or speak into mic…"
@@ -1971,7 +1981,7 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                     </div>
                   </div>
                   <div style={{ color: "#475569", marginBottom: 6 }}>
-                    <strong>Your Response:</strong> {q.candidateAnswer || "(No response within 30s window)"}
+                    <strong>Your Response:</strong> {q.candidateAnswer || "(No response within 1 minute)"}
                   </div>
                   {Array.isArray(q.matchedKeywords) && q.matchedKeywords.length > 0 && (
                     <div style={{ color: "#166534", marginBottom: 6, fontSize: 11.5 }}>

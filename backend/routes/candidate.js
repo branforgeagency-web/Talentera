@@ -1260,7 +1260,18 @@ router.get("/assessment-questions", async (req, res) => {
       });
     }
 
-    const sections = Array.from(sectionsMap.values()).sort((a, b) => a.order - b.order);
+    let sections = Array.from(sectionsMap.values()).sort((a, b) => a.order - b.order);
+
+    // The assessment is always 5 sections x 5 questions = 25. Extra sections / extra questions that
+    // ended up in the DB (e.g. a stale 31-question "ICD & CPT" section) must never reach the candidate.
+    const defaultKeys = new Set(
+      DEFAULT_ASSESSMENT_QUESTIONS.filter((q) => domainAliases.includes(q.domain)).map((q) => q.sectionKey)
+    );
+    if (defaultKeys.size > 0) {
+      const onlyDefaults = sections.filter((sec) => defaultKeys.has(sec.key));
+      if (onlyDefaults.length >= 3) sections = onlyDefaults;
+    }
+    sections = sections.slice(0, 5).map((sec) => ({ ...sec, questions: sec.questions.slice(0, 5) }));
 
     res.json({
       success: true,

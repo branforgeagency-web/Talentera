@@ -75,6 +75,24 @@ export async function exportResumePdf(element, candidateName = "Candidate") {
   const bottomMarginMm = 8;  // and below the content on every page
   const firstCap = Math.floor((pdfHeight - bottomMarginMm) * mmToPx);
   const nextCap = Math.floor((pdfHeight - topMarginMm - bottomMarginMm) * mmToPx);
+
+  // ONE-PAGE MODE: shrink the whole resume uniformly so it fits a single A4 page. If that would make
+  // the text too small to read (scale below MIN_ONE_PAGE_SCALE) fall back to clean multi-page breaks.
+  const MIN_ONE_PAGE_SCALE = 0.6;
+  const onePageMarginMm = 6;
+  const fullHeightMm = (canvas.height * pdfWidth) / canvas.width;
+  const availHeightMm = pdfHeight - onePageMarginMm * 2;
+  const fitScale = Math.min(1, availHeightMm / fullHeightMm);
+  if (fitScale >= MIN_ONE_PAGE_SCALE) {
+    const drawW = pdfWidth * fitScale;
+    const drawH = fullHeightMm * fitScale;
+    const x = (pdfWidth - drawW) / 2;
+    const y = fitScale < 1 ? onePageMarginMm : 0;
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.98), "JPEG", x, y, drawW, drawH, undefined, "FAST");
+    pdf.save(filename);
+    return { success: true, filename, pages: 1, scale: fitScale };
+  }
+
   const slices = computePageSlices(canvas.height, firstCap, nextCap, regions);
 
   slices.forEach(([y0, y1], i) => {

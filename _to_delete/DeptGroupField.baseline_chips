@@ -1,0 +1,138 @@
+import React, { useState } from "react";
+import { COMPANY_DEPT_GROUPS } from "../../data/companyDepartments.js";
+
+/**
+ * Departments with their specialties nested underneath.
+ * Pick a department (Medical Coding, Medical Billing, AR Calling...) and a panel opens below it
+ * listing that department's specialties to pick from (searchable, plus "add your own").
+ * Value stays a flat array of strings (department names + specialty names) so existing readers keep working.
+ */
+export default function DeptGroupField({ value, onCommit }) {
+  const selected = Array.isArray(value) ? value : [];
+  const [deptQuery, setDeptQuery] = useState("");
+  const [specQuery, setSpecQuery] = useState({});
+  const [customText, setCustomText] = useState({});
+
+  const allKnown = new Set(COMPANY_DEPT_GROUPS.flatMap((g) => [g.name, ...g.specialties]));
+  const has = (v) => selected.includes(v);
+  const toggle = (v) => onCommit(has(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+
+  function toggleDept(g) {
+    if (has(g.name)) {
+      // removing a department also removes the specialties chosen under it
+      const drop = new Set([g.name, ...g.specialties, ...(customText[`__saved_${g.name}`] || [])]);
+      onCommit(selected.filter((x) => !drop.has(x)));
+    } else {
+      onCommit([...selected, g.name]);
+    }
+  }
+
+  function addCustom(g) {
+    const t = String(customText[g.name] || "").trim();
+    if (!t || has(t)) return;
+    onCommit([...selected, t]);
+    setCustomText((p) => ({ ...p, [g.name]: "", [`__saved_${g.name}`]: [...(p[`__saved_${g.name}`] || []), t] }));
+  }
+
+  const q = deptQuery.trim().toLowerCase();
+  const visibleGroups = COMPANY_DEPT_GROUPS.filter(
+    (g) => !q || g.name.toLowerCase().includes(q) || g.specialties.some((s) => s.toLowerCase().includes(q))
+  );
+  const chosenGroups = COMPANY_DEPT_GROUPS.filter((g) => has(g.name));
+  const strayCustom = selected.filter((v) => !allKnown.has(v));
+
+  const sq = (name) => String(specQuery[name] || "").trim().toLowerCase();
+
+  return (
+    <div>
+      <input
+        type="text"
+        className="conb-input"
+        style={{ marginBottom: 8 }}
+        placeholder="Search departments or specialties…"
+        value={deptQuery}
+        onChange={(e) => setDeptQuery(e.target.value)}
+      />
+      <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
+        1. Pick the departments you hire for — 2. choose the specialties under each one.
+      </div>
+      <div className="conb-chip-grid">
+        {visibleGroups.map((g) => (
+          <button
+            type="button"
+            key={g.name}
+            className={`conb-chip ${has(g.name) ? "conb-chip-active" : ""}`}
+            onClick={() => toggleDept(g)}
+          >
+            {g.name}
+          </button>
+        ))}
+        {visibleGroups.length === 0 && <div style={{ fontSize: 13, color: "#64748B" }}>No departments match "{deptQuery}".</div>}
+      </div>
+
+      {chosenGroups.map((g) => {
+        const query = sq(g.name);
+        const specs = g.specialties.filter((s) => !query || has(s) || s.toLowerCase().includes(query));
+        const customHere = (customText[`__saved_${g.name}`] || []).filter((c) => has(c));
+        const pickedCount = g.specialties.filter(has).length + customHere.length;
+        return (
+          <div
+            key={g.name}
+            style={{ marginTop: 12, padding: "12px 14px", border: "1.5px solid #E2E8F0", borderRadius: 10, background: "#F8FAFC" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, color: "#0F172A" }}>{g.name} — specialties</div>
+              <div style={{ fontSize: 12, color: "#64748B" }}>{pickedCount} selected</div>
+            </div>
+            {g.specialties.length > 6 && (
+              <input
+                type="text"
+                className="conb-input"
+                style={{ marginBottom: 8 }}
+                placeholder={`Search ${g.name} specialties…`}
+                value={specQuery[g.name] || ""}
+                onChange={(e) => setSpecQuery((p) => ({ ...p, [g.name]: e.target.value }))}
+              />
+            )}
+            <div className="conb-chip-grid" style={{ maxHeight: 220, overflowY: "auto", paddingRight: 4 }}>
+              {specs.map((s) => (
+                <button type="button" key={s} className={`conb-chip ${has(s) ? "conb-chip-active" : ""}`} onClick={() => toggle(s)}>
+                  {s}
+                </button>
+              ))}
+              {customHere.map((s) => (
+                <button type="button" key={s} className="conb-chip conb-chip-active" onClick={() => toggle(s)}>{s} ✕</button>
+              ))}
+              {specs.length === 0 && <div style={{ fontSize: 13, color: "#64748B" }}>No specialties match.</div>}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input
+                type="text"
+                className="conb-input"
+                style={{ flex: 1 }}
+                placeholder={`Add another ${g.name} specialty`}
+                value={customText[g.name] || ""}
+                onChange={(e) => setCustomText((p) => ({ ...p, [g.name]: e.target.value }))}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(g); } }}
+              />
+              <button type="button" className="conb-chip" onClick={() => addCustom(g)}>+ Add</button>
+            </div>
+          </div>
+        );
+      })}
+
+      {strayCustom.filter((c) => !chosenGroups.some((g) => (customText[`__saved_${g.name}`] || []).includes(c))).length > 0 && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>Your added specialties (click to remove)</div>
+          <div className="conb-chip-grid">
+            {strayCustom
+              .filter((c) => !chosenGroups.some((g) => (customText[`__saved_${g.name}`] || []).includes(c)))
+              .map((c) => (
+                <button type="button" key={c} className="conb-chip conb-chip-active" onClick={() => toggle(c)}>{c} ✕</button>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

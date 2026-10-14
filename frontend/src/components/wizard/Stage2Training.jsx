@@ -359,20 +359,31 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   const filteredLocations = useMemo(() => {
     const q = locationSearch.trim().toLowerCase();
-    const list = locationsForRegion.map((name) => ({
+    // Show only the cities/branches: drop the entry that merely repeats the state name when the
+    // state has real city entries (state-only regions keep their single entry so they stay selectable).
+    const hasCityEntries = locationsForRegion.some((n) => n.toLowerCase() !== String(academyRegion).toLowerCase());
+    const visibleNames = hasCityEntries
+      ? locationsForRegion.filter((n) => n.toLowerCase() !== String(academyRegion).toLowerCase())
+      : locationsForRegion;
+    const list = visibleNames.map((name) => ({
       name,
       count: (ACADEMY_LOCATIONS.find((l) => l.name === name)?.count) || 0,
     }));
     if (!q) return list;
     return list.filter((l) => l.name.toLowerCase().includes(q));
-  }, [locationsForRegion, locationSearch]);
+  }, [locationsForRegion, locationSearch, academyRegion]);
 
   // Academies available for the selected location (real directory + any backend-registered academies)
   const academiesForLocation = useMemo(() => {
-    const base = ACADEMIES_BY_LOCATION[academyLocation] || [];
+    let base = ACADEMIES_BY_LOCATION[academyLocation] || [];
+    // Academies listed only at state level (no city) stay selectable under every city of that state.
+    const stateLevel = ACADEMIES_BY_LOCATION[academyRegion] || [];
+    if (academyLocation && academyLocation !== academyRegion && stateLevel.length) {
+      base = [...base, ...stateLevel.filter((n) => !base.some((b) => b.toLowerCase() === n.toLowerCase()))];
+    }
     const registeredNames = registeredAcademies.map((a) => a.name).filter((n) => n && !base.includes(n));
     return [...base, ...registeredNames];
-  }, [academyLocation, registeredAcademies]);
+  }, [academyLocation, academyRegion, registeredAcademies]);
 
   const filteredAcademyNames = useMemo(() => {
     const q = academyNameSearch.trim().toLowerCase();
