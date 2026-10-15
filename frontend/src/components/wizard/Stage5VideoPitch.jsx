@@ -564,7 +564,55 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // REAL COMPUTER HARDWARE CHECK & LIVE PERMISSION SYNC (LIKE STAGE 4)
   // ══════════════════════════════════════════════════════════════════════════
 
+  // Resolves with the promise result, or rejects with a TimeoutError if the browser never answers
+  // (a pending getUserMedia / video.play() would otherwise leave the checks on "Checking..." forever).
+  const withTimeout = (promise, ms, label) =>
+    new Promise((resolve, reject) => {
+      let timedOut = false;
+      const t = setTimeout(() => {
+        timedOut = true;
+        const e = new Error(`${label} timed out`);
+        e.name = "TimeoutError";
+        reject(e);
+      }, ms);
+      Promise.resolve(promise).then(
+        (v) => {
+          clearTimeout(t);
+          if (timedOut) {
+            // Answered too late - release any stream so the camera light doesn't stay on
+            try { v?.getTracks?.().forEach((tr) => tr.stop()); } catch (_) {}
+            return;
+          }
+          resolve(v);
+        },
+        (e) => { clearTimeout(t); if (!timedOut) reject(e); }
+      );
+    });
+
+  const hwCheckRunningRef = useRef(false);
+  const hwCheckQueuedRef = useRef(false);
+
   const runHardwareCheck = async () => {
+    // Focus / devicechange / permission events can fire together - never run two probes at once
+    // (two simultaneous getUserMedia calls can leave one hanging); queue one re-run instead.
+    if (hwCheckRunningRef.current) {
+      hwCheckQueuedRef.current = true;
+      return;
+    }
+    hwCheckRunningRef.current = true;
+    try {
+      await runHardwareCheckInner();
+    } finally {
+      hwCheckRunningRef.current = false;
+      setIsCheckingSetup(false);
+      if (hwCheckQueuedRef.current) {
+        hwCheckQueuedRef.current = false;
+        setTimeout(() => runHardwareCheck(), 300);
+      }
+    }
+  };
+
+  const runHardwareCheckInner = async () => {
     setIsCheckingSetup(true);
 
     const isOnline = typeof navigator !== "undefined" ? (navigator.onLine ?? true) : true;
@@ -583,7 +631,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     try {
       if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
         // Enumerate devices first to verify physical device existence
-        const devices = await navigator.mediaDevices.enumerateDevices();
+        const devices = await withTimeout(navigator.mediaDevices.enumerateDevices(), 4000, "enumerateDevices");
         const hasCam = devices.some((d) => d.kind === "videoinput");
         const hasMic = devices.some((d) => d.kind === "audioinput");
 
@@ -602,10 +650,14 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
         }
 
         if (hasCam || hasMic) {
-          const probeStream = await navigator.mediaDevices.getUserMedia({
-            video: hasCam ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
-            audio: hasMic ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
-          });
+          const probeStream = await withTimeout(
+            navigator.mediaDevices.getUserMedia({
+              video: hasCam ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+              audio: hasMic ? { echoCancellation: true, noiseSuppression: true, autoGainControl: true } : false,
+            }),
+            8000,
+            "getUserMedia"
+          );
 
           const vTracks = probeStream.getVideoTracks();
           const aTracks = probeStream.getAudioTracks();
@@ -625,7 +677,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               videoEl.height = 120;
               videoEl.muted = true;
               videoEl.srcObject = probeStream;
-              await videoEl.play();
+              await withTimeout(videoEl.play(), 2500, "video.play");
 
               const canvas = document.createElement("canvas");
               canvas.width = 160;
@@ -717,14 +769,16 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     } catch (err) {
       console.warn("Hardware media access check:", err);
       const isDenied = err.name === "NotAllowedError" || err.name === "PermissionDeniedError";
-      camStatus = isDenied ? "warn" : "failed";
-      camLabel = isDenied ? "Allow Camera" : "✕ No Camera";
-      micStatus = isDenied ? "warn" : "failed";
-      micLabel = isDenied ? "Allow Mic" : "✕ No Mic";
-      lightStatus = isDenied ? "warn" : "failed";
-      lightLabel = isDenied ? "Allow Camera" : "✕ Camera needed";
-      framingStatus = isDenied ? "warn" : "failed";
-      framingLabel = isDenied ? "Allow Camera" : "✕ Camera needed";
+      const isTimeout = err.name === "TimeoutError";
+      const isBusy = isTimeout || err.name === "NotReadableError" || err.name === "TrackStartError" || err.name === "AbortError";
+      camStatus = isDenied || isBusy ? "warn" : "failed";
+      camLabel = isDenied ? "Allow Camera" : isBusy ? "Camera busy - Re-test" : "✕ No Camera";
+      micStatus = isDenied || isBusy ? "warn" : "failed";
+      micLabel = isDenied ? "Allow Mic" : isBusy ? "Mic busy - Re-test" : "✕ No Mic";
+      lightStatus = isDenied || isBusy ? "warn" : "failed";
+      lightLabel = isDenied ? "Allow Camera" : isBusy ? "Re-test" : "✕ Camera needed";
+      framingStatus = isDenied || isBusy ? "warn" : "failed";
+      framingLabel = isDenied ? "Allow Camera" : isBusy ? "Re-test" : "✕ Camera needed";
     }
 
     setSysChecks({
