@@ -1169,7 +1169,6 @@ export default function AcademyPortal() {
             <SidebarItem id="company_activity" label="9. Company Data" icon="fa-building" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="interviews" label="10. Interviews" icon="fa-diagram-project" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
             <SidebarItem id="placements" label="11. Placements" icon="fa-briefcase" activeMod={activeMod} setActiveMod={handleNavigateMod} badge={placementConfirmations.filter((c) => c.status === "pending").length || undefined} badgeColor="#15803D" locked={dashData?.academy?.kycStatus !== "verified"} />
-            <SidebarItem id="payments" label="12. Payment Options" icon="fa-wallet" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
 
             <div style={{ fontSize: 10, fontWeight: 800, color: "rgba(255,255,255,0.35)", letterSpacing: "0.1em", padding: "16px 8px 6px", textTransform: "uppercase" }}>INSIGHTS & ADMIN</div>
             <SidebarItem id="analytics" label="13. Analytics" icon="fa-chart-pie" activeMod={activeMod} setActiveMod={handleNavigateMod} locked={dashData?.academy?.kycStatus !== "verified"} />
@@ -1800,7 +1799,7 @@ export default function AcademyPortal() {
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <StageTracker8Dots stages={c.stages || []} size={13} onDotClick={() => setSelectedStudentForDetail(c)} />
                                 <span style={{ fontSize: 11, fontWeight: 800, color: "#06152A" }}>
-                                  {c.completion || 0}%
+                                  {String(c.completion || 0).replace(/%+$/, "")}%
                                 </span>
                               </div>
                               )}
@@ -1854,7 +1853,7 @@ export default function AcademyPortal() {
                                 </div>
                               )}
                               <div style={{ fontSize: 10, color: "#64748B" }}>
-                                {regPending ? "Score shows after registration" : c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Stage ${c.completion || "0%"}`)}
+                                {regPending ? "Score shows after registration" : c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Progress ${String(c.completion || 0).replace(/%+$/, "")}%`)}
                               </div>
                             </td>
 

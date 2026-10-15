@@ -8,7 +8,7 @@ const AcademyActivityEvent = require("../models/AcademyActivityEvent");
 const PlacementConfirmation = require("../models/PlacementConfirmation");
 const { requireCompanyAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
-const { calculateVerificationScore } = require("../utils/verificationScore");
+const { calculateVerificationScore, isExperiencedCandidate } = require("../utils/verificationScore");
 const { getPlan, isUnderJobPostLimit, PLANS } = require("../config/plans");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { cashfreeVerificationService } = require("../utils/cashfreeVerificationService");
@@ -876,6 +876,20 @@ router.get("/matched-candidates", async (req, res) => {
     for (const c of pool) {
       const s1 = c.stage1 || {};
       if (s1.skipped) continue;
+      // Only candidates who have really registered AND finished their assessment are listed -
+      // academy-uploaded students who never signed up (or haven't taken the assessment) are not shown.
+      const completedList = Array.isArray(c.completedStages) ? c.completedStages : [];
+      const registered = s1.aadhaarVerified === true || s1.aadhaarStatus === "VERIFIED" || completedList.includes(1);
+      if (!registered) continue;
+      if (isExperiencedCandidate(c)) {
+        // Experienced candidates skip the Assessment - their evaluation is the Certification stage
+        if (!completedList.includes(3)) continue;
+      } else {
+        const s4 = c.stage4 || {};
+        const s4Score = s4.foundationScore !== undefined && s4.foundationScore !== null ? s4.foundationScore : s4.score;
+        const assessed = completedList.includes(4) && s4Score !== undefined && s4Score !== null && s4Score !== "" && !isNaN(Number(s4Score));
+        if (!assessed) continue;
+      }
       const exp = String(s1.experience || "").toLowerCase();
       if (wantFresher && !wantExperienced && exp !== "fresher") continue;
       if (wantExperienced && !wantFresher && exp !== "experienced") continue;

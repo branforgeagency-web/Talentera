@@ -224,9 +224,6 @@ export default function CompanyJobs() {
           <Link to="/companies/applicants" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Applicants
           </Link>
-          <HeadOnly><Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-            Plan &amp; Billing
-          </Link></HeadOnly>
           <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
           <HeadOnly><Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Edit Profile
@@ -280,9 +277,6 @@ export default function CompanyJobs() {
           ) : (
             <div style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, maxWidth: 320 }}>
               Active job posting limit reached for your current plan tier.{" "}
-              <HeadOnly><Link to="/companies/billing" style={{ color: "var(--navy)", fontWeight: 800, textDecoration: "underline" }}>
-                Upgrade plan →
-              </Link></HeadOnly>
             </div>
           )}
         </div>

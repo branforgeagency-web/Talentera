@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { effectivePlan } from "../utils/billing";
 import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
@@ -303,20 +304,6 @@ export default function CompanyDashboardSetup() {
             }}
           >
             Applicants
-          </Link>
-          <Link
-            to="/companies/billing"
-            style={{
-              color: "rgba(255,255,255,0.85)",
-              fontSize: 13,
-              fontWeight: 700,
-              textDecoration: "none",
-              padding: "8px 14px",
-              borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.15)",
-            }}
-          >
-            Plan &amp; Billing
           </Link>
           <Link
             to="/companies/team"
@@ -680,12 +667,6 @@ export default function CompanyDashboardSetup() {
                           </div>
                           <div className="conb-hero-stat-label">JOB REQUISITIONS</div>
                         </div>
-                        <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/billing")}>
-                          <div className="conb-hero-stat-val" style={{ fontSize: 17, color: "var(--gold)" }}>
-                            {(company.plan || "free").toUpperCase()} ⚡
-                          </div>
-                          <div className="conb-hero-stat-label">PLAN TIER (CHANGE)</div>
-                        </div>
                       </div>
                     );
                   })()}
@@ -800,7 +781,7 @@ export default function CompanyDashboardSetup() {
                   value={activeData[item.id]}
                   stageValues={activeData}
                   stageId={activeStageId}
-                  companyPlan={company?.plan || "free"}
+                  companyPlan={effectivePlan(company?.plan)}
                   onSave={saveField}
                   showStageErrors={Boolean(stageErrors[activeStageId])}
                   isRejectedField={Boolean(company.rejectedKycFields?.includes(item.id))}

@@ -120,7 +120,6 @@ export default function CompanyTeam() {
           <Link to="/companies/directory" style={navLink}>Hire Verified Talent</Link>
           <Link to="/companies/jobs" style={navLink}>Job Posts</Link>
           <Link to="/companies/applicants" style={navLink}>Applicants</Link>
-          <Link to="/companies/billing" style={navLink}>Plan &amp; Billing</Link>
           <Link to="/companies/team" style={{ ...navLink, color: "var(--gold)", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}>Team Logins</Link>
           <Link to="/companies/dashboard" style={navLink}>Edit Profile</Link>
           {company && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { effectivePlan } from "../utils/billing";
 import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext";
@@ -43,7 +44,7 @@ export default function CompanyPortal() {
 
   // Verification & Access State
   const [companyKycStatus, setCompanyKycStatus] = useState(() => (company?.kycStatus === "verified" || company?.kycVerifiedAt) ? "verified" : (company?.kycStatus || "pending"));
-  const [companyPlan, setCompanyPlan] = useState(() => company?.plan || "free");
+  const [companyPlan, setCompanyPlan] = useState(() => effectivePlan(company?.plan));
   const [contactCandidateModal, setContactCandidateModal] = useState(null);
   const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [showPlanUpgradeModal, setShowPlanUpgradeModal] = useState(false);
@@ -77,7 +78,7 @@ export default function CompanyPortal() {
       setCompanyKycStatus(company.kycStatus);
     }
     if (company?.plan) {
-      setCompanyPlan(company.plan);
+      setCompanyPlan(effectivePlan(company.plan));
     }
   }, [company]);
 
@@ -88,7 +89,7 @@ export default function CompanyPortal() {
         const c = res.data.company;
         const verified = c.kycStatus === "verified" || Boolean(c.kycVerifiedAt);
         setCompanyKycStatus(verified ? "verified" : (c.kycStatus || "pending"));
-        setCompanyPlan(c.plan || "free");
+        setCompanyPlan(effectivePlan(c.plan));
         if (refreshCompany) refreshCompany();
       }
     } catch (err) {
@@ -138,7 +139,7 @@ export default function CompanyPortal() {
         setCompanyKycStatus("verified");
       }
       if (res.data?.plan) {
-        setCompanyPlan(res.data.plan);
+        setCompanyPlan(effectivePlan(res.data.plan));
       }
     } catch (err) {
       console.error(err);
@@ -268,26 +269,6 @@ export default function CompanyPortal() {
             <span>{isVerifiedCompany ? "Verified Company" : "Unverified Account"}</span>
           </div>
 
-          <HeadOnly><Link
-            to="/companies/billing"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              borderRadius: 20,
-              background: companyPlan === "enterprise" ? "rgba(229,168,46,0.2)" : companyPlan === "growth" ? "rgba(59,130,246,0.2)" : "rgba(255,255,255,0.1)",
-              border: `1px solid ${companyPlan === "enterprise" ? "var(--gold)" : companyPlan === "growth" ? "#60A5FA" : "rgba(255,255,255,0.2)"}`,
-              fontSize: 12,
-              fontWeight: 800,
-              color: companyPlan === "enterprise" ? "var(--gold)" : companyPlan === "growth" ? "#93C5FD" : "#fff",
-              textDecoration: "none",
-              textTransform: "uppercase",
-            }}
-          >
-            <span>{companyPlan === "enterprise" ? <i className="fa-solid fa-gem" style={{ color: "#8B5CF6" }}></i> : companyPlan === "growth" ? <i className="fa-solid fa-bolt" style={{ color: "#3B82F6" }}></i> : <i className="fa-solid fa-seedling" style={{ color: "#10B981" }}></i>}</span>
-            <span>{companyPlan} Tier</span>
-          </Link></HeadOnly>
 
           <Link
             to="/companies/directory"
@@ -307,12 +288,6 @@ export default function CompanyPortal() {
           >
             Applicants
           </Link>
-          <HeadOnly><Link
-            to="/companies/billing"
-            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
-          >
-            Plan &amp; Billing
-          </Link></HeadOnly>
           <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
           <HeadOnly><Link
             to="/companies/dashboard"
@@ -1060,14 +1035,6 @@ export default function CompanyPortal() {
                 >
                   {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist (Growth Tier)</> : shortlistedIds.includes(selectedCandidate.id) ? <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Shortlisted</> : "+ Shortlist Profile"}
                 </button>
-
-                <Link
-                  to={`/verify/${selectedCandidate.id}`}
-                  target="_blank"
-                  style={{ padding: "12px 16px", borderRadius: 8, background: "var(--navy)", color: "#fff", fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}
-                >
-                  <i className="fa-solid fa-link"></i> Public Audit Page
-                </Link>
               </div>
             </div>
           </div>

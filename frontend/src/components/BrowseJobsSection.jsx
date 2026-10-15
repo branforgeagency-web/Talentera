@@ -42,12 +42,22 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   // Experienced candidates: only roles in their own domain (billing / AR / coding / eligibility).
   const candidateFamilies = familiesOf(`${candidate?.stage2?.domain || ''} ${candidate?.stage2?.jobTitle || ''} ${candidate?.stage1?.currentRole || ''}`);
   const roleFilterOn = isExperiencedCandidate(candidate) && candidateFamilies.length > 0 && !showAllRoles;
+  // Freshers only see roles that hire freshers: drop "Experienced only" postings
+  // (or any role that asks for 1+ years with no fresher / "open to both" level).
+  const isExperiencedOnlyJob = (j) => {
+    const lvl = String(j.hiringLevel || '').toLowerCase();
+    if (lvl.includes('experienced only')) return true;
+    if (lvl.includes('fresher') || lvl.includes('both')) return false;
+    return Number(j.expMin || 0) > 0;
+  };
+  const candidateIsExperienced = isExperiencedCandidate(candidate);
+  const visibleJobs = candidateIsExperienced ? allJobs : allJobs.filter((j) => !isExperiencedOnlyJob(j));
   const jobs = roleFilterOn
-    ? allJobs.filter((j) => {
+    ? visibleJobs.filter((j) => {
         const fams = familiesOf(`${j.title || ''} ${j.specialty || ''} ${j.projectClient || ''}`);
         return fams.length === 0 || fams.some((f) => candidateFamilies.includes(f));
       })
-    : allJobs;
+    : visibleJobs;
   const canToggleRoles = isExperiencedCandidate(candidate) && candidateFamilies.length > 0;
   const [appliedJobIds, setAppliedJobIds] = useState(new Set());
   const [toastMsg, setToastMsg] = useState(null);
@@ -244,7 +254,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   });
 
   const anyFilterActive = Boolean(
-    roleFilterOn || selectedLocation || selectedSpecialty || selectedCompany || selectedProject || selectedSalaryBand || selectedWorkMode ||
+    roleFilterOn || visibleJobs.length !== allJobs.length || selectedLocation || selectedSpecialty || selectedCompany || selectedProject || selectedSalaryBand || selectedWorkMode ||
     filterMatchProfile || filterSilverPlus || filterFeatured || filterWalkIn || filterOpenToGlobal
   );
   const sumOpenings = (list) => list.reduce((sum, j) => sum + (j.openings || 1), 0);

@@ -18,13 +18,6 @@ const COLLEGE_TYPES = [
   "Other",
 ];
 
-const DEFAULT_DEPARTMENTS = [
-  { name: "Life Sciences & Biotechnology", degrees: ["B.Sc Biotechnology", "M.Sc Biochemistry"], studentCount: 120 },
-  { name: "Allied Health Sciences", degrees: ["B.Sc Allied Health", "BPT"], studentCount: 90 },
-  { name: "Commerce & Management", degrees: ["B.Com", "BBA"], studentCount: 150 },
-  { name: "Computer Science & IT", degrees: ["BCA", "B.Sc CS"], studentCount: 110 },
-];
-
 const REGLABEL = { display: "block", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.65)", marginBottom: 6 };
 const REGINPUT = { width: "100%", padding: "11px 14px", background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 10, color: "#FAF7F0", fontFamily: "inherit", fontSize: 13.5, outline: "none", boxSizing: "border-box" };
 
@@ -180,7 +173,6 @@ export default function ForColleges() {
         placementOfficerMobile: regData.placementOfficerMobile.replace(/\D/g, ""),
         otp: regData.otp.trim(),
         password: regData.password,
-        departments: DEFAULT_DEPARTMENTS,
       };
 
       const res = await fetch("/api/college/register", {
