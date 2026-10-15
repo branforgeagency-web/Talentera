@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { effectivePlan } from "../utils/billing";
 import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
 import { useCompanyAuth } from "../context/CompanyAuthContext.jsx";
@@ -105,7 +106,7 @@ export default function CompanyApplicants() {
       setApplications(res.data?.applications || []);
       const verified = Boolean(res.data?.isKycVerified || company?.kycStatus === "verified" || company?.kycVerifiedAt);
       setIsKycVerified(verified);
-      setCanViewScoresAndCerts(res.data?.canViewScoresAndCerts ?? (company?.plan !== "free"));
+      setCanViewScoresAndCerts(res.data?.canViewScoresAndCerts ?? (effectivePlan(company?.plan) !== "free"));
     } catch (err) {
       console.error(err);
       setLoadError("Couldn't load your applicants. Please refresh the page.");
@@ -213,9 +214,6 @@ export default function CompanyApplicants() {
           <Link to="/companies/applicants" style={{ color: "var(--gold)", fontSize: 13, fontWeight: 700, textDecoration: "none", padding: "6px 12px", background: "rgba(229,168,46,0.12)", borderRadius: 6 }}>
             Applicants
           </Link>
-          <HeadOnly><Link to="/companies/billing" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
-            Plan &amp; Billing
-          </Link></HeadOnly>
           <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
           <HeadOnly><Link to="/companies/dashboard" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
             Edit Profile
@@ -615,21 +613,6 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
                   Upgrade to Growth Tier (₹4,999/mo) to unlock complete proctored test scorecards, live chart accuracy breakdowns, and AAPC/AHIMA verification.
                 </div>
               </div>
-              <HeadOnly><Link
-                to="/companies/billing"
-                style={{
-                  background: "#1D4ED8",
-                  color: "#fff",
-                  textDecoration: "none",
-                  padding: "8px 14px",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  fontWeight: 800,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Upgrade to Growth →
-              </Link></HeadOnly>
             </div>
           )}
 

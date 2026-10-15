@@ -1,4 +1,4 @@
-const { isExperiencedCandidate } = require("./verificationScore");
+const { isExperiencedCandidate, calculateVerificationScore, isNonCertified, hasRealCertification } = require("./verificationScore");
 // Centralized 8-stage verification + Talentera Score calculation.
 //
 // The candidate verification pipeline has 8 stages, but only Stages 1-6 are
@@ -56,7 +56,7 @@ function calculateTalenteraScore(stages, candidate = null) {
     if (experienced && st.stageNumber === 3) maxPoints = STAGE_SCORE_WEIGHTS[3] + STAGE_SCORE_WEIGHTS[4];
     if (experienced && st.stageNumber === 4) maxPoints = 0;
     let points = st.isDone ? maxPoints : 0;
-    if (st.isDone && st.stageNumber === 2 && candidate) {
+    if (st.isDone && st.stageNumber === 2 && candidate && !experienced) {
       const s2 = candidate.stage2 || {};
       const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "—"
         ? s2.academyAssessmentScore
@@ -91,6 +91,9 @@ function compute8Stages(candidate) {
   const stage5Counted = (completed.includes(5) && s5Evidence) || !!s5.verified || !!s5.approvedAt || !!s5.verifiedAt;
 
   const hasRealAadhaar = !!s1.aadhaarVerified && (!!s1.maskedAadhaar || !!s1.dob || !!s1.gender || !!s1.verificationMethod || !!s1.aadhaarNumber || !!s1.aadhaarDigits || !!s1.verifiedAt);
+  // Stage 3 counts for a real certification (cert number or member ID) OR a deliberate "Non-Certified"
+  // choice - the same rule the candidate dashboard's score uses.
+  const stage3Done = completed.includes(3) && (!!s3.certNo || hasRealCertification(s3) || isNonCertified(s3));
   const stages = [
     {
       stageNumber: 1,
@@ -108,9 +111,12 @@ function compute8Stages(candidate) {
       title: "Academy & Training",
       description: "Course, hours, Path B assessment",
       whoDoesIt: "Student + Academy validates",
-      isDone: completed.includes(2) && !!s2.verified && !!s2.approvedAt,
-      inProgress: !(completed.includes(2) && s2.verified && s2.approvedAt),
-      score: (completed.includes(2) && s2.verified && s2.approvedAt)
+      notRequired: experienced,
+      isDone: experienced ? (completed.includes(1) && hasRealAadhaar) : completed.includes(2) && !!s2.verified && !!s2.approvedAt,
+      inProgress: experienced ? false : !(completed.includes(2) && s2.verified && s2.approvedAt),
+      score: experienced
+        ? "Optional for experienced ✓"
+        : (completed.includes(2) && s2.verified && s2.approvedAt)
         ? "Academy Approved ✓"
         : (s2.rejected || s2.status === "rejected" || s2.needsRevision)
         ? "Revision Requested"
@@ -125,10 +131,10 @@ function compute8Stages(candidate) {
       title: "Certifications",
       description: "AAPC / AHIMA cert numbers verified",
       whoDoesIt: "Student (auto-verified)",
-      isDone: completed.includes(3) && !!s3.certNo,
-      inProgress: !(completed.includes(3) && !!s3.certNo),
-      score: (completed.includes(3) && s3.certNo) ? (s3.certCode || s3.certName || "Certified ✓") : "Pending Certification",
-      meta: s3.certNo ? `Cert #${s3.certNo}` : "AAPC / AHIMA Credential",
+      isDone: stage3Done,
+      inProgress: !stage3Done,
+      score: stage3Done ? (isNonCertified(s3) && !hasRealCertification(s3) ? "Non-Certified ✓" : (s3.certCode || s3.certName || "Certified ✓")) : "Pending Certification",
+      meta: (s3.certNo || s3.memberId) ? `Cert #${s3.certNo || s3.memberId}` : "AAPC / AHIMA Credential",
       needsApproval: false,
     },
     {
@@ -179,7 +185,14 @@ function compute8Stages(candidate) {
   // Talentera Score is derived from Stages 1-6 only (Stage 7/8 are output-only,
   // 0 points) - compute it now, before building Stage 8's own display text,
   // since Stage 8's "Review & Publish" summary shows this exact number.
-  const { score: talenteraScore, breakdown: scoreBreakdown } = calculateTalenteraScore(stages, candidate);
+  // The score itself comes from calculateVerificationScore - the SAME function the candidate dashboard
+  // uses - so the academy dashboard can never disagree with what the candidate sees.
+  const verification = calculateVerificationScore(completed, candidate);
+  const talenteraScore = verification.score;
+  const scoreBreakdown = calculateTalenteraScore(stages, candidate).breakdown.map((b) => {
+    const pts = verification.stageScores[b.stageNumber];
+    return pts === undefined ? { ...b, points: 0 } : { ...b, points: pts };
+  });
 
   const doneCount = stages.filter((st) => st.isDone).length;
   const pct = Math.round((doneCount / stages.length) * 100);

@@ -101,11 +101,7 @@ export default function App() {
       />
       <Route
         path="/companies/billing"
-        element={
-          <CompanyRequireAuth headOnly>
-            <CompanyBilling />
-          </CompanyRequireAuth>
-        }
+        element={<Navigate to="/companies/dashboard" replace />}
       />
 
       {/* Candidate-facing job board - browse JDs published via Company

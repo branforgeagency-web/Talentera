@@ -85,14 +85,13 @@ export function getScoreBreakdown(profile) {
     const expMode = isExperiencedProfile(profile);
     const hasProof = !!(s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl);
     const expEarned = (String(s2.currentCompany || '').trim() && String(s2.jobTitle || '').trim() ? 10 : 0) + (hasProof ? 5 : 0);
-    const earned = expMode ? expEarned : (signedOff ? 10 + step3Pts : (submitted ? 10 : 0));
+    const idVerified = (profile.stage1 || {}).aadhaarVerified === true || (profile.stage1 || {}).aadhaarStatus === 'VERIFIED';
+    const earned = expMode ? (idVerified ? 15 : 0) : (signedOff ? 10 + step3Pts : (submitted ? 10 : 0));
     let tip;
     if (expMode) {
-      tip = expEarned >= 15
-        ? 'Fully earned — your work experience details and proof are on file.'
-        : expEarned > 0
-          ? `Earned ${expEarned}/15 — attach an experience letter, offer/relieving letter or certificate in Stage 2 to unlock the remaining 5 points.`
-          : 'Add your current/most recent company and job title (and experience proof) in Stage 2 to earn up to 15 points.';
+      tip = idVerified
+        ? 'Optional for experienced candidates — full 15 points credited. You can still add your work details in Stage 2 for your resume.'
+        : 'Optional for experienced candidates — you get the full 15 points as soon as your identity is verified in Stage 1.';
     } else if (signedOff) {
       tip = hasScore ? `Earned ${earned}/15 points (${step3Pts}/5 from Academy Assessment Score: ${rawScore}%).` : 'Earned 15/15 points — your academy has signed off on your training.';
     } else if (submitted) {

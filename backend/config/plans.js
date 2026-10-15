@@ -65,7 +65,12 @@ const PLANS = {
   },
 };
 
+// Payments are switched off while clients test the dashboards: every company gets full access.
+// Set BILLING_ENABLED=true in the environment to bring plan gating back.
+const BILLING_ENABLED = String(process.env.BILLING_ENABLED || "").toLowerCase() === "true";
+
 function getPlan(planId) {
+  if (!BILLING_ENABLED) return PLANS.enterprise;
   return PLANS[planId] || PLANS.free;
 }
 
@@ -83,4 +88,4 @@ function isUnderJobPostLimit(plan, activeCount) {
   return activeCount < plan.maxActiveJobPosts;
 }
 
-module.exports = { PLANS, getPlan, isUnlimitedJobPosts, isUnderJobPostLimit };
+module.exports = { BILLING_ENABLED, PLANS, getPlan, isUnlimitedJobPosts, isUnderJobPostLimit };

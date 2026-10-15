@@ -3266,7 +3266,17 @@ router.get("/colleges", requireStaffAuth, async (req, res) => {
       ];
     }
 
-    const colleges = await College.find(query).sort({ createdAt: -1 }).lean();
+    let colleges = await College.find(query).sort({ createdAt: -1 }).lean();
+
+    // Older registrations were auto-filled with a sample department list (4 depts / 470 students)
+    // that the college never entered. Strip that exact sample so only real data is ever shown.
+    const SAMPLE_DEPTS = { "life sciences & biotechnology": 120, "allied health sciences": 90, "commerce & management": 150, "computer science & it": 110 };
+    const isSampleDepts = (deps) => Array.isArray(deps) && deps.length === 4 && deps.every((d) => SAMPLE_DEPTS[String(d.name || "").trim().toLowerCase()] === Number(d.studentCount));
+    const seeded = colleges.filter((c) => isSampleDepts(c.departments));
+    if (seeded.length) {
+      await College.updateMany({ _id: { $in: seeded.map((c) => c._id) } }, { $set: { departments: [] } });
+      colleges = colleges.map((c) => (isSampleDepts(c.departments) ? { ...c, departments: [] } : c));
+    }
     return res.json({ success: true, colleges });
   } catch (err) {
     return res.status(500).json({ message: err.message });

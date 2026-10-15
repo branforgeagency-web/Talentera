@@ -141,12 +141,8 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       verifiedStages.push(1);
     } else if (stage === 2) {
       if (candidate && experienced) {
-        const pts2x = experiencedStage2Points(candidate.stage2 || {});
-        if (pts2x > 0) {
-          score += pts2x;
-          stageScores[2] = pts2x;
-          verifiedStages.push(2);
-        }
+        // Stage 2 is optional for experienced candidates - credited in full after this loop
+        // once their identity is verified (see below), whether or not they filled it in.
         continue;
       }
       if (candidate && candidate.stage2?.verified !== true) {
@@ -294,6 +290,14 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
     }
   }
 
+  // Experienced candidates: Foundation & Academics (Stage 2) is optional, so they get the full
+  // 15 points as soon as their identity is verified - they are never marked down for it.
+  if (candidate && experienced && verifiedStages.includes(1) && stageScores[2] === undefined) {
+    score += STAGE_POINTS[2];
+    stageScores[2] = STAGE_POINTS[2];
+    verifiedStages.push(2);
+  }
+
   score = Math.min(100, Math.max(0, score));
 
   return {
@@ -307,4 +311,4 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   };
 }
 
-module.exports = { calculateVerificationScore, isExperiencedCandidate, STAGE_POINTS, GOLD_BADGE_THRESHOLD };
+module.exports = { calculateVerificationScore, isExperiencedCandidate, isNonCertified, hasRealCertification, STAGE_POINTS, GOLD_BADGE_THRESHOLD };
