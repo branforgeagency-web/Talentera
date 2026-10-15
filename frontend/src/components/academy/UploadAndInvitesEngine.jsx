@@ -536,7 +536,7 @@ export default function UploadAndInvitesEngine({
             <input
               id="csv_file_input"
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx"
               style={{ display: "none" }}
               onChange={(e) => handleFileUpload(e.target.files?.[0])}
             />
@@ -544,7 +544,7 @@ export default function UploadAndInvitesEngine({
               <i className="fa-solid fa-cloud-arrow-up"></i>
             </div>
             <h4 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 800, color: "#06152A" }}>
-              {parsing ? "Parsing & Validating CSV rows..." : "Drag & drop CSV file here, or click to browse"}
+              {parsing ? "Parsing & Validating rows..." : "Drag & drop CSV or Excel (.xlsx) file here, or click to browse"}
             </h4>
             <p style={{ fontSize: 12, color: "#64748B", margin: "0 0 8px" }}>
               Supports up to 500 rows per batch · Automatically checks duplicate emails and Aadhaar (last 4 digits)

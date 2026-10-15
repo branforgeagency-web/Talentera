@@ -7,7 +7,7 @@ import { COMPANY_DEPT_GROUPS } from "../../data/companyDepartments.js";
  * Value stays a flat array of strings (department names + specialty names) so existing readers keep working.
  */
 
-function MultiDropdown({ options, selected, onToggle, placeholder, allowCustom, onAddCustom }) {
+function MultiDropdown({ options, selected, onToggle, placeholder, allowCustom, onAddCustom, onSelectAll, onClearAll }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef(null);
@@ -24,8 +24,23 @@ function MultiDropdown({ options, selected, onToggle, placeholder, allowCustom, 
   const count = options.filter((o) => selected.includes(o)).length;
   const canAdd = allowCustom && query && !options.some((o) => o.toLowerCase() === query) && !selected.some((o) => o.toLowerCase() === query);
 
+  const allOn = options.length > 0 && count === options.length;
+  const linkBtn = { background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#B45309", textDecoration: "underline" };
+
   return (
     <div ref={ref} style={{ position: "relative" }}>
+      {onSelectAll && onClearAll && options.length > 1 && (
+        <div style={{ display: "flex", gap: 14, alignItems: "center", marginBottom: 6 }}>
+          <button type="button" style={linkBtn} disabled={allOn} onClick={() => onSelectAll(options)}>
+            {allOn ? "✓ All selected" : `Select all (${options.length})`}
+          </button>
+          {count > 0 && (
+            <button type="button" style={{ ...linkBtn, color: "#64748B" }} onClick={() => onClearAll(options)}>
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
       <input
         type="text"
         className="conb-input"
@@ -88,6 +103,22 @@ export default function DeptGroupField({ value, onCommit }) {
   const chosenGroups = COMPANY_DEPT_GROUPS.filter((g) => has(g.name));
   const strayCustom = selected.filter((v) => !known.has(v));
 
+  function selectAllDepts(names) {
+    onCommit([...selected, ...names.filter((n) => !has(n))]);
+  }
+  function clearAllDepts(names) {
+    const drop = new Set(names);
+    COMPANY_DEPT_GROUPS.forEach((g) => { if (drop.has(g.name)) g.specialties.forEach((sp) => drop.add(sp)); });
+    onCommit(selected.filter((x) => !drop.has(x)));
+  }
+  function selectAllIn(list) {
+    onCommit([...selected, ...list.filter((n) => !has(n))]);
+  }
+  function clearAllIn(list) {
+    const drop = new Set(list);
+    onCommit(selected.filter((x) => !drop.has(x)));
+  }
+
   function toggleDept(name) {
     const g = COMPANY_DEPT_GROUPS.find((x) => x.name === name);
     if (has(name)) {
@@ -107,6 +138,8 @@ export default function DeptGroupField({ value, onCommit }) {
         options={deptNames}
         selected={selected}
         onToggle={toggleDept}
+        onSelectAll={selectAllDepts}
+        onClearAll={clearAllDepts}
         placeholder="Search & select departments…"
       />
       <Chips items={chosenGroups.map((g) => g.name)} onRemove={toggleDept} />
@@ -120,6 +153,8 @@ export default function DeptGroupField({ value, onCommit }) {
               options={g.specialties}
               selected={selected}
               onToggle={toggle}
+              onSelectAll={selectAllIn}
+              onClearAll={clearAllIn}
               onAddCustom={(t) => { if (!has(t)) onCommit([...selected, t]); }}
               allowCustom
               placeholder={`Search & select ${g.name} specialties (or type to add your own)…`}

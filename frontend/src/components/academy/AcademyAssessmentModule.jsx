@@ -13,12 +13,14 @@ const STATUS_STYLE = {
 const blankQuestion = (type = "mcq") => ({ type, text: "", options: type === "mcq" ? ["", "", "", ""] : [], answer: type === "mcq" ? "0" : "", marks: 1 });
 const blankForm = () => ({ id: null, title: "", course: "", batchCodes: [], instructions: "", durationMins: 30, passPercentage: 50, questions: [blankQuestion("mcq")] });
 
-export default function AcademyAssessmentModule({ getAuthHeader, students = [], batches = [], onScoresChanged }) {
+export default function AcademyAssessmentModule({ getAuthHeader, students = [], batches = [], onScoresChanged, bankQuestions = [] }) {
   const [tab, setTab] = useState("assessments"); // assessments | score_only
   const [loading, setLoading] = useState(true);
   const [list, setList] = useState([]);
   const [scoreOnlyEntries, setScoreOnlyEntries] = useState(0);
   const [form, setForm] = useState(null); // builder open when not null
+  const [showBank, setShowBank] = useState(false);
+  const [bankPicked, setBankPicked] = useState({});
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const [resultsFor, setResultsFor] = useState(null); // { assessment, results }
@@ -68,6 +70,24 @@ export default function AcademyAssessmentModule({ getAuthHeader, students = [], 
 
   // ---------------- builder ----------------
   const setQ = (i, patch) => setForm((f) => ({ ...f, questions: f.questions.map((q, idx) => (idx === i ? { ...q, ...patch } : q)) }));
+  // Question-bank rows (Settings > Question Bank) converted to the assessment question shape
+  const bankUsable = (bankQuestions || [])
+    .map((b) => {
+      const t = String(b.type || "mcq").toLowerCase();
+      const type = ["mcq", "fill_blank", "qa"].includes(t) ? t : "mcq";
+      return { id: String(b._id || ""), type, text: b.question, options: Array.isArray(b.options) ? b.options : [], answer: b.answer ?? "", marks: Number(b.marks) || 1, topic: b.topic };
+    })
+    .filter((b) => b.id && b.text && (b.type !== "mcq" || b.options.length >= 2));
+  const addBankSelected = () => {
+    const chosen = bankUsable.filter((b) => bankPicked[b.id]);
+    if (chosen.length === 0) return;
+    const asQuestions = chosen.map((b) => ({ type: b.type, text: b.text, options: b.type === "mcq" ? [...b.options] : [], answer: b.type === "mcq" ? String(b.answer || "0") : String(b.answer || ""), marks: b.marks }));
+    setForm((f) => ({ ...f, questions: [...(f.questions.length === 1 && !f.questions[0].text ? [] : f.questions), ...asQuestions] }));
+    setBankPicked({});
+    setShowBank(false);
+    flash(`${chosen.length} question${chosen.length === 1 ? "" : "s"} added from your question bank.`);
+  };
+
   const changeType = (i, type) => setQ(i, { ...blankQuestion(type), text: form.questions[i].text, marks: form.questions[i].marks });
   const setOption = (qi, oi, val) =>
     setForm((f) => ({
@@ -302,6 +322,7 @@ export default function AcademyAssessmentModule({ getAuthHeader, students = [], 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
             <strong style={{ fontSize: 13, color: "#06152A" }}>Questions ({form.questions.length})</strong>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button style={btn("ghost")} onClick={() => setShowBank((v) => !v)}>From question bank ({bankUsable.length})</button>
               <button style={btn("ghost")} onClick={downloadQuestionTemplate}>CSV template</button>
               <label style={{ ...btn("ghost"), display: "inline-block" }}>
                 Import question bank (CSV)
@@ -314,6 +335,32 @@ export default function AcademyAssessmentModule({ getAuthHeader, students = [], 
               ))}
             </div>
           </div>
+
+          {showBank && (
+            <div style={{ border: "1px solid #CBD5E1", borderRadius: 10, padding: 12, background: "#FFFFFF", marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <strong style={{ fontSize: 12, color: "#06152A" }}>Pick from your question bank</strong>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {bankUsable.length > 0 && (
+                    <button style={btn("ghost")} onClick={() => setBankPicked(Object.fromEntries(bankUsable.map((b) => [b.id, true])))}>Select all</button>
+                  )}
+                  <button style={btn("primary")} onClick={addBankSelected} disabled={!Object.values(bankPicked).some(Boolean)}>Add selected</button>
+                </div>
+              </div>
+              {bankUsable.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#64748B" }}>Your question bank is empty. Add questions under Settings &gt; Question Bank &gt; + Add Question.</div>
+              ) : (
+                <div style={{ maxHeight: 220, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {bankUsable.map((b) => (
+                    <label key={b.id} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 12.5, padding: "6px 8px", borderRadius: 8, background: bankPicked[b.id] ? "#FDF6E4" : "#F8FAFC", cursor: "pointer" }}>
+                      <input type="checkbox" checked={!!bankPicked[b.id]} onChange={() => setBankPicked((p) => ({ ...p, [b.id]: !p[b.id] }))} style={{ marginTop: 2 }} />
+                      <span style={{ flex: 1 }}>{b.text} <span style={{ color: "#64748B" }}>· {TYPE_LABEL[b.type]} · {b.marks} mark{b.marks === 1 ? "" : "s"}{b.topic ? ` · ${b.topic}` : ""}</span></span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {form.questions.map((q, i) => (

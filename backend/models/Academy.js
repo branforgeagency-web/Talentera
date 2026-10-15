@@ -16,11 +16,15 @@ const CourseSubSchema = new mongoose.Schema({
 const QuestionSubSchema = new mongoose.Schema({
   question: { type: String, required: true },
   topic: { type: String, default: "HCC" },
-  type: { type: String, default: "MCQ" },
+  type: { type: String, default: "mcq" }, // mcq | fill_blank | qa (legacy rows may hold "MCQ")
   difficulty: { type: String, default: "Mid" },
   marks: { type: Number, default: 2 },
   status: { type: String, default: "Editable" },
   courseTitle: { type: String, default: "HCC Coding Specialization" },
+  // MCQ answer choices, and the correct answer (MCQ: index "0"-"3" of the correct option;
+  // fill in the blank: the expected text; Q&A: model answer for the trainer's reference)
+  options: { type: [String], default: [] },
+  answer: { type: String, default: "" },
 });
 
 const PlacementSubSchema = new mongoose.Schema({

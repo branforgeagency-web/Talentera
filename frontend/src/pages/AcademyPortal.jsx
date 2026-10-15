@@ -238,9 +238,12 @@ export default function AcademyPortal() {
 
   const [newQuestionText, setNewQuestionText] = useState("");
   const [newQuestionTopic, setNewQuestionTopic] = useState("HCC");
-  const [newQuestionType, setNewQuestionType] = useState("MCQ");
+  const [newQuestionType, setNewQuestionType] = useState("mcq");
   const [newQuestionDiff, setNewQuestionDiff] = useState("Mid");
-  const [newQuestionMarks, setNewQuestionMarks] = useState("2");
+  const [newQuestionMarks, setNewQuestionMarks] = useState("1");
+  const [newQuestionOptions, setNewQuestionOptions] = useState(["", "", "", ""]);
+  const [newQuestionAnswer, setNewQuestionAnswer] = useState("0"); // MCQ: index of correct option; otherwise typed answer
+  const [editingQuestionId, setEditingQuestionId] = useState(null); // null = adding a new question
 
   const [newStudentName, setNewStudentName] = useState("");
   const [newPlacementCandidateId, setNewPlacementCandidateId] = useState("");
@@ -744,13 +747,43 @@ export default function AcademyPortal() {
   };
 
   // Add Question
-  const handleAddQuestion = async (e) => {
-    e.preventDefault();
-    if (!newQuestionText.trim()) return;
+  const resetQuestionForm = (type = "mcq") => {
+    setEditingQuestionId(null);
+    setNewQuestionType(type);
+    setNewQuestionText("");
+    setNewQuestionOptions(["", "", "", ""]);
+    setNewQuestionAnswer(type === "mcq" ? "0" : "");
+  };
+
+  const openEditQuestion = (q) => {
+    const t = String(q.type || "mcq").toLowerCase();
+    const type = ["mcq", "fill_blank", "qa"].includes(t) ? t : "mcq";
+    const opts = Array.isArray(q.options) && q.options.length > 0 ? [...q.options] : ["", "", "", ""];
+    while (type === "mcq" && opts.length < 4) opts.push("");
+    setEditingQuestionId(q._id);
+    setNewQuestionType(type);
+    setNewQuestionText(q.question || "");
+    setNewQuestionTopic(q.topic || "HCC");
+    setNewQuestionDiff(q.difficulty || "Mid");
+    setNewQuestionMarks(String(q.marks ?? 1));
+    setNewQuestionOptions(opts);
+    setNewQuestionAnswer(type === "mcq" ? String(q.answer || "0") : String(q.answer || ""));
+    setShowAddQuestionModal(true);
+  };
+
+  const handleAddQuestion = async (e, addAnother = false) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!newQuestionText.trim()) { showToast("Please type the question.", "error"); return; }
+    if (newQuestionType === "mcq") {
+      const filled = newQuestionOptions.filter((o) => o.trim());
+      if (filled.length < 2) { showToast("Add at least two answer options.", "error"); return; }
+      if (!newQuestionOptions[Number(newQuestionAnswer)]?.trim()) { showToast("Select which option is the correct answer.", "error"); return; }
+    }
+    if (newQuestionType === "fill_blank" && !newQuestionAnswer.trim()) { showToast("Enter the correct answer for the blank.", "error"); return; }
     setSaving(true);
     try {
-      const res = await fetch("/api/academy/add-question", {
-        method: "POST",
+      const res = await fetch(editingQuestionId ? `/api/academy/questions/${editingQuestionId}` : "/api/academy/add-question", {
+        method: editingQuestionId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({
           question: newQuestionText.trim(),
@@ -758,13 +791,15 @@ export default function AcademyPortal() {
           type: newQuestionType,
           difficulty: newQuestionDiff,
           marks: newQuestionMarks,
+          options: newQuestionType === "mcq" ? newQuestionOptions : [],
+          answer: newQuestionAnswer,
         }),
       });
       const data = await safeJson(res);
       if (res.ok) {
         showToast(data.message || "Question saved to bank!");
-        setShowAddQuestionModal(false);
-        setNewQuestionText("");
+        if (addAnother && !editingQuestionId) resetQuestionForm(newQuestionType);
+        else { setShowAddQuestionModal(false); resetQuestionForm("mcq"); }
         fetchDashboardData();
       } else {
         showToast(data.message || "Failed to add question.", "error");
@@ -773,6 +808,18 @@ export default function AcademyPortal() {
       showToast("Error adding question.", "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteQuestion = async (id) => {
+    if (!id || !window.confirm("Remove this question from the bank?")) return;
+    try {
+      const res = await fetch(`/api/academy/questions/${id}`, { method: "DELETE", headers: { ...getAuthHeader() } });
+      const data = await safeJson(res);
+      if (res.ok) { showToast(data.message || "Question removed."); fetchDashboardData(); }
+      else showToast(data.message || "Failed to remove question.", "error");
+    } catch (err) {
+      showToast("Error removing question.", "error");
     }
   };
 
@@ -1998,6 +2045,7 @@ export default function AcademyPortal() {
           {/* ========================================================= */}
           {activeMod === "assessment" && (
             <AcademyAssessmentModule
+              bankQuestions={questions}
               getAuthHeader={getAuthHeader}
               students={students}
               batches={batches}
@@ -2495,13 +2543,24 @@ export default function AcademyPortal() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   {(() => {
                     const totalBase = Math.max(students.length, kpis.invitesTotal || 0, 1);
+                    // Funnel is computed from each candidate's real stage results (stages 1-6), not from the
+                    // overall score/percentage, so a candidate who finished every step is counted at every step.
+                    const stageDone = (st, n) => !!(st.stages || []).find((x) => x.stageNumber === n)?.isDone;
+                    const registered = students.filter((st) => !st.registrationPending);
+                    const started = registered.filter((st) => (st.stages || []).some((x) => x.stageNumber <= 6 && x.isDone));
+                    const assessed = registered.filter((st) => stageDone(st, 4) && stageDone(st, 5));
+                    const allSix = registered.filter((st) => [1, 2, 3, 4, 5, 6].every((n) => stageDone(st, n)));
+                    // Finished everything on their side but still waiting for the academy's Stage 2 sign-off
+                    const awaitingAcademy = registered.filter((st) => [1, 3, 4, 5, 6].every((n) => stageDone(st, n)) && !stageDone(st, 2));
+                    const pctOf = (n) => Math.round((n / totalBase) * 100);
                     const funnels = [
                       { step: "1. Enrolled & Uploaded", count: students.length, pct: students.length > 0 ? 100 : 0 },
-                      { step: "2. Profile Verification Started", count: students.filter((s) => parseInt(s.completion, 10) > 10).length, pct: Math.round((students.filter((s) => parseInt(s.completion, 10) > 10).length / totalBase) * 100) },
-                      { step: "3. Assessment & Video Completed", count: students.filter((s) => s.score && s.score !== "Not Attempted").length, pct: Math.round((students.filter((s) => s.score && s.score !== "Not Attempted").length / totalBase) * 100) },
-                      { step: "4. Profile Published Live", count: liveProfilesData.length, pct: Math.round((liveProfilesData.length / totalBase) * 100) },
-                      { step: "5. Company Interviews", count: kpis.interviewsActive || 0, pct: Math.round(((kpis.interviewsActive || 0) / totalBase) * 100) },
-                      { step: "6. Offer & Final Placement", count: placements.length, pct: Math.round((placements.length / totalBase) * 100) },
+                      { step: "2. Registered & Verification Started", count: started.length, pct: pctOf(started.length) },
+                      { step: "3. Assessment & Video Completed", count: assessed.length, pct: pctOf(assessed.length) },
+                      { step: "4. All 6 Verification Steps Completed", count: allSix.length, pct: pctOf(allSix.length), note: awaitingAcademy.length > 0 ? `${awaitingAcademy.length} more finished all their steps and are awaiting your Stage 2 (Academy & Training) approval` : "" },
+                      { step: "5. Profile Published Live", count: liveProfilesData.length, pct: pctOf(liveProfilesData.length) },
+                      { step: "6. Company Interviews", count: kpis.interviewsActive || 0, pct: pctOf(kpis.interviewsActive || 0) },
+                      { step: "7. Offer & Final Placement", count: placements.length, pct: pctOf(placements.length) },
                     ];
                     return funnels.map((fn, idx) => (
                       <div key={fn.step}>
@@ -2512,6 +2571,7 @@ export default function AcademyPortal() {
                         <div style={{ height: 8, background: "#F1F5F9", borderRadius: 999, overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${Math.min(100, fn.pct)}%`, background: `hsl(${140 - idx * 15}, 70%, 45%)`, borderRadius: 999 }} />
                         </div>
+                        {fn.note && <div style={{ fontSize: 11, color: "#B45309", fontWeight: 600, marginTop: 4 }}>{fn.note}</div>}
                       </div>
                     ));
                   })()}
@@ -2742,17 +2802,46 @@ export default function AcademyPortal() {
                 <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 20 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                     <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#06152A" }}>Curriculum Question Bank ({questions.length})</h4>
-                    <button className="btn btn-navy" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => setShowAddQuestionModal(true)}>
+                    <button className="btn btn-navy" style={{ fontSize: 11, padding: "4px 8px" }} onClick={() => { resetQuestionForm("mcq"); setShowAddQuestionModal(true); }}>
                       + Add Question
                     </button>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {questions.map((q, idx) => (
-                      <div key={idx} style={{ border: "1px solid #F1F5F9", borderRadius: 8, padding: "10px 12px", background: "#F8FAFC" }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>{q.question}</div>
-                        <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>{q.topic} · {q.type} · {q.difficulty} · {q.marks} Marks</div>
+                    {questions.length === 0 && (
+                      <div style={{ fontSize: 12, color: "#64748B", padding: "10px 2px" }}>
+                        No questions yet. Click <strong>+ Add Question</strong> to write a question with its answer - saved questions can be added to any assessment under "4. Academy Assessment".
                       </div>
-                    ))}
+                    )}
+                    {questions.map((q, idx) => {
+                      const t = String(q.type || "mcq").toLowerCase();
+                      const typeLabel = t === "fill_blank" ? "Fill in the blank" : t === "qa" ? "Q & A" : "MCQ";
+                      return (
+                        <div key={q._id || idx} style={{ border: "1px solid #F1F5F9", borderRadius: 8, padding: "10px 12px", background: "#F8FAFC" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                            <div style={{ fontWeight: 700, fontSize: 13, color: "#0F172A" }}>{idx + 1}. {q.question}</div>
+                            {q._id && (
+                              <div style={{ display: "flex", gap: 12, flexShrink: 0 }}>
+                                <button type="button" onClick={() => openEditQuestion(q)} style={{ border: "none", background: "none", color: "#1D4ED8", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Edit</button>
+                                <button type="button" onClick={() => handleDeleteQuestion(q._id)} style={{ border: "none", background: "none", color: "#B91C1C", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Remove</button>
+                              </div>
+                            )}
+                          </div>
+                          {t === "mcq" && Array.isArray(q.options) && q.options.length > 0 && (
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, marginTop: 6, fontSize: 12 }}>
+                              {q.options.map((o, oi) => (
+                                <div key={oi} style={{ color: String(q.answer) === String(oi) ? "#15803D" : "#475569", fontWeight: String(q.answer) === String(oi) ? 800 : 500 }}>
+                                  {String.fromCharCode(65 + oi)}. {o} {String(q.answer) === String(oi) ? "✓" : ""}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {t !== "mcq" && q.answer && (
+                            <div style={{ fontSize: 12, color: "#15803D", fontWeight: 700, marginTop: 6 }}>{t === "qa" ? "Model answer" : "Answer"}: <span style={{ fontWeight: 500 }}>{q.answer}</span></div>
+                          )}
+                          <div style={{ fontSize: 11, color: "#64748B", marginTop: 4 }}>{q.topic} · {typeLabel} · {q.difficulty} · {q.marks} Marks</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -2783,6 +2872,115 @@ export default function AcademyPortal() {
 
       {showCustomReportModal && (
         <CustomReportModal getAuthHeader={getAuthHeader} onClose={() => setShowCustomReportModal(false)} />
+      )}
+
+      {/* Add Question to bank */}
+      {showAddQuestionModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 20 }} onClick={() => setShowAddQuestionModal(false)}>
+          <div style={{ background: "#FFFFFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 620, maxHeight: "92vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+              <h4 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#06152A" }}>{editingQuestionId ? "Edit Question" : "Add Question"}</h4>
+              <button type="button" onClick={() => setShowAddQuestionModal(false)} style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", color: "#64748B" }}>×</button>
+            </div>
+            <div style={{ fontSize: 11, color: "#64748B", marginBottom: 14 }}>
+              Write the question and its answer. Saved questions can be added to any assessment under "4. Academy Assessment".
+            </div>
+
+            <form onSubmit={handleAddQuestion} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>QUESTION TYPE</label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {[["mcq", "MCQ"], ["fill_blank", "Fill in the blank"], ["qa", "Q & A"]].map(([val, label]) => (
+                    <button
+                      type="button"
+                      key={val}
+                      onClick={() => { setNewQuestionType(val); setNewQuestionAnswer(val === "mcq" ? "0" : ""); }}
+                      style={{ padding: "7px 14px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", border: newQuestionType === val ? "1.5px solid #06152A" : "1.5px solid #CBD5E1", background: newQuestionType === val ? "#06152A" : "#fff", color: newQuestionType === val ? "#fff" : "#475569" }}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>QUESTION</label>
+                <textarea
+                  value={newQuestionText}
+                  onChange={(e) => setNewQuestionText(e.target.value)}
+                  placeholder={newQuestionType === "fill_blank" ? "Type the sentence - use ___ where the blank is" : "Type the question"}
+                  style={{ width: "100%", minHeight: 70, padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }}
+                />
+              </div>
+
+              {newQuestionType === "mcq" && (
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>ANSWER OPTIONS - tick the correct one</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {newQuestionOptions.map((o, oi) => (
+                      <label key={oi} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <input type="radio" name="newq-correct" checked={String(newQuestionAnswer) === String(oi)} onChange={() => setNewQuestionAnswer(String(oi))} title="Mark as correct answer" />
+                        <span style={{ width: 22, fontWeight: 800, fontSize: 12, color: "#475569" }}>{String.fromCharCode(65 + oi)}</span>
+                        <input
+                          value={o}
+                          onChange={(e) => setNewQuestionOptions((prev) => prev.map((x, k) => (k === oi ? e.target.value : x)))}
+                          placeholder={`Option ${String.fromCharCode(65 + oi)}`}
+                          style={{ flex: 1, padding: "8px 10px", borderRadius: 8, border: String(newQuestionAnswer) === String(oi) ? "1.5px solid #16A34A" : "1px solid #CBD5E1", fontSize: 13 }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  {newQuestionOptions.length < 6 && (
+                    <button type="button" onClick={() => setNewQuestionOptions((prev) => [...prev, ""])} style={{ marginTop: 8, border: "none", background: "none", color: "#1D4ED8", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                      + Add another option
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {newQuestionType === "fill_blank" && (
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>CORRECT ANSWER (for the blank)</label>
+                  <input value={newQuestionAnswer} onChange={(e) => setNewQuestionAnswer(e.target.value)} placeholder="e.g. CMS-1500" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+              )}
+
+              {newQuestionType === "qa" && (
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>MODEL ANSWER (for the trainer's reference while grading)</label>
+                  <textarea value={newQuestionAnswer} onChange={(e) => setNewQuestionAnswer(e.target.value)} placeholder="Type the ideal answer" style={{ width: "100%", minHeight: 70, padding: 10, borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box", fontFamily: "inherit" }} />
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>TOPIC</label>
+                  <input value={newQuestionTopic} onChange={(e) => setNewQuestionTopic(e.target.value)} placeholder="e.g. HCC, ICD-10" style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>DIFFICULTY</label>
+                  <select value={newQuestionDiff} onChange={(e) => setNewQuestionDiff(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}>
+                    <option value="Easy">Easy</option>
+                    <option value="Mid">Medium</option>
+                    <option value="Hard">Hard</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>MARKS</label>
+                  <input type="number" min="0" value={newQuestionMarks} onChange={(e) => setNewQuestionMarks(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 4 }}>
+                <button type="button" className="btn" onClick={() => setShowAddQuestionModal(false)} style={{ fontSize: 12, padding: "8px 14px" }}>Cancel</button>
+                {!editingQuestionId && (
+                  <button type="button" className="btn" disabled={saving} onClick={(e) => handleAddQuestion(e, true)} style={{ fontSize: 12, padding: "8px 14px" }}>Save &amp; add another</button>
+                )}
+                <button type="submit" className="btn btn-navy" disabled={saving} style={{ fontSize: 12, padding: "8px 16px" }}>{saving ? "Saving…" : editingQuestionId ? "Update question" : "Save question"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* 2. Monthly Report Modal */}

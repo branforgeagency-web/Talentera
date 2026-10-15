@@ -32,6 +32,82 @@ const ACCREDITATION_OPTIONS = [
   "Healthcare Sector Skill Council (HSSC)",
 ];
 
+const LABEL_STYLE = { display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 };
+
+/** State + City dropdowns (pick from list, or "Other" to type a city). Shares formData.state / formData.city. */
+function LocationSelects({ formData, handleInputChange, cityFirst = false, cityLabel = "City", stateLabel = "State", required = false }) {
+  const star = required ? <span style={{ color: "#DC2626" }}> *</span> : null;
+  const stateField = (
+    <div>
+      <label style={LABEL_STYLE}>{stateLabel}{star}</label>
+      <SearchableSelect
+        value={formData.state || ""}
+        options={BRANCH_STATES}
+        placeholder="Select state"
+        inputStyle={BRANCH_FIELD_STYLE}
+        onChange={(v) => {
+          handleInputChange("state", v);
+          const list = CITIES_BY_STATE[v] || [];
+          if (formData.city && !list.includes(formData.city) && !formData._cityOther) handleInputChange("city", "");
+        }}
+      />
+    </div>
+  );
+  const cityField = (
+    <div>
+      <label style={LABEL_STYLE}>{cityLabel}{star}</label>
+      {(() => {
+        const stateCities = formData.state && CITIES_BY_STATE[formData.state] ? CITIES_BY_STATE[formData.state] : null;
+        const cityOptions = [...(stateCities || INDIAN_CITIES.map((c) => c.city)), BRANCH_OTHER_CITY];
+        const customCity = formData._cityOther || (formData.city && !INDIAN_CITIES.some((c) => c.city === formData.city));
+        if (customCity) {
+          return (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input
+                type="text"
+                value={formData.city || ""}
+                onChange={(e) => handleInputChange("city", e.target.value)}
+                placeholder="Type your city / town"
+                style={BRANCH_FIELD_STYLE}
+              />
+              <button
+                type="button"
+                title="Pick from the city list"
+                onClick={() => { handleInputChange("_cityOther", false); handleInputChange("city", ""); }}
+                style={{ border: "1px solid #CBD5E1", background: "#fff", borderRadius: 8, padding: "0 12px", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}
+              >
+                List
+              </button>
+            </div>
+          );
+        }
+        return (
+          <SearchableSelect
+            value={formData.city || ""}
+            options={cityOptions}
+            placeholder={formData.state ? "Select city" : "Select city (or pick state first)"}
+            inputStyle={BRANCH_FIELD_STYLE}
+            onChange={(v) => {
+              if (v === BRANCH_OTHER_CITY) {
+                handleInputChange("_cityOther", true);
+                handleInputChange("city", "");
+                return;
+              }
+              handleInputChange("city", v);
+              if (!formData.state) {
+                const hit = INDIAN_CITIES.find((c) => c.city === v);
+                if (hit) handleInputChange("state", hit.state);
+              }
+            }}
+          />
+        );
+      })()}
+    </div>
+  );
+  return cityFirst ? <>{cityField}{stateField}</> : <>{stateField}{cityField}</>;
+}
+
+
 export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
   const [formData, setFormData] = useState({
     legalEntityName: "",
@@ -50,6 +126,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     state: "Tamil Nadu",
     pincode: "",
     primarySpecialty: "Medical Coding",
+    specialties: ["Medical Coding"],
     otherSpecialtyCourses: "",
     branches: [],
     courses: [],
@@ -140,6 +217,12 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             city: kd.city || ac.headquarters || "",
             state: kd.state || "Tamil Nadu",
             pincode: kd.pincode || "",
+            specialties: (() => {
+              const known = ["Medical Coding", "Medical Billing", "AR Calling", "Other RCM Services"];
+              if (Array.isArray(kd.specialties) && kd.specialties.length > 0) return kd.specialties.filter((x) => known.includes(x));
+              const single = kd.primarySpecialty || ac.specialty || "Medical Coding";
+              return [known.includes(single) ? single : "Other RCM Services"];
+            })(),
             primarySpecialty: ["Medical Coding", "Medical Billing", "AR Calling"].includes(kd.primarySpecialty || ac.specialty || "Medical Coding")
               ? (kd.primarySpecialty || ac.specialty || "Medical Coding")
               : "Other RCM Services",
@@ -263,7 +346,11 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
       if (showToast) showToast("Authorized signatory name and mobile are required.", "error");
       return;
     }
-    if (formData.primarySpecialty === "Other RCM Services" && !formData.otherSpecialtyCourses.trim()) {
+    if (!formData.specialties || formData.specialties.length === 0) {
+      if (showToast) showToast("Please select at least one training specialty.", "error");
+      return;
+    }
+    if (formData.specialties.includes("Other RCM Services") && !formData.otherSpecialtyCourses.trim()) {
       if (showToast) showToast("Please enter the courses you offer under Other RCM Services.", "error");
       return;
     }
@@ -282,6 +369,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
         },
         body: JSON.stringify({
           ...formData,
+          primarySpecialty: (formData.specialties && formData.specialties[0]) || formData.primarySpecialty,
           accreditations: [
             ...formData.accreditations.filter((x) => x !== "Other"),
             ...(formData.accreditations.includes("Other") && formData.otherAccreditation.trim() ? [formData.otherAccreditation.trim()] : []),
@@ -650,6 +738,9 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                 }}
               />
             </div>
+
+            {/* Institute location - state, then city (pick from list or type your own) */}
+            <LocationSelects formData={formData} handleInputChange={handleInputChange} cityLabel="Location — City" stateLabel="Location — State" required />
           </div>
         </div>
 
@@ -872,45 +963,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               />
             </div>
 
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                City
-              </label>
-              <input
-                type="text"
-                value={formData.city}
-                onChange={(e) => handleInputChange("city", e.target.value)}
-                placeholder="e.g. Coimbatore"
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  border: "1px solid #CBD5E1",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  outline: "none",
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                State
-              </label>
-              <input
-                type="text"
-                value={formData.state}
-                onChange={(e) => handleInputChange("state", e.target.value)}
-                placeholder="e.g. Tamil Nadu"
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  border: "1px solid #CBD5E1",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  outline: "none",
-                }}
-              />
-            </div>
+            <LocationSelects formData={formData} handleInputChange={handleInputChange} cityFirst />
 
             <div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
@@ -954,31 +1007,42 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16, marginBottom: 18 }}>
-            <div>
+            <div style={{ gridColumn: "1 / -1" }}>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
-                Primary Training Specialty
+                Training Specialties <span style={{ color: "#64748B", fontWeight: 500 }}>(select all that apply)</span>
               </label>
-              <select
-                value={formData.primarySpecialty}
-                onChange={(e) => handleInputChange("primarySpecialty", e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 14px",
-                  border: "1px solid #CBD5E1",
-                  borderRadius: 8,
-                  fontSize: 13,
-                  background: "#FFF",
-                  outline: "none",
-                }}
-              >
-                <option value="Medical Coding">Medical Coding</option>
-                <option value="Medical Billing">Medical Billing</option>
-                <option value="AR Calling">AR Calling</option>
-                <option value="Other RCM Services">Other RCM Services</option>
-              </select>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {["Medical Coding", "Medical Billing", "AR Calling", "Other RCM Services"].map((opt) => {
+                  const on = (formData.specialties || []).includes(opt);
+                  return (
+                    <button
+                      type="button"
+                      key={opt}
+                      onClick={() => {
+                        const cur = formData.specialties || [];
+                        const next = on ? cur.filter((x) => x !== opt) : [...cur, opt];
+                        handleInputChange("specialties", next);
+                        handleInputChange("primarySpecialty", next[0] || "");
+                      }}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: 999,
+                        border: on ? "1.5px solid #0A1F3D" : "1.5px solid #CBD5E1",
+                        background: on ? "#0A1F3D" : "#FFF",
+                        color: on ? "#FFF" : "#475569",
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {on ? "✓ " : ""}{opt}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {formData.primarySpecialty === "Other RCM Services" && (
+            {(formData.specialties || []).includes("Other RCM Services") && (
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#334155", marginBottom: 6 }}>
                   Courses Offered (Other RCM Services)

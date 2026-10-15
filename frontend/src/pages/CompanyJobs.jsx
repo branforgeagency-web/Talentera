@@ -10,6 +10,7 @@ import { OTHER, isOtherVal, otherTextOf, otherValue, multiHasOther, multiOtherTe
 import HeadOnly from "../components/company/HeadOnly.jsx";
 const STAGE9 = getStage("9");
 const EXPERIENCE_IDS = new Set(["expmin", "expmax"]);
+const FRESHER_ONLY_IDS = new Set(["elgage", "elgbacklogs"]);
 const REQUIRED_IDS = new Set(STAGE9.items.filter((i) => i.tag === "must").map((i) => i.id));
 
 function emptyFormState() {
@@ -164,6 +165,12 @@ export default function CompanyJobs() {
       // Experience range and notice period don't apply when hiring freshers
       const isFresher = isFresherJob(form);
       const payload = isFresher ? { ...form, expmin: "", expmax: "", notice: "" } : { ...form };
+      // Experienced-only roles: age limit / backlogs / passout year don't apply
+      if (String(form.level || "") === "Experienced only") {
+        payload.elgage = "";
+        payload.elgbacklogs = "";
+        payload.elgpassout = "";
+      }
       payload.panel = (Array.isArray(payload.panel) ? payload.panel : []).map((n) => String(n).trim()).filter(Boolean);
       await companyApi.post("/company/jobs", payload);
       toast("Job posted and published live! ✓", "✓");
@@ -346,6 +353,14 @@ export default function CompanyJobs() {
                 if (isFresher && item.id === "notice") return null;
                 // Passout year only matters when freshers can apply
                 if (item.id === "elgpassout" && String(form.level || "") === "Experienced only") return null;
+                // Age limit & backlogs are fresher-only criteria - not asked for experienced-only roles
+                if (FRESHER_ONLY_IDS.has(item.id) && String(form.level || "") === "Experienced only") {
+                  return item.section ? (
+                    <div key={item.id} style={{ gridColumn: "1 / -1", marginTop: 8, paddingTop: 12, borderTop: "1px solid #E5E7EB", fontSize: 13, fontWeight: 800, color: "var(--navy)" }}>
+                      {item.section}
+                    </div>
+                  ) : null;
+                }
                 return (
                   <React.Fragment key={item.id}>
                   {item.section && (

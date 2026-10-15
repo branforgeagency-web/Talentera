@@ -206,7 +206,7 @@ export default function ChartStatsUpload({ getAuthHeader, onUploadSuccess }) {
               Browse file
               <input
                 type="file"
-                accept=".csv"
+                accept=".csv,.xlsx"
                 style={{ display: "none" }}
                 disabled={parsing}
                 onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}

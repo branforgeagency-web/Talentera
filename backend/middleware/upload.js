@@ -67,6 +67,8 @@ const ALLOWED_MIME_TYPES = {
     "application/csv",
     "text/plain",
     "application/octet-stream",
+    // Excel workbooks (.xlsx) - converted to CSV right after upload (see xlsxToCsvMiddleware)
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ],
 };
 
@@ -211,8 +213,74 @@ const handleUpload = (options = {}) => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// Excel (.xlsx) support for the CSV-based bulk uploads.
+// If the uploaded file is a real .xlsx workbook (ZIP magic bytes), its first sheet is converted to
+// CSV text in place, so every downstream route keeps parsing plain CSV and nothing else changes.
+// ---------------------------------------------------------------------------
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function csvEscape(v) {
+  const t = String(v ?? "");
+  return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+}
+
+function excelCellToText(value) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) {
+    // Month & Year columns (e.g. "Jan-26") come through Excel as dates
+    return `${MONTHS[value.getUTCMonth()]}-${String(value.getUTCFullYear()).slice(-2)}`;
+  }
+  if (typeof value === "object") {
+    if (Array.isArray(value.richText)) return value.richText.map((r) => r.text).join("");
+    if (value.result !== undefined && value.result !== null) return excelCellToText(value.result);
+    if (value.text !== undefined) return excelCellToText(value.text);
+    if (value.hyperlink) return String(value.hyperlink);
+    if (value.error) return "";
+    return "";
+  }
+  return String(value);
+}
+
+async function xlsxBufferToCsvBuffer(buffer) {
+  const ExcelJS = require("exceljs");
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  const ws = wb.worksheets.find((w) => w.rowCount > 0) || wb.worksheets[0];
+  if (!ws) return Buffer.from("", "utf-8");
+  const lines = [];
+  ws.eachRow({ includeEmpty: false }, (row) => {
+    const cells = [];
+    for (let c = 1; c <= ws.columnCount; c++) cells.push(csvEscape(excelCellToText(row.getCell(c).value).trim()));
+    if (cells.some((x) => x !== "")) lines.push(cells.join(","));
+  });
+  return Buffer.from(lines.join("\n"), "utf-8");
+}
+
+async function xlsxToCsvMiddleware(req, res, next) {
+  try {
+    const f = req.file;
+    if (f && f.buffer && f.buffer.length >= 4 && f.buffer[0] === 0x50 && f.buffer[1] === 0x4b && f.buffer[2] === 0x03 && f.buffer[3] === 0x04) {
+      f.buffer = await xlsxBufferToCsvBuffer(f.buffer);
+      f.size = f.buffer.length;
+      f.mimetype = "text/csv";
+      if (f.originalname) f.originalname = f.originalname.replace(/\.(xlsx|xlsm)$/i, ".csv");
+    }
+    next();
+  } catch (err) {
+    console.error("xlsx to csv conversion failed:", err);
+    res.status(400).json({ message: "Could not read this Excel file. Please re-save it as .xlsx or .csv and try again." });
+  }
+}
+
+// Same multer instance, but single() also converts an uploaded .xlsx to CSV after multer finishes.
+// A real .doc/.zip is never ZIP-magic-bytes + accepted by the `file` field filter, so other fields are unaffected.
+const uploadWithXlsx = Object.create(upload);
+uploadWithXlsx.single = (field) => [upload.single(field), xlsxToCsvMiddleware];
+
 module.exports = {
-  upload,
+  upload: uploadWithXlsx,
   handleUpload,
+  xlsxBufferToCsvBuffer,
 };
 

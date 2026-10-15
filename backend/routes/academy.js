@@ -786,6 +786,7 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       state,
       pincode,
       primarySpecialty,
+      specialties,
       otherSpecialtyCourses,
       branches,
       accreditations,
@@ -818,6 +819,16 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       }
     }
 
+    // Training specialties - one or more of the allowed options (primarySpecialty stays the first one)
+    const ALLOWED_KYC_SPECIALTIES = ["Medical Coding", "Medical Billing", "AR Calling", "Other RCM Services"];
+    const kycSpecialties = [
+      ...new Set(
+        (Array.isArray(specialties) ? specialties : [])
+          .map((x) => String(x || "").trim())
+          .filter((x) => ALLOWED_KYC_SPECIALTIES.includes(x))
+      ),
+    ];
+
     // Save submitted KYC form data
     academy.kycData = {
       legalEntityName: (legalEntityName || academy.name || "").trim(),
@@ -835,8 +846,9 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       city: (city || academy.headquarters || "").trim(),
       state: (state || "").trim(),
       pincode: (pincode || "").trim(),
-      primarySpecialty: (primarySpecialty || academy.specialty || "Medical Coding").trim(),
-      otherSpecialtyCourses: primarySpecialty === "Other RCM Services" ? String(otherSpecialtyCourses || "").trim().slice(0, 300) : "",
+      primarySpecialty: (primarySpecialty || kycSpecialties[0] || academy.specialty || "Medical Coding").trim(),
+      specialties: kycSpecialties,
+      otherSpecialtyCourses: kycSpecialties.includes("Other RCM Services") || primarySpecialty === "Other RCM Services" ? String(otherSpecialtyCourses || "").trim().slice(0, 300) : "",
       branches: (Array.isArray(branches) ? branches : [])
         .slice(0, 50)
         .map((b) => ({
@@ -869,7 +881,8 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
     if (signatoryName) academy.contactName = signatoryName.trim();
     if (signatoryMobile) academy.phone = signatoryMobile.trim();
     if (city) academy.headquarters = city.trim();
-    if (primarySpecialty) academy.specialty = primarySpecialty.trim();
+    if (kycSpecialties.length > 0) academy.specialty = kycSpecialties.join(" / ");
+    else if (primarySpecialty) academy.specialty = primarySpecialty.trim();
 
     await academy.save();
 
@@ -4353,28 +4366,93 @@ router.delete("/courses/:id", requireAcademyAuth, async (req, res) => {
   }
 });
 
+// Validates + normalises a question-bank entry. Returns { error } or { value }.
+function buildBankQuestion(body, fallbackCourseTitle) {
+  const { question, topic, type, difficulty, marks, courseTitle, options, answer } = body || {};
+  const text = String(question || "").trim();
+  if (!text) return { error: "Please type the question." };
+
+  const qType = ["mcq", "fill_blank", "qa"].includes(String(type || "").toLowerCase()) ? String(type).toLowerCase() : "mcq";
+  let cleanOptions = [];
+  let cleanAnswer = String(answer ?? "").trim();
+
+  if (qType === "mcq") {
+    // Keep the option positions stable so the correct-answer index still points at the right choice
+    const raw = (Array.isArray(options) ? options : []).map((o) => String(o || "").trim()).slice(0, 6);
+    const filled = raw.filter(Boolean);
+    if (filled.length < 2) return { error: "Add at least two answer options." };
+    const idx = Number(cleanAnswer);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= raw.length || !raw[idx]) {
+      return { error: "Select which option is the correct answer." };
+    }
+    // Drop empty options, re-pointing the correct index
+    const correctText = raw[idx];
+    cleanOptions = filled;
+    cleanAnswer = String(cleanOptions.indexOf(correctText));
+  } else if (qType === "fill_blank") {
+    if (!cleanAnswer) return { error: "Enter the correct answer for the blank." };
+  }
+
+  return {
+    value: {
+      question: text.slice(0, 1000),
+      topic: topic || "HCC",
+      type: qType,
+      difficulty: difficulty || "Mid",
+      marks: Number(marks) || 1,
+      courseTitle: courseTitle || fallbackCourseTitle || "HCC Coding Specialization",
+      options: cleanOptions,
+      answer: cleanAnswer.slice(0, 1000),
+    },
+  };
+}
+
 // POST /api/academy/add-question
 router.post("/add-question", requireAcademyAuth, async (req, res) => {
   try {
-    const { question, topic, type, difficulty, marks, courseTitle } = req.body;
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
+    const built = buildBankQuestion(req.body);
+    if (built.error) return res.status(400).json({ message: built.error });
 
-    const newQuestion = {
-      question: question.trim(),
-      topic: topic || "HCC",
-      type: type || "MCQ",
-      difficulty: difficulty || "Mid",
-      marks: Number(marks) || 2,
-      status: "Editable",
-      courseTitle: courseTitle || "HCC Coding Specialization",
-    };
-
+    const newQuestion = { ...built.value, status: "Editable" };
     academy.questions.push(newQuestion);
     await academy.save();
     res.json({ success: true, message: "Question added to bank!", question: newQuestion });
   } catch (err) {
     res.status(500).json({ message: "Failed to add question." });
+  }
+});
+
+// PUT /api/academy/questions/:id - edit a question-bank entry
+router.put("/questions/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+    const q = academy.questions.id(req.params.id);
+    if (!q) return res.status(404).json({ message: "Question not found." });
+    const built = buildBankQuestion(req.body, q.courseTitle);
+    if (built.error) return res.status(400).json({ message: built.error });
+    Object.assign(q, built.value);
+    await academy.save();
+    res.json({ success: true, message: "Question updated.", question: q });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update question." });
+  }
+});
+
+// DELETE /api/academy/questions/:id
+router.delete("/questions/:id", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+    const q = academy.questions.id(req.params.id);
+    if (!q) return res.status(404).json({ message: "Question not found." });
+    q.deleteOne();
+    await academy.save();
+    res.json({ success: true, message: "Question removed from the bank." });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete question." });
   }
 });
 
