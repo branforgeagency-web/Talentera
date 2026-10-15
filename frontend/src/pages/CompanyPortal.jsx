@@ -111,6 +111,18 @@ export default function CompanyPortal() {
     return mobile.replace(/(\+?\d{2,4}\s?\d{2,5})\d{4,5}/, "$1 XXXXX");
   };
 
+  // Verified companies still see only part of the number on cards / profile: last 4 digits hidden
+  // (full number appears only in the explicit "Contact Candidate" popup).
+  const hideLast4 = (mobile) => {
+    if (!mobile) return "Not provided";
+    let left = 4;
+    const chars = String(mobile).split("");
+    for (let i = chars.length - 1; i >= 0 && left > 0; i--) {
+      if (/\d/.test(chars[i])) { chars[i] = "X"; left--; }
+    }
+    return chars.join("");
+  };
+
   const isVerifiedCompany = companyKycStatus === "verified" || company?.kycStatus === "verified" || Boolean(company?.kycVerifiedAt);
 
   const fetchCandidates = async () => {
@@ -766,7 +778,7 @@ export default function CompanyPortal() {
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ color: isVerifiedCompany ? "#166534" : "#92400E", fontWeight: 600 }}>
-                          <><i className="fa-solid fa-phone" style={{ marginRight: 6, color: "#64748B" }}></i> {isVerifiedCompany ? c.mobile : maskMobile(c.mobile)}</>
+                          <><i className="fa-solid fa-phone" style={{ marginRight: 6, color: "#64748B" }}></i> {isVerifiedCompany ? hideLast4(c.mobile) : maskMobile(c.mobile)}</>
                         </span>
                         {isVerifiedCompany && <span style={{ fontSize: 10, color: "#15803D", fontWeight: 700 }}><i className="fa-solid fa-circle-check" style={{ marginRight: 3 }}></i> Verified</span>}
                       </div>
@@ -951,7 +963,7 @@ export default function CompanyPortal() {
                   <div>
                     <strong style={{ color: "#64748B" }}>MOBILE NUMBER: </strong>
                     <span style={{ color: "var(--navy)", fontWeight: 700 }}>
-                      {isVerifiedCompany ? (selectedCandidate.mobile || "Not provided") : maskMobile(selectedCandidate.mobile)}
+                      {isVerifiedCompany ? hideLast4(selectedCandidate.mobile) : maskMobile(selectedCandidate.mobile)}
                     </span>
                     {!isVerifiedCompany && <span style={{ marginLeft: 6, fontSize: 11, color: "#D97706", fontWeight: 700 }}><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Locked</span>}
                   </div>

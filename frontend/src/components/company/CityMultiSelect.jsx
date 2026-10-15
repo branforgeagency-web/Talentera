@@ -28,9 +28,9 @@ export default function CityMultiSelect({ value, onCommit, placeholder = "Select
   const query = q.trim().toLowerCase();
   const results = useMemo(() => {
     const list = query
-      ? INDIAN_CITIES.filter((c) => c.city.toLowerCase().includes(query) || c.state.toLowerCase().includes(query))
+      ? INDIAN_CITIES.filter((c) => c.city.toLowerCase().includes(query) || c.state.toLowerCase().includes(query) || (c.aliases || []).some((a) => a.toLowerCase().includes(query)))
       : INDIAN_CITIES;
-    return list.slice(0, 120);
+    return list.slice(0, 200);
   }, [query]);
 
   const isSel = (city) => selected.some((s) => s.toLowerCase() === city.toLowerCase());
@@ -64,18 +64,31 @@ export default function CityMultiSelect({ value, onCommit, placeholder = "Select
 
       {open && (
         <div style={{ position: "absolute", zIndex: 50, left: 0, right: 0, top: "calc(100% + 6px)", background: "#fff", border: "1.5px solid #CBD5E1", borderRadius: 12, boxShadow: "0 12px 28px rgba(15,27,61,0.16)", overflow: "hidden" }}>
-          <div style={{ padding: 10, borderBottom: "1px solid #F1F5F9" }}>
+          <div style={{ padding: 10, borderBottom: "1px solid #F1F5F9", display: "flex", gap: 8, alignItems: "center" }}>
             <input
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (results.length === 1 && !exact) toggle(results[0].city); else if (q.trim() && !exact) addCustom(); } if (e.key === "Escape") setOpen(false); }}
-              placeholder="Search city or state…"
-              style={{ width: "100%", padding: "9px 12px", border: "1.5px solid #CBD5E1", borderRadius: 8, fontSize: 13.5, boxSizing: "border-box", outline: "none" }}
+              placeholder="Search city or state — or type any location…"
+              style={{ flex: 1, minWidth: 0, padding: "9px 12px", border: "1.5px solid #CBD5E1", borderRadius: 8, fontSize: 13.5, boxSizing: "border-box", outline: "none" }}
             />
+            <button
+              type="button"
+              onClick={addCustom}
+              disabled={!q.trim() || exact}
+              style={{ border: "none", borderRadius: 8, padding: "9px 14px", fontSize: 13, fontWeight: 800, cursor: q.trim() && !exact ? "pointer" : "not-allowed", background: q.trim() && !exact ? "#0A1F3D" : "#E2E8F0", color: q.trim() && !exact ? "#fff" : "#94A3B8", whiteSpace: "nowrap" }}
+            >
+              + Add
+            </button>
           </div>
           <div style={{ maxHeight: 260, overflowY: "auto" }}>
-            {results.map(({ city, state }) => (
+            {q.trim() && !exact && (
+              <div onClick={addCustom} style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: "#0A1F3D", borderBottom: "1px solid #F1F5F9", background: "#FFFBEB" }}>
+                + Add "{q.trim()}" as a custom location
+              </div>
+            )}
+            {results.map(({ city, state, aliases }) => (
               <div
                 key={city}
                 onClick={() => toggle(city)}
@@ -83,18 +96,16 @@ export default function CityMultiSelect({ value, onCommit, placeholder = "Select
               >
                 <input type="checkbox" readOnly checked={isSel(city)} style={{ accentColor: "#B47E0E" }} />
                 <span style={{ fontWeight: 600 }}>{city}</span>
+                {query && (aliases || []).some((a) => a.toLowerCase().includes(query)) && (
+                  <span style={{ color: "#B47E0E", fontSize: 12 }}>({(aliases || []).find((a) => a.toLowerCase().includes(query))})</span>
+                )}
                 <span style={{ color: "#94A3B8", fontSize: 12, marginLeft: "auto" }}>{state}</span>
               </div>
             ))}
-            {results.length === 0 && <div style={{ padding: "14px", color: "#64748B", fontSize: 13 }}>No matching city.</div>}
-            {q.trim() && !exact && (
-              <div onClick={addCustom} style={{ padding: "10px 14px", cursor: "pointer", fontSize: 13.5, fontWeight: 700, color: "#0A1F3D", borderTop: "1px solid #F1F5F9", background: "#FFFBEB" }}>
-                + Add "{q.trim()}" as a custom location
-              </div>
-            )}
+            {results.length === 0 && <div style={{ padding: "14px", color: "#64748B", fontSize: 13 }}>No matching city — click "+ Add" to use what you typed.</div>}
           </div>
           <div style={{ padding: "8px 14px", borderTop: "1px solid #F1F5F9", display: "flex", justifyContent: "space-between", fontSize: 12, color: "#64748B" }}>
-            <span>{selected.length} selected</span>
+            <span>{selected.length} selected · can't find it? type it and click + Add</span>
             <button type="button" onClick={() => setOpen(false)} style={{ border: "none", background: "none", fontWeight: 800, color: "#0A1F3D", cursor: "pointer" }}>Done</button>
           </div>
         </div>

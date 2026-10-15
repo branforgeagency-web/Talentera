@@ -12740,7 +12740,7 @@ export default function StaffHub() {
                           <i className="fa-solid fa-award" style={{ marginRight: 6 }}></i> 5. Training Track &amp; Accreditations
                         </div>
                         <div style={{ fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
-                          <div><strong>Specialty:</strong> {kd.primarySpecialty || selectedAcademy.specialty || "Medical Coding"}</div>
+                          <div><strong>Specialty:</strong> {(Array.isArray(kd.specialties) && kd.specialties.length > 0 ? kd.specialties.join(", ") : null) || kd.primarySpecialty || selectedAcademy.specialty || "Medical Coding"}</div>
                           <div><strong>Total Trainees:</strong> {kd.certifiedTrainedCount || selectedAcademy.totalAlumni || "0"}</div>
                           <div><strong>Batches / Year:</strong> {kd.activeBatchesPerYear || "12"}</div>
                           <div style={{ marginTop: 4 }}>
