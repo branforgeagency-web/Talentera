@@ -264,10 +264,11 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
       width: 120,
       height: 90,
       checkIntervalMs: 80,
-      lumaDiffThreshold: 38,
-      motionRatioThreshold: 0.09,
-      minPixelsThreshold: 600,
-      sustainFrames: 10,
+      lumaDiffThreshold: 42,
+      motionRatioThreshold: 0.12,
+      minPixelsThreshold: 900,
+      sustainFrames: 25,
+      warmupFrames: 35,
     });
   }, []);
 
@@ -509,16 +510,16 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
                 setYawRatioVal(yawRatio);
                 setPitchRatioVal(pitchRatio);
 
-                if (yawRatio < 0.58) {
+                if (yawRatio < 0.30) {
                   detectedIssue = "head_turned";
                   posture = "turned_right";
                   alertText = "Please look directly at the screen";
-                } else if (yawRatio > 1.75) {
+                } else if (yawRatio > 3.20) {
                   detectedIssue = "head_turned";
                   posture = "turned_left";
                   alertText = "Please look directly at the screen";
-                } else if (pitchRatio < 0.62 || pitchRatio > 1.75) {
-                  detectedIssue = pitchRatio < 0.62 ? "looking_up" : "looking_down";
+                } else if (pitchRatio < 0.44 || pitchRatio > 2.25) {
+                  detectedIssue = pitchRatio < 0.44 ? "looking_up" : "looking_down";
                   posture = detectedIssue;
                   alertText = "Keep your gaze centered on the interview";
                 }
@@ -622,7 +623,14 @@ export default function ClaudeMockInterviewBot({ candidateData, onCompleted }) {
         proctorConsecutiveAnomaliesRef.current += 1;
         proctorConsecutiveNormalsRef.current = 0;
 
-        const requiredFrames = (issue === "multiple_faces" || issue === "background_movement") ? 2 : 4;
+        const requiredFrames =
+          issue === "multiple_faces"
+            ? 3
+            : issue === "background_movement"
+            ? 18
+            : issue === "no_face"
+            ? 20
+            : 28; // ~800ms - 1s of continuous looking away before alerting
         if (proctorConsecutiveAnomaliesRef.current >= requiredFrames) {
           setIsMalpracticeActive(true);
           setProctorStatus(issue);
