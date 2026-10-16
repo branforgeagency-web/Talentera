@@ -1874,6 +1874,11 @@ export default function CollegePortal() {
                                 s.placementLifecycle?.currentStatus || "AVAILABLE"
                               )}
                             </span>
+{s.hiring && (
+                                <div style={{ fontSize: 10.5, fontWeight: 700, color: s.hiring.stage === "rejected" ? "#B91C1C" : s.hiring.offerStatus === "accepted" ? "#15803D" : "#4338CA", marginTop: 2 }}>
+                                  Hiring: {s.hiring.stageLabel}{s.hiring.company ? ` @ ${s.hiring.company}` : ""}
+                                </div>
+                              )}
                             {s.placementLifecycle?.placedCompanyName && (
                               <div style={{ fontSize: 11, color: "#16A34A", fontWeight: 700, marginTop: 2 }}>
                                 @ {s.placementLifecycle.placedCompanyName}

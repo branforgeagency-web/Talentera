@@ -880,10 +880,12 @@ router.get("/students", requireCollegeAuth, async (req, res) => {
       Candidate.countDocuments(query),
     ]);
 
+    const hiringMap = await require("../utils/hiringLinks").hiringSummary(students.map((s) => s._id));
     const enrichedStudents = students.map((s) => {
       const computedStatus = computeCandidateReadiness(s);
       return {
         ...s,
+        hiring: hiringMap[String(s._id)] || null,
         verificationReadiness: {
           ...(s.verificationReadiness || {}),
           readinessStatus: computedStatus,

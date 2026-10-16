@@ -9,6 +9,7 @@ const express = require("express");
 const Application = require("../models/Application");
 const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
+const College = require("../models/College");
 const Job = require("../models/Job");
 const HiringExam = require("../models/HiringExam");
 const HiringSetup = require("../models/HiringSetup");
@@ -60,6 +61,9 @@ function candidateSummary(c) {
     city: s1.city || "",
     experience: s1.experience || "",
     specialty: c.stage2?.specialty || c.rcmDomainSelection?.primaryDomain || s1.currentRole || "",
+    academyName: c.stage2?.academyName || "",
+    batch: c.stage2?.batch || "",
+    collegeId: c.collegeId ? String(c.collegeId) : "",
     talentScore: scoring.score,
     email: c.email || "",
   };
@@ -273,13 +277,22 @@ companyRouter.get("/overview", async (req, res) => {
 
     const jobCounts = {};
     allApps.forEach((a) => { jobCounts[a.jobId] = (jobCounts[a.jobId] || 0) + 1; });
+    // Where each candidate came from (Academy / College) so the company sees the link.
+    const shaped = apps.map((a) => shapeApp(a, titles));
+    const collegeIds = [...new Set(shaped.map((s) => s.candidate.collegeId).filter(Boolean))];
+    if (collegeIds.length) {
+      const colleges = await College.find({ _id: { $in: collegeIds } }).select("name").lean();
+      const cn = {};
+      colleges.forEach((c) => { cn[String(c._id)] = c.name; });
+      shaped.forEach((s) => { if (s.candidate.collegeId) s.candidate.collegeName = cn[s.candidate.collegeId] || "College"; });
+    }
     res.json({
       company: { name: company?.companyName || "" },
       jobs: Object.keys(jobCounts).map((id) => ({ jobId: id, title: titles[id] || "Untitled role", count: jobCounts[id] })),
       setup,
       exams: exams.map((e) => ({ _id: e._id, title: e.title, source: e.source, durationMin: e.durationMin, cutoffPct: e.cutoffPct, questionCount: (e.questions || []).length, createdAt: e.createdAt })),
       library: libraryCatalog(),
-      applications: apps.map((a) => shapeApp(a, titles)),
+      applications: shaped,
       funnel: funnelOf(apps),
       examLive: examLive(apps),
     });

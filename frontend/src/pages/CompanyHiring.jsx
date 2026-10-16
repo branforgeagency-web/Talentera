@@ -150,6 +150,11 @@ const nameCell = (a) => (
   <td style={td}>
     <div style={{ fontWeight: 800, color: "#0F172A" }}>{a.candidate.name}</div>
     <div style={{ fontSize: 11, color: "#64748B" }}>{a.jobTitle}</div>
+    {(a.candidate.academyName || a.candidate.collegeName) && (
+      <div style={{ fontSize: 10.5, color: "#4338CA", fontWeight: 700, marginTop: 2 }}>
+        {a.candidate.academyName ? `Academy: ${a.candidate.academyName}${a.candidate.batch ? ` · ${a.candidate.batch}` : ""}` : `College: ${a.candidate.collegeName}`}
+      </div>
+    )}
   </td>
 );
 

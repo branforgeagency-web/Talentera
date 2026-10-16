@@ -1904,6 +1904,11 @@ export default function AcademyPortal() {
                                   {c.placementStatus || (c.status === "placed" ? "Placed" : isLive ? "In Matchmaking Pool" : "In Verification")}
                                 </div>
                               )}
+{c.hiring && (
+                                <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hiring.stage === "rejected" ? "#B91C1C" : c.hiring.offerStatus === "accepted" ? "#15803D" : "#4338CA", marginTop: 2 }}>
+                                  Hiring: {c.hiring.stageLabel}{c.hiring.company ? ` @ ${c.hiring.company}` : ""}
+                                </div>
+                              )}
                               <div style={{ fontSize: 10, color: "#64748B" }}>
                                 {regPending ? "Score shows after registration" : c.status === "placed" ? (c.ctc ? `CTC: ${c.ctc}` : "Placement Confirmed") : (c.score && c.score !== "Not Attempted" ? `Score: ${c.score}` : `Progress ${String(c.completion || 0).replace(/%+$/, "")}%`)}
                               </div>

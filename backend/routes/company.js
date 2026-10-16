@@ -969,6 +969,8 @@ router.put("/applications/:id/status", async (req, res) => {
     application.hiring.stage = status === "rejected" ? "rejected" : "hold";
     if (status === "rejected") application.hiring.rejection = { at: new Date().toISOString(), round: "manual", reason: req.body.reason || req.body.rejectionReason || "Rejected by recruiter", futurePool: true };
     if (Array.isArray(application.hiring.audit)) application.hiring.audit.push({ at: new Date().toISOString(), by: "Company HR", action: `Status set to ${status}`, detail: "" });
+    // Already handled by this route's own academy/college wiring below - tell the hiring-flow sync to skip it.
+    application.hiring.linked = { key: `${application.hiring.stage}|${application.hiring.offer?.status || ""}`, at: new Date().toISOString() };
     application.markModified("hiring");
   }
   if (status === "interviewing") {

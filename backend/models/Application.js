@@ -55,4 +55,13 @@ ApplicationSchema.index({ candidateId: 1, jobId: 1 }, { unique: true });
 ApplicationSchema.index({ companyId: 1, createdAt: -1 });
 ApplicationSchema.index({ candidateId: 1 });
 
+// Mirrors hiring-flow stage changes into the Academy / College / Company dashboards (see utils/hiringLinks.js).
+ApplicationSchema.post("save", function (doc) {
+  try {
+    if (doc && doc.hiring && doc.hiring.stage && doc.hiring.stage !== "applied") {
+      require("../utils/hiringLinks").syncAfterSave(doc).catch(() => {});
+    }
+  } catch (_) { /* never block a save */ }
+});
+
 module.exports = mongoose.model("Application", ApplicationSchema);
