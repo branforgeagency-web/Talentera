@@ -11,6 +11,10 @@ const CourseSubSchema = new mongoose.Schema({
   status: { type: String, default: "active" },
   syllabus: { type: [String], default: [] },
   fees: { type: Number, default: null, min: 0 }, // optional course fee (INR)
+  startDate: { type: Date, default: null },
+  endDate: { type: Date, default: null },
+  trainingMode: { type: String, enum: ["Online", "Offline", "Hybrid", ""], default: "" },
+  completedTopics: { type: [String], default: [] }, // syllabus topics the trainer has marked as taught
 });
 
 const QuestionSubSchema = new mongoose.Schema({
@@ -51,9 +55,11 @@ const PlacementSubSchema = new mongoose.Schema({
   // selected by the academy, not assumed "Verified" the moment it's logged.
   joiningStatus: {
     type: String,
-    enum: ["Offer Accepted", "Joined", "Yet to Join", "Declined"],
+    enum: ["Offer Accepted", "Joined", "Yet to Join", "Declined", "Offer On Hold", "Offer Letter Pending"],
     required: true,
   },
+  joiningDate: { type: Date, default: null }, // joined on / joining on
+  offerLetterStatus: { type: String, enum: ["", "Pending", "Received"], default: "" },
   date: { type: String, default: "Recently" },
 });
 

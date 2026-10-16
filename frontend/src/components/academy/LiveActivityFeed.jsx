@@ -58,6 +58,18 @@ export default function LiveActivityFeed({ initialEvents = [], onSelectStudent, 
         return { bg: "#EFF6FF", color: "#2563EB", icon: "fa-paper-plane", label: "Applied" };
       case "rejected":
         return { bg: "#FEF2F2", color: "#DC2626", icon: "fa-circle-xmark", label: "Rejected" };
+      case "on_hold":
+        return { bg: "#FEF9C3", color: "#A16207", icon: "fa-circle-pause", label: "On Hold" };
+      case "interview_rescheduled":
+        return { bg: "#E0F2FE", color: "#0369A1", icon: "fa-calendar-days", label: "Rescheduled" };
+      case "interview_cancelled":
+        return { bg: "#FFEDD5", color: "#9A3412", icon: "fa-calendar-xmark", label: "Cancelled" };
+      case "candidate_no_show":
+        return { bg: "#FFE4E6", color: "#BE123C", icon: "fa-user-slash", label: "Candidate No-show" };
+      case "employer_no_show":
+        return { bg: "#FAE8FF", color: "#A21CAF", icon: "fa-building-circle-xmark", label: "Employer No-show" };
+      case "offer_declined":
+        return { bg: "#FEE2E2", color: "#B91C1C", icon: "fa-hand", label: "Offer Declined" };
       default:
         return { bg: "#F1F5F9", color: "#475569", icon: "fa-eye", label: "Viewed" };
     }
@@ -180,7 +192,7 @@ export default function LiveActivityFeed({ initialEvents = [], onSelectStudent, 
 
                   <div>
                     <div style={{ fontSize: 12, color: "#06152A" }}>
-                      <strong>{ev.candidateName}</strong> {ev.eventType === "offer_extended" ? "received offer from" : ev.eventType === "interview_scheduled" ? "interview scheduled at" : ev.eventType === "locked" ? "profile locked by" : ev.eventType === "shortlisted" ? "shortlisted by" : ev.eventType === "rejected" ? "application closed / rejected by" : ev.eventType === "chatted" ? "chat initiated by" : "viewed by"}{" "}
+                      <strong>{ev.candidateName}</strong> {ev.eventType === "offer_accepted" ? "accepted the offer from" : ev.eventType === "offer_declined" ? "declined the offer from" : ev.eventType === "on_hold" ? "put on hold by" : ev.eventType === "interview_rescheduled" ? "interview rescheduled by" : ev.eventType === "interview_cancelled" ? "interview cancelled by" : ev.eventType === "candidate_no_show" ? "did not attend the interview with" : ev.eventType === "employer_no_show" ? "interview missed by employer" : ev.eventType === "offer_extended" ? "received offer from" : ev.eventType === "interview_scheduled" ? "interview scheduled at" : ev.eventType === "locked" ? "profile locked by" : ev.eventType === "shortlisted" ? "shortlisted by" : ev.eventType === "rejected" ? "application closed / rejected by" : ev.eventType === "chatted" ? "chat initiated by" : "viewed by"}{" "}
                       <strong style={{ color: ev.eventType === "rejected" ? "#DC2626" : "#2563EB" }}>{ev.companyName}</strong>
                       {ev.eventMeta?.salary && <span style={{ marginLeft: 6, color: "#15803D", fontWeight: 800 }}>({ev.eventMeta.salary})</span>}
                       {ev.eventMeta?.interviewTime && <span style={{ marginLeft: 6, color: "#B45309", fontWeight: 700 }}>· {ev.eventMeta.interviewTime}</span>}

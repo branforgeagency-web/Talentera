@@ -1179,4 +1179,105 @@ router.put("/applications/:id/status", async (req, res) => {
   res.json({ message: "Application status updated.", application });
 });
 
+// PUT /api/company/applications/:id/interview-outcome
+// { outcome: rescheduled | cancelled | candidate_no_show | employer_no_show | clear, note?, newTime? }
+// Records that a scheduled interview did not go ahead as planned. Shows on the candidate's, academy's
+// and college's dashboards. "rescheduled" keeps the candidate in the interview stage with the new time.
+const INTERVIEW_OUTCOME_LABELS = {
+  rescheduled: "Interview rescheduled",
+  cancelled: "Interview cancelled",
+  candidate_no_show: "Candidate did not attend the interview",
+  employer_no_show: "Employer did not attend the interview",
+};
+const INTERVIEW_OUTCOME_EVENT = {
+  rescheduled: "interview_rescheduled",
+  cancelled: "interview_cancelled",
+  candidate_no_show: "candidate_no_show",
+  employer_no_show: "employer_no_show",
+};
+router.put("/applications/:id/interview-outcome", async (req, res) => {
+  try {
+    const outcome = String(req.body.outcome || "");
+    const note = String(req.body.note || "").slice(0, 400);
+    if (outcome !== "clear" && !INTERVIEW_OUTCOME_LABELS[outcome]) {
+      return res.status(400).json({ message: "Choose rescheduled, cancelled, candidate no-show or employer no-show." });
+    }
+    const application = await Application.findOne({ _id: req.params.id, companyId: req.companyId }).populate("candidateId", "email stage1 stage2 collegeId");
+    if (!application) return res.status(404).json({ message: "Application not found." });
+    if (!["interviewing", "shortlisted"].includes(application.status) && outcome !== "clear") {
+      return res.status(400).json({ message: "Interview outcomes can only be set for candidates who are in the interview stage." });
+    }
+
+    if (outcome === "clear") {
+      application.interviewOutcome = "";
+      application.interviewOutcomeNote = "";
+      application.interviewOutcomeAt = null;
+      await application.save();
+      return res.json({ message: "Interview outcome cleared.", application });
+    }
+
+    if (outcome === "rescheduled") {
+      const rawWhen = req.body.newTime;
+      if (!rawWhen) return res.status(400).json({ message: "Enter the new interview date and time." });
+      const d = new Date(rawWhen);
+      if (Number.isNaN(d.getTime())) return res.status(400).json({ message: "Enter a valid new interview date and time." });
+      application.interviewScheduledAt = d;
+      application.interviewTimeText = d.toLocaleString("en-IN");
+      application.interviewConfirmed = false;
+      application.interviewConfirmedAt = null;
+      application.rescheduleCount = (application.rescheduleCount || 0) + 1;
+    }
+    application.interviewOutcome = outcome;
+    application.interviewOutcomeNote = note;
+    application.interviewOutcomeAt = new Date();
+    await application.save();
+
+    const candidate = application.candidateId;
+    const companyDoc = await Company.findById(req.companyId).select("companyName").lean();
+    const companyName = companyDoc?.companyName || "the employer";
+    if (candidate) {
+      try {
+        await Notification.create({
+          recipientType: "candidate",
+          recipientId: String(candidate._id),
+          title: `${INTERVIEW_OUTCOME_LABELS[outcome]} - ${companyName}`,
+          message: outcome === "rescheduled"
+            ? `${companyName} has moved your interview to ${application.interviewTimeText}.${note ? ` Note: ${note}` : ""}`
+            : `${INTERVIEW_OUTCOME_LABELS[outcome]} (${companyName}).${note ? ` Note: ${note}` : ""}`,
+          type: "interview_scheduled",
+          meta: { source: "company", companyId: String(req.companyId), companyName, applicationId: String(application._id), actionType: "applications", actionLabel: "View in Applications" },
+        });
+      } catch (e) {
+        logger.warn(`Interview outcome notification failed: ${e.message}`);
+      }
+      await emitAcademyEvent({
+        candidate,
+        eventType: INTERVIEW_OUTCOME_EVENT[outcome],
+        companyId: req.companyId,
+        companyName,
+        applicationId: application._id,
+        eventMeta: { reason: note, ...(outcome === "rescheduled" ? { interviewTime: application.interviewTimeText } : {}) },
+      });
+      if (candidate.collegeId) {
+        try {
+          await Notification.create({
+            recipientType: "college",
+            recipientId: String(candidate.collegeId),
+            title: `${candidate.stage1?.fullName || "Student"}: ${INTERVIEW_OUTCOME_LABELS[outcome]}`,
+            message: `${companyName} - ${INTERVIEW_OUTCOME_LABELS[outcome]}.${note ? ` Note: ${note}` : ""}`,
+            type: "hiring_update",
+            meta: { source: "company", companyName, applicationId: String(application._id) },
+          });
+        } catch (e) {
+          logger.warn(`College interview outcome notification failed: ${e.message}`);
+        }
+      }
+    }
+    res.json({ message: `${INTERVIEW_OUTCOME_LABELS[outcome]}.`, application });
+  } catch (err) {
+    logger.error(`Interview outcome error: ${err.message}`);
+    res.status(500).json({ message: "Could not record the interview outcome." });
+  }
+});
+
 module.exports = router;

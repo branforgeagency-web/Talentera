@@ -286,6 +286,9 @@ export default function AcademyPortal() {
   const [newCtc, setNewCtc] = useState("");
   const [newPlacementSource, setNewPlacementSource] = useState("");
   const [newJoiningStatus, setNewJoiningStatus] = useState("");
+  const [newJoiningDate, setNewJoiningDate] = useState("");
+  const [newOfferLetter, setNewOfferLetter] = useState("");
+  const [offerTracker, setOfferTracker] = useState({ rows: [], summary: {} });
   const [placementAutoFilled, setPlacementAutoFilled] = useState({}); // { company, role, ctc } -> true when the value shown was pulled from a real platform hire record, not typed
   const [placementLookupLoading, setPlacementLookupLoading] = useState(false);
 
@@ -297,6 +300,8 @@ export default function AcademyPortal() {
     setNewCtc("");
     setNewPlacementSource("");
     setNewJoiningStatus("");
+    setNewJoiningDate("");
+    setNewOfferLetter("");
     setPlacementAutoFilled({});
   };
 
@@ -547,7 +552,18 @@ export default function AcademyPortal() {
     }
   };
 
+  const fetchOfferTracker = async () => {
+    try {
+      const res = await fetch("/api/academy/placements/offer-tracker", { headers: { ...getAuthHeader() } });
+      const data = await safeJson(res);
+      if (data && Array.isArray(data.rows)) setOfferTracker({ rows: data.rows, summary: data.summary || {} });
+    } catch (err) {
+      console.error("Fetch offer tracker error:", err);
+    }
+  };
+
   useEffect(() => {
+    fetchOfferTracker();
     fetchDashboardData();
     fetchStuckStudents();
     fetchApprovalsCount();
@@ -895,6 +911,8 @@ export default function AcademyPortal() {
           ctc: newCtc.trim(),
           placementSource: newPlacementSource,
           joiningStatus: newJoiningStatus,
+          joiningDate: newJoiningDate || null,
+          offerLetterStatus: newOfferLetter || "",
         }),
       });
       const data = await safeJson(res);
@@ -988,11 +1006,15 @@ export default function AcademyPortal() {
         } else if (candidateSummaryTab === "Matched") {
           if (s.status !== "matched" && s.status !== "active" && comp < 80) return false;
         } else if (candidateSummaryTab === "Interviewing") {
-          if (s.status !== "interviewing" && s.status !== "shortlisted") return false;
+          if (!s.inInterview) return false;
+        } else if (candidateSummaryTab === "Rejected") {
+          // Rejected by a company after reaching the interview stage, before any placement
+          if (!s.rejection || s.status === "placed") return false;
         } else if (candidateSummaryTab === "Placed") {
           if (s.status !== "placed") return false;
         } else if (candidateSummaryTab === "Disputed") {
-          if (s.status !== "disputed") return false;
+          // A placement the academy disputed with the company - under Talentera audit review
+          if (!s.placementDisputed) return false;
         }
       }
 
@@ -1600,6 +1622,7 @@ export default function AcademyPortal() {
                   "Profile Live",
                   "Matched",
                   "Interviewing",
+                  "Rejected",
                   "Placed",
                   "Disputed",
                 ].map((tab) => {
@@ -1608,6 +1631,7 @@ export default function AcademyPortal() {
                     <button
                       key={tab}
                       onClick={() => setCandidateSummaryTab(tab)}
+                      title={tab === "Disputed" ? "Placements you have disputed with a company (for example the company says the student joined but they did not). Talentera's audit team reviews them within 24 hours." : tab === "Rejected" ? "Candidates a company rejected after the interview stage, before any placement." : undefined}
                       style={{
                         padding: "6px 12px",
                         borderRadius: 8,
@@ -1625,6 +1649,17 @@ export default function AcademyPortal() {
                   );
                 })}
               </div>
+
+              {candidateSummaryTab === "Disputed" && (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#991B1B" }}>
+                  <strong>Disputed</strong> = a placement you raised a dispute on (e.g. the company marked the student as hired but the details are wrong or the student never joined). Talentera's audit team reviews it within 24 hours, and it does not count as a verified placement until resolved.
+                </div>
+              )}
+              {candidateSummaryTab === "Rejected" && (
+                <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "8px 12px", fontSize: 12, color: "#991B1B" }}>
+                  <strong>Rejected</strong> = candidates a company rejected after the interview stage and before placement. The company and reason are shown under each student.
+                </div>
+              )}
 
               {/* Advanced Filters Panel */}
               <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: "12px 16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10, alignItems: "center" }}>
@@ -1907,6 +1942,16 @@ export default function AcademyPortal() {
 {c.hiring && (
                                 <div style={{ fontSize: 10.5, fontWeight: 700, color: c.hiring.stage === "rejected" ? "#B91C1C" : c.hiring.offerStatus === "accepted" ? "#15803D" : "#4338CA", marginTop: 2 }}>
                                   Hiring: {c.hiring.stageLabel}{c.hiring.company ? ` @ ${c.hiring.company}` : ""}
+                                </div>
+                              )}
+                              {c.rejection && (
+                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#B91C1C", marginTop: 2 }}>
+                                  Rejected by {c.rejection.company}{c.rejection.reason ? ` — ${c.rejection.reason}` : ""}
+                                </div>
+                              )}
+                              {c.placementDisputed && (
+                                <div style={{ fontSize: 10.5, fontWeight: 700, color: "#B45309", marginTop: 2 }}>
+                                  Placement disputed{c.disputeCompany ? ` (${c.disputeCompany})` : ""} — under Talentera audit
                                 </div>
                               )}
                               <div style={{ fontSize: 10, color: "#64748B" }}>
@@ -2276,10 +2321,7 @@ export default function AcademyPortal() {
                       <th style={{ padding: "10px 12px" }}>RANK</th>
                       <th style={{ padding: "10px 12px" }}>CANDIDATE</th>
                       <th style={{ padding: "10px 12px" }}>BATCH</th>
-                      <th style={{ padding: "10px 12px" }}>FOUNDATION MCQ</th>
-                      <th style={{ padding: "10px 12px" }}>SPECIALTY MCQ</th>
-                      <th style={{ padding: "10px 12px" }}>CHART ACCURACY</th>
-                      <th style={{ padding: "10px 12px" }}>VIDEO AI</th>
+                      <th style={{ padding: "10px 12px" }}>ASSESSMENTS (TYPE · SCORE · ATTEMPTS)</th>
                       <th style={{ padding: "10px 12px" }}>FINAL SCORE</th>
                       <th style={{ padding: "10px 12px" }}>READINESS</th>
                     </tr>
@@ -2287,15 +2329,15 @@ export default function AcademyPortal() {
                   <tbody>
                     {(!scoresData?.candidates || scoresData.candidates.length === 0) ? (
                       <tr>
-                        <td colSpan={9} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
+                        <td colSpan={6} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
                           No scored candidates yet. Student scores will appear here once candidates complete Stage 4 assessment.
                         </td>
                       </tr>
                     ) : (
-                      scoresData.candidates.slice(0, 10).map((c, idx) => (
+                      scoresData.candidates.slice(0, 50).map((c, idx) => (
                         <tr key={c.id || idx} style={{ borderBottom: "1px solid #F1F5F9" }}>
-                          <td style={{ padding: "10px 12px", fontWeight: 800, color: idx < 3 ? "#E5A82E" : "#64748B" }}>
-                            #{c.rank || idx + 1}
+                          <td style={{ padding: "10px 12px", fontWeight: 800, color: idx < 3 && c.rank ? "#E5A82E" : "#64748B" }}>
+                            {c.rank ? `#${c.rank}` : "—"}
                           </td>
                           <td style={{ padding: "10px 12px" }}>
                             <strong style={{ color: "#0F172A", cursor: "pointer" }} onClick={() => setSelectedStudentForDetail(c)}>
@@ -2304,13 +2346,28 @@ export default function AcademyPortal() {
                             <div style={{ fontSize: 10, color: "#64748B" }}>{c.email}</div>
                           </td>
                           <td style={{ padding: "10px 12px", color: "#64748B" }}>{c.batch || "—"}</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.foundationScore !== null ? `${c.foundationScore}%` : "—"}</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.specialtyScore !== null ? `${c.specialtyScore}%` : "—"}</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.chartAccuracy !== null ? `${c.chartAccuracy}%` : "—"}</td>
-                          <td style={{ padding: "10px 12px", fontWeight: 700 }}>{c.videoAiScore !== null ? `${c.videoAiScore}/10` : "—"}</td>
+                          <td style={{ padding: "10px 12px", minWidth: 300 }}>
+                            {c.registrationPending ? (
+                              <span style={{ color: "#94A3B8", fontSize: 11 }}>Not registered on Talentera yet — no assessments taken</span>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                {(c.assessments || []).map((a) => {
+                                  const typeColors = a.type === "MCQ" ? ["#DBEAFE", "#1D4ED8"] : a.type === "Video" ? ["#FCE7F3", "#BE185D"] : a.type === "Audio" ? ["#EDE9FE", "#6D28D9"] : ["#FEF3C7", "#92400E"];
+                                  return (
+                                    <div key={a.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+                                      <span style={{ background: typeColors[0], color: typeColors[1], padding: "1px 6px", borderRadius: 4, fontWeight: 800, fontSize: 10, minWidth: 44, textAlign: "center" }}>{a.type}</span>
+                                      <span style={{ color: "#475569", minWidth: 110 }}>{a.name}</span>
+                                      <strong style={{ color: a.display ? "#0F172A" : "#94A3B8", minWidth: 44 }}>{a.display || "—"}</strong>
+                                      <span style={{ color: "#64748B" }}>{a.attempts > 0 ? `Attempts ${a.attempts}/${c.maxAttempts || 2}` : "Not attempted"}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
                           <td style={{ padding: "10px 12px" }}>
                             <span style={{ background: c.finalTalenteraScore ? "#DCFCE7" : "#FEF3C7", color: c.finalTalenteraScore ? "#15803D" : "#B45309", padding: "3px 8px", borderRadius: 6, fontWeight: 800 }}>
-                              {c.finalTalenteraScore ? `${c.finalTalenteraScore}%` : "Pending"}
+                              {c.registrationPending ? "Not registered" : c.finalTalenteraScore ? `${c.finalTalenteraScore}%` : "Pending"}
                             </span>
                           </td>
                           <td style={{ padding: "10px 12px" }}>
@@ -2570,6 +2627,56 @@ export default function AcademyPortal() {
                 </div>
               )}
 
+              {/* Live offer & joining tracker (real company offers for this academy's students) */}
+              <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                  <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#06152A" }}>Offer & Joining Tracker</h4>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {[
+                      ["offer_letter_pending", "Offer letter pending", "#FFEDD5", "#C2410C"],
+                      ["joining", "Accepted · yet to join", "#DBEAFE", "#1D4ED8"],
+                      ["joined", "Joined", "#DCFCE7", "#15803D"],
+                      ["offer_denied", "Offer denied", "#FEE2E2", "#B91C1C"],
+                      ["offer_on_hold", "Offer on hold", "#FEF9C3", "#A16207"],
+                    ].map(([k, l, bg, fg]) => (
+                      <span key={k} style={{ background: bg, color: fg, padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 800 }}>{l}: {offerTracker.summary[k] || 0}</span>
+                    ))}
+                  </div>
+                </div>
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}>
+                  <thead>
+                    <tr style={{ background: "#F8FAFC", color: "#475569", borderBottom: "1px solid #E2E8F0" }}>
+                      <th style={{ padding: "8px 12px" }}>CANDIDATE</th>
+                      <th style={{ padding: "8px 12px" }}>COMPANY · ROLE</th>
+                      <th style={{ padding: "8px 12px" }}>CTC</th>
+                      <th style={{ padding: "8px 12px" }}>OFFER STATUS</th>
+                      <th style={{ padding: "8px 12px" }}>JOINING DATE</th>
+                      <th style={{ padding: "8px 12px" }}>OFFER LETTER</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {offerTracker.rows.length === 0 ? (
+                      <tr><td colSpan={6} style={{ padding: 22, textAlign: "center", color: "#94A3B8" }}>No company offers for your students yet. They appear here automatically once a company extends, holds or closes an offer.</td></tr>
+                    ) : offerTracker.rows.map((r) => {
+                      const st = { offer_letter_pending: ["#FFEDD5", "#C2410C"], joining: ["#DBEAFE", "#1D4ED8"], joined: ["#DCFCE7", "#15803D"], offer_denied: ["#FEE2E2", "#B91C1C"], offer_on_hold: ["#FEF9C3", "#A16207"] }[r.status] || ["#F1F5F9", "#475569"];
+                      return (
+                        <tr key={r.applicationId} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                          <td style={{ padding: "8px 12px", fontWeight: 700, color: "#0F172A" }}>{r.candidateName}{r.batch && <div style={{ fontSize: 10, color: "#64748B", fontWeight: 500 }}>{r.batch}</div>}</td>
+                          <td style={{ padding: "8px 12px" }}>{r.company}{r.role && <div style={{ fontSize: 10.5, color: "#64748B" }}>{r.role}</div>}</td>
+                          <td style={{ padding: "8px 12px", fontWeight: 800, color: "#15803D" }}>{r.ctc || "—"}</td>
+                          <td style={{ padding: "8px 12px" }}>
+                            <span style={{ background: st[0], color: st[1], padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>{r.statusLabel}</span>
+                            {r.note && <div style={{ fontSize: 10, color: "#64748B", marginTop: 2 }}>{r.note}</div>}
+                          </td>
+                          <td style={{ padding: "8px 12px", fontSize: 11 }}>{r.joiningDate ? new Date(r.joiningDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}</td>
+                          <td style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: r.offerLetter === "Received" ? "#15803D" : r.offerLetter === "Pending" ? "#C2410C" : "#94A3B8" }}>{r.offerLetter}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
               {/* Placement Records Table */}
               <div style={{ background: "#FFFFFF", borderRadius: 12, border: "1px solid #E2E8F0", padding: 16 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: 12 }}>
@@ -2581,13 +2688,15 @@ export default function AcademyPortal() {
                       <th style={{ padding: "10px 12px" }}>CTC</th>
                       <th style={{ padding: "10px 12px" }}>SOURCE</th>
                       <th style={{ padding: "10px 12px" }}>STATUS</th>
+                      <th style={{ padding: "10px 12px" }}>JOINING DATE</th>
+                      <th style={{ padding: "10px 12px" }}>OFFER LETTER</th>
                       <th style={{ padding: "10px 12px", textAlign: "right" }}>ACTIONS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {placements.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
+                        <td colSpan={9} style={{ padding: 30, textAlign: "center", color: "#64748B" }}>
                           No placement records added yet. Click "+ Confirm Placement" to log one!
                         </td>
                       </tr>
@@ -2608,7 +2717,9 @@ export default function AcademyPortal() {
                                 "Joined": { bg: "#DCFCE7", color: "#15803D", label: "Joined ✓" },
                                 "Offer Accepted": { bg: "#DBEAFE", color: "#1D4ED8", label: "Offer Accepted" },
                                 "Yet to Join": { bg: "#FEF3C7", color: "#B45309", label: "Yet to Join" },
-                                "Declined": { bg: "#FEE2E2", color: "#B91C1C", label: "Declined" },
+                                "Declined": { bg: "#FEE2E2", color: "#B91C1C", label: "Offer Denied" },
+                                "Offer On Hold": { bg: "#FEF9C3", color: "#A16207", label: "Offer On Hold" },
+                                "Offer Letter Pending": { bg: "#FFEDD5", color: "#C2410C", label: "Offer Letter Pending" },
                               };
                               const st = statusStyles[status] || { bg: "#F1F5F9", color: "#64748B", label: status || "—" };
                               return (
@@ -2617,6 +2728,14 @@ export default function AcademyPortal() {
                                 </span>
                               );
                             })()}
+                          </td>
+                          <td style={{ padding: "10px 12px", fontSize: 11, color: "#334155" }}>
+                            {p.joiningDate ? new Date(p.joiningDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                          </td>
+                          <td style={{ padding: "10px 12px" }}>
+                            {p.offerLetterStatus ? (
+                              <span style={{ background: p.offerLetterStatus === "Received" ? "#DCFCE7" : "#FFEDD5", color: p.offerLetterStatus === "Received" ? "#15803D" : "#C2410C", padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>{p.offerLetterStatus}</span>
+                            ) : "—"}
                           </td>
                           <td style={{ padding: "10px 12px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
@@ -3417,11 +3536,28 @@ export default function AcademyPortal() {
                   style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}
                 >
                   <option value="">Select current status…</option>
+                  <option value="Offer Letter Pending">Offer Letter Pending</option>
                   <option value="Offer Accepted">Offer Accepted</option>
-                  <option value="Joined">Joined</option>
                   <option value="Yet to Join">Yet to Join</option>
-                  <option value="Declined">Declined</option>
+                  <option value="Joined">Joined</option>
+                  <option value="Offer On Hold">Offer On Hold</option>
+                  <option value="Declined">Offer Denied (Declined)</option>
                 </select>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>{newJoiningStatus === "Joined" ? "JOINED ON" : "JOINING DATE"}</label>
+                  <input type="date" value={newJoiningDate} onChange={(e) => setNewJoiningDate(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff", boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>OFFER LETTER</label>
+                  <select value={newOfferLetter} onChange={(e) => setNewOfferLetter(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, background: "#fff" }}>
+                    <option value="">Not specified</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Received">Received</option>
+                  </select>
+                </div>
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>

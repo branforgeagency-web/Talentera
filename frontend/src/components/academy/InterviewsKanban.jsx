@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { safeJson } from "../../utils/safeJson.js";
 
 export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent, onSelectCandidate }) {
-  const [kanban, setKanban] = useState({ applied: [], shortlisted: [], interview: [], offer: [], joined: [], rejected: [] });
+  const [kanban, setKanban] = useState({ applied: [], shortlisted: [], interview: [], rescheduled: [], cancelled: [], candidateNoShow: [], employerNoShow: [], onHold: [], offer: [], offerDeclined: [], joined: [], rejected: [] });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("All");
@@ -38,19 +38,18 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
     { id: "applied", label: "Applied & Matching", color: "#64748B", bg: "#F8FAFC", badgeBg: "#E2E8F0", icon: "fa-paper-plane" },
     { id: "shortlisted", label: "Shortlisted", color: "#7E22CE", bg: "#FAF5FF", badgeBg: "#F3E8FF", icon: "fa-star" },
     { id: "interview", label: "Interview Scheduled", color: "#B45309", bg: "#FFFBEB", badgeBg: "#FEF3C7", icon: "fa-calendar-check" },
+    { id: "rescheduled", label: "Interview Rescheduled", color: "#0369A1", bg: "#F0F9FF", badgeBg: "#E0F2FE", icon: "fa-calendar-days" },
+    { id: "cancelled", label: "Interview Cancelled", color: "#9A3412", bg: "#FFF7ED", badgeBg: "#FFEDD5", icon: "fa-calendar-xmark" },
+    { id: "candidateNoShow", label: "Candidate No-show", color: "#BE123C", bg: "#FFF1F2", badgeBg: "#FFE4E6", icon: "fa-user-slash" },
+    { id: "employerNoShow", label: "Employer No-show", color: "#A21CAF", bg: "#FDF4FF", badgeBg: "#FAE8FF", icon: "fa-building-circle-xmark" },
+    { id: "onHold", label: "On Hold", color: "#A16207", bg: "#FEFCE8", badgeBg: "#FEF9C3", icon: "fa-circle-pause" },
     { id: "offer", label: "Offer Extended", color: "#C2410C", bg: "#FFF7ED", badgeBg: "#FFEDD5", icon: "fa-file-signature" },
+    { id: "offerDeclined", label: "Offer Declined", color: "#B91C1C", bg: "#FEF2F2", badgeBg: "#FEE2E2", icon: "fa-hand" },
     { id: "joined", label: "Joined & Placed", color: "#15803D", bg: "#F0FDF4", badgeBg: "#DCFCE7", icon: "fa-circle-check" },
     { id: "rejected", label: "Rejected", color: "#DC2626", bg: "#FEF2F2", badgeBg: "#FEE2E2", icon: "fa-circle-xmark" },
   ];
 
-  const allCards = [
-    ...kanban.applied,
-    ...kanban.shortlisted,
-    ...kanban.interview,
-    ...kanban.offer,
-    ...kanban.joined,
-    ...(kanban.rejected || []),
-  ];
+  const allCards = columns.flatMap((col) => kanban[col.id] || []);
 
   const uniqueCompanies = Array.from(new Set(allCards.map((c) => c.company).filter(Boolean)));
 
@@ -102,12 +101,9 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
       {/* Kanban Board Container */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(6, minmax(200px, 1fr))",
-          overflowX: "auto",
-          gap: 12,
-          minHeight: 520,
-          alignItems: "start",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
           paddingBottom: 14,
         }}
       >
@@ -123,7 +119,6 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
                 padding: 12,
                 display: "flex",
                 flexDirection: "column",
-                minHeight: 480,
               }}
             >
               {/* Column Header */}
@@ -147,9 +142,9 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
               </div>
 
               {/* Cards List */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 10 }}>
                 {colCards.length === 0 ? (
-                  <div style={{ padding: "24px 8px", textAlign: "center", color: "#94A3B8", fontSize: 11, fontStyle: "italic" }}>
+                  <div style={{ padding: "14px 8px", textAlign: "left", color: "#94A3B8", fontSize: 11, fontStyle: "italic", gridColumn: "1 / -1" }}>
                     No candidates in this stage
                   </div>
                 ) : (
@@ -229,8 +224,24 @@ export default function InterviewsKanban({ getAuthHeader, token, onSelectStudent
                         </div>
                       )}
 
+                      {card.joiningDate && (
+                        <div style={{ fontSize: 10, color: "#0F766E", fontWeight: 700, marginBottom: 4 }}>
+                          🗓 Joining: {new Date(card.joiningDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                        </div>
+                      )}
+                      {card.rescheduleCount > 0 && (
+                        <div style={{ fontSize: 10, color: "#0369A1", fontWeight: 700, marginBottom: 4 }}>
+                          🔁 Rescheduled {card.rescheduleCount}×
+                        </div>
+                      )}
+                      {col.id !== "rejected" && card.outcomeNote && (
+                        <div style={{ fontSize: 10, color: "#475569", background: "#F8FAFC", border: "1px dashed #CBD5E1", borderRadius: 4, padding: "4px 6px", marginBottom: 4, lineHeight: 1.3 }}>
+                          <strong>Note:</strong> {card.outcomeNote}
+                        </div>
+                      )}
+
                       {/* Rejection Details Callout (Reason & Details) */}
-                      {(col.id === "rejected" || card.rejectionReason) && (
+                      {(col.id === "rejected" || (card.rejectionReason && col.id !== "onHold")) && (
                         <div
                           style={{
                             background: "#FEF2F2",

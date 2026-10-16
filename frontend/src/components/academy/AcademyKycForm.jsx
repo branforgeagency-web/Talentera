@@ -58,7 +58,7 @@ function LocationSelects({ formData, handleInputChange, cityFirst = false, cityL
       <label style={LABEL_STYLE}>{cityLabel}{star}</label>
       {(() => {
         const stateCities = formData.state && CITIES_BY_STATE[formData.state] ? CITIES_BY_STATE[formData.state] : null;
-        const cityOptions = [...(stateCities || INDIAN_CITIES.map((c) => c.city)), BRANCH_OTHER_CITY];
+        const cityOptions = [BRANCH_OTHER_CITY, ...(stateCities || INDIAN_CITIES.map((c) => c.city))];
         const customCity = formData._cityOther || (formData.city && !INDIAN_CITIES.some((c) => c.city === formData.city));
         if (customCity) {
           return (
@@ -85,9 +85,16 @@ function LocationSelects({ formData, handleInputChange, cityFirst = false, cityL
           <SearchableSelect
             value={formData.city || ""}
             options={cityOptions}
-            placeholder={formData.state ? "Select city" : "Select city (or pick state first)"}
+            allowCustom
+            customLabel="Add city"
+            placeholder={formData.state ? "Select city or type to add" : "Select city or type to add"}
             inputStyle={BRANCH_FIELD_STYLE}
             onChange={(v) => {
+              if (v !== BRANCH_OTHER_CITY && !cityOptions.includes(v)) {
+                handleInputChange("_cityOther", true);
+                handleInputChange("city", v);
+                return;
+              }
               if (v === BRANCH_OTHER_CITY) {
                 handleInputChange("_cityOther", true);
                 handleInputChange("city", "");
@@ -138,6 +145,8 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     gstCertificateUrl: "",
     panDocumentUrl: "",
     accreditationDocumentUrl: "",
+    courseListDocUrl: "",
+    courseListDocName: "",
     declarationAccepted: false,
     submittedByName: "",
   });
@@ -241,6 +250,8 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
             gstCertificateUrl: kd.gstCertificateUrl || "",
             panDocumentUrl: kd.panDocumentUrl || "",
             accreditationDocumentUrl: kd.accreditationDocumentUrl || "",
+            courseListDocUrl: kd.courseListDocUrl || "",
+            courseListDocName: kd.courseListDocName || "",
             declarationAccepted: Boolean(kd.declarationAccepted),
             submittedByName: kd.submittedByName || ac.contactName || ac.primaryAdmin || "",
           }));
@@ -301,6 +312,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
       const data = await safeJson(res);
       if (res.ok && data.docUrl) {
         handleInputChange(field, data.docUrl);
+        if (field === "courseListDocUrl") handleInputChange("courseListDocName", data.docName || file.name);
         setDocNames((prev) => ({ ...prev, [field]: data.docName || file.name }));
         if (showToast) showToast("Document uploaded successfully!", "success");
       } else {
@@ -336,6 +348,10 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
     }
     if (formData.panNumber.trim() && formData.panNumber.trim().length < 10) {
       if (showToast) showToast("PAN is optional, but if you enter it, it must be 10 characters.", "error");
+      return;
+    }
+    if (!formData.regCertificateUrl && !formData.panDocumentUrl && !formData.gstCertificateUrl && !formData.accreditationDocumentUrl) {
+      if (showToast) showToast("Please upload at least one institutional document proof (Section 6) before submitting.", "error");
       return;
     }
     if (formData.accreditations.includes("Other") && !formData.otherAccreditation.trim()) {
@@ -605,7 +621,7 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               {serverKycRejectionReason || "Please verify official PAN/GSTIN registration certificate details."}
             </div>
             <div style={{ fontSize: 12, color: "#7F1D1D", marginTop: 8 }}>
-              Please correct the fields below and click <strong>"Update &amp; Re-Submit KYC"</strong>.
+              Please correct the fields below and click <strong>&quot;Update &amp; Re-Submit KYC&quot;</strong>.
             </div>
           </div>
         </div>
@@ -1184,15 +1200,15 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                     </button>
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-                    <input type="text" value={b.name || ""} onChange={(e) => updateBranch(idx, "name", e.target.value)} placeholder="Branch name (e.g. Ameerpet)" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
+                    <input type="text" value={b.name || ""} onChange={(e) => updateBranch(idx, "name", e.target.value)} placeholder="Branch name (e.g. Main Branch)" style={{ width: "100%", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, outline: "none", boxSizing: "border-box" }} />
                     {(() => {
                       const stateCities = b.state && CITIES_BY_STATE[b.state] ? CITIES_BY_STATE[b.state] : null;
-                      const cityOptions = [...(stateCities || INDIAN_CITIES.map((c) => c.city)), BRANCH_OTHER_CITY];
+                      const cityOptions = [BRANCH_OTHER_CITY, ...(stateCities || INDIAN_CITIES.map((c) => c.city))];
                       const customCity = b._cityOther || (b.city && !cityOptions.includes(b.city) && !stateCities?.includes(b.city) && !INDIAN_CITIES.some((c) => c.city === b.city));
                       if (customCity) {
                         return (
                           <div style={{ display: "flex", gap: 6 }}>
-                            <input type="text" value={b.city || ""} onChange={(e) => updateBranch(idx, "city", e.target.value)} placeholder="Type city / area" style={BRANCH_FIELD_STYLE} />
+                            <input type="text" value={b.city || ""} onChange={(e) => updateBranch(idx, "city", e.target.value)} placeholder="Type city / town / area" style={BRANCH_FIELD_STYLE} />
                             <button type="button" title="Pick from the city list" onClick={() => { updateBranch(idx, "_cityOther", false); updateBranch(idx, "city", ""); }} style={{ border: "1px solid #CBD5E1", background: "#fff", borderRadius: 8, padding: "0 10px", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>List</button>
                           </div>
                         );
@@ -1201,9 +1217,16 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
                         <SearchableSelect
                           value={b.city || ""}
                           options={cityOptions}
-                          placeholder={b.state ? "Select city" : "Select city (or pick state first)"}
+                          allowCustom
+                          customLabel="Add city"
+                          placeholder="Select city or type to add"
                           inputStyle={BRANCH_FIELD_STYLE}
                           onChange={(v) => {
+                            if (v !== BRANCH_OTHER_CITY && !cityOptions.includes(v)) {
+                              updateBranch(idx, "_cityOther", true);
+                              updateBranch(idx, "city", v);
+                              return;
+                            }
                             if (v === BRANCH_OTHER_CITY) {
                               updateBranch(idx, "_cityOther", true);
                               updateBranch(idx, "city", "");
@@ -1279,6 +1302,37 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               ))}
             </div>
           )}
+          {/* Optional: upload the full course list as a PDF (useful when there are many courses) */}
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px dashed #E2E8F0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#0F172A" }}>Or upload your full course list (PDF)</div>
+              <div style={{ fontSize: 11.5, color: "#64748B" }}>Optional. Handy when you offer many courses. PDF or image, max 10MB. You can also keep the manual entries above.</div>
+            </div>
+            <input
+              id="course-list-doc-input"
+              type="file"
+              accept="application/pdf,image/jpeg,image/jpg,image/png,image/webp"
+              style={{ display: "none" }}
+              disabled={uploadingField === "courseListDocUrl"}
+              onChange={(e) => {
+                const file = e.target.files && e.target.files[0];
+                if (file) handleDocUpload("courseListDocUrl", file);
+                e.target.value = "";
+              }}
+            />
+            {formData.courseListDocUrl ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#DCFCE7", padding: "8px 12px", borderRadius: 6, maxWidth: "100%" }}>
+                <CheckCircle2 size={14} color="#15803D" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#15803D", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{docNames.courseListDocUrl || formData.courseListDocName || "Course list attached"}</span>
+                <a href={getAssetUrl(formData.courseListDocUrl)} target="_blank" rel="noreferrer" style={{ fontSize: 12, fontWeight: 700, color: "#1D4ED8" }}>View</a>
+                <button type="button" onClick={() => { handleInputChange("courseListDocUrl", ""); handleInputChange("courseListDocName", ""); }} style={{ background: "transparent", border: "none", color: "#DC2626", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Remove</button>
+              </div>
+            ) : (
+              <label htmlFor="course-list-doc-input" style={{ background: "#0A1F3D", color: "#fff", padding: "9px 16px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: uploadingField === "courseListDocUrl" ? "wait" : "pointer", whiteSpace: "nowrap" }}>
+                {uploadingField === "courseListDocUrl" ? "Uploading…" : "Upload course list PDF"}
+              </label>
+            )}
+          </div>
         </div>
 
         {/* SECTION 6: DOCUMENT PROOFS */}
@@ -1298,6 +1352,14 @@ export default function AcademyKycForm({ academy, onKycUpdated, showToast }) {
               6. Institutional Document Proofs &amp; Attachments
             </h3>
           </div>
+          {(() => {
+            const anyDoc = Boolean(formData.regCertificateUrl || formData.panDocumentUrl || formData.gstCertificateUrl || formData.accreditationDocumentUrl);
+            return (
+              <div style={{ marginBottom: 14, padding: "9px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, background: anyDoc ? "#DCFCE7" : "#FEF3C7", color: anyDoc ? "#15803D" : "#92400E", border: `1px solid ${anyDoc ? "#BBF7D0" : "#FDE68A"}` }}>
+                {anyDoc ? "Document proof attached. You can add more if you like." : "Required for security: upload at least ONE of the documents below to submit your KYC."}
+              </div>
+            );
+          })()}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
             {[
