@@ -27,9 +27,17 @@ const AcademyBatchSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Active", "Completed"],
+      enum: ["Draft", "Upcoming", "Active", "Completed", "Archived"],
       default: "Active",
     },
+    startDate: { type: Date, default: null },
+    endDate: { type: Date, default: null },
+    trainingMode: {
+      type: String,
+      enum: ["Online", "Offline", "Hybrid", ""],
+      default: "",
+    },
+    capacity: { type: Number, default: null },
   },
   { timestamps: true }
 );

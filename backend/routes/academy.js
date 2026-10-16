@@ -4150,13 +4150,48 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
-    const { code, course, branch = "Coimbatore", studentsList = [] } = req.body;
+    const { code, course, branch = "Coimbatore", studentsList = [], startDate, endDate, trainingMode, capacity, status: batchStatus } = req.body;
     if (!code || !course) {
       return res.status(400).json({ message: "Batch code and course title are required." });
     }
 
+    // Optional batch details (start / end date, mode, capacity, status) - validated when sent.
+    const BATCH_STATUSES = ["Draft", "Upcoming", "Active", "Completed", "Archived"];
+    const BATCH_MODES = ["Online", "Offline", "Hybrid"];
+    const batchDetails = {};
+    const parseDay = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? null : d; };
+    if (startDate) {
+      const d = parseDay(startDate);
+      if (!d) return res.status(400).json({ message: "Enter a valid start date." });
+      batchDetails.startDate = d;
+    }
+    if (endDate) {
+      const d = parseDay(endDate);
+      if (!d) return res.status(400).json({ message: "Enter a valid expected end date." });
+      batchDetails.endDate = d;
+    }
+    if (batchDetails.startDate && batchDetails.endDate && batchDetails.endDate < batchDetails.startDate) {
+      return res.status(400).json({ message: "Expected end date must be on or after the start date." });
+    }
+    if (trainingMode) {
+      if (!BATCH_MODES.includes(trainingMode)) return res.status(400).json({ message: "Training mode must be Online, Offline or Hybrid." });
+      batchDetails.trainingMode = trainingMode;
+    }
+    if (capacity !== undefined && capacity !== null && capacity !== "") {
+      const cap = Number(capacity);
+      if (!Number.isInteger(cap) || cap < 1) return res.status(400).json({ message: "Batch capacity must be a whole number of 1 or more." });
+      batchDetails.capacity = cap;
+    }
+    if (batchStatus) {
+      if (!BATCH_STATUSES.includes(batchStatus)) return res.status(400).json({ message: "Invalid batch status." });
+      batchDetails.status = batchStatus;
+    }
+
     const defaultPassword = await bcrypt.hash("Password123", 10);
     const validStudents = Array.isArray(studentsList) ? studentsList.filter((s) => s && (s.fullName || s.name) && (s.email || s.mobile)) : [];
+    if (batchDetails.capacity && validStudents.length > batchDetails.capacity) {
+      return res.status(400).json({ message: `You added ${validStudents.length} students but the batch capacity is ${batchDetails.capacity}.` });
+    }
 
     for (const st of validStudents) {
       const studentName = (st.fullName || st.name).trim();
@@ -4254,9 +4289,11 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
         course: course.trim(),
         studentsCount: validStudents.length,
         status: "Active",
+        ...batchDetails,
       });
     } else {
       newBatch.studentsCount += validStudents.length;
+      Object.assign(newBatch, batchDetails);
       await newBatch.save();
     }
 

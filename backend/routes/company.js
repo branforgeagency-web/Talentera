@@ -964,6 +964,13 @@ router.put("/applications/:id/status", async (req, res) => {
 
   const previousStatus = application.status;
   application.status = status;
+  // Keep the batch hiring pipeline (routes/hiring.js) in step when a recruiter closes someone out by hand.
+  if (application.hiring && application.hiring.stage && ["rejected", "on_hold"].includes(status)) {
+    application.hiring.stage = status === "rejected" ? "rejected" : "hold";
+    if (status === "rejected") application.hiring.rejection = { at: new Date().toISOString(), round: "manual", reason: req.body.reason || req.body.rejectionReason || "Rejected by recruiter", futurePool: true };
+    if (Array.isArray(application.hiring.audit)) application.hiring.audit.push({ at: new Date().toISOString(), by: "Company HR", action: `Status set to ${status}`, detail: "" });
+    application.markModified("hiring");
+  }
   if (status === "interviewing") {
     // Capture the interview slot the recruiter picked so the candidate's
     // Interview Invites tab can show it. A new slot resets confirmation.

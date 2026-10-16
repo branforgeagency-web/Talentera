@@ -88,6 +88,12 @@ app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.use("/api/auth", authRoutes);
+// Batch hiring flow (exam -> technical -> HR -> approval -> offers). Mounted before the broader
+// /api/candidate and /api/company routers so these paths are matched first.
+const hiringFlow = require("./routes/hiring");
+app.use("/api/candidate/hiring", hiringFlow.candidateRouter);
+app.use("/api/company/hiring", hiringFlow.companyRouter);
+app.use("/api/hiring-public", hiringFlow.publicRouter);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/academy", academyRoutes);

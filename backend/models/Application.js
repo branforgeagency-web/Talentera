@@ -40,6 +40,8 @@ const ApplicationSchema = new mongoose.Schema(
     interviewMeetingLink: { type: String, default: "" },
     interviewConfirmed: { type: Boolean, default: false },
     interviewConfirmedAt: { type: Date, default: null },
+    // Batch-hiring flow (Exam -> Technical -> HR -> Management approval -> Offer). See routes/hiring.js.
+    hiring: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   },
   { timestamps: true }
 );

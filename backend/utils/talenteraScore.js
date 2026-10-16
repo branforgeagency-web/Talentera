@@ -182,6 +182,44 @@ function compute8Stages(candidate) {
     },
   ];
 
+  // Per-stage verification status for the academy's 6-Stage Verification Tracker:
+  // completed / rejected / in_progress / pending - plus a short plain-language reason.
+  const rejectedFlag = (o) => !!(o.rejected || o.needsRevision || o.status === "rejected");
+  const hasStr = (v) => v !== undefined && v !== null && String(v).trim() !== "";
+  const stage4Started = !!(s4.startedAt || s4.attemptedAt || s4.isAutoSubmitted || (Array.isArray(s4.answers) && s4.answers.length) || s4.score !== undefined);
+  const started = {
+    1: hasStr(s1.fullName) || hasStr(s1.aadhaarStatus) || !!s1.aadhaarNumber || completed.includes(1),
+    2: !!(s2.submittedForApproval || hasStr(s2.batch) || hasStr(s2.academyName) || hasStr(s2.courseName) || completed.includes(2)),
+    3: !!(hasStr(s3.certName) || hasStr(s3.certCode) || hasStr(s3.memberId) || (s3.certStatus && s3.certStatus !== "non-certified") || completed.includes(3)),
+    4: stage4Started || completed.includes(4),
+    5: !!(s5.videoUrl || s5.introVideoUrl || s5.proctoredInterviewVideoUrl || s5.mockInterviewVideoUrl || hasNum(s5.aiScore) || completed.includes(5)),
+    6: !!(Number(s6.chartsCompleted) > 0 || hasStr(s6.evidencePath) || hasStr(s6.option) || completed.includes(6)),
+  };
+  const rejectedByStage = {
+    1: s1.aadhaarStatus === "FAILED" || s1.aadhaarStatus === "REJECTED",
+    2: rejectedFlag(s2),
+    3: s3.certStatus === "rejected" || rejectedFlag(s3),
+    4: false,
+    5: rejectedFlag(s5),
+    6: rejectedFlag(s6) || s6.staffVerificationStatus === "rejected",
+  };
+  const stageReason = {
+    1: ["Aadhaar verified", "Aadhaar verification failed", "Aadhaar verification in progress", "Aadhaar not verified yet"],
+    2: ["Academy signed off", `Academy sent back for revision${s2.rejectionReason ? ": " + s2.rejectionReason : ""}`, s2.submittedForApproval ? "Waiting for academy sign-off" : "Training details being filled", "Training details not submitted"],
+    3: ["Certification on file", `Certificate rejected${s3.certRejectionReason ? ": " + s3.certRejectionReason : ""}`, "Certification being added / reviewed", "No certification yet"],
+    4: ["Assessment score recorded", "Assessment rejected", "Assessment started, not finished", "Assessment not attempted"],
+    5: ["Video & AI interview approved", `Video re-take requested${s5.rejectionReason ? ": " + s5.rejectionReason : ""}`, "Video uploaded - awaiting review", "Video not recorded"],
+    6: ["Live charts verified", "Live chart evidence rejected", "Live chart practice in progress", "Live charts not started"],
+  };
+  stages.forEach((st) => {
+    const n = st.stageNumber;
+    const r = stageReason[n];
+    if (st.isDone) { st.status = "completed"; st.statusLabel = st.notRequired ? "Not required for experienced" : r[0]; }
+    else if (rejectedByStage[n]) { st.status = "rejected"; st.statusLabel = r[1]; }
+    else if (started[n]) { st.status = "in_progress"; st.statusLabel = r[2]; }
+    else { st.status = "pending"; st.statusLabel = r[3]; }
+  });
+
   // Talentera Score is derived from Stages 1-6 only (Stage 7/8 are output-only,
   // 0 points) - compute it now, before building Stage 8's own display text,
   // since Stage 8's "Review & Publish" summary shows this exact number.

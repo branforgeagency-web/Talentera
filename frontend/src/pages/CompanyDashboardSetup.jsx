@@ -306,6 +306,20 @@ export default function CompanyDashboardSetup() {
             Applicants
           </Link>
           <Link
+            to="/companies/hiring"
+            style={{
+              color: "rgba(255,255,255,0.85)",
+              fontSize: 13,
+              fontWeight: 700,
+              textDecoration: "none",
+              padding: "8px 14px",
+              borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.15)",
+            }}
+          >
+            Hiring Flow
+          </Link>
+          <Link
             to="/companies/team"
             style={{
               color: "rgba(255,255,255,0.85)",
