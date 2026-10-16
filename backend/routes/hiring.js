@@ -148,7 +148,7 @@ function libraryQuestions(domain, count = 20) {
 function parseCsv(text) {
   const rows = [];
   let row = [], cell = "", inQ = false;
-  const s = String(text || "").replace(/^﻿/, "");
+  const s = String(text || "").replace(/^\uFEFF/, "");
   for (let i = 0; i < s.length; i++) {
     const ch = s[i];
     if (inQ) {
