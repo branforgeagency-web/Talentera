@@ -74,7 +74,7 @@ async function syncAfterSave(app, deps = {}) {
     if (academyId) {
       let eventType = meta.event;
       if (accepted) eventType = "offer_accepted";
-      if (declined) eventType = "rejected";
+      if (declined) eventType = "offer_declined";
       if (eventType) {
         await emitAcademyEvent({
           candidate,

@@ -671,7 +671,7 @@ export default function CollegePortal() {
       if (cached) {
         try {
           setCollege(JSON.parse(cached));
-        } catch (e) {}
+        } catch (e) { /* ignore bad cache */ }
       }
     }
   }
@@ -1140,31 +1140,91 @@ export default function CollegePortal() {
     "consent given": "consent",
   };
 
-  function parseCsvRows(text) {
-    const cleanText = (text || "").replace(/^\uFEFF/, "").trim();
-    const lines = cleanText.split(/\r?\n/);
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(",").map((h) => h.trim().replace(/^["']|["']$/g, ""));
+  // Splits CSV/TSV text into rows of cells. Handles quoted cells (with commas / line breaks inside),
+  // and auto-detects comma, semicolon or tab separators (Excel in some regions saves with ";").
+  function splitDelimited(text) {
+    const firstLine = (text.split(/\r?\n/)[0] || "");
+    const counts = { ",": 0, ";": 0, "\t": 0 };
+    let inQ = false;
+    for (const ch of firstLine) {
+      if (ch === '"') inQ = !inQ;
+      else if (!inQ && ch in counts) counts[ch]++;
+    }
+    const delim = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
     const rows = [];
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
-      if (cols.length < 2) continue;
+    let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === delim) { row.push(cell); cell = ""; }
+      else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell); cell = "";
+        rows.push(row); row = [];
+      } else cell += ch;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+
+  // Turns a grid (first row = headers) into row objects with canonical keys.
+  function gridToRows(grid) {
+    const clean = (grid || []).filter((r) => Array.isArray(r) && r.some((c) => String(c ?? "").trim() !== ""));
+    if (clean.length < 2) return [];
+    const headers = clean[0].map((h) => String(h ?? "").replace(/^\uFEFF/, "").trim().replace(/^["']|["']$/g, ""));
+    const rows = [];
+    for (let i = 1; i < clean.length; i++) {
+      const cols = clean[i].map((c) => String(c ?? "").trim().replace(/^["']|["']$/g, ""));
       const rowObj = {};
       headers.forEach((rawH, idx) => {
+        if (!rawH) return;
         const val = cols[idx] || "";
         const lowerH = rawH.toLowerCase().trim();
         const strippedH = lowerH.replace(/[\s_-]+/g, "");
         const canonicalKey = CSV_HEADER_CANONICAL[lowerH] || CSV_HEADER_CANONICAL[strippedH] || rawH;
-
         rowObj[canonicalKey] = val;
         rowObj[strippedH] = val;
         rowObj[lowerH] = val;
         rowObj[rawH] = val;
       });
+      // Friendly gender values: M / F / Boy / Girl etc.
+      const g = String(rowObj.gender || "").trim().toLowerCase();
+      if (g) {
+        const mapped = ["m", "male", "boy", "man"].includes(g) ? "Male" : ["f", "female", "girl", "woman"].includes(g) ? "Female" : ["o", "other", "others", "non-binary", "nonbinary"].includes(g) ? "Other" : rowObj.gender;
+        rowObj.gender = mapped;
+        rowObj.Gender = mapped;
+      }
       rows.push(rowObj);
     }
     return rows;
+  }
+
+  function parseCsvRows(text) {
+    const cleanText = (text || "").replace(/^\uFEFF/, "").trim();
+    return gridToRows(splitDelimited(cleanText));
+  }
+
+  // Excel files (.xlsx / .xls): read the first sheet. Dates arrive as real dates -> YYYY-MM-DD.
+  async function parseExcelFile(file) {
+    const XLSX = await import("xlsx");
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array", cellDates: true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    if (!sheet) return [];
+    const grid = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" }).map((r) =>
+      r.map((c) => {
+        if (c instanceof Date && !isNaN(c)) {
+          // Excel dates come back as local-midnight (give or take a few minutes); +12h keeps us on the right day.
+          const d = new Date(c.getTime() + 12 * 3600 * 1000);
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+        return c;
+      })
+    );
+    return gridToRows(grid);
   }
 
   // A row needs at least a name and one real contact method (email or
@@ -1176,7 +1236,9 @@ export default function CollegePortal() {
     if (!name) return { isValid: false, reason: "Missing student name" };
     const email = (row.email || row["email address"] || "").trim();
     const mobile = String(row.mobile || row.phone || "").replace(/\D/g, "");
-    if (!email && mobile.length !== 10) return { isValid: false, reason: "Missing email and valid 10-digit mobile" };
+    if (!email) return { isValid: false, reason: "Missing email" };
+    if (!/^\S+@\S+\.\S+$/.test(email)) return { isValid: false, reason: "Invalid email address" };
+    if (mobile && mobile.length !== 10) return { isValid: false, reason: "Mobile must be 10 digits (or leave it blank)" };
     const VALID_GENDERS = ["male", "female", "other"];
     const gender = (row.gender || "").trim().toLowerCase();
     if (!gender || !VALID_GENDERS.includes(gender)) {
@@ -1189,17 +1251,17 @@ export default function CollegePortal() {
 
   function processBulkFile(file) {
     if (!file) return;
-    if (!/\.csv$/i.test(file.name)) {
-      toast("Please upload a .csv file exported from Excel/Sheets.", "!");
+    const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+    const isText = /\.(csv|tsv|txt)$/i.test(file.name);
+    if (!isExcel && !isText) {
+      toast("Please upload a CSV or Excel file (.csv, .xlsx, .xls).", "!");
       return;
     }
     setBulkParsing(true);
     setBulkSummary(null);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const rows = parseCsvRows(String(e.target.result || ""));
-      if (rows.length === 0) {
-        toast("That file has no student rows to import.", "!");
+    const finish = (rows) => {
+      if (!rows || rows.length === 0) {
+        toast("No student rows found. Make sure the first row has the column names (name, email, gender, dob ...) and data starts on row 2.", "!");
         setBulkParsing(false);
         return;
       }
@@ -1209,6 +1271,15 @@ export default function CollegePortal() {
       setBulkFileName(file.name);
       setBulkParsing(false);
     };
+    if (isExcel) {
+      parseExcelFile(file).then(finish).catch(() => {
+        toast("Couldn't read that Excel file. Try saving it as .csv and upload again.", "!");
+        setBulkParsing(false);
+      });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => finish(parseCsvRows(String(e.target.result || "")));
     reader.onerror = () => {
       toast("Couldn't read that file.", "!");
       setBulkParsing(false);
@@ -2677,10 +2748,10 @@ export default function CollegePortal() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 900, color: "#0A1F3D", margin: "0 0 4px" }}>
-                    Bulk Student Enrollment (CSV Roster)
+                    Bulk Student Enrollment (CSV / Excel Roster)
                   </h3>
                   <span style={{ fontSize: 12.5, color: "#64748B" }}>
-                    Upload a real CSV file, review every row before it&apos;s enrolled, then confirm
+                    Upload a CSV or Excel file (.csv, .xlsx, .xls), review every row before it&apos;s enrolled, then confirm
                   </span>
                 </div>
                 <button
@@ -2718,7 +2789,7 @@ export default function CollegePortal() {
                   <input
                     id="collegeBulkCsvInput"
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.tsv,.txt,.xlsx,.xls"
                     style={{ display: "none" }}
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) processBulkFile(e.target.files[0]);
@@ -2734,10 +2805,10 @@ export default function CollegePortal() {
                     <>
                       <i className="fa-solid fa-cloud-arrow-up" style={{ fontSize: 32, color: "#94A3B8", marginBottom: 12, display: "block" }}></i>
                       <div style={{ fontSize: 14.5, fontWeight: 800, color: "#0A1F3D", marginBottom: 4 }}>
-                        Drag & drop a CSV file here, or click to browse
+                        Drag & drop a CSV or Excel file here, or click to browse
                       </div>
                       <p style={{ fontSize: 12, color: "#64748B", margin: 0 }}>
-                        Export your roster from Excel/Sheets as .csv, or start from the template above
+                        Upload your Excel or CSV roster directly, or start from the template above
                       </p>
                     </>
                   )}

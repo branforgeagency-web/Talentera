@@ -40,6 +40,11 @@ const ApplicationSchema = new mongoose.Schema(
     interviewMeetingLink: { type: String, default: "" },
     interviewConfirmed: { type: Boolean, default: false },
     interviewConfirmedAt: { type: Date, default: null },
+    // Interview outcome set by the company when a scheduled interview did not happen as planned.
+    interviewOutcome: { type: String, enum: ["", "rescheduled", "cancelled", "candidate_no_show", "employer_no_show"], default: "" },
+    interviewOutcomeNote: { type: String, default: "" },
+    interviewOutcomeAt: { type: Date, default: null },
+    rescheduleCount: { type: Number, default: 0 },
     // Batch-hiring flow (Exam -> Technical -> HR -> Management approval -> Offer). See routes/hiring.js.
     hiring: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
   },

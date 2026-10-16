@@ -4,7 +4,10 @@ const card = { background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius:
 const inputStyle = { width: "100%", padding: "9px 11px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, boxSizing: "border-box", background: "#fff" };
 const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: "#475569", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.3 };
 
-const blank = { title: "", duration: "", totalHrs: "", fees: "", syllabus: "" };
+const blank = { title: "", duration: "", totalHrs: "", fees: "", syllabus: "", startDate: "", endDate: "", trainingMode: "" };
+const toInput = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "");
+const MODE_COLORS = { Online: ["#DBEAFE", "#1D4ED8"], Offline: ["#FEF3C7", "#92400E"], Hybrid: ["#EDE9FE", "#6D28D9"] };
 const inr = (n) => `₹${Number(n).toLocaleString("en-IN")}`;
 
 export default function AcademyCourses({ getAuthHeader, courses = [], onChanged }) {
@@ -27,6 +30,7 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
   const submit = async () => {
     if (!form.title.trim()) return flash("Enter the course name.", "error");
     if (!form.duration.trim()) return flash("Enter the course duration.", "error");
+    if (form.startDate && form.endDate && form.endDate < form.startDate) return flash("End date cannot be before the start date.", "error");
     setBusy(true);
     try {
       const body = {
@@ -35,6 +39,9 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
         totalHrs: form.totalHrs,
         fees: form.fees === "" ? null : form.fees,
         syllabus: form.syllabus.split("\n").map((x) => x.trim()).filter(Boolean),
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+        trainingMode: form.trainingMode,
       };
       const res = await fetch(editingId ? `/api/academy/courses/${editingId}` : "/api/academy/create-course", {
         method: editingId ? "PUT" : "POST",
@@ -61,8 +68,26 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
       totalHrs: c.totalHrs || "",
       fees: c.fees === null || c.fees === undefined ? "" : c.fees,
       syllabus: (c.syllabus || []).join("\n"),
+      startDate: toInput(c.startDate),
+      endDate: toInput(c.endDate),
+      trainingMode: c.trainingMode || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const toggleTopic = async (c, topic, done) => {
+    try {
+      const res = await fetch(`/api/academy/courses/${c._id}/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ topic, done }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Could not update progress.");
+      onChanged && onChanged();
+    } catch (e) {
+      flash(e.message, "error");
+    }
   };
 
   const remove = async (c) => {
@@ -82,7 +107,7 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div>
         <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>Academy Courses</h2>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Add the courses your academy offers: name, duration, syllabus and (optionally) fees.</p>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#64748B" }}>Add the courses your academy offers: name, duration, dates, training mode, syllabus and (optionally) fees.</p>
       </div>
 
       {msg && (
@@ -96,6 +121,17 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
           <div><label style={labelStyle}>Duration *</label><input style={inputStyle} value={form.duration} onChange={set("duration")} maxLength={40} placeholder="e.g. 3 months" /></div>
           <div><label style={labelStyle}>Total hours</label><input style={inputStyle} type="number" min="0" value={form.totalHrs} onChange={set("totalHrs")} /></div>
           <div><label style={labelStyle}>Fees (₹) - optional</label><input style={inputStyle} type="number" min="0" value={form.fees} onChange={set("fees")} placeholder="Leave blank if not to be shown" /></div>
+          <div><label style={labelStyle}>Start date</label><input style={inputStyle} type="date" value={form.startDate} onChange={set("startDate")} /></div>
+          <div><label style={labelStyle}>End date (expected)</label><input style={inputStyle} type="date" value={form.endDate} min={form.startDate || undefined} onChange={set("endDate")} /></div>
+          <div>
+            <label style={labelStyle}>Training mode</label>
+            <select style={inputStyle} value={form.trainingMode} onChange={set("trainingMode")}>
+              <option value="">Select mode</option>
+              <option value="Online">Online</option>
+              <option value="Offline">Offline</option>
+              <option value="Hybrid">Hybrid</option>
+            </select>
+          </div>
         </div>
         <div style={{ marginTop: 12 }}>
           <label style={labelStyle}>Syllabus (one topic per line)</label>
@@ -122,6 +158,21 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
                       {c.duration}{c.totalHrs ? ` · ${c.totalHrs} hrs` : ""}{" · "}
                       {c.fees !== null && c.fees !== undefined ? <strong style={{ color: "#06152A" }}>{inr(c.fees)}</strong> : "Fees not listed"}
                     </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginTop: 8, fontSize: 12, color: "#334155" }}>
+                      {c.trainingMode && (
+                        <span style={{ background: (MODE_COLORS[c.trainingMode] || ["#F1F5F9", "#475569"])[0], color: (MODE_COLORS[c.trainingMode] || ["#F1F5F9", "#475569"])[1], padding: "2px 8px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>{c.trainingMode}</span>
+                      )}
+                      <span>{c.startDate || c.endDate ? `${fmtDate(c.startDate) || "TBD"} → ${fmtDate(c.endDate) || "TBD"}` : "Dates not set"}</span>
+                      <span style={{ fontWeight: 700 }}>{c.enrolledCount ?? 0} student{(c.enrolledCount ?? 0) === 1 ? "" : "s"} enrolled</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, maxWidth: 320 }}>
+                      <div style={{ flex: 1, height: 6, background: "#E2E8F0", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: `${c.syllabusCompletionPct || 0}%`, height: "100%", background: (c.syllabusCompletionPct || 0) >= 100 ? "#16A34A" : "#4F46E5" }} />
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#475569", whiteSpace: "nowrap" }}>
+                        {(c.syllabus || []).length === 0 ? "No syllabus" : `Syllabus ${c.syllabusCompletionPct || 0}% · ${(c.completedTopics || []).length}/${c.syllabus.length} topics`}
+                      </span>
+                    </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
                     <button className="btn btn-outline" style={{ fontSize: 11, padding: "4px 10px" }} onClick={() => setOpenId(openId === c._id ? null : c._id)}>{openId === c._id ? "Hide syllabus" : "Syllabus"}</button>
@@ -130,9 +181,22 @@ export default function AcademyCourses({ getAuthHeader, courses = [], onChanged 
                   </div>
                 </div>
                 {openId === c._id && (
-                  <ul style={{ margin: "10px 0 0", paddingLeft: 18, fontSize: 12, color: "#334155", lineHeight: 1.7 }}>
-                    {(c.syllabus || []).length === 0 ? <li style={{ color: "#94A3B8" }}>No syllabus added.</li> : c.syllabus.map((t, i) => <li key={i}>{t}</li>)}
-                  </ul>
+                  <div style={{ margin: "10px 0 0", fontSize: 12, color: "#334155", lineHeight: 1.9 }}>
+                    {(c.syllabus || []).length === 0 ? <div style={{ color: "#94A3B8" }}>No syllabus added.</div> : (
+                      <>
+                        <div style={{ fontSize: 11, color: "#64748B", marginBottom: 2 }}>Tick each topic once it has been taught.</div>
+                        {c.syllabus.map((t, i) => {
+                          const done = (c.completedTopics || []).includes(t);
+                          return (
+                            <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textDecoration: done ? "line-through" : "none", color: done ? "#94A3B8" : "#334155" }}>
+                              <input type="checkbox" checked={done} onChange={(e) => toggleTopic(c, t, e.target.checked)} />
+                              {t}
+                            </label>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             ))}

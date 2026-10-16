@@ -44,6 +44,30 @@ function isRegistrationPending(c) {
   return true;
 }
 
+// Older "Create New Batch" runs saved students as already registered (Stage 1 done, Aadhaar "verified",
+// placeholder phone) even though they never signed up. Real eKYC always leaves verificationMethod /
+// verifiedAt on the profile, so a profile with Aadhaar "verified" but neither of those, and nothing but
+// Stage 1 completed, is fake. Reset exactly those records so the dashboard shows real data only.
+async function repairFakeRegistrations(academyId) {
+  try {
+    const noRealEkyc = {
+      "stage2.academyId": String(academyId),
+      "stage1.aadhaarVerified": true,
+      "stage1.verificationMethod": { $exists: false },
+      "stage1.verifiedAt": { $exists: false },
+      completedStages: [1],
+      $or: [{ "stage1.maskedAadhaar": { $exists: false } }, { "stage1.maskedAadhaar": "" }],
+    };
+    await Candidate.updateMany(noRealEkyc, { $set: { "stage1.aadhaarVerified": false, completedStages: [] } });
+    await Candidate.updateMany(
+      { "stage2.academyId": String(academyId), "stage1.mobile": "+91 98765 00000", "stage1.verificationMethod": { $exists: false } },
+      { $set: { "stage1.mobile": "" } }
+    );
+  } catch (err) {
+    logger.warn(`repairFakeRegistrations failed: ${err.message}`);
+  }
+}
+
 function inviteSignupLink(inviteToken) {
   return `${APP_URL}/register?invite=${inviteToken}`;
 }
@@ -797,12 +821,17 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       gstCertificateUrl,
       panDocumentUrl,
       accreditationDocumentUrl,
+      courseListDocUrl,
+      courseListDocName,
       declarationAccepted,
       submittedByName,
     } = req.body;
 
     if (!declarationAccepted) {
       return res.status(400).json({ message: "You must accept the institutional declaration to submit KYC." });
+    }
+    if (![regCertificateUrl, gstCertificateUrl, panDocumentUrl, accreditationDocumentUrl].some((u) => typeof u === "string" && u.trim())) {
+      return res.status(400).json({ message: "Please upload at least one institutional document proof (registration certificate, PAN, GST or accreditation letter) to submit KYC." });
     }
 
     // Courses the academy typed in manually (name + duration) - no presets.
@@ -867,6 +896,8 @@ router.post("/kyc/submit", requireAcademyAuth, async (req, res) => {
       gstCertificateUrl: gstCertificateUrl || "",
       panDocumentUrl: panDocumentUrl || "",
       accreditationDocumentUrl: accreditationDocumentUrl || "",
+      courseListDocUrl: courseListDocUrl || "",
+      courseListDocName: String(courseListDocName || "").slice(0, 160),
       declarationAccepted: true,
       submittedByName: submittedByName || signatoryName || academy.contactName,
       submittedAt: new Date(),
@@ -938,10 +969,46 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
     await syncAcademyUploadedStage2(invites);
     await claimNameMatchedCandidates(academy);
+    await repairFakeRegistrations(req.academyId);
     const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
     const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
     const hiringMap = await require("../utils/hiringLinks").hiringSummary(candidatesList.map((c) => c._id));
+
+    // Real company outcomes per student: who is in the interview stage, who was rejected after interviewing,
+    // and who has a placement the academy disputed. These drive the Interviewing / Rejected / Disputed tabs.
+    const candidateObjectIds = candidatesList.map((c) => c._id);
+    const [studentApps, disputedPlacements] = await Promise.all([
+      candidateObjectIds.length
+        ? Application.find({ candidateId: { $in: candidateObjectIds }, status: { $in: ["shortlisted", "interviewing", "rejected"] } })
+            .select("candidateId companyId status rejectionReason rejectionDetails hiring interviewScheduledAt updatedAt")
+            .populate("companyId", "companyName")
+            .sort({ updatedAt: -1 })
+            .lean()
+        : [],
+      PlacementConfirmation.find({ academyId: req.academyId, status: "disputed" }).select("candidateId companyName disputeReason").lean(),
+    ]);
+    const inInterviewIds = new Set();
+    const rejectionByCandidate = new Map();
+    (studentApps || []).forEach((a) => {
+      const id = String(a.candidateId);
+      if (a.status === "shortlisted" || a.status === "interviewing") inInterviewIds.add(id);
+      if (a.status === "rejected" && !rejectionByCandidate.has(id)) {
+        // Rejected AFTER the interview stage (interview scheduled / technical or HR round reached) - not a plain screening reject.
+        const round = a.hiring?.rejection?.round;
+        const wasInterviewed = !!a.interviewScheduledAt || ["technical", "hr", "approval"].includes(round) || !!a.hiring?.technical?.panelId || !!a.hiring?.hr?.assignedAt;
+        if (wasInterviewed) {
+          rejectionByCandidate.set(id, {
+            company: a.companyId?.companyName || "Employer",
+            reason: a.rejectionReason || a.hiring?.rejection?.reason || "",
+            details: a.rejectionDetails || "",
+            at: a.updatedAt,
+          });
+        }
+      }
+    });
+    const disputeByCandidate = new Map((disputedPlacements || []).map((p) => [String(p.candidateId), p]));
+
     const formattedStudents = candidatesList.map((c) => {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
@@ -977,6 +1044,10 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         cert: s3.certName || s3.certCode || "—",
         placementStatus,
         hiring: hiringMap[String(c._id)] || null,
+        inInterview: inInterviewIds.has(String(c._id)),
+        rejection: rejectionByCandidate.get(String(c._id)) || null,
+        placementDisputed: disputeByCandidate.has(String(c._id)),
+        disputeCompany: disputeByCandidate.get(String(c._id))?.companyName || "",
         recommended: !!c.recommendedByAcademy,
         videoUrl: s5.videoUrl || "",
         aiScore: hasAiVideo ? (s5.aiScore / 10).toFixed(1) : "—",
@@ -1003,12 +1074,15 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     // Real KPI calculations - Talentera Score average (Stages 1-6 weighted, out of
     // 100), counting every candidate with at least one graded stage done, not just
     // those who scored on the Assessment specifically.
-    const scoredStudents = formattedStudents.filter((s) => s.talenteraScore > 0);
+    // Students who have not registered on Talentera yet have no real score or progress, so they are
+    // left out of the averages (they are still counted in the total student numbers).
+    const registeredStudents = formattedStudents.filter((s) => !s.registrationPending);
+    const scoredStudents = registeredStudents.filter((s) => s.talenteraScore > 0);
     const avgScore = scoredStudents.length > 0
       ? Math.round(scoredStudents.reduce((sum, s) => sum + s.talenteraScore, 0) / scoredStudents.length)
       : 0;
-    const avgProfileComplete = formattedStudents.length > 0
-      ? Math.round(formattedStudents.reduce((sum, s) => sum + parseInt(s.completion || "0", 10), 0) / formattedStudents.length)
+    const avgProfileComplete = registeredStudents.length > 0
+      ? Math.round(registeredStudents.reduce((sum, s) => sum + parseInt(s.completion || "0", 10), 0) / registeredStudents.length)
       : 0;
     const placedStudentsCount = formattedStudents.filter((s) => s.status === "placed").length;
     const placementRate = formattedStudents.length > 0
@@ -1062,7 +1136,19 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
       },
       students: formattedStudents,
       batches,
-      courses: academy.courses || [],
+      courses: (academy.courses || []).map((course) => {
+        const plain = typeof course.toObject === "function" ? course.toObject() : { ...course };
+        const key = String(plain.title || "").trim().toLowerCase();
+        const topics = plain.syllabus || [];
+        const done = (plain.completedTopics || []).filter((t) => topics.includes(t));
+        return {
+          ...plain,
+          // Live count of this academy's students enrolled in the course (not the old static field)
+          enrolledCount: candidatesList.filter((c) => String(c.stage2?.course || "").trim().toLowerCase() === key).length,
+          syllabusCompletionPct: topics.length ? Math.round((done.length / topics.length) * 100) : 0,
+          completedTopics: done,
+        };
+      }),
       questions: academy.questions || [],
       placements: academy.placements || [],
       recentActivity,
@@ -2732,6 +2818,25 @@ router.get("/students/:id/timeline", requireAcademyAuth, async (req, res) => {
         title = `${ev.companyName || "Employer"} Scheduled Interview`;
       } else if (ev.eventType === "offer_extended" || ev.eventType === "offer_accepted") {
         title = `${ev.companyName || "Employer"} Extended Offer`;
+      } else if (ev.eventType === "on_hold") {
+        title = `${ev.companyName || "Employer"} Put Application On Hold`;
+        badge = "ON HOLD";
+      } else if (ev.eventType === "interview_rescheduled") {
+        title = `${ev.companyName || "Employer"} Rescheduled Interview`;
+        description = `Interview moved${ev.eventMeta?.interviewTime ? ` to ${ev.eventMeta.interviewTime}` : ""}.${ev.eventMeta?.reason ? ` Note: ${ev.eventMeta.reason}.` : ""}`;
+        badge = "RESCHEDULED";
+      } else if (ev.eventType === "interview_cancelled") {
+        title = `${ev.companyName || "Employer"} Cancelled Interview`;
+        badge = "CANCELLED";
+      } else if (ev.eventType === "candidate_no_show") {
+        title = `Candidate Did Not Attend ${ev.companyName || "Employer"} Interview`;
+        badge = "NO-SHOW";
+      } else if (ev.eventType === "employer_no_show") {
+        title = `${ev.companyName || "Employer"} Did Not Attend Interview`;
+        badge = "EMPLOYER NO-SHOW";
+      } else if (ev.eventType === "offer_declined") {
+        title = `Offer From ${ev.companyName || "Employer"} Declined`;
+        badge = "OFFER DECLINED";
       } else if (ev.eventType === "rejected") {
         title = `Application Closed / Rejected by ${ev.companyName || "Employer"}`;
         const reasonStr = ev.eventMeta?.reason ? ` Reason: ${ev.eventMeta.reason}.` : "";
@@ -2770,16 +2875,44 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
+    // Completed retakes per candidate+stage -> real attempt counts (first attempt + each retake actually used)
+    const retakeRows = candidates.length
+      ? await RetakeRequest.find({ candidateId: { $in: candidates.map((c) => c._id) }, status: "COMPLETED" }).select("candidateId stage").lean()
+      : [];
+    const retakesUsed = {};
+    retakeRows.forEach((r) => {
+      const k = `${r.candidateId}:${r.stage}`;
+      retakesUsed[k] = (retakesUsed[k] || 0) + 1;
+    });
+    const MAX_ATTEMPTS = 2;
+
     const scored = candidates.map((c) => {
       const stageInfo = compute8Stages(c);
+      const regPending = isRegistrationPending(c);
       // Talentera Score (Stages 1-6 weighted, out of 100) - see
       // backend/utils/talenteraScore.js. Stage 4/6's own sub-scores below are kept
       // as informational breakdown fields, distinct from this composite score.
-      const score = stageInfo.talenteraScore;
+      // A student who has not registered on Talentera yet has no real score - the
+      // academy's own upload data must not show up as a 15% Talentera score.
+      const score = regPending ? 0 : stageInfo.talenteraScore;
       const foundationScore = c.stage4?.foundationScore !== undefined && c.stage4?.foundationScore !== null ? Number(c.stage4.foundationScore) : null;
       const specialtyScore = c.stage4?.specialtyScore !== undefined && c.stage4?.specialtyScore !== null ? Number(c.stage4.specialtyScore) : null;
       const chartAccuracy = c.stage6?.accuracy !== undefined && c.stage6?.accuracy !== null ? Number(c.stage6.accuracy) : null;
       const videoAiScore = c.stage5?.aiScore !== undefined && c.stage5?.aiScore !== null ? (Number(c.stage5.aiScore) / 10).toFixed(1) : null;
+
+      // Per-assessment breakdown: type (MCQ / Video / Audio), own score, attempts used
+      const attemptsFor = (stage, attempted) => (attempted ? Math.min(MAX_ATTEMPTS, 1 + (retakesUsed[`${c._id}:${stage}`] || 0)) : 0);
+      const s5 = c.stage5 || {};
+      const introAttempted = typeof s5.aiScore === "number";
+      const mockAttempted = typeof s5.mockScore === "number";
+      const assessments = regPending ? [] : [
+        { name: "Foundation MCQ", type: "MCQ", score: foundationScore, display: foundationScore !== null ? `${foundationScore}%` : null, attempts: attemptsFor(4, foundationScore !== null) },
+        { name: "Specialty MCQ", type: "MCQ", score: specialtyScore, display: specialtyScore !== null ? `${specialtyScore}%` : null, attempts: attemptsFor(4, specialtyScore !== null) },
+        { name: "Chart coding", type: "Practical", score: chartAccuracy, display: chartAccuracy !== null ? `${chartAccuracy}%` : null, attempts: attemptsFor(6, chartAccuracy !== null) },
+        { name: "Self-introduction", type: s5.interviewMode === "audio" ? "Audio" : "Video", score: introAttempted ? s5.aiScore : null, display: introAttempted ? `${(s5.aiScore / 10).toFixed(1)}/10` : null, attempts: attemptsFor(5, introAttempted) },
+        { name: "AI mock interview", type: "Audio", score: mockAttempted ? s5.mockScore : null, display: mockAttempted ? `${(s5.mockScore / 10).toFixed(1)}/10` : null, attempts: attemptsFor(5, mockAttempted) },
+      ];
+      const attemptsTotal = assessments.reduce((sum, a) => sum + a.attempts, 0);
 
       return {
         id: c._id,
@@ -2788,6 +2921,10 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
         batch: c.stage2?.batch || "—",
         course: c.stage2?.course || c.stage1?.currentRole || "Medical Coding",
         type: c.stage1?.experience || "Fresher",
+        registrationPending: regPending,
+        assessments,
+        attemptsTotal,
+        maxAttempts: MAX_ATTEMPTS,
         score,
         foundationScore,
         specialtyScore,
@@ -2795,8 +2932,8 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
         videoAiScore,
         verificationScore: stageInfo.pct,
         finalTalenteraScore: score,
-        status: stageInfo.isComplete ? "Verified" : (score > 0 ? "Scored" : "In Progress"),
-        readyForPlacement: (score >= 80 && stageInfo.pct >= 75) || c.status === "verified",
+        status: regPending ? "Registration pending" : (stageInfo.isComplete ? "Verified" : (score > 0 ? "Scored" : "In Progress")),
+        readyForPlacement: !regPending && ((score >= 80 && stageInfo.pct >= 75) || c.status === "verified"),
       };
     });
 
@@ -2808,17 +2945,22 @@ router.get("/scores-analytics", requireAcademyAuth, async (req, res) => {
     const readyForPlacementCount = scored.filter((s) => s.readyForPlacement).length;
 
     // Distribution Brackets from real score values only
+    const scoredRegistered = scored.filter((s) => !s.registrationPending);
     const brackets = {
-      "< 60": scored.filter((s) => s.score !== null && s.score < 60).length,
-      "60-70": scored.filter((s) => s.score !== null && s.score >= 60 && s.score < 70).length,
-      "70-80": scored.filter((s) => s.score !== null && s.score >= 70 && s.score < 80).length,
-      "80-90": scored.filter((s) => s.score !== null && s.score >= 80 && s.score < 90).length,
-      "90-100": scored.filter((s) => s.score !== null && s.score >= 90).length,
+      "< 60": scoredRegistered.filter((s) => s.score !== null && s.score < 60).length,
+      "60-70": scoredRegistered.filter((s) => s.score !== null && s.score >= 60 && s.score < 70).length,
+      "70-80": scoredRegistered.filter((s) => s.score !== null && s.score >= 70 && s.score < 80).length,
+      "80-90": scoredRegistered.filter((s) => s.score !== null && s.score >= 80 && s.score < 90).length,
+      "90-100": scoredRegistered.filter((s) => s.score !== null && s.score >= 90).length,
     };
 
     // Sort scored candidates by final score descending
     scored.sort((a, b) => (b.score || 0) - (a.score || 0));
-    const rankedCandidates = scored.map((c, idx) => ({ ...c, rank: idx + 1 }));
+    // Registered students are ranked; students who have not registered are listed last, unranked.
+    const rankedCandidates = [
+      ...scored.filter((c) => !c.registrationPending).map((c, idx) => ({ ...c, rank: idx + 1 })),
+      ...scored.filter((c) => c.registrationPending).map((c) => ({ ...c, rank: null })),
+    ];
 
     res.json({
       avgScore,
@@ -3088,9 +3230,9 @@ router.get("/stuck-students", requireAcademyAuth, async (req, res) => {
           id: c._id,
           name: c.stage1?.fullName || c.email.split("@")[0],
           email: c.email,
-          mobile: c.mobile || c.stage1?.mobile || "+91 98765 00000",
-          batch: c.stage2?.batch || "JAN-HCC-01",
-          course: c.stage2?.course || "HCC Coding Specialization",
+          mobile: c.mobile || c.stage1?.mobile || "",
+          batch: c.stage2?.batch || "—",
+          course: c.stage2?.course || c.stage1?.currentRole || "—",
           completionPct: stageInfo.pct,
           blockedStage: stageInfo.currentStageNumber,
           blockedStageTitle: stageInfo.stages[stageInfo.currentStageNumber - 1]?.title || "Verification Stage",
@@ -3628,7 +3770,10 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
 
     const candidates = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
-    const kanban = { applied: [], shortlisted: [], interview: [], offer: [], joined: [], rejected: [] };
+    const kanban = {
+      applied: [], shortlisted: [], interview: [], rescheduled: [], cancelled: [], candidateNoShow: [], employerNoShow: [],
+      onHold: [], offer: [], offerDeclined: [], joined: [], rejected: [],
+    };
     if (candidates.length === 0) return res.json({ kanban });
 
     const candidateById = new Map(candidates.map((c) => [String(c._id), c]));
@@ -3692,6 +3837,8 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
         })(),
         avatar: name.slice(0, 2).toUpperCase(),
         company: companyName,
+        role: app.hiring?.offer?.role || "",
+        interviewSlot: app.interviewTimeText || (app.interviewScheduledAt ? new Date(app.interviewScheduledAt).toLocaleString("en-IN") : ""),
         updatedAt: app.updatedAt,
       };
 
@@ -3699,12 +3846,26 @@ router.get("/interviews/kanban", requireAcademyAuth, async (req, res) => {
         kanban.applied.push({ ...card, statusLabel: "Applied" });
       } else if (app.status === "shortlisted") {
         kanban.shortlisted.push({ ...card, statusLabel: `Shortlisted by ${companyName}` });
+      } else if (app.status === "on_hold") {
+        kanban.onHold.push({ ...card, statusLabel: "On hold", outcomeNote: app.hiring?.approval?.decision === "hold" ? "Held at management approval" : "" });
       } else if (app.status === "interviewing") {
-        kanban.interview.push({ ...card, statusLabel: "Interview Scheduled" });
+        const outcomeCard = { ...card, outcomeNote: app.interviewOutcomeNote || "", rescheduleCount: app.rescheduleCount || 0 };
+        if (app.interviewOutcome === "rescheduled") kanban.rescheduled.push({ ...outcomeCard, statusLabel: "Interview rescheduled" });
+        else if (app.interviewOutcome === "cancelled") kanban.cancelled.push({ ...outcomeCard, statusLabel: "Interview cancelled" });
+        else if (app.interviewOutcome === "candidate_no_show") kanban.candidateNoShow.push({ ...outcomeCard, statusLabel: "Candidate no-show" });
+        else if (app.interviewOutcome === "employer_no_show") kanban.employerNoShow.push({ ...outcomeCard, statusLabel: "Employer no-show" });
+        else kanban.interview.push({ ...card, rescheduleCount: app.rescheduleCount || 0, statusLabel: "Interview Scheduled" });
       } else if (app.status === "hired") {
         const placement = placementByPair.get(`${app.candidateId}_${app.companyId?._id}`);
-        const hiredCard = { ...card, ctc: placement?.ctc || "" };
-        if (placement?.status === "confirmed") {
+        const offerInfo = app.hiring?.offer || {};
+        const hiredCard = {
+          ...card,
+          ctc: placement?.ctc || (offerInfo.ctc ? `${offerInfo.ctc} LPA` : ""),
+          joiningDate: offerInfo.joinDate || "",
+        };
+        if (offerInfo.status === "declined") {
+          kanban.offerDeclined.push({ ...hiredCard, statusLabel: "Offer declined by candidate" });
+        } else if (placement?.status === "confirmed") {
           kanban.joined.push({ ...hiredCard, statusLabel: "Joined & Placed ✓" });
         } else {
           kanban.offer.push({ ...hiredCard, statusLabel: "Offer Extended - Pending Confirmation" });
@@ -3904,6 +4065,64 @@ router.get("/placements/confirmations", requireAcademyAuth, async (req, res) => 
     res.json({ confirmations });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch placement confirmations." });
+  }
+});
+
+// GET /api/academy/placements/offer-tracker
+// Live offer outcomes for this academy's students from real company applications: offer letter pending,
+// offer accepted / joining date, joined, offer denied (declined) and offer on hold.
+router.get("/placements/offer-tracker", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId).lean();
+    const invites = await StudentInvite.find({ academyId: req.academyId }).lean();
+    const filter = buildAcademyCandidateFilter(req.academyId, academy?.name || "", invites);
+    const candidates = await Candidate.find(filter).select("stage1 stage2 email").limit(DASHBOARD_FETCH_CAP).lean();
+    if (candidates.length === 0) return res.json({ rows: [], summary: {} });
+    const byId = new Map(candidates.map((c) => [String(c._id), c]));
+
+    const apps = await Application.find({ candidateId: { $in: candidates.map((c) => c._id) }, status: { $in: ["hired", "on_hold"] } })
+      .populate("companyId", "companyName")
+      .sort({ updatedAt: -1 })
+      .lean();
+    const confirmations = await PlacementConfirmation.find({ academyId: req.academyId }).select("candidateId companyId status").lean();
+    const confirmed = new Set(confirmations.filter((p) => p.status === "confirmed").map((p) => `${p.candidateId}_${p.companyId}`));
+
+    const rows = apps.map((a) => {
+      const c = byId.get(String(a.candidateId));
+      if (!c) return null;
+      const offer = a.hiring?.offer || {};
+      const companyId = a.companyId?._id;
+      let key = "offer_letter_pending";
+      let label = "Offer letter pending";
+      if (a.status === "on_hold") { key = "offer_on_hold"; label = "Offer on hold"; }
+      else if (offer.status === "declined") { key = "offer_denied"; label = "Offer denied"; }
+      else if (confirmed.has(`${a.candidateId}_${companyId}`)) { key = "joined"; label = "Joined"; }
+      else if (offer.status === "accepted") { key = "joining"; label = "Offer accepted - yet to join"; }
+      const letter = key === "offer_denied" || key === "offer_on_hold" ? "—" : (offer.letterUrl || offer.status === "accepted" || key === "joined" ? "Received" : "Pending");
+      return {
+        applicationId: String(a._id),
+        candidateId: String(a.candidateId),
+        candidateName: c.stage1?.fullName || (c.email || "").split("@")[0],
+        batch: c.stage2?.batch || "",
+        company: a.companyId?.companyName || "Employer",
+        role: offer.role || "",
+        ctc: offer.ctc ? `${offer.ctc} LPA` : "",
+        status: key,
+        statusLabel: label,
+        joiningDate: offer.joinDate || null,
+        offerSentAt: offer.sentAt || null,
+        respondedAt: offer.respondedAt || null,
+        offerLetter: letter,
+        note: key === "offer_on_hold" ? (a.hiring?.approval?.decision === "hold" ? "Held at management approval" : "Put on hold by the employer") : "",
+      };
+    }).filter(Boolean);
+
+    const summary = { offer_letter_pending: 0, joining: 0, joined: 0, offer_denied: 0, offer_on_hold: 0 };
+    rows.forEach((r) => { summary[r.status] = (summary[r.status] || 0) + 1; });
+    res.json({ rows, summary });
+  } catch (err) {
+    logger.error(`Offer tracker error: ${err.message}`);
+    res.status(500).json({ message: "Failed to load the offer tracker." });
   }
 });
 
@@ -4218,14 +4437,17 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
           email: cleanEmail || `student.${Date.now()}@talentera.academy`,
           passwordHash: defaultPassword,
           mobile: rawMobile || "",
-          completedStages: [1],
+          // A student added by the academy has NOT registered or completed any verification yet:
+          // no stages done, no Aadhaar verification, and no placeholder phone number.
+          completedStages: [],
+          isVerified: false,
           stage1: {
             fullName: studentName,
-            mobile: rawMobile || "+91 98765 00000",
+            mobile: rawMobile || "",
             city: branch,
             experience: "Fresher",
             currentRole: course.trim(),
-            aadhaarVerified: true,
+            aadhaarVerified: false,
           },
           stage2: {
             academyId: academy._id.toString(),
@@ -4315,11 +4537,30 @@ router.post("/create-batch", requireAcademyAuth, async (req, res) => {
   }
 });
 
+// Validates a course's schedule fields. Returns { startDate, endDate, trainingMode } or { error }.
+function parseCourseSchedule({ startDate, endDate, trainingMode }) {
+  const toDate = (v) => {
+    if (v === undefined || v === null || v === "") return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  };
+  const s = toDate(startDate);
+  const e = toDate(endDate);
+  if (s === undefined) return { error: "Enter a valid start date." };
+  if (e === undefined) return { error: "Enter a valid end date." };
+  if (s && e && e < s) return { error: "End date cannot be before the start date." };
+  const mode = String(trainingMode || "").trim();
+  if (mode && !["Online", "Offline", "Hybrid"].includes(mode)) return { error: "Training mode must be Online, Offline or Hybrid." };
+  return { startDate: s, endDate: e, trainingMode: mode };
+}
+
 // POST /api/academy/create-course
 router.post("/create-course", requireAcademyAuth, async (req, res) => {
   try {
-    const { title, category, duration, totalHrs, syllabus, fees } = req.body;
+    const { title, category, duration, totalHrs, syllabus, fees, startDate, endDate, trainingMode } = req.body;
     if (!String(title || "").trim()) return res.status(400).json({ message: "Enter the course name." });
+    const dates = parseCourseSchedule({ startDate, endDate, trainingMode });
+    if (dates.error) return res.status(400).json({ message: dates.error });
     const academy = await Academy.findById(req.academyId);
     if (!academy) return res.status(404).json({ message: "Academy not found." });
 
@@ -4339,6 +4580,10 @@ router.post("/create-course", requireAcademyAuth, async (req, res) => {
       status: "active",
       syllabus: syllabusList,
       fees: feeNum,
+      startDate: dates.startDate,
+      endDate: dates.endDate,
+      trainingMode: dates.trainingMode,
+      completedTopics: [],
     };
 
     academy.courses.push(newCourse);
@@ -4358,7 +4603,18 @@ router.put("/courses/:id", requireAcademyAuth, async (req, res) => {
     const course = academy.courses.id(req.params.id);
     if (!course) return res.status(404).json({ message: "Course not found." });
 
-    const { title, category, duration, totalHrs, syllabus, status, fees } = req.body;
+    const { title, category, duration, totalHrs, syllabus, status, fees, startDate, endDate, trainingMode } = req.body;
+    if (startDate !== undefined || endDate !== undefined || trainingMode !== undefined) {
+      const dates = parseCourseSchedule({
+        startDate: startDate !== undefined ? startDate : course.startDate,
+        endDate: endDate !== undefined ? endDate : course.endDate,
+        trainingMode: trainingMode !== undefined ? trainingMode : course.trainingMode,
+      });
+      if (dates.error) return res.status(400).json({ message: dates.error });
+      course.startDate = dates.startDate;
+      course.endDate = dates.endDate;
+      course.trainingMode = dates.trainingMode;
+    }
     if (fees !== undefined) {
       const feeNum = fees === null || fees === "" ? null : Number(fees);
       if (feeNum !== null && (!Number.isFinite(feeNum) || feeNum < 0)) return res.status(400).json({ message: "Enter a valid fee amount." });
@@ -4376,6 +4632,8 @@ router.put("/courses/:id", requireAcademyAuth, async (req, res) => {
       course.syllabus = Array.isArray(syllabus)
         ? syllabus
         : String(syllabus).split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+      // Drop completion marks for topics that no longer exist in the syllabus
+      course.completedTopics = (course.completedTopics || []).filter((t) => course.syllabus.includes(t));
     }
 
     await academy.save();
@@ -4383,6 +4641,28 @@ router.put("/courses/:id", requireAcademyAuth, async (req, res) => {
   } catch (err) {
     logger.error(`Update course error: ${err.message}`);
     res.status(500).json({ message: "Failed to update course." });
+  }
+});
+
+// POST /api/academy/courses/:id/progress { topic, done } - tick a syllabus topic as taught / not taught
+router.post("/courses/:id/progress", requireAcademyAuth, async (req, res) => {
+  try {
+    const academy = await Academy.findById(req.academyId);
+    if (!academy) return res.status(404).json({ message: "Academy not found." });
+    const course = academy.courses.id(req.params.id);
+    if (!course) return res.status(404).json({ message: "Course not found." });
+    const topic = String(req.body.topic || "");
+    if (!topic || !(course.syllabus || []).includes(topic)) return res.status(400).json({ message: "That topic is not in this course's syllabus." });
+    const done = new Set(course.completedTopics || []);
+    if (req.body.done) done.add(topic);
+    else done.delete(topic);
+    course.completedTopics = [...done];
+    await academy.save();
+    const total = (course.syllabus || []).length;
+    res.json({ success: true, completedTopics: course.completedTopics, completionPct: total ? Math.round((course.completedTopics.length / total) * 100) : 0 });
+  } catch (err) {
+    logger.error(`Course progress error: ${err.message}`);
+    res.status(500).json({ message: "Failed to update syllabus progress." });
   }
 });
 
@@ -4534,7 +4814,7 @@ router.get("/candidates/:id/placement-info", requireAcademyAuth, async (req, res
 // fallback).
 router.post("/add-placement", requireAcademyAuth, async (req, res) => {
   try {
-    const { studentName, candidateId, role, company, ctc, placementSource, joiningStatus } = req.body;
+    const { studentName, candidateId, role, company, ctc, placementSource, joiningStatus, joiningDate, offerLetterStatus } = req.body;
 
     const missing = [];
     if (!studentName || !studentName.trim()) missing.push("candidate name");
@@ -4548,12 +4828,21 @@ router.post("/add-placement", requireAcademyAuth, async (req, res) => {
     }
 
     const VALID_SOURCES = ["Talentera Platform", "Campus Placement Drive", "Academy Referral", "Direct Company Outreach", "Other"];
-    const VALID_STATUSES = ["Offer Accepted", "Joined", "Yet to Join", "Declined"];
+    const VALID_STATUSES = ["Offer Accepted", "Joined", "Yet to Join", "Declined", "Offer On Hold", "Offer Letter Pending"];
     if (!VALID_SOURCES.includes(placementSource)) {
       return res.status(400).json({ message: "Invalid placement source." });
     }
     if (!VALID_STATUSES.includes(joiningStatus)) {
       return res.status(400).json({ message: "Invalid joining status." });
+    }
+
+    let parsedJoiningDate = null;
+    if (joiningDate) {
+      parsedJoiningDate = new Date(joiningDate);
+      if (Number.isNaN(parsedJoiningDate.getTime())) return res.status(400).json({ message: "Enter a valid joining date." });
+    }
+    if (offerLetterStatus && !["Pending", "Received"].includes(offerLetterStatus)) {
+      return res.status(400).json({ message: "Offer letter status must be Pending or Received." });
     }
 
     const academy = await Academy.findById(req.academyId);
@@ -4567,6 +4856,8 @@ router.post("/add-placement", requireAcademyAuth, async (req, res) => {
       ctc: String(ctc).trim(),
       placementSource,
       joiningStatus,
+      joiningDate: parsedJoiningDate,
+      offerLetterStatus: offerLetterStatus || "",
       date: "Just now",
     };
 
@@ -4579,7 +4870,7 @@ router.post("/add-placement", requireAcademyAuth, async (req, res) => {
     // Analytics tab's funnel/conversion figures - updates immediately
     // instead of only the Placements tab. Skip this when the academy marked
     // the offer as "Declined": the candidate was not actually placed.
-    if (candidateId && joiningStatus !== "Declined") {
+    if (candidateId && !["Declined", "Offer On Hold", "Offer Letter Pending"].includes(joiningStatus)) {
       try {
         const placedCandidate = await Candidate.findById(candidateId);
         if (placedCandidate) {

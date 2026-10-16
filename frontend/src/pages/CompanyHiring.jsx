@@ -340,6 +340,7 @@ function TechnicalTab({ data, byStage, sel, toggle, toggleAll, selIds, act, busy
   const [mode, setMode] = useState("virtual");
   const [when, setWhen] = useState("");
   const [scoring, setScoring] = useState(null);
+  const [outcomeFor, setOutcomeFor] = useState(null);
   const panels = data.setup?.panels || [];
   const unassigned = list.filter((a) => !a.technical?.panelId);
   const allocate = (ids) => act(() => companyApi.post("/company/hiring/technical/allocate", { mode, scheduledAt: when || undefined, jobId, ...(ids ? { applicationIds: ids } : {}) }), (r) => `${r.allocated} candidate${r.allocated === 1 ? "" : "s"} routed to specialty panels.`);
@@ -384,14 +385,59 @@ function TechnicalTab({ data, byStage, sel, toggle, toggleAll, selIds, act, busy
                   {t?.scheduledAt && <div style={{ fontSize: 10.5, color: "#64748B" }}>{fmtDate(t.scheduledAt)}</div>}
                 </td>
                 <td style={td}>{(t?.scores || []).length ? <><strong>{t.avgScore}%</strong> avg<div style={{ fontSize: 10.5, color: "#64748B" }}>{t.scores.map((s) => `${s.member} ${s.pct}%`).join(" · ")}</div></> : "—"}</td>
-                <td style={td}>{t?.panelId && <Btn small kind="navy" onClick={() => setScoring(a)}>Open scorecard</Btn>}</td>
+                <td style={td}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {t?.panelId && <Btn small kind="navy" onClick={() => setScoring(a)}>Open scorecard</Btn>}
+                    <Btn small kind="ghost" onClick={() => setOutcomeFor(a)}>Interview outcome</Btn>
+                  </div>
+                  {a.interviewOutcome && <div style={{ marginTop: 4 }}><Pill bg="#FEF3C7" color="#92400E">{OUTCOME_LABELS[a.interviewOutcome]}</Pill></div>}
+                </td>
               </tr>
             );
           })}
         </Table>
       </Card>
       {scoring && <ScorecardModal app={scoring} setup={data.setup} onClose={() => setScoring(null)} act={act} busy={busy} />}
+      {outcomeFor && <OutcomeModal app={outcomeFor} onClose={() => setOutcomeFor(null)} act={act} busy={busy} />}
     </>
+  );
+}
+
+const OUTCOME_LABELS = {
+  rescheduled: "Rescheduled",
+  cancelled: "Cancelled",
+  candidate_no_show: "Candidate no-show",
+  employer_no_show: "Employer no-show",
+};
+
+// Records that a scheduled interview did not go ahead as planned. Shows on the candidate, academy and college dashboards.
+function OutcomeModal({ app, onClose, act, busy }) {
+  const [outcome, setOutcome] = useState("rescheduled");
+  const [note, setNote] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const save = async (clear) => {
+    const r = await act(
+      () => companyApi.put(`/company/applications/${app.id}/interview-outcome`, clear ? { outcome: "clear" } : { outcome, note, newTime: outcome === "rescheduled" ? newTime : undefined }),
+      clear ? "Interview outcome cleared." : "Interview outcome saved - the candidate has been notified."
+    );
+    if (r) onClose();
+  };
+  return (
+    <Modal title={`Interview outcome · ${app.candidate.name}`} onClose={onClose} width={440}>
+      <div style={{ display: "grid", gap: 12 }}>
+        <Field label="WHAT HAPPENED?">
+          <select value={outcome} onChange={(e) => setOutcome(e.target.value)} style={inputStyle}>
+            {Object.entries(OUTCOME_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+        </Field>
+        {outcome === "rescheduled" && <Field label="NEW DATE & TIME *"><input type="datetime-local" value={newTime} onChange={(e) => setNewTime(e.target.value)} style={inputStyle} /></Field>}
+        <Field label="NOTE (OPTIONAL)"><input value={note} onChange={(e) => setNote(e.target.value)} maxLength={400} style={inputStyle} placeholder="Reason, shared with the candidate" /></Field>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          {app.interviewOutcome && <Btn kind="ghost" disabled={busy} onClick={() => save(true)}>Clear outcome</Btn>}
+          <Btn kind="gold" disabled={busy || (outcome === "rescheduled" && !newTime)} onClick={() => save(false)}>Save outcome</Btn>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
