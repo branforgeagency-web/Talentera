@@ -941,6 +941,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
     const filter = buildAcademyCandidateFilter(req.academyId, academy.name, invites);
     const candidatesList = await Candidate.find(filter).limit(DASHBOARD_FETCH_CAP).lean();
 
+    const hiringMap = await require("../utils/hiringLinks").hiringSummary(candidatesList.map((c) => c._id));
     const formattedStudents = candidatesList.map((c) => {
       const s1 = c.stage1 || {};
       const s2 = c.stage2 || {};
@@ -975,6 +976,7 @@ router.get("/dashboard", requireAcademyAuth, async (req, res) => {
         completion: `${stageInfo.pct}%`,
         cert: s3.certName || s3.certCode || "—",
         placementStatus,
+        hiring: hiringMap[String(c._id)] || null,
         recommended: !!c.recommendedByAcademy,
         videoUrl: s5.videoUrl || "",
         aiScore: hasAiVideo ? (s5.aiScore / 10).toFixed(1) : "—",
