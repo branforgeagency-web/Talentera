@@ -3205,6 +3205,10 @@ router.get("/academies", async (req, res) => {
         name: acad.name,
         city: acad.headquarters || (Array.isArray(acad.branches) && acad.branches.length > 0 ? acad.branches[0] : "Pan-India"),
         branches: require("../utils/academyData").realBranches(acad),
+        // Public branch locations (name / city / state only) so students can pick their branch in Stage 2.
+        branchList: (Array.isArray(acad.kycData && acad.kycData.branches) ? acad.kycData.branches : [])
+          .map((b) => ({ name: String((b && b.name) || "").trim(), city: String((b && b.city) || "").trim(), state: String((b && b.state) || "").trim() }))
+          .filter((b) => b.name || b.city),
         specialty: acad.specialty || "Medical Coding",
         course: primaryCourse ? primaryCourse.title : (acad.specialty || "Medical Coding"),
         courseDesc: primaryCourse ? `${primaryCourse.duration || '3-6 months'} · ${primaryCourse.category || 'Specialty'} · Fee: ₹30,000 - ₹45,000` : `${acad.specialty || 'Medical Coding'} Training`,

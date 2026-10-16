@@ -6,6 +6,7 @@
 //   candidateRouter - mounted at /api/candidate/hiring         (candidate login)
 //   publicRouter    - mounted at /api/hiring-public            (integration key / check-in token)
 const express = require("express");
+const mongoose = require("mongoose");
 const Application = require("../models/Application");
 const Candidate = require("../models/Candidate");
 const Company = require("../models/Company");
@@ -312,17 +313,20 @@ companyRouter.put("/setup", async (req, res) => {
     const { panels, hrs, examCutoffPct, technicalCutoffPct, scorecardCriteria, officeAddress } = req.body;
     if (Array.isArray(panels)) {
       setup.panels = panels.filter((p) => p && String(p.name || "").trim()).map((p) => ({
-        _id: p._id || undefined,
+        _id: p._id && mongoose.Types.ObjectId.isValid(p._id) ? p._id : undefined,
         name: String(p.name).trim(),
         specialty: String(p.specialty || "").trim(),
         keywords: String(p.keywords || "").trim(),
         isFloater: !!p.isFloater,
         members: (Array.isArray(p.members) ? p.members : []).filter((m) => m && String(m.name || "").trim()).map((m) => ({ name: String(m.name).trim(), email: String(m.email || "").trim() })),
       }));
+      if (setup.panels.length === 0) {
+        setup.panels.push({ name: "General Floater Panel", specialty: "General", keywords: "", isFloater: true, members: [] });
+      }
     }
     if (Array.isArray(hrs)) {
       setup.hrs = hrs.filter((h) => h && String(h.name || "").trim()).map((h) => ({
-        _id: h._id || undefined,
+        _id: h._id && mongoose.Types.ObjectId.isValid(h._id) ? h._id : undefined,
         name: String(h.name).trim(), role: String(h.role || "").trim(), city: String(h.city || "").trim(),
         specialty: String(h.specialty || "").trim(), email: String(h.email || "").trim(),
       }));
@@ -336,6 +340,34 @@ companyRouter.put("/setup", async (req, res) => {
     }
     if (officeAddress !== undefined) setup.officeAddress = String(officeAddress).slice(0, 300);
     await setup.save();
+
+    // Sync newly updated panel members to existing candidate applications currently waiting in the technical round
+    try {
+      const techApps = await Application.find({ companyId: req.companyId, "hiring.stage": "technical" });
+      for (const app of techApps) {
+        if (app.hiring?.technical) {
+          const t = app.hiring.technical;
+          const matchedPanel = setup.panels.find((p) => String(p._id) === String(t.panelId))
+            || setup.panels.find((p) => p.name && p.name.toLowerCase() === (t.panelName || "").toLowerCase())
+            || setup.panels.find((p) => p.isFloater)
+            || setup.panels[0];
+          if (matchedPanel && Array.isArray(matchedPanel.members) && matchedPanel.members.length > 0) {
+            const currentMembers = new Set(t.members || []);
+            matchedPanel.members.forEach((m) => {
+              if (m.name) currentMembers.add(m.name);
+            });
+            t.members = Array.from(currentMembers);
+            if (!t.panelId || t.panelId === "undefined") t.panelId = String(matchedPanel._id);
+            if (!t.panelName) t.panelName = matchedPanel.name;
+            app.markModified("hiring");
+            await app.save();
+          }
+        }
+      }
+    } catch (syncErr) {
+      logger.warn(`Could not sync tech apps after setup save: ${syncErr.message}`);
+    }
+
     res.json({ setup });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not save the hiring setup." });
@@ -551,7 +583,7 @@ companyRouter.post("/applications/:id/technical-score", async (req, res) => {
     const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
     if (!app || app.hiring?.stage !== "technical" || !app.hiring.technical) return res.status(400).json({ message: "This candidate is not in the technical round." });
     const member = String(req.body.memberName || "").trim();
-    if (!member) return res.status(400).json({ message: "Choose the panel member who is scoring." });
+    if (!member) return res.status(400).json({ message: "Choose or enter the panel member who is scoring." });
     const entries = Object.entries(req.body.scores || {}).map(([k, v]) => [k, Number(v)]);
     if (!entries.length || entries.some(([, v]) => !Number.isFinite(v) || v < 0 || v > 10)) return res.status(400).json({ message: "Score every criterion from 0 to 10." });
     const total = entries.reduce((s, [, v]) => s + v, 0);
@@ -561,9 +593,34 @@ companyRouter.post("/applications/:id/technical-score", async (req, res) => {
     t.scores.push({ member, criteria: Object.fromEntries(entries), pct: pctScore, notes: String(req.body.notes || "").slice(0, 600), at: new Date().toISOString() });
     t.avgScore = Math.round(t.scores.reduce((s, x) => s + x.pct, 0) / t.scores.length);
     t.status = "in_progress";
+
+    // Keep candidate app members synced
+    if (!Array.isArray(t.members)) t.members = [];
+    if (!t.members.includes(member)) t.members.push(member);
+
     H.audit(app, member, "Technical score", `${pctScore}% (panel average ${t.avgScore}%)`);
     app.markModified("hiring");
     await app.save();
+
+    // Persist this member to the panel in HiringSetup so future candidates have this member in dropdown
+    try {
+      const setup = await getSetup(req.companyId);
+      let targetPanel = setup.panels.find((p) => String(p._id) === String(t.panelId))
+        || setup.panels.find((p) => p.name && p.name.toLowerCase() === (t.panelName || "").toLowerCase())
+        || setup.panels.find((p) => p.isFloater)
+        || setup.panels[0];
+      if (!targetPanel) {
+        targetPanel = { name: t.panelName || "General Floater Panel", specialty: "General", keywords: "", isFloater: true, members: [] };
+        setup.panels.push(targetPanel);
+      }
+      if (targetPanel && !targetPanel.members.some((m) => m.name && m.name.toLowerCase() === member.toLowerCase())) {
+        targetPanel.members.push({ name: member });
+        await setup.save();
+      }
+    } catch (saveSetupErr) {
+      logger.warn(`Could not auto-add member to setup: ${saveSetupErr.message}`);
+    }
+
     res.json({ technical: t });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not save the score." });

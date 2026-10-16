@@ -185,6 +185,18 @@ const MONTH_OPTIONS = [
 const CURRENT_YEAR = new Date().getFullYear();
 const TRAINING_YEAR_OPTIONS = Array.from({ length: 25 }, (_, i) => String(CURRENT_YEAR + 2 - i));
 
+// Known academy branch locations per state (shown in the Location dropdown alongside the city list).
+const KNOWN_BRANCH_LOCATIONS = {
+  Telangana: ["Ameerpet (Hyderabad)", "Dilsukhnagar (Hyderabad)"],
+  "Tamil Nadu": ["Saravanampatti (Coimbatore)", "Hopes (Coimbatore)", "Gandhipuram (Coimbatore)"],
+};
+
+function knownBranchRegion(loc) {
+  const t = String(loc || "").trim().toLowerCase();
+  if (!t) return "";
+  return Object.keys(KNOWN_BRANCH_LOCATIONS).find((st) => KNOWN_BRANCH_LOCATIONS[st].some((n) => n.toLowerCase() === t)) || "";
+}
+
 export default function Stage2Training({ stage, existingData = {}, candidate = {}, onSaved }) {
   const toast = useToast();
 
@@ -315,12 +327,12 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   );
   const [locationOtherMode, setLocationOtherMode] = useState(() => {
     const initLoc = existingData.academyLocation || existingData.academyCity || existingData.instituteCity || existingData.location || "";
-    return !!initLoc && !ACADEMY_LOCATIONS.some((l) => l.name === initLoc);
+    return !!initLoc && !ACADEMY_LOCATIONS.some((l) => l.name === initLoc) && !knownBranchRegion(initLoc);
   });
   const [academyRegion, setAcademyRegion] = useState(() => {
     const initLoc = existingData.academyLocation || existingData.academyCity || existingData.instituteCity || existingData.location || "";
     const match = ACADEMY_LOCATIONS.find((l) => l.name === initLoc);
-    return match ? ACADEMY_STATE_BY_LOCATION[match.name] || "" : "";
+    return match ? ACADEMY_STATE_BY_LOCATION[match.name] || "" : knownBranchRegion(initLoc);
   });
   const [registeredAcademies, setRegisteredAcademies] = useState([]);
   const [batch, setBatch] = useState(existingData.batch || existingData.batchNumber || existingData.rollNumber || "");
@@ -330,6 +342,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [regionSearch, setRegionSearch] = useState("");
   const [regionDropdownOpen, setRegionDropdownOpen] = useState(false);
   const [locationSearch, setLocationSearch] = useState("");
+  const [locationManual, setLocationManual] = useState(false); // type the branch/location by hand (list stays available)
   const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
   const [academyNameSearch, setAcademyNameSearch] = useState("");
   const [academyNameDropdownOpen, setAcademyNameDropdownOpen] = useState(false);
@@ -369,13 +382,35 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       name,
       count: (ACADEMY_LOCATIONS.find((l) => l.name === name)?.count) || 0,
     }));
+    // Academy branch locations (e.g. Ameerpet, Dilsukhnagar): from registered academies' KYC branches + known defaults.
+    const seen = new Set(list.map((l) => l.name.toLowerCase()));
+    const addBranch = (label) => {
+      const t = String(label || "").trim();
+      if (!t || seen.has(t.toLowerCase())) return;
+      seen.add(t.toLowerCase());
+      list.push({ name: t, count: 0, branch: true });
+    };
+    (KNOWN_BRANCH_LOCATIONS[academyRegion] || []).forEach(addBranch);
+    registeredAcademies.forEach((a) => {
+      (Array.isArray(a.branchList) ? a.branchList : []).forEach((b) => {
+        if (academyRegion && b.state && b.state.toLowerCase() !== String(academyRegion).toLowerCase()) return;
+        if (!academyRegion) return;
+        const label = b.name && b.city && b.name.toLowerCase() !== b.city.toLowerCase() ? `${b.name} (${b.city})` : b.name || b.city;
+        addBranch(label);
+      });
+    });
     if (!q) return list;
     return list.filter((l) => l.name.toLowerCase().includes(q));
-  }, [locationsForRegion, locationSearch, academyRegion]);
+  }, [locationsForRegion, locationSearch, academyRegion, registeredAcademies]);
 
   // Academies available for the selected location (real directory + any backend-registered academies)
   const academiesForLocation = useMemo(() => {
     let base = ACADEMIES_BY_LOCATION[academyLocation] || [];
+    // A branch / hand-typed location is not a key in the directory: offer the academies of that region's cities.
+    if (academyLocation && !ACADEMIES_BY_LOCATION[academyLocation] && academyRegion) {
+      const fromRegion = (ACADEMY_LOCATIONS_BY_REGION[academyRegion] || []).flatMap((n) => ACADEMIES_BY_LOCATION[n] || []);
+      base = [...new Set(fromRegion)];
+    }
     // Academies listed only at state level (no city) stay selectable under every city of that state.
     const stateLevel = ACADEMIES_BY_LOCATION[academyRegion] || [];
     if (academyLocation && academyLocation !== academyRegion && stateLevel.length) {
@@ -2229,13 +2264,24 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     <label>
                       Academy Location / Branch <span className="req">*</span>
                     </label>
-                    {locationOtherMode ? (
-                      <input
-                        type="text"
-                        value={academyLocation}
-                        onChange={(e) => setAcademyLocation(e.target.value)}
-                        placeholder="Type your academy's location (e.g. city, state)"
-                      />
+                    {locationOtherMode || locationManual ? (
+                      <>
+                        <input
+                          type="text"
+                          value={academyLocation}
+                          onChange={(e) => { setAcademyLocation(e.target.value); }}
+                          placeholder="Type your academy's branch / location (e.g. Ameerpet, Hyderabad)"
+                        />
+                        {locationManual && !locationOtherMode && (
+                          <button
+                            type="button"
+                            onClick={() => { setLocationManual(false); setAcademyLocation(""); setAcademyName(""); }}
+                            style={{ fontSize: 12, color: "var(--gold)", background: "none", border: "none", cursor: "pointer", padding: "4px 0 0", fontWeight: 700 }}
+                          >
+                            ← Back to location list
+                          </button>
+                        )}
+                      </>
                     ) : (
                       <>
                         <input
@@ -2264,6 +2310,20 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                                 {`No locations match "${locationSearch}"`}
                               </div>
                             )}
+                            {locationSearch.trim().length > 1 && !filteredLocations.some((l) => l.name.toLowerCase() === locationSearch.trim().toLowerCase()) && (
+                              <div
+                                onMouseDown={() => {
+                                  setAcademyLocation(locationSearch.trim());
+                                  setAcademyName("");
+                                  setLocationManual(true);
+                                  setLocationDropdownOpen(false);
+                                  setLocationSearch("");
+                                }}
+                                style={{ padding: "10px 14px", cursor: "pointer", background: "#EFF6FF", color: "#1D4ED8", fontWeight: 700, fontSize: 13, borderBottom: "1px solid #DBEAFE" }}
+                              >
+                                {`Use "${locationSearch.trim()}" as my location (not in list)`}
+                              </div>
+                            )}
                             {filteredLocations.map((l) => (
                               <div
                                 key={l.name}
@@ -2275,16 +2335,28 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                                 style={{ padding: "10px 14px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: academyLocation === l.name ? "#FDF6E4" : "transparent", fontWeight: academyLocation === l.name ? 700 : 400 }}
                               >
                                 <span>{l.name}</span>
-                                <span style={{ fontSize: 11, color: "#94A3B8" }}>{l.count}</span>
+                                <span style={{ fontSize: 11, color: "#94A3B8" }}>{l.branch ? "branch" : l.count}</span>
                               </div>
                             ))}
+                            <div
+                              onMouseDown={() => {
+                                setLocationManual(true);
+                                setAcademyLocation("");
+                                setAcademyName("");
+                                setLocationDropdownOpen(false);
+                                setLocationSearch("");
+                              }}
+                              style={{ padding: "10px 14px", cursor: "pointer", color: "#1D4ED8", fontWeight: 700, fontSize: 13, borderTop: "1px solid #E2E8F0", background: "#F8FAFC" }}
+                            >
+                              Branch not listed? Type it manually
+                            </div>
                           </div>
                         )}
                       </>
                     )}
                     <div className="s2-helper">
-                      {locationOtherMode
-                        ? "Type your academy's location (e.g. city, state)."
+                      {locationOtherMode || locationManual
+                        ? "Type your academy's branch / location (e.g. city, state)."
                         : academyRegion
                         ? "Select your academy's location to filter the academy list."
                         : "Select a region first."}

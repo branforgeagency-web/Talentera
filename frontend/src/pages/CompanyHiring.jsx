@@ -442,50 +442,223 @@ function OutcomeModal({ app, onClose, act, busy }) {
 }
 
 function ScorecardModal({ app, setup, onClose, act, busy }) {
-  const crit = setup?.scorecardCriteria || [];
-  const panel = (setup?.panels || []).find((p) => String(p._id) === String(app.technical?.panelId));
-  const members = (panel?.members || []).map((m) => m.name);
-  const [member, setMember] = useState(members[0] || "");
+  const crit = setup?.scorecardCriteria?.length
+    ? setup.scorecardCriteria
+    : ["Technical knowledge", "Coding accuracy", "Problem solving", "Communication"];
+
+  // Intelligently find matching panel
+  const panel =
+    (setup?.panels || []).find((p) => String(p._id) === String(app.technical?.panelId)) ||
+    (setup?.panels || []).find((p) => p.name && p.name.toLowerCase() === (app.technical?.panelName || "").toLowerCase()) ||
+    (setup?.panels || []).find((p) => p.isFloater) ||
+    (setup?.panels || [])[0];
+
+  // Gather all known member names across the matched panel, candidate app, and all setup panels
+  const initialMembers = useMemo(() => {
+    const set = new Set();
+    (panel?.members || []).forEach((m) => {
+      const n = typeof m === "string" ? m : m?.name;
+      if (n && n.trim()) set.add(n.trim());
+    });
+    (app.technical?.members || []).forEach((m) => {
+      const n = typeof m === "string" ? m : m?.name;
+      if (n && n.trim()) set.add(n.trim());
+    });
+    (setup?.panels || []).forEach((p) => {
+      (p.members || []).forEach((m) => {
+        const n = typeof m === "string" ? m : m?.name;
+        if (n && n.trim()) set.add(n.trim());
+      });
+    });
+    return Array.from(set);
+  }, [panel, app.technical?.members, setup?.panels]);
+
+  const [membersList, setMembersList] = useState(initialMembers);
+  const [member, setMember] = useState(initialMembers[0] || "");
+  const [isAddingNew, setIsAddingNew] = useState(initialMembers.length === 0);
+  const [customMember, setCustomMember] = useState("");
   const [scores, setScores] = useState(Object.fromEntries(crit.map((c) => [c, 5])));
   const [notes, setNotes] = useState("");
   const [fresh, setFresh] = useState(app.technical);
+
+  useEffect(() => {
+    if (initialMembers.length > 0) {
+      setMembersList((prev) => Array.from(new Set([...prev, ...initialMembers])));
+      if (!member) setMember(initialMembers[0]);
+    }
+  }, [initialMembers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const effectiveMember = (isAddingNew ? customMember.trim() : member) || customMember.trim() || member;
+
   const save = async () => {
-    const r = await act(() => companyApi.post(`/company/hiring/applications/${app.id}/technical-score`, { memberName: member, scores, notes }), "Score saved.");
-    if (r) { setFresh(r.technical); setNotes(""); }
+    const scoringName = effectiveMember;
+    if (!scoringName) return;
+    const r = await act(
+      () => companyApi.post(`/company/hiring/applications/${app.id}/technical-score`, { memberName: scoringName, scores, notes }),
+      `Score saved for ${scoringName}.`
+    );
+    if (r) {
+      setFresh(r.technical);
+      setNotes("");
+      if (!membersList.includes(scoringName)) {
+        setMembersList((prev) => [...prev, scoringName]);
+      }
+      setMember(scoringName);
+      setIsAddingNew(false);
+      setCustomMember("");
+    }
   };
+
   const finish = async (decision) => {
-    const r = await act(() => companyApi.post(`/company/hiring/applications/${app.id}/technical-complete`, { decision, notes: fresh?.consensusNotes }), decision === "reject" ? "Candidate rejected." : "Saved - moved to HR round.");
+    const r = await act(
+      () => companyApi.post(`/company/hiring/applications/${app.id}/technical-complete`, { decision, notes: fresh?.consensusNotes }),
+      decision === "reject" ? "Candidate rejected." : "Saved - moved to HR round."
+    );
     if (r) onClose();
   };
+
   return (
     <Modal title={`Panel scorecard · ${app.candidate.name}`} onClose={onClose} width={620}>
-      <div style={{ fontSize: 12, color: "#64748B", marginBottom: 10 }}>{app.technical?.panelName} · {app.technical?.mode} · every member scores live; the average is calculated automatically.</div>
-      <Field label="SCORING AS" style={{ marginBottom: 10 }}>
-        <select value={member} onChange={(e) => setMember(e.target.value)} style={{ ...inputStyle, width: "100%" }}>
-          {members.length === 0 && <option value="">(add panel members in Setup)</option>}
-          {members.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
+      <div style={{ fontSize: 12, color: "#64748B", marginBottom: 12 }}>
+        {app.technical?.panelName || panel?.name || "General Floater Panel"} · {app.technical?.mode || "virtual"} · every member scores live; the average is calculated automatically.
+      </div>
+
+      <Field label="SCORING AS (PANEL MEMBER / INTERVIEWER)" style={{ marginBottom: 12 }}>
+        {!isAddingNew && membersList.length > 0 ? (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <select
+              value={member}
+              onChange={(e) => {
+                if (e.target.value === "__add_new__") {
+                  setIsAddingNew(true);
+                  setCustomMember("");
+                } else {
+                  setMember(e.target.value);
+                }
+              }}
+              style={{ ...inputStyle, flex: 1 }}
+            >
+              {membersList.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+              <option value="__add_new__">+ Enter new interviewer name...</option>
+            </select>
+            <Btn
+              small
+              kind="ghost"
+              type="button"
+              onClick={() => {
+                setIsAddingNew(true);
+                setCustomMember("");
+              }}
+            >
+              + Add member
+            </Btn>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="text"
+                placeholder="Enter interviewer name (e.g. Priya Sharma, Lead)"
+                value={customMember}
+                onChange={(e) => setCustomMember(e.target.value)}
+                autoFocus
+                style={{ ...inputStyle, flex: 1 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && customMember.trim()) {
+                    e.preventDefault();
+                    const nm = customMember.trim();
+                    if (!membersList.includes(nm)) setMembersList((prev) => [...prev, nm]);
+                    setMember(nm);
+                    setIsAddingNew(false);
+                  }
+                }}
+              />
+              <Btn
+                small
+                kind="gold"
+                type="button"
+                disabled={!customMember.trim()}
+                onClick={() => {
+                  const nm = customMember.trim();
+                  if (nm) {
+                    if (!membersList.includes(nm)) setMembersList((prev) => [...prev, nm]);
+                    setMember(nm);
+                    setIsAddingNew(false);
+                  }
+                }}
+              >
+                Set name
+              </Btn>
+              {membersList.length > 0 && (
+                <Btn small kind="ghost" type="button" onClick={() => setIsAddingNew(false)}>
+                  Cancel
+                </Btn>
+              )}
+            </div>
+            <div style={{ fontSize: 11, color: "#64748B" }}>
+              {membersList.length === 0
+                ? "No panel members configured yet. Type your name above to record this evaluation."
+                : "Enter the interviewer name to record this score."}
+            </div>
+          </div>
+        )}
       </Field>
+
       {crit.map((c) => (
         <div key={c} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
           <div style={{ flex: 1, fontSize: 12.5, fontWeight: 700 }}>{c}</div>
-          <input type="range" min="0" max="10" value={scores[c]} onChange={(e) => setScores((s) => ({ ...s, [c]: Number(e.target.value) }))} style={{ width: 170 }} />
-          <strong style={{ width: 26, textAlign: "right" }}>{scores[c]}</strong>
+          <input
+            type="range"
+            min="0"
+            max="10"
+            value={scores[c] ?? 5}
+            onChange={(e) => setScores((s) => ({ ...s, [c]: Number(e.target.value) }))}
+            style={{ width: 170 }}
+          />
+          <strong style={{ width: 26, textAlign: "right" }}>{scores[c] ?? 5}</strong>
         </div>
       ))}
-      <Field label="NOTES"><textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, width: "100%" }} /></Field>
-      <div style={{ margin: "10px 0" }}><Btn kind="navy" disabled={busy || !member} onClick={save}>Save my score</Btn></div>
+      <Field label="NOTES">
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          style={{ ...inputStyle, width: "100%" }}
+          placeholder="Evaluation notes, feedback, and discussion..."
+        />
+      </Field>
+      <div style={{ margin: "10px 0" }}>
+        <Btn kind="navy" disabled={busy || !effectiveMember} onClick={save}>
+          Save my score {effectiveMember ? `as ${effectiveMember}` : ""}
+        </Btn>
+      </div>
       {(fresh?.scores || []).length > 0 && (
         <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 12 }}>
-          {fresh.scores.map((s) => <div key={s.member}><strong>{s.member}</strong> · {s.pct}%{s.notes ? ` — ${s.notes}` : ""}</div>)}
-          <div style={{ marginTop: 6, fontWeight: 800 }}>Panel average: {fresh.avgScore}% (pass mark {setup?.technicalCutoffPct || 60}%)</div>
+          {fresh.scores.map((s) => (
+            <div key={s.member} style={{ marginBottom: 4 }}>
+              <strong>{s.member}</strong> · {s.pct}%{s.notes ? ` — ${s.notes}` : ""}
+            </div>
+          ))}
+          <div style={{ marginTop: 6, fontWeight: 800, color: "#0F172A" }}>
+            Panel average: {fresh.avgScore}% (pass mark {setup?.technicalCutoffPct || 60}%)
+          </div>
         </div>
       )}
       <div style={{ display: "flex", gap: 8 }}>
-        <Btn kind="gold" disabled={busy || !(fresh?.scores || []).length} onClick={() => finish()}>Save &amp; proceed to HR</Btn>
-        <Btn kind="red" disabled={busy || !(fresh?.scores || []).length} onClick={() => finish("reject")}>Reject</Btn>
+        <Btn kind="gold" disabled={busy || !(fresh?.scores || []).length} onClick={() => finish()}>
+          Save &amp; proceed to HR
+        </Btn>
+        <Btn kind="red" disabled={busy || !(fresh?.scores || []).length} onClick={() => finish("reject")}>
+          Reject
+        </Btn>
       </div>
-      <div style={{ fontSize: 11, color: "#64748B", marginTop: 8 }}>"Save &amp; proceed" uses the panel average against your cutoff. The candidate is notified automatically either way.</div>
+      <div style={{ fontSize: 11, color: "#64748B", marginTop: 8 }}>
+        "Save &amp; proceed" uses the panel average against your cutoff. The candidate is notified automatically either way.
+      </div>
     </Modal>
   );
 }
@@ -647,20 +820,61 @@ function OffersTab({ apps }) {
 
 // ---------------------------------------------------------------- Setup
 function SetupTab({ data, act, busy }) {
-  const s = data.setup;
-  const [panels, setPanels] = useState((s.panels || []).map((p) => ({ ...p, membersText: (p.members || []).map((m) => m.name).join(", ") })));
+  const s = data?.setup || {};
+  const [panels, setPanels] = useState(
+    (s.panels || []).map((p) => ({
+      ...p,
+      membersText: (p.members || []).map((m) => (typeof m === "string" ? m : m?.name || "")).filter(Boolean).join(", "),
+    }))
+  );
   const [hrs, setHrs] = useState(s.hrs || []);
-  const [examCut, setExamCut] = useState(s.examCutoffPct);
-  const [techCut, setTechCut] = useState(s.technicalCutoffPct);
+  const [examCut, setExamCut] = useState(s.examCutoffPct ?? 65);
+  const [techCut, setTechCut] = useState(s.technicalCutoffPct ?? 60);
   const [crit, setCrit] = useState((s.scorecardCriteria || []).join(", "));
   const [office, setOffice] = useState(s.officeAddress || "");
+
+  useEffect(() => {
+    if (data?.setup) {
+      const s = data.setup;
+      const initialPanels = s.panels && s.panels.length ? s.panels : [{ name: "General Floater Panel", specialty: "General", keywords: "", isFloater: true, members: [] }];
+      setPanels(
+        initialPanels.map((p) => ({
+          ...p,
+          membersText: (p.members || []).map((m) => (typeof m === "string" ? m : m?.name || "")).filter(Boolean).join(", "),
+        }))
+      );
+      setHrs(s.hrs || []);
+      setExamCut(s.examCutoffPct ?? 65);
+      setTechCut(s.technicalCutoffPct ?? 60);
+      setCrit((s.scorecardCriteria || []).join(", "));
+      setOffice(s.officeAddress || "");
+    }
+  }, [data?.setup]);
+
   const upP = (i, k, v) => setPanels((l) => l.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
   const upH = (i, k, v) => setHrs((l) => l.map((p, j) => (j === i ? { ...p, [k]: v } : p)));
-  const save = () => act(() => companyApi.put("/company/hiring/setup", {
-    panels: panels.map((p) => ({ ...p, members: p.membersText.split(",").map((n) => n.trim()).filter(Boolean).map((name) => ({ name })) })),
-    hrs, examCutoffPct: Number(examCut), technicalCutoffPct: Number(techCut),
-    scorecardCriteria: crit.split(",").map((x) => x.trim()).filter(Boolean), officeAddress: office,
-  }), "Hiring setup saved.");
+
+  const save = () =>
+    act(
+      () =>
+        companyApi.put("/company/hiring/setup", {
+          panels: panels.map((p) => ({
+            ...p,
+            name: String(p.name || "").trim() || "General Floater Panel",
+            specialty: String(p.specialty || "").trim() || "General",
+            keywords: String(p.keywords || "").trim(),
+            isFloater: !!p.isFloater,
+            members: (p.membersText || "").split(",").map((n) => n.trim()).filter(Boolean).map((name) => ({ name })),
+          })),
+          hrs,
+          examCutoffPct: Number(examCut),
+          technicalCutoffPct: Number(techCut),
+          scorecardCriteria: (crit || "").split(",").map((x) => x.trim()).filter(Boolean),
+          officeAddress: office,
+        }),
+      "Hiring setup saved. Panel members updated across active interviews."
+    );
+
   return (
     <>
       <Card title="Cutoffs & scorecard">
@@ -673,15 +887,35 @@ function SetupTab({ data, act, busy }) {
         <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 6 }}>The exam cutoff applies to newly added exams; each exam keeps the cutoff it was created with.</div>
       </Card>
       <Card title="Specialty interview panels" right={<Btn small kind="ghost" onClick={() => setPanels((l) => [...l, { name: "", specialty: "", keywords: "", isFloater: false, membersText: "" }])}>+ Add panel</Btn>}>
-        {panels.map((p, i) => (
-          <div key={i} style={{ display: "grid", gridTemplateColumns: "1.2fr 1.4fr 1.6fr auto auto", gap: 8, alignItems: "end", marginBottom: 8 }}>
-            <Field label="PANEL NAME"><input value={p.name} onChange={(e) => upP(i, "name", e.target.value)} style={{ ...inputStyle, width: "100%" }} placeholder="Panel A · HCC" /></Field>
-            <Field label="MATCH KEYWORDS"><input value={p.keywords} onChange={(e) => upP(i, "keywords", e.target.value)} style={{ ...inputStyle, width: "100%" }} placeholder="hcc, risk adjustment" /></Field>
-            <Field label="MEMBERS (2-3, COMMA SEPARATED)"><input value={p.membersText} onChange={(e) => upP(i, "membersText", e.target.value)} style={{ ...inputStyle, width: "100%" }} placeholder="Rina, Sam, Priya" /></Field>
-            <label style={{ fontSize: 11.5, fontWeight: 700 }}><input type="checkbox" checked={!!p.isFloater} onChange={(e) => upP(i, "isFloater", e.target.checked)} /> Floater</label>
-            <Btn small kind="red" onClick={() => setPanels((l) => l.filter((_, j) => j !== i))}>Remove</Btn>
+        {panels.map((p, i) => {
+          const parsed = (p.membersText || "").split(",").map((n) => n.trim()).filter(Boolean);
+          return (
+            <div key={i} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1.4fr 1.6fr auto auto", gap: 8, alignItems: "end" }}>
+                <Field label="PANEL NAME"><input value={p.name} onChange={(e) => upP(i, "name", e.target.value)} style={{ ...inputStyle, width: "100%" }} placeholder="e.g. General Floater Panel" /></Field>
+                <Field label="MATCH KEYWORDS"><input value={p.keywords} onChange={(e) => upP(i, "keywords", e.target.value)} style={{ ...inputStyle, width: "100%" }} placeholder="hcc, risk adjustment" /></Field>
+                <Field label="MEMBERS (COMMA SEPARATED)"><input value={p.membersText} onChange={(e) => upP(i, "membersText", e.target.value)} style={{ ...inputStyle, width: "100%" }} placeholder="e.g. Priya S, Vikram, Alex" /></Field>
+                <label style={{ fontSize: 11.5, fontWeight: 700, whiteSpace: "nowrap" }}><input type="checkbox" checked={!!p.isFloater} onChange={(e) => upP(i, "isFloater", e.target.checked)} /> Floater</label>
+                <Btn small kind="red" onClick={() => setPanels((l) => l.filter((_, j) => j !== i))}>Remove</Btn>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 8 }}>
+                <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>Active Members:</span>
+                {parsed.length > 0 ? (
+                  parsed.map((nm) => (
+                    <Pill key={nm} bg="#EDE9FE" color="#6D28D9">👤 {nm}</Pill>
+                  ))
+                ) : (
+                  <span style={{ fontSize: 11, color: "#B45309" }}>⚠ No members yet — type interviewer names separated by comma above (e.g. Priya Sharma, Alex)</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+        {panels.length === 0 && (
+          <div style={{ fontSize: 12.5, color: "#64748B", padding: "12px 0" }}>
+            No panels configured yet. Click <strong>+ Add panel</strong> above or click Save Setup to initialize the default floater panel.
           </div>
-        ))}
+        )}
       </Card>
       <Card title="HR round owners" right={<Btn small kind="ghost" onClick={() => setHrs((l) => [...l, { name: "", role: "", city: "", specialty: "" }])}>+ Add HR</Btn>}>
         {hrs.map((h, i) => (

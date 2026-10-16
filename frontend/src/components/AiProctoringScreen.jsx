@@ -46,15 +46,15 @@ import { createMotionDetector, detectBackgroundMotion } from "../utils/proctorMo
 const MEDIAPIPE_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm";
 const MEDIAPIPE_MODEL_PATH = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
 
-// Calibrated geometric ratio thresholds with increased tolerance for left/right head turn
+// Calibrated geometric ratio thresholds with increased tolerance for reading question panels and natural movements
 export const DEFAULT_PROCTOR_THRESHOLDS = {
-  YAW_MIN: 0.44,   // Ratio < 0.44 (Turned Right) - reverted to original, moderate tolerance
-  YAW_MAX: 2.66,   // Ratio > 2.66 (Turned Left)  - a bit more liberal than the original 2.28
-  PITCH_MIN: 0.62, // Ratio < 0.62 (Looking Up)   - kept as is
-  PITCH_MAX: 1.75, // Ratio > 1.75 (Looking Down) - kept as is
-  CONSECUTIVE_ANOMALIES: 3, // 3 consecutive anomalous frames (~50ms) to trigger warning
+  YAW_MIN: 0.30,   // Ratio < 0.30 (Turned Right - generous tolerance to read question panel on right side)
+  YAW_MAX: 3.20,   // Ratio > 3.20 (Turned Left)
+  PITCH_MIN: 0.45, // Ratio < 0.45 (Looking Up)
+  PITCH_MAX: 2.20, // Ratio > 2.20 (Looking Down - to read questions)
+  CONSECUTIVE_ANOMALIES: 22, // ~750ms of sustained looking away before triggering warning
   CONSECUTIVE_NORMALS: 2,   // 2 consecutive normal frames to clear
-  MIN_WARNING_DISPLAY_MS: 2500, // Warning banner stays visible at least this long, even if posture corrects immediately
+  MIN_WARNING_DISPLAY_MS: 2000, // Warning banner display duration
 };
 
 export default function AiProctoringScreen({
@@ -526,7 +526,12 @@ export default function AiProctoringScreen({
         // Debounce trigger: require consecutive anomalous frames (fast 2-frame trigger only for multiple faces -
         // a real second person is a serious concern; background movement uses the normal debounce since
         // small, everyday movements shouldn't be treated as urgently as an unauthorized person appearing)
-        const requiredFrames = anomaly === "multiple_faces" ? 2 : (thresholds.CONSECUTIVE_ANOMALIES || 3);
+        const requiredFrames =
+          anomaly === "multiple_faces"
+            ? 3
+            : anomaly === "background_movement"
+            ? 18
+            : (thresholds.CONSECUTIVE_ANOMALIES || 22);
         if (consecutiveAnomaliesRef.current >= requiredFrames) {
           if (consecutiveAnomaliesRef.current === requiredFrames) {
             warningShownAtRef.current = Date.now();
