@@ -41,6 +41,7 @@ const NotificationSchema = new mongoose.Schema(
         "retake_approved",
         "retake_rejected",
         "reminder",
+        "hiring_update",
         "system",
       ],
       default: "system",

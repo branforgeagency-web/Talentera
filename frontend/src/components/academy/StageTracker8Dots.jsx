@@ -95,7 +95,7 @@ export default function StageTracker8Dots({ stages = [], size = 10, showLabels =
 
       {showLabels && (
         <div style={{ fontSize: 10, color: "#64748B", fontWeight: 700 }}>
-          {stageList.filter((s) => s.isDone).length}/7 stages completed
+          {stageList.filter((s) => s.isDone).length}/6 stages completed
         </div>
       )}
     </div>

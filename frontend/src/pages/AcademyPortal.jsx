@@ -91,6 +91,32 @@ function getEditBatchNameOptions() {
 }
 const EDIT_BATCH_NAME_OPTIONS = getEditBatchNameOptions();
 
+const TRACKER_STAGES = [
+  { num: 1, title: "Basic + Aadhaar", desc: "Indian ID verified", who: "Candidate" },
+  { num: 2, title: "Academy & Training", desc: "Course validation & academy sign-off", who: "Academy Sign-off" },
+  { num: 3, title: "Certifications", desc: "AAPC / AHIMA credentials", who: "Auto-Verified" },
+  { num: 4, title: "Talentera Assessment", desc: "Foundation & MCQ scores", who: "Proctored Engine" },
+  { num: 5, title: "Portfolio Video", desc: "Video + AI interview", who: "Academy Review" },
+  { num: 6, title: "Live Chart Practice", desc: "Medical charts audited", who: "Practice Lab" },
+];
+const TRACKER_STATUS_META = {
+  completed: { label: "Completed", bg: "#DCFCE7", color: "#15803D" },
+  in_progress: { label: "In progress", bg: "#FEF3C7", color: "#B45309" },
+  pending: { label: "Pending", bg: "#F1F5F9", color: "#475569" },
+  rejected: { label: "Rejected", bg: "#FEE2E2", color: "#B91C1C" },
+};
+const trackerStatusOf = (student, idx) => (student.registrationPending ? "pending" : (student.stages || [])[idx]?.status || "pending");
+const trackerLabelOf = (student, idx) => (student.registrationPending ? "Candidate has not registered yet" : (student.stages || [])[idx]?.statusLabel || "");
+
+const BATCH_STATUS_STYLE = {
+  Draft: { bg: "#F1F5F9", color: "#475569" },
+  Upcoming: { bg: "#DBEAFE", color: "#1D4ED8" },
+  Active: { bg: "#DCFCE7", color: "#15803D" },
+  Completed: { bg: "#EDE9FE", color: "#6D28D9" },
+  Archived: { bg: "#E2E8F0", color: "#64748B" },
+};
+const fmtBatchDay = (d) => (d ? new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "");
+
 export default function AcademyPortal() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -228,6 +254,14 @@ export default function AcademyPortal() {
   const [newBatchCode, setNewBatchCode] = useState("");
   const [newBatchCourse, setNewBatchCourse] = useState("Medical Coding");
   const [newBatchBranch, setNewBatchBranch] = useState("Coimbatore");
+  const [trackerStatus, setTrackerStatus] = useState("All");
+  const [trackerStage, setTrackerStage] = useState("All");
+  const [trackerSearch, setTrackerSearch] = useState("");
+  const [newBatchStart, setNewBatchStart] = useState("");
+  const [newBatchEnd, setNewBatchEnd] = useState("");
+  const [newBatchMode, setNewBatchMode] = useState("Online");
+  const [newBatchCapacity, setNewBatchCapacity] = useState("");
+  const [newBatchStatus, setNewBatchStatus] = useState("Upcoming");
 
   // Other Form Inputs
   const [newCourseTitle, setNewCourseTitle] = useState("");
@@ -630,6 +664,14 @@ export default function AcademyPortal() {
       showToast("Please enter a batch code.", "error");
       return;
     }
+    if (newBatchStart && newBatchEnd && newBatchEnd < newBatchStart) {
+      showToast("Expected end date must be on or after the start date.", "error");
+      return;
+    }
+    if (newBatchCapacity !== "" && (!Number.isInteger(Number(newBatchCapacity)) || Number(newBatchCapacity) < 1)) {
+      showToast("Batch capacity must be a whole number of 1 or more.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch("/api/academy/create-batch", {
@@ -639,6 +681,11 @@ export default function AcademyPortal() {
           code: newBatchCode.trim(),
           course: newBatchCourse,
           branch: newBatchBranch,
+          startDate: newBatchStart || undefined,
+          endDate: newBatchEnd || undefined,
+          trainingMode: newBatchMode,
+          capacity: newBatchCapacity === "" ? undefined : Number(newBatchCapacity),
+          status: newBatchStatus,
         }),
       });
       const data = await safeJson(res);
@@ -646,6 +693,11 @@ export default function AcademyPortal() {
         showToast(data.message || `Batch ${newBatchCode} created successfully!`);
         setShowCreateBatchModal(false);
         setNewBatchCode("");
+        setNewBatchStart("");
+        setNewBatchEnd("");
+        setNewBatchMode("Online");
+        setNewBatchCapacity("");
+        setNewBatchStatus("Upcoming");
         fetchDashboardData();
       } else {
         showToast(data.message || "Failed to create batch.", "error");
@@ -990,7 +1042,7 @@ export default function AcademyPortal() {
       if (candidateStageFilter !== "All") {
         const targetStage = parseInt(candidateStageFilter, 10);
         const stList = s.stages || [];
-        const currentStage = stList.findIndex((st) => !st.isDone) + 1 || 8;
+        const currentStage = stList.findIndex((st) => !st.isDone) + 1 || 7;
         if (currentStage !== targetStage) return false;
       }
 
@@ -1445,7 +1497,7 @@ export default function AcademyPortal() {
               {/* 7 KPI Cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
                 <MetricCard title="TOTAL CANDIDATES" val={kpis.totalStudents ?? students.length} sub={`${students.filter((s) => s.status === "placed").length} placed · ${liveProfilesData.length} live`} icon="fa-user-group" onClick={() => handleNavigateMod("candidates")} />
-                <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="7-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
+                <MetricCard title="VERIFICATION PROGRESS" val={`${students.filter((s) => s.completion === 100 || s.completion === "100%").length} / ${students.length}`} sub="6-stage completed" icon="fa-list-check" color="#22C55E" onClick={() => handleNavigateMod("verification")} />
                 <MetricCard title="AWAITING APPROVAL" val={pendingApprovalsCount} sub="Stage 2 sign-offs" icon="fa-circle-check" color="#CA8A04" onClick={() => handleNavigateMod("approvals")} />
                 <MetricCard title="INACTIVE STUDENTS" val={stuckStudents.length} sub="Inactive for 5+ days" icon="fa-clock" color="#DC2626" onClick={() => handleNavigateMod("candidates")} />
               </div>
@@ -1491,7 +1543,7 @@ export default function AcademyPortal() {
                               <span style={{ fontSize: 10, fontWeight: 800, color: "#64748B" }}>{b.code} · Path B ✓</span>
                               <h5 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#06152A" }}>{b.course}</h5>
                             </div>
-                            <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 4 }}>Active</span>
+                            <span style={{ background: (BATCH_STATUS_STYLE[b.status] || BATCH_STATUS_STYLE.Active).bg, color: (BATCH_STATUS_STYLE[b.status] || BATCH_STATUS_STYLE.Active).color, fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 4 }}>{b.status || "Active"}</span>
                           </div>
 
                           <div style={{ display: "flex", gap: 24, fontSize: 12, color: "#64748B" }}>
@@ -1517,7 +1569,7 @@ export default function AcademyPortal() {
                 <div>
                   <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>Candidates Directory</h3>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    Manage and track every student from initial upload through 7-stage verification to final placement.
+                    Manage and track every student from initial upload through 6-stage verification to final placement.
                   </div>
                 </div>
 
@@ -1677,7 +1729,7 @@ export default function AcademyPortal() {
                 {/* Stage Filter */}
                 <select value={candidateStageFilter} onChange={(e) => setCandidateStageFilter(e.target.value)} style={{ padding: "7px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }}>
                   <option value="All">All Stages</option>
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((st) => (
+                  {[1, 2, 3, 4, 5, 6].map((st) => (
                     <option key={st} value={st}>Stage {st}</option>
                   ))}
                 </select>
@@ -1730,7 +1782,7 @@ export default function AcademyPortal() {
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>CANDIDATE</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>BATCH & SPECIALTY</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>TYPE</th>
-                      <th style={{ padding: "12px 14px", fontWeight: 700 }}>7-STAGE PROGRESS</th>
+                      <th style={{ padding: "12px 14px", fontWeight: 700 }}>6-STAGE PROGRESS</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>SCORE</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>STATUS</th>
                       <th style={{ padding: "12px 14px", fontWeight: 700 }}>MATCH & INTERVIEW</th>
@@ -1791,7 +1843,7 @@ export default function AcademyPortal() {
                               </span>
                             </td>
 
-                            {/* 7-Stage Progress */}
+                            {/* 6-Stage Progress */}
                             <td style={{ padding: "12px 14px" }}>
                               {regPending ? (
                                 <span style={{ color: "#94A3B8", fontSize: 11, fontWeight: 600 }}>Not started</span>
@@ -1891,7 +1943,7 @@ export default function AcademyPortal() {
                                       alignItems: "center",
                                       gap: 4,
                                     }}
-                                    title={`Email ${c.name || "the candidate"} to log in and continue Stages 1-8 to raise their score above ${TALENTERA_PASS_PERCENTAGE}%`}
+                                    title={`Email ${c.name || "the candidate"} to log in and continue Stages 1-6 to raise their score above ${TALENTERA_PASS_PERCENTAGE}%`}
                                   >
                                     <Send style={{ width: 11, height: 11 }} />
                                     Boost Score
@@ -2055,45 +2107,120 @@ export default function AcademyPortal() {
           )}
 
           {/* ========================================================= */}
-          {/* 5. 7-STAGE VERIFICATION TRACKER */}
+          {/* 5. 6-STAGE VERIFICATION TRACKER */}
           {/* ========================================================= */}
           {activeMod === "verification" && (
             <div className="space-y-6">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>7-Stage Verification Tracker</h3>
+                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>6-Stage Verification Tracker</h3>
                   <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    Comprehensive cohort progress monitoring across all 7 stages of Talentera talent verification.
+                    Comprehensive cohort progress monitoring across all 6 stages of Talentera talent verification.
                   </div>
                 </div>
               </div>
 
-              {/* 7 Stages Grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-                {[
-                  { num: 1, title: "Basic + Aadhaar", desc: "Indian ID verified", who: "Candidate", count: students.filter((s) => (s.stages || [])[0]?.isDone).length },
-                  { num: 2, title: "Academy & Training", desc: "120 hrs course validation", who: "Academy Sign-off", count: students.filter((s) => (s.stages || [])[1]?.isDone).length },
-                  { num: 3, title: "Certifications", desc: "AAPC / AHIMA credentials", who: "Auto-Verified", count: students.filter((s) => (s.stages || [])[2]?.isDone).length },
-                  { num: 4, title: "Academy Assessment", desc: "Your own question bank or uploaded scores", who: "Academy", count: students.filter((s) => s.academyAssessmentScore !== null && s.academyAssessmentScore !== undefined).length },
-                  { num: 5, title: "Talentera Assessment", desc: "Foundation & MCQ scores", who: "Proctored Engine", count: students.filter((s) => (s.stages || [])[3]?.isDone).length },
-                  { num: 6, title: "Portfolio Video", desc: "AI speech & communication", who: "Academy Review", count: students.filter((s) => (s.stages || [])[4]?.isDone).length },
-                  { num: 7, title: "Live Chart Practice", desc: "Medical charts audited", who: "Practice Lab", count: students.filter((s) => (s.stages || [])[5]?.isDone).length },
-                ].map((st) => (
-                  <div key={st.num} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                      <span style={{ width: 26, height: 26, borderRadius: "50%", background: "#06152A", color: "#E5A82E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 }}>
-                        {st.num}
-                      </span>
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "#15803D", background: "#DCFCE7", padding: "2px 8px", borderRadius: 4 }}>
-                        {st.count} Done
-                      </span>
+              {/* 6 Stages - status counts */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+                {TRACKER_STAGES.map((st) => {
+                  const counts = { completed: 0, in_progress: 0, pending: 0, rejected: 0 };
+                  students.forEach((stu) => { counts[trackerStatusOf(stu, st.num - 1)] += 1; });
+                  return (
+                    <div key={st.num} style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                        <span style={{ width: 26, height: 26, borderRadius: "50%", background: "#06152A", color: "#E5A82E", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 900 }}>{st.num}</span>
+                        <div>
+                          <h5 style={{ margin: 0, fontSize: 13, fontWeight: 800, color: "#06152A" }}>{st.title}</h5>
+                          <div style={{ fontSize: 11, color: "#64748B" }}>{st.desc}</div>
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 10 }}>
+                        {Object.keys(TRACKER_STATUS_META).map((k) => (
+                          <button
+                            type="button"
+                            key={k}
+                            onClick={() => { setTrackerStage(String(st.num)); setTrackerStatus(k); }}
+                            style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 8px", borderRadius: 6, border: "none", cursor: "pointer", background: TRACKER_STATUS_META[k].bg, color: TRACKER_STATUS_META[k].color, fontSize: 11, fontWeight: 800 }}
+                            title={`Show candidates whose "${st.title}" is ${TRACKER_STATUS_META[k].label.toLowerCase()}`}
+                          >
+                            <span>{TRACKER_STATUS_META[k].label}</span>
+                            <span>{counts[k]}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10, color: "#CA8A04", fontWeight: 700, marginTop: 8 }}>{st.who}</div>
                     </div>
-                    <h5 style={{ margin: "4px 0", fontSize: 13, fontWeight: 800, color: "#06152A" }}>{st.title}</h5>
-                    <div style={{ fontSize: 11, color: "#64748B" }}>{st.desc}</div>
-                    <div style={{ fontSize: 10, color: "#CA8A04", fontWeight: 700, marginTop: 6 }}>{st.who}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+
+              {/* Candidate-wise verification status */}
+              {(() => {
+                const q = trackerSearch.trim().toLowerCase();
+                const rows = students.filter((stu) => {
+                  if (q && !`${stu.name || ""} ${stu.email || ""} ${stu.phone || ""}`.toLowerCase().includes(q)) return false;
+                  if (trackerStatus !== "All") {
+                    const idxs = trackerStage === "All" ? [0, 1, 2, 3, 4, 5] : [Number(trackerStage) - 1];
+                    if (!idxs.some((ix) => trackerStatusOf(stu, ix) === trackerStatus)) return false;
+                  } else if (trackerStage !== "All") {
+                    return true;
+                  }
+                  return true;
+                });
+                return (
+                  <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, marginTop: 14 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                      <h4 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#06152A" }}>Candidate-wise verification status ({rows.length})</h4>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <input value={trackerSearch} onChange={(e) => setTrackerSearch(e.target.value)} placeholder="Search name, email, phone" style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }} />
+                        <select value={trackerStage} onChange={(e) => setTrackerStage(e.target.value)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }}>
+                          <option value="All">All stages</option>
+                          {TRACKER_STAGES.map((st) => <option key={st.num} value={st.num}>{st.num}. {st.title}</option>)}
+                        </select>
+                        <select value={trackerStatus} onChange={(e) => setTrackerStatus(e.target.value)} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1" }}>
+                          <option value="All">All statuses</option>
+                          {Object.keys(TRACKER_STATUS_META).map((k) => <option key={k} value={k}>{TRACKER_STATUS_META[k].label}</option>)}
+                        </select>
+                        {(trackerSearch || trackerStage !== "All" || trackerStatus !== "All") && (
+                          <button type="button" onClick={() => { setTrackerSearch(""); setTrackerStage("All"); setTrackerStatus("All"); }} style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid #CBD5E1", background: "#F8FAFC", cursor: "pointer" }}>Reset</button>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, textAlign: "left" }}>
+                        <thead>
+                          <tr style={{ background: "#06152A", color: "#fff" }}>
+                            <th style={{ padding: "9px 10px" }}>CANDIDATE</th>
+                            {TRACKER_STAGES.map((st) => <th key={st.num} style={{ padding: "9px 10px", whiteSpace: "nowrap" }}>{st.num}. {st.title.toUpperCase()}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.length === 0 ? (
+                            <tr><td colSpan={7} style={{ padding: 24, textAlign: "center", color: "#94A3B8" }}>No candidates match these filters.</td></tr>
+                          ) : rows.map((stu) => (
+                            <tr key={stu.id} style={{ borderBottom: "1px solid #F1F5F9" }}>
+                              <td style={{ padding: "9px 10px" }}>
+                                <div style={{ fontWeight: 700, color: "#0F172A" }}>{stu.name}</div>
+                                <div style={{ fontSize: 10.5, color: "#64748B" }}>{stu.email}</div>
+                              </td>
+                              {TRACKER_STAGES.map((st, ix) => {
+                                const k = trackerStatusOf(stu, ix);
+                                const m = TRACKER_STATUS_META[k];
+                                return (
+                                  <td key={st.num} style={{ padding: "9px 10px", verticalAlign: "top" }}>
+                                    <span style={{ background: m.bg, color: m.color, padding: "2px 8px", borderRadius: 6, fontSize: 10.5, fontWeight: 800, whiteSpace: "nowrap" }}>{m.label}</span>
+                                    <div style={{ fontSize: 10, color: "#64748B", marginTop: 3, maxWidth: 150 }}>{trackerLabelOf(stu, ix)}</div>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {pendingApprovalsCount > 0 && (
                 <div style={{ marginTop: 8 }}>
@@ -2756,6 +2883,16 @@ export default function AcademyPortal() {
                       {batches.map((b) => (
                         <div key={b._id} style={{ border: "1px solid #F1F5F9", borderRadius: 8, padding: "8px 12px", background: "#F8FAFC" }}>
                           <strong>{b.code}</strong> - {b.course}
+                          <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 4, background: (BATCH_STATUS_STYLE[b.status] || BATCH_STATUS_STYLE.Active).bg, color: (BATCH_STATUS_STYLE[b.status] || BATCH_STATUS_STYLE.Active).color }}>{b.status || "Active"}</span>
+                          {(b.startDate || b.endDate || b.trainingMode || b.capacity) && (
+                            <div style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                              {[
+                                b.startDate || b.endDate ? `${fmtBatchDay(b.startDate) || "?"} – ${fmtBatchDay(b.endDate) || "?"}` : "",
+                                b.trainingMode,
+                                b.capacity ? `${b.studentsCount || 0}/${b.capacity} seats` : "",
+                              ].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2995,12 +3132,12 @@ export default function AcademyPortal() {
       {/* 4. Create Batch Modal */}
       {showCreateBatchModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999, padding: 20 }} onClick={() => setShowCreateBatchModal(false)}>
-          <div style={{ background: "#FFFFFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ background: "#FFFFFF", borderRadius: 14, padding: 24, width: "100%", maxWidth: 520, maxHeight: "90vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h4 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 800, color: "#06152A" }}>Create New Batch</h4>
             <form onSubmit={handleCreateBatch} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>BATCH CODE</label>
-                <input type="text" placeholder="e.g. Batch 1(Jan 2026)" value={newBatchCode} onChange={(e) => setNewBatchCode(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
+                <input type="text" placeholder="e.g. 1122CC" value={newBatchCode} onChange={(e) => setNewBatchCode(e.target.value)} required style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13 }} />
               </div>
               <div>
                 <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>COURSE</label>
@@ -3009,6 +3146,43 @@ export default function AcademyPortal() {
                   <option value="Medical Billing">Medical Billing</option>
                   <option value="AR Calling">AR Calling</option>
                 </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>START DATE</label>
+                  <input type="date" value={newBatchStart} onChange={(e) => setNewBatchStart(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>EXPECTED END DATE</label>
+                  <input type="date" value={newBatchEnd} min={newBatchStart || undefined} onChange={(e) => setNewBatchEnd(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>TRAINING MODE</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["Online", "Offline", "Hybrid"].map((m) => (
+                    <button
+                      type="button"
+                      key={m}
+                      onClick={() => setNewBatchMode(m)}
+                      style={{ flex: 1, padding: "8px 0", borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer", border: newBatchMode === m ? "1.5px solid #06152A" : "1px solid #CBD5E1", background: newBatchMode === m ? "#06152A" : "#fff", color: newBatchMode === m ? "#fff" : "#475569" }}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>BATCH CAPACITY</label>
+                  <input type="number" min="1" step="1" placeholder="e.g. 100" value={newBatchCapacity} onChange={(e) => setNewBatchCapacity(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 4 }}>BATCH STATUS</label>
+                  <select value={newBatchStatus} onChange={(e) => setNewBatchStatus(e.target.value)} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #CBD5E1", fontSize: 13, boxSizing: "border-box" }}>
+                    {["Draft", "Upcoming", "Active", "Completed", "Archived"].map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </div>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
                 <button type="button" onClick={() => setShowCreateBatchModal(false)} style={{ background: "#F1F5F9", color: "#475569", border: "none", padding: "8px 14px", borderRadius: 6, fontSize: 12, fontWeight: 700 }}>

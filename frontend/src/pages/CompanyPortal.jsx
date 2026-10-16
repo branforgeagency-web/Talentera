@@ -288,6 +288,12 @@ export default function CompanyPortal() {
           >
             Applicants
           </Link>
+          <Link
+            to="/companies/hiring"
+            style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+          >
+            Hiring Flow
+          </Link>
           <HeadOnly><Link to="/companies/team" style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, textDecoration: "none" }}>Team Logins</Link></HeadOnly>
           <HeadOnly><Link
             to="/companies/dashboard"

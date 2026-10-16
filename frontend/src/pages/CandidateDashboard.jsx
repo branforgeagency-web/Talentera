@@ -8,6 +8,7 @@ import { exportResumeWord } from '../utils/resumeExport.js';
 import SupportEnquiries from '../components/SupportEnquiries.jsx';
 import CandidateDocumentsSection from '../components/CandidateDocumentsSection.jsx';
 import BrowseJobsSection from '../components/BrowseJobsSection.jsx';
+import CandidateHiringSection from '../components/CandidateHiringSection.jsx';
 import CandidateReferralPortalSection from '../components/CandidateReferralPortalSection.jsx';
 import CandidateEmployerReferralsSection from '../components/CandidateEmployerReferralsSection.jsx';
 import CandidateAcademyReferralsSection from '../components/CandidateAcademyReferralsSection.jsx';
@@ -868,6 +869,10 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                 <span>Browse Jobs</span>
                 <span className="badge blue">{jobs.length}</span>
               </div>
+              <div data-tab="hiring" className={'sb-item ' + (activeTab === 'hiring' ? 'active' : '')} onClick={() => setActiveTab('hiring')}>
+                <span className="ico"><i className="fa-solid fa-list-check" /></span>
+                <span>Hiring Rounds</span>
+              </div>
               <div data-tab="learning" className={'sb-item ' + (activeTab === 'learning' ? 'active' : '')} onClick={() => setActiveTab('learning')}>
                 <span className="ico"><i className="fa-solid fa-book" /></span>
                 <span>Learning Hub</span>
@@ -1520,6 +1525,12 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                   fetchDashboardData();
                 }}
               />
+            </div>
+          )}
+
+          {activeTab === 'hiring' && (
+            <div className="page active" id="page-hiring" style={{ padding: 0 }}>
+              <CandidateHiringSection triggerToast={typeof triggerToast === 'function' ? triggerToast : undefined} />
             </div>
           )}
 
