@@ -273,6 +273,18 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
   }, [evidencePath, specialtyCharts, timePracticedHours, practicePeriodDays, platformAccounts, academyName, signedOffBy, signOffDate, declarationAccepted]);
 
   const hasErrors = Boolean(errors.charts || errors.hours || errors.period || errors.profile || errors.academy || errors.signedBy || errors.signDate || errors.declaration || Object.keys(errors.rows).length);
+  // Plain-language list of exactly what is missing (shown next to the Save button and in the toast),
+  // so a field that is scrolled out of view can never be a silent blocker.
+  const errorList = useMemo(() => {
+    const list = [];
+    if (errors.charts) list.push(errors.charts);
+    specialtyCharts.forEach((r, i) => {
+      const re = errors.rows[r.id];
+      if (re) list.push(`Specialty row ${i + 1}${r.name ? ` (${r.name})` : ""}: ${Object.values(re).join(", ")}. Fill it or remove the row.`);
+    });
+    ["hours", "period", "profile", "academy", "signedBy", "signDate", "declaration"].forEach((k) => { if (errors[k]) list.push(errors[k]); });
+    return list;
+  }, [errors, specialtyCharts]);
   const showErr = (key) => (showErrors ? errors[key] : undefined);
   const rowErr = (id, key) => (showErrors ? errors.rows[id]?.[key] : undefined);
 
@@ -358,7 +370,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
   const saveStage6 = async ({ silent = false } = {}) => {
     setShowErrors(true);
     if (hasErrors) {
-      toast("Please fix the highlighted Stage 06 fields.", "!");
+      toast(errorList[0] ? `Stage 06: ${errorList[0]}` : "Please fix the highlighted Stage 06 fields.", "!");
       return false;
     }
     setSaving(true);
@@ -816,7 +828,12 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
             )}
 
             <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14, paddingTop: 16, borderTop: "1px solid #F1F5F9", flexWrap: "wrap" }}>
-              {showErrors && hasErrors && <span style={{ fontSize: 12, fontWeight: 700, color: "#DC2626" }}>Some required fields need attention.</span>}
+              {showErrors && hasErrors && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#DC2626", textAlign: "right", maxWidth: 520 }}>
+                  <div>Please fix the following to save:</div>
+                  {errorList.map((m, i) => <div key={i} style={{ fontWeight: 600 }}>• {m}</div>)}
+                </div>
+              )}
               <button type="button" className="btn btn-gold" onClick={() => saveStage6()} disabled={saving} style={{ padding: "12px 26px", fontSize: 14, fontWeight: 800, display: "inline-flex", alignItems: "center", gap: 7 }}>
                 {saving ? "Saving…" : savedSuccess ? <><i className="fa-solid fa-check" /> Save changes & recalculate</> : "Save & calculate my score →"}
               </button>
