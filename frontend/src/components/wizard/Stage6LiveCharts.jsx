@@ -298,8 +298,8 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
   };
   const updatePlatformAccount = (plat, field, value) =>
     setPlatformAccounts((prev) => prev.map((a) => (a.platform === plat ? { ...a, [field]: value } : a)));
-  const addPlatformAccount = () => {
-    const name = (platformToAdd === "__custom__" ? customPlatformName : platformToAdd).trim();
+  const addPlatformAccount = (picked) => {
+    const name = (typeof picked === "string" ? picked : platformToAdd === "__custom__" ? customPlatformName : platformToAdd).trim();
     if (!name) return;
     setPlatformAccounts((prev) => {
       if (prev.some((a) => a.platform.toLowerCase() === name.toLowerCase())) return prev;
@@ -725,7 +725,17 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                         <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.04em", marginBottom: 8 }}>ADD A PLATFORM / TOOL</div>
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                           <div style={{ flex: "1 1 220px", minWidth: 200 }}>
-                            <select value={platformToAdd} onChange={(e) => setPlatformToAdd(e.target.value)} style={INPUT}>
+                            <select
+                              value={platformToAdd}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                // Picking a listed platform adds it straight away (no separate "+ Add" click needed),
+                                // so the dropdown never keeps showing a tool that isn't in the list below.
+                                if (v && v !== "__custom__") { addPlatformAccount(v); setPlatformToAdd(""); }
+                                else setPlatformToAdd(v);
+                              }}
+                              style={INPUT}
+                            >
                               <option value="">Select a platform…</option>
                               {platformCategories.map((g) => (
                                 <optgroup key={g.category} label={g.title}>
@@ -770,13 +780,13 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                               </div>
                               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
                                 <Field label="Profile URL" hint="Optional — a link to your public profile/dashboard.">
-                                  <input type="text" value={acc.url} maxLength={300} onChange={(e) => updatePlatformAccount(acc.platform, "url", e.target.value)} placeholder="https://..." style={INPUT} />
+                                  <input type="text" value={acc.url} maxLength={300} onChange={(e) => updatePlatformAccount(acc.platform, "url", e.target.value)} placeholder="https://..." autoComplete="off" name={`s6-url-${acc.platform}`} style={INPUT} />
                                 </Field>
                                 <Field label="Username" required error={showErr("profile")}>
-                                  <input type="text" value={acc.username} maxLength={120} onChange={(e) => updatePlatformAccount(acc.platform, "username", e.target.value)} placeholder="Your login / display name" style={showErr("profile") ? INPUT_ERR : INPUT} />
+                                  <input type="text" value={acc.username} maxLength={120} onChange={(e) => updatePlatformAccount(acc.platform, "username", e.target.value)} placeholder="Your login / display name" autoComplete="off" name={`s6-user-${acc.platform}`} style={showErr("profile") ? INPUT_ERR : INPUT} />
                                 </Field>
                                 <Field label="Profile ID" required error={showErr("profile")}>
-                                  <input type="text" value={acc.profileId} maxLength={120} onChange={(e) => updatePlatformAccount(acc.platform, "profileId", e.target.value)} placeholder="Account / employee / student ID" style={showErr("profile") ? INPUT_ERR : INPUT} />
+                                  <input type="text" value={acc.profileId} maxLength={120} onChange={(e) => updatePlatformAccount(acc.platform, "profileId", e.target.value)} placeholder="Account / employee / student ID" autoComplete="off" name={`s6-pid-${acc.platform}`} style={showErr("profile") ? INPUT_ERR : INPUT} />
                                 </Field>
                               </div>
                             </div>
