@@ -55,6 +55,8 @@ export default function CompanyApplicants() {
   const [matchTotal, setMatchTotal] = useState(0);
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState("");
+  const [callingApp, setCallingApp] = useState(null); // candidate being called for interview (opens the schedule box)
+  const [hiddenMatches, setHiddenMatches] = useState(() => new Set()); // matched candidates the recruiter marked "not a fit" (this session)
   const showApplicants = view === "applicants";
 
   useEffect(() => {
@@ -155,6 +157,57 @@ export default function CompanyApplicants() {
       toast(status === "rejected" ? "Application rejected & reason recorded." : `Marked as ${status}.`, "✓");
     } catch (err) {
       toast(err.response?.data?.message || "Couldn't update status.", "!");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  // "Shortlist for interview" button at the end of a candidate profile. A matched (not-yet-applied) candidate
+  // first gets an application record, then goes through the normal status route (notification + email + academy event).
+  async function shortlistCandidate(app) {
+    setUpdatingId(app._id);
+    try {
+      let appId = app._id;
+      if (app.status === "matched") {
+        const cid = String(app._id).replace(/^match-/, "");
+        const r = await companyApi.post("/company/matched-candidates/application", { jobId: app.jobId, candidateId: cid });
+        appId = r.data.applicationId;
+      }
+      await companyApi.put(`/company/applications/${appId}/status`, { status: "shortlisted" });
+      toast("Shortlisted for interview. The candidate has been notified - find them under Applicants → Shortlisted.", "✓");
+      setMatched((prev) => prev.map((m) => (m._id === app._id ? { ...m, alreadyApplied: true } : m)));
+      setSelectedApp(null);
+      fetchApplications();
+    } catch (err) {
+      toast(err.response?.data?.message || "Couldn't shortlist this candidate.", "!");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  // "Call for interview": shortlists (creating the application first for a matched candidate) and sets the interview slot.
+  async function callForInterview(app, { when, type, link }) {
+    setUpdatingId(app._id);
+    try {
+      let appId = app._id;
+      if (app.status === "matched") {
+        const cid = String(app._id).replace(/^match-/, "");
+        const r = await companyApi.post("/company/matched-candidates/application", { jobId: app.jobId, candidateId: cid });
+        appId = r.data.applicationId;
+      }
+      await companyApi.put(`/company/applications/${appId}/status`, {
+        status: "interviewing",
+        interviewTime: when || undefined,
+        interviewType: type || undefined,
+        meetingLink: link || undefined,
+      });
+      toast("Interview scheduled. The candidate has been notified.", "✓");
+      setMatched((prev) => prev.map((m) => (m._id === app._id ? { ...m, alreadyApplied: true } : m)));
+      setCallingApp(null);
+      setSelectedApp(null);
+      fetchApplications();
+    } catch (err) {
+      toast(err.response?.data?.message || "Couldn't schedule the interview.", "!");
     } finally {
       setUpdatingId(null);
     }
@@ -305,7 +358,7 @@ export default function CompanyApplicants() {
                 No candidates in the pool match this job yet.
               </div>
             )}
-            {!matchLoading && !matchError && matched.map((m) => {
+            {!matchLoading && !matchError && matched.filter((m) => !hiddenMatches.has(m._id)).map((m) => {
               const c = m.candidate || {};
               const basic = c.basicInfo || {};
               return (
@@ -512,8 +565,29 @@ export default function CompanyApplicants() {
           canViewScoresAndCerts={canViewScoresAndCerts}
           updatingId={updatingId}
           onStatusChange={(status) => handleStatusSelect(selectedApp, status)}
+          onShortlist={() => shortlistCandidate(selectedApp)}
+          onCallInterview={() => setCallingApp(selectedApp)}
+          onReject={() => {
+            if (selectedApp.status === "matched") {
+              // Not applied yet, so there is nothing to reject or notify - just take it off the matched list.
+              setHiddenMatches((prev) => new Set(prev).add(selectedApp._id));
+              toast("Removed from your matched list.", "✓");
+              setSelectedApp(null);
+            } else {
+              handleStatusSelect(selectedApp, "rejected");
+            }
+          }}
           onEditRejection={() => setRejectingApp(selectedApp)}
           onClose={() => setSelectedApp(null)}
+        />
+      )}
+
+      {callingApp && (
+        <CallInterviewModal
+          application={callingApp}
+          busy={updatingId === callingApp._id}
+          onClose={() => setCallingApp(null)}
+          onConfirm={(details) => callForInterview(callingApp, details)}
         />
       )}
 
@@ -537,7 +611,7 @@ export default function CompanyApplicants() {
 // certification, assessment, video intro, live-chart audit, self summary,
 // employment status) was already coming back from GET /company/applications
 // but had nowhere to render. Clicking a card opens this instead.
-function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onEditRejection, onClose }) {
+function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onShortlist, onCallInterview, onReject, onEditRejection, onClose }) {
   const c = application.candidate || {};
   const [showAcademyProfile, setShowAcademyProfile] = useState(false);
   const basic = c.basicInfo || {};
@@ -870,6 +944,46 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </Section>
           )}
 
+          {(application.status === "matched" || application.status === "applied") && onShortlist && (
+            <Section title="Recruiter decision">
+              <div style={{ background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 13, color: "#1E3A8A", lineHeight: 1.45, flex: 1, minWidth: 220 }}>
+                  Like this profile? Shortlist {basic.fullName || "this candidate"} for an interview{application.status === "matched" ? " - they will be added to your applicants and notified" : ""}. Not a fit? {application.status === "matched" ? "Remove them from this list." : "Reject with a reason."}
+                </div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  disabled={updatingId === application._id}
+                  onClick={onShortlist}
+                  style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: updatingId === application._id ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                >
+                  {updatingId === application._id ? "Shortlisting…" : "Shortlist for interview"}
+                </button>
+                {onCallInterview && (
+                  <button
+                    type="button"
+                    disabled={updatingId === application._id}
+                    onClick={onCallInterview}
+                    style={{ background: "#F59E0B", color: "#0F172A", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    Shortlist &amp; call for interview
+                  </button>
+                )}
+                {onReject && (
+                  <button
+                    type="button"
+                    disabled={updatingId === application._id}
+                    onClick={onReject}
+                    style={{ background: "#fff", color: "#B91C1C", border: "1.5px solid #FCA5A5", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
+                  >
+                    {application.status === "matched" ? "Not a fit" : "Reject"}
+                  </button>
+                )}
+                </div>
+              </div>
+            </Section>
+          )}
+
           {application.status !== "matched" && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1px solid #E5E7EB" }}>
             <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Move to:</span>
@@ -885,6 +999,37 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </select>
           </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Small schedule box for "Shortlist & call for interview": date/time, mode and optional meeting link / address.
+function CallInterviewModal({ application, busy = false, onClose, onConfirm }) {
+  const [when, setWhen] = useState("");
+  const [type, setType] = useState("Online");
+  const [link, setLink] = useState("");
+  const name = application?.candidate?.basicInfo?.fullName || "the candidate";
+  const field = { width: "100%", boxSizing: "border-box", padding: "9px 12px", border: "1px solid #CBD5E1", borderRadius: 8, fontSize: 13, fontWeight: 600 };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, padding: 16 }} onClick={onClose}>
+      <div style={{ background: "#fff", borderRadius: 14, maxWidth: 460, width: "100%", padding: 22 }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ margin: "0 0 4px", fontSize: 17, color: "var(--navy)" }}>Call {name} for interview</h3>
+        <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 14 }}>{application?.jobTitle || application?.jobId}. {name} is shortlisted and notified with these details.</div>
+        <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>DATE &amp; TIME</label>
+        <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ ...field, marginBottom: 12 }} />
+        <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>MODE OF INTERVIEW</label>
+        <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...field, marginBottom: 12 }}>
+          {["Online", "Offline (walk-in)", "Hybrid"].map((o) => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>{type === "Online" ? "MEETING LINK" : "ADDRESS / MEETING LINK"} (OPTIONAL)</label>
+        <input type="text" value={link} onChange={(e) => setLink(e.target.value)} placeholder={type === "Online" ? "https://meet.google.com/..." : "Office address or link"} style={{ ...field, marginBottom: 16 }} />
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button type="button" onClick={onClose} style={{ background: "#fff", border: "1px solid #CBD5E1", borderRadius: 10, padding: "9px 16px", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
+          <button type="button" disabled={busy || !when} onClick={() => onConfirm({ when, type, link: link.trim() })} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontWeight: 800, cursor: busy || !when ? "not-allowed" : "pointer", opacity: busy || !when ? 0.6 : 1 }}>
+            {busy ? "Scheduling…" : "Schedule & notify"}
+          </button>
         </div>
       </div>
     </div>
@@ -985,7 +1130,7 @@ function RejectionReasonModal({ application, initialReason = "", initialDetails 
               Reject Application
             </h3>
             <p style={{ margin: "4px 0 0", fontSize: 12.5, color: "#7F1D1D", lineHeight: 1.4 }}>
-              Record rejection reason for <strong>{candidateName}</strong> for <strong>{jobTitle}</strong>. This feedback will be displayed on the candidate pipeline and the academy's dashboard.
+              Record rejection reason for <strong>{candidateName}</strong> for <strong>{jobTitle}</strong>. This feedback will be displayed on the candidate pipeline and the academy&apos;s dashboard.
             </p>
           </div>
           <button

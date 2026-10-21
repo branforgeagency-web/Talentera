@@ -240,7 +240,7 @@ export const JOB_POSTING_STAGE = {
     { id: "elgage", name: "Age limit", section: "Eligibility", tag: "opt", input: "text", placeholder: "e.g. 21–30 yrs or up to 28" },
     { id: "elgpassout", name: "Passout year (freshers)", tag: "opt", input: "text", placeholder: "e.g. 2024, 2025" },
     { id: "elgbacklogs", name: "Backlogs", tag: "opt", input: "select", options: ["No backlogs allowed", "Backlogs allowed", "Not applicable"] },
-    { id: "interviewmode", name: "Mode of interview", tag: "opt", input: "select", options: ["Online", "Offline (walk-in)", "Hybrid", "Other"] },
+    { id: "interviewmode", name: "Mode of interview", desc: "Pick one or more - e.g. Online for round 1 and Offline (walk-in) for round 2", tag: "opt", input: "multi", options: ["Online", "Offline (walk-in)", "Hybrid", "Other"] },
     { id: "urgency", name: "Hiring urgency", section: "Hiring timeline", tag: "must", input: "select", options: ["Critical (≤7 days)", "Standard (≤30 days)", "Flex"] },
     { id: "interviewdates", name: "Interview dates", tag: "opt", input: "text", placeholder: "e.g. 15 Oct – 20 Oct 2026" },
     { id: "serviceproof", name: "Service agreement / certificate (proof)", desc: "Optional — upload a service agreement or certificate as proof (PDF, JPG or PNG)", tag: "opt", input: "file", accept: "application/pdf,image/png,image/jpeg,image/webp" },
