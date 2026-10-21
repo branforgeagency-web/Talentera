@@ -945,6 +945,48 @@ router.get("/matched-candidates", async (req, res) => {
   }
 });
 
+// POST /api/company/matched-candidates/application { jobId, candidateId }
+// "Shortlist for interview" from the Matched-by-JD profile: makes sure an application record exists for this
+// candidate + job (a matched candidate who has not applied yet has none) and returns it, so the normal status
+// route (PUT /applications/:id/status) can then shortlist it - one code path for notifications, emails and academy events.
+router.post("/matched-candidates/application", async (req, res) => {
+  try {
+    const jobId = String(req.body.jobId || "").trim();
+    const candidateId = String(req.body.candidateId || "").trim();
+    if (!jobId || !/^[a-f\d]{24}$/i.test(candidateId)) return res.status(400).json({ message: "Job and candidate are required." });
+
+    const company = await Company.findById(req.companyId).select("jobId").lean();
+    const ownsJob = (company && company.jobId === jobId) || (await Job.findOne({ jobId, companyId: req.companyId }).select("_id").lean());
+    if (!ownsJob) return res.status(404).json({ message: "Job not found." });
+
+    const candidate = await Candidate.findById(candidateId).select("_id").lean();
+    if (!candidate) return res.status(404).json({ message: "Candidate not found." });
+
+    let application = await Application.findOne({ candidateId, companyId: req.companyId, jobId });
+    let created = false;
+    if (!application) {
+      try {
+        application = await Application.create({
+          candidateId,
+          companyId: req.companyId,
+          jobId,
+          status: "applied",
+          coverNote: "Added by the recruiter from Matched by JD.",
+        });
+        created = true;
+      } catch (e) {
+        if (e && e.code === 11000) application = await Application.findOne({ candidateId, jobId });
+        else throw e;
+      }
+    }
+    if (!application || String(application.companyId) !== String(req.companyId)) return res.status(409).json({ message: "This candidate already has an application for this job." });
+    res.json({ success: true, created, applicationId: String(application._id), status: application.status });
+  } catch (err) {
+    logger.error(`Matched candidate application error: ${err.message}`);
+    res.status(500).json({ message: "Could not prepare this candidate for shortlisting." });
+  }
+});
+
 // PUT /api/company/applications/:id/status - Recruiter status update (shortlisted/interviewing/hired/rejected)
 router.put("/applications/:id/status", async (req, res) => {
   const { status } = req.body;
