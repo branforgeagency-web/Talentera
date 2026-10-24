@@ -287,6 +287,17 @@ export default function CandidateWizard() {
     ? Math.min(100, Math.max(0, baseScore - savedS6Pts + stage6Preview))
     : baseScore;
 
+  const stagesCount = completedStages.length;
+  const isAadhaarDone = candidateObj?.stage1?.aadhaarVerified === true || candidateObj?.stage1?.aadhaarStatus === "VERIFIED";
+  const isCandidateVerified = Boolean(
+    candidateObj?.isVerified ||
+    candidateObj?.verificationReadiness?.readinessStatus === "VERIFIED" ||
+    candidateObj?.verificationReadiness?.readinessStatus === "INTERVIEW_READY" ||
+    (candidateObj?.isSubmitted && displayedScore >= 70 && isAadhaarDone) ||
+    (stagesCount >= (skipStage4 ? 5 : 6) && candidateObj?.isSubmitted && isAadhaarDone)
+  );
+  const isCandidateSubmitted = Boolean(candidateObj?.isSubmitted);
+
   return (
     <div className="wiz-shell">
       <WizardSidebar
@@ -302,6 +313,8 @@ export default function CandidateWizard() {
         bonusStages={isLiveChartExemptDomain(candidateObj) ? [6] : []}
         stageScores={profile?.stageScores || candidateObj?.stageScores || null}
         experienced={isExperiencedCandidate(candidateObj)}
+        isVerified={isCandidateVerified}
+        isSubmitted={isCandidateSubmitted}
       />
 
       {shownStageId >= 1 && shownStageId <= 7 ? (

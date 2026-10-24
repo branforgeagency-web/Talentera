@@ -313,6 +313,18 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
         />
       )}
 
+      {item.input === "datetime" && (
+        <input
+          type="datetime-local"
+          className="conb-input"
+          value={/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text) ? text : ""}
+          onChange={(e) => {
+            setText(e.target.value);
+            commit(e.target.value);
+          }}
+        />
+      )}
+
       {item.input === "select" && (() => {
         const hasOther = (item.options || []).includes("Other");
         const allowManual = item.allowManualEntry || hasOther;

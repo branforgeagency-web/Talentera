@@ -418,25 +418,43 @@ export default function CompanyDashboardSetup() {
                       No notifications yet
                     </div>
                   ) : (
-                    notifications.map((n) => (
-                      <div
-                        key={n._id}
-                        style={{
-                          padding: "12px 16px",
-                          borderBottom: "1px solid #F1F5F9",
-                          background: n.read ? "#fff" : "#FEFCE8",
-                        }}
-                      >
-                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", marginBottom: 2 }}>
-                          {n.title}
+                    notifications.map((n) => {
+                      const actionUrl = n.meta?.actionUrl || (n.type?.startsWith("assessment") ? "/companies/hiring?tab=exams" : null);
+                      return (
+                        <div
+                          key={n._id}
+                          onClick={() => {
+                            if (actionUrl) {
+                              setShowNotifMenu(false);
+                              navigate(actionUrl);
+                            }
+                          }}
+                          style={{
+                            padding: "12px 16px",
+                            borderBottom: "1px solid #F1F5F9",
+                            background: n.read ? "#fff" : "#FEFCE8",
+                            cursor: actionUrl ? "pointer" : "default",
+                            transition: "background 0.15s",
+                          }}
+                        >
+                          <div style={{ fontSize: 12, fontWeight: 800, color: "var(--navy)", marginBottom: 2 }}>
+                            {n.title}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.4 }}>{n.message}</div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 4 }}>
+                            <div style={{ fontSize: 9.5, color: "#94A3B8" }}>
+                              {new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
+                              {new Date(n.createdAt).toLocaleDateString()}
+                            </div>
+                            {actionUrl && (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--gold)" }}>
+                                View in Hiring Flow →
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11.5, color: "#475569", lineHeight: 1.4 }}>{n.message}</div>
-                        <div style={{ fontSize: 9.5, color: "#94A3B8", marginTop: 4 }}>
-                          {new Date(n.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ·{" "}
-                          {new Date(n.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

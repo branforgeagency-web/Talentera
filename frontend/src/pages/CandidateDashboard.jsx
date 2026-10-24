@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/client';
@@ -494,6 +494,20 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     setShowNotifDropdown((prev) => !prev);
   };
 
+  // First time a candidate with a live hiring round (assessment to take, interview to join, offer to answer)
+  // opens the portal in a session, land them on Hiring Rounds instead of the generic dashboard.
+  const hiringRedirectDone = useRef(false);
+  useEffect(() => {
+    if (hiringRedirectDone.current) return;
+    const actionable = (applications || []).some((a) => ['exam', 'technical', 'hr', 'offered'].includes(a?.hiringSummary?.stage));
+    const unreadHiring = (notifications || []).some((n) => !n.read && n.actionType === 'hiring');
+    if (!actionable && !unreadHiring) return;
+    hiringRedirectDone.current = true;
+    let seen = false;
+    try { seen = sessionStorage.getItem('tal_hiring_redirect') === '1'; sessionStorage.setItem('tal_hiring_redirect', '1'); } catch (e) { /* storage unavailable - redirect once per page load */ }
+    if (!seen) setActiveTab((cur) => (cur === 'dashboard' ? 'hiring' : cur));
+  }, [applications, notifications]);
+
   // Tapping a notification marks it read and opens the page it is about (e.g. an exam -> Hiring Rounds)
   const handleNotifClick = (n) => {
     if (!n.read) {
@@ -608,6 +622,19 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const badgesEarnedCount = visibleBadgeCriteria.filter((b) => b.earned).length;
 
   const appliedJobIds = new Set(applications.map((a) => a.jobId));
+  // Keep My Companies / Applications / Offers in step with what happened in Hiring Rounds or on the company side
+  const refreshApplications = useCallback(async () => {
+    try {
+      const r = await api.get('/candidate/applications');
+      const list = r.data?.applications || r.data || [];
+      setApplications(list);
+      setCompanyDetailApp((cur) => (cur ? list.find((x) => x._id === cur._id) || cur : cur));
+    } catch (e) { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (['companies', 'applications', 'invites', 'feedback', 'hiring', 'dashboard'].includes(activeTab)) refreshApplications();
+  }, [activeTab, refreshApplications]);
+
   const handleApplyToJob = async (job) => {
     if (appliedJobIds.has(job.jobId) || applyingJobId) return;
     setApplyingJobId(job.jobId);
@@ -1690,7 +1717,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
 
           {activeTab === 'hiring' && (
             <div className="page active" id="page-hiring" style={{ padding: 0 }}>
-              <CandidateHiringSection triggerToast={typeof triggerToast === 'function' ? triggerToast : undefined} />
+              <CandidateHiringSection triggerToast={typeof triggerToast === 'function' ? triggerToast : undefined} onChanged={refreshApplications} />
             </div>
           )}
 

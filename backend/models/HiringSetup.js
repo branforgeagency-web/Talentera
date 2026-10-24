@@ -27,6 +27,12 @@ const HiringSetupSchema = new mongoose.Schema(
     scorecardCriteria: { type: [String], default: () => ["Technical knowledge", "Coding accuracy", "Problem solving", "Communication"] },
     integrationKey: { type: String, default: "" },
     officeAddress: { type: String, default: "" },
+    // Interview scheduling defaults (used when a round is allocated without its own values)
+    interviewMode: { type: String, enum: ["virtual", "offline"], default: "virtual" },
+    interviewScheduledAt: { type: String, default: "" }, // ISO date-time
+    meetingLink: { type: String, default: "" },
+    documentsToCarry: { type: String, default: "" },
+    interviewInstructions: { type: String, default: "" },
   },
   { timestamps: true }
 );

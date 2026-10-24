@@ -15,7 +15,7 @@ const Job = require("../models/Job");
 const HiringExam = require("../models/HiringExam");
 const HiringSetup = require("../models/HiringSetup");
 const { requireCompanyAuth, requireAuth } = require("../middleware/auth");
-const { upload } = require("../middleware/upload");
+const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { DEFAULT_ASSESSMENT_DOMAINS } = require("../data/defaultAssessmentQuestions");
 const H = require("../utils/hiringFlow");
@@ -288,6 +288,56 @@ async function completeExam(app, { score, correct, total, topicBreakdown, source
       companyName, email, name, emailHtml: scoreHtml,
     });
   }
+
+  // Notify the company/recruiter in their company dashboard & email
+  try {
+    const candName = name || cand?.email || "Candidate";
+    const job = app.jobId ? await Job.findOne({ jobId: app.jobId }).select("fields.roletitle").lean() : null;
+    const roleTitle = job?.fields?.roletitle || "the role";
+    const notifTitle = h.exam.passed
+      ? `Assessment Cleared: ${candName} (${score}%)`
+      : `Assessment Submitted: ${candName} (${score}%)`;
+    const notifMsg = h.exam.passed
+      ? `${candName} scored ${score}% (pass mark ${cutoff}%) on Round 1 assessment for ${roleTitle}. Passed and moved to Round 2 (Technical Interview). Verify results in Hiring Flow.`
+      : `${candName} scored ${score}% on Round 1 assessment for ${roleTitle} (pass mark ${cutoff}%). Result recorded.`;
+
+    await Notification.create({
+      recipientType: "company",
+      recipientId: String(app.companyId),
+      title: notifTitle,
+      message: notifMsg,
+      type: "assessment_completed",
+      category: "assessment",
+      meta: {
+        source: "candidate_assessment",
+        applicationId: String(app._id),
+        candidateId: String(cand?._id || app.candidateId),
+        candidateName: candName,
+        score,
+        passed: h.exam.passed,
+        jobId: app.jobId,
+        actionUrl: "/companies/hiring?tab=exams",
+      },
+    });
+
+    const companyUser = await Company.findById(app.companyId).select("email companyName").lean();
+    if (companyUser?.email) {
+      await sendTransactionalEmail({
+        to: companyUser.email,
+        subject: `[Candidate Assessment] ${candName} scored ${score}% - ${h.exam.passed ? "Cleared Round 1 (Ready for Technical Round)" : "Below Cutoff"}`,
+        html: `<p style="color:#0F172A;font-size:15px;line-height:1.5;">Dear ${companyUser.companyName || "Hiring Team"},</p>
+          <p style="color:#475569;font-size:14px;line-height:1.5;"><strong>${candName}</strong> has submitted the Round 1 assessment for <strong>${roleTitle}</strong>.</p>
+          <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px 16px;margin:14px 0;">
+            <p style="margin:0 0 6px;font-size:14px;"><strong>Score:</strong> ${score}% (Pass Mark: ${cutoff}%)</p>
+            <p style="margin:0;font-size:14px;"><strong>Result:</strong> <span style="color:${h.exam.passed ? '#15803D' : '#B91C1C'};font-weight:700;">${h.exam.passed ? "PASSED - MOVED TO TECHNICAL ROUND" : "BELOW CUTOFF"}</span></p>
+          </div>
+          <p style="color:#475569;font-size:14px;line-height:1.5;">${h.exam.passed ? "You can verify the assessment results in your Hiring Flow dashboard and proceed with allocating interview panels for the technical round." : "The candidate did not meet the pass mark and has been recorded in your pipeline."}</p>
+          <p style="margin-top:16px;"><a href="${process.env.APP_URL || "https://talentera.in"}/companies/hiring?tab=${h.exam.passed ? "technical" : "exams"}" style="display:inline-block;padding:10px 18px;background:#0A1F3D;color:#fff;text-decoration:none;border-radius:6px;font-weight:700;">Verify Results &amp; Proceed →</a></p>`,
+      }).catch((emailErr) => logger.warn(`Recruiter assessment email failed: ${emailErr.message}`));
+    }
+  } catch (notifErr) {
+    logger.warn(`Could not notify recruiter of assessment completion: ${notifErr.message}`);
+  }
   app.markModified("hiring");
   await app.save();
   return h.exam;
@@ -372,6 +422,21 @@ companyRouter.put("/setup", async (req, res) => {
       if (list.length) setup.scorecardCriteria = list;
     }
     if (officeAddress !== undefined) setup.officeAddress = String(officeAddress).slice(0, 300);
+    const b = req.body;
+    if (b.interviewMode !== undefined) setup.interviewMode = b.interviewMode === "offline" ? "offline" : "virtual";
+    if (b.interviewScheduledAt !== undefined) {
+      const raw = String(b.interviewScheduledAt || "").trim();
+      const d = raw ? new Date(raw) : null;
+      if (raw && Number.isNaN(d.getTime())) return res.status(400).json({ message: "Enter a valid interview date and time." });
+      setup.interviewScheduledAt = d ? d.toISOString() : "";
+    }
+    if (b.meetingLink !== undefined) {
+      const link = String(b.meetingLink || "").trim().slice(0, 400);
+      if (link && !/^https?:\/\//i.test(link)) return res.status(400).json({ message: "The meeting link must start with http:// or https://" });
+      setup.meetingLink = link;
+    }
+    if (b.documentsToCarry !== undefined) setup.documentsToCarry = String(b.documentsToCarry).slice(0, 600);
+    if (b.interviewInstructions !== undefined) setup.interviewInstructions = String(b.interviewInstructions).slice(0, 1200);
     await setup.save();
 
     // Sync newly updated panel members to existing candidate applications currently waiting in the technical round
@@ -553,9 +618,9 @@ companyRouter.post("/exam-gate", async (req, res) => {
 // POST /technical/allocate { applicationIds?, all?, jobId?, mode: "virtual"|"offline", scheduledAt? } - Step 4
 companyRouter.post("/technical/allocate", async (req, res) => {
   try {
-    const mode = req.body.mode === "offline" ? "offline" : "virtual";
     const company = await Company.findById(req.companyId).select("companyName").lean();
     const setup = await getSetup(req.companyId);
+    const mode = (req.body.mode || setup.interviewMode) === "offline" ? "offline" : "virtual";
     if (!setup.panels.length) return res.status(400).json({ message: "Add at least one interview panel first." });
     let apps = await loadApps(req.companyId, Array.isArray(req.body.applicationIds) && req.body.applicationIds.length ? { ids: req.body.applicationIds } : { jobId: req.body.jobId || undefined });
     apps = apps.filter((a) => a.hiring?.stage === "technical" && !a.hiring?.technical?.panelId);
@@ -566,7 +631,8 @@ companyRouter.post("/technical/allocate", async (req, res) => {
     const load = {};
     all.forEach((a) => { const pid = a.hiring?.technical?.panelId; if (pid && a.hiring?.stage === "technical") load[pid] = (load[pid] || 0) + 1; });
 
-    const when = req.body.scheduledAt ? new Date(req.body.scheduledAt) : null;
+    const whenRaw = req.body.scheduledAt || setup.interviewScheduledAt || "";
+    const when = whenRaw ? new Date(whenRaw) : null;
     for (const app of apps) {
       const panel = H.pickPanel(app.candidateId, setup.panels, load);
       if (!panel) continue;
@@ -576,7 +642,8 @@ companyRouter.post("/technical/allocate", async (req, res) => {
         mode, panelId: String(panel._id), panelName: panel.name, panelSpecialty: panel.specialty,
         members: (panel.members || []).map((m) => m.name),
         scheduledAt: when && !Number.isNaN(when.getTime()) ? when.toISOString() : null,
-        meetingLink: mode === "virtual" ? H.buildMeetingLink(app) : "",
+        meetingLink: mode === "virtual" ? (setup.meetingLink || H.buildMeetingLink(app)) : "",
+        documentsToCarry: setup.documentsToCarry || "", instructions: setup.interviewInstructions || "",
         checkinToken: mode === "offline" ? H.randomToken(6) : "",
         office: mode === "offline" ? setup.officeAddress : "",
         scores: [], status: "scheduled",
@@ -588,15 +655,23 @@ companyRouter.post("/technical/allocate", async (req, res) => {
       app.markModified("hiring");
       await app.save();
     }
-    // notify in parallel
-    await H.runParallel(apps, (app) => H.notifyCandidate(app, {
-      title: `Technical interview - ${company?.companyName || "employer"} 📅`,
-      message: mode === "virtual"
-        ? `Your technical interview is set up (${H.ensureHiring(app).technical.panelName}). Join from Hiring Rounds in your dashboard.`
-        : `Please walk in to the office for your technical interview${setup.officeAddress ? ` at ${setup.officeAddress}` : ""}. Use your check-in code at reception.`,
-      type: "interview_scheduled", companyName: company?.companyName || "",
-      email: app.candidateId?.email, name: app.candidateId?.stage1?.fullName,
-    }));
+    // notify in parallel - in-app + an email confirmation with every detail the candidate needs
+    await H.runParallel(apps, (app) => {
+      const t = H.ensureHiring(app).technical;
+      const name = app.candidateId?.stage1?.fullName;
+      const whenText = t.scheduledAt ? new Date(t.scheduledAt).toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short" }) : "To be confirmed - we will update you shortly";
+      const row = (k, v) => (v ? `<tr><td style="padding:6px 12px 6px 0;color:#64748B;font-size:13px;vertical-align:top;white-space:nowrap;">${k}</td><td style="padding:6px 0;color:#0F172A;font-size:14px;font-weight:600;">${String(v).replace(/</g, "&lt;")}</td></tr>` : "");
+      const details = `<table style="border-collapse:collapse;margin:12px 0;">${row("Interview", `Technical round - ${t.panelName}`)}${row("Date & time", whenText)}${row("Mode", mode === "virtual" ? "Virtual (video)" : "In person / walk-in")}${mode === "virtual" ? row("Meeting link", t.meetingLink) : row("Location", t.office || setup.officeAddress)}${mode === "offline" ? row("Check-in code", t.checkinToken) : ""}${row("Documents to carry", t.documentsToCarry)}${row("Instructions", t.instructions)}</table>`;
+      return H.notifyCandidate(app, {
+        title: `Technical interview scheduled - ${company?.companyName || "employer"} 📅`,
+        message: mode === "virtual"
+          ? `Your technical interview is set for ${whenText}. Join from Hiring Rounds in your dashboard.`
+          : `Please walk in for your technical interview on ${whenText}${setup.officeAddress ? ` at ${setup.officeAddress}` : ""}. Use your check-in code at reception. Check Hiring Rounds for what to carry.`,
+        type: "interview_scheduled", companyName: company?.companyName || "",
+        email: app.candidateId?.email, name,
+        emailHtml: `<p style="color:#475569;font-size:15px;line-height:1.5;">Hi ${name || "there"},</p><p style="color:#475569;font-size:15px;line-height:1.5;">Your technical interview with <strong>${company?.companyName || "the employer"}</strong> is confirmed. Here are the details:</p>${details}<p style="color:#475569;font-size:13px;">You can see all of this anytime under Hiring Rounds in your Talentera dashboard.</p>`,
+      });
+    });
     res.json({ allocated: apps.length });
   } catch (err) {
     logger.error(`Technical allocate error: ${err.message}`);
@@ -615,12 +690,69 @@ companyRouter.post("/applications/:id/checkin", async (req, res) => {
   res.json({ ok: true });
 });
 
+// A technical interview can only be scored once the candidate actually showed up: they joined the
+// video room from their dashboard (joinedAt), checked in at reception (checkedInAt), or the recruiter
+// recorded attendance (attendanceMarkedAt - audited). Scoring is also closed until the slot starts.
+function technicalAttendanceError(t) {
+  if (!t.joinedAt && !t.checkedInAt && !t.attendanceMarkedAt) {
+    return "This candidate has not attended the interview yet. Scores can only be entered after they join (or check in) - or after you mark them as attended.";
+  }
+  if (!t.interviewCompletedAt) {
+    return "Scores can only be entered once the technical interview is marked as completed. Click \"Mark interview completed\" when the interview has finished.";
+  }
+  const at = t.scheduledAt ? new Date(t.scheduledAt) : null;
+  if (at && !Number.isNaN(at.getTime()) && at.getTime() - 15 * 60 * 1000 > Date.now()) {
+    return `The interview is scheduled for ${at.toLocaleString("en-IN")}. Scoring opens when it starts.`;
+  }
+  return null;
+}
+
+// POST /applications/:id/interview-complete - the interview has taken place; this unlocks scoring
+companyRouter.post("/applications/:id/interview-complete", async (req, res) => {
+  try {
+    const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
+    if (!app || app.hiring?.stage !== "technical" || !app.hiring.technical) return res.status(400).json({ message: "This candidate is not in the technical round." });
+    const t = app.hiring.technical;
+    if (!t.joinedAt && !t.checkedInAt && !t.attendanceMarkedAt) return res.status(400).json({ message: "The candidate has not attended yet - record their attendance first." });
+    if (!t.interviewCompletedAt) {
+      t.interviewCompletedAt = new Date().toISOString();
+      t.status = "interview_completed";
+      H.audit(app, "Recruiter", "Technical interview completed", "");
+      app.markModified("hiring");
+      await app.save();
+    }
+    res.json({ technical: t });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not mark the interview as completed." });
+  }
+});
+
+// POST /applications/:id/mark-attended - recruiter records that the candidate attended (kept in the audit trail)
+companyRouter.post("/applications/:id/mark-attended", async (req, res) => {
+  try {
+    const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
+    if (!app || app.hiring?.stage !== "technical" || !app.hiring.technical) return res.status(400).json({ message: "This candidate is not in the technical round." });
+    const t = app.hiring.technical;
+    if (!t.attendanceMarkedAt) {
+      t.attendanceMarkedAt = new Date().toISOString();
+      H.audit(app, "Recruiter", "Attendance recorded", "Recruiter marked the candidate as attended");
+      app.markModified("hiring");
+      await app.save();
+    }
+    res.json({ technical: t });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not record attendance." });
+  }
+});
+
 // POST /applications/:id/technical-score { memberName, scores: {criterion: 0-10}, notes } - live panel scorecard
 companyRouter.post("/applications/:id/technical-score", async (req, res) => {
   try {
     const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
     if (!app || app.hiring?.stage !== "technical" || !app.hiring.technical) return res.status(400).json({ message: "This candidate is not in the technical round." });
     const member = String(req.body.memberName || "").trim();
+    const attErr = technicalAttendanceError(app.hiring.technical);
+    if (attErr) return res.status(400).json({ message: attErr });
     if (!member) return res.status(400).json({ message: "Choose or enter the panel member who is scoring." });
     const entries = Object.entries(req.body.scores || {}).map(([k, v]) => [k, Number(v)]);
     if (!entries.length || entries.some(([, v]) => !Number.isFinite(v) || v < 0 || v > 10)) return res.status(400).json({ message: "Score every criterion from 0 to 10." });
@@ -671,6 +803,8 @@ companyRouter.post("/applications/:id/technical-complete", async (req, res) => {
     const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
     if (!app || app.hiring?.stage !== "technical" || !app.hiring.technical) return res.status(400).json({ message: "This candidate is not in the technical round." });
     const t = app.hiring.technical;
+    const attErr = technicalAttendanceError(t);
+    if (attErr) return res.status(400).json({ message: attErr });
     if (!t.scores || t.scores.length === 0) return res.status(400).json({ message: "Add at least one panel score first." });
     const setup = await getSetup(req.companyId);
     const company = await Company.findById(req.companyId).select("companyName").lean();
@@ -726,6 +860,101 @@ companyRouter.post("/hr/allocate", async (req, res) => {
   res.json({ assigned: apps.length });
 });
 
+// BGV is "cleared" when verified, or deferred to onboarding. Older records with no BGV info are not blocked.
+const bgvCleared = (a) => { const b = a.hiring?.hr?.bgv; return !b || b.status === "verified" || b.status === "deferred"; };
+
+// POST /applications/:id/bgv { status: "in_progress"|"verified"|"failed", note } - BGV step between HR and final approval
+companyRouter.post("/applications/:id/bgv", async (req, res) => {
+  try {
+    const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
+    if (!app || app.hiring?.stage !== "approval" || !app.hiring.hr?.bgv) return res.status(400).json({ message: "This candidate has no BGV pending." });
+    const status = ["in_progress", "verified", "failed"].includes(req.body.status) ? req.body.status : null;
+    if (!status) return res.status(400).json({ message: "Choose a BGV status." });
+    const b = app.hiring.hr.bgv;
+    b.status = status;
+    b.note = String(req.body.note || "").slice(0, 400);
+    b.updatedAt = new Date().toISOString();
+    H.audit(app, "Recruiter", "BGV " + status.replace("_", " "), `${b.label}${b.note ? ` - ${b.note}` : ""}`);
+    app.markModified("hiring");
+    await app.save();
+    res.json({ bgv: b });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not update BGV." });
+  }
+});
+
+// POST /applications/:id/exam-review { action: "open"|"confirm" } - results are only shown once the company asks to view them
+companyRouter.post("/applications/:id/exam-review", async (req, res) => {
+  try {
+    const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
+    const e = app?.hiring?.exam;
+    if (!app || !e || !e.completedAt) return res.status(400).json({ message: "This assessment has not been submitted yet." });
+    if (req.body.action === "confirm") {
+      if (!e.evaluatedAt) { e.evaluatedAt = new Date().toISOString(); H.audit(app, "Recruiter", "Assessment evaluated", `${e.score}%`); }
+      if (!e.reviewOpenedAt) e.reviewOpenedAt = e.evaluatedAt;
+    } else if (!e.reviewOpenedAt) {
+      e.reviewOpenedAt = new Date().toISOString();
+      H.audit(app, "Recruiter", "Assessment results opened", "");
+    }
+    app.markModified("hiring");
+    await app.save();
+    res.json({ exam: { ...e, answers: undefined } });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not update the review." });
+  }
+});
+
+// POST /applications/:id/hr-schedule { mode: telephonic|virtual|offline, type: standard|additional, scheduledAt, meetingLink?, phone? }
+// Books the HR interview and tells the candidate (in-app + email) before the HR decision / offer step.
+// Background verification (BGV) method the HR team picks when recommending a hire
+const BGV_METHODS = {
+  digital: { label: "Digital verification via Talentera", candidateNote: "your Talentera-verified profile (identity, certificates, assessments) is used, so no extra paperwork is needed." },
+  in_person: { label: "In-person verification at the company", candidateNote: "please carry your original documents when the company asks you to visit." },
+  onboarding: { label: "BGV during onboarding", candidateNote: "verification will be completed after you join, as part of onboarding." },
+};
+const HR_MODES = { telephonic: "Telephonic", virtual: "Virtual (camera on)", offline: "In person / walk-in" };
+const HR_TYPES = { standard: "Standard HR round", additional: "Additional HR round" };
+companyRouter.post("/applications/:id/hr-schedule", async (req, res) => {
+  try {
+    const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
+    if (!app || app.hiring?.stage !== "hr") return res.status(400).json({ message: "This candidate is not in the HR round." });
+    const mode = HR_MODES[req.body.mode] ? req.body.mode : null;
+    const type = HR_TYPES[req.body.type] ? req.body.type : "standard";
+    if (!mode) return res.status(400).json({ message: "Choose the interview mode: Telephonic, Virtual or In person." });
+    const at = req.body.scheduledAt ? new Date(req.body.scheduledAt) : null;
+    if (!at || Number.isNaN(at.getTime())) return res.status(400).json({ message: "Enter the HR interview date and time." });
+    const setup = await getSetup(req.companyId);
+    const company = await Company.findById(req.companyId).select("companyName").lean();
+    const link = String(req.body.meetingLink || "").trim().slice(0, 400);
+    if (link && !/^https?:\/\//i.test(link)) return res.status(400).json({ message: "The meeting link must start with http:// or https://" });
+    const iv = {
+      mode, modeLabel: HR_MODES[mode], type, typeLabel: HR_TYPES[type], scheduledAt: at.toISOString(),
+      meetingLink: mode === "virtual" ? (link || setup.meetingLink || H.buildMeetingLink(app)) : "",
+      phone: mode === "telephonic" ? String(req.body.phone || "").slice(0, 30) : "",
+      office: mode === "offline" ? setup.officeAddress || "" : "",
+      documentsToCarry: mode === "offline" ? setup.documentsToCarry || "" : "",
+      scheduledBy: "Recruiter", scheduledOn: new Date().toISOString(),
+    };
+    app.hiring.hr = { ...(app.hiring.hr || {}), interview: iv };
+    H.audit(app, "Recruiter", "HR interview scheduled", `${iv.typeLabel} - ${iv.modeLabel} - ${at.toISOString()}`);
+    app.markModified("hiring");
+    await app.save();
+    const name = app.candidateId?.stage1?.fullName;
+    const whenText = at.toLocaleString("en-IN", { dateStyle: "full", timeStyle: "short" });
+    const row = (k, v) => (v ? `<tr><td style="padding:6px 12px 6px 0;color:#64748B;font-size:13px;vertical-align:top;white-space:nowrap;">${k}</td><td style="padding:6px 0;color:#0F172A;font-size:14px;font-weight:600;">${String(v).replace(/</g, "&lt;")}</td></tr>`: "");
+    await H.notifyCandidate(app, {
+      title: `HR interview scheduled - ${company?.companyName || "employer"}`,
+      message: `Your ${iv.typeLabel.toLowerCase()} (${iv.modeLabel}) is on ${whenText}. See Hiring Rounds for details.`,
+      type: "interview_scheduled", companyName: company?.companyName || "",
+      email: app.candidateId?.email, name,
+      emailHtml: `<p style="color:#475569;font-size:15px;line-height:1.5;">Hi ${name || "there"},</p><p style="color:#475569;font-size:15px;line-height:1.5;">Your HR interview with <strong>${company?.companyName || "the employer"}</strong> is confirmed.</p><table style="border-collapse:collapse;margin:12px 0;">${row("Interview", iv.typeLabel)}${row("Mode", iv.modeLabel)}${row("Date & time", whenText)}${row("Meeting link", iv.meetingLink)}${row("Phone", iv.phone)}${row("Location", iv.office)}${row("Documents to carry", iv.documentsToCarry)}${row("Interviewer", app.hiring.hr.hrName)}</table>`,
+    });
+    res.json({ hr: app.hiring.hr });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not schedule the HR interview." });
+  }
+});
+
 // POST /applications/:id/hr-submit { culture, noticePeriod, currentCtc, expectedCtc, offeredCtc, shift, decision: hire|hold|reject, notes }
 companyRouter.post("/applications/:id/hr-submit", async (req, res) => {
   try {
@@ -738,6 +967,8 @@ companyRouter.post("/applications/:id/hr-submit", async (req, res) => {
     const current = money(req.body.currentCtc), expected = money(req.body.expectedCtc), offered = money(req.body.offeredCtc);
     if ([current, expected, offered].some((x) => Number.isNaN(x))) return res.status(400).json({ message: "CTC values must be positive numbers (LPA)." });
     if (decision === "hire" && !offered) return res.status(400).json({ message: "Enter the CTC you will offer (LPA) before recommending a hire." });
+    const bgvKey = BGV_METHODS[req.body.bgvMethod] ? req.body.bgvMethod : "";
+    if (decision === "hire" && !bgvKey) return res.status(400).json({ message: "Select the BGV method (Digital via Talentera, In-person at company, or During onboarding) before recommending a hire." });
     const cultureFit = req.body.culture === undefined || req.body.culture === "" ? null : Math.min(10, Math.max(0, Number(req.body.culture)));
     const flags = [];
     if (current && expected && expected > current * 1.5) flags.push("Expected CTC is more than 50% above current");
@@ -747,12 +978,15 @@ companyRouter.post("/applications/:id/hr-submit", async (req, res) => {
       cultureFit, noticePeriod: String(req.body.noticePeriod || "").slice(0, 60), currentCtc: current, expectedCtc: expected, offeredCtc: offered,
       shift: String(req.body.shift || "").slice(0, 60), notes: String(req.body.notes || "").slice(0, 800), flags,
       decision, status: "completed", completedAt: new Date().toISOString(),
+      bgv: bgvKey
+        ? { method: bgvKey, label: BGV_METHODS[bgvKey].label, at: new Date().toISOString(), status: bgvKey === "onboarding" ? "deferred" : (bgvKey === "digital" && app.candidateId?.isVerified ? "verified" : "pending") }
+        : (app.hiring.hr?.bgv || null),
     };
     H.audit(app, app.hiring.hr.hrName || "HR", "HR decision", `${decision.toUpperCase()}${offered ? ` - offer ${offered} LPA` : ""}`);
     const email = app.candidateId?.email, name = app.candidateId?.stage1?.fullName;
     if (decision === "hire") {
       H.setStage(app, "approval");
-      await H.notifyCandidate(app, { title: `HR round complete - ${company?.companyName || "employer"}`, message: "Your HR round is complete. Your profile is now with management for final approval.", companyName: company?.companyName || "", email, name });
+      await H.notifyCandidate(app, { title: `HR round complete - ${company?.companyName || "employer"}`, message: `Your HR round is complete. Your profile is now with management for final approval. Background verification: ${BGV_METHODS[bgvKey].label} - ${BGV_METHODS[bgvKey].candidateNote}`, companyName: company?.companyName || "", email, name });
     } else if (decision === "hold") {
       H.setStage(app, "hold");
       await H.notifyCandidate(app, { title: `Update from ${company?.companyName || "employer"}`, message: "Your application is on hold for now. We'll update you as soon as there is movement.", companyName: company?.companyName || "", email, name });
@@ -820,6 +1054,13 @@ companyRouter.post("/approval/bulk", async (req, res) => {
     }
     apps = apps.filter((a) => a.hiring?.stage === "approval");
     if (!apps.length) return res.status(400).json({ message: "No candidates are waiting for final approval." });
+    let bgvSkipped = 0;
+    if (action === "approve") {
+      const cleared = apps.filter(bgvCleared);
+      bgvSkipped = apps.length - cleared.length;
+      apps = cleared;
+      if (!apps.length) return res.status(400).json({ message: "Background verification (BGV) is not complete for the selected candidates. Verify them in the BGV tab first." });
+    }
 
     const offerIn = req.body.offer || {};
     if (action === "approve") {
@@ -864,7 +1105,7 @@ companyRouter.post("/approval/bulk", async (req, res) => {
       }
       return { id: app._id };
     }, 10);
-    res.json({ action, processed: results.filter((r) => r && !r.error).length, failed: results.filter((r) => r && r.error).length, seconds: Math.round((Date.now() - started) / 100) / 10 });
+    res.json({ action, bgvSkipped, processed: results.filter((r) => r && !r.error).length, failed: results.filter((r) => r && r.error).length, seconds: Math.round((Date.now() - started) / 100) / 10 });
   } catch (err) {
     logger.error(`Bulk approval error: ${err.message}`);
     res.status(500).json({ message: err.message || "Bulk action failed." });
@@ -901,7 +1142,7 @@ async function technicalCutoffFor(companyRef) {
 // GET / - everything the candidate has going on in company hiring rounds
 candidateRouter.get("/", async (req, res) => {
   try {
-    const apps = await Application.find({ candidateId: req.candidateId, "hiring.stage": { $in: IN_FLOW } }).populate("companyId", "companyName stage9 jobId jdPublished").sort({ updatedAt: -1 });
+    const apps = await Application.find({ candidateId: req.candidateId, "hiring.stage": { $in: IN_FLOW } }).populate("companyId", "companyName stage9 jobId jdPublished logo companyLogo stage2.logo stage2.logosquare stage4.blogo").sort({ updatedAt: -1 });
     const out = [];
     for (const app of apps) {
       const h = app.hiring || {};
@@ -909,10 +1150,10 @@ candidateRouter.get("/", async (req, res) => {
       const titles = await jobTitles(company, [app]);
       const exam = h.exam ? { ...h.exam, answers: undefined, order: undefined, topicBreakdown: h.exam.topicBreakdown || [] } : null;
       out.push({
-        id: app._id, company: company?.companyName || "Employer", role: titles[app.jobId] || "Role", stage: h.stage,
+        id: app._id, company: company?.companyName || "Employer", companyLogo: (company && (company.companyLogo || company.logo || company.stage4?.blogo?.docUrl || company.stage2?.logo?.docUrl || company.stage2?.logosquare?.docUrl)) || null, role: titles[app.jobId] || "Role", stage: h.stage,
         exam,
-        technical: h.technical ? { mode: h.technical.mode, panelName: h.technical.panelName, scheduledAt: h.technical.scheduledAt, meetingLink: h.technical.meetingLink, checkinToken: h.technical.checkinToken, office: h.technical.office, checkedInAt: h.technical.checkedInAt, status: h.technical.status, avgScore: h.technical.avgScore ?? null, decision: h.technical.decision || null, completedAt: h.technical.completedAt || null, cutoffPct: await technicalCutoffFor(app.companyId), scores: (h.technical.scores || []).map((x) => ({ member: x.member, pct: x.pct })) } : null,
-        hrStatus: h.hr ? { hrName: h.hr.hrName, status: h.hr.status } : null,
+        technical: h.technical ? { mode: h.technical.mode, panelName: h.technical.panelName, scheduledAt: h.technical.scheduledAt, meetingLink: h.technical.meetingLink, checkinToken: h.technical.checkinToken, office: h.technical.office, checkedInAt: h.technical.checkedInAt, joinedAt: h.technical.joinedAt || null, interviewCompletedAt: h.technical.interviewCompletedAt || null, documentsToCarry: h.technical.documentsToCarry || "", instructions: h.technical.instructions || "", status: h.technical.status, avgScore: h.technical.avgScore ?? null, decision: h.technical.decision || null, completedAt: h.technical.completedAt || null, cutoffPct: await technicalCutoffFor(app.companyId), scores: (h.technical.scores || []).map((x) => ({ member: x.member, pct: x.pct })) } : null,
+        hrStatus: h.hr ? { hrName: h.hr.hrName, status: h.hr.status, interview: h.hr.interview || null, bgv: h.hr.bgv || null } : null,
         offer: h.offer || null,
         rejection: h.rejection ? { round: h.rejection.round, futurePool: !!h.rejection.futurePool } : null,
       });
@@ -1002,6 +1243,45 @@ candidateRouter.post("/exams/:id/submit", async (req, res) => {
     res.json({ score: result.score, passed: result.passed, correct: g.correct, total: g.total, topicBreakdown: g.topicBreakdown, cutoffPct: result.cutoffPct, flags: flags.length });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not submit the exam." });
+  }
+});
+
+// POST /exams/:id/recording (multipart field "video") - the webcam recording of the assessment, kept for the recruiter
+candidateRouter.post("/exams/:id/recording", upload.single("video"), handleUpload({ resourceType: "video", folder: "talentera/assessment-recordings" }), async (req, res) => {
+  try {
+    const app = await ownApp(req);
+    const e = app?.hiring?.exam;
+    if (!app || !e || !e.startedAt) return res.status(400).json({ message: "No assessment attempt found." });
+    if (!req.file || !req.file.fileUrl) return res.status(400).json({ message: "No recording received." });
+    const part = Math.max(1, Math.min(20, Number(req.query.part) || 1));
+    const rec = { part, url: req.file.fileUrl, at: new Date().toISOString(), size: req.file.size || req.file.buffer?.length || 0 };
+    e.recordings = [...(Array.isArray(e.recordings) ? e.recordings.filter((x) => x.part !== part) : []), rec].sort((a, b) => a.part - b.part);
+    e.recordingUrl = e.recordings[0].url; // first segment doubles as the main link
+    e.recordingAt = rec.at;
+    H.audit(app, "Candidate", "Assessment recording saved", `part ${part}`);
+    app.markModified("hiring");
+    await app.save();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not save the recording." });
+  }
+});
+
+// POST /technical/:id/join - candidate opened the video interview; this is what proves attendance
+candidateRouter.post("/technical/:id/join", async (req, res) => {
+  try {
+    const app = await ownApp(req);
+    const t = app?.hiring?.technical;
+    if (!app || !t || app.hiring.stage !== "technical") return res.status(400).json({ message: "No open technical interview." });
+    if (!t.joinedAt) {
+      t.joinedAt = new Date().toISOString();
+      H.audit(app, "Candidate", "Joined interview", "");
+      app.markModified("hiring");
+      await app.save();
+    }
+    res.json({ joinedAt: t.joinedAt });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not record your attendance." });
   }
 });
 

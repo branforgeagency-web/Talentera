@@ -38,6 +38,8 @@ const JobSchema = new mongoose.Schema(
     // shows to candidates once Talentera staff have approved it (see
     // routes/public.js GET /jobs, which requires published && approved).
     published: { type: Boolean, default: true },
+    // Saved from the job form with "Save draft": never shown to candidates and not counted against the plan until published
+    isDraft: { type: Boolean, default: false },
     publishedAt: { type: Date, default: Date.now },
     closedAt: { type: Date, default: null },
 

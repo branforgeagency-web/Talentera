@@ -37,8 +37,18 @@ const buildJobDetails = (fd) => {
   if (isFresherRole || String(fd.level || "") !== "Experienced only") add("Passout year", fd.elgpassout);
   if (!experiencedOnly) add("Backlogs", fd.elgbacklogs);
   add("Mode of interview", asList(fd.interviewmode).join(", "));
-  add("Interview dates", fd.interviewdates);
+  add("Interview date & time", formatLocalDateTime(fd.interviewdates));
   return rows;
 };
 
-module.exports = { hasVal, asList, formatExperience, formatSalary, buildJobDetails };
+// "2026-10-23T14:30" (datetime-local) -> "10/23/2026 02:30 PM". Older free-text values pass through unchanged.
+function formatLocalDateTime(v) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(v || "").trim());
+  if (!m) return v;
+  let h = Number(m[4]);
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${m[2]}/${m[3]}/${m[1]} ${String(h).padStart(2, "0")}:${m[5]} ${ap}`;
+}
+
+module.exports = { formatLocalDateTime, hasVal, asList, formatExperience, formatSalary, buildJobDetails };

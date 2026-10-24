@@ -49,6 +49,7 @@ export default function CompanyJobs() {
   const [form, setForm] = useState(emptyFormState);
   // The job currently being edited (null when the form is creating a new job)
   const [editingJob, setEditingJob] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [uploadingId, setUploadingId] = useState(null);
@@ -150,14 +151,23 @@ export default function CompanyJobs() {
     return false;
   }
 
-  async function handlePost(e) {
+  function handlePost(e) {
     e.preventDefault();
+    return submitJob("publish");
+  }
+
+  async function submitJob(mode) {
+    const asDraft = mode === "draft";
     if (!isCompanyVerified) {
       toast("Account & KYC approval required. Only KYC-approved companies can post jobs.", "!");
       navigate("/companies/dashboard");
       return;
     }
-    const missing = STAGE9.items.filter((i) => REQUIRED_IDS.has(i.id) && isEmpty(form[i.id]));
+    if (asDraft && isEmpty(form.roletitle)) {
+      toast("Enter at least the role title to save a draft.", "!");
+      return;
+    }
+    const missing = asDraft ? [] : STAGE9.items.filter((i) => REQUIRED_IDS.has(i.id) && isEmpty(form[i.id]));
     if (missing.length > 0) {
       toast(`Fill in: ${missing.map((i) => i.name).join(", ")}`, "!");
       return;
@@ -176,8 +186,12 @@ export default function CompanyJobs() {
       payload.panel = (Array.isArray(payload.panel) ? payload.panel : []).map((n) => String(n).trim()).filter(Boolean);
       if (editingJob) {
         const jobKey = editingJob.source === "onboarding" ? "onboarding" : editingJob.id;
-        const res = await companyApi.put(`/company/jobs/${jobKey}`, { fields: payload });
+        const body = editingJob.isDraft ? (asDraft ? { fields: payload, draft: true } : { fields: payload, publishDraft: true }) : { fields: payload };
+        const res = await companyApi.put(`/company/jobs/${jobKey}`, body);
         toast(res.data?.message || "Job details updated ✓", "✓");
+      } else if (asDraft) {
+        await companyApi.post("/company/jobs?draft=1", payload);
+        toast("Draft saved ✓ - publish it whenever you are ready.", "✓");
       } else {
         await companyApi.post("/company/jobs", payload);
         toast("Job posted and published live! ✓", "✓");
@@ -467,6 +481,15 @@ export default function CompanyJobs() {
                       />
                     )}
 
+                    {item.input === "datetime" && (
+                      <input
+                        type="datetime-local"
+                        style={inputStyle}
+                        value={/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(form[item.id] || "")) ? form[item.id] : ""}
+                        onChange={(e) => setField(item.id, e.target.value)}
+                      />
+                    )}
+
                     {item.input === "select" && (
                       <>
                         <select
@@ -569,13 +592,32 @@ export default function CompanyJobs() {
               })}
             </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              style={{ marginTop: 20, width: "100%", padding: 14, background: "var(--gold)", color: "var(--navy)", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
-            >
-              {submitting ? (editingJob ? "Saving…" : "Publishing…") : (editingJob ? "Save changes →" : "Publish Job Now →")}
-            </button>
+            <div style={{ marginTop: 20, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              {(!editingJob || editingJob.isDraft) && (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => submitJob("draft")}
+                  style={{ flex: "1 1 160px", padding: 14, background: "#fff", color: "var(--navy)", border: "1.5px solid var(--gold)", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
+                >
+                  💾 Save draft
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPreview(true)}
+                style={{ flex: "1 1 160px", padding: 14, background: "#fff", color: "var(--navy)", border: "1.5px solid #CBD5E1", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
+              >
+                👁 Preview
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                style={{ flex: "2 1 220px", padding: 14, background: "var(--gold)", color: "var(--navy)", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
+              >
+                {submitting ? (editingJob && !editingJob.isDraft ? "Saving…" : "Publishing…") : (editingJob && !editingJob.isDraft ? "Save changes →" : "Publish Job Now →")}
+              </button>
+            </div>
             {editingJob && (
               <button
                 type="button"
@@ -587,6 +629,33 @@ export default function CompanyJobs() {
             )}
           </form>
         )}
+
+        {showPreview && (() => {
+          const shown = STAGE9.items.filter((i) => !isEmpty(form[i.id]) && i.input !== "file");
+          const fmt = (v) => (Array.isArray(v) ? v.join(", ") : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(v)) ? new Date(v).toLocaleString("en-US", { month: "2-digit", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }) : String(v));
+          return (
+            <div onClick={() => setShowPreview(false)} style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(15,23,42,0.6)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflowY: "auto" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", borderRadius: 14, maxWidth: 680, width: "100%", padding: 26 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, color: "#92400E", background: "#FEF3C7", borderRadius: 6, padding: "4px 10px", display: "inline-block", marginBottom: 10 }}>PREVIEW · this is how candidates will see your post</div>
+                <h2 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: "var(--navy)" }}>{form.roletitle || "Untitled role"}</h2>
+                <div style={{ fontSize: 13, color: "#64748B", marginBottom: 14 }}>{authCompany?.companyName || "Your company"}{form.location ? ` · ${form.location}` : ""}{form.workmode ? ` · ${form.workmode}` : ""}</div>
+                {shown.length === 0 ? <div style={{ color: "#94A3B8" }}>Nothing filled in yet.</div> : (
+                  <div style={{ display: "grid", gridTemplateColumns: "180px 1fr", rowGap: 8, columnGap: 14, fontSize: 13.5 }}>
+                    {shown.filter((i) => i.id !== "roletitle").map((i) => (
+                      <React.Fragment key={i.id}>
+                        <div style={{ color: "#64748B", fontWeight: 700 }}>{i.name}</div>
+                        <div style={{ color: "#0F172A", wordBreak: "break-word" }}>{fmt(form[i.id])}</div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: 18, display: "flex", gap: 10 }}>
+                  <button type="button" onClick={() => setShowPreview(false)} style={{ padding: "10px 18px", background: "var(--navy)", color: "#fff", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>Close preview</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {loading && <div style={{ textAlign: "center", padding: 60, color: "#64748B" }}>Loading your job posts…</div>}
 
@@ -604,9 +673,9 @@ export default function CompanyJobs() {
             const rawStatus = job.approvalStatus || "pending";
             const approvalStatus = (isVerifiedEmployer && rawStatus !== "rejected") ? "approved" : rawStatus;
 
-            let statusLabel = isOpen ? "Live ✓" : "Closed";
-            let statusBg = isOpen ? "#DCFCE7" : "#F1F5F9";
-            let statusColor = isOpen ? "#166534" : "#64748B";
+            let statusLabel = job.isDraft ? "Draft" : isOpen ? "Live ✓" : "Closed";
+            let statusBg = job.isDraft ? "#EDE9FE" : isOpen ? "#DCFCE7" : "#F1F5F9";
+            let statusColor = job.isDraft ? "#6D28D9" : isOpen ? "#166534" : "#64748B";
             if (isOpen && approvalStatus === "pending") {
               statusLabel = "⏳ Waiting for approval";
               statusBg = "#FEF3C7";
@@ -660,10 +729,10 @@ export default function CompanyJobs() {
                       onClick={() => startEdit(job)}
                       style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--gold)", background: "#FFFBEB", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
                     >
-                      ✎ Edit details
+                      {job.isDraft ? "✎ Continue editing draft" : "✎ Edit details"}
                     </button>
                   )}
-                  {job.source === "posted" && (
+                  {job.source === "posted" && !job.isDraft && (
                     <button
                       type="button"
                       disabled={togglingId === job.id}

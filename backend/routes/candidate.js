@@ -111,6 +111,15 @@ router.get("/profile", async (req, res) => {
       candidate.save().catch(() => {});
     }
     const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
+    const idVerified = candidate.stage1?.aadhaarVerified === true || candidate.stage1?.aadhaarStatus === "VERIFIED";
+    const stagesCount = (candidate.completedStages || []).length;
+    if (candidate.isSubmitted && idVerified && (scoring.score >= 70 || stagesCount >= 5) && !candidate.isVerified) {
+      candidate.isVerified = true;
+      if (!candidate.verificationReadiness) candidate.verificationReadiness = {};
+      candidate.verificationReadiness.readinessStatus = "VERIFIED";
+      candidate.verificationReadiness.verifiedAt = candidate.verificationReadiness.verifiedAt || new Date();
+      candidate.save().catch(() => {});
+    }
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
     logger.error(`Candidate profile fetch error: ${err.message}`);
@@ -135,6 +144,15 @@ router.get("/me", async (req, res) => {
       candidate.save().catch(() => {});
     }
     const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
+    const idVerified = candidate.stage1?.aadhaarVerified === true || candidate.stage1?.aadhaarStatus === "VERIFIED";
+    const stagesCount = (candidate.completedStages || []).length;
+    if (candidate.isSubmitted && idVerified && (scoring.score >= 70 || stagesCount >= 5) && !candidate.isVerified) {
+      candidate.isVerified = true;
+      if (!candidate.verificationReadiness) candidate.verificationReadiness = {};
+      candidate.verificationReadiness.readinessStatus = "VERIFIED";
+      candidate.verificationReadiness.verifiedAt = candidate.verificationReadiness.verifiedAt || new Date();
+      candidate.save().catch(() => {});
+    }
     res.json({ success: true, candidate, ...scoring });
   } catch (err) {
     logger.error(`Candidate me fetch error: ${err.message}`);
@@ -361,8 +379,13 @@ async function enrichApplications(applications) {
       offerStatus: h.offer?.status || null,
       offer: h.offer ? { role: h.offer.role || "", ctc: h.offer.ctc ?? null, joinDate: h.offer.joinDate || null, probationMonths: h.offer.probationMonths ?? null, status: h.offer.status || "" } : null,
     } : null;
+    // The hiring pipeline is the source of truth: derive the status shown in My Companies from it, so
+    // counts and tags stay right even if an older application's status was never synced.
+    const STAGE_STATUS = { exam: "shortlisted", technical: "interviewing", hr: "interviewing", approval: "interviewing", offered: "hired", hold: "on_hold", rejected: "rejected" };
+    const derivedStatus = h.stage && STAGE_STATUS[h.stage] ? STAGE_STATUS[h.stage] : app.status;
     return {
       ...app,
+      status: derivedStatus,
       hiringSummary,
       roleTitle: f.roletitle || s9.roletitle || "Medical Coder",
       location: f.location || s9.location || "Hyderabad",
@@ -412,6 +435,17 @@ router.post("/submit", async (req, res) => {
 
     candidate.isSubmitted = true;
     candidate.submittedAt = new Date();
+
+    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
+    const idVerified = candidate.stage1?.aadhaarVerified === true || candidate.stage1?.aadhaarStatus === "VERIFIED";
+    const stagesCount = (candidate.completedStages || []).length;
+    if (idVerified && (scoring.score >= 70 || stagesCount >= 5)) {
+      candidate.isVerified = true;
+      if (!candidate.verificationReadiness) candidate.verificationReadiness = {};
+      candidate.verificationReadiness.readinessStatus = "VERIFIED";
+      candidate.verificationReadiness.verifiedAt = new Date();
+    }
+
     await candidate.save();
 
     const rawApplications = await Application.find({ candidateId: req.candidateId })
@@ -419,8 +453,7 @@ router.post("/submit", async (req, res) => {
       .sort({ createdAt: -1 });
 
     const applications = await enrichApplications(rawApplications);
-    const scoring = calculateVerificationScore(candidate.completedStages, candidate);
-    res.json({ candidate, applications, ...scoring, message: "Profile submitted for verification." });
+    res.json({ candidate, applications, ...scoring, message: candidate.isVerified ? "Profile verified successfully!" : "Profile submitted for verification." });
   } catch (err) {
     logger.error("Error submitting candidate profile:", err);
     res.status(500).json({ message: "Failed to submit profile for verification." });
@@ -3651,7 +3684,7 @@ router.get("/jobs", async (req, res) => {
       if (isFresherRole || String(fd.level || "") !== "Experienced only") add("Passout year", fd.elgpassout);
       if (!experiencedOnly) add("Backlogs", fd.elgbacklogs);
       add("Mode of interview", asList(fd.interviewmode).join(", "));
-      add("Interview dates", fd.interviewdates);
+      add("Interview date & time", require("../utils/jobDisplay").formatLocalDateTime(fd.interviewdates));
       return rows;
     };
 

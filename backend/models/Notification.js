@@ -44,6 +44,7 @@ const NotificationSchema = new mongoose.Schema(
         "hiring_update",
         "interview_confirmed",
         "offer_response",
+        "assessment_completed",
         "system",
       ],
       default: "system",
