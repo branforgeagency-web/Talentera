@@ -9,6 +9,7 @@ const PlacementConfirmation = require("../models/PlacementConfirmation");
 const { requireCompanyAuth } = require("../middleware/auth");
 const { upload, handleUpload } = require("../middleware/upload");
 const { calculateVerificationScore, isExperiencedCandidate } = require("../utils/verificationScore");
+const { scoreMatch } = require("../utils/matchScore");
 const { getPlan, isUnderJobPostLimit, PLANS } = require("../config/plans");
 const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const { cashfreeVerificationService } = require("../utils/cashfreeVerificationService");
@@ -552,6 +553,27 @@ router.get("/jobs", async (req, res) => {
   }
 });
 
+// Shared by POST /jobs and the edit flow (PUT /jobs/:id): normalise + validate the
+// job-description fields. Returns { fields } or { error: { status, body } }.
+function prepareJobFields(raw) {
+  const fields = syncSpecialtyString(raw || {});
+  const isFresherJobReq = String(fields.level || "").toLowerCase().includes("fresher") || (fields.expmin !== undefined && fields.expmin !== null && fields.expmin !== "" && Number(fields.expmin) === 0 && Number(fields.expmax || 0) <= 1);
+  if (isFresherJobReq) {
+    fields.notice = "";
+    fields.expmin = "";
+    fields.expmax = "";
+  }
+  const negativeField = findNegativeJdField(fields);
+  if (negativeField) {
+    return { error: { status: 400, body: { message: `${negativeField} cannot be negative.` } } };
+  }
+  const missing = JD_REQUIRED_FIELDS.filter((f) => isEmptyValue(fields[f]));
+  if (missing.length > 0) {
+    return { error: { status: 400, body: { message: "Some required job fields are missing.", missing } } };
+  }
+  return { fields };
+}
+
 // POST /api/company/jobs - post a job when required from the Company Dashboard.
 // Reuses the required-field list and jobId format. Automatically publishes live if
 // company is KYC-verified; otherwise submits for review.
@@ -582,21 +604,9 @@ router.post("/jobs", async (req, res) => {
       });
     }
 
-    const fields = syncSpecialtyString(req.body || {});
-    const isFresherJobReq = String(fields.level || "").toLowerCase().includes("fresher") || (fields.expmin !== undefined && fields.expmin !== null && fields.expmin !== "" && Number(fields.expmin) === 0 && Number(fields.expmax || 0) <= 1);
-    if (isFresherJobReq) {
-      fields.notice = "";
-      fields.expmin = "";
-      fields.expmax = "";
-    }
-    const negativeField = findNegativeJdField(fields);
-    if (negativeField) {
-      return res.status(400).json({ message: `${negativeField} cannot be negative.` });
-    }
-    const missing = JD_REQUIRED_FIELDS.filter((f) => isEmptyValue(fields[f]));
-    if (missing.length > 0) {
-      return res.status(400).json({ message: "Some required job fields are missing.", missing });
-    }
+    const prepared = prepareJobFields(req.body);
+    if (prepared.error) return res.status(prepared.error.status).json(prepared.error.body);
+    const fields = prepared.fields;
 
     const jobId = `TLT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const job = await Job.create({
@@ -624,24 +634,48 @@ router.post("/jobs", async (req, res) => {
   }
 });
 
-// PUT /api/company/jobs/:id - close or reopen a posted job (the legacy
-// onboarding first-JD isn't covered here; it doesn't have a close toggle
-// today, same as before this change). Reopening a job staff had rejected
-// puts it back into the approval queue as "pending" - there's no separate
-// edit form here, so this is also how a company resubmits after fixing
-// whatever staff flagged (e.g. talking to their POC, updating the listing
-// on their end) - see routes/staff.js POST /verify-job for the review side.
+// PUT /api/company/jobs/:id - close/reopen a posted job, and/or edit its details.
+// Send { published } to toggle, { fields } to edit (same validation as posting).
+// :id is the job's _id, or the literal "onboarding" for the first JD created during
+// onboarding (stored on Company.stage9). Reopening/editing a job staff had rejected
+// puts it back into the approval queue as "pending" (see routes/staff.js POST /verify-job).
 router.put("/jobs/:id", async (req, res) => {
   try {
-    const { published } = req.body;
+    const { published, fields: incomingFields } = req.body || {};
+    const hasFields = incomingFields && typeof incomingFields === "object" && !Array.isArray(incomingFields);
+
+    // Edit details of the onboarding first-JD
+    if (req.params.id === "onboarding") {
+      if (!hasFields) return res.status(400).json({ message: "Nothing to update." });
+      const company = await Company.findById(req.companyId);
+      if (!company || !company.jdPublished || !company.jobId) return res.status(404).json({ message: "Job not found." });
+      const prepared = prepareJobFields({ ...(company.stage9 || {}), ...incomingFields });
+      if (prepared.error) return res.status(prepared.error.status).json(prepared.error.body);
+      company.stage9 = prepared.fields;
+      company.markModified("stage9");
+      await company.save();
+      return res.json({ message: "Job details updated.", fields: prepared.fields });
+    }
+
     const job = await Job.findOne({ _id: req.params.id, companyId: req.companyId });
     if (!job) return res.status(404).json({ message: "Job not found." });
 
-    job.published = Boolean(published);
-    job.closedAt = job.published ? null : new Date();
+    let edited = false;
+    if (hasFields) {
+      const prepared = prepareJobFields({ ...(job.fields || {}), ...incomingFields });
+      if (prepared.error) return res.status(prepared.error.status).json(prepared.error.body);
+      job.fields = prepared.fields;
+      if (typeof job.markModified === "function") job.markModified("fields");
+      edited = true;
+    }
+
+    if (published !== undefined) {
+      job.published = Boolean(published);
+      job.closedAt = job.published ? null : new Date();
+    }
 
     let resubmitted = false;
-    if (job.published && job.approvalStatus === "rejected") {
+    if (job.published && job.approvalStatus === "rejected" && (published !== undefined || edited)) {
       job.approvalStatus = "pending";
       job.rejectionReason = "";
       resubmitted = true;
@@ -658,10 +692,11 @@ router.put("/jobs/:id", async (req, res) => {
     }
     await job.save();
 
-    res.json({
-      message: resubmitted ? "Job reopened and resubmitted for approval." : job.published ? "Job reopened." : "Job closed.",
-      job,
-    });
+    let message = "Job closed.";
+    if (resubmitted) message = "Job updated and resubmitted for approval.";
+    else if (edited && published === undefined) message = "Job details updated.";
+    else if (job.published) message = "Job reopened.";
+    res.json({ message, job });
   } catch (err) {
     logger.error(`Update job error: ${err.message}`);
     res.status(500).json({ message: "Failed to update job." });
@@ -863,9 +898,6 @@ router.get("/matched-candidates", async (req, res) => {
     const wantExperienced = level.includes("experienced");
     const certList = (Array.isArray(jd.certs) ? jd.certs : []).filter(Boolean);
     const allowNonCertified = certList.includes("Non-Certified");
-    const specificCerts = certList.filter((c) => c !== "Non-Certified").map((c) => c.toUpperCase());
-    const jdCity = String(jd.location || "").toLowerCase();
-    const jdSpecialties = (Array.isArray(jd.specialties) ? jd.specialties : [jd.specialty]).filter(Boolean).map((x) => String(x).toLowerCase());
 
     const pool = await Candidate.find({ stage1: { $ne: null } }).limit(1000).lean();
     const alreadyApplied = new Set(
@@ -899,31 +931,21 @@ router.get("/matched-candidates", async (req, res) => {
       const isCertified = Boolean(certName);
       if (!allowNonCertified && certList.length > 0 && !isCertified) continue;
 
-      const reasons = [];
-      let score = 50;
-      if (wantFresher && !wantExperienced) reasons.push("Fresher");
-      if (wantExperienced && !wantFresher) reasons.push("Experienced");
-      if (isCertified) {
-        reasons.push(`Certified (${certName})`);
-        if (specificCerts.some((sc) => certName.toUpperCase().includes(sc))) { score += 20; reasons.push("Required certification"); }
-      }
-      const city = String(s1.city || "").toLowerCase();
-      if (jdCity && city && (jdCity.includes(city) || city.includes(jdCity))) { score += 15; reasons.push("Location match"); }
-      const domainText = [c.rcmDomainSelection?.primaryDomain, c.stage2?.domain, s1.currentRole, certName].filter(Boolean).join(" ").toLowerCase();
-      if (jdSpecialties.length && jdSpecialties.some((sp) => sp && (domainText.includes(sp) || sp.split(/[\s/]+/).some((w) => w.length > 3 && domainText.includes(w))))) {
-        score += 10;
-        reasons.push("Specialty match");
-      }
       const vscore = calculateVerificationScore(c.completedStages || [], c).score || 0;
-      score += Math.round(vscore / 20);
-      matches.push({ c, score: Math.min(99, score), reasons, applied: alreadyApplied.has(String(c._id)) });
+      const scored = scoreMatch({ jd, candidate: c, verificationScore: vscore, experiencedCandidate: isExperiencedCandidate(c) });
+      matches.push({ c, score: scored.score, reasons: scored.reasons, breakdown: scored.breakdown, applied: alreadyApplied.has(String(c._id)) });
     }
 
     matches.sort((a, b) => b.score - a.score);
     const top = matches.slice(0, 100);
 
+    // The recruiter's "Minimum overall score to shortlist (%)" from the Custom Rubric stage
+    const rcutoff = Number(String(company.stage7?.rcutoff ?? "").replace(/[^0-9.]/g, ""));
+    const defaultMinScore = Number.isFinite(rcutoff) && rcutoff > 0 ? Math.min(100, rcutoff) : 0;
+
     res.json({
       jobId,
+      defaultMinScore,
       total: matches.length,
       isKycVerified,
       plan: plan.id,
@@ -934,6 +956,7 @@ router.get("/matched-candidates", async (req, res) => {
         jobTitle: jd.roletitle || "Untitled role",
         matchScore: m.score,
         matchReasons: m.reasons,
+        matchBreakdown: m.breakdown,
         alreadyApplied: m.applied,
         isKycVerified,
         candidate: formatCandidateForCompany(m.c, isKycVerified, plan),

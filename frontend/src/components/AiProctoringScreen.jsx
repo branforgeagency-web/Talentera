@@ -125,6 +125,8 @@ export default function AiProctoringScreen({
   const [pitchRatio, setPitchRatio] = useState(1.0);
   const [currentPosture, setCurrentPosture] = useState("centered"); // 'centered' | 'turned_left' | 'turned_right' | 'looking_up' | 'looking_down' | 'no_face' | 'multiple_faces' | 'bg_movement'
   const [bgMovementActive, setBgMovementActive] = useState(false);
+  const [voiceDetected, setVoiceDetected] = useState(false);
+  const voiceActiveRef = useRef(false);
   const [faceCountVal, setFaceCountVal] = useState(1);
   const motionDetectorRef = useRef(null);
   const bgWarningsCountedRef = useRef(0);
@@ -135,10 +137,10 @@ export default function AiProctoringScreen({
       width: 120,
       height: 90,
       checkIntervalMs: 80,
-      lumaDiffThreshold: 42, // needs a big per-pixel brightness change to count as movement
-      motionRatioThreshold: 0.12, // >=12% of the background must change
-      minPixelsThreshold: 900,
-      sustainFrames: 30, // ~2.4 s of CONTINUOUS movement before alerting (was ~0.25 s)
+      lumaDiffThreshold: 28, // per-pixel brightness change that counts as movement (a person walking past is well above this)
+      motionRatioThreshold: 0.05, // >=5% of the background must change
+      minPixelsThreshold: 450,
+      sustainFrames: 10, // ~0.8 s of continuous movement before alerting
       warmupFrames: 40, // ~3 s after camera start: ignore auto-exposure settling
     });
   }, []);
@@ -199,6 +201,66 @@ export default function AiProctoringScreen({
       }
     };
   }, []);
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 3b. VOICE / TALKING DETECTION (microphone)
+  // Learns the room's ambient noise for ~3 s, then flags sustained speech-like sound
+  // (energy concentrated in the human voice band, clearly above the ambient level).
+  // The candidate should be silent during an MCQ test, so talking nearby is a warning.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!cameraActive || !streamRef.current) return undefined;
+    const audioTracks = streamRef.current.getAudioTracks();
+    if (!audioTracks.length) return undefined;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return undefined;
+    let ctx = null;
+    let timer = null;
+    try {
+      ctx = new AudioCtx();
+      if (ctx.state === "suspended") ctx.resume().catch(() => {});
+      const source = ctx.createMediaStreamSource(new MediaStream(audioTracks));
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.3;
+      source.connect(analyser);
+      const freq = new Uint8Array(analyser.frequencyBinCount);
+      const binHz = ctx.sampleRate / analyser.fftSize;
+      const lo = Math.floor(300 / binHz);
+      const hi = Math.ceil(3400 / binHz);
+      let samples = 0;
+      let baseline = 0;
+      let loudRun = 0;
+      let quietRun = 0;
+      timer = setInterval(() => {
+        analyser.getByteFrequencyData(freq);
+        let total = 0;
+        let voiceBand = 0;
+        for (let i = 1; i < freq.length; i++) {
+          total += freq[i];
+          if (i >= lo && i <= hi) voiceBand += freq[i];
+        }
+        const level = total / freq.length; // 0-255 average spectrum energy
+        const speechRatio = total > 0 ? voiceBand / total : 0;
+        samples += 1;
+        if (samples <= 30) { // ~3 s calibration of the room's ambient noise
+          baseline = Math.max(baseline, level);
+          return;
+        }
+        const loud = level > Math.max(baseline * 2.2, baseline + 12) && speechRatio > 0.5;
+        if (loud) { loudRun += 1; quietRun = 0; } else { quietRun += 1; loudRun = 0; }
+        if (loudRun >= 10 && !voiceActiveRef.current) { voiceActiveRef.current = true; setVoiceDetected(true); }
+        if (quietRun >= 15 && voiceActiveRef.current) { voiceActiveRef.current = false; setVoiceDetected(false); }
+      }, 100);
+    } catch (e) {
+      console.warn("Voice detection unavailable:", e);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+      voiceActiveRef.current = false;
+      try { ctx && ctx.close && ctx.close(); } catch (e) { /* ignore */ }
+    };
+  }, [cameraActive]);
 
   // ──────────────────────────────────────────────────────────────────────────
   // 4. MEDIAPIPE FACE LANDMARKER (GPU DELEGATE + CPU FALLBACK)
@@ -371,6 +433,13 @@ export default function AiProctoringScreen({
               }
             }
 
+            // 3. QUIET ROOM RULE: talking / voices nearby
+            if (voiceActiveRef.current && (!detectedAnomaly || detectedAnomaly === "pitch_up" || detectedAnomaly === "pitch_down" || detectedAnomaly === "background_movement")) {
+              detectedAnomaly = "background_voice";
+              warningText = "Voices or talking detected nearby! Keep the room completely quiet — this is recorded.";
+              detectedPosture = "bg_voice";
+            }
+
             handleLandmarkEvaluation({
               anomaly: detectedAnomaly,
               warningText,
@@ -530,7 +599,9 @@ export default function AiProctoringScreen({
           anomaly === "multiple_faces"
             ? 3
             : anomaly === "background_movement"
-            ? 18
+            ? 8
+            : anomaly === "background_voice"
+            ? 4
             : (thresholds.CONSECUTIVE_ANOMALIES || 22);
         if (consecutiveAnomaliesRef.current >= requiredFrames) {
           if (consecutiveAnomaliesRef.current === requiredFrames) {
@@ -545,9 +616,9 @@ export default function AiProctoringScreen({
           // Background movement alone is the least reliable signal (curtains, lighting, camera noise), so it
           // is shown as a notice but only counts toward the 10-warning limit once per 20 s and at most 3 times
           // in total - it can never auto-disconnect an honest candidate on its own.
-          const isBgOnly = anomaly === "background_movement";
-          const cooldown = isBgOnly ? 20000 : 3500;
-          const bgBudgetLeft = !isBgOnly || bgWarningsCountedRef.current < 3;
+          const isBgOnly = anomaly === "background_movement" || anomaly === "background_voice";
+          const cooldown = isBgOnly ? 8000 : 3500;
+          const bgBudgetLeft = !isBgOnly || bgWarningsCountedRef.current < 6;
           if (now - lastInfractionTimestampRef.current > cooldown && bgBudgetLeft) {
             lastInfractionTimestampRef.current = now;
             if (isBgOnly) bgWarningsCountedRef.current += 1;
@@ -1380,6 +1451,26 @@ export default function AiProctoringScreen({
                   <span>{bgMovementActive ? "BG MOTION / PERSON" : "BG STILL"}</span>
                 </div>
 
+                {/* Voice Telemetry Pill */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    backgroundColor: "rgba(15, 23, 42, 0.85)",
+                    backdropFilter: "blur(12px)",
+                    padding: "4px 8px",
+                    borderRadius: 10,
+                    border: `1px solid ${voiceDetected ? "#ef4444" : "rgba(52, 211, 153, 0.4)"}`,
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: voiceDetected ? "#ef4444" : "#34d399",
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: voiceDetected ? "#ef4444" : "#34d399" }} />
+                  <span>{voiceDetected ? "VOICE DETECTED" : "QUIET"}</span>
+                </div>
+
                 {/* Posture Telemetry Pill */}
                 <div
                   style={{
@@ -1396,15 +1487,17 @@ export default function AiProctoringScreen({
                     color: "#cbd5e1",
                   }}
                 >
-                  <Activity style={{ width: 12, height: 12, color: currentPosture === "multiple_faces" || currentPosture === "bg_movement" ? "#ef4444" : "#38bdf8" }} />
-                  <span style={{ color: currentPosture === "centered" ? "#34d399" : currentPosture === "multiple_faces" || currentPosture === "bg_movement" ? "#ef4444" : "#fcd34d", fontWeight: 700 }}>
+                  <Activity style={{ width: 12, height: 12, color: currentPosture === "multiple_faces" || currentPosture === "bg_movement" || currentPosture === "bg_voice" ? "#ef4444" : "#38bdf8" }} />
+                  <span style={{ color: currentPosture === "centered" ? "#34d399" : currentPosture === "multiple_faces" || currentPosture === "bg_movement" || currentPosture === "bg_voice" ? "#ef4444" : "#fcd34d", fontWeight: 700 }}>
                     {currentPosture === "multiple_faces"
                       ? "MULTIPLE PERSONS"
+                      : currentPosture === "bg_voice"
+                      ? "Voices nearby"
                       : currentPosture === "bg_movement"
                       ? "BG MOTION / PERSON"
                       : currentPosture.replace("_", " ")}
                   </span>
-                  {currentPosture !== "multiple_faces" && currentPosture !== "bg_movement" && (
+                  {currentPosture !== "multiple_faces" && currentPosture !== "bg_movement" && currentPosture !== "bg_voice" && (
                     <>
                       <span style={{ color: "#475569" }}>|</span>
                       <span>Y: {yawRatio.toFixed(2)}</span>

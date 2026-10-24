@@ -200,6 +200,19 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       }
     }
 
+    // Where each candidate already stands in THIS company's pipeline, so the card can show it
+    // instead of offering "Shortlist" again.
+    if (req.companyId) {
+      try {
+        const rows = await Application.find({ companyId: req.companyId }).select("candidateId status jobId hiring.stage updatedAt").sort({ updatedAt: 1 }).lean();
+        const byCand = new Map();
+        rows.forEach((a) => byCand.set(String(a.candidateId), { status: a.status, stage: a.hiring?.stage || null, jobId: a.jobId }));
+        formatted = formatted.map((c) => ({ ...c, pipeline: byCand.get(String(c.id)) || null }));
+      } catch (pErr) {
+        logger.warn(`Pipeline lookup failed: ${pErr.message}`);
+      }
+    }
+
     // For Free Tier, preview candidate cards without scores/verified certificate audit details
     if (!canViewScores) {
       formatted = formatted.map((c) => ({

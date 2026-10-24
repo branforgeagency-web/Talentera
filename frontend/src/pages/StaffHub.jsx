@@ -2071,6 +2071,9 @@ export default function StaffHub() {
         body: JSON.stringify({ candidateId, action, rejectionReason, notes }),
       });
       if (res.ok) {
+        const okData = await safeJson(res);
+        // Refresh the open candidate profile so the approver's name + date show immediately
+        if (okData?.candidate?.stage3) setSelectedCandidate((prev) => (prev && String(prev._id) === String(candidateId) ? { ...prev, stage3: okData.candidate.stage3 } : prev));
         setCertAuditModal(null);
         fetchDashboard();
         showToast(`Certification ${action === "verify" ? "Verified & Approved" : "Rejected"}.`);
@@ -10996,6 +10999,21 @@ export default function StaffHub() {
                       )}
                     </div>
 
+                    {/* APPROVAL STATUS - who approved/rejected and when */}
+                    {s3.certStatus === "verified" && (
+                      <div style={{ background: "#ECFDF5", border: "1px solid #A7F3D0", color: "#065F46", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
+                        <i className="fa-solid fa-circle-check" style={{ marginRight: 6 }}></i>
+                        Certificate approved{s3.certVerifiedBy ? ` by ${s3.certVerifiedBy}` : ""}
+                        {s3.certVerifiedAt ? ` on ${(() => { const d = new Date(s3.certVerifiedAt); const n = d.getDate(); const sfx = n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"; return `${n}${sfx} ${d.toLocaleString("en-IN", { month: "short" })} ${d.getFullYear()}`; })()}` : ""}
+                      </div>
+                    )}
+                    {s3.certStatus === "rejected" && (
+                      <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#991B1B", borderRadius: 10, padding: "10px 14px", marginBottom: 12, fontSize: 13, fontWeight: 700 }}>
+                        <i className="fa-solid fa-circle-xmark" style={{ marginRight: 6 }}></i>
+                        Certificate rejected{s3.certRejectionReason ? `: ${s3.certRejectionReason}` : ""}
+                      </div>
+                    )}
+
                     {/* CERT AUDIT BUTTONS */}
                     <div style={{ display: "flex", gap: 10, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
                       <button
@@ -11289,10 +11307,6 @@ export default function StaffHub() {
                       <div className="staff-meta-item">
                         <div className="staff-meta-label">Resume Template</div>
                         <div className="staff-meta-value" style={{ textTransform: "capitalize" }}>{String(s7.template || selectedCandidate.resumeTemplate || "—").replace(/_/g, " ")}</div>
-                      </div>
-                      <div className="staff-meta-item">
-                        <div className="staff-meta-label">Resume Status</div>
-                        <div className="staff-meta-value">{(selectedCandidate.completedStages || []).includes(7) ? "Finalized (Stage 7 complete)" : s7.template ? "Draft saved" : "Not created yet"}</div>
                       </div>
                       {selectedCandidate.resumeUrl && (
                         <div className="staff-meta-item">

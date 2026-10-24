@@ -85,7 +85,15 @@ export default function CandidateHiringSection({ triggerToast }) {
               </div>
             )}
 
-            {it.technical && it.stage === "technical" && (
+            {it.technical && (it.technical.decision || it.technical.avgScore !== null) && (it.technical.decision || it.technical.completedAt) && (
+              <div style={{ fontSize: 13, marginBottom: 8 }}>
+                <strong>Technical round result: {it.technical.avgScore ?? 0}%</strong> (pass mark {it.technical.cutoffPct || 60}%){" "}
+                <Pill bg={it.technical.decision === "pass" ? "#DCFCE7" : "#FEE2E2"} color={it.technical.decision === "pass" ? "#166534" : "#B91C1C"}>{it.technical.decision === "pass" ? "Passed" : "Below cutoff"}</Pill>
+                {(it.technical.scores || []).length > 0 && <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 4 }}>{it.technical.scores.map((x) => `${x.member} ${x.pct}%`).join(" · ")}</div>}
+              </div>
+            )}
+
+            {it.technical && it.stage === "technical" && !it.technical.decision && (
               <div style={{ background: "#F5F3FF", border: "1px solid #DDD6FE", borderRadius: 10, padding: 12, marginBottom: 8 }}>
                 <div style={{ fontWeight: 800, color: "#5B21B6" }}>Technical interview · {it.technical.panelName}</div>
                 {it.technical.scheduledAt && <div style={{ fontSize: 12.5, color: "#475569", marginTop: 4 }}>When: {fmtDate(it.technical.scheduledAt)}</div>}

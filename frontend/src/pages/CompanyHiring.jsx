@@ -8,12 +8,11 @@ import { StageBadge, Pill, Card, Btn, Field, Modal, Table, td, inputStyle, fmtDa
 
 const TABS = [
   ["applicants", "1 · Applicants"],
-  ["exams", "2 · Exams"],
-  ["results", "3 · Exam results"],
-  ["technical", "4 · Technical"],
-  ["hr", "5 · HR round"],
-  ["approval", "6 · Approval"],
-  ["offers", "7 · Offers & audit"],
+  ["exams", "2 · Exams & results"],
+  ["technical", "3 · Technical"],
+  ["hr", "4 · HR round"],
+  ["approval", "5 · Approval"],
+  ["offers", "6 · Offers & audit"],
   ["setup", "Setup"],
 ];
 
@@ -132,8 +131,12 @@ export default function CompanyHiring() {
         {loading ? <div style={{ padding: 40, textAlign: "center", color: "#64748B" }}>Loading your hiring pipeline…</div> : (
           <>
             {tab === "applicants" && <ApplicantsTab {...common} />}
-            {tab === "exams" && <ExamsTab {...common} />}
-            {tab === "results" && <ResultsTab {...common} />}
+            {tab === "exams" && (
+              <>
+                <ExamsTab {...common} />
+                <ResultsTab {...common} />
+              </>
+            )}
             {tab === "technical" && <TechnicalTab {...common} />}
             {tab === "hr" && <HrTab {...common} />}
             {tab === "approval" && <ApprovalTab {...common} />}
@@ -163,9 +166,18 @@ function ApplicantsTab({ data, apps, byStage, sel, toggle, toggleAll, selIds, ac
   const list = byStage.applied || [];
   const [examId, setExamId] = useState("");
   const [specialty, setSpecialty] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState("");
+  const [deadlineTime, setDeadlineTime] = useState("");
   const exams = data.exams || [];
   const chosen = examId || exams[0]?._id || "";
-  const allocate = (body) => act(() => companyApi.post(`/company/hiring/exams/${chosen}/allocate`, { jobId, ...body }), (r) => `Exam allocated to ${r.allocated} candidate${r.allocated === 1 ? "" : "s"}.`);
+  const toast = useToast();
+  // The deadline is always chosen by the recruiter - never defaulted
+  const deadlineIso = deadlineDate && deadlineTime ? new Date(`${deadlineDate}T${deadlineTime}`).toISOString() : "";
+  const allocate = (body) => {
+    if (!deadlineIso) { toast("Choose the exam deadline (date and time) first.", "!"); return; }
+    if (new Date(deadlineIso) <= new Date()) { toast("The deadline must be in the future.", "!"); return; }
+    return act(() => companyApi.post(`/company/hiring/exams/${chosen}/allocate`, { jobId, deadline: deadlineIso, ...body }), (r) => `Exam allocated to ${r.allocated} candidate${r.allocated === 1 ? "" : "s"}.`);
+  };
   return (
     <>
       <Card title={`Allocate an exam · ${list.length} applicant${list.length === 1 ? "" : "s"} waiting`}>
@@ -175,11 +187,13 @@ function ApplicantsTab({ data, apps, byStage, sel, toggle, toggleAll, selIds, ac
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
             <Field label="EXAM"><select value={chosen} onChange={(e) => setExamId(e.target.value)} style={{ ...inputStyle, minWidth: 240 }}>{exams.map((e) => <option key={e._id} value={e._id}>{e.title} · {e.source}</option>)}</select></Field>
             <Field label="ONLY SPECIALTY (OPTIONAL)"><input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. AR, HCC, billing" style={{ ...inputStyle, width: 190 }} /></Field>
+            <Field label="DEADLINE · DATE *"><input type="date" value={deadlineDate} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDeadlineDate(e.target.value)} style={{ ...inputStyle, width: 150 }} /></Field>
+            <Field label="DEADLINE · TIME *"><input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} style={{ ...inputStyle, width: 120 }} /></Field>
             <Btn kind="gold" disabled={busy || list.length === 0} onClick={() => allocate({ all: true, specialty: specialty || undefined })}>Allocate to all {list.length}</Btn>
             <Btn kind="navy" disabled={busy || selIds.length === 0} onClick={() => allocate({ applicationIds: selIds })}>Allocate to selected ({selIds.length})</Btn>
           </div>
         )}
-        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 8 }}>Each candidate gets an in-app notice and email with a {48}-hour exam link. Allocate by specialty to send the AR exam only to AR candidates, the coding exam only to coders, and so on.</div>
+        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 8 }}>Each candidate gets an in-app notice and email with the deadline you set above. Allocate by specialty to send the AR exam only to AR candidates, the coding exam only to coders, and so on.</div>
       </Card>
       <Card>
         <Table head={[<input key="c" type="checkbox" checked={list.length > 0 && list.every((a) => sel[a.id])} onChange={() => toggleAll(list)} />, "CANDIDATE", "SPECIALTY", "CITY", "EXPERIENCE", "VERIFIED SCORE", "APPLIED"]} empty="No new applicants. Candidates who apply to your published roles appear here with their verified profile.">
@@ -663,6 +677,23 @@ function ScorecardModal({ app, setup, onClose, act, busy }) {
   );
 }
 
+// Take a held candidate back into the pipeline (or close the hold)
+function HoldActions({ app, act, busy }) {
+  const move = (to, label) => {
+    const note = to === "rejected" ? (window.prompt("Reason for rejecting (shared with the candidate, optional):", "") ?? null) : "";
+    if (note === null) return;
+    if (to !== "rejected" && !window.confirm(`${label} for ${app.candidate.name}?`)) return;
+    act(() => companyApi.post(`/company/hiring/applications/${app.id}/reconsider`, { to, note }), `${app.candidate.name}: ${label.toLowerCase()}.`);
+  };
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <Btn small kind="navy" disabled={busy} onClick={() => move("hr", "Resume HR round")}>Resume HR round</Btn>
+      <Btn small kind="green" disabled={busy} onClick={() => move("approval", "Send to approval")}>Send to approval</Btn>
+      <Btn small kind="red" disabled={busy} onClick={() => move("rejected", "Reject")}>Reject</Btn>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- 5. HR round
 function HrTab({ data, byStage, act, busy, jobId }) {
   const list = byStage.hr || [];
@@ -693,6 +724,20 @@ function HrTab({ data, byStage, act, busy, jobId }) {
           ))}
         </Table>
       </Card>
+      {(byStage.hold || []).length > 0 && (
+        <Card title={`On hold · ${(byStage.hold || []).length}`}>
+          <Table head={["CANDIDATE", "ROUND 1", "ROUND 2", "ACTION"]} empty="">
+            {(byStage.hold || []).map((a) => (
+              <tr key={a.id}>
+                {nameCell(a)}
+                <td style={td}>{a.exam?.score != null ? `${a.exam.score}%` : "—"}</td>
+                <td style={td}>{a.technical?.avgScore != null ? `${a.technical.avgScore}%` : "—"}</td>
+                <td style={td}><HoldActions app={a} act={act} busy={busy} /></td>
+              </tr>
+            ))}
+          </Table>
+        </Card>
+      )}
       {form && <HrFormModal app={form} onClose={() => setForm(null)} act={act} busy={busy} />}
     </>
   );
@@ -778,7 +823,7 @@ function ApprovalTab({ byStage, sel, toggle, toggleAll, selIds, act, busy, jobId
 }
 
 // ---------------------------------------------------------------- 7. Offers, hold, rejected + audit trail
-function OffersTab({ apps }) {
+function OffersTab({ apps, act, busy }) {
   const list = apps.filter((a) => ["offered", "hold", "rejected"].includes(a.stage));
   const [audit, setAudit] = useState(null);
   const open = async (a) => {
@@ -787,7 +832,7 @@ function OffersTab({ apps }) {
   return (
     <>
       <Card title={`Outcomes · ${list.length}`}>
-        <Table head={["CANDIDATE", "OUTCOME", "OFFER", "OFFER STATUS", "NOTE", "AUDIT"]} empty="Offers, holds and rejections appear here.">
+        <Table head={["CANDIDATE", "OUTCOME", "OFFER", "OFFER STATUS", "NOTE", "AUDIT / ACTION"]} empty="Offers, holds and rejections appear here.">
           {list.map((a) => (
             <tr key={a.id}>
               {nameCell(a)}
@@ -795,7 +840,12 @@ function OffersTab({ apps }) {
               <td style={td}>{a.offer ? <>{a.offer.role}<div style={{ fontSize: 11, color: "#64748B" }}>{a.offer.ctc} LPA · joins {fmtDay(a.offer.joinDate)}</div></> : "—"}</td>
               <td style={td}>{a.offer ? <Pill bg={a.offer.status === "accepted" ? "#DCFCE7" : a.offer.status === "declined" ? "#FEE2E2" : "#DBEAFE"} color={a.offer.status === "accepted" ? "#166534" : a.offer.status === "declined" ? "#B91C1C" : "#1D4ED8"}>{a.offer.status}</Pill> : "—"}</td>
               <td style={{ ...td, fontSize: 11, color: "#64748B" }}>{a.rejection ? `${a.rejection.round}: ${a.rejection.reason}` : ""}</td>
-              <td style={td}><Btn small kind="ghost" onClick={() => open(a)}>View trail</Btn></td>
+              <td style={td}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                  <Btn small kind="ghost" onClick={() => open(a)}>View trail</Btn>
+                  {a.stage === "hold" && <HoldActions app={a} act={act} busy={busy} />}
+                </div>
+              </td>
             </tr>
           ))}
         </Table>

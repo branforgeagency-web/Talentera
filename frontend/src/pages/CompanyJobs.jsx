@@ -47,6 +47,8 @@ export default function CompanyJobs() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(searchParams.get("create") === "1");
   const [form, setForm] = useState(emptyFormState);
+  // The job currently being edited (null when the form is creating a new job)
+  const [editingJob, setEditingJob] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [togglingId, setTogglingId] = useState(null);
   const [uploadingId, setUploadingId] = useState(null);
@@ -172,9 +174,16 @@ export default function CompanyJobs() {
         payload.elgpassout = "";
       }
       payload.panel = (Array.isArray(payload.panel) ? payload.panel : []).map((n) => String(n).trim()).filter(Boolean);
-      await companyApi.post("/company/jobs", payload);
-      toast("Job posted and published live! ✓", "✓");
+      if (editingJob) {
+        const jobKey = editingJob.source === "onboarding" ? "onboarding" : editingJob.id;
+        const res = await companyApi.put(`/company/jobs/${jobKey}`, { fields: payload });
+        toast(res.data?.message || "Job details updated ✓", "✓");
+      } else {
+        await companyApi.post("/company/jobs", payload);
+        toast("Job posted and published live! ✓", "✓");
+      }
       setShowForm(false);
+      setEditingJob(null);
       setForm(emptyFormState());
       fetchJobs();
     } catch (err) {
@@ -183,11 +192,34 @@ export default function CompanyJobs() {
         const missingNames = missingIds.map((id) => STAGE9.items.find((i) => i.id === id)?.name || id);
         toast(`Fill in: ${missingNames.join(", ")}`, "!");
       } else {
-        toast(err.response?.data?.message || "Couldn't post this job.", "!");
+        toast(err.response?.data?.message || (editingJob ? "Couldn't save your changes." : "Couldn't post this job."), "!");
       }
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Load an existing job's details into the form so the company can change them
+  function startEdit(job) {
+    const base = emptyFormState();
+    const saved = job.fields || {};
+    STAGE9.items.forEach((item) => {
+      const v = saved[item.id];
+      if (v === undefined || v === null) return;
+      if (item.input === "multi") base[item.id] = Array.isArray(v) ? v : (String(v).trim() ? [String(v)] : []);
+      else if (item.input === "file") base[item.id] = v;
+      else base[item.id] = Array.isArray(v) ? v.join(", ") : v;
+    });
+    setForm(base);
+    setEditingJob(job);
+    setShowForm(true);
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch { /* ignore */ }
+  }
+
+  function cancelForm() {
+    setShowForm(false);
+    setEditingJob(null);
+    setForm(emptyFormState());
   }
 
   async function toggleJob(job) {
@@ -272,7 +304,7 @@ export default function CompanyJobs() {
           ) : canPostMoreJobs ? (
             <button
               type="button"
-              onClick={() => setShowForm((v) => !v)}
+              onClick={() => (showForm ? cancelForm() : setShowForm(true))}
               style={{ background: "var(--gold)", color: "var(--navy)", border: "none", padding: "12px 20px", borderRadius: 10, fontWeight: 800, fontSize: 13.5, cursor: "pointer" }}
             >
               {showForm ? "Cancel" : "+ Post a new job"}
@@ -339,7 +371,14 @@ export default function CompanyJobs() {
 
         {isCompanyVerified && showForm && (
           <form onSubmit={handlePost} style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 16, padding: 24, marginBottom: 28 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>New job details</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 800, marginBottom: 16 }}>
+              {editingJob ? `Edit job details · ${editingJob.jobId}` : "New job details"}
+            </h2>
+            {editingJob && (
+              <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 14 }}>
+                Changes apply to this live listing as soon as you save. Existing applicants are not affected.
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
               {STAGE9.items.map((item) => {
                 const isFullWidth = item.input === "textarea" || item.input === "multi";
@@ -535,8 +574,17 @@ export default function CompanyJobs() {
               disabled={submitting}
               style={{ marginTop: 20, width: "100%", padding: 14, background: "var(--gold)", color: "var(--navy)", border: "none", borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: "pointer" }}
             >
-              {submitting ? "Publishing…" : "Publish Job Now →"}
+              {submitting ? (editingJob ? "Saving…" : "Publishing…") : (editingJob ? "Save changes →" : "Publish Job Now →")}
             </button>
+            {editingJob && (
+              <button
+                type="button"
+                onClick={cancelForm}
+                style={{ marginTop: 10, width: "100%", padding: 12, background: "#fff", color: "var(--navy)", border: "1px solid #CBD5E1", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer" }}
+              >
+                Cancel editing
+              </button>
+            )}
           </form>
         )}
 
@@ -597,7 +645,7 @@ export default function CompanyJobs() {
                   {approvalStatus === "rejected" && job.rejectionReason && (
                     <div style={{ fontSize: 12, color: "#B91C1C", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 10px", marginBottom: 6, maxWidth: 480 }}>
                       <strong>Not approved:</strong> {job.rejectionReason}
-                      {job.source === "posted" && " Fix the issue and use Reopen listing below to resubmit."}
+                      {job.source === "posted" && " Fix the issue with Edit details, then use Reopen & resubmit."}
                     </div>
                   )}
                   <Link to="/companies/applicants" style={{ fontSize: 12.5, color: "var(--gold)", fontWeight: 700, textDecoration: "none" }}>
@@ -605,16 +653,27 @@ export default function CompanyJobs() {
                   </Link>
                 </div>
 
-                {job.source === "posted" && (
-                  <button
-                    type="button"
-                    disabled={togglingId === job.id}
-                    onClick={() => toggleJob(job)}
-                    style={{ alignSelf: "flex-start", padding: "8px 16px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
-                  >
-                    {isOpen ? "Close listing" : approvalStatus === "rejected" ? "Reopen & resubmit" : "Reopen listing"}
-                  </button>
-                )}
+                <div style={{ alignSelf: "flex-start", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {isCompanyVerified && (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(job)}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--gold)", background: "#FFFBEB", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                    >
+                      ✎ Edit details
+                    </button>
+                  )}
+                  {job.source === "posted" && (
+                    <button
+                      type="button"
+                      disabled={togglingId === job.id}
+                      onClick={() => toggleJob(job)}
+                      style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #CBD5E1", background: "#fff", color: "var(--navy)", fontWeight: 700, fontSize: 12.5, cursor: "pointer" }}
+                    >
+                      {isOpen ? "Close listing" : approvalStatus === "rejected" ? "Reopen & resubmit" : "Reopen listing"}
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

@@ -1154,7 +1154,9 @@ function heuristicCareerObjective(profile = {}, candidateNotes = "") {
     parts.push(`${domain} candidate trained${profile.academyName ? ` at ${profile.academyName}` : ""}.`);
   }
   if (profile.totalCharts) parts.push(`Hands-on practice across ${profile.totalCharts}+ live charts${profile.accuracy ? ` at ${profile.accuracy}% accuracy` : ""}.`);
-  if (profile.assessmentScore) parts.push(`Scored ${profile.assessmentScore}/100 in a domain skills assessment.`);
+  if (profile.verificationScore && profile.assessmentScore) parts.push(`Verified profile score of ${profile.verificationScore}/100, including ${profile.assessmentScore}% in a domain skills assessment.`);
+  else if (profile.verificationScore) parts.push(`Verified profile score of ${profile.verificationScore}/100.`);
+  else if (profile.assessmentScore) parts.push(`Scored ${profile.assessmentScore}% in a domain skills assessment.`);
   parts.push("Strong attention to detail and a commitment to continuous learning.");
   return { objective, summary: parts.join(" ") };
 }
@@ -1175,7 +1177,8 @@ async function generateCareerObjective({ profile = {}, candidateNotes = "" }) {
         profile.status ? `Certification status: ${profile.status}` : "",
         Array.isArray(profile.certCodes) && profile.certCodes.length ? `Certifications: ${profile.certCodes.filter(Boolean).join(", ")}` : "",
         profile.academyName ? `Trained at: ${profile.academyName}` : "",
-        profile.assessmentScore ? `Domain assessment score: ${profile.assessmentScore}/100` : "",
+        profile.verificationScore ? `Overall verified profile score: ${profile.verificationScore}/100 (this is the candidate's total score)` : "",
+        profile.assessmentScore ? `Domain assessment score (one component of the total): ${profile.assessmentScore}%` : "",
         profile.totalCharts ? `Live chart practice volume: ${profile.totalCharts} charts${profile.accuracy ? ` at ${profile.accuracy}% accuracy` : ""}` : "",
         profile.currentCompany ? `Current/previous employer: ${profile.currentCompany}` : "",
         profile.projectDetails ? `Project/work details: ${profile.projectDetails}` : "",
@@ -1195,6 +1198,7 @@ Write two short pieces of resume text:
 
 Rules:
 - Do NOT fabricate employers, certifications, scores, or experience not present in the profile facts or candidate notes.
+- If you mention scores, use the overall verified profile score as the headline number; any assessment percentage must be labelled as the domain assessment so the two are never confused.
 - Do NOT mention "Talentera" by name in the output text.
 - If "Trained at" is missing, or names self-learning / other channels / web sources, describe the candidate as self-taught - never say they were trained by an academy or program.
 - Never call an Experienced candidate a fresher or "newly trained"; never call a fresher experienced.

@@ -300,6 +300,8 @@ export default function CandidateWizard() {
         isSelfTrained={isSelfTrained}
         hiddenStages={skipStage4 ? [4] : []}
         bonusStages={isLiveChartExemptDomain(candidateObj) ? [6] : []}
+        stageScores={profile?.stageScores || candidateObj?.stageScores || null}
+        experienced={isExperiencedCandidate(candidateObj)}
       />
 
       {shownStageId >= 1 && shownStageId <= 7 ? (

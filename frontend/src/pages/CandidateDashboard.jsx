@@ -268,7 +268,31 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   const { logout } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [companyFilter, setCompanyFilter] = useState('all');
+  const [companyDetailApp, setCompanyDetailApp] = useState(null); // application shown in the My Companies detail popup
   const PROFILE_GROUP = ['dashboard', 'profile', 'documents', 'resumes'];
+  // Which hiring round the company has this candidate in (from the company's Hiring Rounds pipeline)
+  const roundLabel = (app) => {
+    const st = app?.hiringSummary?.stage;
+    return ({ exam: 'Round 1 · Exam', technical: 'Round 2 · Technical', hr: 'Round 3 · HR', approval: 'Final approval', offered: 'Offer sent', hold: 'On hold' })[st] || '';
+  };
+  const [respondingOffer, setRespondingOffer] = useState(false);
+  const respondToOffer = async (app, accept) => {
+    if (respondingOffer) return;
+    if (!window.confirm(accept ? `Accept the offer from ${app.companyName}? The company will be notified.` : `Decline the offer from ${app.companyName}?`)) return;
+    setRespondingOffer(true);
+    try {
+      await api.post(`/candidate/hiring/offers/${app._id}/respond`, { accept });
+      triggerToast(accept ? `Offer accepted. ${app.companyName} has been notified.` : 'Offer declined. The company has been notified.');
+      const resApps = await api.get('/candidate/applications');
+      const list = resApps.data?.applications || resApps.data || [];
+      setApplications(list);
+      setCompanyDetailApp((cur) => (cur ? list.find((x) => x._id === cur._id) || null : cur));
+    } catch (err) {
+      triggerToast(err?.response?.data?.message || 'Could not send your response.');
+    } finally {
+      setRespondingOffer(false);
+    }
+  };
   const COMPANIES_GROUP = ['companies', 'applications', 'invites', 'feedback'];
   const SUBTAB_ICONS = {
     dashboard: <><rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" /><rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" /></>,
@@ -470,6 +494,18 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     setShowNotifDropdown((prev) => !prev);
   };
 
+  // Tapping a notification marks it read and opens the page it is about (e.g. an exam -> Hiring Rounds)
+  const handleNotifClick = (n) => {
+    if (!n.read) {
+      api.post('/candidate/notifications/mark-read', { id: n._id }).catch(() => {});
+      setNotifications((prev) => prev.map((x) => (x._id === n._id ? { ...x, read: true } : x)));
+      setUnreadNotifCount((c) => Math.max(0, c - 1));
+    }
+    const tabFor = { hiring: 'hiring', applications: 'applications', companies: 'companies', invites: 'invites' };
+    const tab = tabFor[n.actionType];
+    if (tab) { setActiveTab(tab); setShowNotifDropdown(false); }
+  };
+
   const handleMarkAllNotifsRead = async () => {
     if (unreadNotifCount === 0) return;
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -522,10 +558,18 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
   // isn't required for the role or was skipped / "no exposure") are left out of the "x/y done" counts
   // so they never show as pending.
   const s6Path = String(profile?.stage6?.evidencePath || profile?.stage6?.option || '').toLowerCase();
+  // A bonus-domain candidate who actually logged live charts has DONE Stage 6 - it counts as a
+  // completed stage (and its points are in the score), it is only "not applicable" when skipped / no charts.
+  const s6LoggedCharts =
+    !profile?.stage6?.skipped &&
+    !(s6Path === 'd' || s6Path.includes('none') || s6Path === 'no_exposure') &&
+    ((profile?.stage6?.totalCharts || 0) > 0 || (typeof profile?.stage6?.verificationPoints === 'number' && profile.stage6.verificationPoints > 0));
   const stage6NotApplicable =
-    LIVE_CHART_EXEMPT.includes((profile?.stage2 && profile.stage2.domain) || '') ||
-    Boolean(profile?.stage6?.skipped) ||
-    ((s6Path === 'd' || s6Path.includes('none') || s6Path === 'no_exposure') && !((profile?.stage6?.totalCharts || 0) > 0));
+    !s6LoggedCharts && (
+      LIVE_CHART_EXEMPT.includes((profile?.stage2 && profile.stage2.domain) || '') ||
+      Boolean(profile?.stage6?.skipped) ||
+      ((s6Path === 'd' || s6Path.includes('none') || s6Path === 'no_exposure') && !((profile?.stage6?.totalCharts || 0) > 0))
+    );
   const removedStageNums = new Set();
   if (isExperiencedProfile(profile)) removedStageNums.add(4);
   if (stage6NotApplicable) removedStageNums.add(6);
@@ -766,13 +810,14 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
                     <div className="notif-empty">You have no notifications yet.</div>
                   ) : (
                     notifications.slice(0, 20).map((n) => (
-                      <div key={n._id} className={`notif-item ${n.read ? '' : 'unread'}`}>
+                      <div key={n._id} className={`notif-item ${n.read ? '' : 'unread'}`} onClick={() => handleNotifClick(n)} style={n.actionType ? { cursor: 'pointer' } : undefined}>
                         <div className="notif-item-top">
                           <span className="notif-item-title">{n.title}</span>
                           <span className="notif-item-time">{timeAgo(n.createdAt)}</span>
                         </div>
                         <div className="notif-item-message">{n.message}</div>
                         {n.senderName && <div className="notif-item-sender">{n.senderName}</div>}
+                        {n.actionType === 'hiring' && <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--gold-deep)', marginTop: 4 }}>{n.actionLabel || 'Open Hiring Rounds'} →</div>}
                       </div>
                     ))
                   )}
@@ -856,7 +901,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
               <div data-tab="companies" className={'sb-item ' + (COMPANIES_GROUP.includes(activeTab) ? 'active' : '')} onClick={() => { if (!COMPANIES_GROUP.includes(activeTab)) setActiveTab('companies'); }}>
                 <span className="ico"><i className="fa-solid fa-building" /></span>
                 <span>My Companies</span>
-                <span className="badge gold">{companies.length}</span>
+                <span className="badge gold">{companiesAttendedCount}</span>
               </div>
             </div>
           </div>
@@ -1121,7 +1166,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">02</div>
-            <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+15 pts · {completedStages.includes(2) ? 'Academy-Signed' : 'Pending'}</div></div>
+            <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+{profile?.stageScores?.[2] ?? 15} pts{profile?.stageScores?.[2] != null && profile.stageScores[2] < 15 ? ' of 15' : ''} · {completedStages.includes(2) ? ((profile?.stageScores?.[2] ?? 15) >= 15 ? 'Academy-Signed' : 'Awaiting Academy Sign-off') : 'Pending'}</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(2)}><><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Edit Stage 02</></button></div>
         </div>
@@ -1139,7 +1184,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">03</div>
-            <div><div className="stage-detail-name">Certifications · {(profile?.stage3?.certifications?.length || (profile?.stage3?.certCode ? 1 : 0))} Active</div><div className="stage-detail-tag">+15 pts · {profile?.stage3?.certStatus === 'verified' ? 'API-Verified' : (completedStages.includes(3) ? 'Pending Verification' : 'Not Completed')}</div></div>
+            <div><div className="stage-detail-name">Certifications · {(profile?.stage3?.certifications?.length || (profile?.stage3?.certCode ? 1 : 0))} Active</div><div className="stage-detail-tag">+{profile?.stageScores?.[3] ?? 15} pts of {isExperiencedProfile(profile) ? 40 : 20} · {profile?.stage3?.certStatus === 'verified' ? 'API-Verified' : (completedStages.includes(3) ? 'Pending Verification' : 'Not Completed')}</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(3)}><><i className="fa-solid fa-plus" style={{ marginRight: 6 }} />Add / Edit Cert (Stage 03)</></button></div>
         </div>
@@ -1198,7 +1243,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">06</div>
-            <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+20 pts · {profile?.stage6?.totalCharts ? (profile?.stage6?.verificationMethod || (profile?.stage6?.verified ? 'Verified' : 'Self-Reported')) : 'Pending'}</div></div>
+            <div><div className="stage-detail-name">Live Chart · {profile?.stage6?.totalCharts ? `${profile.stage6.tier || ''} ${profile.stage6.totalCharts} charts` : 'Not Completed'}</div><div className="stage-detail-tag">+{profile?.stageScores?.[6] ?? 0} pts of 20 · {profile?.stage6?.totalCharts ? (profile?.stage6?.verificationMethod || (profile?.stage6?.verified ? 'Verified' : 'Self-Reported')) : 'Pending'}</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(6)}><><i className="fa-solid fa-laptop" style={{ marginRight: 6 }} />Open Stage 06 Charts</></button></div>
         </div>
@@ -1411,7 +1456,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
           ['all', 'Applied', '', applications.length],
           ['shortlisted', 'Shortlisted', '', applications.filter((a) => a.status === 'shortlisted').length],
           ['interviewing', 'Interviewing', 'active', applications.filter((a) => a.status === 'interviewing').length],
-          ['hired', 'Selected', 'selected', applications.filter((a) => a.status === 'hired').length],
+          ['hired', 'Offers', 'selected', applications.filter((a) => a.status === 'hired').length],
           ['on_hold', 'On Hold', 'hold', applications.filter((a) => a.status === 'on_hold').length],
           ['rejected', 'Rejected', 'rejected', applications.filter((a) => a.status === 'rejected').length],
         ].map(([key, label, tint, count]) => (
@@ -1437,18 +1482,18 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
             applied: { cls: 'applied', label: 'Applied', cta: 'View' },
             shortlisted: { cls: 'shortlisted', label: 'Shortlisted', cta: null },
             interviewing: { cls: 'interviewed', label: 'Interviewing', cta: null },
-            hired: { cls: 'selected', label: 'OFFER', cta: 'Accept →' },
-            on_hold: { cls: 'hold', label: 'Selected · On Hold — offer letter awaited', cta: null },
+            hired: { cls: 'selected', label: app.hiringSummary?.offerStatus === 'accepted' ? 'OFFER ACCEPTED ✓' : app.hiringSummary?.offerStatus === 'declined' ? 'OFFER DECLINED' : 'OFFER', cta: app.hiringSummary?.offerStatus === 'sent' ? 'Accept →' : 'View offer' },
+            on_hold: { cls: 'hold', label: 'On Hold', cta: null },
             rejected: { cls: 'rejected', label: 'Not Selected', cta: 'Feedback' },
           };
           const st = statusMap[app.status] || statusMap.applied;
           const comp = app.compMin && app.compMax ? `₹${app.compMin} – ₹${app.compMax} LPA` : '';
           return (
-            <div className="co-row" key={app._id} onClick={() => triggerToast(`Opening ${app.companyName} details`)}>
+            <div className="co-row" key={app._id} onClick={() => setCompanyDetailApp(app)} style={{ cursor: 'pointer' }}>
               <div className="co-logo">{(app.companyName || 'C')[0].toUpperCase()}</div>
               <div className="co-info"><div className="name">{app.companyName} · {app.roleTitle}</div><div className="role">{app.location}{app.workMode ? ` · ${app.workMode}` : ''}{comp ? ` · ${comp}` : ''}</div><div className="timeline">Applied {new Date(app.createdAt).toLocaleDateString('en-IN')}{app.updatedAt && app.updatedAt !== app.createdAt ? ` · Updated ${new Date(app.updatedAt).toLocaleDateString('en-IN')}` : ''}</div></div>
-              <div className={"co-status " + st.cls}>{st.label}{app.status === 'hired' && comp ? ` · ${comp}` : ''}</div>
-              {st.cta && <button className="co-cta-btn" onClick={(e) => { e.stopPropagation(); triggerToast(`Opening ${app.companyName}`); }}>{st.cta}</button>}
+              <div className={"co-status " + st.cls}>{st.label}{roundLabel(app) && !['hired', 'rejected'].includes(app.status) ? ` · ${roundLabel(app)}` : ''}{app.status === 'hired' && comp ? ` · ${comp}` : ''}</div>
+              {st.cta && <button className="co-cta-btn" onClick={(e) => { e.stopPropagation(); setCompanyDetailApp(app); }}>{st.cta}</button>}
             </div>
           );
         }) : (
@@ -1458,6 +1503,98 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
     </div>
 )}
 
+          {companyDetailApp && (() => {
+            const a = companyDetailApp;
+            const jd = a.jobDetail || {};
+            const steps = [['applied', 'Applied'], ['shortlisted', 'Shortlisted'], ['interviewing', 'Interviewing'], [a.status === 'on_hold' ? 'on_hold' : 'hired', a.status === 'on_hold' ? 'On hold' : 'Offer']];
+            const order = ['applied', 'shortlisted', 'interviewing', a.status === 'on_hold' ? 'on_hold' : 'hired'];
+            const idx = a.status === 'rejected' ? -1 : order.indexOf(a.status);
+            const when = a.interviewScheduledAt ? new Date(a.interviewScheduledAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : (a.interviewTimeText || '');
+            const row = (label, value) => (value ? <div key={label} style={{ fontSize: 13, marginBottom: 4 }}><b style={{ color: '#334155' }}>{label}:</b> <span style={{ color: '#475569' }}>{value}</span></div> : null);
+            return (
+              <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setCompanyDetailApp(null)}>
+                <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 620, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }} onClick={(e) => e.stopPropagation()}>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', gap: 12, position: 'sticky', top: 0, background: '#fff', zIndex: 1 }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 0 }}>
+                      <div className="co-logo" style={{ flexShrink: 0 }}>{(a.companyName || 'C')[0].toUpperCase()}</div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#0F1B3D' }}>{a.companyName}</div>
+                        <div style={{ fontSize: 13, color: '#64748B' }}>{a.roleTitle}{a.location ? ` · ${a.location}` : ''}{a.workMode ? ` · ${a.workMode}` : ''}</div>
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => setCompanyDetailApp(null)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#94A3B8', lineHeight: 1 }}>×</button>
+                  </div>
+                  <div style={{ padding: '18px 24px 24px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: '#94A3B8', marginBottom: 8 }}>APPLICATION STATUS</div>
+                    {a.status === 'rejected' ? (
+                      <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#991B1B' }}>
+                        <b>Not selected.</b>{a.rejectionReason ? ` ${a.rejectionReason}` : ''}{a.rejectionDetails ? <div style={{ marginTop: 4, color: '#7F1D1D' }}>{a.rejectionDetails}</div> : null}
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+                        {steps.map(([key, label], i) => (
+                          <div key={key} style={{ flex: '1 1 110px', textAlign: 'center', padding: '8px 6px', borderRadius: 8, fontSize: 12, fontWeight: 800, background: i <= idx ? '#0F1B3D' : '#F1F5F9', color: i <= idx ? '#fff' : '#64748B' }}>
+                            {i < idx ? '✓ ' : ''}{label}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {a.status === 'hired' && a.hiringSummary?.offer && (
+                      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '12px 14px', margin: '0 0 12px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: '#166534', marginBottom: 6 }}>YOUR OFFER</div>
+                        {row('Role', a.hiringSummary.offer.role || a.roleTitle)}
+                        {a.hiringSummary.offer.ctc != null && row('CTC', `${a.hiringSummary.offer.ctc} LPA`)}
+                        {a.hiringSummary.offer.joinDate && row('Joining date', new Date(a.hiringSummary.offer.joinDate).toLocaleDateString('en-IN', { dateStyle: 'medium' }))}
+                        {a.hiringSummary.offer.probationMonths != null && row('Probation', `${a.hiringSummary.offer.probationMonths} month${a.hiringSummary.offer.probationMonths === 1 ? '' : 's'}`)}
+                        {a.hiringSummary.offer.status === 'sent' ? (
+                          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                            <button type="button" disabled={respondingOffer} onClick={() => respondToOffer(a, true)} style={{ background: '#15803D', color: '#fff', border: 'none', borderRadius: 8, padding: '9px 16px', fontWeight: 800, cursor: 'pointer' }}>Accept offer</button>
+                            <button type="button" disabled={respondingOffer} onClick={() => respondToOffer(a, false)} style={{ background: '#fff', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 8, padding: '9px 16px', fontWeight: 800, cursor: 'pointer' }}>Decline</button>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: 8, fontSize: 13, fontWeight: 800, color: a.hiringSummary.offer.status === 'accepted' ? '#166534' : '#B91C1C' }}>
+                            {a.hiringSummary.offer.status === 'accepted' ? '✓ You accepted this offer. The company has been notified and will share joining details.' : 'You declined this offer.'}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {a.hiringSummary && (
+                      <div style={{ background: '#F5F3FF', border: '1px solid #DDD6FE', borderRadius: 10, padding: '10px 14px', margin: '0 0 12px' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: '#5B21B6', marginBottom: 6 }}>HIRING ROUNDS</div>
+                        {row('Current round', roundLabel(a) || (a.hiringSummary.stage === 'rejected' ? 'Closed' : ''))}
+                        {a.hiringSummary.examScore != null && row('Round 1 · Exam', `${a.hiringSummary.examScore}%${a.hiringSummary.examPassed ? ' · Passed' : ' · Below cutoff'}`)}
+                        {a.hiringSummary.techScore != null && row('Round 2 · Technical', `${a.hiringSummary.techScore}%${a.hiringSummary.techPassed ? ' · Passed' : ' · Below cutoff'}`)}
+                        {a.hiringSummary.hrDone && row('Round 3 · HR', 'Completed')}
+                      </div>
+                    )}
+                    {a.createdAt && row('Applied on', new Date(a.createdAt).toLocaleDateString('en-IN', { dateStyle: 'medium' }))}
+                    {(when || a.interviewType || a.interviewMeetingLink) && (
+                      <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 10, padding: '10px 14px', margin: '12px 0' }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: '#B45309', marginBottom: 6 }}>INTERVIEW</div>
+                        {row('When', when)}
+                        {row('Mode', a.interviewType)}
+                        {a.interviewMeetingLink && row('Link / address', a.interviewMeetingLink)}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', color: '#94A3B8', margin: '18px 0 8px' }}>JOB DETAILS</div>
+                    {row('Role', jd.title || a.roleTitle)}
+                    {row('Salary', jd.salary && jd.salary !== 'Not disclosed' ? jd.salary : '')}
+                    {row('Experience', jd.experience)}
+                    {row('Openings', jd.openings)}
+                    {row('Specialty', jd.specialty)}
+                    {Array.isArray(jd.certsRequired) && jd.certsRequired.length > 0 && row('Certification', jd.certsRequired.join(', '))}
+                    {(jd.details || []).map((d) => row(d.label, d.value))}
+                    {jd.description && <p style={{ fontSize: 13, color: '#475569', lineHeight: 1.6, margin: '10px 0 0' }}>{jd.description}</p>}
+                    {jd.mustHaves && <div style={{ fontSize: 13, color: '#334155', marginTop: 8 }}><b>Key must-haves:</b> {jd.mustHaves}</div>}
+                    {!jd.description && !jd.mustHaves && (!jd.details || jd.details.length === 0) && (
+                      <p style={{ fontSize: 13, color: '#64748B', fontStyle: 'italic' }}>The employer has not added more details for this role.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {activeTab === 'applications' && (
 <div className="page active" id="page-applications">
       <div className="page-head">
@@ -1465,9 +1602,32 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <h1 className="page-title">My Applications</h1>
         <p className="page-sub">{applications.length > 0 ? `${applications.length} total application${applications.length === 1 ? '' : 's'} submitted or auto-matched.` : "You haven't submitted any applications yet."}</p>
       </div>
-      <div className="card">
-        <p style={{"color":"var(--gray-txt)","fontSize":"13px"}}>See <a onClick={() => setActiveTab("companies")} style={{"color":"var(--gold-deep)","fontWeight":"800","cursor":"pointer"}}>My Companies →</a> for the full pipeline view with statuses.</p>
-      </div>
+      {applications.length > 0 ? (
+        <div className="co-list">
+          {[...applications].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).map((app) => {
+            const labels = { applied: ['applied', 'Applied'], shortlisted: ['shortlisted', 'Shortlisted'], interviewing: ['interviewed', 'Interviewing'], hired: ['selected', 'Offer'], on_hold: ['hold', 'On Hold'], rejected: ['rejected', 'Not Selected'] };
+            const [cls, label] = labels[app.status] || labels.applied;
+            const comp = app.compMin && app.compMax ? `₹${app.compMin} – ₹${app.compMax} LPA` : '';
+            return (
+              <div className="co-row" key={app._id} onClick={() => setCompanyDetailApp(app)} style={{ cursor: 'pointer' }}>
+                <div className="co-logo">{(app.companyName || 'C')[0].toUpperCase()}</div>
+                <div className="co-info">
+                  <div className="name">{app.companyName || 'Company'} · {app.roleTitle || 'Role'}</div>
+                  <div className="role">{app.location}{app.workMode ? ` · ${app.workMode}` : ''}{comp ? ` · ${comp}` : ''}</div>
+                  <div className="timeline">Applied {app.createdAt ? new Date(app.createdAt).toLocaleDateString('en-IN') : '—'}{app.updatedAt && app.updatedAt !== app.createdAt ? ` · Updated ${new Date(app.updatedAt).toLocaleDateString('en-IN')}` : ''}</div>
+                </div>
+                <div className={"co-status " + cls}>{label}{roundLabel(app) && !['hired', 'rejected'].includes(app.status) ? ` · ${roundLabel(app)}` : ''}</div>
+                <button className="co-cta-btn" onClick={(e) => { e.stopPropagation(); setCompanyDetailApp(app); }}>View</button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="card"><div style={{ padding: '20px', textAlign: 'center', color: 'var(--gray-mute)' }}>You haven&apos;t applied to any companies yet. Browse the <a onClick={() => setActiveTab("jobs")} style={{ color: 'var(--gold-deep)', fontWeight: 800, cursor: 'pointer' }}>Jobs Board</a> to get started.</div></div>
+      )}
+      {applications.length > 0 && (
+        <p style={{ color: 'var(--gray-txt)', fontSize: '13px', marginTop: 14 }}>See <a onClick={() => setActiveTab("companies")} style={{ color: 'var(--gold-deep)', fontWeight: 800, cursor: 'pointer' }}>My Companies →</a> for the stage-by-stage pipeline view.</p>
+      )}
     </div>
 )}
 

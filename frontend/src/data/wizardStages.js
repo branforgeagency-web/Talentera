@@ -17,7 +17,7 @@
 // mandatory, same as every other stage except Build Resume (7) — a
 // candidate's training and certification history must be verified before
 // they're eligible for job search (see Jobs.jsx eligibility gate).
-const SKIPPABLE_STAGE_NUMS = [7];
+const SKIPPABLE_STAGE_NUMS = [4, 7];
 
 const RAW_WIZARD_STAGES = [
   {
