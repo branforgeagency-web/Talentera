@@ -20,6 +20,19 @@ const DOMAIN_KEYWORDS = {
   Payment: ["payment"],
 };
 
+// Quick role / skill filters for the talent search dropdown (each matches role, summary, certification text)
+const ROLE_FILTERS = {
+  "AR Caller": ["ar caller", "ar calling", "a/r", "ar executive", "ar follow", "accounts receivable", "caller"],
+  "Medical Coder": ["medical coder", "medical coding", "coder", "coding", "cpc", "ccs", "cic", "cca"],
+  "Medical Biller": ["biller", "billing", "claims"],
+  "Denial Management": ["denial"],
+  "Payment Posting": ["payment posting", "payment"],
+  "Charge Entry": ["charge entry", "charge"],
+  "Quality Analyst": ["quality", "qa "],
+};
+// Treat "coder / coding / coders" and "caller / calling" as the same word when searching by hand
+const normalizeSearch = (t) => String(t || "").toLowerCase().replace(/non[\s-]*certified/g, " noncert ").replace(/coders?\b|coding\b/g, "cod").replace(/callers?\b|calling\b/g, "call").replace(/[^a-z0-9/ ]+/g, " ").replace(/\s+/g, " ").trim();
+
 function getAssetUrl(url) {
   if (!url) return "";
   if (url.startsWith("http") || url.startsWith("blob:") || url.startsWith("data:")) return url;
@@ -38,12 +51,13 @@ export default function CompanyPortal() {
   const [minScore, setMinScore] = useState(70);
   const [selectedExp, setSelectedExp] = useState("All");
   // Certification filter: "Certified" hides trainees ("Non-Certified / Trainee Coder" etc.). Defaults to certified-only.
-  const [certFilter, setCertFilter] = useState("Certified");
+  const [certFilter, setCertFilter] = useState("All");
   const isCertifiedCandidate = (c) => {
     const n = String(c?.certificationName || "").trim();
     return Boolean(n) && !/non[\s-]*certified|not\s+certified|trainee|^none$|^n\/a$/i.test(n);
   };
   const [selectedDomain, setSelectedDomain] = useState("All");
+  const [roleFilter, setRoleFilter] = useState("All");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const toast = useToast();
   const [shortlistingId, setShortlistingId] = useState(null);
@@ -203,22 +217,31 @@ export default function CompanyPortal() {
     if (companyPlan === "free") return true;
     if (c.verificationScore < minScore) return false;
     if (selectedExp !== "All" && c.experience !== selectedExp) return false;
-    if (certFilter === "Certified" && !isCertifiedCandidate(c)) return false;
-    if (certFilter === "NonCertified" && isCertifiedCandidate(c)) return false;
+    const typedCert = /certified|certif/i.test(searchQuery);
+    if (!typedCert && certFilter === "Certified" && !isCertifiedCandidate(c)) return false;
+    if (!typedCert && certFilter === "NonCertified" && isCertifiedCandidate(c)) return false;
     if (selectedDomain !== "All") {
       const roleText = (c.currentRole || "").toLowerCase();
       const keywords = DOMAIN_KEYWORDS[selectedDomain] || [selectedDomain.toLowerCase()];
       if (!keywords.some((kw) => roleText.includes(kw))) return false;
     }
+    if (roleFilter !== "All") {
+      const text = normalizeSearch(`${c.currentRole || ""} ${c.summary || ""} ${c.certificationName || ""}`);
+      const kws = (ROLE_FILTERS[roleFilter] || [roleFilter.toLowerCase()]).map(normalizeSearch);
+      if (!kws.some((kw) => text.includes(kw))) return false;
+    }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = (c.name || "").toLowerCase().includes(q);
-      const matchRole = (c.currentRole || "").toLowerCase().includes(q);
-      const matchSummary = (c.summary || "").toLowerCase().includes(q);
-      const matchCity = (c.city || "").toLowerCase().includes(q);
-      const matchCert = (c.certificationName || "").toLowerCase().includes(q) || (/certif/.test(q) && (/non|trainee|un/.test(q) ? !isCertifiedCandidate(c) : isCertifiedCandidate(c)));
-      const matchAcademy = (c.academyName || "").toLowerCase().includes(q);
-      if (!matchName && !matchRole && !matchSummary && !matchCity && !matchCert && !matchAcademy) return false;
+      let q = normalizeSearch(searchQuery);
+      // Typed certification words act as filters too, so "Certified" / "Non-certified" always work
+      if (/\bnoncert\b/.test(q)) {
+        if (isCertifiedCandidate(c)) return false;
+        q = q.replace(/\bnoncert\b/g, " ").trim();
+      } else if (/\bcertified\b/.test(q)) {
+        if (!isCertifiedCandidate(c)) return false;
+        q = q.replace(/\bcertified\b/g, " ").trim();
+      }
+      const hay = normalizeSearch([c.name, c.currentRole, c.summary, c.city, c.certificationName, c.academyName, c.experience, c.email].filter(Boolean).join(" "));
+      if (q && !q.split(" ").every((tok) => hay.includes(tok))) return false;
     }
     return true;
   });
@@ -504,7 +527,7 @@ export default function CompanyPortal() {
                   }
                   setMinScore(0);
                   setSelectedExp("All");
-                  setSelectedDomain("All");
+                  setSelectedDomain("All"); setRoleFilter("All");
                   setSearchQuery("");
                 }}
               >
@@ -715,9 +738,39 @@ export default function CompanyPortal() {
                   </button>
                 )}
               </div>
+              <div style={{ display: "flex", gap: 10, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ fontSize: 11, color: "#64748B", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                  Certification
+                  <select
+                    value={certFilter}
+                    disabled={companyPlan === "free"}
+                    onChange={(e) => { if (companyPlan === "free") { triggerUpgrade("search"); return; } setCertFilter(e.target.value); setSearchQuery((q) => q.replace(/non[\s-]*certified|certified/gi, "").trim()); }}
+                    style={{ border: "1px solid #E2E8F0", borderRadius: 6, padding: "5px 8px", fontSize: 12, fontWeight: 600, color: "var(--navy)", background: "#fff" }}
+                  >
+                    <option value="All">All candidates</option>
+                    <option value="Certified">Certified</option>
+                    <option value="NonCertified">Non-certified</option>
+                  </select>
+                </label>
+                <label style={{ fontSize: 11, color: "#64748B", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                  Role / skill
+                  <select
+                    value={roleFilter}
+                    disabled={companyPlan === "free"}
+                    onChange={(e) => { if (companyPlan === "free") { triggerUpgrade("search"); return; } setRoleFilter(e.target.value); setSelectedDomain("All"); }}
+                    style={{ border: "1px solid #E2E8F0", borderRadius: 6, padding: "5px 8px", fontSize: 12, fontWeight: 600, color: "var(--navy)", background: "#fff" }}
+                  >
+                    <option value="All">All roles</option>
+                    {Object.keys(ROLE_FILTERS).map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </label>
+                {(certFilter !== "All" || roleFilter !== "All" || searchQuery) && companyPlan !== "free" && (
+                  <button type="button" onClick={() => { setCertFilter("All"); setRoleFilter("All"); setSearchQuery(""); }} style={{ background: "none", border: "none", color: "#1D4ED8", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>Clear filters</button>
+                )}
+              </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
                 <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>Popular:</span>
-                {["Certified", "Non-Certified", "AR Caller", "Denial Management", "Bengaluru"].map((tag) => (
+                {["Certified", "Non-Certified", "AR Caller", "Medical Coder", "Denial Management", "Bengaluru"].map((tag) => (
                   <button
                     key={tag}
                     onClick={() => {
@@ -726,6 +779,9 @@ export default function CompanyPortal() {
                       } else if (tag === "Certified" || tag === "Non-Certified") {
                         // Prebuilt certification filters (no free-text needed)
                         setCertFilter(tag === "Certified" ? "Certified" : "NonCertified");
+                        setSearchQuery("");
+                      } else if (ROLE_FILTERS[tag]) {
+                        setRoleFilter(tag);
                         setSearchQuery("");
                       } else {
                         setSearchQuery(tag);

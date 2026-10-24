@@ -523,6 +523,7 @@ router.get("/jobs", async (req, res) => {
         source: "posted",
         id: job._id,
         jobId: job.jobId,
+        isDraft: Boolean(job.isDraft),
         published: job.published,
         publishedAt: job.publishedAt,
         closedAt: job.closedAt,
@@ -555,7 +556,7 @@ router.get("/jobs", async (req, res) => {
 
 // Shared by POST /jobs and the edit flow (PUT /jobs/:id): normalise + validate the
 // job-description fields. Returns { fields } or { error: { status, body } }.
-function prepareJobFields(raw) {
+function prepareJobFields(raw, { draft = false } = {}) {
   const fields = syncSpecialtyString(raw || {});
   const isFresherJobReq = String(fields.level || "").toLowerCase().includes("fresher") || (fields.expmin !== undefined && fields.expmin !== null && fields.expmin !== "" && Number(fields.expmin) === 0 && Number(fields.expmax || 0) <= 1);
   if (isFresherJobReq) {
@@ -567,7 +568,7 @@ function prepareJobFields(raw) {
   if (negativeField) {
     return { error: { status: 400, body: { message: `${negativeField} cannot be negative.` } } };
   }
-  const missing = JD_REQUIRED_FIELDS.filter((f) => isEmptyValue(fields[f]));
+  const missing = draft ? (isEmptyValue(fields.roletitle) ? ["roletitle"] : []) : JD_REQUIRED_FIELDS.filter((f) => isEmptyValue(fields[f]));
   if (missing.length > 0) {
     return { error: { status: 400, body: { message: "Some required job fields are missing.", missing } } };
   }
@@ -588,6 +589,21 @@ router.post("/jobs", async (req, res) => {
         message: "Account & KYC approval required. Only KYC-approved companies can post jobs on Talentera.",
         kycStatus: company.kycStatus || "pending",
       });
+    }
+
+    // "Save draft" (?draft=1): store the form as-is (only a role title is needed); nothing goes live
+    const isDraft = req.query.draft === "1";
+    if (isDraft) {
+      const preparedDraft = prepareJobFields(req.body, { draft: true });
+      if (preparedDraft.error) return res.status(preparedDraft.error.status).json(preparedDraft.error.body);
+      const draftJob = await Job.create({
+        companyId: req.companyId,
+        jobId: `TLT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
+        published: false, isDraft: true, closedAt: null,
+        approvalStatus: "approved", approvedAt: new Date(), approvedBy: "Draft",
+        fields: preparedDraft.fields,
+      });
+      return res.status(201).json({ message: "Draft saved. Publish it whenever you are ready.", job: draftJob });
     }
 
     const plan = getPlan(company.plan);
@@ -641,7 +657,7 @@ router.post("/jobs", async (req, res) => {
 // puts it back into the approval queue as "pending" (see routes/staff.js POST /verify-job).
 router.put("/jobs/:id", async (req, res) => {
   try {
-    const { published, fields: incomingFields } = req.body || {};
+    const { published, fields: incomingFields, draft, publishDraft } = req.body || {};
     const hasFields = incomingFields && typeof incomingFields === "object" && !Array.isArray(incomingFields);
 
     // Edit details of the onboarding first-JD
@@ -659,6 +675,38 @@ router.put("/jobs/:id", async (req, res) => {
 
     const job = await Job.findOne({ _id: req.params.id, companyId: req.companyId });
     if (!job) return res.status(404).json({ message: "Job not found." });
+
+    // Drafts: "Save draft" keeps it private (relaxed validation); "Publish" validates fully and makes it live
+    if (job.isDraft) {
+      if (publishDraft) {
+        const company = await Company.findById(req.companyId);
+        const isVerified = company && (company.kycStatus === "verified" || Boolean(company.kycVerifiedAt));
+        if (!isVerified) return res.status(403).json({ message: "Account & KYC approval required. Only KYC-approved companies can post jobs on Talentera." });
+        const plan = getPlan(company.plan);
+        const legacyActive = company.jdPublished && company.jobId ? 1 : 0;
+        const activeCount = legacyActive + (await Job.countDocuments({ companyId: req.companyId, published: true }));
+        if (!isUnderJobPostLimit(plan, activeCount)) {
+          return res.status(403).json({ message: `Your "${plan.label}" plan allows up to ${plan.maxActiveJobPosts} active job post(s). Close an existing job or ask Talentera staff to upgrade your plan to post more.` });
+        }
+        const preparedPub = prepareJobFields({ ...(job.fields || {}), ...(hasFields ? incomingFields : {}) });
+        if (preparedPub.error) return res.status(preparedPub.error.status).json(preparedPub.error.body);
+        job.fields = preparedPub.fields;
+        if (typeof job.markModified === "function") job.markModified("fields");
+        job.isDraft = false; job.published = true; job.publishedAt = new Date(); job.closedAt = null;
+        job.approvalStatus = "approved"; job.approvedAt = new Date(); job.approvedBy = "Auto-Approved (KYC Verified)";
+        await job.save();
+        announcePostedJob(job);
+        return res.json({ message: "Job published live! Candidates can discover and apply now.", job });
+      }
+      if (hasFields) {
+        const preparedDraft = prepareJobFields({ ...(job.fields || {}), ...incomingFields }, { draft: true });
+        if (preparedDraft.error) return res.status(preparedDraft.error.status).json(preparedDraft.error.body);
+        job.fields = preparedDraft.fields;
+        if (typeof job.markModified === "function") job.markModified("fields");
+        await job.save();
+      }
+      return res.json({ message: "Draft saved.", job });
+    }
 
     let edited = false;
     if (hasFields) {
@@ -771,6 +819,22 @@ function formatCandidateForCompany(candidate, isKycVerified, plan) {
       summary: stage7ForCompany,
       employmentStatus: candidate.stage8 || {},
       documentVault: canViewScoresAndCerts ? (candidate.documentVault || []) : [],
+      // Education (Stage 1) and the candidate's resume file / live resume for the applicant detail popup
+      education: {
+        degree: candidate.stage1?.degree || candidate.stage1?.degreeName || "",
+        collegeName: candidate.stage1?.collegeName || candidate.stage1?.university || "",
+        graduationYear: candidate.stage1?.graduationYear || "",
+        cgpa: candidate.stage1?.cgpa || "",
+        percentage: candidate.stage1?.percentage || "",
+        specialization: candidate.stage1?.specialization || candidate.stage1?.branch || "",
+        degreeCertUrl: isKycVerified && canViewScoresAndCerts ? (candidate.stage1?.degreeCertUrl || "") : "",
+        list: Array.isArray(candidate.stage1?.education) ? candidate.stage1.education : [],
+      },
+      resume: {
+        url: isKycVerified ? (candidate.resumeUrl || candidate.stage7?.resumeUrl || "") : "",
+        fileName: candidate.resumeFileName || candidate.stage7?.resumeFileName || "",
+        verifyPath: `/verify/${candidate._id}`,
+      },
       completedStages: candidate.completedStages,
       score: canViewScoresAndCerts ? scoring.score : null,
       badge: canViewScoresAndCerts ? scoring.badge : null,
@@ -1084,7 +1148,7 @@ router.put("/applications/:id/status", async (req, res) => {
 
         if (status === "shortlisted") {
           notifTitle = `Shortlisted by ${companyName}! 🎯`;
-          notifMsg = `Great news! Your application for "${roleTitle}" has been shortlisted by ${companyName}.`;
+          notifMsg = `Great news! Your application for "${roleTitle}" has been shortlisted by ${companyName}. Your assessment and interview rounds will appear under Hiring Rounds as the company schedules them.`;
           notifType = "application_shortlisted";
         } else if (status === "interviewing") {
           notifTitle = `Interview Scheduled with ${companyName} 📅`;
@@ -1122,6 +1186,30 @@ router.put("/applications/:id/status", async (req, res) => {
       }
     } catch (notifErr) {
       logger.warn(`Failed to create candidate in-app notification: ${notifErr.message}`);
+    }
+
+    // Company-side notification: tells the recruiter the next step after a shortlist (allocate the assessment)
+    if (status === "shortlisted") {
+      try {
+        const candName = candidate?.stage1?.fullName || "The candidate";
+        await Notification.create({
+          recipientType: "company",
+          recipientId: String(req.companyId),
+          title: `${candName} shortlisted - next step`,
+          message: `${candName} is shortlisted for "${roleTitle}". Open Hiring Flow > Applicants to allocate the assessment and move them to the next round.`,
+          type: "hiring_update",
+          meta: {
+            source: "shortlist",
+            applicationId: String(application._id),
+            candidateId: String(candidateId || ""),
+            candidateName: candName,
+            actionUrl: "/companies/hiring?tab=applicants",
+            actionLabel: "Open Hiring Flow",
+          },
+        });
+      } catch (notifErr) {
+        logger.warn(`Failed to create company shortlist notification: ${notifErr.message}`);
+      }
     }
 
     if (candidateEmail) {

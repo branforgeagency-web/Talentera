@@ -23,7 +23,22 @@ function isStageUnlocked(stageNum, completedStages = [], isSelfTrained = false) 
   return true;
 }
 
-export default function WizardSidebar({ completedStages = [], activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard, isSelfTrained = false, hiddenStages = [], bonusStages = [], stageScores = null, experienced = false }) {
+export default function WizardSidebar({
+  completedStages = [],
+  activeStageId,
+  onSelect,
+  earnedPoints,
+  onSubmit,
+  onSaveExit,
+  onViewDashboard,
+  isSelfTrained = false,
+  hiddenStages = [],
+  bonusStages = [],
+  stageScores = null,
+  experienced = false,
+  isVerified = false,
+  isSubmitted = false,
+}) {
   const earnedPct = Math.round((earnedPoints / 100) * 100);
   const navRef = useRef(null);
 
@@ -112,9 +127,53 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
             ← Back to My Dashboard
           </button>
         )}
-        <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={onSubmit}>
-          Submit for verification →
-        </button>
+        {isVerified ? (
+          <div
+            className="btn btn-verified"
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              background: "linear-gradient(135deg, #15803D 0%, #16A34A 100%)",
+              color: "#FFFFFF",
+              border: "1px solid #22C55E",
+              fontWeight: 800,
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 2px 10px rgba(22, 163, 74, 0.35)",
+              cursor: "default",
+              boxSizing: "border-box",
+            }}
+          >
+            <i className="fa-solid fa-circle-check" style={{ fontSize: 15, color: "#DCFCE7" }}></i>
+            Verified
+          </div>
+        ) : isSubmitted ? (
+          <div
+            className="btn btn-navy-ghost"
+            style={{
+              width: "100%",
+              justifyContent: "center",
+              borderColor: "var(--gold)",
+              color: "var(--gold)",
+              fontWeight: 800,
+              fontSize: 12.5,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "default",
+              boxSizing: "border-box",
+            }}
+          >
+            <i className="fa-solid fa-clock-rotate-left"></i>
+            Verification in Progress
+          </div>
+        ) : (
+          <button type="button" className="btn btn-gold" style={{ width: "100%", justifyContent: "center" }} onClick={onSubmit}>
+            Submit for verification →
+          </button>
+        )}
         <Link
           to="/jobs"
           className="btn btn-navy-ghost"

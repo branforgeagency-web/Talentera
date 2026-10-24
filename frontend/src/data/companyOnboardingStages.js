@@ -242,7 +242,7 @@ export const JOB_POSTING_STAGE = {
     { id: "elgbacklogs", name: "Backlogs", tag: "opt", input: "select", options: ["No backlogs allowed", "Backlogs allowed", "Not applicable"] },
     { id: "interviewmode", name: "Mode of interview", desc: "Pick one or more - e.g. Online for round 1 and Offline (walk-in) for round 2", tag: "opt", input: "multi", options: ["Online", "Offline (walk-in)", "Hybrid", "Other"] },
     { id: "urgency", name: "Hiring urgency", section: "Hiring timeline", tag: "must", input: "select", options: ["Critical (≤7 days)", "Standard (≤30 days)", "Flex"] },
-    { id: "interviewdates", name: "Interview dates", tag: "opt", input: "text", placeholder: "e.g. 15 Oct – 20 Oct 2026" },
+    { id: "interviewdates", name: "Interview date & time", desc: "Pick the date and time (MM/DD/YYYY, HH:MM AM/PM)", tag: "opt", input: "datetime" },
     { id: "serviceproof", name: "Service agreement / certificate (proof)", desc: "Optional — upload a service agreement or certificate as proof (PDF, JPG or PNG)", tag: "opt", input: "file", accept: "application/pdf,image/png,image/jpeg,image/webp" },
     { id: "hiringmanager", name: "Hiring manager", tag: "must", input: "text" },
     { id: "panel", name: "Interview panel members", desc: "Pick from your Team Setup recruiters and hiring managers, or add a member manually", tag: "opt", input: "multi", options: [] },

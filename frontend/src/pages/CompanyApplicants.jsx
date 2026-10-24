@@ -634,6 +634,10 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
   const summary = c.summary || {};
   const employment = c.employmentStatus || {};
   const style = STATUS_STYLE[application.status] || STATUS_STYLE.applied;
+  const edu = c.education || {};
+  const resumeInfo = c.resume || {};
+  const [showMore, setShowMore] = useState(false);
+  const [showContact, setShowContact] = useState(false);
   const isScoresLocked = !canViewScoresAndCerts || assessment.scoreLocked || liveCharts.locked;
 
   const Section = ({ title, children }) => (
@@ -684,6 +688,11 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               Applied for: {application.jobTitle || application.jobId}
             </div>
             <div style={{ fontSize: 13, color: "#64748B" }}>{c.email} · {c.mobile}</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {[basic.city, basic.experience && `${basic.experience} exp`, basic.currentRole, application.matchScore != null && application.status === "matched" ? `${application.matchScore}% match` : null].filter(Boolean).map((t) => (
+                <span key={t} style={{ fontSize: 11.5, fontWeight: 700, background: "#F1F5F9", color: "#334155", padding: "3px 9px", borderRadius: 999 }}>{t}</span>
+              ))}
+            </div>
           </div>
           <button type="button" onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#94A3B8", lineHeight: 1 }}>
             ✕
@@ -716,6 +725,116 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </Section>
           )}
 
+          <Section title="Education Background">
+            {(edu.degree || edu.collegeName || edu.graduationYear || edu.cgpa || edu.percentage || (edu.list || []).length > 0) ? (
+              <>
+                <Row label="Degree" value={edu.degree} />
+                <Row label="Specialization" value={edu.specialization} />
+                <Row label="College / University" value={edu.collegeName} />
+                <Row label="Graduation year" value={edu.graduationYear} />
+                <Row label="CGPA / Percentage" value={edu.cgpa ? `CGPA ${edu.cgpa}` : edu.percentage ? `${edu.percentage}%` : ""} />
+                {(edu.list || []).map((x, i) => (
+                  <Row key={i} label={x.degree || x.level || `Education ${i + 1}`} value={[x.institution || x.college || x.school, x.year || x.graduationYear].filter(Boolean).join(" · ")} />
+                ))}
+                {edu.degreeCertUrl && (
+                  <div style={{ padding: "6px 0", fontSize: 13.5 }}>
+                    <a href={getAssetUrl(edu.degreeCertUrl)} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>View degree certificate →</a>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                Education details not added by the candidate yet
+              </div>
+            )}
+          </Section>
+
+          {!certification.skipped && (
+            <Section title="Certifications">
+              <Row label="Certification" value={certification.name} />
+              <Row label="Certificate ID" value={isScoresLocked ? "🔒 Locked (Free Tier)" : certification.certId} />
+              <Row label="Verified" value={isScoresLocked ? "🔒 Locked (Free Tier)" : (certification.verified ? "Yes ✓" : "Self-reported")} />
+            </Section>
+          )}
+
+          {isScoresLocked ? (
+            <Section title="Assessment Score">
+              <Row label="Proctored Assessment Score" value="🔒 Locked (Free Tier)" />
+              <Row label="Scorecard" value="Upgrade to Growth Tier to unlock" />
+            </Section>
+          ) : (assessment.score !== undefined || assessment.foundationScore !== undefined) ? (
+            <Section title="Assessment Score">
+              <Row label="Topic / Domain" value={assessment.domain || assessment.topic || "RCM & Coding"} />
+              <Row label="Proctored Score" value={`${assessment.foundationScore ?? assessment.score}%`} />
+              <Row label="Medal Tier" value={assessment.medal && !String(assessment.medal).toLowerCase().includes("practice") ? `${assessment.medal === "Gold" ? "🥇 Gold" : assessment.medal === "Silver" ? "🥈 Silver" : assessment.medal === "Bronze" ? "🥉 Bronze" : assessment.medal} (${assessment.medal})` : (assessment.foundationScore >= 85 ? "🥇 Gold" : assessment.foundationScore >= 70 ? "🥈 Silver" : assessment.foundationScore >= 50 ? "🥉 Bronze" : `Assessment (${assessment.foundationScore ?? assessment.score ?? 0}%)`)} />
+              <Row label="Percentile" value={assessment.percentile ? `Top ${100 - assessment.percentile}% (${assessment.percentile}th percentile)` : "68th percentile"} />
+              <Row label="Passed / Verified" value={(assessment.passed ?? (assessment.foundationScore >= 70)) ? "Yes ✓" : "No"} />
+              {Array.isArray(assessment.sectionScores) && assessment.sectionScores.length > 0 && (
+                <div style={{ marginTop: 10, background: "#F8FAFC", padding: 10, borderRadius: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>
+                    Section-wise Breakdown:
+                  </div>
+                  {assessment.sectionScores.map((sec, sIdx) => (
+                    <div key={sIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0" }}>
+                      <span>{sec.icon || "📊"} {sec.sectionName}</span>
+                      <b style={{ color: sec.score >= 70 ? "#15803D" : "#B45309" }}>{sec.score}%</b>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+          ) : null}
+
+          <Section title="Self-Introduction Video">
+            {(videoIntro.videoUrl || c.videoUrl) ? (
+              <div>
+                <video controls src={getAssetUrl(videoIntro.videoUrl || c.videoUrl)} style={{ width: "100%", maxHeight: 300, borderRadius: 10, background: "#000", display: "block" }} />
+                {videoIntro.aiScore !== undefined && (
+                  <div style={{ marginTop: 8, fontSize: 13, color: "#15803D", fontWeight: 700 }}>
+                    AI Communication Score: {videoIntro.aiScore}%
+                  </div>
+                )}
+                {videoIntro.duration && <Row label="Duration" value={videoIntro.duration} />}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>
+                No video introduction recorded yet
+              </div>
+            )}
+          </Section>
+
+          <Section title="Resume">
+            {resumeInfo.url ? (
+              <div style={{ padding: "4px 0", fontSize: 13.5 }}>
+                <a href={getAssetUrl(resumeInfo.url)} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>
+                  View {resumeInfo.fileName || "uploaded resume"} →
+                </a>
+              </div>
+            ) : null}
+            {resumeInfo.verifyPath ? (
+              <div style={{ padding: "4px 0", fontSize: 13.5 }}>
+                <a href={resumeInfo.verifyPath} target="_blank" rel="noreferrer" style={{ color: "#2563EB", fontWeight: 700 }}>
+                  View Talentera verified resume →
+                </a>
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>No resume available yet</div>
+            )}
+            {!application.isKycVerified && !resumeInfo.url && <div style={{ fontSize: 12, color: "#92400E", marginTop: 4 }}>🔒 Uploaded resume file is shown after Account &amp; KYC verification.</div>}
+          </Section>
+
+          <div style={{ marginTop: 4, marginBottom: 18 }}>
+            <button
+              type="button"
+              onClick={() => setShowMore((v) => !v)}
+              style={{ width: "100%", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "11px 14px", fontSize: 13, fontWeight: 800, color: "var(--navy)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+            >
+              <span>{showMore ? "Hide details" : "View More Details"}</span>
+              <span style={{ fontSize: 11, color: "#64748B", fontWeight: 600 }}>Basic info · Training · Documents · Live charts · Summary · Employment · Verification {showMore ? "▲" : "▼"}</span>
+            </button>
+          </div>
+          {showMore && (
+            <>
           <Section title="Basic info">
             <Row label="City" value={basic.city} />
             <Row label="Experience" value={basic.experience} />
@@ -754,14 +873,6 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
                   </a>
                 </div>
               )}
-            </Section>
-          )}
-
-          {!certification.skipped && (
-            <Section title="Certification">
-              <Row label="Certification" value={certification.name} />
-              <Row label="Certificate ID" value={isScoresLocked ? "🔒 Locked (Free Tier)" : certification.certId} />
-              <Row label="Verified" value={isScoresLocked ? "🔒 Locked (Free Tier)" : (certification.verified ? "Yes ✓" : "Self-reported")} />
             </Section>
           )}
 
@@ -821,52 +932,6 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
           )}
 
           {isScoresLocked ? (
-            <Section title="Assessment">
-              <Row label="Proctored Assessment Score" value="🔒 Locked (Free Tier)" />
-              <Row label="Scorecard" value="Upgrade to Growth Tier to unlock" />
-            </Section>
-          ) : (assessment.score !== undefined || assessment.foundationScore !== undefined) ? (
-            <Section title="Assessment">
-              <Row label="Topic / Domain" value={assessment.domain || assessment.topic || "RCM & Coding"} />
-              <Row label="Proctored Score" value={`${assessment.foundationScore ?? assessment.score}%`} />
-              <Row label="Medal Tier" value={assessment.medal && !String(assessment.medal).toLowerCase().includes("practice") ? `${assessment.medal === "Gold" ? "🥇 Gold" : assessment.medal === "Silver" ? "🥈 Silver" : assessment.medal === "Bronze" ? "🥉 Bronze" : assessment.medal} (${assessment.medal})` : (assessment.foundationScore >= 85 ? "🥇 Gold" : assessment.foundationScore >= 70 ? "🥈 Silver" : assessment.foundationScore >= 50 ? "🥉 Bronze" : `Assessment (${assessment.foundationScore ?? assessment.score ?? 0}%)`)} />
-              <Row label="Percentile" value={assessment.percentile ? `Top ${100 - assessment.percentile}% (${assessment.percentile}th percentile)` : "68th percentile"} />
-              <Row label="Passed / Verified" value={(assessment.passed ?? (assessment.foundationScore >= 70)) ? "Yes ✓" : "No"} />
-              {Array.isArray(assessment.sectionScores) && assessment.sectionScores.length > 0 && (
-                <div style={{ marginTop: 10, background: "#F8FAFC", padding: 10, borderRadius: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>
-                    Section-wise Breakdown:
-                  </div>
-                  {assessment.sectionScores.map((sec, sIdx) => (
-                    <div key={sIdx} style={{ display: "flex", justifyContent: "space-between", fontSize: 12, padding: "3px 0" }}>
-                      <span>{sec.icon || "📊"} {sec.sectionName}</span>
-                      <b style={{ color: sec.score >= 70 ? "#15803D" : "#B45309" }}>{sec.score}%</b>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-          ) : null}
-
-          <Section title="AI Video Introduction & Assessment">
-            {(videoIntro.videoUrl || c.videoUrl) ? (
-              <div>
-                <video controls src={getAssetUrl(videoIntro.videoUrl || c.videoUrl)} style={{ width: "100%", maxHeight: 300, borderRadius: 10, background: "#000", display: "block" }} />
-                {videoIntro.aiScore !== undefined && (
-                  <div style={{ marginTop: 8, fontSize: 13, color: "#15803D", fontWeight: 700 }}>
-                    AI Communication Score: {videoIntro.aiScore}%
-                  </div>
-                )}
-                {videoIntro.duration && <Row label="Duration" value={videoIntro.duration} />}
-              </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "#64748B", background: "#F8FAFC", padding: 12, borderRadius: 8, textAlign: "center" }}>
-                No video introduction recorded yet
-              </div>
-            )}
-          </Section>
-
-          {isScoresLocked ? (
             <Section title="Live chart audit">
               <Row label="Live Chart Accuracy" value="🔒 Locked (Free Tier)" />
               <Row label="Audit Breakdown" value="Upgrade to Growth Tier to unlock" />
@@ -923,6 +988,9 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             <Row label="Completed stages" value={(c.completedStages || []).length ? c.completedStages.join(", ") : "None yet"} />
           </Section>
 
+            </>
+          )}
+
           {(application.status === "rejected" || application.rejectionReason) && (
             <Section title="Rejection reason & notes">
               <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 14px" }}>
@@ -961,61 +1029,50 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </Section>
           )}
 
-          {(application.status === "matched" || application.status === "applied") && onShortlist && (
-            <Section title="Recruiter decision">
-              <div style={{ background: "#EFF6FF", border: "1.5px solid #BFDBFE", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ fontSize: 13, color: "#1E3A8A", lineHeight: 1.45, flex: 1, minWidth: 220 }}>
-                  Like this profile? Shortlist {basic.fullName || "this candidate"} for an interview{application.status === "matched" ? " - they will be added to your applicants and notified" : ""}. Not a fit? {application.status === "matched" ? "Remove them from this list." : "Reject with a reason."}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  disabled={updatingId === application._id}
-                  onClick={onShortlist}
-                  style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: updatingId === application._id ? "wait" : "pointer", whiteSpace: "nowrap" }}
-                >
-                  {updatingId === application._id ? "Shortlisting…" : "Shortlist for interview"}
-                </button>
-                {onCallInterview && (
-                  <button
-                    type="button"
-                    disabled={updatingId === application._id}
-                    onClick={onCallInterview}
-                    style={{ background: "#F59E0B", color: "#0F172A", border: "none", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
-                  >
-                    Shortlist &amp; call for interview
-                  </button>
-                )}
-                {onReject && (
-                  <button
-                    type="button"
-                    disabled={updatingId === application._id}
-                    onClick={onReject}
-                    style={{ background: "#fff", color: "#B91C1C", border: "1.5px solid #FCA5A5", borderRadius: 10, padding: "10px 18px", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}
-                  >
-                    {application.status === "matched" ? "Not a fit" : "Reject"}
-                  </button>
-                )}
-                </div>
+        </div>
+        <div style={{ position: "sticky", bottom: 0, background: "#fff", borderTop: "1px solid #E5E7EB", padding: "14px 26px", boxShadow: "0 -6px 16px rgba(15,23,42,0.06)" }}>
+          {showContact && (
+            <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 13 }}>
+              {application.isKycVerified ? (
+                <>
+                  {c.email && <div>Email: <a href={`mailto:${c.email}`} style={{ color: "#2563EB", fontWeight: 700 }}>{c.email}</a></div>}
+                  {c.mobile && <div style={{ marginTop: 4 }}>Phone: <a href={`tel:${String(c.mobile).replace(/\s/g, "")}`} style={{ color: "#2563EB", fontWeight: 700 }}>{c.mobile}</a></div>}
+                </>
+              ) : (
+                <div style={{ color: "#92400E" }}>🔒 Contact details unlock after Account &amp; KYC verification.</div>
+              )}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            {(application.status === "matched" || application.status === "applied") && onShortlist && (
+              <button type="button" disabled={updatingId === application._id} onClick={onShortlist} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 800, cursor: updatingId === application._id ? "wait" : "pointer" }}>
+                {updatingId === application._id ? "Shortlisting…" : "Shortlist"}
+              </button>
+            )}
+            {(application.status === "matched" || application.status === "applied") && onCallInterview && (
+              <button type="button" disabled={updatingId === application._id} onClick={onCallInterview} style={{ background: "#F59E0B", color: "#0F172A", border: "none", borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+                Shortlist &amp; call for interview
+              </button>
+            )}
+            <button type="button" onClick={() => setShowContact((v) => !v)} style={{ background: "#fff", color: "var(--navy)", border: "1.5px solid #CBD5E1", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+              Contact
+            </button>
+            {onReject && (application.status === "matched" || application.status === "applied") && (
+              <button type="button" disabled={updatingId === application._id} onClick={onReject} style={{ background: "#fff", color: "#B91C1C", border: "1.5px solid #FCA5A5", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 800, cursor: "pointer" }}>
+                {application.status === "matched" ? "Not a fit" : "Reject"}
+              </button>
+            )}
+            {application.status !== "matched" && (
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Move to:</span>
+                <select value={application.status} disabled={updatingId === application._id} onChange={(e) => onStatusChange(e.target.value)} style={{ fontSize: 13, padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontWeight: 600, color: "var(--navy)" }}>
+                  {STATUS_OPTIONS.map((st) => (
+                    <option key={st} value={st}>{statusLabel(st)}</option>
+                  ))}
+                </select>
               </div>
-            </Section>
-          )}
-
-          {application.status !== "matched" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8, paddingTop: 16, borderTop: "1px solid #E5E7EB" }}>
-            <span style={{ fontSize: 12.5, fontWeight: 700, color: "#64748B" }}>Move to:</span>
-            <select
-              value={application.status}
-              disabled={updatingId === application._id}
-              onChange={(e) => onStatusChange(e.target.value)}
-              style={{ fontSize: 13, padding: "8px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontWeight: 600, color: "var(--navy)" }}
-            >
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{statusLabel(s)}</option>
-              ))}
-            </select>
+            )}
           </div>
-          )}
         </div>
       </div>
     </div>
