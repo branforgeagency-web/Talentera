@@ -1778,10 +1778,11 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
         )}
 
         {/* 3. CORE CERTIFICATIONS (if present) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, alignItems: "start" }}>
         {visibleSections.certifications && certificationsList.length > 0 && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader("CORE CERTIFICATIONS", null)}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
               {certificationsList.map((cert, idx) => (
                 <div key={idx} style={{ background: "#FAFAF8", border: "1px solid #E2E8F0", borderRadius: 8, padding: "10px 12px" }}>
                   <div style={{ fontSize: 10, color: "#64748B", fontWeight: 700, textTransform: "uppercase" }}>{cert.body || "AAPC"} · {cert.code || cert.name}</div>
@@ -1815,6 +1816,8 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
             </div>
           </div>
         )}
+
+        </div>
 
         {/* WORK EXPERIENCE (Experienced only - replaces Training Foundation) */}
         {isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workTotalExperience || workRolesList.length > 0) && (

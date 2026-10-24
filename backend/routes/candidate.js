@@ -57,7 +57,7 @@ const VALID_STAGES = [1, 2, 3, 4, 5, 6, 7, 8];
 // used to be skippable but are now mandatory, same as every other stage
 // except Build Resume (7) — matches frontend/src/data/wizardStages.js
 // SKIPPABLE_STAGE_NUMS exactly.
-const SKIPPABLE_STAGES = [5, 6, 7];
+const SKIPPABLE_STAGES = [4, 5, 6, 7];
 
 // Self-trained = chose the self path, the "Non-Trained" level, or named a self-learning source instead of an academy.
 // Keep in sync with isSelfTrainedCandidate() in frontend/src/data/wizardStages.js.
@@ -347,14 +347,45 @@ async function enrichApplications(applications) {
     const job = jobsByJobId.get(app.jobId);
     const s9 = app.companyId?.stage9 || {};
     const f = job?.fields || {};
+    // The raw hiring blob holds internal data (exam answers/order, HR notes + CTC, audit trail,
+    // panel notes) - never send it to the candidate. Expose only a safe round summary.
+    const h = app.hiring || {};
+    delete app.hiring;
+    const hiringSummary = h.stage ? {
+      stage: h.stage,
+      examScore: h.exam?.completedAt ? h.exam.score ?? null : null,
+      examPassed: h.exam?.completedAt ? !!h.exam.passed : null,
+      techScore: h.technical?.decision ? h.technical.avgScore ?? null : null,
+      techPassed: h.technical?.decision ? h.technical.decision === "pass" : null,
+      hrDone: h.hr?.status === "completed",
+      offerStatus: h.offer?.status || null,
+      offer: h.offer ? { role: h.offer.role || "", ctc: h.offer.ctc ?? null, joinDate: h.offer.joinDate || null, probationMonths: h.offer.probationMonths ?? null, status: h.offer.status || "" } : null,
+    } : null;
     return {
       ...app,
+      hiringSummary,
       roleTitle: f.roletitle || s9.roletitle || "Medical Coder",
       location: f.location || s9.location || "Hyderabad",
       workMode: f.workmode || s9.workmode || "Onsite",
       compMin: f.compmin ?? s9.compmin ?? null,
       compMax: f.compmax ?? s9.compmax ?? null,
       companyName: app.companyId?.companyName || "Talentera Employer",
+      // Full job details for the candidate's "View" popup in My Companies
+      jobDetail: (() => {
+        const src = job?.fields ? f : s9;
+        const jd = require("../utils/jobDisplay");
+        return {
+          title: src.roletitle || "",
+          salary: jd.formatSalary(src),
+          experience: jd.formatExperience(src),
+          openings: Number(src.openings) || null,
+          specialty: jd.asList(src.specialties).join(", ") || src.specialty || "",
+          description: src.description || "",
+          mustHaves: src.musthaves || "",
+          certsRequired: jd.asList(src.certs),
+          details: jd.buildJobDetails(src),
+        };
+      })(),
     };
   });
 }
@@ -1077,6 +1108,15 @@ router.post("/stage/:n/skip", async (req, res) => {
       verificationPoints: 0,
       completedAt: new Date(),
     };
+  } else if (stageNum === 4) {
+    // Assessment can be skipped for now. A real score is never wiped, and a skipped stage earns no points
+    // (see verificationScore.js) - the candidate can still take the assessment later.
+    const prev4 = candidate.stage4 && typeof candidate.stage4.toObject === "function" ? candidate.stage4.toObject() : (candidate.stage4 || {});
+    const hasScore = prev4.foundationScore !== undefined || prev4.score !== undefined || prev4.passed !== undefined;
+    if (!hasScore) {
+      candidate.stage4 = { ...prev4, skipped: true };
+      candidate.markModified("stage4");
+    }
   } else {
     candidate[`stage${stageNum}`] = { skipped: true };
   }
@@ -2409,7 +2449,16 @@ router.post("/stage7/generate-objective", async (req, res) => {
       status: ["certified", "pursuing", "non-certified"].includes(p.status) ? p.status : undefined,
       certCodes: Array.isArray(p.certCodes) ? p.certCodes.map((c) => String(c || "").slice(0, 40)).slice(0, 10) : [],
       academyName: String(p.academyName || "").slice(0, 120),
-      assessmentScore: Number.isFinite(Number(p.assessmentScore)) ? Number(p.assessmentScore) : undefined,
+      // Scores come from the saved candidate record, never from the browser, so the resume text
+      // always matches what the dashboard shows (verification score out of 100 + the Stage 4 assessment).
+      assessmentScore: (() => {
+        const s4 = candidate.stage4 || {};
+        const v = s4.foundationScore !== undefined && s4.foundationScore !== null ? s4.foundationScore : s4.score;
+        return Number.isFinite(Number(v)) && v !== "" && v !== null ? Math.round(Number(v)) : undefined;
+      })(),
+      verificationScore: (() => {
+        try { const v = calculateVerificationScore(candidate.completedStages || [], candidate).score; return Number.isFinite(Number(v)) ? Math.round(Number(v)) : undefined; } catch { return undefined; }
+      })(),
       totalCharts: Number.isFinite(Number(p.totalCharts)) ? Number(p.totalCharts) : undefined,
       accuracy: Number.isFinite(Number(p.accuracy)) ? Number(p.accuracy) : undefined,
       currentCompany: String(p.currentCompany || "").slice(0, 120),
@@ -3601,7 +3650,7 @@ router.get("/jobs", async (req, res) => {
       if (!experiencedOnly) add("Age limit", fd.elgage);
       if (isFresherRole || String(fd.level || "") !== "Experienced only") add("Passout year", fd.elgpassout);
       if (!experiencedOnly) add("Backlogs", fd.elgbacklogs);
-      add("Mode of interview", fd.interviewmode);
+      add("Mode of interview", asList(fd.interviewmode).join(", "));
       add("Interview dates", fd.interviewdates);
       return rows;
     };

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { effectivePlan } from "../utils/billing";
 import { Link, useNavigate } from "react-router-dom";
 import companyApi from "../api/companyClient";
+import { useToast } from "../components/Toast.jsx";
 import { useCompanyAuth } from "../context/CompanyAuthContext";
 
 import HeadOnly from "../components/company/HeadOnly.jsx";
@@ -36,9 +37,16 @@ export default function CompanyPortal() {
   const [searchQuery, setSearchQuery] = useState("");
   const [minScore, setMinScore] = useState(70);
   const [selectedExp, setSelectedExp] = useState("All");
+  // Certification filter: "Certified" hides trainees ("Non-Certified / Trainee Coder" etc.). Defaults to certified-only.
+  const [certFilter, setCertFilter] = useState("Certified");
+  const isCertifiedCandidate = (c) => {
+    const n = String(c?.certificationName || "").trim();
+    return Boolean(n) && !/non[\s-]*certified|not\s+certified|trainee|^none$|^n\/a$/i.test(n);
+  };
   const [selectedDomain, setSelectedDomain] = useState("All");
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [shortlistedIds, setShortlistedIds] = useState([]);
+  const toast = useToast();
+  const [shortlistingId, setShortlistingId] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addingCandidate, setAddingCandidate] = useState(false);
 
@@ -195,6 +203,8 @@ export default function CompanyPortal() {
     if (companyPlan === "free") return true;
     if (c.verificationScore < minScore) return false;
     if (selectedExp !== "All" && c.experience !== selectedExp) return false;
+    if (certFilter === "Certified" && !isCertifiedCandidate(c)) return false;
+    if (certFilter === "NonCertified" && isCertifiedCandidate(c)) return false;
     if (selectedDomain !== "All") {
       const roleText = (c.currentRole || "").toLowerCase();
       const keywords = DOMAIN_KEYWORDS[selectedDomain] || [selectedDomain.toLowerCase()];
@@ -206,20 +216,54 @@ export default function CompanyPortal() {
       const matchRole = (c.currentRole || "").toLowerCase().includes(q);
       const matchSummary = (c.summary || "").toLowerCase().includes(q);
       const matchCity = (c.city || "").toLowerCase().includes(q);
-      if (!matchName && !matchRole && !matchSummary && !matchCity) return false;
+      const matchCert = (c.certificationName || "").toLowerCase().includes(q) || (/certif/.test(q) && (/non|trainee|un/.test(q) ? !isCertifiedCandidate(c) : isCertifiedCandidate(c)));
+      const matchAcademy = (c.academyName || "").toLowerCase().includes(q);
+      if (!matchName && !matchRole && !matchSummary && !matchCity && !matchCert && !matchAcademy) return false;
     }
     return true;
   });
 
-  const toggleShortlist = (id, e) => {
+  // Where the candidate already stands in this company's pipeline (from /public/candidates -> pipeline)
+  const pipelineLabel = (c) => {
+    const p = c?.pipeline;
+    if (!p) return "";
+    const byStage = { exam: "In exam round", technical: "Technical round", hr: "HR round", approval: "Final approval", offered: "Offer sent", hold: "On hold", rejected: "Not selected" };
+    const byStatus = { applied: "Applied", shortlisted: "Shortlisted", interviewing: "Interviewing", hired: "Offer", on_hold: "On hold", rejected: "Not selected" };
+    return byStage[p.stage] || byStatus[p.status] || "In pipeline";
+  };
+
+  // Real shortlist: creates the application for the company's live job and marks it shortlisted.
+  // Candidates already in the pipeline are never shortlisted a second time.
+  const toggleShortlist = async (candidate, e) => {
     if (e) e.stopPropagation();
     if (companyPlan === "free") {
       triggerUpgrade("shortlist");
       return;
     }
-    setShortlistedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
+    if (!candidate || shortlistingId) return;
+    if (candidate.pipeline) {
+      toast(`${candidate.name} is already in your pipeline: ${pipelineLabel(candidate)}.`, "!");
+      return;
+    }
+    setShortlistingId(candidate.id);
+    try {
+      const jobsRes = await companyApi.get("/company/jobs");
+      const live = (jobsRes.data?.jobs || []).filter((j) => j.published && j.approvalStatus !== "rejected");
+      if (live.length === 0) {
+        toast("Post a live job first, then shortlist candidates for it.", "!");
+        return;
+      }
+      const job = live[0];
+      const created = await companyApi.post("/company/matched-candidates/application", { jobId: job.jobId, candidateId: candidate.id });
+      await companyApi.put(`/company/applications/${created.data.applicationId}/status`, { status: "shortlisted" });
+      setCandidates((prev) => prev.map((x) => (x.id === candidate.id ? { ...x, pipeline: { status: "shortlisted", stage: null, jobId: job.jobId } } : x)));
+      setSelectedCandidate((cur) => (cur && cur.id === candidate.id ? { ...cur, pipeline: { status: "shortlisted", stage: null, jobId: job.jobId } } : cur));
+      toast(`${candidate.name} shortlisted for ${job.fields?.roletitle || job.jobId}.`, "✓");
+    } catch (err) {
+      toast(err.response?.data?.message || "Couldn't shortlist this candidate.", "!");
+    } finally {
+      setShortlistingId(null);
+    }
   };
 
   const handleContactClick = (candidate, e) => {
@@ -561,6 +605,35 @@ export default function CompanyPortal() {
               </div>
             </div>
 
+            {/* Certification Filter */}
+            <div style={{ marginBottom: 22, paddingBottom: 22, borderBottom: "1px solid #F1F5F9" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 12 }}>
+                CERTIFICATION
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {[["Certified", "Certified only"], ["All", "All"], ["NonCertified", "Non-certified"]].map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      if (companyPlan === "free") {
+                        triggerUpgrade("search");
+                        return;
+                      }
+                      setCertFilter(key);
+                    }}
+                    style={{
+                      padding: "6px 12px", borderRadius: 6, fontSize: 12, fontWeight: 700,
+                      background: certFilter === key ? "var(--navy)" : "#F1F5F9",
+                      color: certFilter === key ? "#fff" : "var(--navy)",
+                      border: "none", cursor: "pointer"
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Domain Filter */}
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", letterSpacing: "0.08em", marginBottom: 12 }}>
@@ -644,12 +717,16 @@ export default function CompanyPortal() {
               </div>
               <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
                 <span style={{ fontSize: 11, color: "#64748B", fontWeight: 700 }}>Popular:</span>
-                {["CPC Certified", "AR Caller", "Denial Management", "Bengaluru"].map((tag) => (
+                {["Certified", "Non-Certified", "AR Caller", "Denial Management", "Bengaluru"].map((tag) => (
                   <button
                     key={tag}
                     onClick={() => {
                       if (companyPlan === "free") {
                         triggerUpgrade("search");
+                      } else if (tag === "Certified" || tag === "Non-Certified") {
+                        // Prebuilt certification filters (no free-text needed)
+                        setCertFilter(tag === "Certified" ? "Certified" : "NonCertified");
+                        setSearchQuery("");
                       } else {
                         setSearchQuery(tag);
                       }
@@ -820,19 +897,19 @@ export default function CompanyPortal() {
                       </button>
 
                       <button
-                        onClick={(e) => toggleShortlist(c.id, e)}
+                        onClick={(e) => toggleShortlist(c, e)}
                         style={{
-                          background: companyPlan === "free" ? "#F1F5F9" : shortlistedIds.includes(c.id) ? "#15803D" : "var(--gold)",
-                          color: companyPlan === "free" ? "#64748B" : shortlistedIds.includes(c.id) ? "#fff" : "var(--navy)",
+                          background: companyPlan === "free" ? "#F1F5F9" : c.pipeline ? "#15803D" : "var(--gold)",
+                          color: companyPlan === "free" ? "#64748B" : c.pipeline ? "#fff" : "var(--navy)",
                           border: companyPlan === "free" ? "1px solid #CBD5E1" : "none",
                           padding: "6px 12px",
                           borderRadius: 6,
                           fontSize: 11.5,
                           fontWeight: 700,
-                          cursor: "pointer",
+                          cursor: c.pipeline ? "default" : "pointer",
                         }}
                       >
-                        {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist</> : shortlistedIds.includes(c.id) ? "Shortlisted" : "Shortlist"}
+                        {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist</> : c.pipeline ? pipelineLabel(c) : shortlistingId === c.id ? "Shortlisting…" : "Shortlist"}
                       </button>
                     </div>
                   </div>
@@ -1031,15 +1108,15 @@ export default function CompanyPortal() {
                     minWidth: 140,
                     padding: 12,
                     borderRadius: 8,
-                    background: companyPlan === "free" ? "#F1F5F9" : shortlistedIds.includes(selectedCandidate.id) ? "#15803D" : "#F1F5F9",
-                    color: companyPlan === "free" ? "#64748B" : shortlistedIds.includes(selectedCandidate.id) ? "#fff" : "var(--navy)",
+                    background: companyPlan === "free" ? "#F1F5F9" : selectedCandidate.pipeline ? "#15803D" : "#F1F5F9",
+                    color: companyPlan === "free" ? "#64748B" : selectedCandidate.pipeline ? "#fff" : "var(--navy)",
                     fontWeight: 700,
                     border: companyPlan === "free" ? "1px solid #CBD5E1" : "none",
                     cursor: "pointer",
                   }}
-                  onClick={() => toggleShortlist(selectedCandidate.id)}
+                  onClick={() => toggleShortlist(selectedCandidate)}
                 >
-                  {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist (Growth Tier)</> : shortlistedIds.includes(selectedCandidate.id) ? <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> Shortlisted</> : "+ Shortlist Profile"}
+                  {companyPlan === "free" ? <><i className="fa-solid fa-lock" style={{ marginRight: 4 }}></i> Shortlist (Growth Tier)</> : selectedCandidate.pipeline ? <><i className="fa-solid fa-check" style={{ marginRight: 4 }}></i> {pipelineLabel(selectedCandidate)}</> : shortlistingId === selectedCandidate.id ? "Shortlisting…" : "+ Shortlist Profile"}
                 </button>
               </div>
             </div>

@@ -19,9 +19,10 @@ const { upload } = require("../middleware/upload");
 const { calculateVerificationScore } = require("../utils/verificationScore");
 const { DEFAULT_ASSESSMENT_DOMAINS } = require("../data/defaultAssessmentQuestions");
 const H = require("../utils/hiringFlow");
+const Notification = require("../models/Notification");
+const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
 const logger = require("../utils/logger");
 
-const EXAM_VALID_HOURS = 48;
 const IN_FLOW = ["exam", "technical", "hr", "approval", "offered", "hold", "rejected"];
 
 // ---------------------------------------------------------------------------
@@ -143,11 +144,43 @@ function libraryCatalog() {
   }));
 }
 
+// Fisher-Yates shuffle (returns a new array)
+function shuffled(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Per-attempt shuffle: the order of questions and of each question's options.
+// answers coming back from the candidate are keyed by the shuffled positions.
+function buildExamOrder(questions) {
+  return shuffled(questions.map((_, i) => i)).map((q) => ({
+    q,
+    opts: shuffled((questions[q].options || []).map((_, i) => i)),
+  }));
+}
+
+// Map answers given in shuffled positions back to the original question/option indexes.
+function toOriginalAnswers(order, answers) {
+  if (!Array.isArray(order) || !order.length) return answers || {};
+  const out = {};
+  Object.entries(answers || {}).forEach(([pos, opt]) => {
+    const o = order[Number(pos)];
+    if (!o) return;
+    const oi = o.opts[Number(opt)];
+    if (oi !== undefined) out[o.q] = oi;
+  });
+  return out;
+}
+
 function libraryQuestions(domain, count = 20) {
   const d = DEFAULT_ASSESSMENT_DOMAINS.find((x) => x.domain === domain);
   if (!d) return null;
-  // Spread evenly across sections, then trim to `count`.
-  const pools = d.sections.map((s) => s.questions.map((q) => ({ topic: s.name, question: q.question, options: q.options, correct: q.correct })));
+  // Spread evenly across sections (random picks within each), then trim to `count`.
+  const pools = d.sections.map((s) => shuffled(s.questions).map((q) => ({ topic: s.name, question: q.question, options: q.options, correct: q.correct })));
   const out = [];
   for (let i = 0; out.length < count && pools.some((p) => p[i]); i++) pools.forEach((p) => { if (p[i] && out.length < count) out.push(p[i]); });
   return out;
@@ -460,7 +493,12 @@ companyRouter.post("/exams/:id/allocate", async (req, res) => {
     apps = apps.filter((a) => ["applied", "exam"].includes(a.hiring?.stage || "applied") && !a.hiring?.exam?.completedAt);
     if (apps.length === 0) return res.status(400).json({ message: "No eligible candidates (already examined or past this round)." });
 
-    const expiresAt = new Date(Date.now() + EXAM_VALID_HOURS * 3600 * 1000).toISOString();
+    // The recruiter chooses the deadline - it is never defaulted or auto-generated.
+    const deadline = req.body.deadline ? new Date(req.body.deadline) : null;
+    if (!deadline || Number.isNaN(deadline.getTime())) return res.status(400).json({ message: "Choose the exam deadline (date and time)." });
+    if (deadline <= new Date()) return res.status(400).json({ message: "The exam deadline must be in the future." });
+    const expiresAt = deadline.toISOString();
+    const deadlineText = deadline.toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short" });
     await H.runParallel(apps, async (app) => {
       const h = H.ensureHiring(app);
       h.exam = {
@@ -473,10 +511,10 @@ companyRouter.post("/exams/:id/allocate", async (req, res) => {
       await app.save();
       const external = exam.source === "manual" || exam.source === "integration";
       await H.notifyCandidate(app, {
-        title: `${company?.companyName || "An employer"} has assigned you an assessment`,
+        title: `Exam from ${company?.companyName || "an employer"}: you need to take it`,
         message: external
           ? `${company?.companyName || "The employer"} will share how to take "${exam.title}". You'll see your result here.`
-          : `Take "${exam.title}" within ${EXAM_VALID_HOURS} hours (${exam.durationMin} min, webcam on). Open Hiring Rounds in your dashboard.`,
+          : `Take "${exam.title}" before ${deadlineText} (${exam.durationMin} min, webcam on). Tap here to open Hiring Rounds and start.`,
         companyName: company?.companyName || "",
         email: app.candidateId?.email, name: app.candidateId?.stage1?.fullName,
       });
@@ -731,6 +769,41 @@ companyRouter.post("/applications/:id/hr-submit", async (req, res) => {
   }
 });
 
+// POST /applications/:id/reconsider { to: "hr"|"approval"|"rejected", note } - take a candidate OFF hold.
+// Without this a held candidate had no way back into the pipeline.
+companyRouter.post("/applications/:id/reconsider", async (req, res) => {
+  try {
+    const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
+    if (!app || app.hiring?.stage !== "hold") return res.status(400).json({ message: "This candidate is not on hold." });
+    const to = ["hr", "approval", "rejected"].includes(req.body.to) ? req.body.to : null;
+    if (!to) return res.status(400).json({ message: "Choose where to move this candidate." });
+    const note = String(req.body.note || "").trim().slice(0, 400);
+    const company = await Company.findById(req.companyId).select("companyName").lean();
+    const companyName = company?.companyName || "employer";
+    const email = app.candidateId?.email, name = app.candidateId?.stage1?.fullName;
+    if (to === "hr") {
+      app.hiring.hr = { ...(app.hiring.hr || {}), status: "pending", decision: null, completedAt: null };
+      H.setStage(app, "hr");
+      H.audit(app, "Company HR", "Taken off hold", `Moved back to HR round${note ? ` - ${note}` : ""}`);
+      await H.notifyCandidate(app, { title: `Update from ${companyName}`, message: `Your application is active again - the HR round continues.${note ? ` Note: ${note}` : ""}`, companyName, email, name });
+    } else if (to === "approval") {
+      H.setStage(app, "approval");
+      H.audit(app, "Company HR", "Taken off hold", `Moved to management approval${note ? ` - ${note}` : ""}`);
+      await H.notifyCandidate(app, { title: `Update from ${companyName}`, message: "Your application is active again and is with management for final approval.", companyName, email, name });
+    } else {
+      H.setStage(app, "rejected");
+      app.hiring.rejection = { at: new Date().toISOString(), round: "hold", reason: note || "Not moved forward after hold", futurePool: true };
+      H.audit(app, "Company HR", "Hold closed - rejected", note);
+      await H.notifyCandidate(app, { title: `Update on your ${companyName} application`, message: "Thank you for your patience. You were not moved forward, but we'll keep your profile for future openings.", companyName, email, name });
+    }
+    app.markModified("hiring");
+    await app.save();
+    res.json({ stage: app.hiring.stage });
+  } catch (err) {
+    res.status(500).json({ message: err.message || "Could not update this candidate." });
+  }
+});
+
 // POST /approval/bulk { applicationIds?, topN?, jobId?, action: "approve"|"hold"|"reject", offer: { role, joinDate, probationMonths, ctc? } } - Steps 6 & 7
 companyRouter.post("/approval/bulk", async (req, res) => {
   try {
@@ -803,7 +876,7 @@ companyRouter.get("/applications/:id/audit", async (req, res) => {
   const [app] = await loadApps(req.companyId, { ids: [req.params.id] });
   if (!app) return res.status(404).json({ message: "Not found." });
   const h = app.hiring || {};
-  res.json({ audit: h.audit || [], technical: h.technical || null, hr: h.hr || null, exam: h.exam ? { ...h.exam, answers: undefined } : null });
+  res.json({ audit: h.audit || [], technical: h.technical || null, hr: h.hr || null, exam: h.exam ? { ...h.exam, answers: undefined, order: undefined } : null });
 });
 
 // ===========================================================================
@@ -811,6 +884,19 @@ companyRouter.get("/applications/:id/audit", async (req, res) => {
 // ===========================================================================
 const candidateRouter = express.Router();
 candidateRouter.use(requireAuth);
+
+// Technical pass mark for a company (cached per request burst)
+const _techCutoffCache = new Map();
+async function technicalCutoffFor(companyRef) {
+  const id = String(companyRef?._id || companyRef || "");
+  if (!id) return 60;
+  const hit = _techCutoffCache.get(id);
+  if (hit && Date.now() - hit.at < 60000) return hit.v;
+  let v = 60;
+  try { v = (await getSetup(id)).technicalCutoffPct || 60; } catch { /* default */ }
+  _techCutoffCache.set(id, { v, at: Date.now() });
+  return v;
+}
 
 // GET / - everything the candidate has going on in company hiring rounds
 candidateRouter.get("/", async (req, res) => {
@@ -821,11 +907,11 @@ candidateRouter.get("/", async (req, res) => {
       const h = app.hiring || {};
       const company = app.companyId;
       const titles = await jobTitles(company, [app]);
-      const exam = h.exam ? { ...h.exam, answers: undefined, topicBreakdown: h.exam.topicBreakdown || [] } : null;
+      const exam = h.exam ? { ...h.exam, answers: undefined, order: undefined, topicBreakdown: h.exam.topicBreakdown || [] } : null;
       out.push({
         id: app._id, company: company?.companyName || "Employer", role: titles[app.jobId] || "Role", stage: h.stage,
         exam,
-        technical: h.technical ? { mode: h.technical.mode, panelName: h.technical.panelName, scheduledAt: h.technical.scheduledAt, meetingLink: h.technical.meetingLink, checkinToken: h.technical.checkinToken, office: h.technical.office, checkedInAt: h.technical.checkedInAt, status: h.technical.status } : null,
+        technical: h.technical ? { mode: h.technical.mode, panelName: h.technical.panelName, scheduledAt: h.technical.scheduledAt, meetingLink: h.technical.meetingLink, checkinToken: h.technical.checkinToken, office: h.technical.office, checkedInAt: h.technical.checkedInAt, status: h.technical.status, avgScore: h.technical.avgScore ?? null, decision: h.technical.decision || null, completedAt: h.technical.completedAt || null, cutoffPct: await technicalCutoffFor(app.companyId), scores: (h.technical.scores || []).map((x) => ({ member: x.member, pct: x.pct })) } : null,
         hrStatus: h.hr ? { hrName: h.hr.hrName, status: h.hr.status } : null,
         offer: h.offer || null,
         rejection: h.rejection ? { round: h.rejection.round, futurePool: !!h.rejection.futurePool } : null,
@@ -857,6 +943,7 @@ candidateRouter.post("/exams/:id/start", async (req, res) => {
       e.status = "in_progress";
       e.proctorFlags = [];
       e.answers = {};
+      e.order = buildExamOrder(exam.questions); // every candidate gets their own question + option order
       H.audit(app, "Candidate", "Exam started", "");
       app.markModified("hiring");
       await app.save();
@@ -864,13 +951,15 @@ candidateRouter.post("/exams/:id/start", async (req, res) => {
     const endsAt = new Date(new Date(e.startedAt).getTime() + (exam.durationMin || 30) * 60000);
     if (endsAt < new Date(Date.now() - 60000)) {
       // time is up before they came back - grade what was saved
-      const g = H.gradeExam(exam.questions, e.answers || {});
+      const g = H.gradeExam(exam.questions, toOriginalAnswers(e.order, e.answers || {}));
       await completeExam(app, { ...g, source: "talentera", by: "System (time expired)" });
       return res.status(400).json({ message: "Time is up - your saved answers were submitted." });
     }
     res.json({
       title: exam.title, durationMin: exam.durationMin, endsAt: endsAt.toISOString(), saved: e.answers || {},
-      questions: exam.questions.map((q) => ({ topic: q.topic, question: q.question, options: q.options })),
+      questions: Array.isArray(e.order) && e.order.length
+        ? e.order.map((o) => { const q = exam.questions[o.q]; return { topic: q.topic, question: q.question, options: o.opts.map((i) => q.options[i]) }; })
+        : exam.questions.map((q) => ({ topic: q.topic, question: q.question, options: q.options })),
     });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not start the exam." });
@@ -907,7 +996,7 @@ candidateRouter.post("/exams/:id/submit", async (req, res) => {
     const exam = await HiringExam.findById(e.examId);
     if (!exam) return res.status(404).json({ message: "The exam is no longer available." });
     const answers = req.body.answers && typeof req.body.answers === "object" ? req.body.answers : (e.answers || {});
-    const g = H.gradeExam(exam.questions, answers);
+    const g = H.gradeExam(exam.questions, toOriginalAnswers(e.order, answers));
     const flags = e.proctorFlags || [];
     const result = await completeExam(app, { ...g, source: "talentera", by: "Candidate" });
     res.json({ score: result.score, passed: result.passed, correct: g.correct, total: g.total, topicBreakdown: g.topicBreakdown, cutoffPct: result.cutoffPct, flags: flags.length });
@@ -926,6 +1015,37 @@ candidateRouter.post("/offers/:id/respond", async (req, res) => {
   H.audit(app, "Candidate", accept ? "Offer accepted" : "Offer declined", "");
   app.markModified("hiring");
   await app.save();
+
+  // Tell the company (in-app + email) what the candidate decided - best effort, never blocks the response.
+  try {
+    const cand = app.candidateId && app.candidateId.stage1 ? app.candidateId : await Candidate.findById(app.candidateId).select("email stage1").lean();
+    const candName = cand?.stage1?.fullName || cand?.email || "The candidate";
+    const offer = app.hiring.offer;
+    const roleText = offer.role ? ` for ${offer.role}` : "";
+    const title = accept ? `Offer accepted - ${candName}` : `Offer declined - ${candName}`;
+    const message = accept
+      ? `${candName} accepted your offer${roleText}${offer.ctc ? ` (${offer.ctc} LPA)` : ""}${offer.joinDate ? `. Joining date: ${new Date(offer.joinDate).toLocaleDateString("en-IN")}` : ""}. Next step: share joining and onboarding details.`
+      : `${candName} declined your offer${roleText}. You can reach out or move to another candidate.`;
+    await Notification.create({
+      recipientType: "company",
+      recipientId: String(app.companyId),
+      title,
+      message,
+      type: "offer_response",
+      meta: { source: "candidate", applicationId: String(app._id), candidateId: String(cand?._id || app.candidateId), accepted: accept },
+    });
+    const company = await Company.findById(app.companyId).select("email companyName").lean();
+    if (company?.email) {
+      sendTransactionalEmail({
+        to: company.email,
+        toName: company.companyName || "there",
+        subject: title,
+        html: wrapEmailTemplate(title, `<p style="color:#475569;font-size:15px;line-height:1.5;">${message}</p>`),
+      }).catch((e) => logger.warn(`Offer response email failed: ${e.message}`));
+    }
+  } catch (notifyErr) {
+    logger.warn(`Offer response notification failed: ${notifyErr.message}`);
+  }
   res.json({ status: app.hiring.offer.status });
 });
 

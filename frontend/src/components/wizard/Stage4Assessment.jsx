@@ -876,14 +876,22 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const handleSaveAndFinishLater = async () => {
     setSavingForLater(true);
     try {
-      await api.put("/candidate/stage/4", { isDraft: true });
-    } catch (e) {
-      console.warn("Draft save fallback:", e);
-    }
-    setSavingForLater(false);
-    toast("✓ Stage 04 progress saved. You can finish your assessment later.", "✓");
-    if (onSaved) {
-      onSaved(null, { advance: false });
+      // Skip for now: marks Stage 04 as done-for-now (no points) and moves on to Stage 05.
+      // The candidate can still come back and take the assessment later.
+      await api.post("/candidate/stage/4/skip");
+      toast("Stage 04 skipped for now. Moving to Stage 05 →", "✓");
+      let fresh = null;
+      try {
+        const res = await api.get("/candidate/me");
+        fresh = res.data || null;
+      } catch {
+        fresh = null;
+      }
+      if (onSaved) onSaved(fresh || existingData, { advance: true, nextStage: 5 });
+    } catch (err) {
+      toast(err?.response?.data?.message || "Could not skip Stage 04. Please try again.", "error", { title: "Stage 04" });
+    } finally {
+      setSavingForLater(false);
     }
   };
 
@@ -1891,7 +1899,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
                       cursor: savingForLater ? "default" : "pointer",
                     }}
                   >
-                    {savingForLater ? "Saving..." : "Complete this stage later"}
+                    {savingForLater ? "Skipping..." : "Skip for now & continue →"}
                   </button>
                 </div>
               )}

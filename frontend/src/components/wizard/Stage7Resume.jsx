@@ -854,6 +854,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         </>
       ), interactive)}
 
+      <div className={certificationsList.length > 0 && showTrainingBlock ? "s7-cert-train-row" : undefined}>
       {certificationsList.length > 0 && editableSection("certs", [{ stage: 3, label: "Edit certifications (Stage 3)" }], (
         <>
           <div className="s7-resume-sec-title">Certifications</div>
@@ -887,6 +888,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           </div>
         </>
       ), interactive)}
+
+      </div>
 
       {specialtyCharts.length > 0 && editableSection("charts", [{ stage: 6, label: "Edit live charts (Stage 6)" }], (
         <>
@@ -1690,6 +1693,9 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
         .s7-score-badge { background: var(--hdr-bg, #0F1B3D); color: var(--accent, #F5B41A); padding: 4px 10px; border-radius: 8px; font-weight: 800; font-size: 11.5px; }
         .s7-score-badge.silver { background: linear-gradient(135deg, #C0C0C0, #8B9199); color: #FFFFFF; }
         .s7-score-badge.gold { background: linear-gradient(135deg, var(--accent, #F5B41A), #DAA520); color: var(--hdr-bg, #0F1B3D); }
+        .s7-cert-train-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+        .s7-cert-train-row .s7-grid-2 { grid-template-columns: 1fr; }
+        @media (max-width: 700px) { .s7-cert-train-row { grid-template-columns: 1fr; } }
         .s7-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
         @media (max-width: 700px) { .s7-grid-2 { grid-template-columns: 1fr; } }
         .s7-r-block { background: #FAFAF7; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px 14px; }

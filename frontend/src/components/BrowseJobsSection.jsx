@@ -76,6 +76,14 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   const [filterSilverPlus, setFilterSilverPlus] = useState(false);
   const [filterFeatured, setFilterFeatured] = useState(false);
   const [filterWalkIn, setFilterWalkIn] = useState(false);
+  // Certification filter: 'mine' = openings that fit this candidate's own certification status (default),
+  // 'certified' / 'noncertified' = pick a side, 'all' = everything.
+  const [certFilter, setCertFilter] = useState('mine');
+  const myCertName = (() => {
+    const s3 = candidate?.stage3 || {};
+    return s3.skipped ? '' : String(s3.certName || s3.name || '').trim();
+  })();
+  const iAmCertified = Boolean(myCertName) && !/non[\s-]*certified|not\s+certified|trainee|^none$|^n\/a$/i.test(myCertName);
   const [filterOpenToGlobal, setFilterOpenToGlobal] = useState(false);
 
   // Expanded JD toggles
@@ -189,6 +197,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
     setFilterFeatured(false);
     setFilterWalkIn(false);
     setFilterOpenToGlobal(false);
+    setCertFilter('mine');
   };
 
   const toggleExpandJD = (jId) => {
@@ -218,6 +227,16 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
     if (filterSilverPlus && job.minTierRequired === 'Gold') return false;
     if (filterFeatured && !job.isFeatured) return false;
     if (filterWalkIn && !job.isWalkIn) return false;
+    if (on('cert') && certFilter !== 'all') {
+      const want = certFilter === 'mine' ? (iAmCertified ? 'certified' : 'noncertified') : certFilter;
+      const reqs = (job.certsRequired || []).map((c) => String(c));
+      const nonCertOpen = reqs.includes('Non-Certified');
+      const certReqs = reqs.filter((c) => c !== 'Non-Certified');
+      // A job with no certification listed is open to everyone; "Non-Certified" means trainees are welcome;
+      // any other listed certification means certified candidates.
+      if (want === 'noncertified' && !(reqs.length === 0 || nonCertOpen)) return false;
+      if (want === 'certified' && !(reqs.length === 0 || certReqs.length > 0)) return false;
+    }
     if (filterOpenToGlobal && !job.isOpenToGlobal) return false;
     return true;
   };
@@ -731,6 +750,30 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
           >
             {filterFeatured ? '✓ Featured only' : '+ Featured only'}
           </button>
+
+          {[
+            ['mine', iAmCertified ? 'For my profile (Certified)' : 'For my profile (Non-certified)'],
+            ['certified', 'Certified openings'],
+            ['noncertified', 'Non-certified openings'],
+            ['all', 'All openings'],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setCertFilter(key)}
+              style={{
+                background: certFilter === key ? '#F5B41A' : 'rgba(255,255,255,0.1)',
+                color: certFilter === key ? '#0F1B3D' : '#FFFFFF',
+                border: certFilter === key ? 'none' : '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 20,
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {certFilter === key ? '✓ ' : ''}{label}
+            </button>
+          ))}
 
           <button
             onClick={() => setFilterWalkIn(!filterWalkIn)}

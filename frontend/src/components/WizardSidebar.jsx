@@ -23,7 +23,7 @@ function isStageUnlocked(stageNum, completedStages = [], isSelfTrained = false) 
   return true;
 }
 
-export default function WizardSidebar({ completedStages = [], activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard, isSelfTrained = false, hiddenStages = [], bonusStages = [] }) {
+export default function WizardSidebar({ completedStages = [], activeStageId, onSelect, earnedPoints, onSubmit, onSaveExit, onViewDashboard, isSelfTrained = false, hiddenStages = [], bonusStages = [], stageScores = null, experienced = false }) {
   const earnedPct = Math.round((earnedPoints / 100) * 100);
   const navRef = useRef(null);
 
@@ -39,6 +39,17 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
     }, 50);
     return () => clearTimeout(t);
   }, [activeStageId, hiddenStages.length, completedStages.length]);
+
+  // Points chip: the real server-awarded points once a stage is done (so the sidebar always matches
+  // the Live Profile breakdown); before that, the points on offer. Certification is 15 pending
+  // verification / 20 once verified (40 for experienced), so it shows the range.
+  const ptsLabel = (st, done) => {
+    const earned = stageScores && typeof stageScores === "object" ? Number(stageScores[st.num]) : NaN;
+    if (bonusStages.includes(st.num)) return done && earned > 0 ? `+${earned} BONUS` : "BONUS";
+    if (done && Number.isFinite(earned) && st.pts > 0) return `+${earned}`;
+    if (st.num === 3) return experienced ? "+30–40" : "+15–20";
+    return st.pts > 0 ? `+${st.pts}` : "0";
+  };
 
   return (
     <aside className="wiz-sidebar">
@@ -84,7 +95,7 @@ export default function WizardSidebar({ completedStages = [], activeStageId, onS
                 <span className="wiz-nav-item-num">STAGE 0{dispNum} {isLocked ? "(LOCKED)" : (isDone ? "✓ DONE" : (isOptional ? "· OPTIONAL" : ""))}</span>
                 <span className="wiz-nav-item-title">{s.short}</span>
               </span>
-              <span className="wiz-nav-item-pts">{bonusStages.includes(s.num) ? "BONUS" : (s.pts > 0 ? `+${s.pts}` : "0")}</span>
+              <span className="wiz-nav-item-pts">{ptsLabel(s, isDone)}</span>
             </button>
           );
         })}

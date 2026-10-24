@@ -53,6 +53,7 @@ export default function CompanyApplicants() {
   const [matchJobId, setMatchJobId] = useState("");
   const [matched, setMatched] = useState([]);
   const [matchTotal, setMatchTotal] = useState(0);
+  const [minMatch, setMinMatch] = useState(0); // only show matched profiles scoring at or above this %
   const [matchLoading, setMatchLoading] = useState(false);
   const [matchError, setMatchError] = useState("");
   const [callingApp, setCallingApp] = useState(null); // candidate being called for interview (opens the schedule box)
@@ -77,6 +78,7 @@ export default function CompanyApplicants() {
         if (cancelled) return;
         setMatched(res.data?.candidates || []);
         setMatchTotal(res.data?.total || 0);
+        setMinMatch(Number(res.data?.defaultMinScore) || 0);
       })
       .catch((err) => { if (!cancelled) setMatchError(err.response?.data?.message || "Couldn't load matched candidates."); })
       .finally(() => { if (!cancelled) setMatchLoading(false); });
@@ -345,20 +347,28 @@ export default function CompanyApplicants() {
               </select>
               <span style={{ fontSize: 12.5, color: "#64748B" }}>
                 Auto-pulled from the verified pool using this job&apos;s hiring level and certification requirements.
-                {!matchLoading && matchJobId ? ` ${matchTotal} candidate${matchTotal === 1 ? "" : "s"} match.` : ""}
+                {!matchLoading && matchJobId ? ` ${matched.filter((m) => m.matchScore >= minMatch).length} of ${matchTotal} candidate${matchTotal === 1 ? "" : "s"} shown.` : ""}
               </span>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--navy)" }}>
+                Minimum score
+                <input
+                  type="number" min="0" max="100" value={minMatch}
+                  onChange={(e) => setMinMatch(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                  style={{ width: 64, padding: "6px 8px", borderRadius: 8, border: "1.5px solid #E2E8F0", fontWeight: 700 }}
+                />%
+              </label>
             </div>
 
             {matchLoading && <div style={{ textAlign: "center", padding: 40, color: "#64748B" }}>Finding matching candidates…</div>}
             {!matchLoading && matchError && (
               <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", color: "#B91C1C", padding: 16, borderRadius: 10, fontSize: 13.5 }}>{matchError}</div>
             )}
-            {!matchLoading && !matchError && matchJobId && matched.length === 0 && (
+            {!matchLoading && !matchError && matchJobId && matched.filter((m) => m.matchScore >= minMatch).length === 0 && (
               <div style={{ textAlign: "center", padding: 50, color: "#64748B", background: "#fff", borderRadius: 16, border: "1px dashed #E2E8F0" }}>
-                No candidates in the pool match this job yet.
+                {matched.length === 0 ? "No candidates in the pool match this job yet." : `No candidates score ${minMatch}% or above for this job. Lower the minimum score to see ${matched.length} other profile${matched.length === 1 ? "" : "s"}.`}
               </div>
             )}
-            {!matchLoading && !matchError && matched.filter((m) => !hiddenMatches.has(m._id)).map((m) => {
+            {!matchLoading && !matchError && matched.filter((m) => !hiddenMatches.has(m._id) && m.matchScore >= minMatch).map((m) => {
               const c = m.candidate || {};
               const basic = c.basicInfo || {};
               return (
@@ -383,9 +393,10 @@ export default function CompanyApplicants() {
                           <span key={r} style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "3px 10px", borderRadius: 999 }}>{r}</span>
                         ))}
                       </div>
+                      <MatchBreakdown application={m} compact />
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)" }}>{m.matchScore}%</div>
+                      <div title={(m.matchBreakdown || []).map((b) => `${b.label}: ${b.points}/${b.max}`).join("\n")} style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", cursor: "help" }}>{m.matchScore}%</div>
                       <div style={{ fontSize: 11, color: "#94A3B8" }}>JD match</div>
                       <span style={{ fontSize: 11, color: "#94A3B8" }}>View full profile →</span>
                     </div>
@@ -699,6 +710,12 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             </div>
           )}
 
+          {application.status === "matched" && Array.isArray(application.matchBreakdown) && application.matchBreakdown.length > 0 && (
+            <Section title={`Match score · ${application.matchScore}%`}>
+              <MatchBreakdown application={application} />
+            </Section>
+          )}
+
           <Section title="Basic info">
             <Row label="City" value={basic.city} />
             <Row label="Experience" value={basic.experience} />
@@ -1006,8 +1023,36 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
 }
 
 // Small schedule box for "Shortlist & call for interview": date/time, mode and optional meeting link / address.
+// Visible split of the JD match percentage: one bar per factor, points out of its maximum.
+function MatchBreakdown({ application, compact = false }) {
+  const rows = application?.matchBreakdown;
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  return (
+    <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: compact ? "8px 10px" : "12px 14px", marginTop: compact ? 8 : 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 800, letterSpacing: "0.06em", color: "#475569", marginBottom: 6 }}>
+        <span>MATCH SCORE SPLIT</span><span>{application.matchScore} / 100</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: compact ? "repeat(auto-fill, minmax(150px, 1fr))" : "1fr", gap: compact ? "6px 14px" : 8 }}>
+        {rows.map((b) => (
+          <div key={b.key} title={b.note}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, fontWeight: 700, color: "#0F172A" }}>
+              <span>{b.label}</span><span>{b.points}/{b.max}</span>
+            </div>
+            <div style={{ height: 5, background: "#E2E8F0", borderRadius: 4 }}>
+              <div style={{ height: 5, borderRadius: 4, width: `${b.max ? (b.points / b.max) * 100 : 0}%`, background: b.points >= b.max * 0.7 ? "#22C55E" : b.points > 0 ? "var(--gold)" : "#CBD5E1" }} />
+            </div>
+            {!compact && <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 1 }}>{b.note}</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function CallInterviewModal({ application, busy = false, onClose, onConfirm }) {
-  const [when, setWhen] = useState("");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [dtError, setDtError] = useState("");
   const [type, setType] = useState("Online");
   const [link, setLink] = useState("");
   const name = application?.candidate?.basicInfo?.fullName || "the candidate";
@@ -1018,7 +1063,12 @@ function CallInterviewModal({ application, busy = false, onClose, onConfirm }) {
         <h3 style={{ margin: "0 0 4px", fontSize: 17, color: "var(--navy)" }}>Call {name} for interview</h3>
         <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 14 }}>{application?.jobTitle || application?.jobId}. {name} is shortlisted and notified with these details.</div>
         <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>DATE &amp; TIME</label>
-        <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} style={{ ...field, marginBottom: 12 }} />
+        <div style={{ display: "flex", gap: 8, marginBottom: 4 }}>
+          <input type="date" value={date} min={new Date().toISOString().slice(0, 10)} onChange={(e) => { setDate(e.target.value); setDtError(""); }} style={{ ...field, flex: 1 }} />
+          <input type="time" value={time} onChange={(e) => { setTime(e.target.value); setDtError(""); }} style={{ ...field, flex: 1 }} />
+        </div>
+        {dtError ? <div style={{ fontSize: 11.5, color: "#B91C1C", marginBottom: 12, fontWeight: 700 }}>{dtError}</div>
+          : <div style={{ fontSize: 11.5, color: "#94A3B8", marginBottom: 12 }}>Optional. Leave both empty to send the link now and agree the time with the candidate.</div>}
         <label style={{ fontSize: 11, fontWeight: 800, color: "#475569" }}>MODE OF INTERVIEW</label>
         <select value={type} onChange={(e) => setType(e.target.value)} style={{ ...field, marginBottom: 12 }}>
           {["Online", "Offline (walk-in)", "Hybrid"].map((o) => <option key={o} value={o}>{o}</option>)}
@@ -1027,7 +1077,10 @@ function CallInterviewModal({ application, busy = false, onClose, onConfirm }) {
         <input type="text" value={link} onChange={(e) => setLink(e.target.value)} placeholder={type === "Online" ? "https://meet.google.com/..." : "Office address or link"} style={{ ...field, marginBottom: 16 }} />
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button type="button" onClick={onClose} style={{ background: "#fff", border: "1px solid #CBD5E1", borderRadius: 10, padding: "9px 16px", fontWeight: 700, cursor: "pointer" }}>Cancel</button>
-          <button type="button" disabled={busy || !when} onClick={() => onConfirm({ when, type, link: link.trim() })} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontWeight: 800, cursor: busy || !when ? "not-allowed" : "pointer", opacity: busy || !when ? 0.6 : 1 }}>
+          <button type="button" disabled={busy} onClick={() => {
+            if ((date && !time) || (!date && time)) { setDtError(date ? "Pick a time as well as the date." : "Pick a date as well as the time."); return; }
+            onConfirm({ when: date && time ? `${date}T${time}` : "", type, link: link.trim() });
+          }} style={{ background: "var(--navy)", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontWeight: 800, cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}>
             {busy ? "Scheduling…" : "Schedule & notify"}
           </button>
         </div>
