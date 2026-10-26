@@ -692,6 +692,11 @@ export default function CompanyDashboardSetup() {
                             {(company.kycStatus === "verified" || company.kycVerifiedAt) ? "VERIFIED ✓" : company.kycStatus === "under_review" ? "REVIEW" : company.kycStatus === "rejected" ? "REVISION" : "PENDING"}
                           </div>
                           <div className="conb-hero-stat-label">ACCOUNT &amp; KYC</div>
+                          {(company.kycStatus === "verified" || company.kycVerifiedAt) && company.kycApprovedBy && company.kycVerifiedAt && (
+                            <div style={{ fontSize: 10, marginTop: 3, opacity: 0.85 }}>
+                              Approved by {company.kycApprovedBy} on {(() => { const d = new Date(company.kycVerifiedAt); const n = d.getDate(); const sfx = n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"; return `${n}${sfx} ${d.toLocaleDateString("en-GB", { month: "short" })} ${d.getFullYear()}`; })()}
+                            </div>
+                          )}
                         </div>
                         <div style={{ cursor: "pointer" }} onClick={() => navigate("/companies/jobs")}>
                           <div className="conb-hero-stat-val" style={{ fontSize: company.jobId ? 24 : 18 }}>

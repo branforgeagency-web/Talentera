@@ -762,6 +762,7 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
       company.kycStatus = "verified";
       company.isVerified = true;
       company.kycVerifiedAt = new Date();
+      company.kycApprovedBy = req.staffName || "Talentera Team";
       company.kycNotes = notes || "Account & KYC documents audited and verified by Staff Auditor.";
       company.kycRejectionReason = "";
       company.rejectedKycFields = [];
@@ -1009,6 +1010,7 @@ router.post("/verify-document", requireStaffAuth, async (req, res) => {
     current[docId] = {
       isValid: Boolean(isValid),
       verifiedAt: new Date(),
+      verifiedBy: req.staffName || "",
       note: note || (isValid ? "Uploaded document image verified as valid." : "Uploaded document image is invalid or unreadable."),
     };
 
@@ -2411,6 +2413,7 @@ router.get("/companies", requireStaffAuth, async (req, res) => {
         kycStatus: comp.kycStatus || "pending",
         kycSubmittedAt: comp.kycSubmittedAt || null,
         kycVerifiedAt: comp.kycVerifiedAt || null,
+        kycApprovedBy: comp.kycApprovedBy || "",
         kycNotes: comp.kycNotes || "",
         kycRejectionReason: comp.kycRejectionReason || "",
         docVerifications: comp.docVerifications || {},

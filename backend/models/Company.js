@@ -101,6 +101,7 @@ const CompanySchema = new mongoose.Schema(
     },
     kycSubmittedAt: { type: Date, default: null },
     kycVerifiedAt: { type: Date, default: null },
+    kycApprovedBy: { type: String, default: "" }, // name of the Talentera staff member who approved the KYC
     kycNotes: { type: String, default: "" },
     kycRejectionReason: { type: String, default: "" },
     docVerifications: { type: mongoose.Schema.Types.Mixed, default: {} },
