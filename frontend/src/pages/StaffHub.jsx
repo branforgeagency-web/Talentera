@@ -1932,6 +1932,15 @@ export default function StaffHub() {
     }
   };
 
+  // 25th Oct 2026
+  const formatOrdinalDate = (value) => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const day = d.getDate();
+    const suffix = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+    return `${day}${suffix} ${d.toLocaleDateString("en-GB", { month: "short" })} ${d.getFullYear()}`;
+  };
+
   const handleAuditKyc = async (companyId, action, rejectionReason = "") => {
     setProcessingId(companyId);
     try {
@@ -11901,14 +11910,24 @@ export default function StaffHub() {
                             <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--navy)", marginBottom: 4 }}>{doc.label}</div>
                             <div style={{ fontSize: 11, color: "#64748B", marginBottom: 10 }}>{docName}</div>
                             {docUrl ? (
+                              <>
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <a href={docUrl} target="_blank" rel="noopener noreferrer" className="staff-doc-chip" style={{ fontSize: 11 }}>
                                   View File ↗
                                 </a>
                                 <span style={{ fontSize: 10, fontWeight: 800, color: vState?.isValid ? "#15803D" : vState?.isValid === false ? "#B91C1C" : "#B45309" }}>
-                                  {vState?.isValid ? "Validated" : vState?.isValid === false ? "Invalid" : "Pending Audit"}
+                                  {vState?.isValid ? "✓ Verified" : vState?.isValid === false ? "Invalid" : "Pending Audit"}
                                 </span>
                               </div>
+                              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                                <button type="button" onClick={() => handleVerifyDoc(selectedCompany._id || selectedCompany.id, doc.id, true)} style={{ background: vState?.isValid ? "#DCFCE7" : "#fff", color: "#15803D", border: "1px solid #86EFAC", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+                                  {vState?.isValid ? "Verified ✓" : "Mark Verified"}
+                                </button>
+                                <button type="button" onClick={() => handleVerifyDoc(selectedCompany._id || selectedCompany.id, doc.id, false)} style={{ background: vState?.isValid === false ? "#FEE2E2" : "#fff", color: "#B91C1C", border: "1px solid #FCA5A5", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
+                                  Invalid
+                                </button>
+                              </div>
+                              </>
                             ) : (
                               <div style={{ fontSize: 11, color: "#94A3B8" }}>Document not uploaded</div>
                             )}
@@ -11918,7 +11937,14 @@ export default function StaffHub() {
                     </div>
 
                     {/* KYC DECISION ACTIONS */}
+                    {selectedCompany.kycStatus === "verified" && (
+                      <div style={{ marginTop: 20, background: "#ECFDF5", border: "1px solid #6EE7B7", borderRadius: 10, padding: "12px 16px", fontSize: 13.5, fontWeight: 800, color: "#065F46" }}>
+                        <i className="fa-solid fa-circle-check" style={{ marginRight: 8 }}></i>
+                        Company Approved by {selectedCompany.kycApprovedBy || "Talentera Team"}{selectedCompany.kycVerifiedAt ? ` on ${formatOrdinalDate(selectedCompany.kycVerifiedAt)}` : ""}
+                      </div>
+                    )}
                     <div style={{ display: "flex", gap: 10, marginTop: 20, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                      {selectedCompany.kycStatus !== "verified" && (
                       <button
                         type="button"
                         disabled={processingId === (selectedCompany._id || selectedCompany.id)}
@@ -11927,6 +11953,7 @@ export default function StaffHub() {
                       >
                         <><i className="fa-solid fa-certificate" style={{ marginRight: 6 }}></i> Approve KYC & Activate Gold Trust Badge</>
                       </button>
+                      )}
                       <button
                         type="button"
                         disabled={processingId === (selectedCompany._id || selectedCompany.id)}

@@ -372,6 +372,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   const filteredLocations = useMemo(() => {
     const q = locationSearch.trim().toLowerCase();
+    // No region picked yet (Location is now chosen before Region): offer every directory location.
+    if (!academyRegion) {
+      const all = ACADEMY_LOCATIONS.map((l) => ({ name: l.name, count: l.count || 0 }));
+      return q ? all.filter((l) => l.name.toLowerCase().includes(q)) : all;
+    }
     // Show only the cities/branches: drop the entry that merely repeats the state name when the
     // state has real city entries (state-only regions keep their single entry so they stay selectable).
     const hasCityEntries = locationsForRegion.some((n) => n.toLowerCase() !== String(academyRegion).toLowerCase());
@@ -420,11 +425,19 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     return [...base, ...registeredNames];
   }, [academyLocation, academyRegion, registeredAcademies]);
 
+  // Academy Name now comes first: with no location chosen yet, search every academy in the directory.
+  const allAcademyNames = useMemo(() => {
+    const names = Object.values(ACADEMIES_BY_LOCATION).flat();
+    const registered = registeredAcademies.map((a) => a.name).filter(Boolean);
+    return [...new Set([...names, ...registered])].sort((a, b) => a.localeCompare(b));
+  }, [registeredAcademies]);
+
   const filteredAcademyNames = useMemo(() => {
     const q = academyNameSearch.trim().toLowerCase();
-    if (!q) return academiesForLocation;
-    return academiesForLocation.filter((n) => n.toLowerCase().includes(q));
-  }, [academiesForLocation, academyNameSearch]);
+    const pool = academyLocation ? academiesForLocation : allAcademyNames;
+    if (!q) return pool;
+    return pool.filter((n) => n.toLowerCase().includes(q));
+  }, [academiesForLocation, allAcademyNames, academyLocation, academyNameSearch]);
 
   const rawStart = String(existingData.startDate || "").trim();
   const [startMonth, setStartMonth] = useState(
@@ -445,6 +458,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [modeOfTraining, setModeOfTraining] = useState(existingData.modeOfTraining || "");
   const [certificateId, setCertificateId] = useState(existingData.certificateId || "");
   const rawAcademyScore = existingData.academyAssessmentScore ?? existingData.assessmentScore ?? existingData.score;
+  // Verified only when the academy has confirmed this student (score / flag come from the academy dashboard)
+  const academyConfirmed = Boolean(existingData.academyVerified || existingData.verified === true || existingData.verifiedByAcademy);
   const [academyScore] = useState(
     rawAcademyScore !== undefined && rawAcademyScore !== null && rawAcademyScore !== "" ? rawAcademyScore : "—"
   );
@@ -498,7 +513,23 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
 
   function handleLocationSelect(value) {
     setAcademyLocation(value);
-    setAcademyName("");
+    // Picking a location fills in its state / region, and keeps the academy name only if it belongs there
+    const st = ACADEMY_STATE_BY_LOCATION[value];
+    if (st) setAcademyRegion(st);
+    const list = ACADEMIES_BY_LOCATION[value] || [];
+    if (!list.some((n) => n.toLowerCase() === String(academyName).toLowerCase())) setAcademyName("");
+  }
+
+  // Picking an academy name first auto-fills its location / branch and region / state
+  function handleAcademyNameSelect(name) {
+    setAcademyName(name);
+    if (academyLocation) return;
+    const key = Object.keys(ACADEMIES_BY_LOCATION).find((k) => (ACADEMIES_BY_LOCATION[k] || []).some((n) => n.toLowerCase() === name.toLowerCase()));
+    if (key) {
+      setLocationOtherMode(false);
+      setAcademyLocation(key);
+      setAcademyRegion(ACADEMY_STATE_BY_LOCATION[key] || academyRegion || "");
+    }
   }
 
   // Handle Tag Picker (Max 3)
@@ -2180,9 +2211,9 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
               </div>
             ) : (
               <>
-                {/* Row 1: Region, Academy Location & Academy Name — cascading, all searchable */}
+                {/* Row 1: Academy Name > Academy Location / Branch > Region / State (name first; it fills the other two) */}
                 <div className="s2-row-3">
-                  <div className="s2-field" style={{ position: "relative" }}>
+                  <div className="s2-field" style={{ position: "relative", order: 3 }}>
                     <label>
                       Region / State <span className="req">*</span>
                     </label>
@@ -2257,10 +2288,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                         )}
                       </>
                     )}
-                    <div className="s2-helper">{"Select your academy's state / region first."}</div>
+                    <div className="s2-helper">{"Filled automatically when you pick your academy; change it if needed."}</div>
                   </div>
 
-                  <div className="s2-field" style={{ position: "relative" }}>
+                  <div className="s2-field" style={{ position: "relative", order: 2 }}>
                     <label>
                       Academy Location / Branch <span className="req">*</span>
                     </label>
@@ -2291,9 +2322,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                           onFocus={() => { setLocationDropdownOpen(true); setLocationSearch(""); }}
                           onChange={(e) => { setLocationSearch(e.target.value); setLocationDropdownOpen(true); }}
                           onBlur={() => setTimeout(() => setLocationDropdownOpen(false), 150)}
-                          disabled={!academyRegion}
                           style={{
-                            background: academyRegion ? "var(--white)" : "#F1F5F9",
+                            background: "var(--white)",
                             border: "1.5px solid var(--border)",
                             borderRadius: "9px",
                             padding: "11px 14px",
@@ -2357,13 +2387,11 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     <div className="s2-helper">
                       {locationOtherMode || locationManual
                         ? "Type your academy's branch / location (e.g. city, state)."
-                        : academyRegion
-                        ? "Select your academy's location to filter the academy list."
-                        : "Select a region first."}
+                        : "Filled automatically from your academy; change it if your branch differs."}
                     </div>
                   </div>
 
-                  <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`} style={{ position: "relative" }}>
+                  <div className={`s2-field ${formErrors.academyName ? "has-error" : ""}`} style={{ position: "relative", order: 1 }}>
                     <label>
                       Academy Name <span className="req">*</span>
                     </label>
@@ -2397,9 +2425,8 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                             if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
                           }}
                           onBlur={() => setTimeout(() => setAcademyNameDropdownOpen(false), 150)}
-                          disabled={!academyLocation}
                           style={{
-                            background: formErrors.academyName ? "#FEF2F2" : academyLocation ? "var(--white)" : "#F1F5F9",
+                            background: formErrors.academyName ? "#FEF2F2" : "var(--white)",
                             border: formErrors.academyName ? "2px solid #EF4444" : "1.5px solid var(--border)",
                             borderRadius: "9px",
                             padding: "11px 14px",
@@ -2413,16 +2440,14 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                           <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 20, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 8, marginTop: 4, maxHeight: 280, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}>
                             {filteredAcademyNames.length === 0 && (
                               <div style={{ padding: "10px 14px", color: "#64748B", fontSize: 13 }}>
-                                {academyLocation
-                                  ? `No academies match "${academyNameSearch}"`
-                                  : "Select a location first"}
+                                {`No academies match "${academyNameSearch}"`}
                               </div>
                             )}
                             {filteredAcademyNames.map((name) => (
                               <div
                                 key={name}
                                 onMouseDown={() => {
-                                  setAcademyName(name);
+                                  handleAcademyNameSelect(name);
                                   if (formErrors.academyName) setFormErrors((prev) => ({ ...prev, academyName: "" }));
                                   setAcademyNameDropdownOpen(false);
                                   setAcademyNameSearch("");
@@ -2442,7 +2467,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     <div className="s2-helper">
                       {locationOtherMode
                         ? "Type your academy's name — it will be reviewed and added to our directory."
-                        : "Academies filtered to your selected location."}
+                        : academyLocation ? "Academies filtered to your selected location." : "Start typing your academy's name - location and region fill in automatically."}
                     </div>
                   </div>
                 </div>
@@ -2609,28 +2634,40 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                   </div>
                 </div>
 
-                {/* DOC LINK */}
-                <div className="s2-doclink">
-                  <div className="ico"><i className="fa-solid fa-folder" /></div>
-                  <div className="txt">
-                    <div className="title">Your Certificate is stored in My Documents</div>
-                    <div className="sub">HCC_Certificate.pdf · uploaded 15 Sep 2026 · verified by {academyName.split(" ")[0] || "Academy"}</div>
-                  </div>
-                  <span className="go" onClick={() => toast("Certificate verified and stored securely in platform vault.", "✓")}>
-                    Open Vault →
-                  </span>
-                </div>
-
-                {/* VERIFICATION STRIP */}
-                <div className="s2-verify-strip">
-                  <div className="badge-dot"><i className="fa-solid fa-circle" /></div>
-                  <div>
-                    <div className="title">Academy-Verified · {academyName}</div>
-                    <div className="body">
-                      Your batch, roll number and score were confirmed by {academyName} via their Talentera Academy Dashboard.
+                {/* DOC LINK + VERIFICATION STRIP - only shown once the academy has really confirmed this student */}
+                {(academyConfirmed || (academyScore !== "—" && academyScore !== "")) ? (
+                  <>
+                    {existingData.certDocUrl && (
+                      <div className="s2-doclink">
+                        <div className="ico"><i className="fa-solid fa-folder" /></div>
+                        <div className="txt">
+                          <div className="title">Your Certificate is stored in My Documents</div>
+                          <div className="sub">{existingData.certDocName || "Certificate"} · verified by {academyName.split(" ")[0] || "Academy"}</div>
+                        </div>
+                        <a className="go" href={existingData.certDocUrl} target="_blank" rel="noreferrer">Open Vault →</a>
+                      </div>
+                    )}
+                    <div className="s2-verify-strip">
+                      <div className="badge-dot"><i className="fa-solid fa-circle" /></div>
+                      <div>
+                        <div className="title">Academy-Verified · {academyName}</div>
+                        <div className="body">
+                          Your batch, roll number and score were confirmed by {academyName} via their Talentera Academy Dashboard.
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="s2-verify-strip" style={{ background: "#FFFBEB", borderColor: "#FDE68A" }}>
+                    <div className="badge-dot" style={{ color: "#D97706" }}><i className="fa-solid fa-hourglass-half" /></div>
+                    <div>
+                      <div className="title">Pending academy verification</div>
+                      <div className="body">
+                        Your academy has not confirmed that you are their student yet. Your score and the Academy-Verified badge appear once {academyName || "your academy"} verifies you in their Talentera Academy Dashboard, or once you submit the certificate issued by your academy.
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </>
             )}
           </div>

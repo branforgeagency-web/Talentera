@@ -377,28 +377,21 @@ export default function CompanyApplicants() {
                   onClick={() => setSelectedApp(m)}
                   style={{ background: "#fff", border: "1px solid #E5E7EB", borderRadius: 14, padding: "16px 20px", marginBottom: 12, cursor: "pointer" }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-                    <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
                         <strong style={{ fontSize: 15.5 }}>{basic.fullName || "Candidate"}</strong>
                         {m.alreadyApplied && (
                           <span style={{ fontSize: 10, fontWeight: 800, color: "#166534", background: "#DCFCE7", padding: "2px 8px", borderRadius: 999 }}>APPLIED</span>
                         )}
                       </div>
-                      <div style={{ fontSize: 12.5, color: "#64748B", marginBottom: 6 }}>
-                        {[basic.city, basic.experience].filter(Boolean).join(" · ")}{c.email ? ` · ${c.email}` : ""}
+                      <div style={{ fontSize: 13, color: "#475569" }}>
+                        {[basic.city, matchExpLabel(basic.experience), c.email].filter(Boolean).join(" · ")}
                       </div>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {(m.matchReasons || []).map((r) => (
-                          <span key={r} style={{ fontSize: 11, fontWeight: 700, color: "#1D4ED8", background: "#DBEAFE", padding: "3px 10px", borderRadius: 999 }}>{r}</span>
-                        ))}
-                      </div>
-                      <MatchBreakdown application={m} compact />
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <div title={(m.matchBreakdown || []).map((b) => `${b.label}: ${b.points}/${b.max}`).join("\n")} style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", cursor: "help" }}>{m.matchScore}%</div>
-                      <div style={{ fontSize: 11, color: "#94A3B8" }}>JD match</div>
-                      <span style={{ fontSize: 11, color: "#94A3B8" }}>View full profile →</span>
+                      <div style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)" }}>{m.matchScore}%</div>
+                      <span style={{ fontSize: 12, color: "#2563EB", fontWeight: 700 }}>View more details →</span>
                     </div>
                   </div>
                 </div>
@@ -622,6 +615,14 @@ export default function CompanyApplicants() {
 // certification, assessment, video intro, live-chart audit, self summary,
 // employment status) was already coming back from GET /company/applications
 // but had nowhere to render. Clicking a card opens this instead.
+// "Fresher" / "1-3 yrs" label for the matched-candidate rows
+function matchExpLabel(exp) {
+  const t = String(exp || "").trim();
+  if (!t) return "";
+  if (/fresh|^0\b|^0\s*-|none|no exp/i.test(t)) return "Fresher";
+  return /yr|year/i.test(t) ? t : `${t} yrs`;
+}
+
 function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updatingId, onStatusChange, onShortlist, onCallInterview, onReject, onEditRejection, onClose }) {
   const c = application.candidate || {};
   const [showAcademyProfile, setShowAcademyProfile] = useState(false);
