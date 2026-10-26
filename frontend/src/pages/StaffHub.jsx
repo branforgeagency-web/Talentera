@@ -848,6 +848,13 @@ export default function StaffHub() {
   const [resetCandidatePasswordSubmitting, setResetCandidatePasswordSubmitting] = useState(false);
   const [resetCandidatePasswordError, setResetCandidatePasswordError] = useState("");
 
+  // --- ACADEMY PASSWORD RESET STATE ---
+  const [resetPasswordAcademy, setResetPasswordAcademy] = useState(null);
+  const [newAcademyPasswordForReset, setNewAcademyPasswordForReset] = useState("");
+  const [showAcademyPassword, setShowAcademyPassword] = useState(false);
+  const [resetAcademyPasswordSubmitting, setResetAcademyPasswordSubmitting] = useState(false);
+  const [resetAcademyPasswordError, setResetAcademyPasswordError] = useState("");
+
   // --- ASSESSMENT RETAKES STATE ---
   const [enquiryCounts, setEnquiryCounts] = useState({ open: 0, replied: 0, closed: 0, total: 0 });
   const [retakeRequestsList, setRetakeRequestsList] = useState([]);
@@ -1696,6 +1703,37 @@ export default function StaffHub() {
       setResetCandidatePasswordError("Network error resetting candidate password.");
     } finally {
       setResetCandidatePasswordSubmitting(false);
+    }
+  };
+
+  const handleResetAcademyPassword = async (e) => {
+    e.preventDefault();
+    if (!newAcademyPasswordForReset || newAcademyPasswordForReset.length < 6) {
+      setResetAcademyPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    setResetAcademyPasswordError("");
+    setResetAcademyPasswordSubmitting(true);
+    try {
+      const cid = resetPasswordAcademy._id || resetPasswordAcademy.id;
+      const res = await fetch(`/api/staff/academies/${cid}/reset-password`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...getAuthHeader() },
+        body: JSON.stringify({ newPassword: newAcademyPasswordForReset }),
+      });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        setResetAcademyPasswordError(data.message || "Failed to reset academy password.");
+        return;
+      }
+      showToast(`Password reset successfully for ${resetPasswordAcademy.name || resetPasswordAcademy.email}!`);
+      setActiveModal(null);
+      setResetPasswordAcademy(null);
+      setNewAcademyPasswordForReset("");
+    } catch (err) {
+      setResetAcademyPasswordError("Network error resetting academy password.");
+    } finally {
+      setResetAcademyPasswordSubmitting(false);
     }
   };
 
@@ -5096,6 +5134,21 @@ export default function StaffHub() {
                               </td>
                               <td style={{ textAlign: "right" }}>
                                 <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                  <button
+                                    type="button"
+                                    className="sf-action-btn"
+                                    style={{ background: "#EDE9FE", color: "#6D28D9", border: "1px solid #DDD6FE", fontWeight: 700, padding: "6px 10px", fontSize: 11.5 }}
+                                    onClick={() => {
+                                      setResetPasswordAcademy(ac);
+                                      setNewAcademyPasswordForReset("");
+                                      setResetAcademyPasswordError("");
+                                      setShowAcademyPassword(false);
+                                      setActiveModal("reset_academy_password");
+                                    }}
+                                    title={`Reset login password for ${ac.name || ac.email}`}
+                                  >
+                                    <><i className="fa-solid fa-key" style={{ marginRight: 4 }}></i> Reset Pass</>
+                                  </button>
                                   <button
                                     type="button"
                                     className="sf-action-btn"
@@ -9749,6 +9802,7 @@ export default function StaffHub() {
                 {activeModal === "reset_employee_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Employee Password</>}
                 {activeModal === "reset_company_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Company Account Password</>}
                 {activeModal === "reset_candidate_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Candidate Account Password</>}
+                {activeModal === "reset_academy_password" && <><i className="fa-solid fa-key" style={{ marginRight: 8 }}></i> Reset Academy Account Password</>}
               </h2>
               <button
                 type="button"
@@ -10630,6 +10684,125 @@ export default function StaffHub() {
                     }}
                   >
                     {resetCandidatePasswordSubmitting ? "Resetting Password..." : "Reset Candidate Password"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* RESET ACADEMY PASSWORD MODAL */}
+            {activeModal === "reset_academy_password" && resetPasswordAcademy && (
+              <form onSubmit={handleResetAcademyPassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Target Academy Account
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "var(--navy, #0A1F3D)", marginTop: 2 }}>
+                    {resetPasswordAcademy.name || "Academy"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span><i className="fa-solid fa-envelope" style={{ marginRight: 4 }}></i> {resetPasswordAcademy.email}</span>
+                    {resetPasswordAcademy.phone && <span><i className="fa-solid fa-phone" style={{ marginRight: 4 }}></i> {resetPasswordAcademy.phone}</span>}
+                  </div>
+                </div>
+
+                <p style={{ margin: "2px 0 6px", fontSize: 12.5, color: "#64748B", lineHeight: 1.5 }}>
+                  Set a new password for this academy account. Once updated, the academy can immediately sign in with this password.
+                </p>
+
+                {resetAcademyPasswordError && (
+                  <div className="emp-modal-alert">
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: "#F59E0B" }}></i>
+                    <span>{resetAcademyPasswordError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <label style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted, #4A5568)", fontFamily: "var(--font-mono, monospace)" }}>
+                      NEW PASSWORD *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$";
+                        let pass = "";
+                        for (let i = 0; i < 10; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length));
+                        setNewAcademyPasswordForReset(pass);
+                        setShowAcademyPassword(true);
+                      }}
+                      style={{
+                        background: "#F1F5F9",
+                        border: "1px solid #CBD5E1",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: "var(--navy, #0A1F3D)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <><i className="fa-solid fa-shuffle" style={{ marginRight: 5 }}></i> Auto-Generate</>
+                    </button>
+                  </div>
+                  <div className="emp-pw-input-wrapper">
+                    <input
+                      type={showAcademyPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      placeholder="Minimum 6 characters"
+                      value={newAcademyPasswordForReset}
+                      onChange={(e) => setNewAcademyPasswordForReset(e.target.value)}
+                      style={{ width: "100%", padding: "10px 38px 10px 12px", borderRadius: 8, border: "1px solid #CBD5E1", fontSize: 13, outline: "none", fontFamily: showAcademyPassword ? "var(--font-mono, monospace)" : "inherit", boxSizing: "border-box" }}
+                    />
+                    <button
+                      type="button"
+                      className="emp-pw-toggle-btn"
+                      onClick={() => setShowAcademyPassword(!showAcademyPassword)}
+                      title={showAcademyPassword ? "Hide password" : "Show password"}
+                    >
+                      {showAcademyPassword ? <i className="fa-solid fa-eye-slash"></i> : <i className="fa-solid fa-eye"></i>}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveModal(null);
+                      setResetPasswordAcademy(null);
+                      setNewAcademyPasswordForReset("");
+                      setResetAcademyPasswordError("");
+                    }}
+                    style={{
+                      padding: "10px 18px",
+                      borderRadius: 8,
+                      border: "1px solid #CBD5E1",
+                      background: "#fff",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={resetAcademyPasswordSubmitting}
+                    style={{
+                      padding: "10px 22px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "linear-gradient(135deg, var(--navy, #0A1F3D) 0%, #15325B 100%)",
+                      color: "var(--gold, #E5A82E)",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: resetAcademyPasswordSubmitting ? "not-allowed" : "pointer",
+                      opacity: resetAcademyPasswordSubmitting ? 0.7 : 1,
+                    }}
+                  >
+                    {resetAcademyPasswordSubmitting ? "Resetting Password..." : "Reset Candidate Password"}
                   </button>
                 </div>
               </form>

@@ -2568,6 +2568,34 @@ router.put("/companies/:id/reset-password", requireStaffAuth, async (req, res) =
   }
 });
 
+// PUT /api/staff/academies/:id/reset-password - Reset an academy's login password (Protected)
+router.put("/academies/:id/reset-password", requireStaffAuth, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters." });
+    }
+    const academy = await Academy.findById(req.params.id);
+    if (!academy) {
+      return res.status(404).json({ message: "Academy not found." });
+    }
+    academy.passwordHash = await bcrypt.hash(newPassword, 10);
+    await academy.save();
+
+    await recordAudit(req, {
+      action: "reset_academy_password",
+      targetType: "academy",
+      targetId: academy._id,
+      summary: `Password was reset for academy account "${academy.name || academy.email}" (${academy.email}).`,
+    });
+
+    res.json({ message: `Password for "${academy.name || academy.email}" reset successfully.` });
+  } catch (err) {
+    logger.error(`Reset academy password error: ${err.message}`);
+    res.status(500).json({ message: "Failed to reset academy password." });
+  }
+});
+
 // PUT /api/staff/applications/:id/status - Staff update candidate application status
 router.put("/applications/:id/status", requireStaffAuth, async (req, res) => {
   try {
