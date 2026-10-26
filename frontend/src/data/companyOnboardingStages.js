@@ -84,7 +84,7 @@ export const ONBOARDING_STAGES = [
       { id: "departments", name: "Departments / Specialties", desc: "Pick departments, then the specialties under each one", tag: "opt", input: "dept-groups" },
       { id: "branches", name: "Branches", desc: "Additional office or facility locations - search and pick cities", tag: "opt", input: "city-multi", placeholder: "Select branch cities" },
       { id: "policies", name: "Company policies & benefits", desc: "Facilities and benefits candidates should know about", tag: "opt", input: "multi", options: ["Night shift meal", "Cab / transport facility", "Health insurance", "Provident Fund (PF)", "Performance incentives", "Hybrid / work from home", "Paid leave policy", "Training & certification support", "Other"] },
-      { id: "projects", name: "Projects", tag: "opt", input: "textarea", maxlength: 1000, placeholder: "e.g. Hospital billing transition, Inpatient coding audit, Denial resolution..." },
+      { id: "projects", name: "Projects", desc: "Pick a domain and project, or choose Other to type your own", tag: "opt", input: "projects-list" },
     ],
   },
   {
