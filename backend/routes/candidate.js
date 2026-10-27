@@ -47,7 +47,6 @@ const AcademyAssessmentResult = require("../models/AcademyAssessmentResult");
 const { gradeSubmission, recomputeCandidateAcademyScore } = require("../utils/academyAssessment");
 const { findDuplicateAadhaarAccount, duplicateAadhaarResponse } = require("../utils/aadhaarDuplicate");
 const { computeStage6Result } = require("../utils/stage6Score");
-const { computeCandidateReadiness } = require("../utils/studentReadiness");
 
 const router = express.Router();
 router.use(requireAuth); // every route below requires a valid JWT
@@ -1105,8 +1104,6 @@ router.post("/stage/:n/skip", async (req, res) => {
   const stageNum = Number(req.params.n);
   const candidate = await Candidate.findById(req.candidateId);
   if (!candidate) return res.status(404).json({ message: "Not found." });
-
-  const isSelfTrained = isSelfTrainedCandidate(candidate);
 
   // Stages 5 (video), 6 (live charts) and 7 can be skipped by anyone - skipping just earns no points for that stage.
   const allowedSkip = SKIPPABLE_STAGES.includes(stageNum);
@@ -4139,7 +4136,7 @@ router.post("/support-ticket", async (req, res) => {
     const { category, message } = req.body;
     const ticketId = "TLN-" + Math.floor(100000 + Math.random() * 900000);
 
-    logger.info(`Support ticket created: ${ticketId} by candidate ${req.candidateId} [${category}]`);
+    logger.info(`Support ticket created: ${ticketId} by candidate ${req.candidateId} [${category}]: ${String(message || "").slice(0, 100)}`);
 
     res.json({
       success: true,

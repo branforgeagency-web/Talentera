@@ -3066,12 +3066,10 @@ router.get("/company-data", requireAcademyAuth, async (req, res) => {
       // Deadline string
       let deadline = "";
       if (j.deadline) {
-        try {
-          const d = new Date(j.deadline);
-          if (!isNaN(d.getTime())) {
-            deadline = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-          }
-        } catch (_) {}
+        const d = new Date(j.deadline);
+        if (!isNaN(d.getTime())) {
+          deadline = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        }
       }
       if (!deadline) {
         const base = j.publishedAt ? new Date(j.publishedAt) : new Date();

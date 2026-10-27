@@ -95,29 +95,6 @@ function hasStage5Evidence(s5 = {}) {
   );
 }
 
-// Stage 5 points scale with the actual AI evaluation score (out of 100). A recording with no
-// AI score yet earns half credit until it is evaluated.
-// Experienced candidates have no AI Mock Interview - Stage 5 is scored entirely from the
-// Self-Introduction AI score (aiScore), never from a blended overall score.
-function stage5Points(s5 = {}, experienced = false) {
-  const order = experienced ? [s5.aiScore, s5.overallScore, s5.score] : [s5.overallScore, s5.aiScore, s5.score];
-  const raw = order.find(
-    (v) => v !== undefined && v !== null && v !== "" && !isNaN(Number(v))
-  );
-  if (raw === undefined) return s5.verified ? STAGE_POINTS[5] : Math.round(STAGE_POINTS[5] / 2);
-  const n = Math.max(0, Math.min(100, Number(raw)));
-  return Math.round((n / 100) * STAGE_POINTS[5]);
-}
-
-// Experienced candidates have no academy to sign off Stage 2, so Foundation is scored from
-// their work history: 10 for current-employer details, +5 when experience proof is attached.
-function experiencedStage2Points(s2 = {}) {
-  let pts = 0;
-  if (String(s2.currentCompany || "").trim() && String(s2.jobTitle || "").trim()) pts += 10;
-  if (s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl) pts += 5;
-  return pts;
-}
-
 function calculateVerificationScore(completedStages = [], candidate = null) {
   let score = 0;
   const verifiedStages = [];

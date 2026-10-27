@@ -334,12 +334,6 @@ Return strictly JSON: {"clarity": <0-100 integer>, "fluency": <0-100 integer>, "
  * stage still produces a usable score offline - the LLM path above is the
  * primary grader whenever a key is configured.
  */
-const HEURISTIC_STOPWORDS = new Set([
-  "what", "when", "where", "which", "while", "with", "your", "yours", "tell", "about",
-  "have", "having", "been", "were", "would", "could", "should", "this", "that", "these",
-  "those", "from", "into", "than", "then", "them", "they", "their", "there", "here",
-]);
-
 const PLACEHOLDER_PATTERNS = [
   /pre-recorded self-introduction video/i,
   /candidate completed.*video self-introduction/i,

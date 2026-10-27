@@ -1,4 +1,4 @@
-const { computeCandidateReadiness, READINESS_STAGES } = require("../utils/studentReadiness");
+const { computeCandidateReadiness } = require("../utils/studentReadiness");
 
 describe("Candidate Readiness Auto-Calculation", () => {
   test("returns ENROLLED for freshly registered candidate with no completed stages", () => {

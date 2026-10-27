@@ -210,12 +210,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const DASHBOARD_FETCH_CAP = 1000;
     const candidates = await Candidate.find().sort({ createdAt: -1 }).limit(DASHBOARD_FETCH_CAP).lean();
     const companies = await Company.find().limit(DASHBOARD_FETCH_CAP).lean();
-    const academies = await Academy.find().limit(DASHBOARD_FETCH_CAP).lean();
     const totalStaff = await Staff.countDocuments();
-    const totalCandidates = candidates.length;
-
-    // Filter candidate pending vs fully verified
-    const fullyVerified = candidates.filter((c) => (c.completedStages || []).length >= 8);
 
     const incomingBucket = candidates.map((c) => {
       const s1 = c.stage1 || {};
@@ -3149,7 +3144,6 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
     retakeReq.reviewNotes = notes || "Approved for assessment retake.";
     await retakeReq.save();
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     let assessmentTitle = "Talentera AAPC / RCM Assessment (Stage 4)";
     let retakeRedirectPath = "/wizard/stage/4";
 
@@ -3185,7 +3179,7 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
     }
 
     // 3. Generate direct login & retake redirect URL
-    const retakeUrl = "https://talentera-nine.vercel.app/dashboard";
+    const retakeUrl = `${process.env.APP_URL || "https://talentera.in"}${retakeRedirectPath}`;
 
     // 4. Send Approval Email to candidate's logged-in email
     try {
