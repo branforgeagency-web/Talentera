@@ -522,33 +522,106 @@ x-api-key: ${key || "(save your setup to generate a key)"}
 
 // ---------------------------------------------------------------- 3. Exam results + auto gate
 const EXAM_STATUS_STYLE = {
-  "Not allocated": ["#F1F5F9", "#475569"], Allocated: ["#DBEAFE", "#1D4ED8"], "In progress": ["#FEF3C7", "#92400E"],
-  Submitted: ["#EDE9FE", "#6D28D9"], "Under review": ["#FFEDD5", "#C2410C"], Evaluated: ["#DCFCE7", "#166534"],
+  "Not allocated": ["#F1F5F9", "#475569"],
+  Allocated: ["#DBEAFE", "#1D4ED8"],
+  "In progress": ["#FEF3C7", "#92400E"],
+  Submitted: ["#EDE9FE", "#6D28D9"],
+  "Under review": ["#FFEDD5", "#C2410C"],
+  Evaluated: ["#DCFCE7", "#166534"],
+  Passed: ["#DCFCE7", "#166534"],
+  "Below cutoff": ["#FEE2E2", "#B91C1C"],
+  Rejected: ["#FEE2E2", "#B91C1C"],
 };
 function examStatus(a) {
   const e = a.exam;
-  if (!e || !e.allocatedAt) return "Not allocated";
-  if (e.completedAt) return e.evaluatedAt ? "Evaluated" : e.reviewOpenedAt ? "Under review" : "Submitted";
+  const isRejected = a.stage === "rejected" || a.status === "rejected" || a.rejection?.round === "exam";
+
+  if (!e || !e.allocatedAt) {
+    return isRejected ? "Rejected" : "Not allocated";
+  }
+
+  if (e.passed === false || (e.score !== undefined && e.score !== null && e.cutoffPct && e.score < Number(e.cutoffPct))) {
+    return "Below cutoff";
+  }
+
+  if (isRejected) {
+    return (e.completedAt || e.score !== undefined) ? "Below cutoff" : "Rejected";
+  }
+
+  if (e.completedAt) {
+    if (e.passed === true) {
+      return e.evaluatedAt ? "Evaluated" : e.reviewOpenedAt ? "Under review" : "Passed";
+    }
+    return e.evaluatedAt ? "Evaluated" : e.reviewOpenedAt ? "Under review" : "Submitted";
+  }
+
   return e.startedAt ? "In progress" : "Allocated";
 }
 
 function ResultsTab({ data, apps, act, busy, jobId, reload }) {
-  const list = apps.filter((a) => a.stage === "applied" || (a.exam && a.exam.allocatedAt));
+  const toast = useToast();
+  const list = apps.filter((a) => a.stage === "applied" || (a.exam && a.exam.allocatedAt) || (a.rejection && a.rejection.round === "exam"));
   const live = data.examLive || {};
+  const exams = data.exams || [];
   const [scoreFor, setScoreFor] = useState(null);
   const [score, setScore] = useState("");
   const [viewId, setViewId] = useState(null);
+  const [reallocateFor, setReallocateFor] = useState(null);
+  const [reallocateExamId, setReallocateExamId] = useState("");
+  const [reallocateDate, setReallocateDate] = useState("");
+  const [reallocateTime, setReallocateTime] = useState("");
   const viewFor = viewId ? apps.find((x) => x.id === viewId) : null;
+
+  const openReallocate = (a) => {
+    setReallocateFor(a);
+    setReallocateExamId(a.exam?.examId || exams[0]?._id || "");
+    const tomorrow = new Date(Date.now() + 24 * 3600 * 1000);
+    setReallocateDate(tomorrow.toISOString().slice(0, 10));
+    setReallocateTime("20:00");
+  };
+
+  const handleConfirmReallocate = async () => {
+    if (!reallocateDate || !reallocateTime) {
+      toast("Choose the exam deadline (date and time) first.", "!");
+      return;
+    }
+    const deadlineIso = new Date(`${reallocateDate}T${reallocateTime}`).toISOString();
+    if (new Date(deadlineIso) <= new Date()) {
+      toast("The deadline must be in the future.", "!");
+      return;
+    }
+    const chosenExam = reallocateExamId || exams[0]?._id;
+    if (!chosenExam) {
+      toast("No exam available to allocate. Pick or create an exam first.", "!");
+      return;
+    }
+    const isRe = Boolean(reallocateFor?.exam?.allocatedAt);
+    const r = await act(
+      () =>
+        companyApi.post(`/company/hiring/exams/${chosenExam}/allocate`, {
+          jobId,
+          deadline: deadlineIso,
+          applicationIds: [reallocateFor.id],
+          reallocate: true,
+        }),
+      (res) => `Exam ${isRe ? "re-allocated" : "allocated"} to ${reallocateFor?.candidate?.name || "candidate"}.`
+    );
+    if (r) {
+      setReallocateFor(null);
+      if (reload) reload();
+    }
+  };
+
   // Scores stay hidden until the recruiter explicitly opens "View results" - opening is recorded (Submitted -> Under review)
   const openResults = async (a) => {
     setViewId(a.id);
-    if (!a.exam.reviewOpenedAt) { try { await companyApi.post(`/company/hiring/applications/${a.id}/exam-review`, { action: "open" }); if (reload) reload(); } catch { /* the modal still shows */ } }
+    if (a.exam && !a.exam.reviewOpenedAt) { try { await companyApi.post(`/company/hiring/applications/${a.id}/exam-review`, { action: "open" }); if (reload) reload(); } catch { /* the modal still shows */ } }
   };
   return (
     <>
       <Card title="Assessment status" right={<Btn kind="ghost" small disabled={busy} onClick={() => act(() => companyApi.post("/company/hiring/exam-gate", { jobId }), (r) => `Cutoff gate re-run on ${r.processed} result(s).`)}>Re-run cutoff gate</Btn>}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {["Not allocated", "Allocated", "In progress", "Submitted", "Under review", "Evaluated"].map((k) => (
+          {["Not allocated", "Allocated", "In progress", "Submitted", "Under review", "Evaluated", "Below cutoff", "Rejected"].map((k) => (
             <Pill key={k} bg={EXAM_STATUS_STYLE[k][0]} color={EXAM_STATUS_STYLE[k][1]}>{list.filter((a) => examStatus(a) === k).length} {k.toLowerCase()}</Pill>
           ))}
         </div>
@@ -564,26 +637,44 @@ function ResultsTab({ data, apps, act, busy, jobId, reload }) {
                 <td style={td}>{e?.title || <span style={{ color: "#94A3B8" }}>—</span>}{e?.allocatedAt && <div style={{ fontSize: 10.5, color: "#94A3B8" }}>{e.source} · due {fmtDate(e.expiresAt)}</div>}</td>
                 <td style={td}><Pill bg={bg} color={col}>{st}</Pill></td>
                 <td style={td}>
-                  {e?.completedAt ? <Btn small kind="navy" onClick={() => openResults(a)}>View results</Btn> : <span style={{ color: "#94A3B8" }}>—</span>}
+                  {(e?.completedAt || e?.score !== undefined || a.stage === "rejected" || a.status === "rejected") ? (
+                    <Btn small kind="navy" onClick={() => openResults(a)}>View results</Btn>
+                  ) : (
+                    <span style={{ color: "#94A3B8" }}>—</span>
+                  )}
                   {e?.completedAt && (e.proctorFlags || []).length > 0 && <div style={{ marginTop: 4 }}><Pill bg="#FEE2E2" color="#B91C1C">{e.proctorFlags.length} proctor flag{e.proctorFlags.length === 1 ? "" : "s"}</Pill></div>}
                 </td>
                 <td style={td}>
-                  {e && !e.completedAt && (e.source === "manual" || e.source === "integration") && <Btn small kind="navy" onClick={() => { setScoreFor(a); setScore(""); }}>Enter score</Btn>}
-                  {e?.completedAt && <StageBadge stage={a.stage} />}
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    {e?.allocatedAt ? (
+                      <Btn small kind="gold" onClick={() => openReallocate(a)}>Re-allocate</Btn>
+                    ) : (
+                      <Btn small kind="navy" onClick={() => openReallocate(a)}>Allocate</Btn>
+                    )}
+                    {e && !e.completedAt && (e.source === "manual" || e.source === "integration") && <Btn small kind="navy" onClick={() => { setScoreFor(a); setScore(""); }}>Enter score</Btn>}
+                    {e?.completedAt && <StageBadge stage={a.stage} />}
+                  </div>
                 </td>
               </tr>
             );
           })}
         </Table>
       </Card>
-      {viewFor && viewFor.exam && (
-        <Modal title={`Assessment results · ${viewFor.candidate.name}`} onClose={() => setViewId(null)} width={560}>
+      {viewFor && (viewFor.exam || viewFor.rejection) && (
+        <Modal title={`Assessment results · ${viewFor.candidate?.name || "Candidate"}`} onClose={() => setViewId(null)} width={560}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-            <div style={{ fontSize: 34, fontWeight: 800, color: "var(--navy)" }}>{viewFor.exam.score}%</div>
-            <Pill bg={viewFor.exam.passed ? "#DCFCE7" : "#FEE2E2"} color={viewFor.exam.passed ? "#166534" : "#B91C1C"}>{viewFor.exam.passed ? "Passed" : "Below cutoff"}</Pill>
-            <span style={{ fontSize: 12, color: "#64748B" }}>cutoff {viewFor.exam.cutoffPct}% · {viewFor.exam.title}</span>
+            <div style={{ fontSize: 34, fontWeight: 800, color: "var(--navy)" }}>{viewFor.exam?.score !== undefined ? `${viewFor.exam.score}%` : "—"}</div>
+            <Pill bg={viewFor.exam?.passed ? "#DCFCE7" : "#FEE2E2"} color={viewFor.exam?.passed ? "#166534" : "#B91C1C"}>
+              {viewFor.exam?.passed ? "Passed" : (viewFor.stage === "rejected" || viewFor.status === "rejected" || viewFor.exam?.passed === false) ? "Below cutoff" : "Pending"}
+            </Pill>
+            <span style={{ fontSize: 12, color: "#64748B" }}>{viewFor.exam?.cutoffPct ? `cutoff ${viewFor.exam.cutoffPct}% · ` : ""}{viewFor.exam?.title || "Assessment"}</span>
           </div>
-          {(viewFor.exam.topicBreakdown || []).length > 0 && (
+          {viewFor.rejection?.reason && (
+            <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontSize: 12.5, color: "#991B1B" }}>
+              <b>Status note:</b> {viewFor.rejection.reason}
+            </div>
+          )}
+          {(viewFor.exam?.topicBreakdown || []).length > 0 && (
             <div style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", marginBottom: 4 }}>TOPIC BREAKDOWN</div>
               {viewFor.exam.topicBreakdown.map((t) => <div key={t.topic} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "3px 0", borderBottom: "1px solid #F1F5F9" }}><span>{t.topic}</span><strong>{t.correct}/{t.total}</strong></div>)}
@@ -591,14 +682,14 @@ function ResultsTab({ data, apps, act, busy, jobId, reload }) {
           )}
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", marginBottom: 4 }}>PROCTORING</div>
-            {(viewFor.exam.proctorFlags || []).length ? <Pill bg="#FEE2E2" color="#B91C1C">{viewFor.exam.proctorFlags.length} flag{viewFor.exam.proctorFlags.length === 1 ? "" : "s"}: {[...new Set(viewFor.exam.proctorFlags.map((f) => f.type || f))].join(", ")}</Pill> : <span style={{ color: "#166534", fontSize: 12.5 }}>Clean - no flags</span>}
+            {(viewFor.exam?.proctorFlags || []).length ? <Pill bg="#FEE2E2" color="#B91C1C">{viewFor.exam.proctorFlags.length} flag{viewFor.exam.proctorFlags.length === 1 ? "" : "s"}: {[...new Set(viewFor.exam.proctorFlags.map((f) => f.type || f))].join(", ")}</Pill> : <span style={{ color: "#166534", fontSize: 12.5 }}>Clean - no flags</span>}
             <div style={{ fontSize: 12, marginTop: 6 }}>
-              {(viewFor.exam.recordings || []).length > 0
+              {(viewFor.exam?.recordings || []).length > 0
                 ? viewFor.exam.recordings.map((r) => <a key={r.part} href={r.url} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 800, marginRight: 10 }}>▶ Recording{viewFor.exam.recordings.length > 1 ? ` ${r.part}` : ""}</a>)
-                : viewFor.exam.recordingUrl ? <a href={viewFor.exam.recordingUrl} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 800 }}>▶ Recording</a> : <span style={{ color: "#94A3B8" }}>No recording available</span>}
+                : viewFor.exam?.recordingUrl ? <a href={viewFor.exam.recordingUrl} target="_blank" rel="noreferrer" style={{ color: "#1D4ED8", fontWeight: 800 }}>▶ Recording</a> : <span style={{ color: "#94A3B8" }}>No recording available</span>}
             </div>
           </div>
-          {viewFor.exam.evaluatedAt
+          {viewFor.exam?.evaluatedAt
             ? <Pill bg="#DCFCE7" color="#166534">Evaluated {fmtDate(viewFor.exam.evaluatedAt)}</Pill>
             : <Btn kind="gold" disabled={busy} onClick={async () => { await act(() => companyApi.post(`/company/hiring/applications/${viewFor.id}/exam-review`, { action: "confirm" }), "Marked as evaluated."); }}>Confirm evaluation</Btn>}
         </Modal>
@@ -608,6 +699,65 @@ function ResultsTab({ data, apps, act, busy, jobId, reload }) {
           <Field label="SCORE (0-100)"><input type="number" min="0" max="100" value={score} onChange={(e) => setScore(e.target.value)} style={{ ...inputStyle, width: "100%" }} autoFocus /></Field>
           <div style={{ fontSize: 11.5, color: "#64748B", margin: "8px 0 12px" }}>The cutoff gate runs immediately: pass → technical round, below → polite auto-reject.</div>
           <Btn kind="gold" disabled={busy || score === ""} onClick={async () => { const r = await act(() => companyApi.post(`/company/hiring/applications/${scoreFor.id}/exam-score`, { score: Number(score) }), "Score recorded."); if (r) setScoreFor(null); }}>Save score</Btn>
+        </Modal>
+      )}
+      {reallocateFor && (
+        <Modal
+          title={`${reallocateFor.exam?.allocatedAt ? "Exam Re-Allocation" : "Allocate Exam"} · ${reallocateFor.candidate?.name}`}
+          onClose={() => setReallocateFor(null)}
+          width={480}
+        >
+          {exams.length === 0 ? (
+            <div style={{ fontSize: 13, color: "#64748B", padding: "10px 0" }}>
+              No exams found for this job. Create or pick an exam from the Exams tab first.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 12.5, color: "#475569" }}>
+                {reallocateFor.exam?.allocatedAt
+                  ? `Re-allocating will reset ${reallocateFor.candidate?.name}'s exam status and send a fresh test notification with the new deadline.`
+                  : `Allocate an assessment to ${reallocateFor.candidate?.name}.`}
+              </div>
+              <Field label="EXAM">
+                <select
+                  value={reallocateExamId || exams[0]?._id}
+                  onChange={(e) => setReallocateExamId(e.target.value)}
+                  style={{ ...inputStyle, width: "100%" }}
+                >
+                  {exams.map((ex) => (
+                    <option key={ex._id} value={ex._id}>
+                      {ex.title} · {ex.source} ({ex.durationMin} min, {ex.cutoffPct}% cutoff)
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label="DEADLINE · DATE *">
+                  <input
+                    type="date"
+                    value={reallocateDate}
+                    min={new Date().toISOString().slice(0, 10)}
+                    onChange={(e) => setReallocateDate(e.target.value)}
+                    style={{ ...inputStyle, width: "100%" }}
+                  />
+                </Field>
+                <Field label="DEADLINE · TIME *">
+                  <input
+                    type="time"
+                    value={reallocateTime}
+                    onChange={(e) => setReallocateTime(e.target.value)}
+                    style={{ ...inputStyle, width: "100%" }}
+                  />
+                </Field>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+                <Btn kind="ghost" onClick={() => setReallocateFor(null)}>Cancel</Btn>
+                <Btn kind="gold" disabled={busy} onClick={handleConfirmReallocate}>
+                  {reallocateFor.exam?.allocatedAt ? "Confirm Re-Allocation" : "Allocate Exam"}
+                </Btn>
+              </div>
+            </div>
+          )}
         </Modal>
       )}
     </>

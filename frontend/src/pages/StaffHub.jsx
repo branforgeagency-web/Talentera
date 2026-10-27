@@ -1982,18 +1982,33 @@ export default function StaffHub() {
   const handleAuditKyc = async (companyId, action, rejectionReason = "") => {
     setProcessingId(companyId);
     try {
+      const staffInfo = (() => {
+        try { return JSON.parse(localStorage.getItem("talentera_staff_info") || "{}"); } catch { return {}; }
+      })();
+      const auditorName = staffInfo.name || "Anita Reddy";
       const res = await fetch("/api/staff/verify-company", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ companyId, action, rejectionReason }),
+        body: JSON.stringify({ companyId, action, rejectionReason, approvedBy: auditorName }),
       });
+      const data = await safeJson(res);
       if (res.ok) {
+        if (data?.company) {
+          setSelectedCompany(data.company);
+        } else if (selectedCompany) {
+          setSelectedCompany((prev) => ({
+            ...prev,
+            kycStatus: action === "verify" ? "verified" : "rejected",
+            isVerified: action === "verify",
+            kycApprovedBy: auditorName,
+            kycVerifiedAt: new Date().toISOString(),
+          }));
+        }
         setAuditModal(null);
         fetchDashboard();
         showToast(`Company KYC ${action === "verify" ? "Approved & Verified" : "Marked for Revision"}.`);
       } else {
-        const data = await safeJson(res);
-        showToast(data.message || "KYC update failed.");
+        showToast(data?.message || "KYC update failed.");
       }
     } catch (err) {
       console.error(err);
@@ -2049,14 +2064,31 @@ export default function StaffHub() {
 
   const handleVerifyDoc = async (companyId, docId, isValid) => {
     try {
+      const staffInfo = (() => {
+        try { return JSON.parse(localStorage.getItem("talentera_staff_info") || "{}"); } catch { return {}; }
+      })();
+      const auditorName = staffInfo.name || "Anita Reddy";
       const res = await fetch("/api/staff/verify-document", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
         body: JSON.stringify({ companyId, docId, isValid }),
       });
+      const data = await safeJson(res);
       if (res.ok) {
+        if (data?.company) {
+          setSelectedCompany(data.company);
+        } else {
+          setSelectedCompany((prev) => {
+            if (!prev) return prev;
+            const updatedDocs = { ...(prev.docVerifications || {}) };
+            updatedDocs[docId] = { isValid, verifiedAt: new Date(), verifiedBy: auditorName };
+            return { ...prev, docVerifications: updatedDocs };
+          });
+        }
         fetchDashboard();
-        showToast(`Document (${docId}) marked as ${isValid ? "Valid" : "Invalid"}`);
+        showToast(`Document marked as ${isValid ? "Verified ✓" : "Invalid"}`);
+      } else {
+        showToast(data?.message || "Document verification update failed.");
       }
     } catch (err) {
       console.error(err);
@@ -11925,13 +11957,18 @@ export default function StaffHub() {
                     <i className="fa-solid fa-building"></i>
                   </div>
                   <div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#fff", fontFamily: "var(--font-heading)" }}>
                         {selectedCompany.companyName}
                       </h2>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, textTransform: "uppercase", background: selectedCompany.kycStatus === "verified" ? "#DCFCE7" : "#FEF3C7", color: selectedCompany.kycStatus === "verified" ? "#15803D" : "#B45309" }}>
-                        KYC: {selectedCompany.kycStatus || "PENDING"}
+                        KYC: {selectedCompany.kycStatus === "verified" ? "VERIFIED" : (selectedCompany.kycStatus || "PENDING")}
                       </span>
+                      {selectedCompany.kycStatus === "verified" && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#86EFAC", background: "rgba(16,185,129,0.2)", padding: "2px 8px", borderRadius: 6, border: "1px solid rgba(134,239,172,0.4)" }}>
+                          ✓ Approved by {selectedCompany.kycApprovedBy || "Anita Reddy"} on {formatOrdinalDate(selectedCompany.kycVerifiedAt || new Date())}
+                        </span>
+                      )}
                       <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 8px", borderRadius: 999, textTransform: "uppercase", background: "rgba(229,168,46,0.2)", color: "var(--gold)", border: "1px solid rgba(229,168,46,0.4)" }}>
                         Plan: {selectedCompany.plan || "Free"}
                       </span>
@@ -12023,6 +12060,15 @@ export default function StaffHub() {
 
                 return (
                   <div>
+                    {selectedCompany.kycStatus === "verified" && (
+                      <div style={{ marginBottom: 16, background: "#ECFDF5", border: "1.5px solid #10B981", borderRadius: 10, padding: "14px 18px", fontSize: 14, fontWeight: 800, color: "#065F46", display: "flex", alignItems: "center", gap: 12 }}>
+                        <i className="fa-solid fa-circle-check" style={{ fontSize: 20, color: "#10B981" }}></i>
+                        <div>
+                          <div style={{ fontSize: 14.5 }}>Company Approved by {selectedCompany.kycApprovedBy || "Anita Reddy"} on {formatOrdinalDate(selectedCompany.kycVerifiedAt || new Date())}</div>
+                          <div style={{ fontSize: 11.5, fontWeight: 500, color: "#047857", marginTop: 2 }}>Account &amp; KYC documents audited and verified by Staff Auditor. Gold Trust Badge is active.</div>
+                        </div>
+                      </div>
+                    )}
                     <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--navy)", margin: "0 0 14px" }}>Stage 1A: Company Legal Registration & KYC</h3>
                     <div className="staff-meta-grid">
                       <div className="staff-meta-item">
@@ -12078,29 +12124,59 @@ export default function StaffHub() {
                           }
                         }
                         const vState = dVer[doc.id];
+                        const isDocVerified = vState?.isValid === true || (selectedCompany.kycStatus === "verified" && vState?.isValid !== false);
                         return (
-                          <div key={doc.id} style={{ background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 10, padding: 14 }}>
-                            <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--navy)", marginBottom: 4 }}>{doc.label}</div>
+                          <div key={doc.id} style={{ background: isDocVerified ? "#F0FDF4" : "#F8FAFC", border: `1.5px solid ${isDocVerified ? "#86EFAC" : "#E2E8F0"}`, borderRadius: 10, padding: 14 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                              <div style={{ fontWeight: 800, fontSize: 12.5, color: "var(--navy)" }}>{doc.label}</div>
+                              <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 6, background: isDocVerified ? "#DCFCE7" : vState?.isValid === false ? "#FEE2E2" : "#FEF3C7", color: isDocVerified ? "#15803D" : vState?.isValid === false ? "#B91C1C" : "#B45309" }}>
+                                {isDocVerified ? "✓ Verified" : vState?.isValid === false ? "Invalid" : "Pending Audit"}
+                              </span>
+                            </div>
                             <div style={{ fontSize: 11, color: "#64748B", marginBottom: 10 }}>{docName}</div>
                             {docUrl ? (
-                              <>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, gap: 8 }}>
                                 <a href={docUrl} target="_blank" rel="noopener noreferrer" className="staff-doc-chip" style={{ fontSize: 11 }}>
                                   View File ↗
                                 </a>
-                                <span style={{ fontSize: 10, fontWeight: 800, color: vState?.isValid ? "#15803D" : vState?.isValid === false ? "#B91C1C" : "#B45309" }}>
-                                  {vState?.isValid ? "✓ Verified" : vState?.isValid === false ? "Invalid" : "Pending Audit"}
-                                </span>
+                                <div style={{ display: "flex", gap: 6 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVerifyDoc(selectedCompany._id || selectedCompany.id, doc.id, true)}
+                                    style={{
+                                      background: isDocVerified ? "#15803D" : "#FFFFFF",
+                                      color: isDocVerified ? "#FFFFFF" : "#15803D",
+                                      border: "1.5px solid #15803D",
+                                      padding: "5px 12px",
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 800,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                    }}
+                                  >
+                                    <i className="fa-solid fa-check" /> {isDocVerified ? "Verified" : "Verify"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVerifyDoc(selectedCompany._id || selectedCompany.id, doc.id, false)}
+                                    style={{
+                                      background: vState?.isValid === false ? "#B91C1C" : "#FFFFFF",
+                                      color: vState?.isValid === false ? "#FFFFFF" : "#B91C1C",
+                                      border: "1px solid #FCA5A5",
+                                      padding: "5px 10px",
+                                      borderRadius: 6,
+                                      fontSize: 11,
+                                      fontWeight: 700,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    Invalid
+                                  </button>
+                                </div>
                               </div>
-                              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                                <button type="button" onClick={() => handleVerifyDoc(selectedCompany._id || selectedCompany.id, doc.id, true)} style={{ background: vState?.isValid ? "#DCFCE7" : "#fff", color: "#15803D", border: "1px solid #86EFAC", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
-                                  {vState?.isValid ? "Verified ✓" : "Mark Verified"}
-                                </button>
-                                <button type="button" onClick={() => handleVerifyDoc(selectedCompany._id || selectedCompany.id, doc.id, false)} style={{ background: vState?.isValid === false ? "#FEE2E2" : "#fff", color: "#B91C1C", border: "1px solid #FCA5A5", padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 800, cursor: "pointer" }}>
-                                  Invalid
-                                </button>
-                              </div>
-                              </>
                             ) : (
                               <div style={{ fontSize: 11, color: "#94A3B8" }}>Document not uploaded</div>
                             )}
@@ -12110,35 +12186,47 @@ export default function StaffHub() {
                     </div>
 
                     {/* KYC DECISION ACTIONS */}
-                    {selectedCompany.kycStatus === "verified" && (
-                      <div style={{ marginTop: 20, background: "#ECFDF5", border: "1px solid #6EE7B7", borderRadius: 10, padding: "12px 16px", fontSize: 13.5, fontWeight: 800, color: "#065F46" }}>
-                        <i className="fa-solid fa-circle-check" style={{ marginRight: 8 }}></i>
-                        Company Approved by {selectedCompany.kycApprovedBy || "Talentera Team"}{selectedCompany.kycVerifiedAt ? ` on ${formatOrdinalDate(selectedCompany.kycVerifiedAt)}` : ""}
+                    {selectedCompany.kycStatus === "verified" ? (
+                      <div style={{ marginTop: 20, background: "#ECFDF5", border: "1.5px solid #10B981", borderRadius: 10, padding: "14px 18px", fontSize: 13.5, fontWeight: 800, color: "#065F46", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <i className="fa-solid fa-circle-check" style={{ color: "#10B981", fontSize: 18 }}></i>
+                          <span>Company Approved by {selectedCompany.kycApprovedBy || "Anita Reddy"} on {formatOrdinalDate(selectedCompany.kycVerifiedAt || new Date())}</span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={processingId === (selectedCompany._id || selectedCompany.id)}
+                          onClick={() => {
+                            const reason = prompt("Enter revision / rejection reason to revoke verification:");
+                            if (reason) handleAuditKyc(selectedCompany._id || selectedCompany.id, "reject", reason);
+                          }}
+                          style={{ background: "#fff", color: "#EF4444", border: "1px solid #FCA5A5", padding: "6px 14px", borderRadius: 6, fontWeight: 700, fontSize: 11.5, cursor: "pointer" }}
+                        >
+                          Revoke / Request Revision
+                        </button>
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 10, marginTop: 20, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                        <button
+                          type="button"
+                          disabled={processingId === (selectedCompany._id || selectedCompany.id)}
+                          onClick={() => handleAuditKyc(selectedCompany._id || selectedCompany.id, "verify")}
+                          style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                        >
+                          <i className="fa-solid fa-certificate" /> Approve KYC &amp; Activate Gold Trust Badge
+                        </button>
+                        <button
+                          type="button"
+                          disabled={processingId === (selectedCompany._id || selectedCompany.id)}
+                          onClick={() => {
+                            const reason = prompt("Enter revision / rejection reason:");
+                            if (reason) handleAuditKyc(selectedCompany._id || selectedCompany.id, "reject", reason);
+                          }}
+                          style={{ background: "#EF4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                        >
+                          <i className="fa-solid fa-xmark" /> Request Revision / Reject
+                        </button>
                       </div>
                     )}
-                    <div style={{ display: "flex", gap: 10, marginTop: 20, borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
-                      {selectedCompany.kycStatus !== "verified" && (
-                      <button
-                        type="button"
-                        disabled={processingId === (selectedCompany._id || selectedCompany.id)}
-                        onClick={() => handleAuditKyc(selectedCompany._id || selectedCompany.id, "verify")}
-                        style={{ background: "#10B981", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
-                      >
-                        <><i className="fa-solid fa-certificate" style={{ marginRight: 6 }}></i> Approve KYC & Activate Gold Trust Badge</>
-                      </button>
-                      )}
-                      <button
-                        type="button"
-                        disabled={processingId === (selectedCompany._id || selectedCompany.id)}
-                        onClick={() => {
-                          const reason = prompt("Enter revision / rejection reason:");
-                          if (reason) handleAuditKyc(selectedCompany._id || selectedCompany.id, "reject", reason);
-                        }}
-                        style={{ background: "#EF4444", color: "#fff", border: "none", padding: "10px 20px", borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
-                      >
-                        <><i className="fa-solid fa-xmark" style={{ marginRight: 6 }}></i> Request Revision / Reject</>
-                      </button>
-                    </div>
                   </div>
                 );
               })()}

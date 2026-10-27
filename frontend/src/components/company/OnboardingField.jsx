@@ -7,6 +7,7 @@ import AddressListField from "./AddressListField.jsx";
 import CityMultiSelect from "./CityMultiSelect.jsx";
 import RubricField from "./RubricField.jsx";
 import DeptGroupField from "./DeptGroupField.jsx";
+import ProjectsField from "./ProjectsField.jsx";
 import { multiHasOther, multiOtherText, multiToggleOther, multiSetOther } from "../../utils/otherOption.js";
 
 const TAG_LABEL = { must: "MUST", opt: "OPT", cond: "COND" };
@@ -185,6 +186,7 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
     (typeof text === "string" && text.trim().length > 0) ||
     (typeof text === "number") ||
     (item.input === "multi" && Array.isArray(multiVal) && multiVal.length > 0) ||
+    (item.input === "projects-list" && typeof value === "string" && value.trim().length > 0) ||
     (item.input === "people-list" && Array.isArray(multiVal) && multiVal.length > 0) ||
     (item.input === "file" && Boolean(fileInfo && (fileInfo.docUrl || fileInfo.docName || fileInfo.url || fileInfo.fileUrl))) ||
     (item.input === "name-email" && Boolean(nameEmail?.name && String(nameEmail.name).trim() && nameEmail?.email && String(nameEmail.email).trim()));
@@ -380,6 +382,10 @@ export default function OnboardingField({ item, value, onSave, stageId, showStag
 
       {item.input === "dept-groups" && (
         <DeptGroupField value={value} onCommit={commit} />
+      )}
+
+      {item.input === "projects-list" && (
+        <ProjectsField value={value} onCommit={commit} />
       )}
 
       {item.input === "rubric" && (

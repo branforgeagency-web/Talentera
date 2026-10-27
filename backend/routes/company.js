@@ -657,7 +657,7 @@ router.post("/jobs", async (req, res) => {
 // puts it back into the approval queue as "pending" (see routes/staff.js POST /verify-job).
 router.put("/jobs/:id", async (req, res) => {
   try {
-    const { published, fields: incomingFields, draft, publishDraft } = req.body || {};
+    const { published, fields: incomingFields, publishDraft } = req.body || {};
     const hasFields = incomingFields && typeof incomingFields === "object" && !Array.isArray(incomingFields);
 
     // Edit details of the onboarding first-JD

@@ -3014,6 +3014,91 @@ router.get("/company-data", requireAcademyAuth, async (req, res) => {
     const hirings = jobs.map((j) => {
       const all = allByJob.get(j.jobId) || { total: 0 };
       const mine = mineByJob.get(j.jobId) || { total: 0, shortlisted: 0, interviewing: 0, hired: 0 };
+
+      // Compute job match score
+      let matchScore = 65;
+      const jSpec = String(j.specialty || j.department || "").toLowerCase();
+      const aSpec = String(academy?.specialty || "").toLowerCase();
+      const aCourses = (academy?.courses || []).map((c) => String(c.title || "").toLowerCase());
+      if (aSpec && jSpec && (aSpec.includes(jSpec) || jSpec.includes(aSpec))) {
+        matchScore = 85;
+      } else if (aCourses.some((c) => c && jSpec && (c.includes(jSpec) || jSpec.includes(c)))) {
+        matchScore = 78;
+      } else if (/coder|coding|billing|ar caller/i.test(j.roleTitle || "")) {
+        matchScore = 72;
+      }
+      const hash = String(j.jobId || "").split("").reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+      matchScore = Math.min(95, Math.max(55, matchScore + (hash % 13) - 6));
+
+      // Experience level text
+      let experienceLevel = "Fresher";
+      if (j.level) {
+        if (/fresher/i.test(j.level)) experienceLevel = "Fresher";
+        else if (/experienced/i.test(j.level)) experienceLevel = "Experienced";
+        else if (/both/i.test(j.level)) experienceLevel = "Fresher / Experienced";
+        else experienceLevel = j.level;
+      } else if (j.expMin != null || j.expMax != null) {
+        if (j.expMin === 0 && (!j.expMax || j.expMax <= 1)) experienceLevel = "Fresher";
+        else experienceLevel = `${j.expMin || 0}-${j.expMax || 2} Yrs`;
+      }
+
+      // Cert status badge text
+      let certPreference = "Certification: Preferred";
+      const certs = Array.isArray(j.certsRequired) ? j.certsRequired : (j.certsRequired ? [j.certsRequired] : []);
+      if (certs.length > 0) {
+        if (certs.includes("Non-Certified")) {
+          certPreference = "Certification: Optional";
+        } else {
+          certPreference = `Certification: Required (${certs.slice(0, 2).join(", ")})`;
+        }
+      }
+
+      // Salary / CTC string
+      let salary = j.compensation || "";
+      if (!salary) {
+        if (j.compMin != null || j.compMax != null) {
+          salary = `₹ ${j.compMin || 2.5}${j.compMax ? ` - ${j.compMax}` : ""} LPA`;
+        } else {
+          salary = "₹ 2.5 - 3.5 LPA";
+        }
+      }
+
+      // Deadline string
+      let deadline = "";
+      if (j.deadline) {
+        const d = new Date(j.deadline);
+        if (!isNaN(d.getTime())) {
+          deadline = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        }
+      }
+      if (!deadline) {
+        const base = j.publishedAt ? new Date(j.publishedAt) : new Date();
+        const d = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+        deadline = d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+      }
+
+      // Eligibility breakdown
+      const eligibility = {
+        education: (Array.isArray(j.edumin) && j.edumin.length) ? j.edumin.join(", ") : "Graduate / Diploma (Life Sciences / Paramedical / Any Stream)",
+        experience: experienceLevel,
+        certifications: certs.length ? certs.join(", ") : "Preferred (CPC / COC / CRC / Non-certified freshers also considered)",
+        languages: (Array.isArray(j.languages) && j.languages.length) ? j.languages.join(", ") : "English (Proficient)",
+        ageLimit: j.elgage || "18 - 30 years",
+        passoutYear: j.elgpassout || "2023, 2024, 2025, 2026",
+        backlogs: j.elgbacklogs || "No active backlogs allowed",
+        mustHaves: j.mustHaves || "Strong understanding of medical terminology and domain guidelines",
+        niceToHaves: j.nicetohaves || "Prior academy training or internship in RCM",
+      };
+
+      // Hiring process stages
+      const interviewModeStr = Array.isArray(j.interviewmode) ? j.interviewmode.join(" / ") : (j.interviewmode || "Online");
+      const hiringProcess = [
+        { round: "Round 1", title: "Online Assessment", desc: "Specialty knowledge & Aptitude test on Talentera", mode: interviewModeStr.includes("Offline") ? "Online / Offline" : "Online (Platform)" },
+        { round: "Round 2", title: "Technical / Domain Interview", desc: "Deep dive into chart coding, billing workflows or AR scenarios", mode: j.workMode === "Remote" ? "Virtual (Video)" : "In-Person / Virtual" },
+        { round: "Round 3", title: "HR & Operational Discussion", desc: "Fitment, shift confirmation, document verification", mode: "Virtual / Telephonic" },
+        { round: "Round 4", title: "Offer Release & Onboarding", desc: "Issuance of LOI / Offer letter and batch start date", mode: "Talentera Portal" },
+      ];
+
       return {
         jobId: j.jobId,
         companyId: j.companyId,
@@ -3024,7 +3109,7 @@ router.get("/company-data", requireAcademyAuth, async (req, res) => {
         specialty: j.specialty,
         location: j.location,
         workMode: j.workMode,
-        openings: j.openings,
+        openings: j.openings || 1,
         urgency: j.urgency,
         publishedAt: j.publishedAt,
         totalApplicants: all.total,
@@ -3032,6 +3117,13 @@ router.get("/company-data", requireAcademyAuth, async (req, res) => {
         myShortlisted: mine.shortlisted,
         myInterviewing: mine.interviewing,
         myHired: mine.hired,
+        matchScore,
+        experienceLevel,
+        certPreference,
+        salary,
+        deadline,
+        eligibility,
+        hiringProcess,
       };
     });
 

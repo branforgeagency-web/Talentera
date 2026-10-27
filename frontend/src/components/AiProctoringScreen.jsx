@@ -51,8 +51,8 @@ export const DEFAULT_PROCTOR_THRESHOLDS = {
   YAW_MIN: 0.30,   // Ratio < 0.30 (Turned Right - generous tolerance to read question panel on right side)
   YAW_MAX: 3.20,   // Ratio > 3.20 (Turned Left)
   PITCH_MIN: 0.45, // Ratio < 0.45 (Looking Up)
-  PITCH_MAX: 2.20, // Ratio > 2.20 (Looking Down - to read questions)
-  CONSECUTIVE_ANOMALIES: 22, // ~750ms of sustained looking away before triggering warning
+  PITCH_MAX: 1.38, // Ratio > 1.38 (Looking Down - catches looking down at mobile phone / desk / lap)
+  CONSECUTIVE_ANOMALIES: 16, // ~500ms of sustained looking away before triggering warning
   CONSECUTIVE_NORMALS: 2,   // 2 consecutive normal frames to clear
   MIN_WARNING_DISPLAY_MS: 2000, // Warning banner display duration
 };
@@ -229,28 +229,60 @@ export default function AiProctoringScreen({
       const lo = Math.floor(300 / binHz);
       const hi = Math.ceil(3400 / binHz);
       let samples = 0;
-      let baseline = 0;
-      let loudRun = 0;
-      let quietRun = 0;
+      let baselineSum = 0;
+      let baseline = 10;
+      let voiceScore = 0;
+      let quietCount = 0;
       timer = setInterval(() => {
         analyser.getByteFrequencyData(freq);
         let total = 0;
         let voiceBand = 0;
+        let voiceBins = 0;
         for (let i = 1; i < freq.length; i++) {
           total += freq[i];
-          if (i >= lo && i <= hi) voiceBand += freq[i];
+          if (i >= lo && i <= hi) {
+            voiceBand += freq[i];
+            voiceBins++;
+          }
         }
         const level = total / freq.length; // 0-255 average spectrum energy
+        const voiceAvg = voiceBins > 0 ? voiceBand / voiceBins : 0;
         const speechRatio = total > 0 ? voiceBand / total : 0;
         samples += 1;
-        if (samples <= 30) { // ~3 s calibration of the room's ambient noise
-          baseline = Math.max(baseline, level);
+        if (samples <= 20) { // ~2 s initial calibration of the room's ambient noise
+          baselineSum += level;
+          baseline = Math.max(6, baselineSum / samples);
           return;
         }
-        const loud = level > Math.max(baseline * 2.2, baseline + 12) && speechRatio > 0.5;
-        if (loud) { loudRun += 1; quietRun = 0; } else { quietRun += 1; loudRun = 0; }
-        if (loudRun >= 10 && !voiceActiveRef.current) { voiceActiveRef.current = true; setVoiceDetected(true); }
-        if (quietRun >= 15 && voiceActiveRef.current) { voiceActiveRef.current = false; setVoiceDetected(false); }
+
+        // Adaptive noise floor: slowly tracks quiet room level
+        if (level < baseline * 1.5) {
+          baseline = baseline * 0.98 + level * 0.02;
+        }
+
+        // Voice criteria: voice band average energy noticeably above ambient noise floor AND reasonable voice band ratio
+        const isVoiceEnergy = voiceAvg > Math.max(9, baseline * 1.35) || level > Math.max(12, baseline * 1.5);
+        const hasSpeechRatio = speechRatio > 0.28;
+        const loud = isVoiceEnergy && hasSpeechRatio;
+
+        if (loud) {
+          voiceScore = Math.min(10, voiceScore + 2);
+          quietCount = 0;
+        } else {
+          quietCount += 1;
+          if (quietCount >= 2) {
+            voiceScore = Math.max(0, voiceScore - 1);
+          }
+        }
+
+        // Alert when voice detected for >= 300ms (score >= 4), clear after ~1.5s quiet
+        if (voiceScore >= 4 && !voiceActiveRef.current) {
+          voiceActiveRef.current = true;
+          setVoiceDetected(true);
+        } else if (voiceScore === 0 && voiceActiveRef.current) {
+          voiceActiveRef.current = false;
+          setVoiceDetected(false);
+        }
       }, 100);
     } catch (e) {
       console.warn("Voice detection unavailable:", e);
@@ -411,7 +443,7 @@ export default function AiProctoringScreen({
               } else if (calculatedPitchRatio > thresholds.PITCH_MAX) {
                 detectedAnomaly = "pitch_down";
                 detectedPosture = "looking_down";
-                warningText = "Keep your gaze centered on the assessment";
+                warningText = "Looking down detected! Please keep your eyes on the screen and do not look at mobile devices or notes.";
               }
             }
 

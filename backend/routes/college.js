@@ -1453,7 +1453,6 @@ router.get("/training-curriculum", requireCollegeAuth, async (req, res) => {
 // anywhere in this system yet, so an "attendance" figure is deliberately
 // NOT fabricated; the frontend shows that column as "Not tracked" rather
 // than inventing a percentage.
-const TRAINING_CURRICULUM_MODULE_COUNT = 8;
 
 router.get("/students-training-progress", requireCollegeAuth, async (req, res) => {
   try {

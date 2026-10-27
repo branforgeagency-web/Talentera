@@ -68,35 +68,23 @@ export function getScoreBreakdown(profile) {
     });
   }
 
-  // Stage 2 - Foundation (needs the academy's sign-off)
+  // Stage 2 - Foundation
   {
     const s2 = profile.stage2 || {};
     const submitted = completedStages.includes(2) || s2.academyName || s2.instituteName || s2.domain;
     const signedOff = s2.verified === true;
-    const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== '—'
-      ? s2.academyAssessmentScore
-      : (s2.assessmentScore !== undefined && s2.assessmentScore !== null ? s2.assessmentScore : s2.score);
-    let step3Pts = 5;
-    let hasScore = false;
-    if (rawScore !== undefined && rawScore !== null && rawScore !== '—' && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, '')))) {
-      const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ''));
-      step3Pts = numScore >= 80 ? 5 : (numScore >= 60 ? 4 : 3);
-      hasScore = true;
-    }
     const expMode = isExperiencedProfile(profile);
-    const hasProof = !!(s2.certDocUrl || s2.relievingLetterUrl || s2.payslipUrl);
-    const expEarned = (String(s2.currentCompany || '').trim() && String(s2.jobTitle || '').trim() ? 10 : 0) + (hasProof ? 5 : 0);
     const idVerified = (profile.stage1 || {}).aadhaarVerified === true || (profile.stage1 || {}).aadhaarStatus === 'VERIFIED';
-    const earned = expMode ? (idVerified ? 15 : 0) : (signedOff ? 10 + step3Pts : (submitted ? 10 : 0));
+    const earned = expMode ? (idVerified ? 15 : 0) : (submitted ? 15 : 0);
     let tip;
     if (expMode) {
       tip = idVerified
         ? 'Optional for experienced candidates — full 15 points credited. You can still add your work details in Stage 2 for your resume.'
         : 'Optional for experienced candidates — you get the full 15 points as soon as your identity is verified in Stage 1.';
-    } else if (signedOff) {
-      tip = hasScore ? `Earned ${earned}/15 points (${step3Pts}/5 from Academy Assessment Score: ${rawScore}%).` : 'Earned 15/15 points — your academy has signed off on your training.';
     } else if (submitted) {
-      tip = 'Your academy details are submitted — you have 10/15 points now; the remaining 5 unlock once your academy approves them.';
+      tip = signedOff
+        ? 'Earned 15/15 points — your academy has signed off on your training.'
+        : 'Earned 15/15 points — Stage 02 Foundation details saved successfully.';
     } else {
       tip = 'Add your academy/institute name, training domain and specialties in Stage 2 to earn up to 15 points.';
     }
@@ -1193,7 +1181,7 @@ export default function CandidateDashboard({ profile: propProfile, onEditStage }
         <div className="stage-detail-head">
           <div className="stage-detail-title">
             <div className="stage-detail-num">02</div>
-            <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+{profile?.stageScores?.[2] ?? 15} pts{profile?.stageScores?.[2] != null && profile.stageScores[2] < 15 ? ' of 15' : ''} · {completedStages.includes(2) ? ((profile?.stageScores?.[2] ?? 15) >= 15 ? 'Academy-Signed' : 'Awaiting Academy Sign-off') : 'Pending'}</div></div>
+            <div><div className="stage-detail-name">Foundation · {profile?.stage2?.academyName || profile?.stage2?.instituteName || (completedStages.includes(2) ? 'Completed' : 'Not Completed')}</div><div className="stage-detail-tag">+{profile?.stageScores?.[2] ?? 15} pts · {completedStages.includes(2) ? (profile?.stage2?.verified === true ? 'Academy-Signed' : 'Verified') : 'Pending'}</div></div>
           </div>
           <div className="stage-detail-actions"><button className="btn-secondary" onClick={() => handleOpenStagesWizard(2)}><><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Edit Stage 02</></button></div>
         </div>

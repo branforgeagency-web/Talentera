@@ -111,11 +111,11 @@ export function detectBackgroundMotion(detector, video, faceLandmarks) {
       const faceH = maxY - minY;
 
       // Candidate's body bounds: from above forehead down to bottom of frame, plus shoulder width
-      // (padding widened so normal shifting/gesturing stays inside the "candidate" mask
-      // instead of being misread as background motion)
-      exclLeft = Math.max(0, Math.floor((minX - faceW * 0.75) * width));
-      exclRight = Math.min(width - 1, Math.ceil((maxX + faceW * 0.75) * width));
-      exclTop = Math.max(0, Math.floor((minY - faceH * 0.5) * height));
+      // (padding generously widened so normal gesturing, head scratching, and hand-to-face movements stay inside
+      // the candidate mask instead of being falsely misread as background intruder motion)
+      exclLeft = Math.max(0, Math.floor((minX - faceW * 1.15) * width));
+      exclRight = Math.min(width - 1, Math.ceil((maxX + faceW * 1.15) * width));
+      exclTop = Math.max(0, Math.floor((minY - faceH * 0.85) * height));
       exclBottom = height - 1;
       hasCandidateMask = true;
     }

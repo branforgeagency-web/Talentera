@@ -1587,27 +1587,10 @@ export default function AcademyPortal() {
           {/* ========================================================= */}
           {activeMod === "candidates" && (
             <div className="space-y-4">
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>Candidates Directory</h3>
-                  <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
-                    Manage and track every student from initial upload through 6-stage verification to final placement.
-                  </div>
-                </div>
-
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button className="btn btn-navy" style={{ fontSize: 12 }} onClick={() => handleNavigateMod("upload")}>
-                    <Plus style={{ width: 13, height: 13, marginRight: 4 }} />
-                    Add Candidate
-                  </button>
-                  <button className="btn btn-outline" style={{ fontSize: 12 }} onClick={() => handleNavigateMod("upload")}>
-                    <UploadCloud style={{ width: 13, height: 13, marginRight: 4 }} />
-                    Bulk Upload CSV
-                  </button>
-                  <button className="btn btn-outline" style={{ fontSize: 12, display: "inline-flex", alignItems: "center", gap: 4 }} onClick={() => handleBulkNudge("all")}>
-                    <Send style={{ width: 13, height: 13 }} />
-                    Bulk Reminder (All Channels)
-                  </button>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#06152A" }}>Candidates Directory</h3>
+                <div style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>
+                  Manage and track every student from initial upload through 6-stage verification to final placement.
                 </div>
               </div>
 

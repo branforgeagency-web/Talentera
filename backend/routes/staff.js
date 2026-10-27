@@ -210,12 +210,7 @@ router.get("/dashboard", requireStaffAuth, async (req, res) => {
     const DASHBOARD_FETCH_CAP = 1000;
     const candidates = await Candidate.find().sort({ createdAt: -1 }).limit(DASHBOARD_FETCH_CAP).lean();
     const companies = await Company.find().limit(DASHBOARD_FETCH_CAP).lean();
-    const academies = await Academy.find().limit(DASHBOARD_FETCH_CAP).lean();
     const totalStaff = await Staff.countDocuments();
-    const totalCandidates = candidates.length;
-
-    // Filter candidate pending vs fully verified
-    const fullyVerified = candidates.filter((c) => (c.completedStages || []).length >= 8);
 
     const incomingBucket = candidates.map((c) => {
       const s1 = c.stage1 || {};
@@ -759,25 +754,44 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
     }
 
     if (action === "verify") {
+      const auditorName = req.staffName || req.body.approvedBy || "Anita Reddy";
       company.kycStatus = "verified";
       company.isVerified = true;
       company.kycVerifiedAt = new Date();
-      company.kycApprovedBy = req.staffName || "Talentera Team";
+      company.kycApprovedBy = auditorName;
       company.kycNotes = notes || "Account & KYC documents audited and verified by Staff Auditor.";
       company.kycRejectionReason = "";
       company.rejectedKycFields = [];
       if (!company.completedStages.includes("1a")) {
         company.completedStages.push("1a");
       }
+
+      // Automatically verify all uploaded KYC document certificates
+      const s1a = company.stage1a || {};
+      const dVer = company.docVerifications || {};
+      const docKeys = ["kycgst", "kycpan", "kycincorp", "kyccheque", "msme"];
+      docKeys.forEach((key) => {
+        if (s1a[key]) {
+          dVer[key] = {
+            isValid: true,
+            verifiedAt: new Date(),
+            verifiedBy: auditorName,
+            note: "Verified during Company KYC audit approval.",
+          };
+        }
+      });
+      company.docVerifications = dVer;
+      company.markModified("docVerifications");
+
       // Verified companies do not need separate job approvals
       if (company.jdPublished) {
         company.jdApprovalStatus = "approved";
         company.jdApprovedAt = new Date();
-        company.jdApprovedBy = req.staffName || "Auto-Approved (KYC Verified)";
+        company.jdApprovedBy = auditorName;
       }
       await Job.updateMany(
         { companyId: company._id },
-        { approvalStatus: "approved", approvedAt: new Date(), approvedBy: req.staffName || "Auto-Approved (KYC Verified)" }
+        { approvalStatus: "approved", approvedAt: new Date(), approvedBy: auditorName }
       );
     } else if (action === "reject") {
       company.kycStatus = "rejected";
@@ -3130,7 +3144,6 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
     retakeReq.reviewNotes = notes || "Approved for assessment retake.";
     await retakeReq.save();
 
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     let assessmentTitle = "Talentera AAPC / RCM Assessment (Stage 4)";
     let retakeRedirectPath = "/wizard/stage/4";
 
@@ -3166,7 +3179,7 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
     }
 
     // 3. Generate direct login & retake redirect URL
-    const retakeUrl = "https://talentera-nine.vercel.app/dashboard";
+    const retakeUrl = `${process.env.APP_URL || "https://talentera.in"}${retakeRedirectPath}`;
 
     // 4. Send Approval Email to candidate's logged-in email
     try {

@@ -2,9 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { COMPANY_DEPT_GROUPS } from "../../data/companyDepartments.js";
 
 /**
- * Departments with their specialties nested underneath, both as searchable multi-select dropdowns.
- * Pick departments in the first dropdown; a specialties dropdown for each chosen department then appears below.
- * Value stays a flat array of strings (department names + specialty names) so existing readers keep working.
+ * Departments as a searchable multi-select dropdown with quick select all / clear all and custom department addition.
+ * Value stays an array of department strings.
  */
 
 function MultiDropdown({ options, selected, onToggle, placeholder, allowCustom, onAddCustom, onSelectAll, onClearAll }) {
@@ -99,77 +98,28 @@ export default function DeptGroupField({ value, onCommit }) {
   const toggle = (v) => onCommit(has(v) ? selected.filter((x) => x !== v) : [...selected, v]);
 
   const deptNames = COMPANY_DEPT_GROUPS.map((g) => g.name);
-  const known = new Set(COMPANY_DEPT_GROUPS.flatMap((g) => [g.name, ...g.specialties]));
-  const chosenGroups = COMPANY_DEPT_GROUPS.filter((g) => has(g.name));
-  const strayCustom = selected.filter((v) => !known.has(v));
 
   function selectAllDepts(names) {
     onCommit([...selected, ...names.filter((n) => !has(n))]);
   }
   function clearAllDepts(names) {
     const drop = new Set(names);
-    COMPANY_DEPT_GROUPS.forEach((g) => { if (drop.has(g.name)) g.specialties.forEach((sp) => drop.add(sp)); });
     onCommit(selected.filter((x) => !drop.has(x)));
-  }
-  function selectAllIn(list) {
-    onCommit([...selected, ...list.filter((n) => !has(n))]);
-  }
-  function clearAllIn(list) {
-    const drop = new Set(list);
-    onCommit(selected.filter((x) => !drop.has(x)));
-  }
-
-  function toggleDept(name) {
-    const g = COMPANY_DEPT_GROUPS.find((x) => x.name === name);
-    if (has(name)) {
-      const drop = new Set([name, ...g.specialties]);
-      onCommit(selected.filter((x) => !drop.has(x)));
-    } else {
-      onCommit([...selected, name]);
-    }
   }
 
   return (
     <div>
-      <div style={{ fontSize: 12, color: "#64748B", marginBottom: 6 }}>
-        1. Choose the departments you hire for — 2. then choose the specialties under each one.
-      </div>
       <MultiDropdown
         options={deptNames}
         selected={selected}
-        onToggle={toggleDept}
+        onToggle={toggle}
         onSelectAll={selectAllDepts}
         onClearAll={clearAllDepts}
+        allowCustom
+        onAddCustom={(t) => { if (!has(t)) onCommit([...selected, t]); }}
         placeholder="Search & select departments…"
       />
-      <Chips items={chosenGroups.map((g) => g.name)} onRemove={toggleDept} />
-
-      {chosenGroups.map((g) => {
-        const picked = g.specialties.filter(has);
-        return (
-          <div key={g.name} style={{ marginTop: 14, padding: "12px 14px", border: "1.5px solid #E2E8F0", borderRadius: 10, background: "#F8FAFC" }}>
-            <div style={{ fontWeight: 800, fontSize: 13, color: "#0F172A", marginBottom: 8 }}>{g.name} — specialties</div>
-            <MultiDropdown
-              options={g.specialties}
-              selected={selected}
-              onToggle={toggle}
-              onSelectAll={selectAllIn}
-              onClearAll={clearAllIn}
-              onAddCustom={(t) => { if (!has(t)) onCommit([...selected, t]); }}
-              allowCustom
-              placeholder={`Search & select ${g.name} specialties (or type to add your own)…`}
-            />
-            <Chips items={picked} onRemove={toggle} />
-          </div>
-        );
-      })}
-
-      {strayCustom.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 12, color: "#64748B" }}>Your added specialties (click to remove)</div>
-          <Chips items={strayCustom} onRemove={toggle} />
-        </div>
-      )}
+      <Chips items={selected} onRemove={toggle} />
     </div>
   );
 }
