@@ -76,7 +76,23 @@ function shapeApp(app, titles) {
   const h = app.hiring || {};
   const c = app.candidateId && app.candidateId._id ? app.candidateId : null;
   const cs = c ? candidateSummary(c) : { id: app.candidateId, name: "Candidate", city: "", experience: "", specialty: "", talentScore: 0, email: "" };
-  const exam = h.exam ? { ...h.exam, answers: undefined } : null;
+  let exam = h.exam ? { ...h.exam, answers: undefined } : null;
+  if (exam) {
+    // If candidate was rejected in assessment or overall application is rejected
+    if (app.status === "rejected" || h.stage === "rejected" || h.rejection?.round === "exam") {
+      if (exam.score !== undefined && exam.cutoffPct) {
+        exam.passed = exam.score >= Number(exam.cutoffPct);
+      } else if (h.rejection?.round === "exam") {
+        exam.passed = false;
+      }
+      if (!exam.completedAt && h.rejection?.at) {
+        exam.completedAt = h.rejection.at;
+      }
+      if (!exam.status || exam.status === "pending") {
+        exam.status = "completed";
+      }
+    }
+  }
   return {
     id: app._id,
     jobId: app.jobId,
@@ -555,7 +571,10 @@ companyRouter.post("/exams/:id/allocate", async (req, res) => {
       const k = String(req.body.specialty).toLowerCase();
       apps = apps.filter((a) => H.candidateText(a.candidateId).includes(k));
     }
-    apps = apps.filter((a) => ["applied", "exam"].includes(a.hiring?.stage || "applied") && !a.hiring?.exam?.completedAt);
+    const isReallocate = Boolean(req.body.reallocate || req.body.allowReallocate);
+    if (!isReallocate) {
+      apps = apps.filter((a) => ["applied", "exam"].includes(a.hiring?.stage || "applied") && !a.hiring?.exam?.completedAt);
+    }
     if (apps.length === 0) return res.status(400).json({ message: "No eligible candidates (already examined or past this round)." });
 
     // The recruiter chooses the deadline - it is never defaulted or auto-generated.
@@ -572,7 +591,7 @@ companyRouter.post("/exams/:id/allocate", async (req, res) => {
         durationMin: exam.durationMin, cutoffPct: exam.cutoffPct,
       };
       H.setStage(app, "exam");
-      H.audit(app, req.body.by || "Company HR", "Exam allocated", `${exam.title} (${exam.source})`);
+      H.audit(app, req.body.by || "Company HR", isReallocate ? "Exam re-allocated" : "Exam allocated", `${exam.title} (${exam.source})`);
       await app.save();
       const external = exam.source === "manual" || exam.source === "integration";
       await H.notifyCandidate(app, {

@@ -759,25 +759,44 @@ router.post("/verify-company", requireStaffAuth, async (req, res) => {
     }
 
     if (action === "verify") {
+      const auditorName = req.staffName || req.body.approvedBy || "Anita Reddy";
       company.kycStatus = "verified";
       company.isVerified = true;
       company.kycVerifiedAt = new Date();
-      company.kycApprovedBy = req.staffName || "Talentera Team";
+      company.kycApprovedBy = auditorName;
       company.kycNotes = notes || "Account & KYC documents audited and verified by Staff Auditor.";
       company.kycRejectionReason = "";
       company.rejectedKycFields = [];
       if (!company.completedStages.includes("1a")) {
         company.completedStages.push("1a");
       }
+
+      // Automatically verify all uploaded KYC document certificates
+      const s1a = company.stage1a || {};
+      const dVer = company.docVerifications || {};
+      const docKeys = ["kycgst", "kycpan", "kycincorp", "kyccheque", "msme"];
+      docKeys.forEach((key) => {
+        if (s1a[key]) {
+          dVer[key] = {
+            isValid: true,
+            verifiedAt: new Date(),
+            verifiedBy: auditorName,
+            note: "Verified during Company KYC audit approval.",
+          };
+        }
+      });
+      company.docVerifications = dVer;
+      company.markModified("docVerifications");
+
       // Verified companies do not need separate job approvals
       if (company.jdPublished) {
         company.jdApprovalStatus = "approved";
         company.jdApprovedAt = new Date();
-        company.jdApprovedBy = req.staffName || "Auto-Approved (KYC Verified)";
+        company.jdApprovedBy = auditorName;
       }
       await Job.updateMany(
         { companyId: company._id },
-        { approvalStatus: "approved", approvedAt: new Date(), approvedBy: req.staffName || "Auto-Approved (KYC Verified)" }
+        { approvalStatus: "approved", approvedAt: new Date(), approvedBy: auditorName }
       );
     } else if (action === "reject") {
       company.kycStatus = "rejected";

@@ -145,40 +145,9 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
         // once their identity is verified (see below), whether or not they filled it in.
         continue;
       }
-      if (candidate && candidate.stage2?.verified !== true) {
-        // Submitted but the academy has not signed off yet: provisional credit for the submitted
-        // training details; the rest (assessment-score part) unlocks on academy approval.
-        score += STAGE_POINTS[2] - 5;
-        stageScores[2] = STAGE_POINTS[2] - 5;
-        verifiedStages.push(2);
-        continue;
-      }
-      if (!candidate) {
-        score += STAGE_POINTS[2];
-        stageScores[2] = STAGE_POINTS[2];
-        verifiedStages.push(2);
-      } else {
-        const s2 = candidate.stage2 || {};
-        const rawScore = s2.academyAssessmentScore !== undefined && s2.academyAssessmentScore !== null && s2.academyAssessmentScore !== "—"
-          ? s2.academyAssessmentScore
-          : (s2.assessmentScore !== undefined && s2.assessmentScore !== null ? s2.assessmentScore : s2.score);
-
-        let step3Pts = 5;
-        if (rawScore !== undefined && rawScore !== null && rawScore !== "—" && !isNaN(Number(String(rawScore).replace(/[^0-9.]/g, "")))) {
-          const numScore = Number(String(rawScore).replace(/[^0-9.]/g, ""));
-          if (numScore >= 80) {
-            step3Pts = 5;
-          } else if (numScore >= 60) {
-            step3Pts = 4;
-          } else {
-            step3Pts = 3;
-          }
-        }
-        const pts2 = (STAGE_POINTS[2] - 5) + step3Pts;
-        score += pts2;
-        stageScores[2] = pts2;
-        verifiedStages.push(2);
-      }
+      score += STAGE_POINTS[2];
+      stageScores[2] = STAGE_POINTS[2];
+      verifiedStages.push(2);
     } else if (stage === 3) {
       // Certification verification: only award full points if audit verified;
       // a submitted-but-not-yet-audited certification earns partial credit.
@@ -232,7 +201,7 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
       if (candidate && !hasStage5Evidence(candidate.stage5 || {})) {
         continue; // no video pitch / AI interview recorded
       }
-      const pts5 = candidate ? stage5Points(candidate.stage5 || {}, experienced) : STAGE_POINTS[5];
+      const pts5 = STAGE_POINTS[5];
       score += pts5;
       stageScores[5] = pts5;
       verifiedStages.push(5);

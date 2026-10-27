@@ -358,6 +358,19 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // Experienced candidates have NO AI Mock Interview: Stage 05 is the Self-Introduction alone and
   // the score comes entirely from it. Everyone else needs BOTH Self-Introduction and Mock Interview.
   const skipMock = isExperiencedCandidate(candidate);
+  const isExperienced = isExperiencedCandidate(candidate) || /exp/i.test(String(candidateExp || ""));
+  const hasAnyAssessmentData = Boolean(
+    hasRealSelfIntro ||
+    hasRealMockInterview ||
+    stage5?.videoUrl ||
+    stage5?.selfIntroVideoUrl ||
+    stage5?.introVideoUrl ||
+    stage5?.mockInterviewVideoUrl ||
+    typeof stage5?.aiScore === "number" ||
+    typeof stage5?.score === "number" ||
+    typeof stage5?.mockScore === "number" ||
+    (candidate?.stage4 && (candidate?.stage4?.score !== undefined || candidate?.stage4?.foundationScore !== undefined))
+  );
   const isCompleted = skipMock
     ? Boolean(hasRealSelfIntro && selfIntroScore !== null)
     : Boolean(hasRealSelfIntro && hasRealMockInterview && selfIntroScore !== null && mockScore !== null);
@@ -520,6 +533,10 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   const [retakeReason, setRetakeReason] = useState("");
   const [submittingRetake, setSubmittingRetake] = useState(false);
   const [retakeRequest, setRetakeRequest] = useState(null);
+
+  // Delete Assessment State for Experienced Candidates
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Quick Access Document Vault Modal
   const [showVaultModal, setShowVaultModal] = useState(false);
@@ -1385,6 +1402,31 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
     }
   };
 
+  const handleDeleteAssessment = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await api.delete("/candidate/video-assessment");
+      if (res.data?.success) {
+        setIntroVideoUrl("");
+        setIntroVideoBlob(null);
+        setMockAnswers({});
+        setMockVideos({});
+        setShowDeleteModal(false);
+        setMode("overview");
+        toast("Video assessment deleted successfully! Your experienced profile no longer includes fresher assessments.", "✓");
+        if (onSaved) {
+          onSaved(res.data.candidate, { advance: false });
+        }
+      } else {
+        toast(res.data?.message || "Failed to delete assessment data.", "error");
+      }
+    } catch (err) {
+      toast(err.response?.data?.message || err.message || "Failed to delete assessment.", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // ══════════════════════════════════════════════════════════════════════════
   // FINAL STAGE 5 SUBMISSION
   // ══════════════════════════════════════════════════════════════════════════
@@ -1711,6 +1753,73 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               LOCKED
             </div>
           </div>
+
+          {/* EXPERIENCED PROFILE - DELETE FRESHER ASSESSMENTS BANNER */}
+          {isExperienced && hasAnyAssessmentData && (
+            <div
+              style={{
+                background: "#FEF2F2",
+                border: "1.5px solid #F87171",
+                borderRadius: 14,
+                padding: "16px 20px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                marginBottom: 18,
+                boxShadow: "0 2px 10px rgba(239, 68, 68, 0.08)",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 14, flex: "1 1 340px" }}>
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: "#FEE2E2",
+                    color: "#DC2626",
+                    display: "grid",
+                    placeItems: "center",
+                    fontSize: 20,
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="fa-solid fa-user-tie" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#991B1B" }}>
+                    Experienced Profile Detected — Assessments Not Required
+                  </div>
+                  <div style={{ fontSize: 12, color: "#7F1D1D", marginTop: 3, lineHeight: 1.5 }}>
+                    You updated your profile to <strong>Experienced ({candidateExp})</strong>. Fresher video assessments, mock interviews, and MCQ tests are no longer required for your profile. You can delete these assessments to remove them from your public profile.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                style={{
+                  background: "#DC2626",
+                  color: "#FFFFFF",
+                  border: "none",
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexShrink: 0,
+                  boxShadow: "0 2px 8px rgba(220, 38, 38, 0.25)",
+                }}
+              >
+                <i className="fa-solid fa-trash-can" />
+                Delete Video Assessment
+              </button>
+            </div>
+          )}
 
           {/* ACTIVE RETAKE NOTIFICATION BANNER */}
           {retakeRequest && retakeRequest.status === "PENDING" && (
@@ -2195,6 +2304,28 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                         >
                           Discard & retry
                         </button>
+                        {isExperienced && (
+                          <button
+                            type="button"
+                            onClick={() => setShowDeleteModal(true)}
+                            style={{
+                              background: "rgba(220, 38, 38, 0.2)",
+                              color: "#FCA5A5",
+                              border: "1px solid #DC2626",
+                              padding: "11px 18px",
+                              borderRadius: 10,
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 6,
+                            }}
+                          >
+                            <i className="fa-solid fa-trash-can" />
+                            Delete Assessment
+                          </button>
+                        )}
                         <a
                           href={getAssetUrl(introVideoUrl)}
                           target="_blank"
@@ -2319,6 +2450,29 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 >
                   Request Retake for Stage 05
                 </button>
+                {isExperienced && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(true)}
+                    style={{
+                      background: "#FEF2F2",
+                      color: "#DC2626",
+                      border: "1.5px solid #F87171",
+                      padding: "11px 22px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      marginLeft: 10,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <i className="fa-solid fa-trash-can" />
+                    Delete Video Assessment
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -2782,6 +2936,29 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
               </div>
 
               <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                {isExperienced && hasAnyAssessmentData && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteModal(true)}
+                    style={{
+                      background: "#FEF2F2",
+                      color: "#DC2626",
+                      padding: "11px 20px",
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 800,
+                      border: "1.5px solid #F87171",
+                      cursor: "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 8,
+                      boxShadow: "0 2px 6px rgba(220,38,38,0.1)",
+                    }}
+                  >
+                    <i className="fa-solid fa-trash-can" />
+                    Delete Assessment
+                  </button>
+                )}
                 {isCompleted ? (
                   <>
                     <button
@@ -2935,6 +3112,106 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {/* DELETE VIDEO ASSESSMENT CONFIRMATION MODAL (EXPERIENCED PROFILE)   */}
+      {/* ══════════════════════════════════════════════════════════════════ */}
+      {showDeleteModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(15,27,61,.75)", zIndex: 1000, display: "grid", placeItems: "center", padding: 20 }}>
+          <div style={{ background: "#FFFFFF", borderRadius: 16, maxWidth: 540, width: "100%", padding: 26, boxShadow: "0 12px 36px rgba(0,0,0,.25)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#FEE2E2", color: "#DC2626", display: "grid", placeItems: "center", fontSize: 18 }}>
+                  <i className="fa-solid fa-trash-can" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#991B1B" }}>
+                    Delete Video Assessment
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "#64748B" }}>
+                    Experienced Candidate Profile
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                style={{ background: "none", border: "none", fontSize: 20, cursor: "pointer", color: "#8A91A3" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, marginBottom: 18 }}>
+              <p style={{ margin: "0 0 10px 0" }}>
+                You have updated your profile from <strong>Fresher</strong> to <strong>Experienced ({candidateExp})</strong>. As an experienced candidate, fresher assessments are not required in your profile.
+              </p>
+              <div style={{ background: "#FFF7ED", border: "1px solid #FFEDD5", borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
+                <strong style={{ color: "#9A3412", fontSize: 12 }}>This action will permanently delete:</strong>
+                <ul style={{ margin: "6px 0 0 18px", padding: 0, fontSize: 12, color: "#7C2D12" }}>
+                  <li>Recorded self-introduction video and speech transcripts</li>
+                  <li>AI mock interview questions, video takes and scores</li>
+                  <li>5-dimension communication rubric (Clarity, Fluency, etc.)</li>
+                  <li>Any lingering fresher Stage 4 MCQ assessment scores</li>
+                </ul>
+              </div>
+              <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", fontSize: 12, color: "#166534" }}>
+                ✓ Your verification score will continue to be earned directly from your verified work experience and certifications.
+              </div>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                style={{
+                  background: "#F1F5F9",
+                  color: "#475569",
+                  border: "none",
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  fontWeight: 700,
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                }}
+              >
+                Keep Assessment
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAssessment}
+                disabled={isDeleting}
+                style={{
+                  background: "#DC2626",
+                  color: "#FFFFFF",
+                  border: "none",
+                  padding: "10px 22px",
+                  borderRadius: 8,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                  boxShadow: "0 2px 8px rgba(220, 38, 38, 0.25)",
+                }}
+              >
+                {isDeleting ? (
+                  <>
+                    <i className="fa-solid fa-spinner fa-spin" /> Deleting...
+                  </>
+                ) : (
+                  <>
+                    <i className="fa-solid fa-trash-can" /> Yes, Delete from Profile
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -3269,6 +3269,97 @@ router.get("/retake-request", async (req, res) => {
   }
 });
 
+// DELETE /api/candidate/video-assessment (and POST /api/candidate/delete-video-assessment)
+// Allows candidates (particularly those who edited their profile from Fresher to Experienced) to delete
+// their Stage 5 Video Assessment data, mock interview recordings, and any lingering fresher Stage 4 scores.
+const handleDeleteVideoAssessment = async (req, res) => {
+  try {
+    const candidate = await Candidate.findById(req.candidateId);
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate profile not found." });
+    }
+
+    // Clear Stage 5 video assessment data completely
+    candidate.stage5 = {
+      videoUrl: null,
+      introVideoUrl: null,
+      selfIntroVideoUrl: null,
+      mockInterviewVideoUrl: null,
+      passionVideoUrl: null,
+      regionalVideoUrl: null,
+      selfIntroCompleted: false,
+      mockInterviewCompleted: false,
+      mockScore: null,
+      aiScore: null,
+      score: null,
+      overallScore: null,
+      rubric: null,
+      answers: [],
+      mockAnswers: {},
+      mockVideos: {},
+      completedAt: null,
+      status: "not_started",
+      isLiveVerified: false,
+      clarityScore: null,
+      fluencyScore: null,
+      vocabScore: null,
+      confidenceScore: null,
+      contentScore: null,
+      deletedAt: new Date(),
+      deletedReason: "Profile edited to Experienced - assessments no longer required",
+    };
+    candidate.markModified("stage5");
+
+    // Also clear Stage 4 fresher assessment if candidate is experienced
+    if (isExperiencedCandidate(candidate)) {
+      candidate.stage4 = {
+        skipped: true,
+        notRequired: true,
+        reason: "Experienced candidate - scored on certifications",
+        completedAt: new Date(),
+      };
+      candidate.markModified("stage4");
+    }
+
+    // Remove Stage 5 from completedStages
+    if (Array.isArray(candidate.completedStages)) {
+      candidate.completedStages = candidate.completedStages.filter((s) => s !== 5);
+      candidate.markModified("completedStages");
+    }
+
+    // Also clear any stage8 aiInterview mock session
+    if (candidate.stage8?.aiInterview) {
+      delete candidate.stage8.aiInterview;
+      candidate.markModified("stage8");
+    }
+
+    // Cancel any pending retake requests for Stage 5
+    await RetakeRequest.updateMany(
+      { candidateId: candidate._id, stage: 5, status: "PENDING" },
+      { $set: { status: "CANCELLED", notes: "Assessment deleted by candidate after switching to Experienced" } }
+    );
+
+    // Recalculate verification score
+    const scoring = calculateVerificationScore(candidate.completedStages || [], candidate);
+    candidate.score = scoring.score;
+    candidate.stageScores = scoring.stageScores;
+    await candidate.save();
+
+    res.json({
+      success: true,
+      message: "Video assessment and fresher assessment data deleted successfully from your profile.",
+      candidate,
+      ...scoring,
+    });
+  } catch (err) {
+    logger.error(`Delete video assessment error: ${err.message}`);
+    res.status(500).json({ message: "Failed to delete video assessment." });
+  }
+};
+
+router.delete("/video-assessment", handleDeleteVideoAssessment);
+router.post("/delete-video-assessment", handleDeleteVideoAssessment);
+
 // ═══════════════════════════════════════════════════════════════
 // 🎁 3 EARN ENGINES: REFERRAL API ROUTES
 // ═══════════════════════════════════════════════════════════════

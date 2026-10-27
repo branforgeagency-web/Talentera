@@ -81,7 +81,7 @@ export const ONBOARDING_STAGES = [
       { id: "hq", name: "Company Headquarters", desc: "City / State of primary office", tag: "must", input: "text", placeholder: "e.g. Chennai, Tamil Nadu" },
       { id: "about", name: "Company Description", desc: "Overview of your organization and culture", tag: "must", input: "textarea", maxlength: 2000, placeholder: "Describe your company, culture, and what you do..." },
       { id: "mission", name: "Mission & Vision", desc: "3–4 lines shown to candidates on the Company Full Details page", tag: "opt", input: "textarea", maxlength: 600, placeholder: "Our mission is… Our vision is…" },
-      { id: "departments", name: "Departments / Specialties", desc: "Pick departments, then the specialties under each one", tag: "opt", input: "dept-groups" },
+      { id: "departments", name: "Department", desc: "Select the departments you hire for", tag: "opt", input: "dept-groups" },
       { id: "branches", name: "Branches", desc: "Additional office or facility locations - search and pick cities", tag: "opt", input: "city-multi", placeholder: "Select branch cities" },
       { id: "policies", name: "Company policies & benefits", desc: "Facilities and benefits candidates should know about", tag: "opt", input: "multi", options: ["Night shift meal", "Cab / transport facility", "Health insurance", "Provident Fund (PF)", "Performance incentives", "Hybrid / work from home", "Paid leave policy", "Training & certification support", "Other"] },
       { id: "projects", name: "Projects", desc: "Pick a domain and project, or choose Other to type your own", tag: "opt", input: "projects-list" },
