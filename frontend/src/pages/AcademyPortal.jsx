@@ -1,3 +1,5 @@
+import TimeEstimate from "../components/TimeEstimate.jsx";
+import { REGISTRATION_TIMINGS } from "../data/registrationTimings.js";
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { safeJson } from "../utils/safeJson.js";
@@ -1468,11 +1470,14 @@ export default function AcademyPortal() {
           {/* KYC VERIFICATION MODULE */}
           {/* ========================================================= */}
           {activeMod === "kyc" && (
+            <>
+            <div style={{ margin: "0 0 12px" }}><TimeEstimate>About {REGISTRATION_TIMINGS.academy} to complete your academy setup and KYC</TimeEstimate></div>
             <AcademyKycForm
               academy={dashData?.academy}
               onKycUpdated={fetchDashboardData}
               showToast={showToast}
             />
+            </>
           )}
 
           {/* ========================================================= */}
