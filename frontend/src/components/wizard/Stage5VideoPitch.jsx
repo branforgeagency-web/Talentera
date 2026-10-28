@@ -358,7 +358,7 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
   // Experienced candidates have NO AI Mock Interview: Stage 05 is the Self-Introduction alone and
   // the score comes entirely from it. Everyone else needs BOTH Self-Introduction and Mock Interview.
   const skipMock = isExperiencedCandidate(candidate);
-  const isExperienced = isExperiencedCandidate(candidate) || /exp/i.test(String(candidateExp || ""));
+  const isExperienced = isExperiencedCandidate(candidate) || /exp/i.test(String(candidate?.stage1?.experience || "Fresher"));
   const hasAnyAssessmentData = Boolean(
     hasRealSelfIntro ||
     hasRealMockInterview ||
