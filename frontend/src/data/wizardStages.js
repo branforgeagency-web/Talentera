@@ -91,7 +91,7 @@ const RAW_WIZARD_STAGES = [
       { num: "400+", label: "RCM academies mapped" },
       { num: "Verified", label: "by your academy" },
       { num: "Live sign-off", label: "from academy dashboard" },
-      { num: "~15 min", label: "your time" },
+      { num: "~5 min", label: "your time" },
     ],
     theme: { p1: "#A855F7", p2: "#C026D3" },
     context:
@@ -132,7 +132,7 @@ const RAW_WIZARD_STAGES = [
       { num: "80+", label: "issuing bodies" },
       { num: "API-Verified", label: "or registry match" },
       { num: "Multi-cert", label: "stackable proof" },
-      { num: "Global", label: "recruiter reach" },
+      { num: "~3 min", label: "your time" },
     ],
     theme: { p1: "#00E599", p2: "#00B4D8" },
     context:
@@ -156,7 +156,7 @@ const RAW_WIZARD_STAGES = [
       {
         type: "check",
         title: "What's tested",
-        body: "Foundation (15 Qs · 20 min): ICD-10-CM rules, CPT basics, HCPCS, modifiers, sequencing. Specialty (10 Qs · 25 min): deep dive in your specialty. Anti-cheat: browser lockdown, periodic webcam snapshots, IP fingerprint.",
+        body: "Foundation (15 Qs): ICD-10-CM rules, CPT basics, HCPCS, modifiers, sequencing. Specialty (10 Qs): deep dive in your specialty. 25 questions in a 30-minute timed window. Anti-cheat: browser lockdown, periodic webcam snapshots, IP fingerprint.",
       },
       {
         type: "eye",
@@ -168,7 +168,7 @@ const RAW_WIZARD_STAGES = [
       { num: "25 Qs", label: "foundation + specialty" },
       { num: "Locked", label: "browser + webcam" },
       { num: "Per-topic", label: "scoring" },
-      { num: "45 min", label: "your time" },
+      { num: "30–40 min", label: "your time" },
     ],
     theme: { p1: "#10B981", p2: "#22C55E" },
     context:
@@ -204,7 +204,7 @@ const RAW_WIZARD_STAGES = [
       { num: "Live AI", label: "verbal Q&A" },
       { num: "5 Qs", label: "communication interview" },
       { num: "Claude AI", label: "evaluated" },
-      { num: "~10 min", label: "your time" },
+      { num: "~5 min", label: "your time" },
     ],
     theme: { p1: "#EC4899", p2: "#F43F5E" },
     context:
@@ -240,7 +240,7 @@ const RAW_WIZARD_STAGES = [
       { num: "Practicode", label: "live API" },
       { num: "Read-only", label: "sync access" },
       { num: "Specialty", label: "chart mix" },
-      { num: "~5 min", label: "your time" },
+      { num: "~2 min", label: "your time" },
     ],
     theme: { p1: "#06B6D4", p2: "#0EA5E9" },
     context:
@@ -276,7 +276,7 @@ const RAW_WIZARD_STAGES = [
       { num: "Auto-built", label: "from your data" },
       { num: "1", label: "standard format" },
       { num: "Live", label: "always current" },
-      { num: "~5 min", label: "your time" },
+      { num: "~2 min", label: "your time" },
     ],
     theme: { p1: "#F97316", p2: "#EF4444" },
     context:

@@ -1,3 +1,5 @@
+import TimeEstimate from "../components/TimeEstimate.jsx";
+import { REGISTRATION_TIMINGS } from "../data/registrationTimings.js";
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "../components/Toast.jsx";
@@ -263,6 +265,7 @@ export default function CollegeRegister() {
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.65)", margin: "0 0 22px" }}>
             Just four details to start. You&apos;ll add the rest after signing in.
           </p>
+          <div style={{ margin: "-10px 0 18px" }}><TimeEstimate dark>About {REGISTRATION_TIMINGS.college} to complete</TimeEstimate></div>
 
           {error && (
             <div

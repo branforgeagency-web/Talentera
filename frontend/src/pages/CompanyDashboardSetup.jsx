@@ -1,3 +1,5 @@
+import TimeEstimate from "../components/TimeEstimate.jsx";
+import { REGISTRATION_TIMINGS } from "../data/registrationTimings.js";
 import React, { useEffect, useState, useRef } from "react";
 import { effectivePlan } from "../utils/billing";
 import { Link, useNavigate } from "react-router-dom";
@@ -556,6 +558,9 @@ export default function CompanyDashboardSetup() {
                     Welcome, <span className="gold-italic">{contactName}</span> — let's get{" "}
                     <span className="gold-italic">{companyName}</span> hiring.
                   </h1>
+                  <div style={{ marginTop: 8 }}>
+                    <TimeEstimate dark>About {REGISTRATION_TIMINGS.companyNoJob} to set up ({REGISTRATION_TIMINGS.companyWithJob} with a job post)</TimeEstimate>
+                  </div>
                 </div>
 
                 <button

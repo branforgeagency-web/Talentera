@@ -1,3 +1,5 @@
+import TimeEstimate from "./TimeEstimate.jsx";
+import { REGISTRATION_TIMINGS } from "../data/registrationTimings.js";
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { WIZARD_STAGES } from "../data/wizardStages";
@@ -77,6 +79,11 @@ export default function WizardSidebar({
         <div className="wiz-progress-num">{earnedPoints} <span>/ 100 POINTS</span></div>
         <div className="wiz-progress-bar-track">
           <div className="wiz-progress-bar-fill" style={{ width: `${earnedPct}%` }} />
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <TimeEstimate dark>
+            About {REGISTRATION_TIMINGS.candidateNoAssessment} to complete{hiddenStages.includes(4) ? "" : ` + ${REGISTRATION_TIMINGS.candidateAssessment} for the assessment`}
+          </TimeEstimate>
         </div>
       </div>
 
