@@ -369,6 +369,7 @@ export default function CandidateWizard() {
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
+              onSaveExit={handleSaveExit}
             />
           ) : shownStageId === 5 ? (
             <Stage5VideoPitch
@@ -409,6 +410,7 @@ export default function CandidateWizard() {
               existingData={existingData}
               candidate={candidateObj}
               onSaved={handleStageSaved}
+              onSaveExit={handleSaveExit}
               {...(activeStage?.num === 6 ? { onPreviewPoints: setStage6Preview } : {})}
             />
           )}

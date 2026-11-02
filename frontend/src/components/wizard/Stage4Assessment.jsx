@@ -400,7 +400,7 @@ const PRACTICE_QUESTIONS = [
 
 ];
 
-export default function Stage4Assessment({ stage, existingData, candidate, onSaved }) {
+export default function Stage4Assessment({ stage, existingData, candidate, onSaved, onSaveExit }) {
   const toast = useToast();
 
   const [localResult, setLocalResult] = useState(null);
@@ -438,15 +438,34 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
   const candidateCity = candidate?.stage1?.city || "";
   const isAadhaarVerified = Boolean(candidate?.stage1?.aadhaarVerified);
 
-  // Auto-detect domain strictly from Stage 2 data
+  // Auto-detect domain comprehensively from candidate profile and stage inputs
+  const s1 = candidate?.stage1 || {};
   const s2 = candidate?.stage2 || {};
-  const candidateDomain = (() => {
-    const raw = (s2.domain || s2.courseName || s2.specialty || (Array.isArray(s2.specialties) ? s2.specialties.join(", ") : "")).trim().toLowerCase();
-    if (raw.includes("billing")) return "Medical Billing";
-    if (raw.includes("receivable") || raw.includes("ar") || raw.includes("a/r")) return "Accounts Receivable";
+  const autoDetectedDomain = (() => {
+    const raw = [
+      s2.domain,
+      s2.courseName,
+      s2.specialty,
+      Array.isArray(s2.specialties) ? s2.specialties.join(" ") : "",
+      s2.jobTitle,
+      s2.projectDetails,
+      s2.rolesResponsibilities,
+      s1.currentRole,
+      s1.specialty,
+      candidate?.rcmDomainSelection?.primaryDomain,
+      candidate?.specialty,
+      candidate?.currentRole,
+      candidate?.domain,
+    ].filter(Boolean).join(" ").toLowerCase();
+
+    if (raw.includes("billing") || raw.includes("biller")) return "Medical Billing";
+    if (raw.includes("receivable") || raw.includes("ar") || raw.includes("a/r") || raw.includes("denial")) return "Accounts Receivable";
     if (raw.includes("eligibility") || raw.includes("verification") || raw.includes("front") || raw.includes("office") || raw.includes("reception") || raw.includes("pre-auth") || raw.includes("preauth")) return "Eligibility & Verification";
     return "Medical Coding";
   })();
+
+  const [domainOverride, setDomainOverride] = useState(existingData?.domain || null);
+  const candidateDomain = domainOverride || autoDetectedDomain;
 
   const s2Domain = candidateDomain;
   const adaptiveBank = { domainName: candidateDomain };
@@ -1356,11 +1375,33 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
               <div style={{ fontSize: 10.5, color: "#1F7A3C", fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase" }}>
                 FROM YOUR STAGE 01-03 · IDENTITY + FOUNDATION + CERTIFICATION
               </div>
-              <div style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 800, marginTop: 2 }}>
-                {candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · {candidateDomain} · {certLabel}
+              <div style={{ fontSize: 13.5, color: "var(--navy)", fontWeight: 800, marginTop: 2, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span>{candidateName} {candidateCity ? `(${candidateCity})` : ""} · {candidateExp} · <b>{candidateDomain}</b> · {certLabel}</span>
               </div>
-              <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 1, fontStyle: "italic" }}>
-                Talentera has configured your personalized assessment domain based on your previous stage inputs.
+              <div style={{ fontSize: 11.5, color: "#8A91A3", marginTop: 4, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span>Assessment domain:</span>
+                {["Medical Billing", "Medical Coding", "Accounts Receivable"].map((dom) => (
+                  <button
+                    key={dom}
+                    type="button"
+                    onClick={() => {
+                      setDomainOverride(dom);
+                      toast(`Switched assessment syllabus to ${dom}`, "✓");
+                    }}
+                    style={{
+                      background: candidateDomain === dom ? "var(--gold)" : "#F1F5F9",
+                      color: candidateDomain === dom ? "var(--navy)" : "#475569",
+                      border: candidateDomain === dom ? "1px solid #D97706" : "1px solid #CBD5E1",
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      fontSize: 10.5,
+                      fontWeight: candidateDomain === dom ? 800 : 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {dom}
+                  </button>
+                ))}
               </div>
             </div>
             <div style={{ background: "var(--gold)", color: "var(--navy)", padding: "5px 10px", borderRadius: 8, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6 }}>
@@ -2451,7 +2492,35 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
             </div>
 
             {/* ACTION BUTTONS */}
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onSaveExit) {
+                    onSaveExit();
+                  } else if (onSaved) {
+                    onSaved(null, { advance: false });
+                    window.location.href = "/candidate/dashboard";
+                  } else {
+                    window.location.href = "/candidate/dashboard";
+                  }
+                }}
+                style={{
+                  background: "#fff",
+                  color: "var(--navy)",
+                  padding: "11px 20px",
+                  borderRadius: 10,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  border: "1.5px solid #CBD5E1",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <i className="fa-solid fa-floppy-disk" style={{ marginRight: 6 }}></i> Save &amp; finish later
+              </button>
               <button
                 type="button"
                 onClick={() => onSaved && onSaved(null, { advance: true, nextStage: 5 })}

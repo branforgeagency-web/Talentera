@@ -1184,7 +1184,7 @@ candidateRouter.get("/", async (req, res) => {
 });
 
 async function ownApp(req) {
-  return Application.findOne({ _id: req.params.id, candidateId: req.candidateId }).populate("candidateId", "email stage1");
+  return Application.findOne({ _id: req.params.id, candidateId: req.candidateId }).populate("candidateId", "email stage1 stage2 rcmDomainSelection specialty");
 }
 
 // POST /exams/:id/start - returns the questions (never the answers); one attempt, timer enforced server-side
@@ -1198,12 +1198,49 @@ candidateRouter.post("/exams/:id/start", async (req, res) => {
     if (new Date(e.expiresAt) < new Date() && !e.startedAt) return res.status(400).json({ message: "This exam link has expired. Ask the employer to re-allocate it." });
     const exam = await HiringExam.findById(e.examId);
     if (!exam) return res.status(404).json({ message: "The exam is no longer available." });
+
+    // Domain-matching for library assessments:
+    // If a candidate is a Medical Biller or AR specialist, ensure they receive questions matching their actual domain.
+    let examTitle = exam.title;
+    let questionsPool = exam.questions || [];
+
+    if (exam.source === "library") {
+      const cand = app.candidateId || {};
+      const candText = [
+        cand.stage1?.currentRole,
+        cand.stage1?.specialty,
+        cand.stage2?.domain,
+        cand.stage2?.specialty,
+        cand.stage2?.jobTitle,
+        cand.rcmDomainSelection?.primaryDomain,
+        cand.specialty,
+      ].filter(Boolean).join(" ").toLowerCase();
+
+      const isBillingCand = candText.includes("billing") || candText.includes("biller");
+      const isARCand = candText.includes("receivable") || candText.includes("ar") || candText.includes("a/r");
+
+      let matchedDomain = null;
+      if (isBillingCand && exam.domain !== "Medical Billing") {
+        matchedDomain = "Medical Billing";
+      } else if (isARCand && exam.domain !== "Accounts Receivable") {
+        matchedDomain = "Accounts Receivable";
+      }
+
+      if (matchedDomain) {
+        const domainQuestions = libraryQuestions(matchedDomain, questionsPool.length || 20);
+        if (domainQuestions && domainQuestions.length > 0) {
+          questionsPool = domainQuestions;
+          examTitle = `${matchedDomain} - Talentera Library`;
+        }
+      }
+    }
+
     if (!e.startedAt) {
       e.startedAt = new Date().toISOString();
       e.status = "in_progress";
       e.proctorFlags = [];
       e.answers = {};
-      e.order = buildExamOrder(exam.questions); // every candidate gets their own question + option order
+      e.order = buildExamOrder(questionsPool); // every candidate gets their own question + option order
       H.audit(app, "Candidate", "Exam started", "");
       app.markModified("hiring");
       await app.save();
@@ -1211,15 +1248,15 @@ candidateRouter.post("/exams/:id/start", async (req, res) => {
     const endsAt = new Date(new Date(e.startedAt).getTime() + (exam.durationMin || 30) * 60000);
     if (endsAt < new Date(Date.now() - 60000)) {
       // time is up before they came back - grade what was saved
-      const g = H.gradeExam(exam.questions, toOriginalAnswers(e.order, e.answers || {}));
+      const g = H.gradeExam(questionsPool, toOriginalAnswers(e.order, e.answers || {}));
       await completeExam(app, { ...g, source: "talentera", by: "System (time expired)" });
       return res.status(400).json({ message: "Time is up - your saved answers were submitted." });
     }
     res.json({
-      title: exam.title, durationMin: exam.durationMin, endsAt: endsAt.toISOString(), saved: e.answers || {},
+      title: examTitle, durationMin: exam.durationMin, endsAt: endsAt.toISOString(), saved: e.answers || {},
       questions: Array.isArray(e.order) && e.order.length
-        ? e.order.map((o) => { const q = exam.questions[o.q]; return { topic: q.topic, question: q.question, options: o.opts.map((i) => q.options[i]) }; })
-        : exam.questions.map((q) => ({ topic: q.topic, question: q.question, options: q.options })),
+        ? e.order.map((o) => { const q = questionsPool[o.q] || exam.questions[o.q]; return { topic: q.topic, question: q.question, options: o.opts.map((i) => q.options[i]) }; })
+        : questionsPool.map((q) => ({ topic: q.topic, question: q.question, options: q.options })),
     });
   } catch (err) {
     res.status(500).json({ message: err.message || "Could not start the exam." });
@@ -1240,7 +1277,7 @@ candidateRouter.post("/exams/:id/flag", async (req, res) => {
   const app = await ownApp(req);
   const e = app?.hiring?.exam;
   if (!app || !e || !e.startedAt || e.completedAt) return res.json({ ok: true });
-  const type = ["tab_switch", "webcam_denied", "fullscreen_exit", "paste", "copy"].includes(req.body.type) ? req.body.type : "other";
+  const type = ["tab_switch", "webcam_denied", "camera_off", "background_voice", "voice_detected", "fullscreen_exit", "paste", "copy"].includes(req.body.type) ? req.body.type : "other";
   e.proctorFlags = [...(e.proctorFlags || []), { type, at: new Date().toISOString() }].slice(-200);
   app.markModified("hiring");
   await app.save();
