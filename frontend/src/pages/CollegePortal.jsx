@@ -405,12 +405,36 @@ export default function CollegePortal() {
       if (!res.ok) throw new Error(d.message || "Couldn't save your college profile.");
       setCollege(d.college);
       localStorage.setItem("talentera_college_info", JSON.stringify(d.college));
-      toast("College profile saved.", "✓");
+      toast("College profile saved & credentials generated for panel members.", "✓");
       if (d.college.profileCompleted) setActiveTab("dashboard");
     } catch (err) {
       toast(err.message, "!");
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  // Resend College Portal Login Email to Panel Member
+  async function handleSendPanelInvite(email) {
+    if (!email) return;
+    setResendingPanelEmail(email);
+    try {
+      const token = localStorage.getItem("talentera_college_token");
+      const res = await fetch("/api/college/panel/resend-invite", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ email }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || "Failed to send credentials email.");
+      toast(`Login credentials email sent to ${email}!`, "✓");
+    } catch (err) {
+      toast(err.message, "!");
+    } finally {
+      setResendingPanelEmail(null);
     }
   }
   const [kpis, setKpis] = useState({
@@ -483,6 +507,8 @@ export default function CollegePortal() {
   // Modals & Sub-actions
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [resendingStudentId, setResendingStudentId] = useState(null);
+  const [resendingPanelEmail, setResendingPanelEmail] = useState(null);
 
   // Bulk Upload state
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -1063,13 +1089,16 @@ export default function CollegePortal() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ...singleStudent }),
+        body: JSON.stringify({
+          ...singleStudent,
+          department: singleStudent.department || singleStudent.degree || "",
+        }),
       });
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to enroll student.");
 
-      toast(`Student ${singleStudent.name} successfully enrolled!`, "✓");
+      toast(`Student ${singleStudent.name} enrolled! Login email dispatched to ${singleStudent.email}.`, "✓");
       setSingleStudent({
         name: "",
         email: "",
@@ -1093,6 +1122,34 @@ export default function CollegePortal() {
       toast(err.message, "!");
     } finally {
       setEnrolling(false);
+    }
+  }
+
+  // Resend Candidate Portal Login Email
+  async function handleResendCredentials(student) {
+    if (!student?._id) return;
+    const studentEmail = student.email || student.stage1?.email;
+    if (!studentEmail) {
+      toast("This student does not have a registered email address.", "!");
+      return;
+    }
+    setResendingStudentId(student._id);
+    try {
+      const token = localStorage.getItem("talentera_college_token");
+      const res = await fetch(`/api/college/students/${student._id}/resend-credentials`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to resend credentials email.");
+      toast(`Login credentials email sent to ${studentEmail}!`, "✓");
+    } catch (err) {
+      toast(err.message, "!");
+    } finally {
+      setResendingStudentId(null);
     }
   }
 
@@ -1961,8 +2018,31 @@ export default function CollegePortal() {
                               </div>
                             )}
                           </td>
-                          <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                            <div style={{ display: "inline-flex", gap: 6 }}>
+                          <td style={{ padding: "12px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                            <div style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                              <button
+                                type="button"
+                                onClick={() => handleResendCredentials(s)}
+                                disabled={resendingStudentId === s._id}
+                                title="Resend candidate portal login credentials via email"
+                                style={{
+                                  background: "#EFF6FF",
+                                  color: "#2563EB",
+                                  border: "1px solid #BFDBFE",
+                                  padding: "5px 10px",
+                                  borderRadius: 6,
+                                  fontSize: 11.5,
+                                  fontWeight: 700,
+                                  cursor: resendingStudentId === s._id ? "not-allowed" : "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 5,
+                                  opacity: resendingStudentId === s._id ? 0.7 : 1,
+                                }}
+                              >
+                                <i className={resendingStudentId === s._id ? "fa-solid fa-spinner fa-spin" : "fa-regular fa-paper-plane"}></i>
+                                {resendingStudentId === s._id ? "Sending..." : "Resend Login Email"}
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => setSelectedStudent(s)}
@@ -2008,13 +2088,38 @@ export default function CollegePortal() {
                         </span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedStudent(null)}
-                        style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#64748B" }}
-                      >
-                        ✕
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleResendCredentials(selectedStudent)}
+                          disabled={resendingStudentId === selectedStudent._id}
+                          title="Resend candidate portal credentials via email"
+                          style={{
+                            background: "#EFF6FF",
+                            color: "#1D4ED8",
+                            border: "1px solid #BFDBFE",
+                            padding: "6px 14px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: resendingStudentId === selectedStudent._id ? "not-allowed" : "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            opacity: resendingStudentId === selectedStudent._id ? 0.7 : 1,
+                          }}
+                        >
+                          <i className={resendingStudentId === selectedStudent._id ? "fa-solid fa-spinner fa-spin" : "fa-regular fa-paper-plane"}></i>
+                          {resendingStudentId === selectedStudent._id ? "Sending..." : "Resend Login Email"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedStudent(null)}
+                          style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "#64748B", lineHeight: 1 }}
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
 
                     {/* Readiness Controls - Auto-Selected from Real Backend Data */}
@@ -2399,7 +2504,7 @@ export default function CollegePortal() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <div>
                       <div style={{ fontSize: 14, fontWeight: 800, color: "#0A1F3D" }}>Placement Panel Members</div>
-                      <div style={{ fontSize: 12, color: "#64748B" }}>Optional — the team that coordinates placements with you.</div>
+                      <div style={{ fontSize: 12, color: "#64748B" }}>Add coordinators who assist with placements. They will receive separate portal login credentials.</div>
                     </div>
                     <button
                       type="button"
@@ -2411,11 +2516,34 @@ export default function CollegePortal() {
                   </div>
 
                   {profileForm.placementPanel.map((m, idx) => (
-                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.3fr 1fr auto", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1.3fr 1fr auto auto", gap: 8, marginBottom: 8, alignItems: "center" }}>
                       <input type="text" placeholder="Name *" value={m.name || ""} onChange={(e) => updatePanelMember(idx, "name", e.target.value)} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
                       <input type="text" placeholder="Designation" value={m.designation || ""} onChange={(e) => updatePanelMember(idx, "designation", e.target.value)} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
                       <input type="email" placeholder="Email" value={m.email || ""} onChange={(e) => updatePanelMember(idx, "email", e.target.value)} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
                       <input type="tel" inputMode="numeric" maxLength={10} placeholder="Contact" value={m.mobile || ""} onChange={(e) => updatePanelMember(idx, "mobile", e.target.value.replace(/\D/g, ""))} style={{ padding: "8px 10px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 12.5, minWidth: 0 }} />
+                      {m.email ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSendPanelInvite(m.email)}
+                          disabled={resendingPanelEmail === m.email}
+                          title="Send / Resend login credentials email to this coordinator"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 8,
+                            border: "1.5px solid #BFDBFE",
+                            background: "#EFF6FF",
+                            color: "#2563EB",
+                            cursor: resendingPanelEmail === m.email ? "not-allowed" : "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 12,
+                          }}
+                        >
+                          <i className={resendingPanelEmail === m.email ? "fa-solid fa-spinner fa-spin" : "fa-regular fa-paper-plane"}></i>
+                        </button>
+                      ) : null}
                       <button
                         type="button"
                         title="Remove member"
@@ -2603,38 +2731,6 @@ export default function CollegePortal() {
                     )}
                   </div>
                   <div>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Department *</label>
-                    <SearchableSelect
-                      required={!departmentIsOther}
-                      options={DEPARTMENT_OPTIONS}
-                      value={departmentIsOther ? "" : singleStudent.department}
-                      placeholder="Select department…"
-                      onChange={(val) => {
-                        if (val === "__other__") {
-                          setDepartmentIsOther(true);
-                          setSingleStudent({ ...singleStudent, department: "" });
-                        } else {
-                          setDepartmentIsOther(false);
-                          setSingleStudent({ ...singleStudent, department: val });
-                        }
-                      }}
-                    />
-                    {departmentIsOther && (
-                      <input
-                        type="text"
-                        required
-                        autoFocus
-                        value={singleStudent.department}
-                        onChange={(e) => setSingleStudent({ ...singleStudent, department: e.target.value })}
-                        placeholder="Type the department"
-                        style={{ width: "100%", padding: "9px 12px", borderRadius: 6, border: "1.5px solid #CBD5E1", fontSize: 13, boxSizing: "border-box", marginTop: 6 }}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-                  <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Graduation Year</label>
                     <select
                       value={singleStudent.graduationYear}
@@ -2659,6 +2755,9 @@ export default function CollegePortal() {
                       ))}
                     </select>
                   </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <div>
                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#0A1F3D", marginBottom: 4 }}>Cumulative CGPA</label>
                     <input
