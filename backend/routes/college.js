@@ -14,6 +14,9 @@ const { authLimiter } = require("../middleware/rateLimit");
 const logger = require("../utils/logger");
 const { TALENTERA_PASS_PERCENTAGE } = require("../utils/talenteraScore");
 const { computeCandidateReadiness } = require("../utils/studentReadiness");
+const { sendTransactionalEmail, wrapEmailTemplate } = require("../utils/email");
+
+const APP_URL = (process.env.APP_URL || "https://talentera.in").replace(/\/$/, "");
 
 const otpRouter = require("./otp");
 
@@ -130,12 +133,28 @@ router.post("/login", authLimiter, async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const college = await College.findOne({ placementOfficerEmail: normalizedEmail });
+    let college = await College.findOne({ placementOfficerEmail: normalizedEmail });
+    let panelMember = null;
+
     if (!college) {
-      return res.status(401).json({ message: "No college found with this placement officer email." });
+      // Check if email belongs to an authorized placement panel member
+      college = await College.findOne({ "placementPanel.email": normalizedEmail });
+      if (college) {
+        panelMember = (college.placementPanel || []).find(
+          (m) => String(m.email || "").toLowerCase().trim() === normalizedEmail
+        );
+      }
     }
 
-    const isMatch = await bcrypt.compare(password, college.passwordHash);
+    if (!college) {
+      return res.status(401).json({ message: "No college placement account found with this email." });
+    }
+
+    const hashToCompare = panelMember && panelMember.passwordHash
+      ? panelMember.passwordHash
+      : college.passwordHash;
+
+    const isMatch = await bcrypt.compare(password, hashToCompare);
     if (!isMatch) {
       return res.status(401).json({ message: "Incorrect password. Please try again." });
     }
@@ -144,9 +163,14 @@ router.post("/login", authLimiter, async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Welcome back to your College Placement Dashboard.",
+      message: panelMember
+        ? `Welcome back, ${panelMember.name} (${panelMember.designation || "Placement Panel"}).`
+        : "Welcome back to your College Placement Dashboard.",
       token,
       college,
+      panelMember: panelMember
+        ? { name: panelMember.name, designation: panelMember.designation, email: panelMember.email }
+        : null,
     });
   } catch (err) {
     logger.error(`College login error: ${err.message}`);
@@ -166,6 +190,80 @@ router.get("/me", requireCollegeAuth, async (req, res) => {
     return res.status(500).json({ message: err.message });
   }
 });
+
+/**
+ * Dispatches college placement portal login credentials to newly added panel members.
+ */
+async function sendPanelMemberWelcomeEmail({ member, college, tempPassword }) {
+  if (!member?.email) return { sent: false, reason: "missing_email" };
+  const memberName = member.name || "Placement Coordinator";
+  const collegeName = college?.name || "Your Institution";
+  const designation = member.designation || "Placement Coordinator";
+  const collegeLoginUrl = `${APP_URL}/college/login`;
+
+  const emailHtml = wrapEmailTemplate(
+    `Welcome to ${collegeName} Placement Panel`,
+    `
+      <p style="color: #1E293B; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">
+        Hello <strong>${memberName}</strong>,
+      </p>
+      <p style="color: #475569; font-size: 14.5px; line-height: 1.6; margin-bottom: 16px;">
+        You have been registered as a <strong>${designation}</strong> on the <strong>Talentera College Placement Portal</strong> for <strong>${collegeName}</strong>.
+      </p>
+      <p style="color: #475569; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+        Your separate login credentials have been generated so you can log in, coordinate student enrollments, monitor assessment readiness, and manage campus recruitment drives.
+      </p>
+
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px 20px; margin: 20px 0;">
+        <h4 style="margin: 0 0 12px 0; color: #0A1F3D; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Your Placement Panel Credentials</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; color: #334155;">
+          <tr>
+            <td style="padding: 6px 0; width: 140px; font-weight: 600; color: #64748B;">Institution:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0F172A;">${collegeName}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Portal Login URL:</td>
+            <td style="padding: 6px 0;"><a href="${collegeLoginUrl}" style="color: #2563EB; font-weight: 600; text-decoration: underline;">${collegeLoginUrl}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Login Email:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0F172A;">${member.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Temporary Password:</td>
+            <td style="padding: 6px 0;"><code style="background: #E2E8F0; padding: 3px 8px; border-radius: 4px; font-weight: 800; color: #0A1F3D; font-size: 14px; letter-spacing: 0.5px;">${tempPassword}</code></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Role / Designation:</td>
+            <td style="padding: 6px 0; color: #0F172A; font-weight: 600;">${designation}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin: 28px 0 20px;">
+        <a href="${collegeLoginUrl}" style="background: #0A1F3D; color: #F5B41A; padding: 13px 28px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 15px; display: inline-block;">
+          Log In to College Placement Portal &rarr;
+        </a>
+      </div>
+
+      <p style="color: #64748B; font-size: 12px; line-height: 1.5; margin-top: 20px; border-top: 1px solid #E2E8F0; padding-top: 14px;">
+        For security, we recommend changing your password after your first login.
+      </p>
+    `
+  );
+
+  try {
+    return await sendTransactionalEmail({
+      to: member.email,
+      toName: memberName,
+      subject: `Your ${collegeName} Placement Panel Login Credentials · Talentera`,
+      html: emailHtml,
+    });
+  } catch (err) {
+    logger.warn(`Failed to dispatch panel member welcome email to ${member.email}: ${err.message}`);
+    return { sent: false, reason: err.message };
+  }
+}
 
 // PUT /api/college/profile - Update college details & departments
 router.put("/profile", requireCollegeAuth, async (req, res) => {
@@ -189,7 +287,6 @@ router.put("/profile", requireCollegeAuth, async (req, res) => {
       "alternateContact",
       "departments",
       "tier",
-      "placementPanel",
     ];
 
     allowed.forEach((k) => {
@@ -198,17 +295,63 @@ router.put("/profile", requireCollegeAuth, async (req, res) => {
       }
     });
 
-    // Clean the placement panel: keep only members with a name, trim the fields
-    if (Array.isArray(college.placementPanel)) {
-      college.placementPanel = college.placementPanel
-        .map((m) => ({
-          name: String(m?.name || "").trim(),
-          designation: String(m?.designation || "").trim(),
-          email: String(m?.email || "").trim(),
-          mobile: String(m?.mobile || "").replace(/\D/g, ""),
-        }))
-        .filter((m) => m.name);
+    // Clean the placement panel: keep only members with a name, trim the fields, and assign credentials for any new members
+    if (Array.isArray(req.body.placementPanel)) {
+      const existingPanel = Array.isArray(college.placementPanel) ? college.placementPanel : [];
+      const newPanel = [];
+      const newlyInvited = [];
+
+      for (const m of req.body.placementPanel) {
+        const name = String(m?.name || "").trim();
+        if (!name) continue;
+        const designation = String(m?.designation || "").trim();
+        const email = String(m?.email || "").trim().toLowerCase();
+        const mobile = String(m?.mobile || "").replace(/\D/g, "");
+
+        const existing = existingPanel.find(
+          (ex) => String(ex?.email || "").trim().toLowerCase() === email && email !== ""
+        );
+
+        let passwordHash = existing?.passwordHash || "";
+        let invitedAt = existing?.invitedAt || null;
+
+        // If member has email and hasn't been assigned credentials yet, generate & email them
+        if (email && !passwordHash) {
+          const tempPassword = `Talentera@${mobile.slice(-4) || "2026"}`;
+          const salt = await bcrypt.genSalt(10);
+          passwordHash = await bcrypt.hash(tempPassword, salt);
+          invitedAt = new Date();
+          newlyInvited.push({
+            name,
+            designation,
+            email,
+            mobile,
+            tempPassword,
+          });
+        }
+
+        newPanel.push({
+          name,
+          designation,
+          email,
+          mobile,
+          passwordHash,
+          invitedAt,
+        });
+      }
+
+      college.placementPanel = newPanel;
+
+      // Dispatch welcome emails for newly added panel members
+      for (const inv of newlyInvited) {
+        await sendPanelMemberWelcomeEmail({
+          member: inv,
+          college,
+          tempPassword: inv.tempPassword,
+        });
+      }
     }
+
     if (college.placementOfficerMobile) {
       const digits = String(college.placementOfficerMobile).replace(/\D/g, "");
       if (digits.length !== 10) return res.status(400).json({ message: "Contact number must be exactly 10 digits." });
@@ -224,6 +367,49 @@ router.put("/profile", requireCollegeAuth, async (req, res) => {
     return res.json({ success: true, message: "College profile updated.", college });
   } catch (err) {
     return res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/college/panel/resend-invite - Resend college portal login credentials to a panel member
+router.post("/panel/resend-invite", requireCollegeAuth, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ message: "Panel member email is required." });
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const college = await College.findById(req.collegeId);
+    if (!college) return res.status(404).json({ message: "College not found." });
+
+    const memberIndex = (college.placementPanel || []).findIndex(
+      (m) => String(m.email || "").toLowerCase().trim() === normalizedEmail
+    );
+    if (memberIndex === -1) {
+      return res.status(404).json({ message: "Panel member not found in this college profile." });
+    }
+
+    const member = { ...college.placementPanel[memberIndex] };
+    const cleanMobile = String(member.mobile || "").replace(/\D/g, "");
+    const tempPassword = `Talentera@${cleanMobile.slice(-4) || "2026"}`;
+    const salt = await bcrypt.genSalt(10);
+    member.passwordHash = await bcrypt.hash(tempPassword, salt);
+    member.invitedAt = new Date();
+    college.placementPanel[memberIndex] = member;
+    college.markModified("placementPanel");
+    await college.save();
+
+    await sendPanelMemberWelcomeEmail({
+      member,
+      college,
+      tempPassword,
+    });
+
+    return res.json({
+      success: true,
+      message: `Login credentials email resent to ${member.email}.`,
+    });
+  } catch (err) {
+    logger.error(`Resend panel invite error: ${err.message}`);
+    return res.status(500).json({ message: err.message || "Failed to resend panel invitation email." });
   }
 });
 
@@ -357,6 +543,80 @@ router.get("/dashboard-kpis", requireCollegeAuth, async (req, res) => {
 // ---------------------------------------------------------------------------
 // 3. Student Enrollment (Single & Bulk)
 // ---------------------------------------------------------------------------
+
+/**
+ * Dispatches candidate registration welcome email with login credentials
+ * and direct candidate dashboard link to newly enrolled college students.
+ */
+async function sendStudentWelcomeEmail({ student, college, tempPassword }) {
+  if (!student?.email) return { sent: false, reason: "missing_email" };
+  const studentName = student.stage1?.fullName || student.name || "Student";
+  const collegeName = college?.name || "Your Institution";
+  const rollNumber = student.studentEnrollment?.rollNumber || "Registered";
+  const domain = student.rcmDomainSelection?.primaryDomain || student.studentEnrollment?.department || "Healthcare / RCM";
+  const candidateLoginUrl = `${APP_URL}/login`;
+
+  const emailHtml = wrapEmailTemplate(
+    "Welcome to Talentera · Candidate Portal Access",
+    `
+      <p style="color: #1E293B; font-size: 15px; line-height: 1.6; margin-bottom: 16px;">
+        Hi <strong>${studentName}</strong>,
+      </p>
+      <p style="color: #475569; font-size: 14.5px; line-height: 1.6; margin-bottom: 16px;">
+        <strong>${collegeName}</strong> has enrolled you in the <strong>Talentera Placement & Healthcare Talent Pipeline</strong>.
+        Your candidate portal account has been created so you can complete your verified profile, take the benchmark assessment, and get matched with top healthcare employers.
+      </p>
+
+      <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 16px 20px; margin: 20px 0;">
+        <h4 style="margin: 0 0 12px 0; color: #0A1F3D; font-size: 14px; text-transform: uppercase; letter-spacing: 0.5px;">Your Candidate Portal Credentials</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13.5px; color: #334155;">
+          <tr>
+            <td style="padding: 6px 0; width: 150px; font-weight: 600; color: #64748B;">Login Page:</td>
+            <td style="padding: 6px 0;"><a href="${candidateLoginUrl}" style="color: #2563EB; font-weight: 600; text-decoration: underline;">${candidateLoginUrl}</a></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Registered Email:</td>
+            <td style="padding: 6px 0; font-weight: 700; color: #0F172A;">${student.email}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Temporary Password:</td>
+            <td style="padding: 6px 0;"><code style="background: #E2E8F0; padding: 3px 8px; border-radius: 4px; font-weight: 800; color: #0A1F3D; font-size: 14px; letter-spacing: 0.5px;">${tempPassword}</code></td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Roll Number:</td>
+            <td style="padding: 6px 0; color: #0F172A;">${rollNumber}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; font-weight: 600; color: #64748B;">Specialization Domain:</td>
+            <td style="padding: 6px 0; color: #0F172A; font-weight: 600;">${domain}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div style="text-align: center; margin: 28px 0 20px;">
+        <a href="${candidateLoginUrl}" style="background: #0A1F3D; color: #F5B41A; padding: 13px 28px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 15px; display: inline-block;">
+          Log In to Candidate Dashboard &rarr;
+        </a>
+      </div>
+
+      <p style="color: #64748B; font-size: 12.5px; line-height: 1.5; margin-top: 20px; border-top: 1px solid #E2E8F0; padding-top: 14px;">
+        <strong>Next Steps:</strong> Log in with your temporary password, verify your details, complete the Stage 4 RCM assessment, and record your 60-second video elevator pitch. We recommend changing your password after first login.
+      </p>
+    `
+  );
+
+  try {
+    return await sendTransactionalEmail({
+      to: student.email,
+      toName: studentName,
+      subject: `${collegeName} has enrolled you on Talentera · Candidate Portal Login`,
+      html: emailHtml,
+    });
+  } catch (err) {
+    logger.warn(`Failed to dispatch student welcome email to ${student.email}: ${err.message}`);
+    return { sent: false, reason: err.message };
+  }
+}
 
 // POST /api/college/students/add - Enroll an individual student
 router.post("/students/add", requireCollegeAuth, async (req, res) => {
@@ -497,9 +757,16 @@ router.post("/students/add", requireCollegeAuth, async (req, res) => {
       },
     });
 
+    // Send candidate login credentials and dashboard link via email
+    await sendStudentWelcomeEmail({
+      student: newCandidate,
+      college,
+      tempPassword,
+    });
+
     return res.status(201).json({
       success: true,
-      message: `Student ${name} successfully enrolled! Temporary credentials generated.`,
+      message: `Student ${name} successfully enrolled! Login details have been sent to ${normalizedEmail}.`,
       student: newCandidate,
       credentials: {
         email: normalizedEmail,
@@ -543,6 +810,46 @@ router.post(
     }
   }
 );
+
+// POST /api/college/students/:id/resend-credentials - Resend candidate portal login credentials & dashboard link
+router.post("/students/:id/resend-credentials", requireCollegeAuth, async (req, res) => {
+  try {
+    const college = await College.findById(req.collegeId);
+    if (!college) return res.status(404).json({ message: "College not found." });
+
+    const student = await Candidate.findOne({ _id: req.params.id, collegeId: req.collegeId });
+    if (!student) return res.status(404).json({ message: "Student record not found in this college." });
+
+    const targetEmail = student.email || student.stage1?.email;
+    if (!targetEmail) {
+      return res.status(400).json({ message: "Student record does not have a registered email address." });
+    }
+
+    const cleanMobile = String(student.mobile || student.stage1?.mobile || "").replace(/[^\d]/g, "");
+    const tempPassword = `Talentera@${cleanMobile.slice(-4) || "2026"}`;
+    const salt = await bcrypt.genSalt(10);
+    student.passwordHash = await bcrypt.hash(tempPassword, salt);
+    await student.save();
+
+    await sendStudentWelcomeEmail({
+      student,
+      college,
+      tempPassword,
+    });
+
+    return res.json({
+      success: true,
+      message: `Login credentials email resent successfully to ${targetEmail}.`,
+      credentials: {
+        email: targetEmail,
+        tempPassword,
+      },
+    });
+  } catch (err) {
+    logger.error(`Resend student credentials error: ${err.message}`);
+    return res.status(500).json({ message: err.message || "Failed to resend credentials email." });
+  }
+});
 
 // GET /api/college/students/check-mobile?mobile=9876543210 - Live duplicate
 // check the Single Student Enrollment form calls on blur, so a placement
