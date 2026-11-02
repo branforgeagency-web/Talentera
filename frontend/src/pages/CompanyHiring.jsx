@@ -414,7 +414,9 @@ function ApplicantsTab({ data, apps, byStage, sel, toggle, toggleAll, selIds, ac
             <Btn kind="navy" disabled={busy || selIds.length === 0} onClick={() => allocate({ applicationIds: selIds })}>Allocate to selected ({selIds.length})</Btn>
           </div>
         )}
-        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 8 }}>Each candidate gets an in-app notice and email with the deadline you set above. Allocate by specialty to send the AR exam only to AR candidates, the coding exam only to coders, and so on.</div>
+        <div style={{ fontSize: 11.5, color: "#64748B", marginTop: 8 }}>
+          Each candidate gets an in-app notice and email with the deadline you set above. Talentera Library assessments automatically adapt to the applicant's specialty (e.g. Medical Billers receive the Medical Billing syllabus, Coders receive Medical Coding).
+        </div>
       </Card>
       <Card>
         <Table head={[<input key="c" type="checkbox" checked={list.length > 0 && list.every((a) => sel[a.id])} onChange={() => toggleAll(list)} />, "CANDIDATE", "SPECIALTY", "CITY", "EXPERIENCE", "VERIFIED SCORE", "APPLIED"]} empty="No new applicants. Candidates who apply to your published roles appear here with their verified profile.">
@@ -422,7 +424,13 @@ function ApplicantsTab({ data, apps, byStage, sel, toggle, toggleAll, selIds, ac
             <tr key={a.id}>
               <td style={td}><input type="checkbox" checked={!!sel[a.id]} onChange={() => toggle(a.id)} /></td>
               {nameCell(a)}
-              <td style={td}>{a.candidate.specialty || "—"}</td>
+              <td style={td}>
+                {a.candidate.specialty ? (
+                  <Pill bg={a.candidate.specialty.toLowerCase().includes("billing") ? "#FEF3C7" : a.candidate.specialty.toLowerCase().includes("coding") ? "#EDE9FE" : "#F1F5F9"} color={a.candidate.specialty.toLowerCase().includes("billing") ? "#92400E" : a.candidate.specialty.toLowerCase().includes("coding") ? "#6D28D9" : "#475569"}>
+                    {a.candidate.specialty}
+                  </Pill>
+                ) : "—"}
+              </td>
               <td style={td}>{a.candidate.city || "—"}</td>
               <td style={td}>{a.candidate.experience || "—"}</td>
               <td style={td}><Pill bg="#DCFCE7" color="#166534">{a.candidate.talentScore}/100</Pill></td>

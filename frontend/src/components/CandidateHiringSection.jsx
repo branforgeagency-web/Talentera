@@ -313,7 +313,19 @@ function ExamRunner({ appId, onDone, toast }) {
   // The camera is mandatory: it must be on BEFORE the assessment (and its timer) starts, and stay on until submission.
   const openCamera = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+          audio: true,
+        });
+      } catch (audioErr) {
+        // Fallback to video-only if microphone is not available or blocked
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+          audio: false,
+        });
+      }
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = stream;
       const lost = () => { if (!doneRef.current) { setCam("lost"); flag("camera_off"); } };
@@ -377,7 +389,76 @@ function ExamRunner({ appId, onDone, toast }) {
     return () => { try { if (rec.state !== "inactive") rec.stop(); } catch { /* already stopped */ } };
   }, [exam, cam, result]);
 
-  useEffect(() => { if (cam === "on" && videoRef.current && streamRef.current) videoRef.current.srcObject = streamRef.current; }, [cam, exam, result]);
+  useEffect(() => {
+    if (cam === "on" && videoRef.current && streamRef.current) {
+      const v = videoRef.current;
+      v.srcObject = streamRef.current;
+      const playPromise = v.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {});
+      }
+      v.onloadedmetadata = () => {
+        v.play().catch(() => {});
+      };
+    }
+  }, [cam, exam, result]);
+
+  // Background voice detection via Web Audio Analyser
+  const [voiceAlert, setVoiceAlert] = useState(false);
+  const voiceTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (cam !== "on" || !streamRef.current || !exam || result) return undefined;
+    const audioTracks = streamRef.current.getAudioTracks();
+    if (!audioTracks || audioTracks.length === 0) return undefined;
+
+    let audioCtx;
+    let analyser;
+    let animId;
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return undefined;
+      audioCtx = new AudioCtx();
+      const source = audioCtx.createMediaStreamSource(streamRef.current);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      let highVolumeCount = 0;
+
+      const monitorAudio = () => {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+        const avg = sum / bufferLength;
+
+        // If sustained background noise or talking (above typical ambient floor)
+        if (avg > 35) {
+          highVolumeCount++;
+          if (highVolumeCount > 15) {
+            setVoiceAlert(true);
+            flag("background_voice");
+            clearTimeout(voiceTimeoutRef.current);
+            voiceTimeoutRef.current = setTimeout(() => setVoiceAlert(false), 4500);
+            highVolumeCount = 0;
+          }
+        } else {
+          highVolumeCount = Math.max(0, highVolumeCount - 1);
+        }
+        animId = requestAnimationFrame(monitorAudio);
+      };
+      animId = requestAnimationFrame(monitorAudio);
+    } catch (e) {
+      console.warn("Audio monitoring error:", e);
+    }
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+      if (audioCtx && audioCtx.state !== "closed") audioCtx.close().catch(() => {});
+    };
+  }, [cam, exam, result, flag]);
 
   // timer
   useEffect(() => {
@@ -468,11 +549,25 @@ function ExamRunner({ appId, onDone, toast }) {
             <div style={{ fontSize: 12, color: "#64748B" }}>{answered}/{exam.questions.length} answered</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {cam === "on" ? <video ref={videoRef} autoPlay muted playsInline style={{ width: 96, height: 72, borderRadius: 8, background: "#0F172A", objectFit: "cover" }} /> : <Pill bg="#FEE2E2" color="#B91C1C">{cam === "on" ? "" : cam === "pending" ? "Starting webcam…" : "Camera off"}</Pill>}
+            {cam === "on" ? (
+              <div style={{ position: "relative", width: 104, height: 76, borderRadius: 10, overflow: "hidden", background: "#0F172A", border: "2px solid #CBD5E1", boxShadow: "0 2px 8px rgba(0,0,0,0.15)" }}>
+                <video ref={videoRef} autoPlay muted playsInline style={{ width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)" }} />
+                <div style={{ position: "absolute", bottom: 3, left: 4, display: "flex", alignItems: "center", gap: 4, background: "rgba(15,23,42,0.85)", padding: "1px 5px", borderRadius: 4, fontSize: 9, color: "#fff", fontWeight: 800, letterSpacing: 0.5 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22C55E", boxShadow: "0 0 6px #22C55E" }} />
+                  LIVE
+                </div>
+              </div>
+            ) : <Pill bg="#FEE2E2" color="#B91C1C">{cam === "on" ? "" : cam === "pending" ? "Starting webcam…" : "Camera off"}</Pill>}
             <div style={{ fontSize: 22, fontWeight: 800, color: left < 120 ? "#B91C1C" : "var(--navy)", fontVariantNumeric: "tabular-nums" }}>{mm}:{ss}</div>
           </div>
         </div>
-        {cam === "on" && recStatus === "idle" && <div style={{ fontSize: 11.5, color: "#64748B", marginBottom: 8 }}>● Camera on - this attempt is recorded and shared with the employer.</div>}
+        {cam === "on" && recStatus === "idle" && <div style={{ fontSize: 11.5, color: "#64748B", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><span>●</span> Camera &amp; Microphone proctoring active — this attempt is recorded and verified for the employer.</div>}
+        {voiceAlert && (
+          <div style={{ background: "#FEF2F2", border: "1px solid #F87171", color: "#991B1B", padding: "8px 12px", borderRadius: 8, fontSize: 12.5, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>🎙</span>
+            <span><b>Background voice / sound detected:</b> Please maintain silence in your exam environment. Voice activity is logged and shared with the employer.</span>
+          </div>
+        )}
         {cam === "lost" && (
           <div style={{ position: "fixed", inset: 0, zIndex: 9500, background: "rgba(15,23,42,0.88)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
             <div style={{ background: "#fff", borderRadius: 14, padding: 26, maxWidth: 440, textAlign: "center" }}>
