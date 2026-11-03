@@ -64,7 +64,9 @@ export default function WizardSidebar({
     const earned = stageScores && typeof stageScores === "object" ? Number(stageScores[st.num]) : NaN;
     if (bonusStages.includes(st.num)) return done && earned > 0 ? `+${earned} BONUS` : "BONUS";
     if (done && Number.isFinite(earned) && st.pts > 0) return `+${earned}`;
-    if (st.num === 3) return experienced ? "+30–40" : "+15–20";
+    // Experienced scoring: Experience & Proof up to 25, Certification 5 per certificate (max 20)
+    if (experienced && st.num === 2) return "up to +25";
+    if (st.num === 3) return experienced ? "+5 per cert" : "+15–20";
     return st.pts > 0 ? `+${st.pts}` : "0";
   };
 

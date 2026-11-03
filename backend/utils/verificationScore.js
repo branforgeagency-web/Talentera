@@ -382,7 +382,8 @@ function calculateVerificationScore(completedStages = [], candidate = null) {
   });
 
   // Experienced candidates: Stage 2 work history auto-credits once identity is verified (if not already processed)
-  if (candidate && experienced && verifiedStages.includes(1) && stageScores[2] === undefined) {
+  // Only when the stage was deliberately skipped - finishing Stage 1 alone must show 15, not 30.
+  if (candidate && experienced && verifiedStages.includes(1) && stageScores[2] === undefined && candidate.stage2?.skipped === true) {
     const pts2 = getExperiencedStage2Points(candidate.stage2 || {});
     score += pts2;
     stageScores[2] = pts2;

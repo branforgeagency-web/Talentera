@@ -605,7 +605,7 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
       `ROLE: ${currentRoleTitle} | LOCATION: ${locality}`,
       `CONTACT: Mobile: ${mobile} | Email: ${email} | Live: ${liveResumeUrl}`,
       "",
-      visibleSections.objective ? `${isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}:\n${careerObjective}\n` : "",
+      visibleSections.objective ? `${isExperienced && !String(stage7Data.professionalSummary || "").trim() ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE"}:\n${careerObjective}\n${String(stage7Data.professionalSummary || "").trim() ? `\nPROFESSIONAL SUMMARY:\n${String(stage7Data.professionalSummary).trim()}\n` : ""}` : "",
       visibleSections.scorecard ? `TALENTERA VERIFIED SCORECARD:\n* Foundation Assessment: ${assessmentScore}/100 (${assessmentMedal})\n* Video Pitch AI Score: ${videoScore}/100 (${videoMedal})\n${hasChartExposure ? `* Live Charts: ${totalCharts} charts (${overallAccuracy}% accuracy)\n` : ""}` : "",
       !isExperienced && !isNonTrainedProfile && visibleSections.training ? `TRAINING FOUNDATION:\n* Academy: ${academyName} (${academyLocality}) - ${trainingSpecialties} (${trainingDuration})\n` : "",
       isExperienced && visibleSections.workExperience && (workCompany || workProjectDetails || workRolesList.length > 0) ? `WORK EXPERIENCE:\n* ${currentRoleTitle}${workCompany ? ` · ${workCompany}` : ""}${workTotalExperience ? ` (${workTotalExperience})` : ""}\n${workProjectDetails ? `${workProjectDetails}\n` : ""}${workRolesList.length > 0 ? `Roles & Responsibilities:\n${workRolesList.map((r) => `- ${r}`).join("\n")}\n` : ""}` : "",
@@ -1680,7 +1680,7 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
         {visibleSections.objective && (
           <div style={{ marginTop: scale.gap }}>
             {renderSectionHeader(
-              isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
+              isExperienced && !String(stage7Data.professionalSummary || "").trim() ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
               null,
               readOnly ? null : (
               <button
@@ -1697,8 +1697,8 @@ export default function CandidateResumeSection({ candidate, onSaved, readOnly = 
             </p>
             {String(stage7Data.professionalSummary || "").trim() && (
               <>
-                {!isExperienced && <div style={{ marginTop: 10 }}>{renderSectionHeader("PROFESSIONAL SUMMARY", null)}</div>}
-                <p style={{ fontSize: scale.base, lineHeight: lineHeightVal, color: "#334155", margin: isExperienced ? "8px 0 0" : 0 }}>
+                <div style={{ marginTop: 10 }}>{renderSectionHeader("PROFESSIONAL SUMMARY", null)}</div>
+                <p style={{ fontSize: scale.base, lineHeight: lineHeightVal, color: "#334155", margin: 0 }}>
                   {String(stage7Data.professionalSummary).trim()}
                 </p>
               </>

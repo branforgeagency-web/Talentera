@@ -776,7 +776,7 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
 
       {(careerObjective.trim() || interactive) && editableSection("summary", [{ stage: 7, label: "Edit summary" }], (
         <div data-html2canvas-ignore={careerObjective.trim() ? undefined : "true"}>
-          <div className="s7-resume-sec-title">{isExperienced ? "Professional Summary" : "Career Objective"}</div>
+          <div className="s7-resume-sec-title">{isExperienced && !professionalSummary.trim() ? "Professional Summary" : "Career Objective"}</div>
           {careerObjective.trim() ? (
             <div className="s7-resume-obj" style={{ fontStyle: "normal" }}>{careerObjective.trim()}</div>
           ) : (
@@ -784,8 +784,8 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
           )}
           {professionalSummary.trim() && (
             <>
-              {!isExperienced && <div className="s7-resume-sec-title" style={{ marginTop: 10 }}>Professional Summary</div>}
-              <div className="s7-resume-obj" style={{ fontStyle: "normal", marginTop: isExperienced ? 6 : 0 }}>{professionalSummary.trim()}</div>
+              <div className="s7-resume-sec-title" style={{ marginTop: 10 }}>Professional Summary</div>
+              <div className="s7-resume-obj" style={{ fontStyle: "normal" }}>{professionalSummary.trim()}</div>
             </>
           )}
         </div>
@@ -1222,10 +1222,10 @@ export default function Stage7Resume({ stage, existingData, candidate, onSaved, 
       `LIVE VERIFICATION URL: ${liveResumeUrl}`,
       "",
       "------------------------------------------------------------------",
-      isExperienced ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
+      isExperienced && !professionalSummary.trim() ? "PROFESSIONAL SUMMARY" : "CAREER OBJECTIVE",
       "------------------------------------------------------------------",
       careerObjective,
-      ...(professionalSummary.trim() ? ["", "PROFESSIONAL SUMMARY (continued)", professionalSummary.trim()] : []),
+      ...(professionalSummary.trim() ? ["", "PROFESSIONAL SUMMARY", professionalSummary.trim()] : []),
       "",
       "------------------------------------------------------------------",
       "TALENTERA VERIFIED CREDENTIALS & SCORECARD",
