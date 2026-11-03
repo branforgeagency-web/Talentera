@@ -4072,6 +4072,17 @@ router.get("/jobs", async (req, res) => {
       });
     }
 
+    // Experienced candidates only see experienced-level openings (no fresher-only / open-to-both roles),
+    // so the list, counts and stats all match what they can really use.
+    if (candExperienced) {
+      for (let i = formattedJobs.length - 1; i >= 0; i--) {
+        const j = formattedJobs[i];
+        const lvl = String(j.hiringLevel || "").toLowerCase();
+        const experiencedLevel = lvl.includes("experienced only") || (!lvl && Number(j.expMin || 0) > 0);
+        if (!experiencedLevel) formattedJobs.splice(i, 1);
+      }
+    }
+
     // Rank openings by the candidate's city priority (1st city first); jobs outside the list keep their order
     if (preferredCityList.length) {
       const rankOf = (j) => (j.cityPriority ? j.cityPriority : j.isOpenToGlobal ? 6 : 7);
