@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import api from "../../api/client";
 import { useToast } from "../Toast.jsx";
 import DocumentVaultModal from "../DocumentVaultModal.jsx";
@@ -869,6 +869,7 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
 
   // Assessment Attempts & Cooldown Policy Engine
   // Policy: 1st retake in 24h, 2nd retake in 48h, 3rd in 7 days, after that paid retakes anytime
+  const rawMedal = stage4?.medal && !String(stage4.medal).toLowerCase().includes("practice") ? stage4.medal : null;
   const attemptsList = useMemo(() => {
     if (Array.isArray(stage4?.attempts) && stage4.attempts.length > 0) {
       return stage4.attempts;
@@ -1379,7 +1380,6 @@ export default function Stage4Assessment({ stage, existingData, candidate, onSav
         status: candidateScore >= 70 ? "strong" : "weak",
       }));
 
-  const rawMedal = stage4?.medal && !String(stage4.medal).toLowerCase().includes("practice") ? stage4.medal : null;
   const currentMedal = isCompleted ? (rawMedal || (candidateScore >= 85 ? "Gold" : candidateScore >= 70 ? "Silver" : candidateScore >= 50 ? "Bronze" : "Assessment")) : "Unattempted";
   const displayPercentile = isCompleted ? (stage4?.percentile || 68) : null;
 
