@@ -4,7 +4,7 @@ import api from "../api/client";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useToast } from "../components/Toast.jsx";
 import { buildJobSearchParams } from "../utils/jobFilters.js";
-import { WIZARD_STAGES, STAGE_POINTS } from "../data/wizardStages.js";
+import { WIZARD_STAGES, STAGE_POINTS, EXPERIENCED_STAGE_POINTS, isExperiencedCandidate } from "../data/wizardStages.js";
 import CompanyLogo from "../components/CompanyLogo.jsx";
 
 // Job search is unlocked once a candidate's verification score is 75% or above.
@@ -14,14 +14,12 @@ const JOB_SEARCH_MIN_SCORE = 75;
 
 function getJobSearchEligibility(candidate) {
   const completedStages = candidate?.completedStages || [];
-  const score = completedStages.reduce((sum, n) => sum + (STAGE_POINTS[n] || 0), 0);
-  const remainingStages = WIZARD_STAGES.filter((s) => !completedStages.includes(s.num));
-  // Stage 4 (Talentera Assessment) is called out everywhere else as
-  // mandatory, but the overall score alone doesn't enforce that - a
-  // candidate can reach 75%+ from other stages without ever sitting the
-  // Assessment. Require it explicitly here too. Actually enforced
-  // server-side in backend/routes/candidate.js POST /apply/:jobId.
-  const hasAssessment = completedStages.includes(4);
+  const isExp = isExperiencedCandidate(candidate);
+  const ptsMap = isExp ? EXPERIENCED_STAGE_POINTS : STAGE_POINTS;
+  const score = candidate?.score || candidate?.talenteraScore || completedStages.reduce((sum, n) => sum + (ptsMap[n] || 0), 0);
+  const remainingStages = WIZARD_STAGES.filter((s) => !completedStages.includes(s.num) && !(isExp && s.num === 4));
+  // Stage 4 (Talentera Assessment) is mandatory for freshers; experienced candidates are exempt.
+  const hasAssessment = isExp || completedStages.includes(4);
   return {
     score,
     remainingStages,

@@ -49,12 +49,15 @@ const TALENTERA_PASS_PERCENTAGE = 75;
  * read-only .lean() query result or a live Mongoose document either way.
  */
 function calculateTalenteraScore(stages, candidate = null) {
-  // Experienced candidates skip the Assessment (Stage 4); its 20 points move to Certification (Stage 3).
+  // Option A: Experienced candidates points allocation:
+  // Stage 1: 15, Stage 2: 25, Stage 3: 20 (5 pts per cert), Stage 4: 0 (Exempt), Stage 5: 15, Stage 6: 25 (Total = 100)
   const experienced = isExperiencedCandidate(candidate);
   const breakdown = (stages || []).map((st) => {
     let maxPoints = STAGE_SCORE_WEIGHTS[st.stageNumber] || 0;
-    if (experienced && st.stageNumber === 3) maxPoints = STAGE_SCORE_WEIGHTS[3] + STAGE_SCORE_WEIGHTS[4];
+    if (experienced && st.stageNumber === 2) maxPoints = 25;
+    if (experienced && st.stageNumber === 3) maxPoints = 20;
     if (experienced && st.stageNumber === 4) maxPoints = 0;
+    if (experienced && st.stageNumber === 6) maxPoints = 25;
     let points = st.isDone ? maxPoints : 0;
     if (st.isDone && st.stageNumber === 2 && candidate && !experienced) {
       const s2 = candidate.stage2 || {};
@@ -140,13 +143,13 @@ function compute8Stages(candidate) {
     {
       stageNumber: 4,
       title: "Talentera Assessment",
-      description: experienced ? "Not required for experienced candidates (scored on certifications)" : "Foundation + specialty MCQ score",
+      description: experienced ? "Not required for experienced candidates (0 pts · exempt)" : "Foundation + specialty MCQ score",
       whoDoesIt: experienced ? "Not required" : "Student (proctored)",
       notRequired: experienced,
       isDone: experienced || (completed.includes(4) && (s4.score !== undefined && s4.score !== null && !isNaN(Number(s4.score)))),
       inProgress: !(completed.includes(4) && s4.score !== undefined && s4.score !== null),
-      score: experienced ? "Not required" : (s4.score !== undefined && s4.score !== null && !isNaN(Number(s4.score))) ? `${s4.score} / 100` : "Not Attempted",
-      meta: experienced ? "Experienced - scored on certifications" : (s4.score !== undefined && s4.score !== null) ? (s4.score >= 80 ? "Top 10% Quartile" : "Passed") : "Not attempted",
+      score: experienced ? "Exempt (0 pts)" : (s4.score !== undefined && s4.score !== null && !isNaN(Number(s4.score))) ? `${s4.score} / 100` : "Not Attempted",
+      meta: experienced ? "Experienced · Exempt from assessment" : (s4.score !== undefined && s4.score !== null) ? (s4.score >= 80 ? "Top 10% Quartile" : "Passed") : "Not attempted",
       needsApproval: false,
     },
     {

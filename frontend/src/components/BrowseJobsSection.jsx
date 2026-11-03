@@ -117,7 +117,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
         const totalOpenings = loadedJobs.reduce((sum, j) => sum + (j.openings || 1), 0);
         const uniqueComps = new Set(loadedJobs.map(j => j.company).filter(Boolean)).size;
         const uniqueCities = new Set(loadedJobs.map(j => j.location).filter(Boolean)).size;
-        const matchCount = loadedJobs.filter(j => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length;
+        const matchCount = loadedJobs.filter(j => j.isProfileMatch).length;
 
         setStats({
           totalOpenings,
@@ -223,8 +223,8 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
       if (selectedSalaryBand === '9+' && min < 9) return false;
     }
     // Quick filter toggles
-    if (filterMatchProfile && !job.isProfileMatch && (job.matchScore || 0) < 85) return false;
-    if (filterSilverPlus && job.minTierRequired === 'Gold') return false;
+    if (filterMatchProfile && !job.isProfileMatch) return false;
+    if (filterSilverPlus && !job.isEmployerVerified) return false;
     if (filterFeatured && !job.isFeatured) return false;
     if (filterWalkIn && !job.isWalkIn) return false;
     if (on('cert') && certFilter !== 'all') {
@@ -235,7 +235,8 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
       // A job with no certification listed is open to everyone; "Non-Certified" means trainees are welcome;
       // any other listed certification means certified candidates.
       if (want === 'noncertified' && !(reqs.length === 0 || nonCertOpen)) return false;
-      if (want === 'certified' && !(reqs.length === 0 || certReqs.length > 0)) return false;
+      // Certified openings = jobs that actually list a certification (a job with none listed is open to everyone, not a certified-only opening)
+      if (want === 'certified' && certReqs.length === 0) return false;
     }
     if (filterOpenToGlobal && !job.isOpenToGlobal) return false;
     return true;
@@ -282,8 +283,8 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
   const totalOpeningsCount = anyFilterActive ? sumOpenings(filteredJobs) : (stats.totalOpenings || sumOpenings(jobs));
   const totalCompaniesCount = anyFilterActive ? new Set(filteredJobs.map((j) => j.company).filter(Boolean)).size : (stats.companiesCount || companiesList.length);
   const totalMatchingCount = anyFilterActive
-    ? filteredJobs.filter((j) => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length
-    : (stats.matchingCount || jobs.filter((j) => j.isProfileMatch || (j.matchScore && j.matchScore >= 85)).length);
+    ? filteredJobs.filter((j) => j.isProfileMatch).length
+    : (stats.matchingCount || jobs.filter((j) => j.isProfileMatch).length);
   const totalCitiesCount = anyFilterActive ? new Set(filteredJobs.map((j) => j.location).filter(Boolean)).size : (stats.citiesCount || locationsList.length);
 
   return (
@@ -732,7 +733,7 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
               cursor: 'pointer',
             }}
           >
-            {filterSilverPlus ? '✓ Verified Silver+ only' : '+ Verified Silver+ only'}
+            {filterSilverPlus ? '✓ Verified employers only' : '+ Verified employers only'}
           </button>
 
           <button
@@ -1064,6 +1065,19 @@ export default function BrowseJobsSection({ candidate, applications = [], onAppl
                               fontWeight: 800,
                             }}>
                               ✓ APPLIED
+                            </span>
+                          )}
+                          {job.cityPriority >= 1 && job.cityPriority <= 5 && (
+                            <span style={{
+                              background: '#EEF2FF',
+                              color: '#4338CA',
+                              border: '1px solid #C7D2FE',
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              fontSize: 10.5,
+                              fontWeight: 800,
+                            }}>
+                              📍 {['1st','2nd','3rd','4th','5th'][job.cityPriority - 1]} priority city
                             </span>
                           )}
                           {job.matchScore >= 90 && (

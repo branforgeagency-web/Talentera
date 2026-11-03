@@ -96,6 +96,7 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
         email: req.isVerifiedCompany ? email : maskEmail(email),
         mobile: req.isVerifiedCompany ? mobile : maskMobile(mobile),
         city: stage1.city || null,
+        preferredCities: (Array.isArray(stage1.preferredCities) ? stage1.preferredCities : []).filter(Boolean).slice(0, 5),
         experience: stage1.experience || null,
         currentRole: stage1.currentRole || null,
         aadhaarVerified: !!stage1.aadhaarVerified,
@@ -110,6 +111,10 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
         certVerified: !stage3.skipped && (stage3.certStatus === "verified" || (stage3.certStatus === undefined && stage3.verified === true)),
         certStatus: stage3.skipped ? null : (stage3.certStatus || (stage3.verified ? "verified" : "pending")),
         assessmentScore: typeof stage4.score === "number" ? stage4.score : (parseInt(stage4.score, 10) || null),
+        assessmentRetakes: stage4.retakeCount ?? (Array.isArray(stage4.attempts) && stage4.attempts.length > 1 ? stage4.attempts.length - 1 : 0),
+        assessmentAttemptsCount: Array.isArray(stage4.attempts) ? stage4.attempts.length : (stage4.score != null ? 1 : 0),
+        assessmentAttempts: Array.isArray(stage4.attempts) && stage4.attempts.length > 0 ? stage4.attempts : (stage4.score != null ? [{ attemptNumber: 1, score: stage4.score, medal: stage4.medal || 'Gold', completedAt: stage4.completedAt || c.updatedAt, type: 'Initial Attempt' }] : []),
+        assessmentHighestScore: stage4.highestScore || stage4.score || null,
         videoUrl: stage5.selfIntroVideoUrl || stage5.videoUrl || stage5.proctoredInterviewVideoUrl || stage5.url || stage5.fileUrl || stage5.videoFileName || c.stage8?.aiInterview?.videoUrl || c.videoUrl || null,
         stage5Score: typeof stage5.aiScore === "number" ? stage5.aiScore : null,
         interviewMode: stage5.interviewMode || null,
@@ -171,7 +176,7 @@ router.get("/candidates", attachVerifiedCompanyStatus, async (req, res) => {
       }
       if (city && String(city).trim()) {
         const needle = String(city).trim().toLowerCase();
-        formatted = formatted.filter((c) => (c.city || "").toLowerCase().includes(needle));
+        formatted = formatted.filter((c) => (c.city || "").toLowerCase().includes(needle) || (c.preferredCities || []).some((pc) => String(pc).toLowerCase().includes(needle)));
       }
       if (domain && String(domain).trim()) {
         const needle = String(domain).trim().toLowerCase();
@@ -465,7 +470,15 @@ router.get("/verify/candidate/:id", async (req, res) => {
     completedStages: candidate.completedStages || [],
     academy: stage2,
     certification: stage3,
-    assessment: stage4,
+    assessment: {
+      ...stage4,
+      attempts: Array.isArray(stage4.attempts) && stage4.attempts.length > 0
+        ? stage4.attempts
+        : (stage4.score != null ? [{ attemptNumber: 1, score: stage4.score, medal: stage4.medal || 'Gold', completedAt: stage4.completedAt || candidate.updatedAt, type: 'Initial Attempt' }] : []),
+      retakeCount: stage4.retakeCount ?? (Array.isArray(stage4.attempts) && stage4.attempts.length > 1 ? stage4.attempts.length - 1 : 0),
+      totalAttempts: stage4.totalAttempts ?? (Array.isArray(stage4.attempts) ? stage4.attempts.length : (stage4.score != null ? 1 : 0)),
+      highestScore: stage4.highestScore || stage4.score || null,
+    },
     videoIntro: {
       ...stage5,
       videoUrl: stage5.selfIntroVideoUrl || stage5.videoUrl || stage5.proctoredInterviewVideoUrl || stage5.url || stage5.fileUrl || stage5.videoFileName || candidate.stage8?.aiInterview?.videoUrl || candidate.videoUrl || null,

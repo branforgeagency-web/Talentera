@@ -989,6 +989,33 @@ function ScorecardModal({ app, setup, onClose, act, busy }) {
   const saveDefaultCriteria = async () => {
     await act(() => companyApi.put("/company/hiring/setup", { scorecardCriteria: cleanCrit }), "Scorecard criteria saved as your default.");
   };
+  // ---- Three scoring modes: "sliders" (drag), "checklist" (10 x 0/1), "qa" (questions & expected answers) ----
+  const [mode, setMode] = useState("sliders");
+  const [chkQs, setChkQs] = useState(() => Array.from({ length: 10 }, (_, i) => (setup?.checklistQuestions || [])[i] || ""));
+  const [chkAns, setChkAns] = useState(Array(10).fill(null));
+  const chkTotal = chkAns.reduce((s, v) => s + (v === 1 ? 1 : 0), 0);
+  const chkAnswered = chkAns.filter((v) => v !== null).length;
+  const [qaItems, setQaItems] = useState(() => (setup?.qaQuestions || []).map((x) => ({ q: x.q, a: x.a, note: "", score: 5 })));
+  const [newQ, setNewQ] = useState("");
+  const [newA, setNewA] = useState("");
+  const [showAnswers, setShowAnswers] = useState({});
+  const addQa = () => {
+    const q = newQ.trim();
+    if (!q || qaItems.length >= 30) return;
+    setQaItems((l) => [...l, { q, a: newA.trim(), note: "", score: 5 }]);
+    setNewQ(""); setNewA("");
+  };
+  const keyFor = (i, text) => `${i + 1}) ${String(text || "").trim() || `Question ${i + 1}`}`.slice(0, 100);
+  const scoreReady = mode === "sliders" ? cleanCrit.length > 0 : mode === "checklist" ? chkAnswered === 10 : qaItems.length > 0;
+  const buildScores = () => {
+    if (mode === "checklist") return Object.fromEntries(chkQs.map((q, i) => [keyFor(i, q), chkAns[i] === 1 ? 10 : 0]));
+    if (mode === "qa") return Object.fromEntries(qaItems.map((x, i) => [keyFor(i, x.q), x.score ?? 5]));
+    return Object.fromEntries(cleanCrit.map((c) => [c, scores[c] ?? 5]));
+  };
+  const saveChecklistDefault = () =>
+    act(() => companyApi.put("/company/hiring/setup", { checklistQuestions: chkQs.map((x) => x.trim()) }), "Checklist questions saved as your default.");
+  const saveQaDefault = () =>
+    act(() => companyApi.put("/company/hiring/setup", { qaQuestions: qaItems.map((x) => ({ q: x.q, a: x.a })) }), "Question bank saved as your default.");
   const [notes, setNotes] = useState("");
   const [fresh, setFresh] = useState(app.technical);
 
@@ -1005,12 +1032,20 @@ function ScorecardModal({ app, setup, onClose, act, busy }) {
     const scoringName = effectiveMember;
     if (!scoringName) return;
     const r = await act(
-      () => companyApi.post(`/company/hiring/applications/${app.id}/technical-score`, { memberName: scoringName, scores: Object.fromEntries(cleanCrit.map((c) => [c, scores[c] ?? 5])), notes }),
+      () => companyApi.post(`/company/hiring/applications/${app.id}/technical-score`, {
+        memberName: scoringName,
+        mode,
+        scores: buildScores(),
+        qa: mode === "qa" ? qaItems.map((x) => ({ q: x.q, a: x.a, note: x.note, score: x.score })) : undefined,
+        notes,
+      }),
       `Score saved for ${scoringName}.`
     );
     if (r) {
       setFresh(r.technical);
       setNotes("");
+      setChkAns(Array(10).fill(null));
+      setQaItems((l) => l.map((x) => ({ ...x, note: "", score: 5 })));
       if (!membersList.includes(scoringName)) {
         setMembersList((prev) => [...prev, scoringName]);
       }
@@ -1146,6 +1181,22 @@ function ScorecardModal({ app, setup, onClose, act, busy }) {
         )}
       </Field>
 
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {[["sliders", "1 · Drag to score"], ["checklist", "2 · Yes / No checklist (10)"], ["qa", "3 · Questions & answers"]].map(([k, label]) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setMode(k)}
+            style={{
+              border: mode === k ? "1px solid #F5B41A" : "1px solid #CBD5E1",
+              background: mode === k ? "#FFF6E0" : "#fff",
+              color: "#0F172A", borderRadius: 999, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+            }}
+          >{label}</button>
+        ))}
+      </div>
+      {mode === "sliders" && (
+        <>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
         <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.05em" }}>SCORING CRITERIA</div>
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -1190,6 +1241,81 @@ function ScorecardModal({ app, setup, onClose, act, busy }) {
           <strong style={{ width: 26, textAlign: "right" }}>{scores[c] ?? 5}</strong>
         </div>
       ))}
+        </>
+      )}
+
+      {mode === "checklist" && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.05em", marginBottom: 6 }}>10 QUESTIONS · CHOOSE 1 (CORRECT) OR 0 (WRONG)</div>
+          {chkQs.map((q, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ width: 22, fontSize: 12, fontWeight: 800, color: "#64748B" }}>{i + 1}.</span>
+              <input
+                value={q}
+                maxLength={200}
+                placeholder={`Question ${i + 1} (type the question you asked)`}
+                onChange={(e) => setChkQs((l) => l.map((x, j) => (j === i ? e.target.value : x)))}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              {[1, 0].map((v) => (
+                <label key={v} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                  <input type="radio" name={`chk-${i}`} checked={chkAns[i] === v} onChange={() => setChkAns((l) => l.map((x, j) => (j === i ? v : x)))} />
+                  {v}
+                </label>
+              ))}
+            </div>
+          ))}
+          <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 800 }}>
+            {chkAns.map((v) => (v === null ? "·" : v)).join(" + ")} = {chkTotal} / 10 {chkAnswered < 10 && <span style={{ color: "#B45309", fontWeight: 600 }}>({10 - chkAnswered} left to answer)</span>}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <Btn small kind="navy" type="button" disabled={busy || chkQs.every((x) => !x.trim())} onClick={saveChecklistDefault}>Save questions as my default</Btn>
+          </div>
+        </div>
+      )}
+
+      {mode === "qa" && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: "#64748B", letterSpacing: "0.05em", marginBottom: 6 }}>INTERVIEW QUESTIONS &amp; EXPECTED ANSWERS · ADD MORE ANY TIME DURING THE ROUND</div>
+          {qaItems.length === 0 && <div style={{ fontSize: 12, color: "#64748B", marginBottom: 8 }}>No questions yet. Add the questions (and the expected answers) below, then conduct the round and score each answer.</div>}
+          {qaItems.map((x, i) => (
+            <div key={i} style={{ border: "1px solid #E2E8F0", borderRadius: 8, padding: 10, marginBottom: 8, background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 800 }}>{i + 1}. {x.q}</div>
+                <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                  {x.a && <Btn small kind="ghost" type="button" onClick={() => setShowAnswers((m) => ({ ...m, [i]: !m[i] }))}>{showAnswers[i] ? "Hide answer" : "Show answer"}</Btn>}
+                  <Btn small kind="ghost" type="button" onClick={() => setQaItems((l) => l.filter((_, j) => j !== i))}>Remove</Btn>
+                </div>
+              </div>
+              {x.a && showAnswers[i] && (
+                <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", color: "#166534", borderRadius: 6, padding: "6px 8px", fontSize: 12, margin: "6px 0", whiteSpace: "pre-wrap" }}>
+                  <strong>Expected answer:</strong> {x.a}
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}>
+                <input
+                  value={x.note}
+                  maxLength={600}
+                  placeholder="What the candidate answered (optional)"
+                  onChange={(e) => setQaItems((l) => l.map((y, j) => (j === i ? { ...y, note: e.target.value } : y)))}
+                  style={{ ...inputStyle, flex: 1 }}
+                />
+                <input type="range" min="0" max="10" value={x.score ?? 5} onChange={(e) => setQaItems((l) => l.map((y, j) => (j === i ? { ...y, score: Number(e.target.value) } : y)))} style={{ width: 120 }} />
+                <strong style={{ width: 24, textAlign: "right" }}>{x.score ?? 5}</strong>
+              </div>
+            </div>
+          ))}
+          <div style={{ background: "#F8FAFC", border: "1px dashed #CBD5E1", borderRadius: 8, padding: 10 }}>
+            <input value={newQ} maxLength={300} onChange={(e) => setNewQ(e.target.value)} placeholder="Add a question" style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+            <textarea value={newA} maxLength={1000} onChange={(e) => setNewA(e.target.value)} rows={2} placeholder="Expected answer (only the interviewer sees this)" style={{ ...inputStyle, width: "100%", marginBottom: 6 }} />
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Btn small kind="gold" type="button" disabled={!newQ.trim() || qaItems.length >= 30} onClick={addQa}>+ Add question</Btn>
+              <Btn small kind="navy" type="button" disabled={busy || qaItems.length === 0} onClick={saveQaDefault}>Save question bank as my default</Btn>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Field label="NOTES">
         <textarea
           value={notes}
@@ -1200,7 +1326,7 @@ function ScorecardModal({ app, setup, onClose, act, busy }) {
         />
       </Field>
       <div style={{ margin: "10px 0" }}>
-        <Btn kind="navy" disabled={busy || !effectiveMember || !canScore} onClick={save}>
+        <Btn kind="navy" disabled={busy || !effectiveMember || !canScore || !scoreReady} onClick={save}>
           Save my score {effectiveMember ? `as ${effectiveMember}` : ""}
         </Btn>
       </div>

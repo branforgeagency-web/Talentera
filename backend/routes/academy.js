@@ -3411,7 +3411,12 @@ router.put("/students/:id/grant-retake", requireAcademyAuth, async (req, res) =>
     });
 
     // Re-unlock Stage 4 on the candidate record (mirrors the Staff Hub approval reset).
-    candidate.stage4 = null;
+    if (candidate.stage4) {
+      candidate.stage4.isRetakeApproved = true;
+      candidate.stage4.unlockedForRetake = true;
+      candidate.stage4.isAutoSubmitted = false;
+      candidate.stage4.autoSubmitReason = null;
+    }
     candidate.completedStages = (candidate.completedStages || []).filter((n) => n !== 4);
     candidate.markModified("stage4");
     candidate.markModified("completedStages");

@@ -1962,14 +1962,57 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
             </div>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
-              Your Stage 05 information
-            </h2>
-            <div style={{ color: "var(--gold-deep)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>
-              GET STUDIO-READY · RECORD · YOU EARN +15 POINTS
+          <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+            <div>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--navy)", margin: 0 }}>
+                Your Stage 05 information
+              </h2>
+              <div style={{ color: "var(--gold-deep)", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", marginTop: 6 }}>
+                GET STUDIO-READY · RECORD · YOU EARN +15 POINTS
+              </div>
             </div>
+            {!isCompleted && (
+              <button
+                type="button"
+                onClick={handleSkipStage5}
+                disabled={isSkippingStage5 || isSubmittingStage5}
+                style={{
+                  background: "#F0FDF4",
+                  color: "#15803D",
+                  padding: "8px 16px",
+                  borderRadius: 10,
+                  fontSize: 12.5,
+                  fontWeight: 800,
+                  border: "1.5px solid #86EFAC",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+                title="Skip Stage 05 for now to prepare. You can return and record anytime."
+              >
+                <i className="fa-solid fa-forward" />
+                {isSkippingStage5 ? "Skipping..." : "Skip for now & prepare →"}
+              </button>
+            )}
           </div>
+
+          {/* STAGE SKIPPED NOTIFICATION BANNER (when returning to prepare & complete) */}
+          {stage5?.skipped && !isCompleted && (
+            <div style={{ background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <i className="fa-solid fa-clock-rotate-left" style={{ color: "#D97706", fontSize: 20, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#92400E", marginBottom: 3 }}>
+                    Stage 05 Skipped for Now · Ready to Record Your Video Pitch?
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#B45309", lineHeight: 1.5 }}>
+                    You previously skipped this stage to prepare. Complete your self-introduction {skipMock ? "" : "and AI technical mock interview"} below whenever you are ready to earn your +15 verification points.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ═══════ SECTION 1 · PRE-RECORDING CHECKS ═══════ */}
           <div id="stage5-checks" style={{ background: "#FAFAF7", padding: "22px 24px", borderRadius: 14, marginBottom: 16, border: "1px solid #E5E7EB" }}>
@@ -3011,9 +3054,13 @@ export default function Stage5VideoPitch({ stage, existingData, candidate, onSav
                         fontWeight: 800,
                         border: "1.5px solid #86EFAC",
                         cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 7,
                       }}
                     >
-                      {isSkippingStage5 ? "Skipping…" : "Skip Stage 05 →"}
+                      <i className="fa-solid fa-forward" />
+                      {isSkippingStage5 ? "Skipping..." : "Skip for now & prepare (Complete later) →"}
                     </button>
                     <button
                       type="button"

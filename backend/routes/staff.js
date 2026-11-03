@@ -3171,7 +3171,13 @@ router.put("/retake-requests/:id/approve", requireStaffAuth, async (req, res) =>
       candidate.markModified("completedStages");
       await candidate.save();
     } else {
-      candidate.stage4 = null;
+      if (candidate.stage4) {
+        candidate.stage4.isRetakeApproved = true;
+        candidate.stage4.unlockedForRetake = true;
+        candidate.stage4.isAutoSubmitted = false;
+        candidate.stage4.autoSubmitReason = null;
+        candidate.stage4.submissionReason = null;
+      }
       candidate.completedStages = (candidate.completedStages || []).filter((s) => s !== 4);
       candidate.markModified("stage4");
       candidate.markModified("completedStages");

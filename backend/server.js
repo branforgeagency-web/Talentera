@@ -17,6 +17,8 @@ const otpRoutes = require("./routes/otp");
 const aadhaarRoutes = require("./routes/aadhaar");
 const vapiInterviewRoutes = require("./routes/vapiInterview");
 const collegeRoutes = require("./routes/college");
+const { initMembershipRenewalScheduler } = require("./utils/membershipRenewalReminder");
+const { initCandidateEngagementScheduler } = require("./utils/candidateEngagement");
 
 const app = express();
 
@@ -144,4 +146,9 @@ app.listen(PORT, () => {
   } else {
     logger.warn(`[GCP STORAGE] Not configured. Video uploads will use local disk storage.`);
   }
+
+  // Initialize daily recurring AAPC membership 1-month renewal reminder service
+  initMembershipRenewalScheduler();
+  // Twice-weekly job / company / training / reminder updates by Email + WhatsApp
+  initCandidateEngagementScheduler();
 });

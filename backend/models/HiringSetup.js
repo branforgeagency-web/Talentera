@@ -25,6 +25,9 @@ const HiringSetupSchema = new mongoose.Schema(
     examCutoffPct: { type: Number, default: 65 },
     technicalCutoffPct: { type: Number, default: 60 },
     scorecardCriteria: { type: [String], default: () => ["Technical knowledge", "Coding accuracy", "Problem solving", "Communication"] },
+    // Scorecard modes: 1) drag sliders (scorecardCriteria)  2) 10 yes/no checklist  3) interviewer Q&A bank
+    checklistQuestions: { type: [String], default: () => [] },
+    qaQuestions: { type: [{ _id: false, q: { type: String, default: "" }, a: { type: String, default: "" } }], default: () => [] },
     integrationKey: { type: String, default: "" },
     officeAddress: { type: String, default: "" },
     // Interview scheduling defaults (used when a round is allocated without its own values)

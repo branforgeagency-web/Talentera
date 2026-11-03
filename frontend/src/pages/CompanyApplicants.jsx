@@ -764,12 +764,71 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
               <Row label="Scorecard" value="Upgrade to Growth Tier to unlock" />
             </Section>
           ) : (assessment.score !== undefined || assessment.foundationScore !== undefined) ? (
-            <Section title="Assessment Score">
+            <Section title="Assessment Score &amp; Retake History">
               <Row label="Topic / Domain" value={assessment.domain || assessment.topic || "RCM & Coding"} />
-              <Row label="Proctored Score" value={`${assessment.foundationScore ?? assessment.score}%`} />
+              <Row label="Proctored Score (Best)" value={`${assessment.foundationScore ?? assessment.score}%`} />
+              <Row
+                label="Attempts &amp; Retakes"
+                value={`${(assessment.attempts?.length || assessment.totalAttempts || 1)} attempt${(assessment.attempts?.length || assessment.totalAttempts || 1) === 1 ? "" : "s"} (${assessment.retakeCount ?? Math.max(0, (assessment.attempts?.length || 1) - 1)} retake${(assessment.retakeCount ?? Math.max(0, (assessment.attempts?.length || 1) - 1)) === 1 ? "" : "s"} taken)`}
+              />
               <Row label="Medal Tier" value={assessment.medal && !String(assessment.medal).toLowerCase().includes("practice") ? `${assessment.medal === "Gold" ? "🥇 Gold" : assessment.medal === "Silver" ? "🥈 Silver" : assessment.medal === "Bronze" ? "🥉 Bronze" : assessment.medal} (${assessment.medal})` : (assessment.foundationScore >= 85 ? "🥇 Gold" : assessment.foundationScore >= 70 ? "🥈 Silver" : assessment.foundationScore >= 50 ? "🥉 Bronze" : `Assessment (${assessment.foundationScore ?? assessment.score ?? 0}%)`)} />
               <Row label="Percentile" value={assessment.percentile ? `Top ${100 - assessment.percentile}% (${assessment.percentile}th percentile)` : "68th percentile"} />
               <Row label="Passed / Verified" value={(assessment.passed ?? (assessment.foundationScore >= 70)) ? "Yes ✓" : "No"} />
+
+              {/* Recorded Attempts & Retakes History */}
+              {Array.isArray(assessment.attempts) && assessment.attempts.length > 0 && (
+                <div style={{ marginTop: 12, background: "#F1F5F9", padding: "10px 12px", borderRadius: 8, border: "1px solid #E2E8F0" }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "var(--navy)", marginBottom: 6, display: "flex", justifyContent: "space-between" }}>
+                    <span>Attempt &amp; Retake Audit Log:</span>
+                    <span style={{ color: "#15803D" }}>Best Score Wins</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {assessment.attempts.map((att, aIdx) => {
+                      const isBest = Number(att.score) === Math.max(...assessment.attempts.map((a) => Number(a.score) || 0));
+                      return (
+                        <div
+                          key={aIdx}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            background: isBest ? "#FFFFFF" : "rgba(255,255,255,0.7)",
+                            border: isBest ? "1.5px solid #86EFAC" : "1px solid #E2E8F0",
+                            padding: "6px 10px",
+                            borderRadius: 6,
+                            fontSize: 11.5,
+                          }}
+                        >
+                          <div>
+                            <span style={{ fontWeight: 800, color: "var(--navy)" }}>
+                              Attempt {att.attemptNumber || aIdx + 1}
+                            </span>
+                            <span style={{ color: "#64748B", marginLeft: 6 }}>
+                              ({att.type || (aIdx === 0 ? "Initial" : `Retake #${aIdx}`)})
+                            </span>
+                            {att.completedAt && (
+                              <span style={{ color: "#94A3B8", marginLeft: 6 }}>
+                                · {new Date(att.completedAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {isBest && (
+                              <span style={{ background: "#DCFCE7", color: "#15803D", fontSize: 10, fontWeight: 800, padding: "1px 6px", borderRadius: 8 }}>
+                                Best ✓
+                              </span>
+                            )}
+                            <b style={{ color: att.score >= 70 ? "#15803D" : "#B45309" }}>
+                              {att.score}% ({att.medal || "Score"})
+                            </b>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {Array.isArray(assessment.sectionScores) && assessment.sectionScores.length > 0 && (
                 <div style={{ marginTop: 10, background: "#F8FAFC", padding: 10, borderRadius: 8 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>
@@ -838,6 +897,7 @@ function ApplicantDetailModal({ application, canViewScoresAndCerts = true, updat
             <>
           <Section title="Basic info">
             <Row label="City" value={basic.city} />
+            <Row label="Willing to work in (priority order)" value={Array.isArray(basic.preferredCities) && basic.preferredCities.filter(Boolean).length ? basic.preferredCities.filter(Boolean).map((c, i) => `${i + 1}. ${c}`).join("  ·  ") : ""} />
             <Row label="Experience" value={basic.experience} />
             <Row label="Current role" value={basic.currentRole} />
             <Row label="Aadhaar verified" value={basic.aadhaarVerified ? "Yes ✓" : "Not verified"} />

@@ -438,6 +438,15 @@ companyRouter.put("/setup", async (req, res) => {
       if (list.length) setup.scorecardCriteria = list;
     }
     if (officeAddress !== undefined) setup.officeAddress = String(officeAddress).slice(0, 300);
+    if (Array.isArray(req.body.checklistQuestions)) {
+      setup.checklistQuestions = req.body.checklistQuestions.map((x) => String(x || "").trim().slice(0, 200)).slice(0, 10);
+    }
+    if (Array.isArray(req.body.qaQuestions)) {
+      setup.qaQuestions = req.body.qaQuestions
+        .map((x) => ({ q: String((x && x.q) || "").trim().slice(0, 300), a: String((x && x.a) || "").trim().slice(0, 1000) }))
+        .filter((x) => x.q)
+        .slice(0, 30);
+    }
     const b = req.body;
     if (b.interviewMode !== undefined) setup.interviewMode = b.interviewMode === "offline" ? "offline" : "virtual";
     if (b.interviewScheduledAt !== undefined) {
@@ -773,13 +782,18 @@ companyRouter.post("/applications/:id/technical-score", async (req, res) => {
     const attErr = technicalAttendanceError(app.hiring.technical);
     if (attErr) return res.status(400).json({ message: attErr });
     if (!member) return res.status(400).json({ message: "Choose or enter the panel member who is scoring." });
-    const entries = Object.entries(req.body.scores || {}).map(([k, v]) => [k, Number(v)]);
+    // Mongo field names can't contain "." or start with "$" - question text is used as the key in checklist / Q&A modes
+    const entries = Object.entries(req.body.scores || {}).map(([k, v]) => [String(k).replace(/\./g, "·").replace(/^\$/, "＄").slice(0, 120), Number(v)]);
     if (!entries.length || entries.some(([, v]) => !Number.isFinite(v) || v < 0 || v > 10)) return res.status(400).json({ message: "Score every criterion from 0 to 10." });
     const total = entries.reduce((s, [, v]) => s + v, 0);
     const pctScore = Math.round((total / (entries.length * 10)) * 100);
     const t = app.hiring.technical;
     t.scores = (t.scores || []).filter((s) => s.member !== member);
-    t.scores.push({ member, criteria: Object.fromEntries(entries), pct: pctScore, notes: String(req.body.notes || "").slice(0, 600), at: new Date().toISOString() });
+    const mode = ["sliders", "checklist", "qa"].includes(req.body.mode) ? req.body.mode : "sliders";
+    const qa = mode === "qa" && Array.isArray(req.body.qa)
+      ? req.body.qa.slice(0, 30).map((x) => ({ q: String((x && x.q) || "").slice(0, 300), a: String((x && x.a) || "").slice(0, 1000), note: String((x && x.note) || "").slice(0, 600), score: Number.isFinite(Number(x && x.score)) ? Number(x.score) : null }))
+      : undefined;
+    t.scores.push({ member, mode, criteria: Object.fromEntries(entries), ...(qa ? { qa } : {}), pct: pctScore, notes: String(req.body.notes || "").slice(0, 600), at: new Date().toISOString() });
     t.avgScore = Math.round(t.scores.reduce((s, x) => s + x.pct, 0) / t.scores.length);
     t.status = "in_progress";
 

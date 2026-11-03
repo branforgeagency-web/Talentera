@@ -454,6 +454,25 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
   const [endYear, setEndYear] = useState(
     existingData.endYear || (rawEnd.includes("/") ? rawEnd.split("/")[1] : rawEnd)
   );
+  // Path C (Pursuing): once the candidate enters a course end date that is today or earlier,
+  // the course is complete and they move to Path A (Academy-Verified).
+  const courseEndPassed = (() => {
+    const y = Number(endYear);
+    if (!y) return false;
+    const now = new Date();
+    const m = Number(endMonth);
+    if (y < now.getFullYear()) return true;
+    if (y > now.getFullYear()) return false;
+    return m ? m <= now.getMonth() + 1 : false;
+  })();
+  const pursuingCompleted = trainingPath === "pursuing" && courseEndPassed;
+  useEffect(() => {
+    if (pursuingCompleted) {
+      setTrainingPath("academy");
+      toast("Course completed - you are now on Path A · Academy.", "✓");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pursuingCompleted]);
   const [totalHours, setTotalHours] = useState(existingData.totalHours || existingData.duration || "");
   const [modeOfTraining, setModeOfTraining] = useState(existingData.modeOfTraining || "");
   const [certificateId, setCertificateId] = useState(existingData.certificateId || "");
@@ -681,7 +700,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
       certDocUrl: isFresherCandidate ? "" : expCertDocUrl,
       courseName: domain ? `${domain} - ${specialties.join(", ") || resolvedLevel}` : (specialties.join(", ") || resolvedLevel),
       course: domain,
-      trainingPath,
+      trainingPath: pursuingCompleted ? "academy" : trainingPath,
       isNonTrained,
       isSelfTrained: trainingPath === "self" || isNonTrained,
       academyName: isNonTrained ? "Non-Trained / Direct Entry" : academyName.trim(),
@@ -800,7 +819,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
     try {
       const payload = buildPayload(false);
       const res = await api.put("/candidate/stage/2", payload);
-      toast("Stage 02 · Foundation saved successfully! (+15 pts)", "✓");
+      toast(`Stage 02 · Foundation saved successfully! (+${isFresherCandidate ? 15 : 25} pts)`, "✓");
       if (onSaved) onSaved(res.data, { advance: true, nextStage: 3 });
     } catch (err) {
       console.error(err);
@@ -2536,7 +2555,10 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
                     </div>
                   </div>
                   <div className="s2-field">
-                    <label>End Month & Year <span className="req">*</span></label>
+                    <label>
+                      {trainingPath === "pursuing" ? "Expected / Course End Month & Year" : "End Month & Year"}{" "}
+                      {trainingPath === "pursuing" ? <span className="helper" style={{ fontWeight: 500 }}>(optional - update when your course ends)</span> : <span className="req">*</span>}
+                    </label>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                       <select
                         value={endMonth}
@@ -2679,7 +2701,7 @@ export default function Stage2Training({ stage, existingData = {}, candidate = {
             <div className="s2-section-header">
               <div className="s2-section-num">2</div>
               <div className="s2-section-title">Your Work Experience</div>
-              <div className="s2-status-chip pending">PENDING · +8</div>
+              <div className="s2-status-chip pending">UP TO 25 PTS</div>
             </div>
 
             <div className="s2-row">

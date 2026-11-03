@@ -469,18 +469,34 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
             </p>
           </div>
 
-          {/* OPTIONAL / SKIP BANNER (everyone can skip Stage 06) */}
-          {(
+          {/* STAGE SKIPPED NOTIFICATION BANNER (when returning to prepare & complete) */}
+          {s6?.skipped && !s6?.totalCharts && (
+            <div style={{ background: "#FEF3C7", border: "1.5px solid #F59E0B", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                <i className="fa-solid fa-clock-rotate-left" style={{ color: "#D97706", fontSize: 20, marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: "#92400E", marginBottom: 3 }}>
+                    Stage 06 Skipped for Now · Ready to Add Your Live Charts?
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "#B45309", lineHeight: 1.5 }}>
+                    You previously skipped this stage to prepare. Log your live chart audits or upload production proof documents below whenever you are ready to earn verification points.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
+          {/* OPTIONAL / SKIP BANNER (everyone can skip Stage 06 to prepare) */}
+          {(
             <div style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 <i className="fa-solid fa-circle-info" style={{ color: "#16A34A", fontSize: 18, marginTop: 2 }} />
                 <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is optional for your role — bonus points only" : "Stage 06 is optional — you can skip it"}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: "#14532D", marginBottom: 3 }}>{isExemptDomain ? "Stage 06 is optional for your role — bonus points only" : "Stage 06 — Skip for now & prepare anytime"}</div>
                   <div style={{ fontSize: 12.5, color: "#166534", lineHeight: 1.5 }}>
                     {isExemptDomain
                       ? `Live chart coding isn't required for ${candidate?.stage2?.domain || "your"} roles. You can skip Stage 06 and go straight to Stage 07 · Resume — it won't lower your score. If you do have live chart exposure, add it here to earn bonus points.`
-                      : "You can fill in your chart data if you have it — this will boost your profile score. Or you can skip Stage 06 with zero penalty and proceed directly to Stage 07 · Resume. You can always return and update this later."}
+                      : "You can fill in your chart data if you have it — this will boost your profile score. Or you can skip Stage 06 with zero penalty and proceed directly to Stage 07 · Resume. You can always return and complete this stage later."}
                   </div>
                 </div>
               </div>
@@ -489,9 +505,10 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                 onClick={handleSkipStage6}
                 disabled={skipping}
                 style={{ background: "#16A34A", color: "#FFFFFF", border: "none", borderRadius: 10, padding: "10px 20px", fontSize: 13, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 8 }}
+                title="Skip Stage 06 for now to prepare. You can return and log charts anytime."
               >
                 <i className="fa-solid fa-forward" />
-                {skipping ? "Skipping…" : "Skip Stage 06 (Optional) →"}
+                {skipping ? "Skipping..." : "Skip for now & prepare →"}
               </button>
             </div>
           )}
@@ -955,7 +972,7 @@ export default function Stage6LiveCharts({ existingData, candidate, onSaved, onP
                   {(
                     <button type="button" onClick={handleSkipStage6} disabled={skipping} style={{ background: "#F0FDF4", border: "1.5px solid #86EFAC", borderRadius: 10, padding: "12px 22px", fontSize: 13.5, fontWeight: 800, color: "#15803D", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 7 }}>
                       <i className="fa-solid fa-forward" />
-                      {skipping ? "Skipping…" : "Skip Stage 06 (Optional) →"}
+                      {skipping ? "Skipping..." : "Skip for now & prepare (Complete later) →"}
                     </button>
                   )}
                 </div>

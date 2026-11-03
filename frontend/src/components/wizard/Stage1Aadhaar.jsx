@@ -1065,6 +1065,16 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
     setPreferredCities(preferredCities.filter((c) => c !== cityToRemove));
   };
 
+  // Priority order: index 0 = 1st priority city
+  const moveCity = (idx, dir) => {
+    const next = [...preferredCities];
+    const j = idx + dir;
+    if (j < 0 || j >= next.length) return;
+    [next[idx], next[j]] = [next[j], next[idx]];
+    setPreferredCities(next);
+  };
+  const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th"];
+
   const handleAddCity = (cityToAdd) => {
     if (!cityToAdd) {
       toast("Please pick a city from the list first.", "!");
@@ -3280,15 +3290,35 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
               <label>
                 Willing to Work In <span className="req">*</span>{" "}
                 <span className="helper" style={{ fontWeight: 500, fontStyle: "normal" }}>
-                  (pick up to 5 cities)
+                  (pick up to 5 cities, in order of priority)
                 </span>
               </label>
+              {preferredCities.filter(Boolean).length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "6px 0 8px" }}>
+                  {preferredCities.filter(Boolean).map((city, idx, arr) => (
+                    <div
+                      key={city}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 8, padding: "6px 10px",
+                        border: "1px solid var(--border, #e2e8f0)", borderRadius: 8, background: "var(--bg-soft, #f8fafc)",
+                        maxWidth: 360,
+                      }}
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 700, minWidth: 82, color: idx === 0 ? "#047857" : "#475569" }}>
+                        {ORDINALS[idx]} priority
+                      </span>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{city}</span>
+                      <button type="button" aria-label={`Move ${city} up`} disabled={idx === 0} onClick={() => moveCity(idx, -1)}
+                        style={{ border: "none", background: "transparent", cursor: idx === 0 ? "default" : "pointer", opacity: idx === 0 ? 0.3 : 1, fontSize: 14 }}>↑</button>
+                      <button type="button" aria-label={`Move ${city} down`} disabled={idx === arr.length - 1} onClick={() => moveCity(idx, 1)}
+                        style={{ border: "none", background: "transparent", cursor: idx === arr.length - 1 ? "default" : "pointer", opacity: idx === arr.length - 1 ? 0.3 : 1, fontSize: 14 }}>↓</button>
+                      <button type="button" aria-label={`Remove ${city}`} onClick={() => handleRemoveCity(city)}
+                        style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 16, color: "#dc2626" }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="tag-picker">
-                {preferredCities.filter(Boolean).map((city) => (
-                  <span key={city} className="tag">
-                    {city} <span className="x" onClick={() => handleRemoveCity(city)}>×</span>
-                  </span>
-                ))}
                 {preferredCities.length < 5 && (
                   <span
                     className="tag-add"
@@ -3448,7 +3478,6 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   <option>PG · Postgraduate</option>
                   <option>Diploma</option>
                   <option>12th</option>
-                  <option>10th</option>
                 </select>
               </div>
               <div className={`field ${formErrors.degree ? "has-error" : ""}`}>
@@ -3485,6 +3514,17 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 <label>
                   University / College <span className="req">*</span>
                 </label>
+                {stream === "Other" ? (
+                  <input
+                    type="text"
+                    value={collegeName}
+                    placeholder="Type your college / university name"
+                    onChange={(e) => {
+                      setCollegeName(e.target.value);
+                      if (formErrors.collegeName) setFormErrors((prev) => ({ ...prev, collegeName: null }));
+                    }}
+                  />
+                ) : (
                 <CollegePicker
                   mode="college"
                   value={collegeName}
@@ -3498,6 +3538,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                     setCollegeState(r.state || "");
                   }}
                 />
+                )}
                 {formErrors.collegeName ? (
                   <div className="field-error-msg">
                     <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 5 }} />
@@ -3506,10 +3547,18 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                 ) : (
                   <div className="helper">
                     <i className="fa-solid fa-magnifying-glass" style={{ marginRight: 5, color: "#94A3B8" }} />
-                    Search from 53,000+ colleges across India. Not found? Type the full name directly.
+                    {stream === "Other" ? "Type the full name of your college / university." : "Search from 53,000+ colleges across India. Not found? Type the full name directly."}
                   </div>
                 )}
                 <label style={{ marginTop: 12 }}>College location <span style={{ fontWeight: 500, opacity: 0.7 }}>(district / city)</span></label>
+                {stream === "Other" ? (
+                  <input
+                    type="text"
+                    value={collegeLocation}
+                    placeholder="Type your college city / district"
+                    onChange={(e) => setCollegeLocation(e.target.value)}
+                  />
+                ) : (
                 <CollegePicker
                   mode="location"
                   value={collegeLocation}
@@ -3518,6 +3567,7 @@ export default function Stage1Aadhaar({ stage, existingData, candidate, onSaved 
                   onChange={setCollegeLocation}
                   onPick={(r) => setCollegeState(r.state || "")}
                 />
+                )}
               </div>
               <div className={`field ${formErrors.educationStatus ? "has-error" : ""}`}>
                 <label>
